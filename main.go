@@ -17,81 +17,45 @@ import (
 	"log"
 )
 
-type Main struct {
-	SuppressionRequests chan SuppressionRequest
-	InhibitQueries      chan *IsInhibitedRequest
-	Summaries           chan SuppressionSummaryRequest
-	AggregateEvents     chan *AggregateEventsRequest
-	EventSummary        chan EventSummary
-	Rules               chan *AggregatorResetRulesRequest
-}
-
-func (m *Main) close() {
-	close(m.SuppressionRequests)
-	close(m.InhibitQueries)
-	close(m.Summaries)
-	close(m.AggregateEvents)
-	close(m.EventSummary)
-	close(m.Rules)
-}
-
 func main() {
-	main := &Main{
-		SuppressionRequests: make(chan SuppressionRequest),
-		InhibitQueries:      make(chan *IsInhibitedRequest),
-		Summaries:           make(chan SuppressionSummaryRequest),
-		AggregateEvents:     make(chan *AggregateEventsRequest),
-		EventSummary:        make(chan EventSummary),
-		Rules:               make(chan *AggregatorResetRulesRequest),
-	}
-	defer main.close()
-
 	log.Print("Starting event suppressor...")
-	suppressor := &Suppressor{
-		Suppressions: new(Suppressions),
-	}
-	go suppressor.Dispatch(main.SuppressionRequests, main.InhibitQueries, main.Summaries)
+	suppressor := NewSuppressor()
+	defer suppressor.Close()
+	go suppressor.Dispatch()
 	log.Println("Done.")
 
 	log.Println("Starting event aggregator...")
 	aggregator := NewAggregator()
-	go aggregator.Dispatch(main.AggregateEvents, main.Rules, main.EventSummary)
+	defer aggregator.Close()
+
+	summarizer := new(SummaryDispatcher)
+	go aggregator.Dispatch(summarizer)
 	log.Println("Done.")
 
 	done := make(chan bool)
 	go func() {
-		ar := make(chan *AggregatorResetRulesResponse)
-		agg := &AggregatorResetRulesRequest{
-			Rules: AggregationRules{
-				NewAggregationRule(NewFilter("service", "discovery")),
+		rules := AggregationRules{
+			&AggregationRule{
+				Filters: Filters{NewFilter("service", "discovery")},
 			},
-			Response: ar,
 		}
 
-		main.Rules <- agg
-		log.Println("aggResult", <-ar)
+		aggregator.SetRules(rules)
 
-		r := make(chan *AggregateEventsResponse)
-		aer := &AggregateEventsRequest{
-			Events: Events{
-				&Event{
-					Payload: map[string]string{
-						"service": "discovery",
-					},
+		events := Events{
+			&Event{
+				Payload: map[string]string{
+					"service": "discovery",
 				},
 			},
-			Response: r,
 		}
 
-		main.AggregateEvents <- aer
-
-		log.Println("Response", r)
+		aggregator.Receive(events)
 
 		done <- true
 	}()
 	<-done
 
 	log.Println("Running summary dispatcher...")
-	summarizer := new(SummaryDispatcher)
-	summarizer.Dispatch(main.EventSummary, main.InhibitQueries)
+	summarizer.Dispatch(suppressor)
 }

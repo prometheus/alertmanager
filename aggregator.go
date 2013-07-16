@@ -14,9 +14,7 @@
 package main
 
 import (
-	"container/heap"
 	"log"
-	"sort"
 	"time"
 )
 
@@ -27,33 +25,17 @@ const (
 	aggEmitting
 )
 
+// AggregationRule creates and manages the scope for received events.
 type AggregationRule struct {
-	Filters *Filters
+	Filters Filters
 
-	// BUG(matt): Unsupported.
 	RepeatRate time.Duration
-
-	fingerprint uint64
-}
-
-func NewAggregationRule(filters ...*Filter) *AggregationRule {
-	f := new(Filters)
-	heap.Init(f)
-	for _, filter := range filters {
-		heap.Push(f, filter)
-	}
-
-	return &AggregationRule{
-		Filters:     f,
-		fingerprint: f.fingerprint(),
-	}
 }
 
 type AggregationInstance struct {
 	Rule   *AggregationRule
 	Events Events
 
-	// BUG(matt): Unsupported.
 	EndsAt time.Time
 
 	state aggregationState
@@ -91,7 +73,7 @@ func (r *AggregationInstance) Tidy() {
 	r.Events = events
 }
 
-func (r *AggregationInstance) Summarize(s chan<- EventSummary) {
+func (r *AggregationInstance) Summarize(s SummaryReceiver) {
 	if r.state != aggIdle {
 		return
 	}
@@ -101,48 +83,53 @@ func (r *AggregationInstance) Summarize(s chan<- EventSummary) {
 
 	r.state = aggEmitting
 
-	s <- EventSummary{
+	s.Receive(&EventSummary{
 		Rule:   r.Rule,
 		Events: r.Events,
-	}
+	})
+
 }
 
 type AggregationRules []*AggregationRule
 
-func (r AggregationRules) Len() int {
-	return len(r)
-}
-
-func (r AggregationRules) Less(i, j int) bool {
-	return r[i].fingerprint < r[j].fingerprint
-}
-
-func (r AggregationRules) Swap(i, j int) {
-	r[i], r[j] = r[i], r[j]
-}
-
 type Aggregator struct {
 	Rules      AggregationRules
 	Aggregates map[uint64]*AggregationInstance
+
+	aggRequests   chan *aggregateEventsRequest
+	rulesRequests chan *aggregatorResetRulesRequest
+	closed        chan bool
 }
 
 func NewAggregator() *Aggregator {
 	return &Aggregator{
 		Aggregates: make(map[uint64]*AggregationInstance),
+
+		aggRequests:   make(chan *aggregateEventsRequest),
+		rulesRequests: make(chan *aggregatorResetRulesRequest),
+		closed:        make(chan bool),
 	}
 }
 
-type AggregateEventsResponse struct {
+func (a *Aggregator) Close() {
+	close(a.rulesRequests)
+	close(a.aggRequests)
+
+	<-a.closed
+	close(a.closed)
+}
+
+type aggregateEventsResponse struct {
 	Err error
 }
 
-type AggregateEventsRequest struct {
+type aggregateEventsRequest struct {
 	Events Events
 
-	Response chan *AggregateEventsResponse
+	Response chan *aggregateEventsResponse
 }
 
-func (a *Aggregator) aggregate(r *AggregateEventsRequest, s chan<- EventSummary) {
+func (a *Aggregator) aggregate(r *aggregateEventsRequest, s SummaryReceiver) {
 	log.Println("aggregating", *r)
 	for _, element := range r.Events {
 		fp := element.Fingerprint()
@@ -165,47 +152,70 @@ func (a *Aggregator) aggregate(r *AggregateEventsRequest, s chan<- EventSummary)
 		}
 	}
 
-	r.Response <- new(AggregateEventsResponse)
+	r.Response <- new(aggregateEventsResponse)
+	close(r.Response)
 }
 
-type AggregatorResetRulesResponse struct {
-	Err error
-}
-type AggregatorResetRulesRequest struct {
+type aggregatorResetRulesResponse struct{}
+
+type aggregatorResetRulesRequest struct {
 	Rules AggregationRules
 
-	Response chan *AggregatorResetRulesResponse
+	Response chan *aggregatorResetRulesResponse
 }
 
-func (a *Aggregator) replaceRules(r *AggregatorResetRulesRequest) {
-	newRules := AggregationRules{}
-	for _, rule := range r.Rules {
-		newRules = append(newRules, rule)
-	}
-
-	sort.Sort(newRules)
-
+func (a *Aggregator) replaceRules(r *aggregatorResetRulesRequest) {
+	log.Println("Replacing", len(r.Rules), "aggregator rules...")
+	newRules := make(AggregationRules, len(r.Rules))
+	copy(newRules, r.Rules)
 	a.Rules = newRules
 
-	r.Response <- new(AggregatorResetRulesResponse)
+	r.Response <- new(aggregatorResetRulesResponse)
+	close(r.Response)
 }
 
-func (a *Aggregator) Dispatch(reqs <-chan *AggregateEventsRequest, rules <-chan *AggregatorResetRulesRequest, s chan<- EventSummary) {
+func (a *Aggregator) Receive(e Events) error {
+	req := &aggregateEventsRequest{
+		Events:   e,
+		Response: make(chan *aggregateEventsResponse),
+	}
+
+	a.aggRequests <- req
+
+	result := <-req.Response
+
+	return result.Err
+}
+
+func (a *Aggregator) SetRules(r AggregationRules) error {
+	req := &aggregatorResetRulesRequest{
+		Rules:    r,
+		Response: make(chan *aggregatorResetRulesResponse),
+	}
+
+	a.rulesRequests <- req
+
+	_ = <-req.Response
+
+	return nil
+}
+
+func (a *Aggregator) Dispatch(s SummaryReceiver) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	closed := 0
 
-	for closed < 1 {
+	for closed < 2 {
 		select {
-		case req, open := <-reqs:
+		case req, open := <-a.aggRequests:
 			a.aggregate(req, s)
 
 			if !open {
 				closed++
 			}
 
-		case rules, open := <-rules:
+		case rules, open := <-a.rulesRequests:
 			a.replaceRules(rules)
 
 			if !open {
@@ -218,4 +228,6 @@ func (a *Aggregator) Dispatch(reqs <-chan *AggregateEventsRequest, rules <-chan 
 			}
 		}
 	}
+
+	a.closed <- true
 }

@@ -33,51 +33,64 @@ type Suppression struct {
 	CreatedAt time.Time
 }
 
-type SuppressionRequest struct {
+type suppressionRequest struct {
 	Suppression Suppression
 
-	Response chan SuppressionResponse
+	Response chan *suppressionResponse
 }
 
-type SuppressionResponse struct {
+type suppressionResponse struct {
 	Err error
 }
 
-type IsInhibitedRequest struct {
-	Event Event
+type isInhibitedRequest struct {
+	Event *Event
 
-	Response chan IsInhibitedResponse
+	Response chan *isInhibitedResponse
 }
 
-type IsInhibitedResponse struct {
+type isInhibitedResponse struct {
 	Err error
 
 	Inhibited             bool
 	InhibitingSuppression *Suppression
 }
 
-type SuppressionSummaryResponse struct {
+type suppressionSummaryResponse struct {
 	Err error
 
 	Suppressions Suppressions
 }
 
-type SuppressionSummaryRequest struct {
+type suppressionSummaryRequest struct {
 	MatchCandidates map[string]string
 
-	Response chan<- SuppressionSummaryResponse
+	Response chan *suppressionSummaryResponse
 }
 
 type Suppressor struct {
 	Suppressions *Suppressions
+
+	suppressionReqs        chan *suppressionRequest
+	suppressionSummaryReqs chan *suppressionSummaryRequest
+	isInhibitedReqs        chan *isInhibitedRequest
+}
+
+type IsInhibitedInterrogator interface {
+	IsInhibited(*Event) bool
 }
 
 func NewSuppressor() *Suppressor {
 	suppressions := new(Suppressions)
+
 	heap.Init(suppressions)
 
 	return &Suppressor{
 		Suppressions: suppressions,
+
+		suppressionReqs:        make(chan *suppressionRequest),
+		suppressionSummaryReqs: make(chan *suppressionSummaryRequest),
+		isInhibitedReqs:        make(chan *isInhibitedRequest),
 	}
 }
 
@@ -107,11 +120,12 @@ func (s *Suppressions) Pop() interface{} {
 	return item
 }
 
-func (s *Suppressor) dispatchSuppression(r SuppressionRequest) {
+func (s *Suppressor) dispatchSuppression(r *suppressionRequest) {
 	log.Println("dispatching suppression", r)
 
 	heap.Push(s.Suppressions, r.Suppression)
-	r.Response <- SuppressionResponse{}
+	r.Response <- &suppressionResponse{}
+	close(r.Response)
 }
 
 func (s *Suppressor) reapSuppressions(t time.Time) {
@@ -127,22 +141,36 @@ func (s *Suppressor) reapSuppressions(t time.Time) {
 	heap.Init(s.Suppressions)
 }
 
-func (s *Suppressor) generateSummary(r SuppressionSummaryRequest) {
+func (s *Suppressor) generateSummary(r *suppressionSummaryRequest) {
 	log.Println("Generating summary", r)
-	response := SuppressionSummaryResponse{}
+	response := new(suppressionSummaryResponse)
 
 	for _, suppression := range *s.Suppressions {
 		response.Suppressions = append(response.Suppressions, suppression)
 	}
 
 	r.Response <- response
+	close(r.Response)
 }
 
-func (s *Suppressor) queryInhibit(q *IsInhibitedRequest) {
-	response := IsInhibitedResponse{}
+func (s *Suppressor) IsInhibited(e *Event) bool {
+	req := &isInhibitedRequest{
+		Event:    e,
+		Response: make(chan *isInhibitedResponse),
+	}
+
+	s.isInhibitedReqs <- req
+
+	resp := <-req.Response
+
+	return resp.Inhibited
+}
+
+func (s *Suppressor) queryInhibit(q *isInhibitedRequest) {
+	response := new(isInhibitedResponse)
 
 	for _, s := range *s.Suppressions {
-		if s.Filters.Handle(&q.Event) {
+		if s.Filters.Handle(q.Event) {
 			response.Inhibited = true
 			response.InhibitingSuppression = &s
 
@@ -151,9 +179,18 @@ func (s *Suppressor) queryInhibit(q *IsInhibitedRequest) {
 	}
 
 	q.Response <- response
+	close(q.Response)
 }
 
-func (s *Suppressor) Dispatch(suppressions <-chan SuppressionRequest, inhibitQuery <-chan *IsInhibitedRequest, summaries <-chan SuppressionSummaryRequest) {
+func (s *Suppressor) Close() {
+	close(s.suppressionReqs)
+	close(s.suppressionSummaryReqs)
+	close(s.isInhibitedReqs)
+}
+
+func (s *Suppressor) Dispatch() {
+	// BUG: Accomplish this more intelligently by creating a timer for the least-
+	//      likely-to-tenure item.
 	reaper := time.NewTicker(30 * time.Second)
 	defer reaper.Stop()
 
@@ -161,21 +198,21 @@ func (s *Suppressor) Dispatch(suppressions <-chan SuppressionRequest, inhibitQue
 
 	for closed < 2 {
 		select {
-		case suppression, open := <-suppressions:
+		case suppression, open := <-s.suppressionReqs:
 			s.dispatchSuppression(suppression)
 
 			if !open {
 				closed++
 			}
 
-		case query, open := <-inhibitQuery:
+		case query, open := <-s.isInhibitedReqs:
 			s.queryInhibit(query)
 
 			if !open {
 				closed++
 			}
 
-		case summary, open := <-summaries:
+		case summary, open := <-s.suppressionSummaryReqs:
 			s.generateSummary(summary)
 
 			if !open {

@@ -14,7 +14,6 @@
 package main
 
 import (
-	"log"
 	"strings"
 )
 
@@ -40,23 +39,97 @@ type EventSummary struct {
 	Destination string
 }
 
-type EventSummaries []EventSummary
+type SummaryDispatcher struct {
+	summaryReqs chan *summaryDispatchRequest
 
-type SummaryDispatcher struct{}
-
-func (d *SummaryDispatcher) dispatchSummary(s EventSummary, i chan<- *IsInhibitedRequest) {
-	log.Println("dispatching summary", s)
-	r := &IsInhibitedRequest{
-		Response: make(chan IsInhibitedResponse),
-	}
-	i <- r
-	resp := <-r.Response
-	log.Println(resp)
+	closed chan bool
 }
 
-func (d *SummaryDispatcher) Dispatch(s <-chan EventSummary, i chan<- *IsInhibitedRequest) {
-	for summary := range s {
-		d.dispatchSummary(summary, i)
-		//		fmt.Println("Summary for", summary.Rule, "with", summary.Events, "@", len(summary.Events))
+type summaryDispatchRequest struct {
+	Summary *EventSummary
+
+	Response chan *summaryDispatchResponse
+}
+
+type Disposition int
+
+const (
+	UNHANDLED Disposition = iota
+	DISPATCHED
+	SUPPRESSED
+)
+
+type summaryDispatchResponse struct {
+	Disposition Disposition
+	Err         RemoteError
+}
+
+func (s *SummaryDispatcher) Close() {
+	close(s.summaryReqs)
+	<-s.closed
+}
+
+func NewSummaryDispatcher() *SummaryDispatcher {
+	return &SummaryDispatcher{
+		summaryReqs: make(chan *summaryDispatchRequest),
+		closed:      make(chan bool),
 	}
+}
+
+type RemoteError interface {
+	error
+
+	Retryable() bool
+}
+
+type remoteError struct {
+	error
+
+	retryable bool
+}
+
+func (e *remoteError) Retryable() bool {
+	return e.retryable
+}
+
+func NewRemoteError(err error, retryable bool) RemoteError {
+	return &remoteError{
+		err,
+		retryable,
+	}
+}
+
+type SummaryReceiver interface {
+	Receive(*EventSummary) RemoteError
+}
+
+func (d *SummaryDispatcher) Receive(s *EventSummary) RemoteError {
+	req := &summaryDispatchRequest{
+		Summary:  s,
+		Response: make(chan *summaryDispatchResponse),
+	}
+
+	d.summaryReqs <- req
+	resp := <-req.Response
+
+	return resp.Err
+}
+
+func (d *SummaryDispatcher) dispatchSummary(r *summaryDispatchRequest, i IsInhibitedInterrogator) {
+	if i.IsInhibited(r.Summary.Events[0]) {
+		r.Response <- &summaryDispatchResponse{
+			Disposition: SUPPRESSED,
+		}
+		return
+	}
+
+	// BUG: Perform sending of summaries.
+}
+
+func (d *SummaryDispatcher) Dispatch(i IsInhibitedInterrogator) {
+	for req := range d.summaryReqs {
+		d.dispatchSummary(req, i)
+	}
+
+	d.closed <- true
 }
