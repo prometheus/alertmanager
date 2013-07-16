@@ -29,7 +29,7 @@ func DispatcherFor(destination string) DestinationDispatcher {
 	case strings.HasPrefix(destination, "MAIL"):
 	case strings.HasPrefix(destination, "PAGERDUTY"):
 	}
-return nil
+	return nil
 }
 
 type EventSummary struct {

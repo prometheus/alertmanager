@@ -14,7 +14,7 @@
 package main
 
 import (
-  "container/heap"
+	"container/heap"
 	"log"
 	"sort"
 	"time"

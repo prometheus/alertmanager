@@ -94,4 +94,3 @@ func (f Filters) fingerprint() uint64 {
 
 	return summer.Sum64()
 }
-

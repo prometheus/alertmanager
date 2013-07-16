@@ -24,7 +24,7 @@ import (
 type Event struct {
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include a "name" label.
-  Labels map[string]string
+	Labels map[string]string
 
 	// CreatedAt indicates when the event was created.
 	CreatedAt time.Time
@@ -38,7 +38,7 @@ type Event struct {
 func (e Event) Fingerprint() uint64 {
 	keys := []string{}
 
-	for k, _ := range e.Payload {
+	for k := range e.Payload {
 		keys = append(keys, k)
 	}
 
@@ -54,4 +54,3 @@ func (e Event) Fingerprint() uint64 {
 }
 
 type Events []*Event
-
