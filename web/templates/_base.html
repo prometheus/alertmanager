@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prometheus Alert Manager</title>
+
+    <link href="/static/vendor/bootstrap/css/bootstrap.min.css" media="all" rel="stylesheet" type="text/css" />
+    <script src="/static/vendor/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+
+    <link href="/static/css/default.css" media="all" rel="stylesheet" type="text/css" />
+
+    {{template "head" .}}
+  </head>
+  <body>
+  <div class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+      <div class="container-fluid">
+        <a class="brand" href="#">Alert Manager</a>
+        <ul class="nav">
+          {{define "alertsTabClass"}}{{end}}
+          {{define "silencesTabClass"}}{{end}}
+          {{define "statusTabClass"}}{{end}}
+          <li class="{{template "alertsTabClass"}}"><a href="/alerts">Alerts</a></li>
+          <li class="{{template "silencesTabClass"}}"><a href="/silences">Silences</a></li>
+          <li class="{{template "statusTabClass"}}"><a href="/status">Status</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="container-fluid">
+    {{template "content" .}}
+  </div>
+  <div class="container-fluid">
+    <hr class="clear-top">
+    <footer>
+      <p>
+        Code: <a href="https://github.com/prometheus/alert_manager">prometheus/alert_manager</a>
+        Contact: <a href="mailto:prometheus-developers@googlegroups.com">prometheus-developers</a>
+        © Prometheus Authors 2013
+      </p>
+    </footer>
+  </div>
+  </body>
+</html>

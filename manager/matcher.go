@@ -11,13 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package manager
 
 import (
 	"fmt"
 	"hash/fnv"
 	"regexp"
 )
+
+type Filters []*Filter
 
 type Filter struct {
 	Name  *regexp.Regexp
@@ -38,7 +40,7 @@ func NewFilter(namePattern string, valuePattern string) *Filter {
 }
 
 func (f *Filter) Handles(e *Event) bool {
-	for k, v := range e.Payload {
+	for k, v := range e.Labels {
 		if f.Name.MatchString(k) && f.Value.MatchString(v) {
 			return true
 		}
@@ -47,32 +49,7 @@ func (f *Filter) Handles(e *Event) bool {
 	return false
 }
 
-type Filters []*Filter
-
-func (f Filters) Len() int {
-	return len(f)
-}
-
-func (f Filters) Less(i, j int) bool {
-	return f[i].fingerprint < f[j].fingerprint
-}
-
-func (f Filters) Swap(i, j int) {
-	f[i], f[j] = f[j], f[i]
-}
-
-func (f *Filters) Push(v interface{}) {
-	(*f) = append(*f, v.(*Filter))
-}
-
-func (f *Filters) Pop() interface{} {
-	i := (*f)[len(*f)-1]
-	(*f) = (*f)[0:len(*f)]
-
-	return i
-}
-
-func (f Filters) Handle(e *Event) bool {
+func (f Filters) Handles(e *Event) bool {
 	fCount := len(f)
 	fMatch := 0
 

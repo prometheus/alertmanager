@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package manager
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ func (e Event) Fingerprint() uint64 {
 	summer := fnv.New64a()
 
 	for _, k := range keys {
-		fmt.Fprintf(summer, k, e.Payload[k])
+		fmt.Fprintf(summer, k, e.Labels[k])
 	}
 
 	return summer.Sum64()

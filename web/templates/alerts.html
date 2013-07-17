@@ -1,0 +1,61 @@
+{{define "alertsTabClass"}}active{{end}}
+
+{{define "head"}}
+    <script src="/static/js/alerts.js"></script>
+{{end}}
+
+{{define "content"}}
+    <h2>Alerts</h2>
+    <div class="input-append">
+      <input class="input-xxlarge" type="text" value="service=&quot;*&quot;">
+      <button class="btn" type="button"><i class="icon-search"></i></button>
+    </div>
+    <table class="table table-striped table-bordered table-hover">
+      <thead>
+        <tr>
+          <th>Alert</th>
+          <th>Labels</th>
+          <th>Active Since</th>
+          <th>Surpressed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
+          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
+          <td>...</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
+          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
+          <td>...</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
+          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
+          <td>...</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
+          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
+          <td>...</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
+          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
+          <td>...</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
+          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
+          <td>...</td>
+          <td>No</td>
+        </tr>
+      </tbody>
+    </table>
+{{end}}

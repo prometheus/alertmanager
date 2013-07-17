@@ -15,46 +15,34 @@ package main
 
 import (
 	"log"
+
+	"github.com/prometheus/alert_manager/manager"
+	"github.com/prometheus/alert_manager/web"
+	"github.com/prometheus/alert_manager/web/api"
 )
 
 func main() {
 	log.Print("Starting event suppressor...")
-	suppressor := NewSuppressor()
+	suppressor := manager.NewSuppressor()
 	defer suppressor.Close()
 	go suppressor.Dispatch()
 	log.Println("Done.")
 
 	log.Println("Starting event aggregator...")
-	aggregator := NewAggregator()
+	aggregator := manager.NewAggregator()
 	defer aggregator.Close()
 
-	summarizer := new(SummaryDispatcher)
+	summarizer := new(manager.SummaryDispatcher)
 	go aggregator.Dispatch(summarizer)
 	log.Println("Done.")
 
-	done := make(chan bool)
-	go func() {
-		rules := AggregationRules{
-			&AggregationRule{
-				Filters: Filters{NewFilter("service", "discovery")},
-			},
-		}
-
-		aggregator.SetRules(rules)
-
-		events := Events{
-			&Event{
-				Payload: map[string]string{
-					"service": "discovery",
-				},
-			},
-		}
-
-		aggregator.Receive(events)
-
-		done <- true
-	}()
-	<-done
+	webService := &web.WebService{
+		AlertManagerService: &api.AlertManagerService{
+			Aggregator: aggregator,
+		},
+		AlertsHandler: nil,
+	}
+	go webService.ServeForever()
 
 	log.Println("Running summary dispatcher...")
 	summarizer.Dispatch(suppressor)

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package manager
 
 import (
 	"container/heap"
@@ -129,7 +129,7 @@ func (s *Suppressor) dispatchSuppression(r *suppressionRequest) {
 }
 
 func (s *Suppressor) reapSuppressions(t time.Time) {
-	log.Println("readping suppression...")
+	log.Println("reaping suppression...")
 
 	i := sort.Search(len(*s.Suppressions), func(i int) bool {
 		return (*s.Suppressions)[i].EndsAt.After(t)
@@ -170,7 +170,7 @@ func (s *Suppressor) queryInhibit(q *isInhibitedRequest) {
 	response := new(isInhibitedResponse)
 
 	for _, s := range *s.Suppressions {
-		if s.Filters.Handle(q.Event) {
+		if s.Filters.Handles(q.Event) {
 			response.Inhibited = true
 			response.InhibitingSuppression = &s
 

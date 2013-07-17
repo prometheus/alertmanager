@@ -11,18 +11,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package manager
 
 import (
+	"errors"
 	"log"
 	"time"
 )
 
-type aggregationState int
+type aggDispatchState int
 
 const (
-	aggIdle aggregationState = iota
-	aggEmitting
+	aggUnsent aggDispatchState = iota
+	aggSent
 )
 
 // AggregationRule creates and manages the scope for received events.
@@ -38,11 +39,11 @@ type AggregationInstance struct {
 
 	EndsAt time.Time
 
-	state aggregationState
+	state aggDispatchState
 }
 
 func (r *AggregationRule) Handles(e *Event) bool {
-	return r.Filters.Handle(e)
+	return r.Filters.Handles(e)
 }
 
 func (r *AggregationInstance) Ingest(e *Event) {
@@ -67,34 +68,50 @@ func (r *AggregationInstance) Tidy() {
 	}
 
 	if len(events) == 0 {
-		r.state = aggIdle
+		r.state = aggSent
 	}
 
 	r.Events = events
 }
 
-func (r *AggregationInstance) Summarize(s SummaryReceiver) {
-	if r.state != aggIdle {
-		return
-	}
-	if len(r.Events) == 0 {
+func (r *AggregationInstance) SendNotification(s SummaryReceiver) {
+	if r.state == aggSent {
 		return
 	}
 
-	r.state = aggEmitting
-
-	s.Receive(&EventSummary{
+	err := s.Receive(&EventSummary{
 		Rule:   r.Rule,
 		Events: r.Events,
 	})
+	if err != nil {
+		if err.Retryable() {
+			return
+		}
+		log.Println("Unretryable error while sending notification:", err)
+	}
 
+	r.state = aggSent
 }
 
 type AggregationRules []*AggregationRule
 
 type Aggregator struct {
 	Rules      AggregationRules
+	// Used for O(1) lookup and removal of aggregations when new ones come into the system.
 	Aggregates map[uint64]*AggregationInstance
+	// TODO: Add priority queue sorted by expiration time.Time (newest, oldest).
+	//       When a new element comes into this queue and the last head is not equal to
+	//       current head, cancel the existing internal timer and create a new timer for
+	//       expiry.Sub(time.Now) and have that (<- chan time.Time) funnel into the
+	//       event into the dispatch loop where the present tidy call is made.  Delete
+	//       tidy, and just shift the head element of the priority queue off and remove
+	//       it from the O(1) membership index above.
+
+	// TODO?: Build a new priority queue type that uses an internal wrapper container for
+	//        the AggregationInstance it decorates to note the last dispatch time.  The
+	//        queue uses higher-level add and remove methods.
+
+	// SHORTFALL: Needing to garbage collect aggregations across three containers?
 
 	aggRequests   chan *aggregateEventsRequest
 	rulesRequests chan *aggregatorResetRulesRequest
@@ -129,13 +146,20 @@ type aggregateEventsRequest struct {
 	Response chan *aggregateEventsResponse
 }
 
-func (a *Aggregator) aggregate(r *aggregateEventsRequest, s SummaryReceiver) {
-	log.Println("aggregating", *r)
-	for _, element := range r.Events {
-		fp := element.Fingerprint()
+func (a *Aggregator) aggregate(req *aggregateEventsRequest, s SummaryReceiver) {
+	if len(a.Rules) == 0 {
+		req.Response <- &aggregateEventsResponse{
+			Err: errors.New("No aggregation rules"),
+		}
+		close(req.Response)
+		return
+	}
+	log.Println("aggregating", *req)
+	for _, element := range req.Events {
 		for _, r := range a.Rules {
 			log.Println("Checking rule", r, r.Handles(element))
 			if r.Handles(element) {
+				fp := element.Fingerprint()
 				aggregation, ok := a.Aggregates[fp]
 				if !ok {
 					aggregation = &AggregationInstance{
@@ -146,14 +170,14 @@ func (a *Aggregator) aggregate(r *aggregateEventsRequest, s SummaryReceiver) {
 				}
 
 				aggregation.Ingest(element)
-				aggregation.Summarize(s)
+				aggregation.SendNotification(s)
 				break
 			}
 		}
 	}
 
-	r.Response <- new(aggregateEventsResponse)
-	close(r.Response)
+	req.Response <- new(aggregateEventsResponse)
+	close(req.Response)
 }
 
 type aggregatorResetRulesResponse struct{}
@@ -166,9 +190,7 @@ type aggregatorResetRulesRequest struct {
 
 func (a *Aggregator) replaceRules(r *aggregatorResetRulesRequest) {
 	log.Println("Replacing", len(r.Rules), "aggregator rules...")
-	newRules := make(AggregationRules, len(r.Rules))
-	copy(newRules, r.Rules)
-	a.Rules = newRules
+	a.Rules = r.Rules
 
 	r.Response <- new(aggregatorResetRulesResponse)
 	close(r.Response)
