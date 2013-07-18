@@ -16,13 +16,24 @@
           <th>Alert</th>
           <th>Labels</th>
           <th>Active Since</th>
+          <th>Last Refreshed</th>
           <th>Surpressed</th>
         </tr>
       </thead>
       <tbody>
+        {{range .AlertAggregates}}
+          <tr>
+            <td>{{.Event}} <button class="btn btn-mini">Silence Alert</button></td>
+            <td>{{.Event.Labels}} <button class="btn btn-mini">Silence Instance</button></td>
+            <td>{{.Created}}</td>
+            <td>{{.LastRefreshed}}</td>
+            <td>No</td>
+          </tr>
+        {{end}}
         <tr>
           <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
           <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
+          <td>...</td>
           <td>...</td>
           <td>No</td>
         </tr>
@@ -30,11 +41,6 @@
           <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
           <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
           <td>...</td>
-          <td>No</td>
-        </tr>
-        <tr>
-          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
-          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
           <td>...</td>
           <td>No</td>
         </tr>
@@ -42,17 +48,6 @@
           <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
           <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
           <td>...</td>
-          <td>No</td>
-        </tr>
-        <tr>
-          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
-          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
-          <td>...</td>
-          <td>No</td>
-        </tr>
-        <tr>
-          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
-          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
           <td>...</td>
           <td>No</td>
         </tr>

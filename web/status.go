@@ -17,7 +17,7 @@ import (
 	"net/http"
 )
 
-type StatusHandler struct {}
+type StatusHandler struct{}
 
 func (h *StatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	executeTemplate(w, "status", nil)
