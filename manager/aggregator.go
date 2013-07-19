@@ -289,6 +289,7 @@ func (a *Aggregator) Dispatch(s SummaryReceiver) {
 		case req := <-a.closeRequests:
 			a.closeInternal()
 			req.done <- true
+      // BUG: Simply returning here will prevent proper draining. Fix this.
 			return
 		}
 	}
