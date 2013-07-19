@@ -266,9 +266,6 @@ func (a *Aggregator) SetRules(r AggregationRules) error {
 }
 
 func (a *Aggregator) Dispatch(s SummaryReceiver) {
-	t := time.NewTicker(time.Second)
-	defer t.Stop()
-
 	for {
 		select {
 		case req := <-a.aggRequests:
