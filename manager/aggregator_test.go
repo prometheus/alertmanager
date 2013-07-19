@@ -23,12 +23,63 @@ func (d *dummyReceiver) Receive(*EventSummary) RemoteError {
 	return nil
 }
 
+type testAggregatorScenario struct {
+	rules     AggregationRules
+	inMatch   Events
+	inNoMatch Events
+}
+
+func (s *testAggregatorScenario) test(i int, t *testing.T) {
+	a := NewAggregator()
+	go a.Dispatch(&dummyReceiver{})
+
+	done := make(chan bool)
+	go func() {
+		a.SetRules(s.rules)
+		done <- true
+	}()
+	<-done
+
+	if len(s.inMatch) > 0 {
+		err := a.Receive(s.inMatch)
+		if err != nil {
+			t.Fatalf("%d. Expected input %v to match, got error: %s", i, s.inMatch, err)
+		}
+	}
+
+	if len(s.inNoMatch) > 0 {
+		err := a.Receive(s.inNoMatch)
+		// BUG: we need to define more clearly what should happen if a subset of
+		// events doesn't match. Right now we only return an error if no rules
+		// are configured.
+		if len(s.rules) == 0 && err == nil {
+			t.Fatalf("%d. Expected aggregation error when no rules are set", i)
+		}
+	}
+
+	aggs := a.AlertAggregates()
+	if len(aggs) != len(s.inMatch) {
+		t.Fatalf("%d. Expected %d aggregates, got %d", i, len(s.inMatch), len(aggs))
+	}
+
+	for j, agg := range aggs {
+		ev := s.inMatch[j]
+		if len(agg.Event.Labels) != len(ev.Labels) {
+			t.Fatalf("%d.%d. Expected %d labels, got %d", i, j, len(ev.Labels), len(agg.Event.Labels))
+		}
+
+		for l, v := range agg.Event.Labels {
+			if ev.Labels[l] != v {
+				t.Fatalf("%d.%d. Expected label %s=%s, got %s=%s", l, ev.Labels[l], l, v)
+			}
+		}
+	}
+
+	a.Close()
+}
+
 func TestAggregator(t *testing.T) {
-	scenarios := []struct {
-		rules     AggregationRules
-		inMatch   Events
-		inNoMatch Events
-	}{
+	scenarios := []testAggregatorScenario{
 		{
 			// No rules, one event.
 			inNoMatch: Events{
@@ -72,51 +123,6 @@ func TestAggregator(t *testing.T) {
 	}
 
 	for i, scenario := range scenarios {
-		a := NewAggregator()
-		go a.Dispatch(&dummyReceiver{})
-
-		done := make(chan bool)
-		go func() {
-			a.SetRules(scenario.rules)
-			done <- true
-		}()
-		<-done
-
-		if len(scenario.inMatch) > 0 {
-			err := a.Receive(scenario.inMatch)
-			if err != nil {
-				t.Fatalf("%d. Expected input %v to match, got error: %s", i, scenario.inMatch, err)
-			}
-		}
-
-		if len(scenario.inNoMatch) > 0 {
-			err := a.Receive(scenario.inNoMatch)
-			// BUG: we need to define more clearly what should happen if a subset of
-			// events doesn't match. Right now we only return an error if no rules
-			// are configured.
-			if len(scenario.rules) == 0 && err == nil {
-				t.Fatalf("%d. Expected aggregation error when no rules are set", i)
-			}
-		}
-
-		aggs := a.AlertAggregates()
-		if len(aggs) != len(scenario.inMatch) {
-			t.Fatalf("%d. Expected %d aggregates, got %d", i, len(scenario.inMatch), len(aggs))
-		}
-
-		for j, agg := range aggs {
-			ev := scenario.inMatch[j]
-			if len(agg.Event.Labels) != len(ev.Labels) {
-				t.Fatalf("%d.%d. Expected %d labels, got %d", i, j, len(ev.Labels), len(agg.Event.Labels))
-			}
-
-			for l, v := range agg.Event.Labels {
-				if ev.Labels[l] != v {
-					t.Fatalf("%d.%d. Expected label %s=%s, got %s=%s", l, ev.Labels[l], l, v)
-				}
-			}
-		}
-
-		a.Close()
+		scenario.test(i, t)
 	}
 }
