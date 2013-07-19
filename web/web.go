@@ -38,9 +38,9 @@ var (
 
 type WebService struct {
 	AlertManagerService *api.AlertManagerService
-	AlertsHandler    *AlertsHandler
-	SilencesHandler    *SilencesHandler
-	StatusHandler    *StatusHandler
+	AlertsHandler       *AlertsHandler
+	SilencesHandler     *SilencesHandler
+	StatusHandler       *StatusHandler
 }
 
 func (w WebService) ServeForever() error {

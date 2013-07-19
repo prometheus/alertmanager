@@ -17,28 +17,23 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
-	"time"
 )
+
+type EventFingerprint uint64
 
 // Event models an action triggered by Prometheus.
 type Event struct {
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include a "name" label.
 	Labels map[string]string
-
-	// CreatedAt indicates when the event was created.
-	CreatedAt time.Time
-
-	// ExpiresAt is the allowed lifetime for this event before it is reaped.
-	ExpiresAt time.Time
-
+	// Extra key/value information which is not used for aggregation.
 	Payload map[string]string
 }
 
-func (e Event) Fingerprint() uint64 {
+func (e Event) Fingerprint() EventFingerprint {
 	keys := []string{}
 
-	for k := range e.Payload {
+	for k := range e.Labels {
 		keys = append(keys, k)
 	}
 
@@ -50,7 +45,7 @@ func (e Event) Fingerprint() uint64 {
 		fmt.Fprintf(summer, k, e.Labels[k])
 	}
 
-	return summer.Sum64()
+	return EventFingerprint(summer.Sum64())
 }
 
 type Events []*Event

@@ -32,7 +32,7 @@ func main() {
 	aggregator := manager.NewAggregator()
 	defer aggregator.Close()
 
-	summarizer := new(manager.SummaryDispatcher)
+	summarizer := manager.NewSummaryDispatcher()
 	go aggregator.Dispatch(summarizer)
 	log.Println("Done.")
 
@@ -40,9 +40,27 @@ func main() {
 		AlertManagerService: &api.AlertManagerService{
 			Aggregator: aggregator,
 		},
-		AlertsHandler: nil,
+		AlertsHandler: &web.AlertsHandler{
+			Aggregator: aggregator,
+		},
 	}
 	go webService.ServeForever()
+
+	// BEGIN EXAMPLE CODE - replace with config loading later.
+	done := make(chan bool)
+	go func() {
+		rules := manager.AggregationRules{
+			&manager.AggregationRule{
+				Filters: manager.Filters{manager.NewFilter("service", "discovery")},
+			},
+		}
+
+		aggregator.SetRules(rules)
+
+		done <- true
+	}()
+	<-done
+	// END EXAMPLE CODE
 
 	log.Println("Running summary dispatcher...")
 	summarizer.Dispatch(suppressor)

@@ -17,7 +17,7 @@ import (
 	"net/http"
 )
 
-type SilencesHandler struct {}
+type SilencesHandler struct{}
 
 func (h *SilencesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	executeTemplate(w, "silences", nil)
