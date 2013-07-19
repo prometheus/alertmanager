@@ -34,7 +34,7 @@ func DispatcherFor(destination string) DestinationDispatcher {
 type EventSummary struct {
 	Rule *AggregationRule
 
-	Events Events
+	Event *Event
 
 	Destination string
 }
@@ -116,7 +116,7 @@ func (d *SummaryDispatcher) Receive(s *EventSummary) RemoteError {
 }
 
 func (d *SummaryDispatcher) dispatchSummary(r *summaryDispatchRequest, i IsInhibitedInterrogator) {
-	if i.IsInhibited(r.Summary.Events[0]) {
+	if i.IsInhibited(r.Summary.Event) {
 		r.Response <- &summaryDispatchResponse{
 			Disposition: SUPPRESSED,
 		}
@@ -124,6 +124,9 @@ func (d *SummaryDispatcher) dispatchSummary(r *summaryDispatchRequest, i IsInhib
 	}
 
 	// BUG: Perform sending of summaries.
+	r.Response <- &summaryDispatchResponse{
+		Disposition: DISPATCHED,
+	}
 }
 
 func (d *SummaryDispatcher) Dispatch(i IsInhibitedInterrogator) {
