@@ -175,7 +175,6 @@ func (a *Aggregator) aggregate(req *aggregateEventsRequest, s SummaryReceiver) {
 	log.Println("aggregating", *req)
 	for _, event := range req.Events {
 		for _, r := range a.Rules {
-			log.Println("Checking rule", r, r.Handles(event))
 			if r.Handles(event) {
 				fp := event.Fingerprint()
 				aggregation, ok := a.Aggregates[fp]
