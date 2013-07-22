@@ -110,7 +110,7 @@ type Aggregator struct {
 	getAggregatesRequests   chan *getAggregatesRequest
 	removeAggregateRequests chan EventFingerprint
 	rulesRequests           chan *aggregatorResetRulesRequest
-	closed                  chan bool
+	closeRequests           chan *closeRequest
 }
 
 func NewAggregator() *Aggregator {
@@ -121,18 +121,24 @@ func NewAggregator() *Aggregator {
 		getAggregatesRequests:   make(chan *getAggregatesRequest),
 		removeAggregateRequests: make(chan EventFingerprint),
 		rulesRequests:           make(chan *aggregatorResetRulesRequest),
-		closed:                  make(chan bool),
+		closeRequests:           make(chan *closeRequest),
 	}
 }
 
 func (a *Aggregator) Close() {
+	req := &closeRequest{
+		done: make(chan bool),
+	}
+	a.closeRequests <- req
+	<-req.done
+}
+
+func (a *Aggregator) closeInternal() {
 	close(a.rulesRequests)
 	close(a.aggRequests)
 	close(a.getAggregatesRequests)
 	close(a.removeAggregateRequests)
-
-	<-a.closed
-	close(a.closed)
+	close(a.closeRequests)
 }
 
 type aggregateEventsResponse struct {
@@ -151,6 +157,10 @@ type getAggregatesResponse struct {
 
 type getAggregatesRequest struct {
 	Response chan getAggregatesResponse
+}
+
+type closeRequest struct {
+	done chan bool
 }
 
 func (a *Aggregator) aggregate(req *aggregateEventsRequest, s SummaryReceiver) {
@@ -256,26 +266,13 @@ func (a *Aggregator) SetRules(r AggregationRules) error {
 }
 
 func (a *Aggregator) Dispatch(s SummaryReceiver) {
-	t := time.NewTicker(time.Second)
-	defer t.Stop()
-
-	closed := 0
-
-	for closed < 2 {
+	for {
 		select {
-		case req, open := <-a.aggRequests:
+		case req := <-a.aggRequests:
 			a.aggregate(req, s)
 
-			if !open {
-				closed++
-			}
-
-		case rules, open := <-a.rulesRequests:
+		case rules := <-a.rulesRequests:
 			a.replaceRules(rules)
-
-			if !open {
-				closed++
-			}
 
 		case req := <-a.getAggregatesRequests:
 			aggs := a.aggregates()
@@ -288,8 +285,12 @@ func (a *Aggregator) Dispatch(s SummaryReceiver) {
 			log.Println("Deleting expired aggregation instance", a)
 			a.Aggregates[fp].Close()
 			delete(a.Aggregates, fp)
+
+		case req := <-a.closeRequests:
+			a.closeInternal()
+			req.done <- true
+			// BUG: Simply returning here will prevent proper draining. Fix this.
+			return
 		}
 	}
-
-	a.closed <- true
 }
