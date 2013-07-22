@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Prometheus Alert Manager</title>
 
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
     <link href="/static/vendor/bootstrap/css/bootstrap.min.css" media="all" rel="stylesheet" type="text/css" />
-    <script src="/static/vendor/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+    <script src="/static/vendor/bootstrap/js/bootstrap.js" type="text/javascript"></script>
 
     <link href="/static/css/default.css" media="all" rel="stylesheet" type="text/css" />
 
@@ -43,3 +45,43 @@
   </div>
   </body>
 </html>
+{{define "createSilenceModal"}}
+    <!-- Modal -->
+    <div id="create_silence_modal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="create_silence_header" aria-hidden="true">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+        <h3 id="create_silence_header">Create Silence</h3>
+      </div>
+      <div class="modal-body">
+        <form class="form-horizontal">
+          <div class="control-group">
+            <label class="control-label" for="silence_creator">Creator</label>
+            <div class="controls">
+              <input type="text" id="silence_creator" placeholder="Creator">
+            </div>
+          </div>
+          <div class="control-group">
+            <label class="control-label" for="silence_expiry">Expiry</label>
+            <div class="controls">
+              <input type="text" id="silence_expiry" placeholder="Expiry">
+            </div>
+          </div>
+          <div class="control-group">
+            <label class="control-label" for="silence_creator">Comment</label>
+            <div class="controls">
+              <input type="text" id="silence_comment" placeholder="Comment">
+            </div>
+          </div>
+        </form>
+        <label>Labels:</label>
+        <table id="silence_label_table">
+        </table>
+        <button class="btn" id="add_label_button"><i class="icon-plus"></i> Add Label Filter</button>
+        <button class="btn">Preview Silence</button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+        <button class="btn btn-primary">Create Silence</button>
+      </div>
+    </div>
+{{end}}

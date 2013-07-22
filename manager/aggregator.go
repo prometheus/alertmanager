@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	minimumRepeatRate       = 5 * time.Minute
 	minimumRefreshPeriod    = 5 * time.Minute
 	notificationRetryPeriod = 1 * time.Minute
 )
@@ -172,11 +173,10 @@ func (a *Aggregator) aggregate(req *aggregateEventsRequest, s SummaryReceiver) {
 		return
 	}
 	log.Println("aggregating", *req)
-	for _, element := range req.Events {
+	for _, event := range req.Events {
 		for _, r := range a.Rules {
-			log.Println("Checking rule", r, r.Handles(element))
-			if r.Handles(element) {
-				fp := element.Fingerprint()
+			if r.Handles(event) {
+				fp := event.Fingerprint()
 				aggregation, ok := a.Aggregates[fp]
 				if !ok {
 					expTimer := time.AfterFunc(minimumRefreshPeriod, func() {
@@ -192,7 +192,7 @@ func (a *Aggregator) aggregate(req *aggregateEventsRequest, s SummaryReceiver) {
 					a.Aggregates[fp] = aggregation
 				}
 
-				aggregation.Ingest(element)
+				aggregation.Ingest(event)
 				aggregation.SendNotification(s)
 				break
 			}
@@ -213,6 +213,13 @@ type aggregatorResetRulesRequest struct {
 
 func (a *Aggregator) replaceRules(r *aggregatorResetRulesRequest) {
 	log.Println("Replacing", len(r.Rules), "aggregator rules...")
+
+	for _, rule := range r.Rules {
+		if rule.RepeatRate < minimumRepeatRate {
+			log.Println("Rule repeat rate too low, setting to minimum value")
+			rule.RepeatRate = minimumRepeatRate
+		}
+	}
 	a.Rules = r.Rules
 
 	r.Response <- new(aggregatorResetRulesResponse)
