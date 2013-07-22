@@ -25,11 +25,8 @@ import (
 func main() {
 	flag.Parse()
 
-	log.Print("Starting event suppressor...")
 	suppressor := manager.NewSuppressor()
 	defer suppressor.Close()
-	go suppressor.Dispatch()
-	log.Println("Done.")
 
 	log.Println("Starting event aggregator...")
 	aggregator := manager.NewAggregator()
