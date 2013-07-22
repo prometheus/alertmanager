@@ -33,8 +33,8 @@ func NewFilter(namePattern string, valuePattern string) *Filter {
 	fmt.Fprintf(summer, namePattern, valuePattern)
 
 	return &Filter{
-		Name:        regexp.MustCompile(namePattern),
-		Value:       regexp.MustCompile(valuePattern),
+		Name:        regexp.MustCompile("^" + namePattern + "$"),
+		Value:       regexp.MustCompile("^" + valuePattern + "$"),
 		fingerprint: summer.Sum64(),
 	}
 }
