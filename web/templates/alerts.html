@@ -8,7 +8,7 @@
     <h2>Alerts</h2>
     <div class="input-append">
       <input class="input-xxlarge" type="text" value="service=&quot;*&quot;">
-      <button class="btn" type="button"><i class="icon-search"></i></button>
+      <button class="btn" type="button"><i class="icon-filter"></i></button>
     </div>
     <table class="table table-striped table-bordered table-hover">
       <thead>
@@ -23,34 +23,32 @@
       <tbody>
         {{range .AlertAggregates}}
           <tr>
-            <td>{{.Event}} <button class="btn btn-mini">Silence Alert</button></td>
-            <td>{{.Event.Labels}} <button class="btn btn-mini">Silence Instance</button></td>
-            <td>{{.Created}}</td>
-            <td>{{.LastRefreshed}}</td>
+            <td>
+              {{index .Event.Name}}
+              <form class="add_silence_form">
+                <input type="hidden" name="label[]" value="name">
+                <input type="hidden" name="value[]" value="{{.Event.Labels.name}}">
+                <a href="#create_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Alert</a>
+              </form>
+            </td>
+            <td>
+              {{range $label, $value := .Event.Labels}}
+                <b>{{$label}}</b>="{{$value}}",
+              {{end}}
+              <form class="add_silence_form">
+                {{range $label, $value := .Event.Labels}}
+                  <input type="hidden" name="label[]" value="{{$label}}">
+                  <input type="hidden" name="value[]" value="{{$value}}">
+                {{end}}
+                <a href="#create_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Instance</a>
+              </form>
+            </td>
+            <td>{{timeSince .Created}} ago</td>
+            <td>{{timeSince .LastRefreshed}} ago</td>
             <td>No</td>
           </tr>
         {{end}}
-        <tr>
-          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
-          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
-          <td>...</td>
-          <td>...</td>
-          <td>No</td>
-        </tr>
-        <tr>
-          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
-          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
-          <td>...</td>
-          <td>...</td>
-          <td>No</td>
-        </tr>
-        <tr>
-          <td>TheTaxesAreTooDamnHigh <button class="btn btn-mini">Silence Alert</button></td>
-          <td>{foo="bar",baz="biz"} <button class="btn btn-mini">Silence Instance</button></td>
-          <td>...</td>
-          <td>...</td>
-          <td>No</td>
-        </tr>
       </tbody>
     </table>
+    {{template "createSilenceModal" .}}
 {{end}}

@@ -14,6 +14,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/prometheus/alert_manager/manager"
@@ -22,6 +23,8 @@ import (
 )
 
 func main() {
+	flag.Parse()
+
 	log.Print("Starting event suppressor...")
 	suppressor := manager.NewSuppressor()
 	defer suppressor.Close()
