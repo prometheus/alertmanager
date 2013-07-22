@@ -116,7 +116,7 @@ func (d *SummaryDispatcher) Receive(s *EventSummary) RemoteError {
 }
 
 func (d *SummaryDispatcher) dispatchSummary(r *summaryDispatchRequest, i IsInhibitedInterrogator) {
-	if i.IsInhibited(r.Summary.Event) {
+	if inhibited, _ := i.IsInhibited(r.Summary.Event); inhibited {
 		r.Response <- &summaryDispatchResponse{
 			Disposition: SUPPRESSED,
 		}
