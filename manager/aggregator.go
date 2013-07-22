@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	minimumRepeatRate       = 5 * time.Minute
 	minimumRefreshPeriod    = 5 * time.Minute
 	notificationRetryPeriod = 1 * time.Minute
 )
@@ -213,6 +214,13 @@ type aggregatorResetRulesRequest struct {
 
 func (a *Aggregator) replaceRules(r *aggregatorResetRulesRequest) {
 	log.Println("Replacing", len(r.Rules), "aggregator rules...")
+
+	for _, rule := range r.Rules {
+		if rule.RepeatRate < minimumRepeatRate {
+			log.Println("Rule repeat rate too low, setting to minimum value")
+			rule.RepeatRate = minimumRepeatRate
+		}
+	}
 	a.Rules = r.Rules
 
 	r.Response <- new(aggregatorResetRulesResponse)
