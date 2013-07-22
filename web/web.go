@@ -76,14 +76,17 @@ func (w WebService) ServeForever() error {
 }
 
 func getLocalTemplate(name string) (*template.Template, error) {
-	return template.ParseFiles(
+	t := template.New("_base.html")
+	t.Funcs(webHelpers)
+	return t.ParseFiles(
 		"web/templates/_base.html",
 		fmt.Sprintf("web/templates/%s.html", name),
 	)
 }
 
 func getEmbeddedTemplate(name string) (*template.Template, error) {
-	t := template.New("_base")
+	t := template.New("_base.html")
+	t.Funcs(webHelpers)
 
 	file, err := blob.GetFile(blob.TemplateFiles, "_base.html")
 	if err != nil {
@@ -110,10 +113,10 @@ func getTemplate(name string) (t *template.Template, err error) {
 	}
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	return
+	return t, nil
 }
 
 func executeTemplate(w http.ResponseWriter, name string, data interface{}) {

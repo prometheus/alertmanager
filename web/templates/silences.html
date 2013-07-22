@@ -6,7 +6,7 @@
 
 {{define "content"}}
     <h2>Silences</h2>
-    <p><button class="btn btn-primary">New Silence</button><p/>
+    <p><a href="#create_silence_modal" role="button" class="btn btn-primary" id="new_silence_btn" data-toggle="modal">New Silence</a></p>
     <table class="table table-striped table-bordered table-hover">
       <thead>
         <tr>
@@ -90,4 +90,5 @@
         </tr>
       </tbody>
     </table>
+    {{template "createSilenceModal" .}}
 {{end}}
