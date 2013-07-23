@@ -37,11 +37,18 @@ func main() {
 	log.Println("Done.")
 
 	webService := &web.WebService{
+		// REST API Service.
 		AlertManagerService: &api.AlertManagerService{
 			Aggregator: aggregator,
+			Suppressor: suppressor,
 		},
+
+		// Template-based page handlers.
 		AlertsHandler: &web.AlertsHandler{
 			Aggregator: aggregator,
+		},
+		SilencesHandler: &web.SilencesHandler{
+			Suppressor: suppressor,
 		},
 	}
 	go webService.ServeForever()
