@@ -10,6 +10,9 @@
     <link href="/static/vendor/bootstrap/css/bootstrap.min.css" media="all" rel="stylesheet" type="text/css" />
     <script src="/static/vendor/bootstrap/js/bootstrap.js" type="text/javascript"></script>
 
+    <link href="/static/vendor/tarruda_bootstrap_datetimepicker/css/bootstrap-datetimepicker.min.css" media="all" rel="stylesheet" type="text/css" />
+    <script src="/static/vendor/tarruda_bootstrap_datetimepicker/js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+
     <link href="/static/css/default.css" media="all" rel="stylesheet" type="text/css" />
 
     {{template "head" .}}
@@ -45,43 +48,49 @@
   </div>
   </body>
 </html>
-{{define "createSilenceModal"}}
+{{define "editSilenceModal"}}
     <!-- Modal -->
-    <div id="create_silence_modal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="create_silence_header" aria-hidden="true">
+    <div id="edit_silence_modal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="edit_silence_header" aria-hidden="true">
       <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
-        <h3 id="create_silence_header">Create Silence</h3>
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h3 id="edit_silence_header">Create Silence</h3>
       </div>
       <div class="modal-body">
-        <form class="form-horizontal">
+        <form class="form-horizontal" id="edit_silence_form">
           <div class="control-group">
-            <label class="control-label" for="silence_creator">Creator</label>
+            <label class="control-label" for="silence_created_by">Creator</label>
             <div class="controls">
-              <input type="text" id="silence_creator" placeholder="Creator">
+              <input type="text" id="silence_created_by" placeholder="Creator" required>
             </div>
           </div>
           <div class="control-group">
-            <label class="control-label" for="silence_expiry">Expiry</label>
+            <label class="control-label" for="silence_ends_at">Ends At</label>
             <div class="controls">
-              <input type="text" id="silence_expiry" placeholder="Expiry">
+              <div id="ends_at_datetimepicker" class="input-append date">
+                <input type="text" id="silence_ends_at" placeholder="Ends At (default 1h from now)" data-format="dd/MM/yyyy hh:mm:ss">
+                <span class="add-on">
+                  <i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+                </span>
+              </div>
             </div>
           </div>
           <div class="control-group">
-            <label class="control-label" for="silence_creator">Comment</label>
+            <label class="control-label" for="silence_created_by">Comment</label>
             <div class="controls">
               <input type="text" id="silence_comment" placeholder="Comment">
             </div>
           </div>
-        </form>
-        <label>Labels:</label>
-        <table id="silence_label_table">
-        </table>
-        <button class="btn" id="add_label_button"><i class="icon-plus"></i> Add Label Filter</button>
-        <button class="btn">Preview Silence</button>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
-        <button class="btn btn-primary">Create Silence</button>
-      </div>
+          <label>Label filters:</label>
+          <table id="silence_filters_table">
+          </table>
+          <br/>
+          <button type="button" class="btn" id="add_filter_button"><i class="icon-plus"></i> Add Label Filter</button>
+          <button type="button" class="btn">Preview Silence</button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="edit_silence_btn">Create Silence</button>
+        </div>
+      </form>
     </div>
 {{end}}
