@@ -28,13 +28,10 @@ func main() {
 	suppressor := manager.NewSuppressor()
 	defer suppressor.Close()
 
-	log.Println("Starting event aggregator...")
-	aggregator := manager.NewAggregator()
-	defer aggregator.Close()
-
 	summarizer := manager.NewSummaryDispatcher()
-	go aggregator.Dispatch(summarizer)
-	log.Println("Done.")
+
+	aggregator := manager.NewAggregator(summarizer)
+	defer aggregator.Close()
 
 	webService := &web.WebService{
 		AlertManagerService: &api.AlertManagerService{
