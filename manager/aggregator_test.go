@@ -30,15 +30,8 @@ type testAggregatorScenario struct {
 }
 
 func (s *testAggregatorScenario) test(i int, t *testing.T) {
-	a := NewAggregator()
-	go a.Dispatch(&dummyReceiver{})
-
-	done := make(chan bool)
-	go func() {
-		a.SetRules(s.rules)
-		done <- true
-	}()
-	<-done
+	a := NewAggregator(&dummyReceiver{})
+	a.SetRules(s.rules)
 
 	if len(s.inMatch) > 0 {
 		err := a.Receive(s.inMatch)
