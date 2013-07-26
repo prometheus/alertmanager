@@ -15,10 +15,21 @@ package web
 
 import (
 	"net/http"
+
+	"github.com/prometheus/alert_manager/manager"
 )
 
-type SilencesHandler struct{}
+type SilenceStatus struct {
+	Silences manager.Suppressions
+}
+
+type SilencesHandler struct {
+	Suppressor *manager.Suppressor
+}
 
 func (h *SilencesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	executeTemplate(w, "silences", nil)
+	silenceStatus := &SilenceStatus{
+		Silences: h.Suppressor.SuppressionSummary(),
+	}
+	executeTemplate(w, "silences", silenceStatus)
 }

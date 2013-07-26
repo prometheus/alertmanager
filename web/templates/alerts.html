@@ -24,23 +24,23 @@
         {{range .AlertAggregates}}
           <tr>
             <td>
-              {{index .Event.Name}}
+              <span class="label label-important">{{index .Event.Name}}</span>
               <form class="add_silence_form">
                 <input type="hidden" name="label[]" value="name">
                 <input type="hidden" name="value[]" value="{{.Event.Labels.name}}">
-                <a href="#create_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Alert</a>
+                <a href="#edit_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Alert</a>
               </form>
             </td>
             <td>
               {{range $label, $value := .Event.Labels}}
-                <b>{{$label}}</b>="{{$value}}",
+                <span class="label label-info"><b>{{$label}}</b>="{{$value}}"</span>
               {{end}}
               <form class="add_silence_form">
                 {{range $label, $value := .Event.Labels}}
                   <input type="hidden" name="label[]" value="{{$label}}">
                   <input type="hidden" name="value[]" value="{{$value}}">
                 {{end}}
-                <a href="#create_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Instance</a>
+                <a href="#edit_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Instance</a>
               </form>
             </td>
             <td>{{timeSince .Created}} ago</td>
@@ -50,5 +50,5 @@
         {{end}}
       </tbody>
     </table>
-    {{template "createSilenceModal" .}}
+    {{template "editSilenceModal" .}}
 {{end}}

@@ -2,14 +2,10 @@ body {
   padding-top: 60px;
 }
 
-#create_silence_modal th {
+#edit_silence_modal th {
   text-align: left;
 }
 
 .add_silence_form {
   display: inline;
-}
-
-.del_label_button {
-  margin-bottom: 10px;
 }
