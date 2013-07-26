@@ -14,6 +14,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
@@ -21,6 +22,7 @@ import (
 )
 
 type SuppressionId uint
+type Suppressions []*Suppression
 
 type Suppression struct {
 	// The numeric ID of the suppression.
@@ -40,7 +42,53 @@ type Suppression struct {
 	expiryTimer *time.Timer
 }
 
-type Suppressions []*Suppression
+type ApiSilence struct {
+	CreatedBy        string
+	CreatedAtSeconds int64
+	EndsAtSeconds    int64
+	Comment          string
+	Filters          map[string]string
+}
+
+func (s *Suppression) MarshalJSON() ([]byte, error) {
+	filters := map[string]string{}
+	for _, f := range s.Filters {
+		name := f.Name.String()[1 : len(f.Name.String())-1]
+		value := f.Value.String()[1 : len(f.Value.String())-1]
+		filters[name] = value
+	}
+
+	return json.Marshal(&ApiSilence{
+		CreatedBy:        s.CreatedBy,
+		CreatedAtSeconds: s.CreatedAt.Unix(),
+		EndsAtSeconds:    s.EndsAt.Unix(),
+		Comment:          s.Comment,
+		Filters:          filters,
+	})
+}
+
+func (s *Suppression) UnmarshalJSON(data []byte) error {
+	sc := &ApiSilence{}
+	json.Unmarshal(data, sc)
+
+	filters := make(Filters, 0, len(sc.Filters))
+	for label, value := range sc.Filters {
+		filters = append(filters, NewFilter(label, value))
+	}
+
+	if sc.EndsAtSeconds == 0 {
+		sc.EndsAtSeconds = time.Now().Add(time.Hour).Unix()
+	}
+
+	*s = Suppression{
+		CreatedBy: sc.CreatedBy,
+		CreatedAt: time.Now().UTC(),
+		EndsAt:    time.Unix(sc.EndsAtSeconds, 0).UTC(),
+		Comment:   sc.Comment,
+		Filters:   filters,
+	}
+	return nil
+}
 
 type Suppressor struct {
 	// Suppressions managed by this Suppressor.

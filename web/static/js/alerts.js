@@ -44,7 +44,7 @@ function silenceJsonFromForm() {
 
   return JSON.stringify({
     CreatedBy: $("#silence_created_by").val(),
-    EndsAt: endsAt,
+    EndsAtSeconds: endsAt,
     Comment: $("#silence_comment").val(),
     Filters: filters
   });
@@ -172,7 +172,7 @@ function init() {
     $("#edit_silence_form input[name='silence_id']").val(silenceId);
     getSilence(silenceId, function(silence) {
       var picker = $("#ends_at_datetimepicker").data('datetimepicker');
-      var endsAt = new Date(silence.EndsAt * 1000);
+      var endsAt = new Date(silence.EndsAtSeconds * 1000);
       picker.setLocalDate(endsAt);
 
       $("#silence_created_by").val(silence.CreatedBy);

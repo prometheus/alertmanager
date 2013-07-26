@@ -23,9 +23,9 @@ type AlertManagerService struct {
 	gorest.RestService `root:"/api/" consumes:"application/json" produces:"application/json"`
 
 	addEvents      gorest.EndPoint `method:"POST" path:"/events" postdata:"Events"`
-	addSilence     gorest.EndPoint `method:"POST" path:"/silences" postdata:"Silence"`
+	addSilence     gorest.EndPoint `method:"POST" path:"/silences" postdata:"Suppression"`
 	getSilence     gorest.EndPoint `method:"GET" path:"/silences/{id:int}" output:"string"`
-	updateSilence  gorest.EndPoint `method:"POST" path:"/silences/{id:int}" postdata:"Silence"`
+	updateSilence  gorest.EndPoint `method:"POST" path:"/silences/{id:int}" postdata:"Suppression"`
 	delSilence     gorest.EndPoint `method:"DELETE" path:"/silences/{id:int}"`
 	silenceSummary gorest.EndPoint `method:"GET" path:"/silences" output:"string"`
 

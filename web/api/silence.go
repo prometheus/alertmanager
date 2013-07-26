@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"code.google.com/p/gorest"
 
@@ -26,53 +25,16 @@ import (
 )
 
 type Silence struct {
-	CreatedBy string
-	CreatedAt int64
-	EndsAt    int64
-	Comment   string
-	Filters   map[string]string
+	CreatedBy        string
+	CreatedAtSeconds int64
+	EndsAtSeconds    int64
+	Comment          string
+	Filters          map[string]string
 }
 
-func translateSilenceFromApi(sc *Silence) *manager.Suppression {
-	filters := make(manager.Filters, 0, len(sc.Filters))
-	for label, value := range sc.Filters {
-		filters = append(filters, manager.NewFilter(label, value))
-	}
-
-	if sc.EndsAt == 0 {
-		sc.EndsAt = time.Now().Add(time.Hour).Unix()
-	}
-
-	return &manager.Suppression{
-		CreatedBy: sc.CreatedBy,
-		CreatedAt: time.Now(),
-		EndsAt:    time.Unix(sc.EndsAt, 0),
-		Comment:   sc.Comment,
-		Filters:   filters,
-	}
-}
-
-func translateSilenceToApi(sc *manager.Suppression) *Silence {
-	filters := map[string]string{}
-	for _, f := range sc.Filters {
-		name := f.Name.String()[1 : len(f.Name.String())-1]
-		value := f.Value.String()[1 : len(f.Value.String())-1]
-		filters[name] = value
-	}
-
-	return &Silence{
-		CreatedBy: sc.CreatedBy,
-		CreatedAt: sc.CreatedAt.Unix(),
-		EndsAt:    sc.EndsAt.Unix(),
-		Comment:   sc.Comment,
-		Filters:   filters,
-	}
-}
-
-func (s AlertManagerService) AddSilence(sc Silence) {
+func (s AlertManagerService) AddSilence(sc manager.Suppression) {
 	// BUG: add server-side form validation.
-	sup := translateSilenceFromApi(&sc)
-	id := s.Suppressor.AddSuppression(sup)
+	id := s.Suppressor.AddSuppression(&sc)
 
 	rb := s.ResponseBuilder()
 	rb.SetResponseCode(http.StatusCreated)
@@ -89,20 +51,19 @@ func (s AlertManagerService) GetSilence(id int) string {
 		return err.Error()
 	}
 
-	resultBytes, err := json.Marshal(translateSilenceToApi(silence))
+	resultBytes, err := json.Marshal(&silence)
 	if err != nil {
-		log.Printf("Error marshalling silences: %s", err)
+		log.Printf("Error marshalling silence: %s", err)
 		rb.SetResponseCode(http.StatusInternalServerError)
 		return err.Error()
 	}
 	return string(resultBytes)
 }
 
-func (s AlertManagerService) UpdateSilence(sc Silence, id int) {
+func (s AlertManagerService) UpdateSilence(sc manager.Suppression, id int) {
 	// BUG: add server-side form validation.
-	sup := translateSilenceFromApi(&sc)
-	sup.Id = manager.SuppressionId(id)
-	if err := s.Suppressor.UpdateSuppression(sup); err != nil {
+	sc.Id = manager.SuppressionId(id)
+	if err := s.Suppressor.UpdateSuppression(&sc); err != nil {
 		log.Printf("Error updating silence: %s", err)
 		rb := s.ResponseBuilder()
 		rb.SetResponseCode(http.StatusNotFound)
@@ -122,12 +83,7 @@ func (s AlertManagerService) SilenceSummary() string {
 	rb.SetContentType(gorest.Application_Json)
 	silenceSummary := s.Suppressor.SuppressionSummary()
 
-	silences := []*Silence{}
-	for _, s := range silenceSummary {
-		silences = append(silences, translateSilenceToApi(s))
-	}
-
-	resultBytes, err := json.Marshal(silences)
+	resultBytes, err := json.Marshal(silenceSummary)
 	if err != nil {
 		log.Printf("Error marshalling silences: %s", err)
 		rb.SetResponseCode(http.StatusInternalServerError)

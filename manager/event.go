@@ -19,9 +19,7 @@ import (
 	"sort"
 )
 
-const (
-	eventNameLabel = "name"
-)
+const eventNameLabel = "name"
 
 type EventFingerprint uint64
 
