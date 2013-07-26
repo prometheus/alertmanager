@@ -14,11 +14,13 @@
 package config
 
 import (
-  "time"
+	"fmt"
+	"time"
 
 	"code.google.com/p/goprotobuf/proto"
 
 	pb "github.com/prometheus/alert_manager/config/generated"
+
 	"github.com/prometheus/alert_manager/manager"
 )
 
@@ -37,22 +39,31 @@ func (c Config) String() string {
 
 // Validate checks an entire parsed Config for the validity of its fields.
 func (c Config) Validate() error {
-  // BUG: Nothing to do here for now.
+	for _, a := range c.AggregationRule {
+		for _, f := range a.Filter {
+			if f.NameRe == nil {
+				return fmt.Errorf("Missing name pattern (name_re) in filter definition: %s", proto.MarshalTextString(f))
+			}
+			if f.ValueRe == nil {
+				return fmt.Errorf("Missing value pattern (value_re) in filter definition: %s", proto.MarshalTextString(f))
+			}
+		}
+	}
 	return nil
 }
 
 // Rules returns all the AggregationRules in a Config object.
 func (c Config) AggregationRules() manager.AggregationRules {
-  rules := make(manager.AggregationRules, 0, len(c.AggregationRule))
+	rules := make(manager.AggregationRules, 0, len(c.AggregationRule))
 	for _, r := range c.AggregationRule {
-    filters := make(manager.Filters, 0, len(r.Filter))
-    for _, filter := range r.Filter {
-      filters = append(filters, manager.NewFilter(filter.GetNameRe(), filter.GetValueRe()))
-    }
+		filters := make(manager.Filters, 0, len(r.Filter))
+		for _, filter := range r.Filter {
+			filters = append(filters, manager.NewFilter(filter.GetNameRe(), filter.GetValueRe()))
+		}
 		rules = append(rules, &manager.AggregationRule{
-      Filters: filters,
-      RepeatRate: time.Duration(r.GetRepeatRate()) * time.Second,
-    })
+			Filters:    filters,
+			RepeatRate: time.Duration(r.GetRepeatRateSeconds()) * time.Second,
+		})
 	}
 	return rules
 }

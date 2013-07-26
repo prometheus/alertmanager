@@ -14,10 +14,11 @@
 package config
 
 import (
+	"io/ioutil"
+
 	"code.google.com/p/goprotobuf/proto"
 
 	pb "github.com/prometheus/alert_manager/config/generated"
-	"io/ioutil"
 )
 
 func LoadFromString(configStr string) (Config, error) {
@@ -26,7 +27,7 @@ func LoadFromString(configStr string) (Config, error) {
 		return Config{}, err
 	}
 
-	config := Config{configProto}
+	config := Config{AlertManagerConfig: configProto}
 	err := config.Validate()
 
 	return config, err

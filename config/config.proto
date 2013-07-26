@@ -16,14 +16,14 @@ package io.prometheus.alert_manager;
 // A regex-based label filter used in aggregations.
 message Filter {
   // The regex matching the label name.
-  required string name_re = 1;
+  optional string name_re = 1;
   // The regex matching the label value.
-  required string value_re = 2;
+  optional string value_re = 2;
 }
 
 message AggregationRule {
   repeated Filter filter = 1;
-  optional int32 repeat_rate = 2 [default = 7200];
+  optional int32 repeat_rate_seconds = 2 [default = 7200];
 }
 
 message AlertManagerConfig {

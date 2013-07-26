@@ -7,7 +7,7 @@ aggregation_rule {
     name_re: "zone"
     value_re: "aa"
   }
-  repeat_rate: 3600
+  repeat_rate_seconds: 3600
 }
 
 aggregation_rule {

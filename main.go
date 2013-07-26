@@ -32,7 +32,7 @@ func main() {
 
 	conf, err := config.LoadFromFile(*configFile)
 	if err != nil {
-		log.Fatalf("Error loading configuration from %s: %v", *configFile, err)
+		log.Fatalf("Error loading configuration from %s: %s", *configFile, err)
 	}
 
 	suppressor := manager.NewSuppressor()

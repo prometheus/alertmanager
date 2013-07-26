@@ -14,8 +14,8 @@ var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 type Filter struct {
-	NameRe           *string `protobuf:"bytes,1,req,name=name_re" json:"name_re,omitempty"`
-	ValueRe          *string `protobuf:"bytes,2,req,name=value_re" json:"value_re,omitempty"`
+	NameRe           *string `protobuf:"bytes,1,opt,name=name_re" json:"name_re,omitempty"`
+	ValueRe          *string `protobuf:"bytes,2,opt,name=value_re" json:"value_re,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -38,16 +38,16 @@ func (m *Filter) GetValueRe() string {
 }
 
 type AggregationRule struct {
-	Filter           []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
-	RepeatRate       *int32    `protobuf:"varint,2,opt,name=repeat_rate,def=7200" json:"repeat_rate,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	Filter            []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
+	RepeatRateSeconds *int32    `protobuf:"varint,2,opt,name=repeat_rate_seconds,def=7200" json:"repeat_rate_seconds,omitempty"`
+	XXX_unrecognized  []byte    `json:"-"`
 }
 
 func (m *AggregationRule) Reset()         { *m = AggregationRule{} }
 func (m *AggregationRule) String() string { return proto.CompactTextString(m) }
 func (*AggregationRule) ProtoMessage()    {}
 
-const Default_AggregationRule_RepeatRate int32 = 7200
+const Default_AggregationRule_RepeatRateSeconds int32 = 7200
 
 func (m *AggregationRule) GetFilter() []*Filter {
 	if m != nil {
@@ -56,11 +56,11 @@ func (m *AggregationRule) GetFilter() []*Filter {
 	return nil
 }
 
-func (m *AggregationRule) GetRepeatRate() int32 {
-	if m != nil && m.RepeatRate != nil {
-		return *m.RepeatRate
+func (m *AggregationRule) GetRepeatRateSeconds() int32 {
+	if m != nil && m.RepeatRateSeconds != nil {
+		return *m.RepeatRateSeconds
 	}
-	return Default_AggregationRule_RepeatRate
+	return Default_AggregationRule_RepeatRateSeconds
 }
 
 type AlertManagerConfig struct {

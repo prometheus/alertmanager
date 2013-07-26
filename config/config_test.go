@@ -21,34 +21,44 @@ import (
 
 var fixturesPath = "fixtures"
 
-var configTests = []struct {
+type configTest struct {
 	inputFile   string
 	shouldFail  bool
 	errContains string
-}{
-	{
-		inputFile: "empty.conf.input",
-	}, {
-		inputFile: "sample.conf.input",
-	}, {
-		inputFile:   "invalid_proto_format.conf.input",
-		shouldFail:  true,
-		errContains: "unknown field name",
-	},
+}
+
+func (ct *configTest) test(i int, t *testing.T) {
+	_, err := LoadFromFile(path.Join(fixturesPath, ct.inputFile))
+
+	if err != nil {
+		if !ct.shouldFail {
+			t.Fatalf("%d. Error parsing config %v: %v", i, ct.inputFile, err)
+		} else {
+			if !strings.Contains(err.Error(), ct.errContains) {
+				t.Fatalf("%d. Expected error containing '%v', got: %v", i, ct.errContains, err)
+			}
+		}
+	}
 }
 
 func TestConfigs(t *testing.T) {
-	for i, configTest := range configTests {
-		_, err := LoadFromFile(path.Join(fixturesPath, configTest.inputFile))
+	var configTests = []configTest{
+		{
+			inputFile: "empty.conf.input",
+		}, {
+			inputFile: "sample.conf.input",
+		}, {
+			inputFile:   "missing_name_re.conf.input",
+			shouldFail:  true,
+			errContains: "Missing name pattern",
+		}, {
+			inputFile:   "invalid_proto_format.conf.input",
+			shouldFail:  true,
+			errContains: "unknown field name",
+		},
+	}
 
-		if err != nil {
-			if !configTest.shouldFail {
-				t.Fatalf("%d. Error parsing config %v: %v", i, configTest.inputFile, err)
-			} else {
-				if !strings.Contains(err.Error(), configTest.errContains) {
-					t.Fatalf("%d. Expected error containing '%v', got: %v", i, configTest.errContains, err)
-				}
-			}
-		}
+	for i, ct := range configTests {
+		ct.test(i, t)
 	}
 }
