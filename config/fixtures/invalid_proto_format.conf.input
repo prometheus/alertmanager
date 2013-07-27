@@ -1,0 +1,18 @@
+aggregation_rule {
+  filter {
+    label_re: "service" // Unknown protobuf field name.
+    value_re: "discovery"
+  }
+  filter {
+    name_re: "zone"
+    value_re: "aa"
+  }
+  repeat_rate: 3600
+}
+
+aggregation_rule {
+  filter {
+    name_re: "service"
+    value_re: "test"
+  }
+}

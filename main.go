@@ -17,13 +17,23 @@ import (
 	"flag"
 	"log"
 
+	"github.com/prometheus/alert_manager/config"
 	"github.com/prometheus/alert_manager/manager"
 	"github.com/prometheus/alert_manager/web"
 	"github.com/prometheus/alert_manager/web/api"
 )
 
+var (
+	configFile = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
+)
+
 func main() {
 	flag.Parse()
+
+	conf, err := config.LoadFromFile(*configFile)
+	if err != nil {
+		log.Fatalf("Error loading configuration from %s: %s", *configFile, err)
+	}
 
 	suppressor := manager.NewSuppressor()
 	defer suppressor.Close()
@@ -50,21 +60,7 @@ func main() {
 	}
 	go webService.ServeForever()
 
-	// BEGIN EXAMPLE CODE - replace with config loading later.
-	done := make(chan bool)
-	go func() {
-		rules := manager.AggregationRules{
-			&manager.AggregationRule{
-				Filters: manager.Filters{manager.NewFilter("service", "discovery")},
-			},
-		}
-
-		aggregator.SetRules(rules)
-
-		done <- true
-	}()
-	<-done
-	// END EXAMPLE CODE
+  aggregator.SetRules(conf.AggregationRules())
 
 	log.Println("Running summary dispatcher...")
 	summarizer.Dispatch(suppressor)
