@@ -1,4 +1,13 @@
 notification_config {
+  pagerduty_config {
+    service_key: "supersecretapikey"
+  }
+  email_config {
+    email: "test@testservice.org"
+  }
+}
+
+notification_config {
   name: "alertmanager_test"
   pagerduty_config {
     service_key: "supersecretapikey"

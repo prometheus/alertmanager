@@ -28,9 +28,9 @@ const (
 
 // AggregationRule creates and manages the scope for received events.
 type AggregationRule struct {
-	Filters Filters
-
-	RepeatRate time.Duration
+	Filters            Filters
+	RepeatRate         time.Duration
+	NotificationConfig string
 }
 
 type AggregationInstances []*AggregationInstance

@@ -13,6 +13,70 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
+type PagerDutyConfig struct {
+	ServiceKey       *string `protobuf:"bytes,1,opt,name=service_key" json:"service_key,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *PagerDutyConfig) Reset()         { *m = PagerDutyConfig{} }
+func (m *PagerDutyConfig) String() string { return proto.CompactTextString(m) }
+func (*PagerDutyConfig) ProtoMessage()    {}
+
+func (m *PagerDutyConfig) GetServiceKey() string {
+	if m != nil && m.ServiceKey != nil {
+		return *m.ServiceKey
+	}
+	return ""
+}
+
+type EmailConfig struct {
+	Email            *string `protobuf:"bytes,1,opt,name=email" json:"email,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *EmailConfig) Reset()         { *m = EmailConfig{} }
+func (m *EmailConfig) String() string { return proto.CompactTextString(m) }
+func (*EmailConfig) ProtoMessage()    {}
+
+func (m *EmailConfig) GetEmail() string {
+	if m != nil && m.Email != nil {
+		return *m.Email
+	}
+	return ""
+}
+
+type NotificationConfig struct {
+	Name             *string            `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	PagerdutyConfig  []*PagerDutyConfig `protobuf:"bytes,2,rep,name=pagerduty_config" json:"pagerduty_config,omitempty"`
+	EmailConfig      []*EmailConfig     `protobuf:"bytes,3,rep,name=email_config" json:"email_config,omitempty"`
+	XXX_unrecognized []byte             `json:"-"`
+}
+
+func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
+func (m *NotificationConfig) String() string { return proto.CompactTextString(m) }
+func (*NotificationConfig) ProtoMessage()    {}
+
+func (m *NotificationConfig) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
+
+func (m *NotificationConfig) GetPagerdutyConfig() []*PagerDutyConfig {
+	if m != nil {
+		return m.PagerdutyConfig
+	}
+	return nil
+}
+
+func (m *NotificationConfig) GetEmailConfig() []*EmailConfig {
+	if m != nil {
+		return m.EmailConfig
+	}
+	return nil
+}
+
 type Filter struct {
 	NameRe           *string `protobuf:"bytes,1,opt,name=name_re" json:"name_re,omitempty"`
 	ValueRe          *string `protobuf:"bytes,2,opt,name=value_re" json:"value_re,omitempty"`
@@ -38,9 +102,10 @@ func (m *Filter) GetValueRe() string {
 }
 
 type AggregationRule struct {
-	Filter            []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
-	RepeatRateSeconds *int32    `protobuf:"varint,2,opt,name=repeat_rate_seconds,def=7200" json:"repeat_rate_seconds,omitempty"`
-	XXX_unrecognized  []byte    `json:"-"`
+	Filter             []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
+	RepeatRateSeconds  *int32    `protobuf:"varint,2,opt,name=repeat_rate_seconds,def=7200" json:"repeat_rate_seconds,omitempty"`
+	NotificationConfig *string   `protobuf:"bytes,3,opt,name=notification_config" json:"notification_config,omitempty"`
+	XXX_unrecognized   []byte    `json:"-"`
 }
 
 func (m *AggregationRule) Reset()         { *m = AggregationRule{} }
@@ -63,9 +128,17 @@ func (m *AggregationRule) GetRepeatRateSeconds() int32 {
 	return Default_AggregationRule_RepeatRateSeconds
 }
 
+func (m *AggregationRule) GetNotificationConfig() string {
+	if m != nil && m.NotificationConfig != nil {
+		return *m.NotificationConfig
+	}
+	return ""
+}
+
 type AlertManagerConfig struct {
-	AggregationRule  []*AggregationRule `protobuf:"bytes,1,rep,name=aggregation_rule" json:"aggregation_rule,omitempty"`
-	XXX_unrecognized []byte             `json:"-"`
+	AggregationRule    []*AggregationRule    `protobuf:"bytes,1,rep,name=aggregation_rule" json:"aggregation_rule,omitempty"`
+	NotificationConfig []*NotificationConfig `protobuf:"bytes,2,rep,name=notification_config" json:"notification_config,omitempty"`
+	XXX_unrecognized   []byte                `json:"-"`
 }
 
 func (m *AlertManagerConfig) Reset()         { *m = AlertManagerConfig{} }
@@ -75,6 +148,13 @@ func (*AlertManagerConfig) ProtoMessage()    {}
 func (m *AlertManagerConfig) GetAggregationRule() []*AggregationRule {
 	if m != nil {
 		return m.AggregationRule
+	}
+	return nil
+}
+
+func (m *AlertManagerConfig) GetNotificationConfig() []*NotificationConfig {
+	if m != nil {
+		return m.NotificationConfig
 	}
 	return nil
 }
