@@ -63,7 +63,7 @@ func (w WebService) ServeForever() error {
 	exp.Handle("/status", w.StatusHandler)
 
 	exp.Handle("/api/", compressionHandler{handler: gorest.Handle()})
-	exp.Handle("/metrics.json", prometheus.DefaultHandler)
+	exp.Handle("/metrics", prometheus.DefaultHandler)
 	if *useLocalAssets {
 		exp.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 	} else {
