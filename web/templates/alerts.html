@@ -17,10 +17,11 @@
           <th>Labels</th>
           <th>Active Since</th>
           <th>Last Refreshed</th>
-          <th>Surpressed</th>
+          <th>Silenced</th>
         </tr>
       </thead>
       <tbody>
+        {{$silenceForEvent := .SilenceForEvent}}
         {{range .AlertAggregates}}
           <tr>
             <td>
@@ -45,7 +46,14 @@
             </td>
             <td>{{timeSince .Created}} ago</td>
             <td>{{timeSince .LastRefreshed}} ago</td>
-            <td>No</td>
+            <td>
+              {{$silence := call $silenceForEvent .Event}}
+              {{if $silence}}
+                by <a href="#" class="silence_link">silence {{$silence.Id}}</a>
+              {{else}}
+                not silenced
+              {{end}}
+            </td>
           </tr>
         {{end}}
       </tbody>

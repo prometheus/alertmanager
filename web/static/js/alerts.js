@@ -195,6 +195,10 @@ function init() {
   $(".del_silence_btn").click(function() {
     deleteSilence(silenceId, silenceRow);
   });
+
+  $(".silence_link").click(function() {
+    alert("Linking to silence not yet supported");
+  });
 }
 
 $(init);

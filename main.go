@@ -52,7 +52,8 @@ func main() {
 
 		// Template-based page handlers.
 		AlertsHandler: &web.AlertsHandler{
-			Aggregator: aggregator,
+			Aggregator:              aggregator,
+			IsInhibitedInterrogator: suppressor,
 		},
 		SilencesHandler: &web.SilencesHandler{
 			Suppressor: suppressor,
