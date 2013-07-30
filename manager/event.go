@@ -51,8 +51,9 @@ func (e Event) Fingerprint() EventFingerprint {
 
 	summer := fnv.New64a()
 
+	separator := string([]byte{0})
 	for _, k := range keys {
-		fmt.Fprintf(summer, k, e.Labels[k])
+		fmt.Fprintf(summer, "%s%s%s%s", k, separator, e.Labels[k], separator)
 	}
 
 	return EventFingerprint(summer.Sum64())
