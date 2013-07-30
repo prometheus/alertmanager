@@ -14,8 +14,8 @@ function addSilenceLabel(label, value) {
   }
   $("#silence_filters_table").append(
         '<tr>' +
-        '  <td><input class="input-large" name="silence_filter_label[]" type="text" placeholder="label regex" value="' + label + '" required></td>' +
-        '  <td><input class="input-large" name="silence_filter_value[]" type="text" placeholder="value regex" value="' + value + '" required></td>' +
+        '  <td><input class="input-large" name="silence_filter_label[]" type="text" placeholder="Label regex" value="' + label + '" required></td>' +
+        '  <td><input class="input-large" name="silence_filter_value[]" type="text" placeholder="Value regex" value="' + value + '" required></td>' +
         '  <td><button type="button" class="btn del_label_button"><i class="icon-minus"></i></button></td>' +
         '</tr>');
   bindDelLabel();
