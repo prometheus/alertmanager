@@ -19,7 +19,7 @@ import (
 	"sort"
 )
 
-const eventNameLabel = "name"
+const EventNameLabel = "alertname"
 
 type EventFingerprint uint64
 
@@ -28,16 +28,19 @@ type EventPayload map[string]string
 
 // Event models an action triggered by Prometheus.
 type Event struct {
+	// Short summary of event.
+	Summary string
+	// Long description of event.
+	Description string
 	// Label value pairs for purpose of aggregation, matching, and disposition
-	// dispatching. This must minimally include a "name" label.
+	// dispatching. This must minimally include an "alertname" label.
 	Labels EventLabels
 	// Extra key/value information which is not used for aggregation.
 	Payload EventPayload
 }
 
 func (e Event) Name() string {
-	// BUG: ensure in a proper place that all events have a name?
-	return e.Labels[eventNameLabel]
+	return e.Labels[EventNameLabel]
 }
 
 func (e Event) Fingerprint() EventFingerprint {
@@ -51,8 +54,9 @@ func (e Event) Fingerprint() EventFingerprint {
 
 	summer := fnv.New64a()
 
+	separator := string([]byte{0})
 	for _, k := range keys {
-		fmt.Fprintf(summer, k, e.Labels[k])
+		fmt.Fprintf(summer, "%s%s%s%s", k, separator, e.Labels[k], separator)
 	}
 
 	return EventFingerprint(summer.Sum64())

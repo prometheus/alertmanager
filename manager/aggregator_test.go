@@ -15,13 +15,21 @@ package manager
 
 import (
 	"testing"
+
+	pb "github.com/prometheus/alert_manager/config/generated"
 )
 
-type dummyReceiver struct{}
+type dummyNotifier struct{}
 
-func (d *dummyReceiver) Receive(*EventSummary) RemoteError {
+func (d *dummyNotifier) QueueNotification(*Event, string) error {
 	return nil
 }
+
+func (d *dummyNotifier) SetNotificationConfigs([]*pb.NotificationConfig) {}
+
+func (d *dummyNotifier) Dispatch(IsInhibitedInterrogator) {}
+
+func (d *dummyNotifier) Close() {}
 
 type testAggregatorScenario struct {
 	rules     AggregationRules
@@ -30,7 +38,7 @@ type testAggregatorScenario struct {
 }
 
 func (s *testAggregatorScenario) test(i int, t *testing.T) {
-	a := NewAggregator(&dummyReceiver{})
+	a := NewAggregator(&dummyNotifier{})
 	a.SetRules(s.rules)
 
 	if len(s.inMatch) > 0 {

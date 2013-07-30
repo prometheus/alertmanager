@@ -28,9 +28,9 @@ const (
 
 // AggregationRule creates and manages the scope for received events.
 type AggregationRule struct {
-	Filters Filters
-
-	RepeatRate time.Duration
+	Filters                Filters
+	RepeatRate             time.Duration
+	NotificationConfigName string
 }
 
 type AggregationInstances []*AggregationInstance
@@ -65,28 +65,26 @@ func (r *AggregationInstance) Ingest(e *Event) {
 	r.expiryTimer.Reset(minimumRefreshPeriod)
 }
 
-func (r *AggregationInstance) SendNotification(s SummaryReceiver) {
+func (r *AggregationInstance) SendNotification(n Notifier) {
 	if time.Since(r.lastNotificationSent) < r.Rule.RepeatRate {
 		return
 	}
 
-	err := s.Receive(&EventSummary{
-		Rule:  r.Rule,
-		Event: r.Event,
-	})
+	err := n.QueueNotification(r.Event, r.Rule.NotificationConfigName)
 	if err != nil {
+		// BUG: Limit the number of retries.
 		log.Printf("Error while sending notification: %s, retrying in %v", err, notificationRetryPeriod)
-		r.resendNotificationAfter(notificationRetryPeriod, s)
+		r.resendNotificationAfter(notificationRetryPeriod, n)
 		return
 	}
 
-	r.resendNotificationAfter(r.Rule.RepeatRate, s)
+	r.resendNotificationAfter(r.Rule.RepeatRate, n)
 	r.lastNotificationSent = time.Now()
 }
 
-func (r *AggregationInstance) resendNotificationAfter(d time.Duration, s SummaryReceiver) {
+func (r *AggregationInstance) resendNotificationAfter(d time.Duration, n Notifier) {
 	r.notificationResendTimer = time.AfterFunc(d, func() {
-		r.SendNotification(s)
+		r.SendNotification(n)
 	})
 }
 
@@ -102,18 +100,18 @@ func (r *AggregationInstance) Close() {
 type AggregationRules []*AggregationRule
 
 type Aggregator struct {
-	Rules           AggregationRules
-	Aggregates      map[EventFingerprint]*AggregationInstance
-	SummaryReceiver SummaryReceiver
+	Rules      AggregationRules
+	Aggregates map[EventFingerprint]*AggregationInstance
+	Notifier   Notifier
 
 	// Mutex to protect the above.
 	mu sync.Mutex
 }
 
-func NewAggregator(s SummaryReceiver) *Aggregator {
+func NewAggregator(n Notifier) *Aggregator {
 	return &Aggregator{
-		Aggregates:      make(map[EventFingerprint]*AggregationInstance),
-		SummaryReceiver: s,
+		Aggregates: make(map[EventFingerprint]*AggregationInstance),
+		Notifier:   n,
 	}
 }
 
@@ -153,7 +151,7 @@ func (a *Aggregator) Receive(events Events) error {
 				}
 
 				aggregation.Ingest(e)
-				aggregation.SendNotification(a.SummaryReceiver)
+				aggregation.SendNotification(a.Notifier)
 				break
 			}
 		}

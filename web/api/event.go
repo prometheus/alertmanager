@@ -14,14 +14,31 @@
 package api
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/prometheus/alert_manager/manager"
 )
 
 func (s AlertManagerService) AddEvents(es manager.Events) {
+	for i, ev := range es {
+		if ev.Summary == "" || ev.Description == "" {
+			log.Printf("Missing field in event %d: %s", i, ev)
+			rb := s.ResponseBuilder()
+			rb.SetResponseCode(http.StatusBadRequest)
+			return
+		}
+		if _, ok := ev.Labels[manager.EventNameLabel]; !ok {
+			log.Printf("Missing alert name label in event %d: %s", i, ev)
+			rb := s.ResponseBuilder()
+			rb.SetResponseCode(http.StatusBadRequest)
+			return
+		}
+	}
+
 	err := s.Aggregator.Receive(es)
 	if err != nil {
+		log.Println("Error during aggregation:", err)
 		rb := s.ResponseBuilder()
 		rb.SetResponseCode(http.StatusServiceUnavailable)
 	}
