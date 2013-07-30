@@ -39,6 +39,29 @@ func (c Config) String() string {
 
 // Validate checks an entire parsed Config for the validity of its fields.
 func (c Config) Validate() error {
+	ncNames := map[string]bool{}
+	for _, nc := range c.NotificationConfig {
+		if nc.Name == nil {
+			return fmt.Errorf("Missing name in notification config: %s", proto.MarshalTextString(nc))
+		}
+		for _, pdc := range nc.PagerdutyConfig {
+			if pdc.ServiceKey == nil {
+				return fmt.Errorf("Missing service key in PagerDuty notification config: %s", proto.MarshalTextString(pdc))
+			}
+		}
+		for _, ec := range nc.EmailConfig {
+			if ec.Email == nil {
+				return fmt.Errorf("Missing email address in email notification config: %s", proto.MarshalTextString(ec))
+			}
+		}
+
+		if _, ok := ncNames[nc.GetName()]; ok {
+			return fmt.Errorf("Notification config name not unique: %s", nc.GetName())
+		}
+
+		ncNames[nc.GetName()] = true
+	}
+
 	for _, a := range c.AggregationRule {
 		for _, f := range a.Filter {
 			if f.NameRe == nil {
@@ -48,7 +71,12 @@ func (c Config) Validate() error {
 				return fmt.Errorf("Missing value pattern (value_re) in filter definition: %s", proto.MarshalTextString(f))
 			}
 		}
+
+		if _, ok := ncNames[a.GetNotificationConfigName()]; !ok {
+			return fmt.Errorf("No such notification config: %s", a.GetNotificationConfigName())
+		}
 	}
+
 	return nil
 }
 
@@ -61,8 +89,9 @@ func (c Config) AggregationRules() manager.AggregationRules {
 			filters = append(filters, manager.NewFilter(filter.GetNameRe(), filter.GetValueRe()))
 		}
 		rules = append(rules, &manager.AggregationRule{
-			Filters:    filters,
-			RepeatRate: time.Duration(r.GetRepeatRateSeconds()) * time.Second,
+			Filters:                filters,
+			RepeatRate:             time.Duration(r.GetRepeatRateSeconds()) * time.Second,
+			NotificationConfigName: r.GetNotificationConfigName(),
 		})
 	}
 	return rules

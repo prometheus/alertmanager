@@ -13,6 +13,29 @@
 
 package io.prometheus.alert_manager;
 
+// Configuration for notification via PagerDuty.
+message PagerDutyConfig {
+  // PagerDuty service key, see:
+  // http://developer.pagerduty.com/documentation/integration/events
+  optional string service_key = 1;
+}
+
+// Configuration for notification via mail.
+message EmailConfig {
+  // Email address to notify.
+  optional string email = 1;
+}
+
+// Notification configuration definition.
+message NotificationConfig {
+  // Name of this NotificationConfig. Referenced from AggregationRule.
+  optional string name = 1;
+  // Zero or more PagerDuty notification configurations.
+  repeated PagerDutyConfig pagerduty_config = 2;
+  // Zero or more email notification configurations.
+  repeated EmailConfig email_config = 3;
+}
+
 // A regex-based label filter used in aggregations.
 message Filter {
   // The regex matching the label name.
@@ -21,11 +44,21 @@ message Filter {
   optional string value_re = 2;
 }
 
+// Grouping and notification setting definitions for alerts.
 message AggregationRule {
+  // Filters that define which alerts are matched by this AggregationRule.
   repeated Filter filter = 1;
+  // How many seconds to wait before resending a notification for a specific alert.
   optional int32 repeat_rate_seconds = 2 [default = 7200];
+  // Notification configuration to use for this AggregationRule, referenced by
+  // their name.
+  optional string notification_config_name = 3;
 }
 
+// Global alert manager configuration.
 message AlertManagerConfig {
+  // Aggregation rule definitions.
   repeated AggregationRule aggregation_rule = 1;
+  // Notification configuration definitions.
+  repeated NotificationConfig notification_config = 2;
 }

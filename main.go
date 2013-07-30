@@ -38,9 +38,10 @@ func main() {
 	suppressor := manager.NewSuppressor()
 	defer suppressor.Close()
 
-	summarizer := manager.NewSummaryDispatcher()
+	notifier := manager.NewNotifier(conf.NotificationConfig)
+	defer notifier.Close()
 
-	aggregator := manager.NewAggregator(summarizer)
+	aggregator := manager.NewAggregator(notifier)
 	defer aggregator.Close()
 
 	webService := &web.WebService{
@@ -52,7 +53,8 @@ func main() {
 
 		// Template-based page handlers.
 		AlertsHandler: &web.AlertsHandler{
-			Aggregator: aggregator,
+			Aggregator:              aggregator,
+			IsInhibitedInterrogator: suppressor,
 		},
 		SilencesHandler: &web.SilencesHandler{
 			Suppressor: suppressor,
@@ -60,8 +62,8 @@ func main() {
 	}
 	go webService.ServeForever()
 
-  aggregator.SetRules(conf.AggregationRules())
+	aggregator.SetRules(conf.AggregationRules())
 
 	log.Println("Running summary dispatcher...")
-	summarizer.Dispatch(suppressor)
+	notifier.Dispatch(suppressor)
 }

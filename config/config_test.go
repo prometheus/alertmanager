@@ -48,13 +48,25 @@ func TestConfigs(t *testing.T) {
 		}, {
 			inputFile: "sample.conf.input",
 		}, {
-			inputFile:   "missing_name_re.conf.input",
+			inputFile:   "missing_filter_name_re.conf.input",
 			shouldFail:  true,
 			errContains: "Missing name pattern",
 		}, {
 			inputFile:   "invalid_proto_format.conf.input",
 			shouldFail:  true,
 			errContains: "unknown field name",
+		}, {
+			inputFile:   "duplicate_nc_name.conf.input",
+			shouldFail:  true,
+			errContains: "not unique",
+		}, {
+			inputFile:   "nonexistent_nc_name.conf.input",
+			shouldFail:  true,
+			errContains: "No such notification config",
+		}, {
+			inputFile:   "missing_nc_name.conf.input",
+			shouldFail:  true,
+			errContains: "Missing name",
 		},
 	}
 
