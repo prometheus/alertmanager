@@ -14,5 +14,5 @@ aggregation_rule {
     value_re: "test"
   }
   repeat_rate_seconds: 3600
-  notification_config: "alertmanager_test2"
+  notification_config_name: "alertmanager_test2"
 }

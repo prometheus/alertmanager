@@ -28,9 +28,9 @@ const (
 
 // AggregationRule creates and manages the scope for received events.
 type AggregationRule struct {
-	Filters            Filters
-	RepeatRate         time.Duration
-	NotificationConfig string
+	Filters                Filters
+	RepeatRate             time.Duration
+	NotificationConfigName string
 }
 
 type AggregationInstances []*AggregationInstance
@@ -70,7 +70,7 @@ func (r *AggregationInstance) SendNotification(n Notifier) {
 		return
 	}
 
-	err := n.QueueNotification(r.Event, r.Rule.NotificationConfig)
+	err := n.QueueNotification(r.Event, r.Rule.NotificationConfigName)
 	if err != nil {
 		// BUG: Limit the number of retries.
 		log.Printf("Error while sending notification: %s, retrying in %v", err, notificationRetryPeriod)

@@ -102,10 +102,10 @@ func (m *Filter) GetValueRe() string {
 }
 
 type AggregationRule struct {
-	Filter             []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
-	RepeatRateSeconds  *int32    `protobuf:"varint,2,opt,name=repeat_rate_seconds,def=7200" json:"repeat_rate_seconds,omitempty"`
-	NotificationConfig *string   `protobuf:"bytes,3,opt,name=notification_config" json:"notification_config,omitempty"`
-	XXX_unrecognized   []byte    `json:"-"`
+	Filter                 []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
+	RepeatRateSeconds      *int32    `protobuf:"varint,2,opt,name=repeat_rate_seconds,def=7200" json:"repeat_rate_seconds,omitempty"`
+	NotificationConfigName *string   `protobuf:"bytes,3,opt,name=notification_config_name" json:"notification_config_name,omitempty"`
+	XXX_unrecognized       []byte    `json:"-"`
 }
 
 func (m *AggregationRule) Reset()         { *m = AggregationRule{} }
@@ -128,9 +128,9 @@ func (m *AggregationRule) GetRepeatRateSeconds() int32 {
 	return Default_AggregationRule_RepeatRateSeconds
 }
 
-func (m *AggregationRule) GetNotificationConfig() string {
-	if m != nil && m.NotificationConfig != nil {
-		return *m.NotificationConfig
+func (m *AggregationRule) GetNotificationConfigName() string {
+	if m != nil && m.NotificationConfigName != nil {
+		return *m.NotificationConfigName
 	}
 	return ""
 }

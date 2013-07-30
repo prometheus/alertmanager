@@ -25,9 +25,11 @@ func (d *dummyNotifier) QueueNotification(*Event, string) error {
 	return nil
 }
 
-func (d *dummyNotifier) SetNotificationConfigs([]pb.NotificationConfig) {}
+func (d *dummyNotifier) SetNotificationConfigs([]*pb.NotificationConfig) {}
 
 func (d *dummyNotifier) Dispatch(IsInhibitedInterrogator) {}
+
+func (d *dummyNotifier) Close() {}
 
 type testAggregatorScenario struct {
 	rules     AggregationRules

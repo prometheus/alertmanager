@@ -52,7 +52,7 @@ message AggregationRule {
   optional int32 repeat_rate_seconds = 2 [default = 7200];
   // Notification configuration to use for this AggregationRule, referenced by
   // their name.
-  optional string notification_config = 3;
+  optional string notification_config_name = 3;
 }
 
 // Global alert manager configuration.

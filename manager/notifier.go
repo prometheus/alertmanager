@@ -57,8 +57,6 @@ type notificationReq struct {
 type notifier struct {
 	// Notifications that are queued to be sent.
 	pendingNotifications chan *notificationReq
-	// Channel for stopping the dispatch loop.
-	stop chan bool
 
 	// Mutex to protect the fields below.
 	mu sync.Mutex
@@ -70,7 +68,6 @@ type notifier struct {
 func NewNotifier(configs []*pb.NotificationConfig) *notifier {
 	notifier := &notifier{
 		pendingNotifications: make(chan *notificationReq, *notificationBufferSize),
-		stop:                 make(chan bool),
 	}
 	notifier.SetNotificationConfigs(configs)
 	return notifier
@@ -137,7 +134,7 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, event *Event) er
 		return err
 	}
 
-	log.Printf("Sent PagerDuty notification: %s: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	log.Printf("Sent PagerDuty notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
 	// BUG: Check response for result of operation.
 	return nil
 }
@@ -149,7 +146,7 @@ func (n *notifier) sendEmailNotification(email string, event *Event) error {
 }
 
 func (n *notifier) handleNotification(event *Event, config *pb.NotificationConfig, i IsInhibitedInterrogator) {
-	if inhibited, _ := i.IsInhibited(event); !inhibited {
+	if inhibited, _ := i.IsInhibited(event); inhibited {
 		return
 	}
 
@@ -166,22 +163,11 @@ func (n *notifier) handleNotification(event *Event, config *pb.NotificationConfi
 }
 
 func (n *notifier) Dispatch(i IsInhibitedInterrogator) {
-	for {
-		select {
-		case req := <-n.pendingNotifications:
-			n.handleNotification(req.event, req.notificationConfig, i)
-		case <-n.stop:
-			// We require that Close() is only called after nobody sends new
-			// notification requests anymore, so we only need to drain existing ones.
-			// BUG: We might want to add state validation for this.
-			close(n.pendingNotifications)
-			for req := range n.pendingNotifications {
-				n.handleNotification(req.event, req.notificationConfig, i)
-			}
-		}
+	for req := range n.pendingNotifications {
+		n.handleNotification(req.event, req.notificationConfig, i)
 	}
 }
 
 func (n *notifier) Close() {
-	n.stop <- true
+	close(n.pendingNotifications)
 }

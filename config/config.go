@@ -72,8 +72,8 @@ func (c Config) Validate() error {
 			}
 		}
 
-		if _, ok := ncNames[a.GetNotificationConfig()]; !ok {
-			return fmt.Errorf("No such notification config: %s", a.GetNotificationConfig())
+		if _, ok := ncNames[a.GetNotificationConfigName()]; !ok {
+			return fmt.Errorf("No such notification config: %s", a.GetNotificationConfigName())
 		}
 	}
 
@@ -89,9 +89,9 @@ func (c Config) AggregationRules() manager.AggregationRules {
 			filters = append(filters, manager.NewFilter(filter.GetNameRe(), filter.GetValueRe()))
 		}
 		rules = append(rules, &manager.AggregationRule{
-			Filters:            filters,
-			RepeatRate:         time.Duration(r.GetRepeatRateSeconds()) * time.Second,
-			NotificationConfig: r.GetNotificationConfig(),
+			Filters:                filters,
+			RepeatRate:             time.Duration(r.GetRepeatRateSeconds()) * time.Second,
+			NotificationConfigName: r.GetNotificationConfigName(),
 		})
 	}
 	return rules
