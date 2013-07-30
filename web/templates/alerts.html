@@ -27,14 +27,16 @@
             <td>
               <span class="label label-important">{{index .Event.Name}}</span>
               <form class="add_silence_form">
-                <input type="hidden" name="label[]" value="name">
-                <input type="hidden" name="value[]" value="{{.Event.Labels.name}}">
+                <input type="hidden" name="label[]" value="alertname">
+                <input type="hidden" name="value[]" value="{{.Event.Name}}">
                 <a href="#edit_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Alert</a>
               </form>
             </td>
             <td>
               {{range $label, $value := .Event.Labels}}
-                <span class="label label-info"><b>{{$label}}</b>="{{$value}}"</span>
+                {{if not (eq $label "alertname")}}
+                  <span class="label label-info"><b>{{$label}}</b>="{{$value}}"</span>
+                {{end}}
               {{end}}
               <form class="add_silence_form">
                 {{range $label, $value := .Event.Labels}}

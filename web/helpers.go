@@ -15,6 +15,7 @@ package web
 
 import (
 	"html/template"
+	"reflect"
 	"time"
 )
 
@@ -22,6 +23,31 @@ func timeSince(t time.Time) string {
 	return time.Now().Round(time.Second / 10).Sub(t.Round(time.Second / 10)).String()
 }
 
+// By Russ Cox, https://groups.google.com/d/msg/golang-nuts/OEdSDgEC7js/iyhU9DW_IKcJ.
+func eq(args ...interface{}) bool {
+	if len(args) == 0 {
+		return false
+	}
+	x := args[0]
+	switch x := x.(type) {
+	case string, int, int64, byte, float32, float64:
+		for _, y := range args[1:] {
+			if x == y {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, y := range args[1:] {
+		if reflect.DeepEqual(x, y) {
+			return true
+		}
+	}
+	return false
+}
+
 var webHelpers = template.FuncMap{
 	"timeSince": timeSince,
+	"eq":        eq,
 }
