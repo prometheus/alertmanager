@@ -32,9 +32,9 @@ type Silence struct {
 	Filters          map[string]string
 }
 
-func (s AlertManagerService) AddSilence(sc manager.Suppression) {
+func (s AlertManagerService) AddSilence(sc manager.Silence) {
 	// BUG: add server-side form validation.
-	id := s.Suppressor.AddSuppression(&sc)
+	id := s.Silencer.AddSilence(&sc)
 
 	rb := s.ResponseBuilder()
 	rb.SetResponseCode(http.StatusCreated)
@@ -44,7 +44,7 @@ func (s AlertManagerService) AddSilence(sc manager.Suppression) {
 func (s AlertManagerService) GetSilence(id int) string {
 	rb := s.ResponseBuilder()
 	rb.SetContentType(gorest.Application_Json)
-	silence, err := s.Suppressor.GetSuppression(manager.SuppressionId(id))
+	silence, err := s.Silencer.GetSilence(manager.SilenceId(id))
 	if err != nil {
 		log.Printf("Error getting silence: %s", err)
 		rb.SetResponseCode(http.StatusNotFound)
@@ -60,10 +60,10 @@ func (s AlertManagerService) GetSilence(id int) string {
 	return string(resultBytes)
 }
 
-func (s AlertManagerService) UpdateSilence(sc manager.Suppression, id int) {
+func (s AlertManagerService) UpdateSilence(sc manager.Silence, id int) {
 	// BUG: add server-side form validation.
-	sc.Id = manager.SuppressionId(id)
-	if err := s.Suppressor.UpdateSuppression(&sc); err != nil {
+	sc.Id = manager.SilenceId(id)
+	if err := s.Silencer.UpdateSilence(&sc); err != nil {
 		log.Printf("Error updating silence: %s", err)
 		rb := s.ResponseBuilder()
 		rb.SetResponseCode(http.StatusNotFound)
@@ -71,7 +71,7 @@ func (s AlertManagerService) UpdateSilence(sc manager.Suppression, id int) {
 }
 
 func (s AlertManagerService) DelSilence(id int) {
-	if err := s.Suppressor.DelSuppression(manager.SuppressionId(id)); err != nil {
+	if err := s.Silencer.DelSilence(manager.SilenceId(id)); err != nil {
 		log.Printf("Error deleting silence: %s", err)
 		rb := s.ResponseBuilder()
 		rb.SetResponseCode(http.StatusNotFound)
@@ -81,7 +81,7 @@ func (s AlertManagerService) DelSilence(id int) {
 func (s AlertManagerService) SilenceSummary() string {
 	rb := s.ResponseBuilder()
 	rb.SetContentType(gorest.Application_Json)
-	silenceSummary := s.Suppressor.SuppressionSummary()
+	silenceSummary := s.Silencer.SilenceSummary()
 
 	resultBytes, err := json.Marshal(silenceSummary)
 	if err != nil {

@@ -21,7 +21,7 @@ import (
 
 type AlertStatus struct {
 	AlertAggregates []*manager.AggregationInstance
-	SilenceForEvent func(*manager.Event) *manager.Suppression
+	SilenceForEvent func(*manager.Event) *manager.Silence
 }
 
 type AlertsHandler struct {
@@ -29,7 +29,7 @@ type AlertsHandler struct {
 	IsInhibitedInterrogator manager.IsInhibitedInterrogator
 }
 
-func (h *AlertsHandler) silenceForEvent(e *manager.Event) *manager.Suppression {
+func (h *AlertsHandler) silenceForEvent(e *manager.Event) *manager.Silence {
 	_, silence := h.IsInhibitedInterrogator.IsInhibited(e)
 	return silence
 }

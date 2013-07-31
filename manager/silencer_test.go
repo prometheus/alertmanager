@@ -18,70 +18,70 @@ import (
 	"time"
 )
 
-type testSuppressorScenario struct {
-	suppressions Suppressions
-	inhibited    Events
-	uninhibited  Events
+type testSilencerScenario struct {
+	silences    Silences
+	inhibited   Events
+	uninhibited Events
 }
 
-func (sc *testSuppressorScenario) test(i int, t *testing.T) {
-	s := NewSuppressor()
+func (scenario *testSilencerScenario) test(i int, t *testing.T) {
+	s := NewSilencer()
 
-	for j, sup := range sc.suppressions {
-		id := s.AddSuppression(sup)
-		retrievedSup, err := s.GetSuppression(id)
+	for j, sc := range scenario.silences {
+		id := s.AddSilence(sc)
+		retrievedSilence, err := s.GetSilence(id)
 		if err != nil {
-			t.Fatalf("%d.%d. Error getting suppression: %s", i, j, err)
+			t.Fatalf("%d.%d. Error getting silence: %s", i, j, err)
 		}
-		if retrievedSup.Id != id {
-			t.Fatalf("%d.%d. Expected ID %d, got %d", i, j, id, retrievedSup.Id)
+		if retrievedSilence.Id != id {
+			t.Fatalf("%d.%d. Expected ID %d, got %d", i, j, id, retrievedSilence.Id)
 		}
-		sup.Id = id
-		if sup != retrievedSup {
-			t.Fatalf("%d.%d. Expected suppression %v, got  %v", i, j, sup, retrievedSup)
+		sc.Id = id
+		if sc != retrievedSilence {
+			t.Fatalf("%d.%d. Expected silence %v, got  %v", i, j, sc, retrievedSilence)
 		}
 	}
 
-	for j, ev := range sc.inhibited {
-		inhibited, sup := s.IsInhibited(ev)
+	for j, ev := range scenario.inhibited {
+		inhibited, sc := s.IsInhibited(ev)
 		if !inhibited {
 			t.Fatalf("%d.%d. Expected %v to be inhibited", i, j, ev)
 		}
-		if sup == nil {
-			t.Fatalf("%d.%d. Expected non-nil Suppression for inhibited event %v", i, j, ev)
+		if sc == nil {
+			t.Fatalf("%d.%d. Expected non-nil Silence for inhibited event %v", i, j, ev)
 		}
 	}
 
-	for j, ev := range sc.uninhibited {
-		inhibited, sup := s.IsInhibited(ev)
+	for j, ev := range scenario.uninhibited {
+		inhibited, sc := s.IsInhibited(ev)
 		if inhibited {
-			t.Fatalf("%d.%d. Expected %v to not be inhibited, was inhibited by %v", i, j, ev, sup)
+			t.Fatalf("%d.%d. Expected %v to not be inhibited, was inhibited by %v", i, j, ev, sc)
 		}
 	}
 
-	suppressions := s.SuppressionSummary()
-	if len(suppressions) != len(sc.suppressions) {
-		t.Fatalf("%d. Expected %d suppressions, got %d", i, len(sc.suppressions), len(suppressions))
+	silences := s.SilenceSummary()
+	if len(silences) != len(scenario.silences) {
+		t.Fatalf("%d. Expected %d silences, got %d", i, len(scenario.silences), len(silences))
 	}
 
-	for j, sup := range suppressions {
-		if err := s.DelSuppression(sup.Id); err != nil {
-			t.Fatalf("%d.%d. Got error while deleting suppression: %s", i, j, err)
+	for j, sc := range silences {
+		if err := s.DelSilence(sc.Id); err != nil {
+			t.Fatalf("%d.%d. Got error while deleting silence: %s", i, j, err)
 		}
 
-		newSuppressions := s.SuppressionSummary()
-		if len(newSuppressions) != len(suppressions)-j-1 {
-			t.Fatalf("%d. Expected %d suppressions, got %d", i, len(suppressions), len(newSuppressions))
+		newSilences := s.SilenceSummary()
+		if len(newSilences) != len(silences)-j-1 {
+			t.Fatalf("%d. Expected %d silences, got %d", i, len(silences), len(newSilences))
 		}
 	}
 
 	s.Close()
 }
 
-func TestSuppressor(t *testing.T) {
-	scenarios := []testSuppressorScenario{
+func TestSilencer(t *testing.T) {
+	scenarios := []testSilencerScenario{
 		{
-			// No suppressions, one event.
+			// No silences, one event.
 			uninhibited: Events{
 				&Event{
 					Labels: map[string]string{
@@ -92,12 +92,12 @@ func TestSuppressor(t *testing.T) {
 		},
 		{
 			// One rule, two matching events, one non-matching.
-			suppressions: Suppressions{
-				&Suppression{
+			silences: Silences{
+				&Silence{
 					Filters: Filters{NewFilter("service", "test(-)?service")},
 					EndsAt:  time.Now().Add(time.Hour),
 				},
-				&Suppression{
+				&Silence{
 					Filters: Filters{NewFilter("testlabel", ".*")},
 					EndsAt:  time.Now().Add(time.Hour),
 				},
