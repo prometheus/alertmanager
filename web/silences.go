@@ -20,16 +20,16 @@ import (
 )
 
 type SilenceStatus struct {
-	Silences manager.Suppressions
+	Silences manager.Silences
 }
 
 type SilencesHandler struct {
-	Suppressor *manager.Suppressor
+	Silencer *manager.Silencer
 }
 
 func (h *SilencesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	silenceStatus := &SilenceStatus{
-		Silences: h.Suppressor.SuppressionSummary(),
+		Silences: h.Silencer.SilenceSummary(),
 	}
 	executeTemplate(w, "silences", silenceStatus)
 }

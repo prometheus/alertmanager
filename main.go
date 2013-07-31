@@ -35,8 +35,8 @@ func main() {
 		log.Fatalf("Error loading configuration from %s: %s", *configFile, err)
 	}
 
-	suppressor := manager.NewSuppressor()
-	defer suppressor.Close()
+	silencer := manager.NewSilencer()
+	defer silencer.Close()
 
 	notifier := manager.NewNotifier(conf.NotificationConfig)
 	defer notifier.Close()
@@ -48,16 +48,16 @@ func main() {
 		// REST API Service.
 		AlertManagerService: &api.AlertManagerService{
 			Aggregator: aggregator,
-			Suppressor: suppressor,
+			Silencer:   silencer,
 		},
 
 		// Template-based page handlers.
 		AlertsHandler: &web.AlertsHandler{
 			Aggregator:              aggregator,
-			IsInhibitedInterrogator: suppressor,
+			IsInhibitedInterrogator: silencer,
 		},
 		SilencesHandler: &web.SilencesHandler{
-			Suppressor: suppressor,
+			Silencer: silencer,
 		},
 	}
 	go webService.ServeForever()
@@ -65,5 +65,5 @@ func main() {
 	aggregator.SetRules(conf.AggregationRules())
 
 	log.Println("Running summary dispatcher...")
-	notifier.Dispatch(suppressor)
+	notifier.Dispatch(silencer)
 }
