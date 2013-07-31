@@ -16,6 +16,7 @@ package manager
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"sync"
 	"time"
@@ -43,6 +44,7 @@ type Silence struct {
 }
 
 type ApiSilence struct {
+	Id               SilenceId
 	CreatedBy        string
 	CreatedAtSeconds int64
 	EndsAtSeconds    int64
@@ -59,6 +61,7 @@ func (s *Silence) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(&ApiSilence{
+		Id:               s.Id,
 		CreatedBy:        s.CreatedBy,
 		CreatedAtSeconds: s.CreatedAt.Unix(),
 		EndsAtSeconds:    s.EndsAt.Unix(),
@@ -76,13 +79,17 @@ func (s *Silence) UnmarshalJSON(data []byte) error {
 		filters = append(filters, NewFilter(label, value))
 	}
 
+	if sc.CreatedAtSeconds == 0 {
+		sc.CreatedAtSeconds = time.Now().Unix()
+	}
 	if sc.EndsAtSeconds == 0 {
 		sc.EndsAtSeconds = time.Now().Add(time.Hour).Unix()
 	}
 
 	*s = Silence{
+		Id:        sc.Id,
 		CreatedBy: sc.CreatedBy,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: time.Unix(sc.CreatedAtSeconds, 0).UTC(),
 		EndsAt:    time.Unix(sc.EndsAtSeconds, 0).UTC(),
 		Comment:   sc.Comment,
 		Filters:   filters,
@@ -94,7 +101,7 @@ type Silencer struct {
 	// Silences managed by this Silencer.
 	Silences map[SilenceId]*Silence
 	// Used to track the next Silence Id to allocate.
-	nextId SilenceId
+	lastId SilenceId
 
 	// Mutex to protect the above.
 	mu sync.Mutex
@@ -111,10 +118,8 @@ func NewSilencer() *Silencer {
 }
 
 func (s *Silencer) nextSilenceId() SilenceId {
-	// BUG: Build proper ID management. For now, as we are only keeping
-	//      data in memory anyways, this is enough.
-	s.nextId++
-	return s.nextId
+	s.lastId++
+	return s.lastId
 }
 
 func (s *Silencer) setupExpiryTimer(sc *Silence) {
@@ -133,7 +138,14 @@ func (s *Silencer) AddSilence(sc *Silence) SilenceId {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sc.Id = s.nextSilenceId()
+	if sc.Id == 0 {
+		sc.Id = s.nextSilenceId()
+	} else {
+		if sc.Id > s.lastId {
+			s.lastId = sc.Id
+		}
+	}
+
 	s.setupExpiryTimer(sc)
 	s.Silences[sc.Id] = sc
 	return sc.Id
@@ -198,6 +210,33 @@ func (s *Silencer) IsInhibited(e *Event) (bool, *Silence) {
 		}
 	}
 	return false, nil
+}
+
+// Loads a JSON representation of silences from a file.
+func (s *Silencer) LoadFromFile(fileName string) error {
+	silenceJson, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return err
+	}
+	silences := Silences{}
+	if err = json.Unmarshal(silenceJson, &silences); err != nil {
+		return err
+	}
+	for _, sc := range silences {
+		s.AddSilence(sc)
+	}
+	return nil
+}
+
+// Saves a JSON representation of silences to a file.
+func (s *Silencer) SaveToFile(fileName string) error {
+	silenceSummary := s.SilenceSummary()
+
+	resultBytes, err := json.Marshal(silenceSummary)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fileName, resultBytes, 0644)
 }
 
 func (s *Silencer) Close() {

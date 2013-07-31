@@ -16,6 +16,7 @@ package main
 import (
 	"flag"
 	"log"
+	"time"
 
 	"github.com/prometheus/alert_manager/config"
 	"github.com/prometheus/alert_manager/manager"
@@ -24,7 +25,8 @@ import (
 )
 
 var (
-	configFile = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
+	configFile   = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
+	silencesFile = flag.String("silencesFile", "silences.json", "Silence storage file name.")
 )
 
 func main() {
@@ -37,6 +39,20 @@ func main() {
 
 	silencer := manager.NewSilencer()
 	defer silencer.Close()
+
+	err = silencer.LoadFromFile(*silencesFile)
+	if err != nil {
+		log.Println("Couldn't load silences, starting up with empty silence list:", err)
+	}
+	saveSilencesTicker := time.NewTicker(10 * time.Second)
+	go func() {
+		for _ = range saveSilencesTicker.C {
+			if err := silencer.SaveToFile(*silencesFile); err != nil {
+				log.Println("Error saving silences to file:", err)
+			}
+		}
+	}()
+	defer saveSilencesTicker.Stop()
 
 	notifier := manager.NewNotifier(conf.NotificationConfig)
 	defer notifier.Close()
