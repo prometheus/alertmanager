@@ -15,6 +15,7 @@ package config
 
 import (
 	"io/ioutil"
+	"log"
 
 	"code.google.com/p/goprotobuf/proto"
 
@@ -40,4 +41,12 @@ func LoadFromFile(fileName string) (Config, error) {
 	}
 
 	return LoadFromString(string(configStr))
+}
+
+func MustLoadFromFile(fileName string) Config {
+	conf, err := LoadFromFile(fileName)
+	if err != nil {
+		log.Fatalf("Error loading configuration from %s: %s", fileName, err)
+	}
+	return conf
 }

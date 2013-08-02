@@ -32,15 +32,12 @@ var (
 func main() {
 	flag.Parse()
 
-	conf, err := config.LoadFromFile(*configFile)
-	if err != nil {
-		log.Fatalf("Error loading configuration from %s: %s", *configFile, err)
-	}
+	conf := config.MustLoadFromFile(*configFile)
 
 	silencer := manager.NewSilencer()
 	defer silencer.Close()
 
-	err = silencer.LoadFromFile(*silencesFile)
+	err := silencer.LoadFromFile(*silencesFile)
 	if err != nil {
 		log.Println("Couldn't load silences, starting up with empty silence list:", err)
 	}
@@ -79,6 +76,12 @@ func main() {
 	go webService.ServeForever()
 
 	aggregator.SetRules(conf.AggregationRules())
+
+	watcher := config.NewFileWatcher(*configFile)
+	go watcher.Watch(func(conf *config.Config) {
+		notifier.SetNotificationConfigs(conf.NotificationConfig)
+		aggregator.SetRules(conf.AggregationRules())
+	})
 
 	log.Println("Running summary dispatcher...")
 	notifier.Dispatch(silencer)
