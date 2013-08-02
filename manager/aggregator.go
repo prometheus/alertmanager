@@ -138,6 +138,8 @@ func (a *Aggregator) Receive(events Events) error {
 				aggregation, ok := a.Aggregates[fp]
 				if !ok {
 					expTimer := time.AfterFunc(minimumRefreshPeriod, func() {
+						a.mu.Lock()
+						defer a.mu.Unlock()
 						a.removeAggregate(fp)
 					})
 
@@ -171,7 +173,28 @@ func (a *Aggregator) SetRules(rules AggregationRules) {
 			rule.RepeatRate = minimumRepeatRate
 		}
 	}
+
 	a.Rules = rules
+
+	// Reparent AggregationInstances to the first new matching rule, drop orphans
+	// that are not matched by any rule anymore. Expiry and notification resend
+	// timers are left untouched for reparented alerts, meaning that the last
+	// rule's RepeatRate needs to pass once before the new one is used.
+	for fp, agg := range a.Aggregates {
+		orphaned := true
+
+		for _, r := range a.Rules {
+			if r.Handles(agg.Event) {
+				agg.Rule = r
+				orphaned = false
+				break
+			}
+		}
+
+		if orphaned {
+			a.removeAggregate(fp)
+		}
+	}
 }
 
 func (a *Aggregator) AlertAggregates() AggregationInstances {
@@ -186,9 +209,6 @@ func (a *Aggregator) AlertAggregates() AggregationInstances {
 }
 
 func (a *Aggregator) removeAggregate(fp EventFingerprint) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	log.Println("Deleting expired aggregation instance", a)
 	a.Aggregates[fp].Close()
 	delete(a.Aggregates, fp)
