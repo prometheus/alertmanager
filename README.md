@@ -1,4 +1,4 @@
-alert_manager
+alertmanager
 =============
 
 Prometheus Alert Manager
