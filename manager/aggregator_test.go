@@ -16,7 +16,7 @@ package manager
 import (
 	"testing"
 
-	pb "github.com/prometheus/alert_manager/config/generated"
+	pb "github.com/prometheus/alertmanager/config/generated"
 )
 
 type dummyNotifier struct{}

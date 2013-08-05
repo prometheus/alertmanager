@@ -2,7 +2,7 @@
 // source: config.proto
 // DO NOT EDIT!
 
-package io_prometheus_alert_manager
+package io_prometheus_alertmanager
 
 import proto "code.google.com/p/goprotobuf/proto"
 import json "encoding/json"

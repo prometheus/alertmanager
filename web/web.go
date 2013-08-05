@@ -26,8 +26,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/exp"
 
-	"github.com/prometheus/alert_manager/web/api"
-	"github.com/prometheus/alert_manager/web/blob"
+	"github.com/prometheus/alertmanager/web/api"
+	"github.com/prometheus/alertmanager/web/blob"
 )
 
 // Commandline flags.

@@ -19,9 +19,9 @@ import (
 
 	"code.google.com/p/goprotobuf/proto"
 
-	pb "github.com/prometheus/alert_manager/config/generated"
+	pb "github.com/prometheus/alertmanager/config/generated"
 
-	"github.com/prometheus/alert_manager/manager"
+	"github.com/prometheus/alertmanager/manager"
 )
 
 // Config encapsulates the configuration of an Alert Manager instance. It wraps

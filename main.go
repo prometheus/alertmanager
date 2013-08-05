@@ -18,10 +18,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/prometheus/alert_manager/config"
-	"github.com/prometheus/alert_manager/manager"
-	"github.com/prometheus/alert_manager/web"
-	"github.com/prometheus/alert_manager/web/api"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/manager"
+	"github.com/prometheus/alertmanager/web"
+	"github.com/prometheus/alertmanager/web/api"
 )
 
 var (

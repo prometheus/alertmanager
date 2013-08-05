@@ -16,7 +16,7 @@ package api
 import (
 	"code.google.com/p/gorest"
 
-	"github.com/prometheus/alert_manager/manager"
+	"github.com/prometheus/alertmanager/manager"
 )
 
 type AlertManagerService struct {

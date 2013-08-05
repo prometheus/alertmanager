@@ -17,7 +17,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/prometheus/alert_manager/manager"
+	"github.com/prometheus/alertmanager/manager"
 )
 
 func (s AlertManagerService) AddEvents(es manager.Events) {

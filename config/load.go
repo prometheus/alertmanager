@@ -19,7 +19,7 @@ import (
 
 	"code.google.com/p/goprotobuf/proto"
 
-	pb "github.com/prometheus/alert_manager/config/generated"
+	pb "github.com/prometheus/alertmanager/config/generated"
 )
 
 func LoadFromString(configStr string) (Config, error) {

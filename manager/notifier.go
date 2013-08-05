@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"sync"
 
-	pb "github.com/prometheus/alert_manager/config/generated"
+	pb "github.com/prometheus/alertmanager/config/generated"
 )
 
 const contentTypeJson = "application/json"
