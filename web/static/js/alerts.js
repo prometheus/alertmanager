@@ -12,12 +12,18 @@ function addSilenceLabel(label, value) {
   if (!value) {
     value = "";
   }
-  $("#silence_filters_table").append(
+
+  row = $(
         '<tr>' +
-        '  <td><input class="input-large" name="silence_filter_label[]" type="text" placeholder="Label regex" value="' + label + '" required></td>' +
-        '  <td><input class="input-large" name="silence_filter_value[]" type="text" placeholder="Value regex" value="' + value + '" required></td>' +
+        '  <td><input class="input-large" name="silence_filter_label[]" type="text" placeholder="Label regex" required></td>' +
+        '  <td><input class="input-large" name="silence_filter_value[]" type="text" placeholder="Value regex" required></td>' +
         '  <td><button type="button" class="btn del_label_button"><i class="icon-minus"></i></button></td>' +
         '</tr>');
+  // Insert the values after creating the inputs to get automatic HTML escaping.
+  row.find("input[name='silence_filter_label[]']").val(label);
+  row.find("input[name='silence_filter_value[]']").val(value);
+
+  $("#silence_filters_table").append(row);
   bindDelLabel();
 }
 
