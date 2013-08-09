@@ -25,7 +25,7 @@
             <td>{{.Id}}</td>
             <td>
               {{range .Filters}}
-                <b>{{.Name}}</b>="{{.Value}}",
+                <span class="label label-info">{{.NamePattern}}="{{.ValuePattern}}"</span>
               {{end}}
             </td>
             <td>{{.CreatedBy}}</td>

@@ -35,7 +35,7 @@
             <td>
               {{range $label, $value := .Event.Labels}}
                 {{if not (eq $label "alertname")}}
-                  <span class="label label-info"><b>{{$label}}</b>="{{$value}}"</span>
+                  <span class="label label-info">{{$label}}="{{$value}}"</span>
                 {{end}}
               {{end}}
               <form class="add_silence_form">

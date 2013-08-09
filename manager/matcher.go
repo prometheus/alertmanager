@@ -22,8 +22,10 @@ import (
 type Filters []*Filter
 
 type Filter struct {
-	Name  *regexp.Regexp
-	Value *regexp.Regexp
+	Name         *regexp.Regexp
+	Value        *regexp.Regexp
+	NamePattern  string
+	ValuePattern string
 
 	fingerprint uint64
 }
@@ -33,9 +35,11 @@ func NewFilter(namePattern string, valuePattern string) *Filter {
 	fmt.Fprintf(summer, namePattern, valuePattern)
 
 	return &Filter{
-		Name:        regexp.MustCompile("^" + namePattern + "$"),
-		Value:       regexp.MustCompile("^" + valuePattern + "$"),
-		fingerprint: summer.Sum64(),
+		Name:         regexp.MustCompile("^" + namePattern + "$"),
+		Value:        regexp.MustCompile("^" + valuePattern + "$"),
+		NamePattern:  namePattern,
+		ValuePattern: valuePattern,
+		fingerprint:  summer.Sum64(),
 	}
 }
 
