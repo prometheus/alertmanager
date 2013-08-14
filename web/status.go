@@ -15,10 +15,29 @@ package web
 
 import (
 	"net/http"
+	"sync"
+	"time"
 )
 
-type StatusHandler struct{}
+type StatusHandler struct {
+	mu sync.Mutex
+
+	BuildInfo map[string]string
+	Config    string
+	Flags     map[string]string
+	Birth     time.Time
+}
+
+func (h *StatusHandler) UpdateConfig(c string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.Config = c
+}
 
 func (h *StatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	executeTemplate(w, "status", nil)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	executeTemplate(w, "status", h)
 }

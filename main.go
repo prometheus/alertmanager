@@ -16,6 +16,7 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 	"time"
 
 	"github.com/prometheus/alertmanager/config"
@@ -31,6 +32,8 @@ var (
 
 func main() {
 	flag.Parse()
+
+	versionInfoTmpl.Execute(os.Stdout, BuildInfo)
 
 	conf := config.MustLoadFromFile(*configFile)
 
@@ -57,6 +60,18 @@ func main() {
 	aggregator := manager.NewAggregator(notifier)
 	defer aggregator.Close()
 
+	flags := map[string]string{}
+	flag.VisitAll(func(f *flag.Flag) {
+		flags[f.Name] = f.Value.String()
+	})
+
+	statusHandler := &web.StatusHandler{
+		Config:    conf.String(),
+		Flags:     flags,
+		BuildInfo: BuildInfo,
+		Birth:     time.Now(),
+	}
+
 	webService := &web.WebService{
 		// REST API Service.
 		AlertManagerService: &api.AlertManagerService{
@@ -72,6 +87,7 @@ func main() {
 		SilencesHandler: &web.SilencesHandler{
 			Silencer: silencer,
 		},
+		StatusHandler: statusHandler,
 	}
 	go webService.ServeForever()
 
@@ -81,6 +97,7 @@ func main() {
 	go watcher.Watch(func(conf *config.Config) {
 		notifier.SetNotificationConfigs(conf.NotificationConfig)
 		aggregator.SetRules(conf.AggregationRules())
+		statusHandler.UpdateConfig(conf.String())
 	})
 
 	log.Println("Running summary dispatcher...")
