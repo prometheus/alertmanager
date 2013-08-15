@@ -199,6 +199,7 @@ func (n *notifier) handleNotification(event *Event, config *pb.NotificationConfi
 	for _, emailConfig := range config.EmailConfig {
 		if *smtpSmartHost == "" {
 			log.Printf("No SMTP smarthost configured, not sending email notification.")
+      continue
 		}
 		if err := n.sendEmailNotification(emailConfig.GetEmail(), event); err != nil {
 			log.Printf("Error sending email notification: %s", err)
