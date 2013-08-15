@@ -21,16 +21,34 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/smtp"
 	"sync"
+	"text/template"
 
 	pb "github.com/prometheus/alertmanager/config/generated"
 )
 
 const contentTypeJson = "application/json"
 
+const bodyTmpl = `Subject: [ALERT] {{.Labels.alertname}}: {{.Summary}}
+
+{{.Description}}
+
+Grouping labels:
+{{range $label, $value := .Labels}}
+  {{$label}} = "{{$value}}"
+{{end}}
+
+Payload labels:
+{{range $label, $value := .Payload}}
+  {{$label}} = "{{$value}}"
+{{end}}`
+
 var (
 	notificationBufferSize = flag.Int("notificationBufferSize", 1000, "Size of buffer for pending notifications.")
 	pagerdutyApiUrl        = flag.String("pagerdutyApiUrl", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
+	smtpSmartHost          = flag.String("smtpSmartHost", "localhost:25", "Address of the smarthost to send all email notifications to.")
+	smtpSender             = flag.String("smtpSender", "alertmanager@example.org", "Sender email address to use in email notifications.")
 )
 
 // A Notifier is responsible for sending notifications for events according to
@@ -140,8 +158,35 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, event *Event) er
 }
 
 func (n *notifier) sendEmailNotification(email string, event *Event) error {
-	// BUG: Implement email notifications.
-	log.Printf("Would send email notification for event %s to %s\n", event, email)
+	// Connect to the SMTP smarthost.
+	c, err := smtp.Dial(*smtpSmartHost)
+	if err != nil {
+		return err
+	}
+	defer c.Quit()
+
+	// Set the sender and recipient.
+	c.Mail(*smtpSender)
+	c.Rcpt(email)
+
+	// Send the email body.
+	wc, err := c.Data()
+	if err != nil {
+		return err
+	}
+	defer wc.Close()
+
+	t := template.New("message")
+	if _, err := t.Parse(bodyTmpl); err != nil {
+		return err
+	}
+	buf := bytes.Buffer{}
+	if err := t.Execute(&buf, event); err != nil {
+		return err
+	}
+	if _, err = buf.WriteTo(wc); err != nil {
+		return err
+	}
 	return nil
 }
 
