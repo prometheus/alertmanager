@@ -19,10 +19,6 @@ import (
 	"time"
 )
 
-func timeSince(t time.Time) string {
-	return time.Now().Round(time.Second / 10).Sub(t.Round(time.Second / 10)).String()
-}
-
 // By Russ Cox, https://groups.google.com/d/msg/golang-nuts/OEdSDgEC7js/iyhU9DW_IKcJ.
 func eq(args ...interface{}) bool {
 	if len(args) == 0 {
@@ -47,7 +43,19 @@ func eq(args ...interface{}) bool {
 	return false
 }
 
+func timeSince(t time.Time) string {
+	return time.Now().Round(time.Second / 10).Sub(t.Round(time.Second / 10)).String()
+}
+
+func truncate(str string, n int) string {
+	if len(str) <= n {
+		return str
+	}
+	return str[:n] + "..."
+}
+
 var webHelpers = template.FuncMap{
-	"timeSince": timeSince,
 	"eq":        eq,
+	"timeSince": timeSince,
+	"truncate":  truncate,
 }

@@ -46,7 +46,7 @@
             </td>
             <td>{{timeSince .Created}} ago</td>
             <td>{{timeSince .LastRefreshed}} ago</td>
-            <td><a href="{{.Event.Payload.GeneratorUrl}}">{{.Event.Payload.GeneratorUrl}}</a></td>
+            <td><a href="{{.Event.Payload.GeneratorUrl}}">{{(truncate .Event.Payload.GeneratorUrl 40)}}</a></td>
             <td>{{.Event.Payload.AlertingRule}}</td>
             <td>
               {{$silence := call $silenceForEvent .Event}}
