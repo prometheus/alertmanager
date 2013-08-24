@@ -20,24 +20,24 @@ import (
 )
 
 type AlertStatus struct {
-	AlertAggregates []*manager.AggregationInstance
-	SilenceForEvent func(*manager.Event) *manager.Silence
+	AlertAggregates manager.AlertAggregates
+	SilenceForAlert func(*manager.Alert) *manager.Silence
 }
 
 type AlertsHandler struct {
-	Aggregator              *manager.Aggregator
-	IsInhibitedInterrogator manager.IsInhibitedInterrogator
+	Store              manager.AlertStore
+	IsSilencedInterrogator manager.IsSilencedInterrogator
 }
 
-func (h *AlertsHandler) silenceForEvent(e *manager.Event) *manager.Silence {
-	_, silence := h.IsInhibitedInterrogator.IsInhibited(e)
+func (h *AlertsHandler) silenceForAlert(a *manager.Alert) *manager.Silence {
+	_, silence := h.IsSilencedInterrogator.IsSilenced(a)
 	return silence
 }
 
 func (h *AlertsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	alertStatus := &AlertStatus{
-		AlertAggregates: h.Aggregator.AlertAggregates(),
-		SilenceForEvent: h.silenceForEvent,
+		AlertAggregates: h.Store.Get(nil),
+		SilenceForAlert: h.silenceForAlert,
 	}
 	executeTemplate(w, "alerts", alertStatus)
 }

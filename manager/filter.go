@@ -43,8 +43,8 @@ func NewFilter(namePattern string, valuePattern string) *Filter {
 	}
 }
 
-func (f *Filter) Handles(e *Event) bool {
-	for k, v := range e.Labels {
+func (f *Filter) Handles(a *Alert) bool {
+	for k, v := range a.Labels {
 		if f.Name.MatchString(k) && f.Value.MatchString(v) {
 			return true
 		}
@@ -53,17 +53,27 @@ func (f *Filter) Handles(e *Event) bool {
 	return false
 }
 
-func (f Filters) Handles(e *Event) bool {
+func (f Filters) Handles(a *Alert) bool {
 	fCount := len(f)
 	fMatch := 0
 
 	for _, filter := range f {
-		if filter.Handles(e) {
+		if filter.Handles(a) {
 			fMatch++
 		}
 	}
 
 	return fCount == fMatch
+}
+
+func (f Filters) Filter(a Alerts) Alerts {
+	out := Alerts{}
+	for _, alert := range a {
+		if f.Handles(alert) {
+			out = append(out, alert)
+		}
+	}
+	return out
 }
 
 func (f Filters) fingerprint() uint64 {

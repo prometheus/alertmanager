@@ -36,7 +36,7 @@ type Silence struct {
 	EndsAt time.Time
 	// Additional comment about the silence.
 	Comment string
-	// Filters that determine which events are silenced.
+	// Filters that determine which alerts are silenced.
 	Filters Filters
 	// Timer used to trigger the deletion of the Silence after its expiry
 	// time.
@@ -107,8 +107,8 @@ type Silencer struct {
 	mu sync.Mutex
 }
 
-type IsInhibitedInterrogator interface {
-	IsInhibited(*Event) (bool, *Silence)
+type IsSilencedInterrogator interface {
+	IsSilenced(*Alert) (bool, *Silence)
 }
 
 func NewSilencer() *Silencer {
@@ -200,12 +200,12 @@ func (s *Silencer) SilenceSummary() Silences {
 	return silences
 }
 
-func (s *Silencer) IsInhibited(e *Event) (bool, *Silence) {
+func (s *Silencer) IsSilenced(a *Alert) (bool, *Silence) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for _, s := range s.Silences {
-		if s.Filters.Handles(e) {
+		if s.Filters.Handles(a) {
 			return true, s
 		}
 	}

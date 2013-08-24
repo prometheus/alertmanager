@@ -50,23 +50,23 @@ var (
 	smtpSender             = flag.String("smtpSender", "alertmanager@example.org", "Sender email address to use in email notifications.")
 )
 
-// A Notifier is responsible for sending notifications for events according to
+// A Notifier is responsible for sending notifications for alerts according to
 // a provided notification configuration.
 type Notifier interface {
 	// Queue a notification for asynchronous dispatching.
-	QueueNotification(e *Event, configName string) error
+	QueueNotification(a *Alert, configName string) error
 	// Replace current notification configs. Already enqueued messages will remain
 	// unaffected.
 	SetNotificationConfigs([]*pb.NotificationConfig)
 	// Start event notification dispatch loop.
-	Dispatch(IsInhibitedInterrogator)
+	Dispatch()
 	// Stop the event notification dispatch loop.
 	Close()
 }
 
 // Request for sending a notification.
 type notificationReq struct {
-	event              *Event
+	alert              *Alert
 	notificationConfig *pb.NotificationConfig
 }
 
@@ -100,7 +100,14 @@ func (n *notifier) SetNotificationConfigs(configs []*pb.NotificationConfig) {
 	}
 }
 
-func (n *notifier) QueueNotification(event *Event, configName string) error {
+func (n *notifier) SetInput(as Alerts) {
+	for _, a := range as {
+		// TODO: get config name.
+		n.QueueNotification(a, "")
+	}
+}
+
+func (n *notifier) QueueNotification(a *Alert, configName string) error {
 	n.mu.Lock()
 	nc, ok := n.notificationConfigs[configName]
 	n.mu.Unlock()
@@ -113,23 +120,23 @@ func (n *notifier) QueueNotification(event *Event, configName string) error {
 	// notificationReq since the config might be replaced or gone at the time the
 	// message gets dispatched.
 	n.pendingNotifications <- &notificationReq{
-		event:              event,
+		alert:              a,
 		notificationConfig: nc,
 	}
 	return nil
 }
 
-func (n *notifier) sendPagerDutyNotification(serviceKey string, event *Event) error {
+func (n *notifier) sendPagerDutyNotification(serviceKey string, a *Alert) error {
 	// http://developer.pagerduty.com/documentation/integration/events/trigger
-	incidentKey := event.Fingerprint()
+	incidentKey := a.Fingerprint()
 	buf, err := json.Marshal(map[string]interface{}{
 		"service_key":  serviceKey,
 		"event_type":   "trigger",
-		"description":  event.Description,
+		"description":  a.Description,
 		"incident_key": incidentKey,
 		"details": map[string]interface{}{
-			"grouping_labels": event.Labels,
-			"extra_labels":    event.Payload,
+			"grouping_labels": a.Labels,
+			"extra_labels":    a.Payload,
 		},
 	})
 	if err != nil {
@@ -156,14 +163,14 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, event *Event) er
 	return nil
 }
 
-func writeEmailBody(w io.Writer, event *Event) error {
-	if err := bodyTmpl.Execute(w, event); err != nil {
+func writeEmailBody(w io.Writer, a *Alert) error {
+	if err := bodyTmpl.Execute(w, a); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (n *notifier) sendEmailNotification(email string, event *Event) error {
+func (n *notifier) sendEmailNotification(email string, a *Alert) error {
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(*smtpSmartHost)
 	if err != nil {
@@ -182,16 +189,12 @@ func (n *notifier) sendEmailNotification(email string, event *Event) error {
 	}
 	defer wc.Close()
 
-	return writeEmailBody(wc, event)
+	return writeEmailBody(wc, a)
 }
 
-func (n *notifier) handleNotification(event *Event, config *pb.NotificationConfig, i IsInhibitedInterrogator) {
-	if inhibited, _ := i.IsInhibited(event); inhibited {
-		return
-	}
-
+func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
 	for _, pdConfig := range config.PagerdutyConfig {
-		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), event); err != nil {
+		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), a); err != nil {
 			log.Printf("Error sending PagerDuty notification: %s", err)
 		}
 	}
@@ -200,15 +203,15 @@ func (n *notifier) handleNotification(event *Event, config *pb.NotificationConfi
 			log.Printf("No SMTP smarthost configured, not sending email notification.")
 			continue
 		}
-		if err := n.sendEmailNotification(emailConfig.GetEmail(), event); err != nil {
+		if err := n.sendEmailNotification(emailConfig.GetEmail(), a); err != nil {
 			log.Printf("Error sending email notification: %s", err)
 		}
 	}
 }
 
-func (n *notifier) Dispatch(i IsInhibitedInterrogator) {
+func (n *notifier) Dispatch() {
 	for req := range n.pendingNotifications {
-		n.handleNotification(req.event, req.notificationConfig, i)
+		n.handleNotification(req.alert, req.notificationConfig)
 	}
 }
 

@@ -29,6 +29,6 @@ type AlertManagerService struct {
 	delSilence     gorest.EndPoint `method:"DELETE" path:"/silences/{id:int}"`
 	silenceSummary gorest.EndPoint `method:"GET" path:"/silences" output:"string"`
 
-	Aggregator *manager.Aggregator
+	Store manager.AlertStore
 	Silencer   *manager.Silencer
 }

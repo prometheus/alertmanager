@@ -20,26 +20,21 @@ import (
 	"github.com/prometheus/alertmanager/manager"
 )
 
-func (s AlertManagerService) AddEvents(es manager.Events) {
-	for i, ev := range es {
-		if ev.Summary == "" || ev.Description == "" {
-			log.Printf("Missing field in event %d: %s", i, ev)
+func (s AlertManagerService) AddAlerts(as manager.Alerts) {
+	for i, a := range as {
+		if a.Summary == "" || a.Description == "" {
+			log.Printf("Missing field in alert %d: %s", i, a)
 			rb := s.ResponseBuilder()
 			rb.SetResponseCode(http.StatusBadRequest)
 			return
 		}
-		if _, ok := ev.Labels[manager.EventNameLabel]; !ok {
-			log.Printf("Missing alert name label in event %d: %s", i, ev)
+		if _, ok := a.Labels[manager.AlertNameLabel]; !ok {
+			log.Printf("Missing alert name label in event %d: %s", i, a)
 			rb := s.ResponseBuilder()
 			rb.SetResponseCode(http.StatusBadRequest)
 			return
 		}
 	}
 
-	err := s.Aggregator.Receive(es)
-	if err != nil {
-		log.Println("Error during aggregation:", err)
-		rb := s.ResponseBuilder()
-		rb.SetResponseCode(http.StatusServiceUnavailable)
-	}
+	s.Store.Receive(as)
 }
