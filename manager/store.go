@@ -17,6 +17,7 @@ import (
 	"log"
 	"sync"
 	"time"
+	"container/heap"
 )
 
 type Callback func()
@@ -27,7 +28,9 @@ type AlertStore interface {
 	// fingerprint already exists, it only updates the existing entry's metadata.
 	Receive(Alerts)
 	// Retrieves all alerts from the store that match the provided Filters.
-	Get(Filters) AlertAggregates
+	GetAll(Filters) AlertAggregates
+	// Retrieves a specific alert by its fingerprint.
+	Get(AlertFingerprint) *AlertAggregate
 	// Sets an AlertReceiverNode to notify of any additions/removals of alerts.
 	SetOutputNode(AlertReceiverNode)
 	// Sets the AggregationRules to associate with alerts.
@@ -47,11 +50,9 @@ type AggregationRule struct {
 	NotificationConfigName string
 }
 
-func (r *AggregationRule) Handles(a *Alert) bool {
-	return r.Filters.Handles(a)
+func (r *AggregationRule) Handles(l *Alert) bool {
+	return r.Filters.Handles(l.Labels)
 }
-
-type AlertAggregates []*AlertAggregate
 
 type AlertAggregate struct {
 	Alert *Alert
@@ -70,11 +71,38 @@ func (agg *AlertAggregate) Ingest(a *Alert) {
 	agg.LastRefreshed = time.Now()
 }
 
+type AlertAggregates []*AlertAggregate
+
+func (aggs AlertAggregates) Len() int {
+	return len(aggs)
+}
+
+func (aggs AlertAggregates) Less(i, j int) bool {
+	return aggs[i].LastRefreshed.Before(aggs[j].LastRefreshed)
+}
+
+func (aggs AlertAggregates) Swap(i, j int) {
+	aggs[i], aggs[j] = aggs[j], aggs[i]
+}
+
+func (aggs AlertAggregates) Push(agg interface{}) {
+	// TODO: check whether this needs to use *AlertAggregates.
+	aggs = append(aggs, agg.(*AlertAggregate))
+}
+
+func (aggs AlertAggregates) Pop() interface{} {
+	// TODO: check whether this needs to use *AlertAggregates.
+	n := len(aggs)
+	head, aggs := aggs[n-1], aggs[:n-1]
+	return head
+}
+
 type memoryAlertStore struct {
 	mu sync.Mutex
 
 	rules      AggregationRules
 	aggregates map[AlertFingerprint]*AlertAggregate
+	aggregatesRefreshIndex AlertAggregates
 	minRefreshInterval time.Duration
 	output AlertReceiverNode
 }
@@ -87,21 +115,24 @@ func NewMemoryAlertStore(ri time.Duration) AlertStore {
 }
 
 func (s *memoryAlertStore) Receive(as Alerts) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	needsRefresh := false
 	for _, a := range as {
 		if s.ingest(a) {
 			needsRefresh = true
 		}
 	}
+
+	heap.Init(s.aggregatesRefreshIndex)
+
 	if needsRefresh {
 		s.refreshOutput()
 	}
 }
 
 func (s *memoryAlertStore) ingest(a *Alert) (needsRefresh bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	fp := a.Fingerprint()
 	agg, ok := s.aggregates[fp]
 	if !ok {
@@ -109,23 +140,40 @@ func (s *memoryAlertStore) ingest(a *Alert) (needsRefresh bool) {
 			Created: time.Now(),
 		}
 		s.aggregates[fp] = agg
+		heap.Push(s.aggregatesRefreshIndex, agg)
 	}
 	agg.Ingest(a)
 
 	return !ok
 }
 
-func (s memoryAlertStore) Get(f Filters) AlertAggregates {
+func (s memoryAlertStore) GetAll(f Filters) AlertAggregates {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	aggs := make(AlertAggregates, 0, len(s.aggregates))
 	for _, agg := range s.aggregates {
-		if f.Handles(agg.Alert) {
+		if f.Handles(agg.Alert.Labels) {
 			aggs = append(aggs, agg)
 		}
 	}
 	return aggs
+}
+
+func (s memoryAlertStore) Get(fp AlertFingerprint) *AlertAggregate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Make a deep copy of the AggregationRule so we can safely pass it to the
+	// outside.
+	agg := s.aggregates[fp]
+	if agg.Rule != nil {
+		rule := *agg.Rule
+		agg.Rule = &rule
+	}
+	alert := *agg.Alert
+	agg.Alert = &alert
+	return s.aggregates[fp]
 }
 
 func (s *memoryAlertStore) SetOutputNode(n AlertReceiverNode) {
@@ -168,22 +216,43 @@ func (s *memoryAlertStore) RecordNotification(a *Alert) {
 	}
 }
 
-func (s *memoryAlertStore) removeAggregate(fp AlertFingerprint) {
+func (s *memoryAlertStore) removeExpiredAggregates() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.aggregates, fp)
-	s.refreshOutput()
+	needsRefresh := false
+	for {
+		agg := heap.Pop(s.aggregatesRefreshIndex).(*AlertAggregate)
+		if time.Since(agg.LastRefreshed) > s.minRefreshInterval {
+			delete(s.aggregates, agg.Alert.Fingerprint())
+			needsRefresh = true
+		} else {
+			heap.Push(s.aggregatesRefreshIndex, agg)
+			return
+		}
+	}
+	if needsRefresh {
+		s.refreshOutput()
+	}
 }
 
+func (s *memoryAlertStore) removeAggregate(fp AlertFingerprint) {
+	delete(s.aggregates, fp)
+}
+
+// refreshOutput needs to be called with lock held.
 func (s *memoryAlertStore) refreshOutput() {
-	// TODO:
-	s.output.SetInput(nil)
+	l := make([]AlertLabels, len(s.aggregates))
+	for _, agg := range s.aggregates {
+		l = append(l, agg.Alert.Labels)
+	}
+
+	s.output.SetInput(l)
 }
 
 func (s *memoryAlertStore) Run() {
-	// TODO: regularly remove expired entries.
-	for {
-		// ...
+	expiryTicker := time.NewTicker(time.Second)
+	for _ = range expiryTicker.C {
+		s.removeExpiredAggregates()
 	}
 }

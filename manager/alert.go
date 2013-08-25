@@ -46,9 +46,13 @@ func (a *Alert) Name() string {
 }
 
 func (a *Alert) Fingerprint() AlertFingerprint {
+	return a.Labels.Fingerprint()
+}
+
+func (l AlertLabels) Fingerprint() AlertFingerprint {
 	keys := []string{}
 
-	for k := range a.Labels {
+	for k := range l {
 		keys = append(keys, k)
 	}
 
@@ -58,15 +62,15 @@ func (a *Alert) Fingerprint() AlertFingerprint {
 
 	separator := string([]byte{0})
 	for _, k := range keys {
-		fmt.Fprintf(summer, "%s%s%s%s", k, separator, a.Labels[k], separator)
+		fmt.Fprintf(summer, "%s%s%s%s", k, separator, l[k], separator)
 	}
 
 	return AlertFingerprint(summer.Sum64())
 }
 
-func (a *Alert) MatchOnLabels(o *Alert, labels []string) bool {
-	for _, l := range labels {
-		if a.Labels[l] != o.Labels[l] {
+func (l AlertLabels) MatchOnLabels(o AlertLabels, labels []string) bool {
+	for _, k := range labels {
+		if l[k] != o[k] {
 			return false
 		}
 	}

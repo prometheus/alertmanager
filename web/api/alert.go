@@ -29,7 +29,7 @@ func (s AlertManagerService) AddAlerts(as manager.Alerts) {
 			return
 		}
 		if _, ok := a.Labels[manager.AlertNameLabel]; !ok {
-			log.Printf("Missing alert name label in event %d: %s", i, a)
+			log.Printf("Missing alert name label in alert %d: %s", i, a)
 			rb := s.ResponseBuilder()
 			rb.SetResponseCode(http.StatusBadRequest)
 			return

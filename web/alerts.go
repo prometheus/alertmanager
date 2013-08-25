@@ -30,13 +30,13 @@ type AlertsHandler struct {
 }
 
 func (h *AlertsHandler) silenceForAlert(a *manager.Alert) *manager.Silence {
-	_, silence := h.IsSilencedInterrogator.IsSilenced(a)
+	_, silence := h.IsSilencedInterrogator.IsSilenced(a.Labels)
 	return silence
 }
 
 func (h *AlertsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	alertStatus := &AlertStatus{
-		AlertAggregates: h.Store.Get(nil),
+		AlertAggregates: h.Store.GetAll(nil),
 		SilenceForAlert: h.silenceForAlert,
 	}
 	executeTemplate(w, "alerts", alertStatus)

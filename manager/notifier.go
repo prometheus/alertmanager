@@ -100,13 +100,6 @@ func (n *notifier) SetNotificationConfigs(configs []*pb.NotificationConfig) {
 	}
 }
 
-func (n *notifier) SetInput(as Alerts) {
-	for _, a := range as {
-		// TODO: get config name.
-		n.QueueNotification(a, "")
-	}
-}
-
 func (n *notifier) QueueNotification(a *Alert, configName string) error {
 	n.mu.Lock()
 	nc, ok := n.notificationConfigs[configName]

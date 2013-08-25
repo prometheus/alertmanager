@@ -43,8 +43,8 @@ func NewFilter(namePattern string, valuePattern string) *Filter {
 	}
 }
 
-func (f *Filter) Handles(a *Alert) bool {
-	for k, v := range a.Labels {
+func (f *Filter) Handles(l AlertLabels) bool {
+	for k, v := range l {
 		if f.Name.MatchString(k) && f.Value.MatchString(v) {
 			return true
 		}
@@ -53,12 +53,12 @@ func (f *Filter) Handles(a *Alert) bool {
 	return false
 }
 
-func (f Filters) Handles(a *Alert) bool {
+func (f Filters) Handles(l AlertLabels) bool {
 	fCount := len(f)
 	fMatch := 0
 
 	for _, filter := range f {
-		if filter.Handles(a) {
+		if filter.Handles(l) {
 			fMatch++
 		}
 	}
@@ -66,11 +66,11 @@ func (f Filters) Handles(a *Alert) bool {
 	return fCount == fMatch
 }
 
-func (f Filters) Filter(a Alerts) Alerts {
-	out := Alerts{}
-	for _, alert := range a {
-		if f.Handles(alert) {
-			out = append(out, alert)
+func (f Filters) Filter(l []AlertLabels) []AlertLabels {
+	out := []AlertLabels{}
+	for _, labels := range l {
+		if f.Handles(labels) {
+			out = append(out, labels)
 		}
 	}
 	return out

@@ -108,7 +108,7 @@ type Silencer struct {
 }
 
 type IsSilencedInterrogator interface {
-	IsSilenced(*Alert) (bool, *Silence)
+	IsSilenced(AlertLabels) (bool, *Silence)
 }
 
 func NewSilencer() *Silencer {
@@ -200,12 +200,12 @@ func (s *Silencer) SilenceSummary() Silences {
 	return silences
 }
 
-func (s *Silencer) IsSilenced(a *Alert) (bool, *Silence) {
+func (s *Silencer) IsSilenced(l AlertLabels) (bool, *Silence) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for _, s := range s.Silences {
-		if s.Filters.Handles(a) {
+		if s.Filters.Handles(l) {
 			return true, s
 		}
 	}

@@ -65,7 +65,7 @@ func main() {
 
   sFilter := manager.NewSilenceFilter(silencer)
 
-	rFilter := manager.NewRepeatFilter()
+	rFilter := manager.NewRepeatFilter(store, notifier)
 
   // Construct a network of filters sending signals to each other:
   //
@@ -79,7 +79,6 @@ func main() {
 	store.SetOutputNode(iFilter)
 	iFilter.SetOutputNode(sFilter)
 	sFilter.SetOutputNode(rFilter)
-	rFilter.SetOutputNode(notifier)
 
 	// Web initialization.
 	flags := map[string]string{}

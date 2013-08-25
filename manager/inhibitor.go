@@ -29,27 +29,27 @@ type InhibitRule struct {
 	AfterAllowance time.Duration
 }
 
-func (i InhibitRules) Filter(a Alerts) Alerts {
-	out := a
+func (i InhibitRules) Filter(l []AlertLabels) []AlertLabels {
+	out := l
 	for _, r := range i {
-		out = r.Filter(a, out)
+		out = r.Filter(l, out)
 	}
 	return out
 }
 
-func (i *InhibitRule) Filter(s Alerts, t Alerts) Alerts {
+func (i *InhibitRule) Filter(s []AlertLabels, t []AlertLabels) []AlertLabels {
 	s = i.SourceFilters.Filter(s)
 	t = i.TargetFilters.Filter(t)
-	out := Alerts{}
-	for _, ta := range s {
+	out := []AlertLabels{}
+	for _, tl := range s {
 		inhibited := true
-		for _, sa := range t {
-			if !ta.MatchOnLabels(sa, i.MatchOn) {
+		for _, sl := range t {
+			if !tl.MatchOnLabels(sl, i.MatchOn) {
 				inhibited = false
 			}
 		}
 		if !inhibited {
-			out = append(out, ta)
+			out = append(out, tl)
 		}
 	}
 	return out
