@@ -36,5 +36,5 @@ func (s AlertManagerService) AddAlerts(as manager.Alerts) {
 		}
 	}
 
-	s.Store.Receive(as)
+	s.Manager.Receive(as)
 }

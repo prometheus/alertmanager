@@ -19,7 +19,7 @@ import (
 )
 
 type testSilencerScenario struct {
-	silences    Silences
+	silences   Silences
 	silenced   Alerts
 	unsilenced Alerts
 }

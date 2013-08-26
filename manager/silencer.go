@@ -97,11 +97,17 @@ func (s *Silence) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (s Silence) Handles(l AlertLabels) bool {
+	return s.Filters.Handles(l)
+}
+
 type Silencer struct {
 	// Silences managed by this Silencer.
 	Silences map[SilenceId]*Silence
 	// Used to track the next Silence Id to allocate.
 	lastId SilenceId
+	// Tracks whether silences have changed since the last call to HasChanged.
+	hasChanged bool
 
 	// Mutex to protect the above.
 	mu sync.Mutex
@@ -138,6 +144,8 @@ func (s *Silencer) AddSilence(sc *Silence) SilenceId {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.hasChanged = true
+
 	if sc.Id == 0 {
 		sc.Id = s.nextSilenceId()
 	} else {
@@ -154,6 +162,8 @@ func (s *Silencer) AddSilence(sc *Silence) SilenceId {
 func (s *Silencer) UpdateSilence(sc *Silence) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	s.hasChanged = true
 
 	origSilence, ok := s.Silences[sc.Id]
 	if !ok {
@@ -182,6 +192,8 @@ func (s *Silencer) DelSilence(id SilenceId) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.hasChanged = true
+
 	if _, ok := s.Silences[id]; !ok {
 		return fmt.Errorf("Silence with ID %d doesn't exist", id)
 	}
@@ -205,11 +217,28 @@ func (s *Silencer) IsSilenced(l AlertLabels) (bool, *Silence) {
 	defer s.mu.Unlock()
 
 	for _, s := range s.Silences {
-		if s.Filters.Handles(l) {
+		if s.Handles(l) {
 			return true, s
 		}
 	}
 	return false, nil
+}
+
+func (s *Silencer) Filter(l []AlertLabels) []AlertLabels {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := l
+	for _, sc := range s.Silences {
+		unsilenced := []AlertLabels{}
+		for _, labels := range out {
+			if !sc.Handles(labels) {
+				unsilenced = append(unsilenced, labels)
+			}
+		}
+		out = unsilenced
+	}
+	return out
 }
 
 // Loads a JSON representation of silences from a file.
@@ -237,6 +266,17 @@ func (s *Silencer) SaveToFile(fileName string) error {
 		return err
 	}
 	return ioutil.WriteFile(fileName, resultBytes, 0644)
+}
+
+// Returns whether silences have been added/updated/removed since the last call
+// to HasChanged.
+func (s *Silencer) HasChanged() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	changed := s.hasChanged
+	s.hasChanged = false
+	return changed
 }
 
 func (s *Silencer) Close() {

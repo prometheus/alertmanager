@@ -14,6 +14,7 @@
 package manager
 
 import (
+	"sync"
 	"time"
 
 	_ "github.com/prometheus/alertmanager/config/generated"
@@ -22,19 +23,11 @@ import (
 type InhibitRules []*InhibitRule
 
 type InhibitRule struct {
-	SourceFilters Filters
-	TargetFilters Filters
-	MatchOn []string
+	SourceFilters   Filters
+	TargetFilters   Filters
+	MatchOn         []string
 	BeforeAllowance time.Duration
-	AfterAllowance time.Duration
-}
-
-func (i InhibitRules) Filter(l []AlertLabels) []AlertLabels {
-	out := l
-	for _, r := range i {
-		out = r.Filter(l, out)
-	}
-	return out
+	AfterAllowance  time.Duration
 }
 
 func (i *InhibitRule) Filter(s []AlertLabels, t []AlertLabels) []AlertLabels {
@@ -54,3 +47,44 @@ func (i *InhibitRule) Filter(s []AlertLabels, t []AlertLabels) []AlertLabels {
 	}
 	return out
 }
+
+// Inhibitor calculates inhibition rules between its labelset inputs and only
+// emits uninhibited alert labelsets.
+type Inhibitor struct {
+	mu           sync.Mutex
+	inhibitRules InhibitRules
+	hasChanged bool
+}
+
+func NewInhibitor(r InhibitRules) *Inhibitor {
+	return &Inhibitor{
+		inhibitRules: r,
+	}
+}
+
+func (i *Inhibitor) SetInhibitRules(r InhibitRules) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.inhibitRules = r
+	i.hasChanged = true
+}
+
+func (i *Inhibitor) Filter(l []AlertLabels) []AlertLabels {
+	out := l
+	for _, r := range i.inhibitRules {
+		out = r.Filter(l, out)
+	}
+	return out
+}
+
+// Returns whether inhibits have changed since the last call to HasChanged.
+func (i *Inhibitor) HasChanged() bool {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	changed := i.hasChanged
+	i.hasChanged = false
+	return changed
+}
+

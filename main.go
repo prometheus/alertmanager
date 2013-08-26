@@ -26,9 +26,9 @@ import (
 )
 
 var (
-	configFile   = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
-	silencesFile = flag.String("silencesFile", "silences.json", "Silence storage file name.")
-	minRefreshPeriod = flag.Duration("minRefreshPeriod", 5 * time.Minute, "Minimum required alert refresh period before an alert is purged.")
+	configFile       = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
+	silencesFile     = flag.String("silencesFile", "silences.json", "Silence storage file name.")
+	minRefreshPeriod = flag.Duration("minRefreshPeriod", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
 )
 
 func main() {
@@ -58,27 +58,10 @@ func main() {
 	notifier := manager.NewNotifier(conf.NotificationConfig)
 	defer notifier.Close()
 
-	store := manager.NewMemoryAlertStore(*minRefreshPeriod)
+	inhibitor := manager.NewInhibitor(conf.InhibitRules())
 
-	iFilter := &manager.InhibitFilter{}
-	iFilter.SetInhibitRules(conf.InhibitRules())
-
-  sFilter := manager.NewSilenceFilter(silencer)
-
-	rFilter := manager.NewRepeatFilter(store, notifier)
-
-  // Construct a network of filters sending signals to each other:
-  //
-	//          Inhibit rules      Silences          Timer
-	//                |                |               |
-	//                |                |               |
-	//                |                |               |
-	//                v                v               v
-	// Store -> InhibitFilter -> SilenceFilter -> RepeatFilter -> Notifier
-  //
-	store.SetOutputNode(iFilter)
-	iFilter.SetOutputNode(sFilter)
-	sFilter.SetOutputNode(rFilter)
+	alertManager := manager.NewMemoryAlertManager(*minRefreshPeriod, inhibitor, silencer, notifier)
+	go alertManager.Run()
 
 	// Web initialization.
 	flags := map[string]string{}
@@ -96,13 +79,13 @@ func main() {
 	webService := &web.WebService{
 		// REST API Service.
 		AlertManagerService: &api.AlertManagerService{
-			Store: store,
-			Silencer:   silencer,
+			Manager:  alertManager,
+			Silencer: silencer,
 		},
 
 		// Template-based page handlers.
 		AlertsHandler: &web.AlertsHandler{
-			Store:              store,
+			Manager:                alertManager,
 			IsSilencedInterrogator: silencer,
 		},
 		SilencesHandler: &web.SilencesHandler{
@@ -115,12 +98,11 @@ func main() {
 	// React to configuration changes.
 	watcher := config.NewFileWatcher(*configFile)
 	go watcher.Watch(func(conf *config.Config) {
+		inhibitor.SetInhibitRules(conf.InhibitRules())
 		notifier.SetNotificationConfigs(conf.NotificationConfig)
-		store.SetAggregationRules(conf.AggregationRules())
+		alertManager.SetAggregationRules(conf.AggregationRules())
 		statusHandler.UpdateConfig(conf.String())
-		iFilter.SetInhibitRules(conf.InhibitRules())
 	})
-
 
 	log.Println("Running notification dispatcher...")
 	notifier.Dispatch()
