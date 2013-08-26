@@ -30,10 +30,10 @@ type InhibitRule struct {
 	AfterAllowance  time.Duration
 }
 
-func (i *InhibitRule) Filter(s []AlertLabels, t []AlertLabels) []AlertLabels {
+func (i *InhibitRule) Filter(s AlertLabelSets, t AlertLabelSets) AlertLabelSets {
 	s = i.SourceFilters.Filter(s)
 	t = i.TargetFilters.Filter(t)
-	out := []AlertLabels{}
+	out := AlertLabelSets{}
 	for _, tl := range s {
 		inhibited := true
 		for _, sl := range t {
@@ -70,7 +70,7 @@ func (i *Inhibitor) SetInhibitRules(r InhibitRules) {
 	i.hasChanged = true
 }
 
-func (i *Inhibitor) Filter(l []AlertLabels) []AlertLabels {
+func (i *Inhibitor) Filter(l AlertLabelSets) AlertLabelSets {
 	out := l
 	for _, r := range i.inhibitRules {
 		out = r.Filter(l, out)

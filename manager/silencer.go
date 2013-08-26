@@ -97,7 +97,7 @@ func (s *Silence) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s Silence) Handles(l AlertLabels) bool {
+func (s Silence) Handles(l AlertLabelSet) bool {
 	return s.Filters.Handles(l)
 }
 
@@ -114,7 +114,7 @@ type Silencer struct {
 }
 
 type IsSilencedInterrogator interface {
-	IsSilenced(AlertLabels) (bool, *Silence)
+	IsSilenced(AlertLabelSet) (bool, *Silence)
 }
 
 func NewSilencer() *Silencer {
@@ -212,7 +212,7 @@ func (s *Silencer) SilenceSummary() Silences {
 	return silences
 }
 
-func (s *Silencer) IsSilenced(l AlertLabels) (bool, *Silence) {
+func (s *Silencer) IsSilenced(l AlertLabelSet) (bool, *Silence) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -224,13 +224,13 @@ func (s *Silencer) IsSilenced(l AlertLabels) (bool, *Silence) {
 	return false, nil
 }
 
-func (s *Silencer) Filter(l []AlertLabels) []AlertLabels {
+func (s *Silencer) Filter(l AlertLabelSets) AlertLabelSets {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	out := l
 	for _, sc := range s.Silences {
-		unsilenced := []AlertLabels{}
+		unsilenced := AlertLabelSets{}
 		for _, labels := range out {
 			if !sc.Handles(labels) {
 				unsilenced = append(unsilenced, labels)

@@ -23,7 +23,9 @@ const AlertNameLabel = "alertname"
 
 type AlertFingerprint uint64
 
-type AlertLabels map[string]string
+type AlertLabelSet map[string]string
+type AlertLabelSets []AlertLabelSet
+
 type AlertPayload map[string]string
 
 type Alerts []*Alert
@@ -36,7 +38,7 @@ type Alert struct {
 	Description string
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include an "alertname" label.
-	Labels AlertLabels
+	Labels AlertLabelSet
 	// Extra key/value information which is not used for aggregation.
 	Payload AlertPayload
 }
@@ -49,7 +51,7 @@ func (a *Alert) Fingerprint() AlertFingerprint {
 	return a.Labels.Fingerprint()
 }
 
-func (l AlertLabels) Fingerprint() AlertFingerprint {
+func (l AlertLabelSet) Fingerprint() AlertFingerprint {
 	keys := []string{}
 
 	for k := range l {
@@ -68,7 +70,7 @@ func (l AlertLabels) Fingerprint() AlertFingerprint {
 	return AlertFingerprint(summer.Sum64())
 }
 
-func (l AlertLabels) MatchOnLabels(o AlertLabels, labels []string) bool {
+func (l AlertLabelSet) MatchOnLabels(o AlertLabelSet, labels []string) bool {
 	for _, k := range labels {
 		if l[k] != o[k] {
 			return false

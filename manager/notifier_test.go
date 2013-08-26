@@ -22,7 +22,7 @@ func TestWriteEmailBody(t *testing.T) {
 	event := &Alert{
 		Summary:     "Testsummary",
 		Description: "Test alert description, something went wrong here.",
-		Labels: AlertLabels{
+		Labels: AlertLabelSet{
 			"alertname":       "TestAlert",
 			"grouping_label1": "grouping_value1",
 			"grouping_label2": "grouping_value2",
