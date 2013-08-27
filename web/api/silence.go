@@ -16,10 +16,10 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"code.google.com/p/gorest"
+	"github.com/golang/glog"
 
 	"github.com/prometheus/alertmanager/manager"
 )
@@ -46,14 +46,14 @@ func (s AlertManagerService) GetSilence(id int) string {
 	rb.SetContentType(gorest.Application_Json)
 	silence, err := s.Silencer.GetSilence(manager.SilenceId(id))
 	if err != nil {
-		log.Printf("Error getting silence: %s", err)
+		glog.Error("Error getting silence: ", err)
 		rb.SetResponseCode(http.StatusNotFound)
 		return err.Error()
 	}
 
 	resultBytes, err := json.Marshal(&silence)
 	if err != nil {
-		log.Printf("Error marshalling silence: %s", err)
+		glog.Error("Error marshalling silence: ", err)
 		rb.SetResponseCode(http.StatusInternalServerError)
 		return err.Error()
 	}
@@ -64,7 +64,7 @@ func (s AlertManagerService) UpdateSilence(sc manager.Silence, id int) {
 	// BUG: add server-side form validation.
 	sc.Id = manager.SilenceId(id)
 	if err := s.Silencer.UpdateSilence(&sc); err != nil {
-		log.Printf("Error updating silence: %s", err)
+		glog.Error("Error updating silence: ", err)
 		rb := s.ResponseBuilder()
 		rb.SetResponseCode(http.StatusNotFound)
 	}
@@ -72,7 +72,7 @@ func (s AlertManagerService) UpdateSilence(sc manager.Silence, id int) {
 
 func (s AlertManagerService) DelSilence(id int) {
 	if err := s.Silencer.DelSilence(manager.SilenceId(id)); err != nil {
-		log.Printf("Error deleting silence: %s", err)
+		glog.Error("Error deleting silence: ", err)
 		rb := s.ResponseBuilder()
 		rb.SetResponseCode(http.StatusNotFound)
 	}
@@ -85,7 +85,7 @@ func (s AlertManagerService) SilenceSummary() string {
 
 	resultBytes, err := json.Marshal(silenceSummary)
 	if err != nil {
-		log.Printf("Error marshalling silences: %s", err)
+		glog.Error("Error marshalling silences: ", err)
 		rb.SetResponseCode(http.StatusInternalServerError)
 		return err.Error()
 	}

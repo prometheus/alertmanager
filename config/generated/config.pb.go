@@ -135,9 +135,61 @@ func (m *AggregationRule) GetNotificationConfigName() string {
 	return ""
 }
 
+type InhibitRule struct {
+	SourceFilter     []*Filter `protobuf:"bytes,1,rep,name=source_filter" json:"source_filter,omitempty"`
+	TargetFilter     []*Filter `protobuf:"bytes,2,rep,name=target_filter" json:"target_filter,omitempty"`
+	MatchOn          []string  `protobuf:"bytes,3,rep,name=match_on" json:"match_on,omitempty"`
+	BeforeAllowance  *int32    `protobuf:"varint,4,opt,name=before_allowance,def=0" json:"before_allowance,omitempty"`
+	AfterAllowance   *int32    `protobuf:"varint,5,opt,name=after_allowance,def=0" json:"after_allowance,omitempty"`
+	XXX_unrecognized []byte    `json:"-"`
+}
+
+func (m *InhibitRule) Reset()         { *m = InhibitRule{} }
+func (m *InhibitRule) String() string { return proto.CompactTextString(m) }
+func (*InhibitRule) ProtoMessage()    {}
+
+const Default_InhibitRule_BeforeAllowance int32 = 0
+const Default_InhibitRule_AfterAllowance int32 = 0
+
+func (m *InhibitRule) GetSourceFilter() []*Filter {
+	if m != nil {
+		return m.SourceFilter
+	}
+	return nil
+}
+
+func (m *InhibitRule) GetTargetFilter() []*Filter {
+	if m != nil {
+		return m.TargetFilter
+	}
+	return nil
+}
+
+func (m *InhibitRule) GetMatchOn() []string {
+	if m != nil {
+		return m.MatchOn
+	}
+	return nil
+}
+
+func (m *InhibitRule) GetBeforeAllowance() int32 {
+	if m != nil && m.BeforeAllowance != nil {
+		return *m.BeforeAllowance
+	}
+	return Default_InhibitRule_BeforeAllowance
+}
+
+func (m *InhibitRule) GetAfterAllowance() int32 {
+	if m != nil && m.AfterAllowance != nil {
+		return *m.AfterAllowance
+	}
+	return Default_InhibitRule_AfterAllowance
+}
+
 type AlertManagerConfig struct {
 	AggregationRule    []*AggregationRule    `protobuf:"bytes,1,rep,name=aggregation_rule" json:"aggregation_rule,omitempty"`
 	NotificationConfig []*NotificationConfig `protobuf:"bytes,2,rep,name=notification_config" json:"notification_config,omitempty"`
+	InhibitRule        []*InhibitRule        `protobuf:"bytes,3,rep,name=inhibit_rule" json:"inhibit_rule,omitempty"`
 	XXX_unrecognized   []byte                `json:"-"`
 }
 
@@ -155,6 +207,13 @@ func (m *AlertManagerConfig) GetAggregationRule() []*AggregationRule {
 func (m *AlertManagerConfig) GetNotificationConfig() []*NotificationConfig {
 	if m != nil {
 		return m.NotificationConfig
+	}
+	return nil
+}
+
+func (m *AlertManagerConfig) GetInhibitRule() []*InhibitRule {
+	if m != nil {
+		return m.InhibitRule
 	}
 	return nil
 }

@@ -19,9 +19,9 @@ import (
 )
 
 type testSilencerScenario struct {
-	silences    Silences
-	inhibited   Events
-	uninhibited Events
+	silences   Silences
+	silenced   Alerts
+	unsilenced Alerts
 }
 
 func (scenario *testSilencerScenario) test(i int, t *testing.T) {
@@ -42,22 +42,33 @@ func (scenario *testSilencerScenario) test(i int, t *testing.T) {
 		}
 	}
 
-	for j, ev := range scenario.inhibited {
-		inhibited, sc := s.IsInhibited(ev)
-		if !inhibited {
-			t.Fatalf("%d.%d. Expected %v to be inhibited", i, j, ev)
+	for j, a := range scenario.silenced {
+		silenced, sc := s.IsSilenced(a.Labels)
+		if !silenced {
+			t.Fatalf("%d.%d. Expected %v to be silenced", i, j, a)
 		}
 		if sc == nil {
-			t.Fatalf("%d.%d. Expected non-nil Silence for inhibited event %v", i, j, ev)
+			t.Fatalf("%d.%d. Expected non-nil Silence for silenced event %v", i, j, a)
 		}
 	}
 
-	for j, ev := range scenario.uninhibited {
-		inhibited, sc := s.IsInhibited(ev)
-		if inhibited {
-			t.Fatalf("%d.%d. Expected %v to not be inhibited, was inhibited by %v", i, j, ev, sc)
+	for j, a := range scenario.unsilenced {
+		silenced, sc := s.IsSilenced(a.Labels)
+		if silenced {
+			t.Fatalf("%d.%d. Expected %v to not be silenced, was silenced by %v", i, j, a, sc)
 		}
 	}
+
+	l := AlertLabelSets{}
+	for _, a := range append(scenario.silenced, scenario.unsilenced...) {
+		l = append(l, a.Labels)
+	}
+	unsilenced := AlertLabelSets{}
+	for _, a := range scenario.unsilenced {
+		unsilenced = append(unsilenced, a.Labels)
+	}
+	filtered := s.Filter(l)
+	labelSetsMustBeEqual(i, t, filtered, unsilenced)
 
 	silences := s.SilenceSummary()
 	if len(silences) != len(scenario.silences) {
@@ -82,8 +93,8 @@ func TestSilencer(t *testing.T) {
 	scenarios := []testSilencerScenario{
 		{
 			// No silences, one event.
-			uninhibited: Events{
-				&Event{
+			unsilenced: Alerts{
+				&Alert{
 					Labels: map[string]string{
 						"foo": "bar",
 					},
@@ -102,28 +113,28 @@ func TestSilencer(t *testing.T) {
 					EndsAt:  time.Now().Add(time.Hour),
 				},
 			},
-			inhibited: Events{
-				&Event{
+			silenced: Alerts{
+				&Alert{
 					Labels: map[string]string{
 						"service": "testservice",
 						"foo":     "bar",
 					},
 				},
-				&Event{
+				&Alert{
 					Labels: map[string]string{
 						"service": "test-service",
 						"bar":     "baz",
 					},
 				},
-				&Event{
+				&Alert{
 					Labels: map[string]string{
 						"service":   "bar-service",
 						"testlabel": "testvalue",
 					},
 				},
 			},
-			uninhibited: Events{
-				&Event{
+			unsilenced: Alerts{
+				&Alert{
 					Labels: map[string]string{
 						"service": "testservice2",
 						"foo":     "bar",
