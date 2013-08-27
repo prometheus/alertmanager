@@ -160,6 +160,11 @@ func writeEmailBody(w io.Writer, a *Alert) error {
 	if err := bodyTmpl.Execute(w, a); err != nil {
 		return err
 	}
+	buf := &bytes.Buffer{}
+	if err := bodyTmpl.Execute(buf, event); err != nil {
+		return err
+	}
+	log.Println(buf.String())
 	return nil
 }
 
