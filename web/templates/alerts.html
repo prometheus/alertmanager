@@ -19,25 +19,25 @@
         </tr>
       </thead>
       <tbody>
-        {{$silenceForEvent := .SilenceForEvent}}
+        {{$silenceForAlert := .SilenceForAlert}}
         {{range .AlertAggregates}}
           <tr>
             <td>
-              <span class="label label-important">{{index .Event.Name}}</span>
+              <span class="label label-important">{{index .Alert.Name}}</span>
               <form class="add_silence_form">
                 <input type="hidden" name="label[]" value="alertname">
-                <input type="hidden" name="value[]" value="{{.Event.Name}}">
+                <input type="hidden" name="value[]" value="{{.Alert.Name}}">
                 <a href="#edit_silence_modal" role="button" class="btn btn-mini add_silence_btn" data-toggle="modal">Silence Alert</a>
               </form>
             </td>
             <td>
-              {{range $label, $value := .Event.Labels}}
+              {{range $label, $value := .Alert.Labels}}
                 {{if not (eq $label "alertname")}}
                   <span class="label label-info">{{$label}}="{{$value}}"</span>
                 {{end}}
               {{end}}
               <form class="add_silence_form">
-                {{range $label, $value := .Event.Labels}}
+                {{range $label, $value := .Alert.Labels}}
                   <input type="hidden" name="label[]" value="{{$label}}">
                   <input type="hidden" name="value[]" value="{{$value}}">
                 {{end}}
@@ -46,10 +46,10 @@
             </td>
             <td>{{timeSince .Created}} ago</td>
             <td>{{timeSince .LastRefreshed}} ago</td>
-            <td><a href="{{.Event.Payload.GeneratorUrl}}">{{(truncate .Event.Payload.GeneratorUrl 40)}}</a></td>
-            <td>{{.Event.Payload.AlertingRule}}</td>
+            <td><a href="{{.Alert.Payload.GeneratorUrl}}">{{(truncate .Alert.Payload.GeneratorUrl 40)}}</a></td>
+            <td>{{.Alert.Payload.AlertingRule}}</td>
             <td>
-              {{$silence := call $silenceForEvent .Event}}
+              {{$silence := call $silenceForAlert .Alert}}
               {{if $silence}}
                 by <a href="#" class="silence_link">silence {{$silence.Id}}</a>
               {{else}}

@@ -22,13 +22,13 @@ import (
 type AlertManagerService struct {
 	gorest.RestService `root:"/api/" consumes:"application/json" produces:"application/json"`
 
-	addEvents      gorest.EndPoint `method:"POST" path:"/events" postdata:"Events"`
+	addAlerts      gorest.EndPoint `method:"POST" path:"/alerts" postdata:"Alerts"`
 	addSilence     gorest.EndPoint `method:"POST" path:"/silences" postdata:"Silence"`
 	getSilence     gorest.EndPoint `method:"GET" path:"/silences/{id:int}" output:"string"`
 	updateSilence  gorest.EndPoint `method:"POST" path:"/silences/{id:int}" postdata:"Silence"`
 	delSilence     gorest.EndPoint `method:"DELETE" path:"/silences/{id:int}"`
 	silenceSummary gorest.EndPoint `method:"GET" path:"/silences" output:"string"`
 
-	Aggregator *manager.Aggregator
-	Silencer   *manager.Silencer
+	Manager  manager.AlertManager
+	Silencer *manager.Silencer
 }
