@@ -113,9 +113,11 @@ message InhibitRule {
   repeated string match_on = 3;
   // How many seconds to wait for a corresponding inhibit source alert to
   // appear before sending any notifications for active target alerts.
+  // TODO: Implement this!
   optional int32 before_allowance = 4 [default = 0];
   // How many seconds to wait after a corresponding inhibit source alert
   // disappears before sending any notifications for active target alerts.
+  // TODO: Implement this!
   optional int32 after_allowance = 5 [default = 0];
 }
 

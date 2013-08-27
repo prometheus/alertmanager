@@ -59,6 +59,17 @@ func (scenario *testSilencerScenario) test(i int, t *testing.T) {
 		}
 	}
 
+	l := AlertLabelSets{}
+	for _, a := range append(scenario.silenced, scenario.unsilenced...) {
+		l = append(l, a.Labels)
+	}
+	unsilenced := AlertLabelSets{}
+	for _, a := range scenario.unsilenced {
+		unsilenced = append(unsilenced, a.Labels)
+	}
+	filtered := s.Filter(l)
+	labelSetsMustBeEqual(i, t, filtered, unsilenced)
+
 	silences := s.SilenceSummary()
 	if len(silences) != len(scenario.silences) {
 		t.Fatalf("%d. Expected %d silences, got %d", i, len(scenario.silences), len(silences))

@@ -15,7 +15,6 @@ package manager
 
 import (
 	"sync"
-	"time"
 
 	_ "github.com/prometheus/alertmanager/config/generated"
 )
@@ -23,22 +22,22 @@ import (
 type InhibitRules []*InhibitRule
 
 type InhibitRule struct {
-	SourceFilters   Filters
-	TargetFilters   Filters
-	MatchOn         []string
-	BeforeAllowance time.Duration
-	AfterAllowance  time.Duration
+	SourceFilters Filters
+	TargetFilters Filters
+	MatchOn       []string
 }
 
 func (i *InhibitRule) Filter(s AlertLabelSets, t AlertLabelSets) AlertLabelSets {
 	s = i.SourceFilters.Filter(s)
-	t = i.TargetFilters.Filter(t)
 	out := AlertLabelSets{}
-	for _, tl := range s {
-		inhibited := true
-		for _, sl := range t {
-			if !tl.MatchOnLabels(sl, i.MatchOn) {
-				inhibited = false
+	for _, tl := range t {
+		inhibited := false
+		if i.TargetFilters.Handles(tl) {
+			for _, sl := range s {
+				if tl.MatchOnLabels(sl, i.MatchOn) {
+					inhibited = true
+					break
+				}
 			}
 		}
 		if !inhibited {
@@ -53,7 +52,7 @@ func (i *InhibitRule) Filter(s AlertLabelSets, t AlertLabelSets) AlertLabelSets 
 type Inhibitor struct {
 	mu           sync.Mutex
 	inhibitRules InhibitRules
-	hasChanged bool
+	hasChanged   bool
 }
 
 func NewInhibitor(r InhibitRules) *Inhibitor {
@@ -78,6 +77,15 @@ func (i *Inhibitor) Filter(l AlertLabelSets) AlertLabelSets {
 	return out
 }
 
+func (i *Inhibitor) IsInhibited(t AlertLabelSet, l AlertLabelSets) bool {
+	for _, r := range i.inhibitRules {
+		if len(r.Filter(l, AlertLabelSets{t})) != 1 {
+			return true
+		}
+	}
+	return false
+}
+
 // Returns whether inhibits have changed since the last call to HasChanged.
 func (i *Inhibitor) HasChanged() bool {
 	i.mu.Lock()
@@ -87,4 +95,3 @@ func (i *Inhibitor) HasChanged() bool {
 	i.hasChanged = false
 	return changed
 }
-

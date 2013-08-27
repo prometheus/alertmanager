@@ -114,11 +114,9 @@ func (c Config) InhibitRules() manager.InhibitRules {
 		sFilters := filtersFromPb(r.SourceFilter)
 		tFilters := filtersFromPb(r.TargetFilter)
 		rules = append(rules, &manager.InhibitRule{
-			SourceFilters:   sFilters,
-			TargetFilters:   tFilters,
-			MatchOn:         r.MatchOn,
-			BeforeAllowance: time.Duration(r.GetBeforeAllowance()) * time.Second,
-			AfterAllowance:  time.Duration(r.GetAfterAllowance()) * time.Second,
+			SourceFilters: sFilters,
+			TargetFilters: tFilters,
+			MatchOn:       r.MatchOn,
 		})
 	}
 	return rules

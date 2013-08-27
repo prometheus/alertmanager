@@ -70,6 +70,18 @@ func (l AlertLabelSet) Fingerprint() AlertFingerprint {
 	return AlertFingerprint(summer.Sum64())
 }
 
+func (l AlertLabelSet) Equal(o AlertLabelSet) bool {
+	if len(l) != len(o) {
+		return false
+	}
+	for k, v := range l {
+		if o[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 func (l AlertLabelSet) MatchOnLabels(o AlertLabelSet, labels []string) bool {
 	for _, k := range labels {
 		if l[k] != o[k] {

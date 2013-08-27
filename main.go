@@ -61,6 +61,7 @@ func main() {
 	inhibitor := manager.NewInhibitor(conf.InhibitRules())
 
 	alertManager := manager.NewMemoryAlertManager(*minRefreshPeriod, inhibitor, silencer, notifier)
+	alertManager.SetAggregationRules(conf.AggregationRules())
 	go alertManager.Run()
 
 	// Web initialization.
