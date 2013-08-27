@@ -26,8 +26,9 @@ import (
 )
 
 var (
-	configFile   = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
-	silencesFile = flag.String("silencesFile", "silences.json", "Silence storage file name.")
+	configFile       = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
+	silencesFile     = flag.String("silencesFile", "silences.json", "Silence storage file name.")
+	minRefreshPeriod = flag.Duration("minRefreshPeriod", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
 )
 
 func main() {
@@ -57,9 +58,13 @@ func main() {
 	notifier := manager.NewNotifier(conf.NotificationConfig)
 	defer notifier.Close()
 
-	aggregator := manager.NewAggregator(notifier)
-	defer aggregator.Close()
+	inhibitor := manager.NewInhibitor(conf.InhibitRules())
 
+	alertManager := manager.NewMemoryAlertManager(*minRefreshPeriod, inhibitor, silencer, notifier)
+	alertManager.SetAggregationRules(conf.AggregationRules())
+	go alertManager.Run()
+
+	// Web initialization.
 	flags := map[string]string{}
 	flag.VisitAll(func(f *flag.Flag) {
 		flags[f.Name] = f.Value.String()
@@ -75,14 +80,14 @@ func main() {
 	webService := &web.WebService{
 		// REST API Service.
 		AlertManagerService: &api.AlertManagerService{
-			Aggregator: aggregator,
-			Silencer:   silencer,
+			Manager:  alertManager,
+			Silencer: silencer,
 		},
 
 		// Template-based page handlers.
 		AlertsHandler: &web.AlertsHandler{
-			Aggregator:              aggregator,
-			IsInhibitedInterrogator: silencer,
+			Manager:                alertManager,
+			IsSilencedInterrogator: silencer,
 		},
 		SilencesHandler: &web.SilencesHandler{
 			Silencer: silencer,
@@ -91,15 +96,15 @@ func main() {
 	}
 	go webService.ServeForever()
 
-	aggregator.SetRules(conf.AggregationRules())
-
+	// React to configuration changes.
 	watcher := config.NewFileWatcher(*configFile)
 	go watcher.Watch(func(conf *config.Config) {
+		inhibitor.SetInhibitRules(conf.InhibitRules())
 		notifier.SetNotificationConfigs(conf.NotificationConfig)
-		aggregator.SetRules(conf.AggregationRules())
+		alertManager.SetAggregationRules(conf.AggregationRules())
 		statusHandler.UpdateConfig(conf.String())
 	})
 
-	log.Println("Running summary dispatcher...")
-	notifier.Dispatch(silencer)
+	log.Println("Running notification dispatcher...")
+	notifier.Dispatch()
 }

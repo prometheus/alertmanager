@@ -19,34 +19,42 @@ import (
 	"sort"
 )
 
-const EventNameLabel = "alertname"
+const AlertNameLabel = "alertname"
 
-type EventFingerprint uint64
+type AlertFingerprint uint64
 
-type EventLabels map[string]string
-type EventPayload map[string]string
+type AlertLabelSet map[string]string
+type AlertLabelSets []AlertLabelSet
 
-// Event models an action triggered by Prometheus.
-type Event struct {
-	// Short summary of event.
+type AlertPayload map[string]string
+
+type Alerts []*Alert
+
+// Alert models an action triggered by Prometheus.
+type Alert struct {
+	// Short summary of alert.
 	Summary string
-	// Long description of event.
+	// Long description of alert.
 	Description string
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include an "alertname" label.
-	Labels EventLabels
+	Labels AlertLabelSet
 	// Extra key/value information which is not used for aggregation.
-	Payload EventPayload
+	Payload AlertPayload
 }
 
-func (e Event) Name() string {
-	return e.Labels[EventNameLabel]
+func (a *Alert) Name() string {
+	return a.Labels[AlertNameLabel]
 }
 
-func (e Event) Fingerprint() EventFingerprint {
+func (a *Alert) Fingerprint() AlertFingerprint {
+	return a.Labels.Fingerprint()
+}
+
+func (l AlertLabelSet) Fingerprint() AlertFingerprint {
 	keys := []string{}
 
-	for k := range e.Labels {
+	for k := range l {
 		keys = append(keys, k)
 	}
 
@@ -56,10 +64,29 @@ func (e Event) Fingerprint() EventFingerprint {
 
 	separator := string([]byte{0})
 	for _, k := range keys {
-		fmt.Fprintf(summer, "%s%s%s%s", k, separator, e.Labels[k], separator)
+		fmt.Fprintf(summer, "%s%s%s%s", k, separator, l[k], separator)
 	}
 
-	return EventFingerprint(summer.Sum64())
+	return AlertFingerprint(summer.Sum64())
 }
 
-type Events []*Event
+func (l AlertLabelSet) Equal(o AlertLabelSet) bool {
+	if len(l) != len(o) {
+		return false
+	}
+	for k, v := range l {
+		if o[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func (l AlertLabelSet) MatchOnLabels(o AlertLabelSet, labels []string) bool {
+	for _, k := range labels {
+		if l[k] != o[k] {
+			return false
+		}
+	}
+	return true
+}
