@@ -15,9 +15,9 @@ package config
 
 import (
 	"io/ioutil"
-	"log"
 
 	"code.google.com/p/goprotobuf/proto"
+	"github.com/golang/glog"
 
 	pb "github.com/prometheus/alertmanager/config/generated"
 )
@@ -46,7 +46,7 @@ func LoadFromFile(fileName string) (Config, error) {
 func MustLoadFromFile(fileName string) Config {
 	conf, err := LoadFromFile(fileName)
 	if err != nil {
-		log.Fatalf("Error loading configuration from %s: %s", fileName, err)
+		glog.Fatalf("Error loading configuration from %s: %s", fileName, err)
 	}
 	return conf
 }

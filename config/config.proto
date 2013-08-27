@@ -55,10 +55,85 @@ message AggregationRule {
   optional string notification_config_name = 3;
 }
 
+// An InhibitRule specifies that a class of (source) alerts should inhibit
+// notifications for another class of (target) alerts if all specified matching
+// labels are equal between the two alerts. This may be used to inhibit alerts
+// from sending notifications if their meaning is logically a subset of a
+// higher-level alert.
+//
+// For example, if an entire job is down, there is little sense in sending a
+// notification for every single instance of said job being down. This could be
+// expressed as the following inhibit rule:
+//
+// inhibit_rule {
+//   # Select all source alerts that are candidates for being inhibitors. All
+//   # supplied source filters have to match in order to select a source alert.
+//   source_filter: {
+//     name_re: "alertname"
+//     value_re: "JobDown"
+//   }
+//   source_filter: {
+//     name_re: "service"
+//     value_re: "api"
+//   }
+//
+//   # Select all target alerts that are candidates for being inhibited. All
+//   # supplied target filters have to match in order to select a target alert.
+//   target_filter: {
+//     name_re: "alertname"
+//     value_re: "InstanceDown"
+//   }
+//   target_filter: {
+//     name_re: "service"
+//     value_re: "api"
+//   }
+//
+//   # A target alert only actually inhibits a source alert if they match on
+//   # these labels. I.e. the alerts needs to fire for the same job in the same
+//   # zone for the inhibit to take effect between them.
+//   match_on: "job"
+//   match_on: "zone"
+// }
+//
+// In this example, when JobDown is firing for
+//
+//   JobDown{zone="aa",job="test",service="api"}
+//
+// ...it would inhibit an InstanceDown alert for
+//
+//   InstanceDown{zone="aa",job="test",instance="1",service="api"}
+//
+// However, an InstanceDown alert for another zone:
+//
+//   {zone="ab",job="test",instance="1",service="api"}
+//
+// ...would still fire.
+message InhibitRule {
+  // The set of Filters which define the group of source alerts (which inhibit
+  // the target alerts).
+  repeated Filter source_filter = 1;
+  // The set of Filters which define the group of target alerts (which are
+  // inhibited by the source alerts).
+  repeated Filter target_filter = 2;
+  // A set of label names whose label values need to be identical in source and
+  // target alerts in order for the inhibition to take effect.
+  repeated string match_on = 3;
+  // How many seconds to wait for a corresponding inhibit source alert to
+  // appear before sending any notifications for active target alerts.
+  // TODO(julius): Not supported yet. Implement this!
+  // optional int32 before_allowance = 4 [default = 0];
+  // How many seconds to wait after a corresponding inhibit source alert
+  // disappears before sending any notifications for active target alerts.
+  // TODO(julius): Not supported yet. Implement this!
+  // optional int32 after_allowance = 5 [default = 0];
+}
+
 // Global alert manager configuration.
 message AlertManagerConfig {
   // Aggregation rule definitions.
   repeated AggregationRule aggregation_rule = 1;
   // Notification configuration definitions.
   repeated NotificationConfig notification_config = 2;
+  // List of alert inhibition rules.
+  repeated InhibitRule inhibit_rule = 3;
 }

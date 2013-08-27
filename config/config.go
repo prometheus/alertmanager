@@ -24,6 +24,8 @@ import (
 	"github.com/prometheus/alertmanager/manager"
 )
 
+const minimumRepeatRate = 1 * time.Minute
+
 // Config encapsulates the configuration of an Alert Manager instance. It wraps
 // the raw configuration protocol buffer to be able to add custom methods to
 // it.
@@ -80,18 +82,41 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// Rules returns all the AggregationRules in a Config object.
+func filtersFromPb(filters []*pb.Filter) manager.Filters {
+	fs := make(manager.Filters, 0, len(filters))
+	for _, f := range filters {
+		fs = append(fs, manager.NewFilter(f.GetNameRe(), f.GetValueRe()))
+	}
+	return fs
+}
+
+// AggregationRules returns all the AggregationRules in a Config object.
 func (c Config) AggregationRules() manager.AggregationRules {
 	rules := make(manager.AggregationRules, 0, len(c.AggregationRule))
 	for _, r := range c.AggregationRule {
-		filters := make(manager.Filters, 0, len(r.Filter))
-		for _, filter := range r.Filter {
-			filters = append(filters, manager.NewFilter(filter.GetNameRe(), filter.GetValueRe()))
+		rate := time.Duration(r.GetRepeatRateSeconds()) * time.Second
+		if rate < minimumRepeatRate {
+			rate = minimumRepeatRate
 		}
 		rules = append(rules, &manager.AggregationRule{
-			Filters:                filters,
-			RepeatRate:             time.Duration(r.GetRepeatRateSeconds()) * time.Second,
+			Filters:                filtersFromPb(r.Filter),
+			RepeatRate:             minimumRepeatRate,
 			NotificationConfigName: r.GetNotificationConfigName(),
+		})
+	}
+	return rules
+}
+
+// InhibitRules returns all the InhibitRules in a Config object.
+func (c Config) InhibitRules() manager.InhibitRules {
+	rules := make(manager.InhibitRules, 0, len(c.InhibitRule))
+	for _, r := range c.InhibitRule {
+		sFilters := filtersFromPb(r.SourceFilter)
+		tFilters := filtersFromPb(r.TargetFilter)
+		rules = append(rules, &manager.InhibitRule{
+			SourceFilters: sFilters,
+			TargetFilters: tFilters,
+			MatchOn:       r.MatchOn,
 		})
 	}
 	return rules

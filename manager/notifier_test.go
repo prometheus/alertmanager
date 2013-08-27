@@ -19,15 +19,15 @@ import (
 )
 
 func TestWriteEmailBody(t *testing.T) {
-	event := &Event{
+	event := &Alert{
 		Summary:     "Testsummary",
 		Description: "Test alert description, something went wrong here.",
-		Labels: EventLabels{
+		Labels: AlertLabelSet{
 			"alertname":       "TestAlert",
 			"grouping_label1": "grouping_value1",
 			"grouping_label2": "grouping_value2",
 		},
-		Payload: EventPayload{
+		Payload: AlertPayload{
 			"payload_label1": "payload_value1",
 			"payload_label2": "payload_value2",
 		},

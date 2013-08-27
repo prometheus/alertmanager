@@ -15,9 +15,10 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
 	"time"
+
+	"github.com/golang/glog"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/manager"
@@ -26,8 +27,9 @@ import (
 )
 
 var (
-	configFile   = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
-	silencesFile = flag.String("silencesFile", "silences.json", "Silence storage file name.")
+	configFile       = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
+	silencesFile     = flag.String("silencesFile", "silences.json", "Silence storage file name.")
+	minRefreshPeriod = flag.Duration("minRefreshPeriod", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
 )
 
 func main() {
@@ -42,13 +44,13 @@ func main() {
 
 	err := silencer.LoadFromFile(*silencesFile)
 	if err != nil {
-		log.Println("Couldn't load silences, starting up with empty silence list:", err)
+		glog.Warning("Couldn't load silences, starting up with empty silence list: ", err)
 	}
 	saveSilencesTicker := time.NewTicker(10 * time.Second)
 	go func() {
 		for _ = range saveSilencesTicker.C {
 			if err := silencer.SaveToFile(*silencesFile); err != nil {
-				log.Println("Error saving silences to file:", err)
+				glog.Error("Error saving silences to file: ", err)
 			}
 		}
 	}()
@@ -57,9 +59,20 @@ func main() {
 	notifier := manager.NewNotifier(conf.NotificationConfig)
 	defer notifier.Close()
 
-	aggregator := manager.NewAggregator(notifier)
-	defer aggregator.Close()
+	inhibitor := new(manager.Inhibitor)
+	inhibitor.SetInhibitRules(conf.InhibitRules())
 
+	options := &manager.MemoryAlertManagerOptions{
+		Inhibitor:          inhibitor,
+		Silencer:           silencer,
+		Notifier:           notifier,
+		MinRefreshInterval: *minRefreshPeriod,
+	}
+	alertManager := manager.NewMemoryAlertManager(options)
+	alertManager.SetAggregationRules(conf.AggregationRules())
+	go alertManager.Run()
+
+	// Web initialization.
 	flags := map[string]string{}
 	flag.VisitAll(func(f *flag.Flag) {
 		flags[f.Name] = f.Value.String()
@@ -75,14 +88,14 @@ func main() {
 	webService := &web.WebService{
 		// REST API Service.
 		AlertManagerService: &api.AlertManagerService{
-			Aggregator: aggregator,
-			Silencer:   silencer,
+			Manager:  alertManager,
+			Silencer: silencer,
 		},
 
 		// Template-based page handlers.
 		AlertsHandler: &web.AlertsHandler{
-			Aggregator:              aggregator,
-			IsInhibitedInterrogator: silencer,
+			Manager:                alertManager,
+			IsSilencedInterrogator: silencer,
 		},
 		SilencesHandler: &web.SilencesHandler{
 			Silencer: silencer,
@@ -91,15 +104,15 @@ func main() {
 	}
 	go webService.ServeForever()
 
-	aggregator.SetRules(conf.AggregationRules())
-
+	// React to configuration changes.
 	watcher := config.NewFileWatcher(*configFile)
 	go watcher.Watch(func(conf *config.Config) {
+		inhibitor.SetInhibitRules(conf.InhibitRules())
 		notifier.SetNotificationConfigs(conf.NotificationConfig)
-		aggregator.SetRules(conf.AggregationRules())
+		alertManager.SetAggregationRules(conf.AggregationRules())
 		statusHandler.UpdateConfig(conf.String())
 	})
 
-	log.Println("Running summary dispatcher...")
-	notifier.Dispatch(silencer)
+	glog.Info("Running notification dispatcher...")
+	notifier.Dispatch()
 }
