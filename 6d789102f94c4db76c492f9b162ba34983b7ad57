@@ -1,0 +1,6 @@
+Code-Review+2: Julius Volz <julius@soundcloud.com>
+Submitted-by: Julius Volz <julius@soundcloud.com>
+Submitted-at: Wed, 11 Sep 2013 17:56:38 +0200
+Reviewed-on: http://review.prometheus.io/41
+Project: alertmanager
+Branch: refs/heads/master
