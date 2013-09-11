@@ -100,7 +100,7 @@ func (c Config) AggregationRules() manager.AggregationRules {
 		}
 		rules = append(rules, &manager.AggregationRule{
 			Filters:                filtersFromPb(r.Filter),
-			RepeatRate:             minimumRepeatRate,
+			RepeatRate:             rate,
 			NotificationConfigName: r.GetNotificationConfigName(),
 		})
 	}

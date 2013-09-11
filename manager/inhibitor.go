@@ -54,7 +54,7 @@ func (i *InhibitRule) Filter(s AlertLabelSets, t AlertLabelSets) AlertLabelSets 
 type Inhibitor struct {
 	mu           sync.Mutex
 	inhibitRules InhibitRules
-	dirty   bool
+	dirty        bool
 }
 
 // Replaces the current InhibitRules with a new set.
