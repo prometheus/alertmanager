@@ -15,10 +15,6 @@
 
 .SUFFIXES:
 
-GO         := $(GOROOT)/bin/go
-GOFMT      := $(GOROOT)/bin/gofmt
-GO_VERSION := 1.1
-
 REV        := $(shell git rev-parse --short HEAD)
 BRANCH     := $(shell git rev-parse --abbrev-ref HEAD)
 HOSTNAME   := $(shell hostname -f)
@@ -27,5 +23,4 @@ BUILDFLAGS := -ldflags \
         "-X main.buildVersion $(REV)\
          -X main.buildBranch $(BRANCH)\
          -X main.buildUser $(USER)@$(HOSTNAME)\
-         -X main.buildDate $(BUILD_DATE)\
-         -X main.goVersion $(GO_VERSION)"
+         -X main.buildDate $(BUILD_DATE)"

@@ -29,11 +29,10 @@ var (
 // BuildInfo encapsulates compile-time metadata about Prometheus made available
 // via go tool ld such that this can be reported on-demand.
 var BuildInfo = map[string]string{
-	"version":    buildVersion,
-	"branch":     buildBranch,
-	"user":       buildUser,
-	"date":       buildDate,
-	"go_version": goVersion,
+	"version": buildVersion,
+	"branch":  buildBranch,
+	"user":    buildUser,
+	"date":    buildDate,
 }
 
 var versionInfoTmpl = template.Must(template.New("version").Parse(
