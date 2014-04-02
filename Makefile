@@ -18,7 +18,8 @@ include Makefile.INCLUDE
 all: build test
 
 build: config web
-	$(GO) build $(BUILDFLAGS)
+	go get -d
+	go build $(BUILDFLAGS)
 
 config:
 	$(MAKE) -C config
@@ -27,7 +28,7 @@ web:
 	$(MAKE) -C web
 
 test: build
-	$(GO) test -v ./...
+	go test -v ./...
 
 clean:
 	$(MAKE) -C web clean
