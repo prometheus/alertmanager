@@ -39,5 +39,4 @@ var versionInfoTmpl = template.Must(template.New("version").Parse(
 	`alertmanager, version {{.version}} ({{.branch}})
   build user:       {{.user}}
   build date:       {{.date}}
-  go version:       {{.go_version}}
 `))
