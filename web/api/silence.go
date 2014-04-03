@@ -16,9 +16,11 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"strconv"
+	"strings"
 
-	"code.google.com/p/gorest"
 	"github.com/golang/glog"
 
 	"github.com/prometheus/alertmanager/manager"
@@ -32,62 +34,99 @@ type Silence struct {
 	Filters          map[string]string
 }
 
-func (s AlertManagerService) AddSilence(sc manager.Silence) {
+func (s AlertManagerService) Silences(w http.ResponseWriter, r *http.Request) {
+	log.Printf("path: %s, root: %s", r.URL.Path, silencesPath)
+	path := strings.TrimLeft(r.URL.Path[len(silencesPath):], "/")
+	if path == "" {
+		switch {
+		case r.Method == "POST":
+			decoder := json.NewDecoder(r.Body)
+			sc := manager.Silence{}
+			if err := decoder.Decode(&sc); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			s.AddSilence(w, sc)
+		case r.Method == "GET":
+			s.SilenceSummary(w)
+		default:
+			http.Error(w, "", 404)
+		}
+	} else {
+		id, err := strconv.Atoi(path)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid id '%s': %s", path, err), 500)
+			return
+		}
+		switch {
+		case r.Method == "GET":
+			s.GetSilence(w, id)
+
+		case r.Method == "POST":
+			decoder := json.NewDecoder(r.Body)
+			sc := manager.Silence{}
+			if err := decoder.Decode(&sc); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			s.UpdateSilence(w, sc, id)
+		case r.Method == "DELETE":
+			s.DelSilence(w, id)
+
+		default:
+			http.Error(w, "", http.StatusNotFound)
+		}
+	}
+}
+
+func (s AlertManagerService) AddSilence(w http.ResponseWriter, sc manager.Silence) {
 	// BUG: add server-side form validation.
 	id := s.Silencer.AddSilence(&sc)
 
-	rb := s.ResponseBuilder()
-	rb.SetResponseCode(http.StatusCreated)
-	rb.Location(fmt.Sprintf("/api/silences/%d", id))
+	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Location", fmt.Sprintf("/api/silences/%d", id))
 }
 
-func (s AlertManagerService) GetSilence(id int) string {
-	rb := s.ResponseBuilder()
-	rb.SetContentType(gorest.Application_Json)
+func (s AlertManagerService) GetSilence(w http.ResponseWriter, id int) {
+	w.Header().Set("Content-Type", "application/json")
 	silence, err := s.Silencer.GetSilence(manager.SilenceId(id))
 	if err != nil {
 		glog.Error("Error getting silence: ", err)
-		rb.SetResponseCode(http.StatusNotFound)
-		return err.Error()
+		http.Error(w, "Error getting silence: "+err.Error(), http.StatusNotFound)
 	}
 
 	resultBytes, err := json.Marshal(&silence)
 	if err != nil {
 		glog.Error("Error marshalling silence: ", err)
-		rb.SetResponseCode(http.StatusInternalServerError)
-		return err.Error()
+		http.Error(w, "Error marshalling silence: "+err.Error(), http.StatusInternalServerError)
 	}
-	return string(resultBytes)
+	fmt.Fprintf(w, string(resultBytes))
 }
 
-func (s AlertManagerService) UpdateSilence(sc manager.Silence, id int) {
+func (s AlertManagerService) UpdateSilence(w http.ResponseWriter, sc manager.Silence, id int) {
 	// BUG: add server-side form validation.
 	sc.Id = manager.SilenceId(id)
 	if err := s.Silencer.UpdateSilence(&sc); err != nil {
 		glog.Error("Error updating silence: ", err)
-		rb := s.ResponseBuilder()
-		rb.SetResponseCode(http.StatusNotFound)
+		http.Error(w, "Error updating silence: "+err.Error(), http.StatusNotFound)
 	}
 }
 
-func (s AlertManagerService) DelSilence(id int) {
+func (s AlertManagerService) DelSilence(w http.ResponseWriter, id int) {
 	if err := s.Silencer.DelSilence(manager.SilenceId(id)); err != nil {
 		glog.Error("Error deleting silence: ", err)
-		rb := s.ResponseBuilder()
-		rb.SetResponseCode(http.StatusNotFound)
+		http.Error(w, "Error deleting silence: "+err.Error(), http.StatusNotFound)
 	}
 }
 
-func (s AlertManagerService) SilenceSummary() string {
-	rb := s.ResponseBuilder()
-	rb.SetContentType(gorest.Application_Json)
+func (s AlertManagerService) SilenceSummary(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	silenceSummary := s.Silencer.SilenceSummary()
 
 	resultBytes, err := json.Marshal(silenceSummary)
 	if err != nil {
 		glog.Error("Error marshalling silences: ", err)
-		rb.SetResponseCode(http.StatusInternalServerError)
-		return err.Error()
+		http.Error(w, "Error marshalling silences: "+err.Error(), http.StatusInternalServerError)
 	}
-	return string(resultBytes)
+	fmt.Fprintf(w, string(resultBytes))
 }
