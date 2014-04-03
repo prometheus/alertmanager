@@ -14,21 +14,30 @@
 package api
 
 import (
-	"code.google.com/p/gorest"
+	"net/http"
+
+	"github.com/prometheus/prometheus/web/http_utils"
 
 	"github.com/prometheus/alertmanager/manager"
+	"github.com/prometheus/client_golang/prometheus/exp"
+)
+
+const (
+	silencesPath = "/api/silences"
+	alertsPath   = "/api/alerts"
 )
 
 type AlertManagerService struct {
-	gorest.RestService `root:"/api/" consumes:"application/json" produces:"application/json"`
-
-	addAlerts      gorest.EndPoint `method:"POST" path:"/alerts" postdata:"Alerts"`
-	addSilence     gorest.EndPoint `method:"POST" path:"/silences" postdata:"Silence"`
-	getSilence     gorest.EndPoint `method:"GET" path:"/silences/{id:int}" output:"string"`
-	updateSilence  gorest.EndPoint `method:"POST" path:"/silences/{id:int}" postdata:"Silence"`
-	delSilence     gorest.EndPoint `method:"DELETE" path:"/silences/{id:int}"`
-	silenceSummary gorest.EndPoint `method:"GET" path:"/silences" output:"string"`
-
 	Manager  manager.AlertManager
 	Silencer *manager.Silencer
+}
+
+func (asrv *AlertManagerService) RegisterHandler() {
+	handler := func(h func(http.ResponseWriter, *http.Request)) http.Handler {
+		return http_utils.CompressionHandler{
+			Handler: http.HandlerFunc(h),
+		}
+	}
+	exp.Handle(alertsPath, handler(asrv.Alerts))
+	exp.Handle(silencesPath, handler(asrv.Silences))
 }
