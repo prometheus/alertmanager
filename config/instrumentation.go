@@ -17,8 +17,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var configLoads = prometheus.NewCounter()
+const (
+	Namespace = "alertmanager" // For Prometheus.
+)
+
+var configLoads = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Namespace: Namespace,
+		Name:      "config_reloads_total",
+		Help:      "The number of configuration reloads.",
+	},
+	[]string{"outcome"},
+)
 
 func init() {
-	prometheus.Register("alertmanager_config_reloads_total", "The number of configuration reloads.", prometheus.NilLabels, configLoads)
+	prometheus.MustRegister(configLoads)
 }
