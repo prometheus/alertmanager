@@ -22,7 +22,7 @@
       <tbody>
         {{range .Silences}}
           <tr>
-            <td>{{.Id}}</td>
+            <td>{{.ID}}</td>
             <td>
               {{range .Filters}}
                 <span class="label label-info">{{.NamePattern}}="{{.ValuePattern}}"</span>
@@ -33,7 +33,7 @@
             <td>{{.EndsAt}}</td>
             <td>{{.Comment}}</td>
             <td>
-              <input type="hidden" name="silence_id" value="{{.Id}}">
+              <input type="hidden" name="silence_id" value="{{.ID}}">
 
               <a href="#edit_silence_modal" role="button" class="btn btn-mini btn-primary edit_silence_btn" id="new_silence_btn" data-toggle="modal">Edit Silence</a>
               <a href="#del_silence_modal" role="button" class="btn btn-mini btn-danger del_silence_modal_btn" data-toggle="modal">Remove Silence</a>

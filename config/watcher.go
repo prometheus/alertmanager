@@ -52,11 +52,11 @@ func (w *fileWatcher) Watch(cb ReloadCallback) {
 			conf, err := LoadFromFile(w.fileName)
 			if err != nil {
 				glog.Error("Error loading new config: ", err)
-				configLoads.Increment(map[string]string{"outcome": "failure"})
+				failedConfigReloads.Inc()
 			} else {
 				cb(&conf)
 				glog.Info("Config reloaded successfully")
-				configLoads.Increment(map[string]string{"outcome": "success"})
+				configReloads.Inc()
 			}
 			// Re-add the file watcher since it can get lost on some changes. E.g.
 			// saving a file with vim results in a RENAME-MODIFY-DELETE event

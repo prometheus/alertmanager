@@ -33,10 +33,10 @@ func (scenario *testSilencerScenario) test(i int, t *testing.T) {
 		if err != nil {
 			t.Fatalf("%d.%d. Error getting silence: %s", i, j, err)
 		}
-		if retrievedSilence.Id != id {
-			t.Fatalf("%d.%d. Expected ID %d, got %d", i, j, id, retrievedSilence.Id)
+		if retrievedSilence.ID != id {
+			t.Fatalf("%d.%d. Expected ID %d, got %d", i, j, id, retrievedSilence.ID)
 		}
-		sc.Id = id
+		sc.ID = id
 		if sc != retrievedSilence {
 			t.Fatalf("%d.%d. Expected silence %v, got  %v", i, j, sc, retrievedSilence)
 		}
@@ -76,7 +76,7 @@ func (scenario *testSilencerScenario) test(i int, t *testing.T) {
 	}
 
 	for j, sc := range silences {
-		if err := s.DelSilence(sc.Id); err != nil {
+		if err := s.DelSilence(sc.ID); err != nil {
 			t.Fatalf("%d.%d. Got error while deleting silence: %s", i, j, err)
 		}
 

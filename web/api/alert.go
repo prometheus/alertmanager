@@ -14,28 +14,29 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
-	"github.com/golang/glog"
+	"github.com/julienschmidt/httprouter"
 
 	"github.com/prometheus/alertmanager/manager"
 )
 
-func (s AlertManagerService) AddAlerts(as manager.Alerts) {
-	for i, a := range as {
+func (s AlertManagerService) addAlerts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	alerts := manager.Alerts{}
+	if err := parseJSON(w, r, &alerts); err != nil {
+		return
+	}
+	for i, a := range alerts {
 		if a.Summary == "" || a.Description == "" {
-			glog.Errorf("Missing field in alert %d: %s", i, a)
-			rb := s.ResponseBuilder()
-			rb.SetResponseCode(http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("Missing field in alert %d: %s", i, a), http.StatusBadRequest)
 			return
 		}
 		if _, ok := a.Labels[manager.AlertNameLabel]; !ok {
-			glog.Errorf("Missing alert name label in alert %d: %s", i, a)
-			rb := s.ResponseBuilder()
-			rb.SetResponseCode(http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("Missing alert name label in alert %d: %s", i, a), http.StatusBadRequest)
 			return
 		}
 	}
 
-	s.Manager.Receive(as)
+	s.Manager.Receive(alerts)
 }
