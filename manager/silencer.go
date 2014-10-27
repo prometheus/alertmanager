@@ -23,12 +23,12 @@ import (
 	"github.com/golang/glog"
 )
 
-type SilenceId uint
+type SilenceID uint
 type Silences []*Silence
 
 type Silence struct {
 	// The numeric ID of the silence.
-	Id SilenceId
+	ID SilenceID
 	// Name/email of the silence creator.
 	CreatedBy string
 	// When the silence was first created (Unix timestamp).
@@ -45,7 +45,7 @@ type Silence struct {
 }
 
 type ApiSilence struct {
-	Id               SilenceId
+	ID               SilenceID
 	CreatedBy        string
 	CreatedAtSeconds int64
 	EndsAtSeconds    int64
@@ -62,7 +62,7 @@ func (s *Silence) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(&ApiSilence{
-		Id:               s.Id,
+		ID:               s.ID,
 		CreatedBy:        s.CreatedBy,
 		CreatedAtSeconds: s.CreatedAt.Unix(),
 		EndsAtSeconds:    s.EndsAt.Unix(),
@@ -88,7 +88,7 @@ func (s *Silence) UnmarshalJSON(data []byte) error {
 	}
 
 	*s = Silence{
-		Id:        sc.Id,
+		ID:        sc.ID,
 		CreatedBy: sc.CreatedBy,
 		CreatedAt: time.Unix(sc.CreatedAtSeconds, 0).UTC(),
 		EndsAt:    time.Unix(sc.EndsAtSeconds, 0).UTC(),
@@ -104,9 +104,9 @@ func (s Silence) Matches(l AlertLabelSet) bool {
 
 type Silencer struct {
 	// Silences managed by this Silencer.
-	Silences map[SilenceId]*Silence
-	// Used to track the next Silence Id to allocate.
-	lastId SilenceId
+	Silences map[SilenceID]*Silence
+	// Used to track the next Silence ID to allocate.
+	lastID SilenceID
 	// Tracks whether silences have changed since the last call to HasChanged.
 	dirty bool
 
@@ -120,13 +120,13 @@ type IsSilencedInterrogator interface {
 
 func NewSilencer() *Silencer {
 	return &Silencer{
-		Silences: make(map[SilenceId]*Silence),
+		Silences: make(map[SilenceID]*Silence),
 	}
 }
 
-func (s *Silencer) nextSilenceId() SilenceId {
-	s.lastId++
-	return s.lastId
+func (s *Silencer) nextSilenceID() SilenceID {
+	s.lastID++
+	return s.lastID
 }
 
 func (s *Silencer) setupExpiryTimer(sc *Silence) {
@@ -135,29 +135,29 @@ func (s *Silencer) setupExpiryTimer(sc *Silence) {
 	}
 	expDuration := sc.EndsAt.Sub(time.Now())
 	sc.expiryTimer = time.AfterFunc(expDuration, func() {
-		if err := s.DelSilence(sc.Id); err != nil {
-			glog.Errorf("Failed to delete silence %d: %s", sc.Id, err)
+		if err := s.DelSilence(sc.ID); err != nil {
+			glog.Errorf("Failed to delete silence %d: %s", sc.ID, err)
 		}
 	})
 }
 
-func (s *Silencer) AddSilence(sc *Silence) SilenceId {
+func (s *Silencer) AddSilence(sc *Silence) SilenceID {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.dirty = true
 
-	if sc.Id == 0 {
-		sc.Id = s.nextSilenceId()
+	if sc.ID == 0 {
+		sc.ID = s.nextSilenceID()
 	} else {
-		if sc.Id > s.lastId {
-			s.lastId = sc.Id
+		if sc.ID > s.lastID {
+			s.lastID = sc.ID
 		}
 	}
 
 	s.setupExpiryTimer(sc)
-	s.Silences[sc.Id] = sc
-	return sc.Id
+	s.Silences[sc.ID] = sc
+	return sc.ID
 }
 
 func (s *Silencer) UpdateSilence(sc *Silence) error {
@@ -166,9 +166,9 @@ func (s *Silencer) UpdateSilence(sc *Silence) error {
 
 	s.dirty = true
 
-	origSilence, ok := s.Silences[sc.Id]
+	origSilence, ok := s.Silences[sc.ID]
 	if !ok {
-		return fmt.Errorf("Silence with ID %d doesn't exist", sc.Id)
+		return fmt.Errorf("Silence with ID %d doesn't exist", sc.ID)
 	}
 	if sc.EndsAt != origSilence.EndsAt {
 		origSilence.expiryTimer.Stop()
@@ -178,7 +178,7 @@ func (s *Silencer) UpdateSilence(sc *Silence) error {
 	return nil
 }
 
-func (s *Silencer) GetSilence(id SilenceId) (*Silence, error) {
+func (s *Silencer) GetSilence(id SilenceID) (*Silence, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -189,7 +189,7 @@ func (s *Silencer) GetSilence(id SilenceId) (*Silence, error) {
 	return sc, nil
 }
 
-func (s *Silencer) DelSilence(id SilenceId) error {
+func (s *Silencer) DelSilence(id SilenceID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -1,5 +1,5 @@
 var silenceRow = null;
-var silenceId = null;
+var silenceID = null;
 
 function clearSilenceLabels() {
   $("#silence_filters_table").empty();
@@ -74,7 +74,7 @@ function createSilence() {
 function updateSilence() {
   $.ajax({
     type: "POST",
-    url: "/api/silences/" + silenceId,
+    url: "/api/silences/" + silenceID,
     data: silenceJsonFromForm(),
     dataType: "text",
     success: function(data, textStatus, jqXHR) {
@@ -86,22 +86,22 @@ function updateSilence() {
   });
 }
 
-function getSilence(silenceId, successFn) {
+function getSilence(silenceID, successFn) {
   $.ajax({
     type: "GET",
-    url: "/api/silences/" + silenceId,
+    url: "/api/silences/" + silenceID,
     async: false,
     success: successFn,
     error: function(data, textStatus, jqXHR) {
-      alert("Creating silence failed: " + textStatus);
+      alert("Getting silence failed: " + textStatus);
     }
   });
 }
 
-function deleteSilence(silenceId, silenceRow) {
+function deleteSilence(silenceID, silenceRow) {
   $.ajax({
     type: "DELETE",
-    url: "/api/silences/" + silenceId,
+    url: "/api/silences/" + silenceID,
     success: function(data, textStatus, jqXHR) {
       silenceRow.remove();
       $("#del_silence_modal").modal("hide");
@@ -113,7 +113,7 @@ function deleteSilence(silenceId, silenceRow) {
 }
 
 function initNewSilence() {
-  silenceId = null;
+  silenceID = null;
   $("#edit_silence_header, #edit_silence_btn").html("Create Silence");
   $("#edit_silence_form")[0].reset();
 }
@@ -162,7 +162,7 @@ function init() {
   });
 
   $("#edit_silence_form").submit(function() {
-    if (silenceId != null) {
+    if (silenceID != null) {
       updateSilence();
     } else {
       createSilence();
@@ -174,9 +174,9 @@ function init() {
     $("#edit_silence_header, #edit_silence_btn").html("Update Silence");
 
     silenceRow = $(this).parents("tr");
-    silenceId = silenceRow.find("input[name='silence_id']").val();
-    $("#edit_silence_form input[name='silence_id']").val(silenceId);
-    getSilence(silenceId, function(silence) {
+    silenceID = silenceRow.find("input[name='silence_id']").val();
+    $("#edit_silence_form input[name='silence_id']").val(silenceID);
+    getSilence(silenceID, function(silence) {
       var picker = $("#ends_at_datetimepicker").data('datetimepicker');
       var endsAt = new Date(silence.EndsAtSeconds * 1000);
       picker.setLocalDate(endsAt);
@@ -194,12 +194,12 @@ function init() {
   // from the modal dialog to remove that silence.
   $(".del_silence_modal_btn").click(function() {
     silenceRow = $(this).parents("tr");
-    silenceId = silenceRow.find("input[name='silence_id']").val();
+    silenceID = silenceRow.find("input[name='silence_id']").val();
   });
 
   // Deletion confirmation button action.
   $(".del_silence_btn").click(function() {
-    deleteSilence(silenceId, silenceRow);
+    deleteSilence(silenceID, silenceRow);
   });
 
   $(".silence_link").click(function() {

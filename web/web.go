@@ -18,12 +18,9 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"net/http/pprof"
 
-	"code.google.com/p/gorest"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/exp"
 
 	"github.com/prometheus/alertmanager/web/api"
 	"github.com/prometheus/alertmanager/web/blob"
@@ -43,35 +40,27 @@ type WebService struct {
 }
 
 func (w WebService) ServeForever() error {
-	gorest.RegisterService(w.AlertManagerService)
 
-	exp.Handle("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", 404)
 	}))
 
-	// TODO(julius): This will need to be rewritten once the exp package provides
-	// the coarse mux behaviors via a wrapper function.
-	exp.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-	exp.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-	exp.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-	exp.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+	http.Handle("/", prometheus.InstrumentHandler("index", w.AlertsHandler))
+	http.Handle("/alerts", prometheus.InstrumentHandler("alerts", w.AlertsHandler))
+	http.Handle("/silences", prometheus.InstrumentHandler("silences", w.SilencesHandler))
+	http.Handle("/status", prometheus.InstrumentHandler("status", w.StatusHandler))
 
-	exp.Handle("/", w.AlertsHandler)
-	exp.Handle("/alerts", w.AlertsHandler)
-	exp.Handle("/silences", w.SilencesHandler)
-	exp.Handle("/status", w.StatusHandler)
-
-	exp.Handle("/api/", compressionHandler{handler: gorest.Handle()})
-	exp.Handle("/metrics", prometheus.DefaultHandler)
+	http.Handle("/metrics", prometheus.Handler())
 	if *useLocalAssets {
-		exp.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 	} else {
-		exp.Handle("/static/", http.StripPrefix("/static/", new(blob.Handler)))
+		http.Handle("/static/", http.StripPrefix("/static/", new(blob.Handler)))
 	}
+	http.Handle("/api/", w.AlertManagerService.Handler())
 
 	glog.Info("listening on ", *listenAddress)
 
-	return http.ListenAndServe(*listenAddress, exp.DefaultCoarseMux)
+	return http.ListenAndServe(*listenAddress, nil)
 }
 
 func getLocalTemplate(name string) (*template.Template, error) {
