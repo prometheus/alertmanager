@@ -15,7 +15,6 @@ package manager
 
 import (
 	"container/heap"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -96,6 +95,14 @@ func (aggs aggregatesByLastRefreshed) Less(i, j int) bool {
 
 func (aggs aggregatesByNextNotification) Less(i, j int) bool {
 	return aggs.AlertAggregates[i].NextNotification.Before(aggs.AlertAggregates[j].NextNotification)
+}
+
+// Rebuild the aggregatesByNextNotification index from the authoritative state.
+func (aggs *aggregatesByNextNotification) rebuildFrom(aa AlertAggregates) {
+	aggs.AlertAggregates = aggs.AlertAggregates[:0]
+	for _, a := range aa {
+		aggs.Push(a)
+	}
 }
 
 func (aggs AlertAggregates) Swap(i, j int) {
@@ -260,6 +267,12 @@ func (s *memoryAlertManager) removeExpiredAggregates() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	defer func() {
+		if s.needsNotificationRefresh {
+			s.aggregatesByNextNotification.rebuildFrom(s.aggregatesByLastRefreshed.AlertAggregates)
+		}
+	}()
+
 	// This loop is interrupted if either the heap is empty or only non-expired
 	// aggregates remain in the heap.
 	for {
@@ -271,23 +284,6 @@ func (s *memoryAlertManager) removeExpiredAggregates() {
 
 		if time.Since(agg.LastRefreshed) > s.minRefreshInterval {
 			delete(s.aggregates, agg.Alert.Fingerprint())
-
-			// Also remove the aggregate from the last-notification-time index.
-			n := len(s.aggregatesByNextNotification.AlertAggregates)
-			i := sort.Search(n, func(i int) bool {
-				return !agg.NextNotification.After(s.aggregatesByNextNotification.AlertAggregates[i].NextNotification)
-			})
-			if i == n {
-				panic("Missing alert aggregate in aggregatesByNextNotification index")
-			} else {
-				for j := i; j < n; j++ {
-					if s.aggregatesByNextNotification.AlertAggregates[j] == agg {
-						heap.Remove(&s.aggregatesByNextNotification, j)
-						break
-					}
-				}
-			}
-
 			s.needsNotificationRefresh = true
 		} else {
 			heap.Push(&s.aggregatesByLastRefreshed, agg)
