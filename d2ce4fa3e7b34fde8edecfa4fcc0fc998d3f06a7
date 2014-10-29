@@ -1,0 +1,7 @@
+Code-Review+1: Johannes Ziemke <fish@freigeist.org>
+Code-Review+2: Julius Volz <julius@soundcloud.com>
+Submitted-by: Julius Volz <julius@soundcloud.com>
+Submitted-at: Wed, 29 Oct 2014 10:58:43 +0100
+Reviewed-on: http://review.prometheus.io/396
+Project: alertmanager
+Branch: refs/heads/master
