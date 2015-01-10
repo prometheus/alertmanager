@@ -46,7 +46,11 @@
             </td>
             <td>{{timeSince .Created}} ago</td>
             <td>{{timeSince .LastRefreshed}} ago</td>
-            <td><a href="{{.Alert.Payload.GeneratorURL}}">{{(truncate .Alert.Payload.GeneratorURL 40)}}</a></td>
+            <td>
+              {{if .Alert.Payload.GeneratorURL}}
+                <a href="{{.Alert.Payload.GeneratorURL}}">{{(truncate .Alert.Payload.GeneratorURL 40)}}</a>
+              {{end}}
+            </td>
             <td>{{.Alert.Payload.AlertingRule}}</td>
             <td>
               {{$silence := call $silenceForAlert .Alert}}
