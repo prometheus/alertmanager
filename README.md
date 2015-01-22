@@ -1,4 +1,4 @@
-alertmanager
+Alertmanager
 =============
 
-Prometheus Alert Manager
+Prometheus Alertmanager - still experimental!
