@@ -1,6 +1,4 @@
-# -*- Mode: makefile -*-
-
-# Copyright 2013 Prometheus Team
+# Copyright 2013 The Prometheus Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,10 +13,22 @@
 
 include Makefile.INCLUDE
 
-all: build test
+default: $(BINARY)
 
-build: config web
-	$(GO) build $(BUILDFLAGS)
+.deps/$(GOPKG):
+	mkdir -p .deps
+	curl -o .deps/$(GOPKG) -L $(GOURL)/$(GOPKG)
+
+$(GOCC): .deps/$(GOPKG)
+	tar -C .deps -xzf .deps/$(GOPKG)
+	touch $@
+
+$(SELFLINK):
+	mkdir -p $(GOPATH)/src/github.com/prometheus
+	ln -s $(CURDIR) $(SELFLINK)
+
+dependencies: $(SELFLINK) web config
+	$(GO) get -d
 
 config:
 	$(MAKE) -C config
@@ -26,11 +36,22 @@ config:
 web:
 	$(MAKE) -C web
 
-test: build
-	$(GO) test -v ./...
+$(BINARY): $(GOCC) dependencies
+	$(GO) build $(BUILDFLAGS) -o $@
+
+$(ARCHIVE): $(BINARY)
+	tar -czf $@ $<
+
+release: REMOTE     ?= $(error "can't release, REMOTE not set")
+release: REMOTE_DIR ?= $(error "can't release, REMOTE_DIR not set")
+release: $(ARCHIVE)
+	scp $< $(REMOTE):$(REMOTE_DIR)/$(ARCHIVE)
+
+test: $(GOCC) dependencies
+	$(GO) test ./...
 
 clean:
 	$(MAKE) -C web clean
-	-rm alertmanager
+	-rm -rf alertmanager .deps
 
-.PHONY: clean config web
+.PHONY: clean config default dependencies release test web
