@@ -29,8 +29,8 @@ import (
 
 // Commandline flags.
 var (
-	listenAddress  = flag.String("listenAddress", ":9090", "Address to listen on for web interface.")
-	useLocalAssets = flag.Bool("useLocalAssets", false, "Read assets/templates from file instead of binary.")
+	listenAddress  = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
+	useLocalAssets = flag.Bool("web.use-local-assets", false, "Serve assets and templates from local files instead of from the binary.")
 )
 
 type WebService struct {
