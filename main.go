@@ -27,9 +27,9 @@ import (
 )
 
 var (
-	configFile       = flag.String("configFile", "alertmanager.conf", "Alert Manager configuration file name.")
-	silencesFile     = flag.String("silencesFile", "silences.json", "Silence storage file name.")
-	minRefreshPeriod = flag.Duration("minRefreshPeriod", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
+	configFile       = flag.String("config.file", "alertmanager.conf", "Alert Manager configuration file name.")
+	silencesFile     = flag.String("silences.file", "silences.json", "Silence storage file name.")
+	minRefreshPeriod = flag.Duration("alerts.min-refresh-period", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
 )
 
 func main() {
