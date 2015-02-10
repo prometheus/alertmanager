@@ -6,7 +6,7 @@ ENV PKGPATH $GOPATH/src/github.com/prometheus/alertmanager
 ENV GOROOT  /usr/src/go
 
 ADD . $PKGPATH
-RUN cd $PKGPATH && go get -d && make build
+RUN cd $PKGPATH && go get -d && make
 
 WORKDIR    /alertmanager
 ENTRYPOINT [ "/go/src/github.com/prometheus/alertmanager/alertmanager" ]
