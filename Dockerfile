@@ -10,4 +10,4 @@ RUN cd $PKGPATH && go get -d && make build
 
 WORKDIR    /alertmanager
 ENTRYPOINT [ "/go/src/github.com/prometheus/alertmanager/alertmanager" ]
-EXPOSE     9090
+EXPOSE     9093
