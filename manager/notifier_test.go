@@ -33,9 +33,11 @@ func TestWriteEmailBody(t *testing.T) {
 		},
 	}
 	buf := &bytes.Buffer{}
-	writeEmailBody(buf, event)
+	writeEmailBody(buf, "from@prometheus.io", "to@prometheus.io", event)
 
-	expected := `Subject: [ALERT] TestAlert: Testsummary
+	expected := `From: Prometheus Alertmanager <from@prometheus.io>
+To: to@prometheus.io
+Subject: [ALERT] TestAlert: Testsummary
 
 Test alert description, something went wrong here.
 
