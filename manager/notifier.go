@@ -26,6 +26,7 @@ import (
 	"text/template"
 
 	"github.com/golang/glog"
+	"github.com/thorduri/pushover"
 
 	pb "github.com/prometheus/alertmanager/config/generated"
 )
@@ -190,6 +191,26 @@ func (n *notifier) sendEmailNotification(email string, a *Alert) error {
 	return writeEmailBody(wc, a)
 }
 
+func (n *notifier) sendPushoverNotification(token, userKey string, a *Alert) error {
+	po, err := pushover.NewPushover(token, userKey)
+	if err != nil {
+		return err
+	}
+
+	// Validate credentials
+	err = po.Validate()
+	if err != nil {
+		return err
+	}
+
+	// Send pushover message
+	_, _, err = po.Push(&pushover.Message{
+		Title:   a.Summary,
+		Message: a.Description,
+	})
+	return err
+}
+
 func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
 	for _, pdConfig := range config.PagerdutyConfig {
 		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), a); err != nil {
@@ -203,6 +224,11 @@ func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
 		}
 		if err := n.sendEmailNotification(emailConfig.GetEmail(), a); err != nil {
 			glog.Error("Error sending email notification: ", err)
+		}
+	}
+	for _, poConfig := range config.PushoverConfig {
+		if err := n.sendPushoverNotification(poConfig.GetToken(), poConfig.GetUserKey(), a); err != nil {
+			glog.Error("Error sending Pushover notification: ", err)
 		}
 	}
 }

@@ -56,6 +56,14 @@ func (c Config) Validate() error {
 				return fmt.Errorf("Missing email address in email notification config: %s", proto.MarshalTextString(ec))
 			}
 		}
+		for _, ec := range nc.PushoverConfig {
+			if ec.Token == nil {
+				return fmt.Errorf("Missing token in Pushover notification config: %s", proto.MarshalTextString(ec))
+			}
+			if ec.UserKey == nil {
+				return fmt.Errorf("Missing user key in Pushover notification config: %s", proto.MarshalTextString(ec))
+			}
+		}
 
 		if _, ok := ncNames[nc.GetName()]; ok {
 			return fmt.Errorf("Notification config name not unique: %s", nc.GetName())
