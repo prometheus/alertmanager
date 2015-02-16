@@ -32,16 +32,18 @@ import (
 
 const contentTypeJson = "application/json"
 
-var bodyTmpl = template.Must(template.New("message").Parse(`Subject: [ALERT] {{.Labels.alertname}}: {{.Summary}}
+var bodyTmpl = template.Must(template.New("message").Parse(`From: Prometheus Alertmanager <{{.From}}>
+To: {{.To}}
+Subject: [ALERT] {{.Alert.Labels.alertname}}: {{.Alert.Summary}}
 
-{{.Description}}
+{{.Alert.Description}}
 
 Grouping labels:
-{{range $label, $value := .Labels}}
+{{range $label, $value := .Alert.Labels}}
   {{$label}} = "{{$value}}"{{end}}
 
 Payload labels:
-{{range $label, $value := .Payload}}
+{{range $label, $value := .Alert.Payload}}
   {{$label}} = "{{$value}}"{{end}}`))
 
 var (
@@ -157,18 +159,23 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, a *Alert) error 
 	return nil
 }
 
-func writeEmailBody(w io.Writer, a *Alert) error {
-	if err := bodyTmpl.Execute(w, a); err != nil {
-		return err
-	}
-	buf := &bytes.Buffer{}
-	if err := bodyTmpl.Execute(buf, a); err != nil {
+func writeEmailBody(w io.Writer, from string, to string, a *Alert) error {
+	err := bodyTmpl.Execute(w, struct {
+		From  string
+		To    string
+		Alert *Alert
+	}{
+		From:  from,
+		To:    to,
+		Alert: a,
+	})
+	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (n *notifier) sendEmailNotification(email string, a *Alert) error {
+func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(*smtpSmartHost)
 	if err != nil {
@@ -178,7 +185,7 @@ func (n *notifier) sendEmailNotification(email string, a *Alert) error {
 
 	// Set the sender and recipient.
 	c.Mail(*smtpSender)
-	c.Rcpt(email)
+	c.Rcpt(to)
 
 	// Send the email body.
 	wc, err := c.Data()
@@ -187,7 +194,7 @@ func (n *notifier) sendEmailNotification(email string, a *Alert) error {
 	}
 	defer wc.Close()
 
-	return writeEmailBody(wc, a)
+	return writeEmailBody(wc, *smtpSender, to, a)
 }
 
 func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
