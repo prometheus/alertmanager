@@ -26,6 +26,14 @@ message EmailConfig {
   optional string email = 1;
 }
 
+// Configuration for notification via pushover.net.
+message PushoverConfig {
+  // Pushover token
+  optional string token = 1;
+  // Pushover user_key
+  optional string user_key = 2;
+}
+
 // Notification configuration definition.
 message NotificationConfig {
   // Name of this NotificationConfig. Referenced from AggregationRule.
@@ -34,6 +42,8 @@ message NotificationConfig {
   repeated PagerDutyConfig pagerduty_config = 2;
   // Zero or more email notification configurations.
   repeated EmailConfig email_config = 3;
+  // Zero or more pushover notification configurations.
+  repeated PushoverConfig pushover_config = 4;
 }
 
 // A regex-based label filter used in aggregations.

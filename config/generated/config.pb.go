@@ -13,7 +13,10 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
+// Configuration for notification via PagerDuty.
 type PagerDutyConfig struct {
+	// PagerDuty service key, see:
+	// http://developer.pagerduty.com/documentation/integration/events
 	ServiceKey       *string `protobuf:"bytes,1,opt,name=service_key" json:"service_key,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
@@ -29,7 +32,9 @@ func (m *PagerDutyConfig) GetServiceKey() string {
 	return ""
 }
 
+// Configuration for notification via mail.
 type EmailConfig struct {
+	// Email address to notify.
 	Email            *string `protobuf:"bytes,1,opt,name=email" json:"email,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
@@ -45,11 +50,44 @@ func (m *EmailConfig) GetEmail() string {
 	return ""
 }
 
+// Configuration for notification via pushover.net.
+type PushoverConfig struct {
+	// Pushover token
+	Token *string `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+	// Pushover user_key
+	UserKey          *string `protobuf:"bytes,2,opt,name=user_key" json:"user_key,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *PushoverConfig) Reset()         { *m = PushoverConfig{} }
+func (m *PushoverConfig) String() string { return proto.CompactTextString(m) }
+func (*PushoverConfig) ProtoMessage()    {}
+
+func (m *PushoverConfig) GetToken() string {
+	if m != nil && m.Token != nil {
+		return *m.Token
+	}
+	return ""
+}
+
+func (m *PushoverConfig) GetUserKey() string {
+	if m != nil && m.UserKey != nil {
+		return *m.UserKey
+	}
+	return ""
+}
+
+// Notification configuration definition.
 type NotificationConfig struct {
-	Name             *string            `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	PagerdutyConfig  []*PagerDutyConfig `protobuf:"bytes,2,rep,name=pagerduty_config" json:"pagerduty_config,omitempty"`
-	EmailConfig      []*EmailConfig     `protobuf:"bytes,3,rep,name=email_config" json:"email_config,omitempty"`
-	XXX_unrecognized []byte             `json:"-"`
+	// Name of this NotificationConfig. Referenced from AggregationRule.
+	Name *string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	// Zero or more PagerDuty notification configurations.
+	PagerdutyConfig []*PagerDutyConfig `protobuf:"bytes,2,rep,name=pagerduty_config" json:"pagerduty_config,omitempty"`
+	// Zero or more email notification configurations.
+	EmailConfig []*EmailConfig `protobuf:"bytes,3,rep,name=email_config" json:"email_config,omitempty"`
+	// Zero or more pushover notification configurations.
+	PushoverConfig   []*PushoverConfig `protobuf:"bytes,4,rep,name=pushover_config" json:"pushover_config,omitempty"`
+	XXX_unrecognized []byte            `json:"-"`
 }
 
 func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
@@ -77,8 +115,18 @@ func (m *NotificationConfig) GetEmailConfig() []*EmailConfig {
 	return nil
 }
 
+func (m *NotificationConfig) GetPushoverConfig() []*PushoverConfig {
+	if m != nil {
+		return m.PushoverConfig
+	}
+	return nil
+}
+
+// A regex-based label filter used in aggregations.
 type Filter struct {
-	NameRe           *string `protobuf:"bytes,1,opt,name=name_re" json:"name_re,omitempty"`
+	// The regex matching the label name.
+	NameRe *string `protobuf:"bytes,1,opt,name=name_re" json:"name_re,omitempty"`
+	// The regex matching the label value.
 	ValueRe          *string `protobuf:"bytes,2,opt,name=value_re" json:"value_re,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
@@ -101,11 +149,16 @@ func (m *Filter) GetValueRe() string {
 	return ""
 }
 
+// Grouping and notification setting definitions for alerts.
 type AggregationRule struct {
-	Filter                 []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
-	RepeatRateSeconds      *int32    `protobuf:"varint,2,opt,name=repeat_rate_seconds,def=7200" json:"repeat_rate_seconds,omitempty"`
-	NotificationConfigName *string   `protobuf:"bytes,3,opt,name=notification_config_name" json:"notification_config_name,omitempty"`
-	XXX_unrecognized       []byte    `json:"-"`
+	// Filters that define which alerts are matched by this AggregationRule.
+	Filter []*Filter `protobuf:"bytes,1,rep,name=filter" json:"filter,omitempty"`
+	// How many seconds to wait before resending a notification for a specific alert.
+	RepeatRateSeconds *int32 `protobuf:"varint,2,opt,name=repeat_rate_seconds,def=7200" json:"repeat_rate_seconds,omitempty"`
+	// Notification configuration to use for this AggregationRule, referenced by
+	// their name.
+	NotificationConfigName *string `protobuf:"bytes,3,opt,name=notification_config_name" json:"notification_config_name,omitempty"`
+	XXX_unrecognized       []byte  `json:"-"`
 }
 
 func (m *AggregationRule) Reset()         { *m = AggregationRule{} }
@@ -135,11 +188,70 @@ func (m *AggregationRule) GetNotificationConfigName() string {
 	return ""
 }
 
+// An InhibitRule specifies that a class of (source) alerts should inhibit
+// notifications for another class of (target) alerts if all specified matching
+// labels are equal between the two alerts. This may be used to inhibit alerts
+// from sending notifications if their meaning is logically a subset of a
+// higher-level alert.
+//
+// For example, if an entire job is down, there is little sense in sending a
+// notification for every single instance of said job being down. This could be
+// expressed as the following inhibit rule:
+//
+// inhibit_rule {
+//   # Select all source alerts that are candidates for being inhibitors. All
+//   # supplied source filters have to match in order to select a source alert.
+//   source_filter: {
+//     name_re: "alertname"
+//     value_re: "JobDown"
+//   }
+//   source_filter: {
+//     name_re: "service"
+//     value_re: "api"
+//   }
+//
+//   # Select all target alerts that are candidates for being inhibited. All
+//   # supplied target filters have to match in order to select a target alert.
+//   target_filter: {
+//     name_re: "alertname"
+//     value_re: "InstanceDown"
+//   }
+//   target_filter: {
+//     name_re: "service"
+//     value_re: "api"
+//   }
+//
+//   # A target alert only actually inhibits a source alert if they match on
+//   # these labels. I.e. the alerts needs to fire for the same job in the same
+//   # zone for the inhibit to take effect between them.
+//   match_on: "job"
+//   match_on: "zone"
+// }
+//
+// In this example, when JobDown is firing for
+//
+//   JobDown{zone="aa",job="test",service="api"}
+//
+// ...it would inhibit an InstanceDown alert for
+//
+//   InstanceDown{zone="aa",job="test",instance="1",service="api"}
+//
+// However, an InstanceDown alert for another zone:
+//
+//   {zone="ab",job="test",instance="1",service="api"}
+//
+// ...would still fire.
 type InhibitRule struct {
-	SourceFilter     []*Filter `protobuf:"bytes,1,rep,name=source_filter" json:"source_filter,omitempty"`
-	TargetFilter     []*Filter `protobuf:"bytes,2,rep,name=target_filter" json:"target_filter,omitempty"`
-	MatchOn          []string  `protobuf:"bytes,3,rep,name=match_on" json:"match_on,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
+	// The set of Filters which define the group of source alerts (which inhibit
+	// the target alerts).
+	SourceFilter []*Filter `protobuf:"bytes,1,rep,name=source_filter" json:"source_filter,omitempty"`
+	// The set of Filters which define the group of target alerts (which are
+	// inhibited by the source alerts).
+	TargetFilter []*Filter `protobuf:"bytes,2,rep,name=target_filter" json:"target_filter,omitempty"`
+	// A set of label names whose label values need to be identical in source and
+	// target alerts in order for the inhibition to take effect.
+	MatchOn          []string `protobuf:"bytes,3,rep,name=match_on" json:"match_on,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
 }
 
 func (m *InhibitRule) Reset()         { *m = InhibitRule{} }
@@ -167,11 +279,15 @@ func (m *InhibitRule) GetMatchOn() []string {
 	return nil
 }
 
+// Global alert manager configuration.
 type AlertManagerConfig struct {
-	AggregationRule    []*AggregationRule    `protobuf:"bytes,1,rep,name=aggregation_rule" json:"aggregation_rule,omitempty"`
+	// Aggregation rule definitions.
+	AggregationRule []*AggregationRule `protobuf:"bytes,1,rep,name=aggregation_rule" json:"aggregation_rule,omitempty"`
+	// Notification configuration definitions.
 	NotificationConfig []*NotificationConfig `protobuf:"bytes,2,rep,name=notification_config" json:"notification_config,omitempty"`
-	InhibitRule        []*InhibitRule        `protobuf:"bytes,3,rep,name=inhibit_rule" json:"inhibit_rule,omitempty"`
-	XXX_unrecognized   []byte                `json:"-"`
+	// List of alert inhibition rules.
+	InhibitRule      []*InhibitRule `protobuf:"bytes,3,rep,name=inhibit_rule" json:"inhibit_rule,omitempty"`
+	XXX_unrecognized []byte         `json:"-"`
 }
 
 func (m *AlertManagerConfig) Reset()         { *m = AlertManagerConfig{} }

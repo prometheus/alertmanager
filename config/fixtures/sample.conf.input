@@ -6,6 +6,10 @@ notification_config {
   email_config {
     email: "test@testservice.org"
   }
+  pushover_config {
+    token: "mypushovertoken"
+    user_key: "mypushoverkey"
+  }
 }
 
 aggregation_rule {
