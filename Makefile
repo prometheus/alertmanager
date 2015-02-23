@@ -17,7 +17,7 @@ default: $(BINARY)
 
 .deps/$(GOPKG):
 	mkdir -p .deps
-	curl -o .deps/$(GOPKG) -L $(GOURL)/$(GOPKG)
+	curl -q -o .deps/$(GOPKG) -L $(GOURL)/$(GOPKG)
 
 $(GOCC): .deps/$(GOPKG)
 	tar -C .deps -xzf .deps/$(GOPKG)
@@ -27,13 +27,13 @@ $(SELFLINK):
 	mkdir -p $(GOPATH)/src/github.com/prometheus
 	ln -s $(CURDIR) $(SELFLINK)
 
-dependencies: $(SELFLINK) web config
+dependencies: $(GOCC) $(SELFLINK) web config
 	$(GO) get -d
 
 config:
 	$(MAKE) -C config
 
-web:
+web: $(GOCC)
 	$(MAKE) -C web
 
 $(BINARY): $(GOCC) dependencies
