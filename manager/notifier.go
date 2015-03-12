@@ -188,26 +188,39 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 	}
 	defer c.Quit()
 
-	hasAuth, _ := c.Extension("AUTH")
-	smtpAuth := os.Getenv("SMTP_AUTH")
-	if hasAuth && smtpAuth != "" {
-		idx := strings.IndexRune(smtpAuth, ':')
-		if idx < 0 {
-			return fmt.Errorf("SMTP_AUTH must be in the format username:password")
-		}
-		username := smtpAuth[:idx]
-		password := smtpAuth[idx+1:]
-		host, _, _ := net.SplitHostPort(*smtpSmartHost)
+	// Authenticate if we and the server are both configured for it.
+	hasAuth, mechs := c.Extension("AUTH")
+	username := os.Getenv("SMTP_AUTH_USERNAME")
+	if hasAuth && username != "" {
+		for _, mech := range strings.Split(mechs, " ") {
+			switch mech {
+			case "CRAM-MD5":
+				secret := os.Getenv("SMTP_AUTH_SECRET")
+				if secret == "" {
+					continue
+				}
+				if err := c.Auth(smtp.CRAMMD5Auth(username, secret)); err != nil {
+					return fmt.Errorf("cram-md5 auth failed: %s", err)
+				}
+				break
+			case "PLAIN":
+				password := os.Getenv("SMTP_AUTH_PASSWORD")
+				if password == "" {
+					continue
+				}
+				identity := os.Getenv("SMTP_AUTH_IDENTITY")
 
-		if hasTLS, _ := c.Extension("TLS"); hasTLS {
-			cfg := &tls.Config{ServerName: host}
-			if err := c.StartTLS(cfg); err != nil {
-				return err
+				// PLAIN auth requires TLS to be started first.
+				host, _, _ := net.SplitHostPort(*smtpSmartHost)
+				if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
+					return fmt.Errorf("starttls failed: %s", err)
+				}
+
+				if err := c.Auth(smtp.PlainAuth(identity, username, password, host)); err != nil {
+					return fmt.Errorf("plain auth failed: %s", err)
+				}
+				break
 			}
-		}
-
-		if err := c.Auth(smtp.PlainAuth("", username, password, host)); err != nil {
-			return err
 		}
 	}
 
