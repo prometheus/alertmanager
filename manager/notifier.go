@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/smtp"
+	"os"
 	"strings"
 	"sync"
 	"text/template"
@@ -54,7 +55,6 @@ var (
 	notificationBufferSize = flag.Int("notificationBufferSize", 1000, "Size of buffer for pending notifications.")
 	pagerdutyApiUrl        = flag.String("pagerdutyApiUrl", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
 	smtpSmartHost          = flag.String("smtpSmartHost", "", "Address of the smarthost to send all email notifications to.")
-	smtpAuth               = flag.String("smtpAuth", "", "username:password")
 	smtpSender             = flag.String("smtpSender", "alertmanager@example.org", "Sender email address to use in email notifications.")
 )
 
@@ -189,13 +189,14 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 	defer c.Quit()
 
 	hasAuth, _ := c.Extension("AUTH")
-	if hasAuth && *smtpAuth != "" {
-		idx := strings.IndexRune(*smtpAuth, ':')
+	smtpAuth := os.Getenv("SMTP_AUTH")
+	if hasAuth && smtpAuth != "" {
+		idx := strings.IndexRune(smtpAuth, ':')
 		if idx < 0 {
-			return fmt.Errorf("-smtpAuth must be in the format username:password")
+			return fmt.Errorf("SMTP_AUTH must be in the format username:password")
 		}
-		username := (*smtpAuth)[:idx]
-		password := (*smtpAuth)[idx+1:]
+		username := smtpAuth[:idx]
+		password := smtpAuth[idx+1:]
 		host, _, _ := net.SplitHostPort(*smtpSmartHost)
 
 		if hasTLS, _ := c.Extension("TLS"); hasTLS {
