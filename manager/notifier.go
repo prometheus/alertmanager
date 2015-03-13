@@ -180,6 +180,42 @@ func writeEmailBody(w io.Writer, from string, to string, a *Alert) error {
 	return nil
 }
 
+func getSMTPAuth(hasAuth bool, mechs string) (smtp.Auth, *tls.Config, error) {
+	if !hasAuth {
+		return nil, nil, nil
+	}
+
+	username := os.Getenv("SMTP_AUTH_USERNAME")
+
+	for _, mech := range strings.Split(mechs, " ") {
+		switch mech {
+		case "CRAM-MD5":
+			secret := os.Getenv("SMTP_AUTH_SECRET")
+			if secret == "" {
+				continue
+			}
+			return smtp.CRAMMD5Auth(username, secret), nil, nil
+		case "PLAIN":
+			password := os.Getenv("SMTP_AUTH_PASSWORD")
+			if password == "" {
+				continue
+			}
+			identity := os.Getenv("SMTP_AUTH_IDENTITY")
+
+			// We need to know the hostname for both auth and TLS.
+			host, _, err := net.SplitHostPort(*smtpSmartHost)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid address: %s", err)
+			}
+
+			auth := smtp.PlainAuth(identity, username, password, host)
+			cfg := &tls.Config{ServerName: host}
+			return auth, cfg, nil
+		}
+	}
+	return nil, nil, nil
+}
+
 func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(*smtpSmartHost)
@@ -189,44 +225,20 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 	defer c.Quit()
 
 	// Authenticate if we and the server are both configured for it.
-	hasAuth, mechs := c.Extension("AUTH")
-	username := os.Getenv("SMTP_AUTH_USERNAME")
-	if hasAuth && username != "" {
-		for _, mech := range strings.Split(mechs, " ") {
-			switch mech {
-			default:
-				continue
-			case "CRAM-MD5":
-				secret := os.Getenv("SMTP_AUTH_SECRET")
-				if secret == "" {
-					continue
-				}
-				if err := c.Auth(smtp.CRAMMD5Auth(username, secret)); err != nil {
-					return fmt.Errorf("cram-md5 auth failed: %s", err)
-				}
-			case "PLAIN":
-				password := os.Getenv("SMTP_AUTH_PASSWORD")
-				if password == "" {
-					continue
-				}
-				identity := os.Getenv("SMTP_AUTH_IDENTITY")
+	auth, tlsConfig, err := getSMTPAuth(c.Extension("AUTH"))
+	if err != nil {
+		return err
+	}
 
-				// We need to know the hostname for auth (not to mention TLS).
-				host, _, err := net.SplitHostPort(*smtpSmartHost)
-				if err != nil {
-					return fmt.Errorf("invalid address: %s", err)
-				}
+	if tlsConfig != nil {
+		if err := c.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("starttls failed: %s", err)
+		}
+	}
 
-				// PLAIN auth requires TLS to be started first.
-				if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
-					return fmt.Errorf("starttls failed: %s", err)
-				}
-
-				if err := c.Auth(smtp.PlainAuth(identity, username, password, host)); err != nil {
-					return fmt.Errorf("plain auth failed: %s", err)
-				}
-			}
-			break
+	if auth != nil {
+		if err := c.Auth(auth); err != nil {
+			return fmt.Errorf("%T failed: %s", auth, err)
 		}
 	}
 
