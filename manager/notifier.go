@@ -194,6 +194,8 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 	if hasAuth && username != "" {
 		for _, mech := range strings.Split(mechs, " ") {
 			switch mech {
+			default:
+				continue
 			case "CRAM-MD5":
 				secret := os.Getenv("SMTP_AUTH_SECRET")
 				if secret == "" {
@@ -202,7 +204,6 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 				if err := c.Auth(smtp.CRAMMD5Auth(username, secret)); err != nil {
 					return fmt.Errorf("cram-md5 auth failed: %s", err)
 				}
-				break
 			case "PLAIN":
 				password := os.Getenv("SMTP_AUTH_PASSWORD")
 				if password == "" {
@@ -219,8 +220,8 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 				if err := c.Auth(smtp.PlainAuth(identity, username, password, host)); err != nil {
 					return fmt.Errorf("plain auth failed: %s", err)
 				}
-				break
 			}
+			break
 		}
 	}
 
