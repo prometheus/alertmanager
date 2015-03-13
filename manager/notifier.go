@@ -211,8 +211,13 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 				}
 				identity := os.Getenv("SMTP_AUTH_IDENTITY")
 
+				// We need to know the hostname for auth (not to mention TLS).
+				host, _, err := net.SplitHostPort(*smtpSmartHost)
+				if err != nil {
+					return fmt.Errorf("invalid address: %s", err)
+				}
+
 				// PLAIN auth requires TLS to be started first.
-				host, _, _ := net.SplitHostPort(*smtpSmartHost)
 				if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
 					return fmt.Errorf("starttls failed: %s", err)
 				}
