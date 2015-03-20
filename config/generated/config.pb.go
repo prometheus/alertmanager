@@ -77,6 +77,34 @@ func (m *PushoverConfig) GetUserKey() string {
 	return ""
 }
 
+// Configuration for notification via PagerDuty.
+type HipChatConfig struct {
+	// Hipchat token
+        Token *string `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
+        // Hipchat room
+        Room  *string `protobuf:"bytes,2,opt,name=room" json:"room,omitempty"`
+        XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *HipChatConfig) Reset()         { *m = HipChatConfig{} }
+func (m *HipChatConfig) String() string { return proto.CompactTextString(m) }
+func (*HipChatConfig) ProtoMessage()    {}
+
+func (m *HipChatConfig) GetToken() string {
+        if m != nil && m.Token != nil {
+                return *m.Token
+        }
+        return ""
+}
+
+func (m *HipChatConfig) GetRoom() string {
+        if m != nil && m.Room != nil {
+                return *m.Room
+        }
+        return ""
+}
+
+
 // Notification configuration definition.
 type NotificationConfig struct {
 	// Name of this NotificationConfig. Referenced from AggregationRule.
@@ -87,6 +115,9 @@ type NotificationConfig struct {
 	EmailConfig []*EmailConfig `protobuf:"bytes,3,rep,name=email_config" json:"email_config,omitempty"`
 	// Zero or more pushover notification configurations.
 	PushoverConfig   []*PushoverConfig `protobuf:"bytes,4,rep,name=pushover_config" json:"pushover_config,omitempty"`
+        // Zero or more HipChat notification configurations.
+        HipChatConfig []*HipChatConfig `protobuf:"bytes,5,rep,name=hipchat_config" json:"hipchat_config,omitempty"`
+
 	XXX_unrecognized []byte            `json:"-"`
 }
 
@@ -120,6 +151,13 @@ func (m *NotificationConfig) GetPushoverConfig() []*PushoverConfig {
 		return m.PushoverConfig
 	}
 	return nil
+}
+
+func (m *NotificationConfig) GetHipchatConfig() []*HipChatConfig {
+        if m != nil {
+                return m.HipchatConfig
+        }
+        return nil
 }
 
 // A regex-based label filter used in aggregations.

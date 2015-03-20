@@ -64,6 +64,14 @@ func (c Config) Validate() error {
 				return fmt.Errorf("Missing user key in Pushover notification config: %s", proto.MarshalTextString(ec))
 			}
 		}
+		for _, hcc := range nc.HipchatConfig {
+			if hcc.Token == nil {
+                                return fmt.Errorf("Missing token in HipChat config: %s", proto.MarshalTextString(hcc))
+                        }
+                        if hcc.Room == nil {
+                                return fmt.Errorf("Missing room in HipChat config: %s", proto.MarshalTextString(hcc))
+                        }
+                }
 
 		if _, ok := ncNames[nc.GetName()]; ok {
 			return fmt.Errorf("Notification config name not unique: %s", nc.GetName())

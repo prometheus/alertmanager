@@ -31,7 +31,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/thorduri/pushover"
-
+	"github.com/tbruyelle/hipchat-go/hipchat"
+	
 	pb "github.com/prometheus/alertmanager/config/generated"
 )
 
@@ -56,6 +57,7 @@ var (
 	pagerdutyApiUrl        = flag.String("pagerdutyApiUrl", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
 	smtpSmartHost          = flag.String("smtpSmartHost", "", "Address of the smarthost to send all email notifications to.")
 	smtpSender             = flag.String("smtpSender", "alertmanager@example.org", "Sender email address to use in email notifications.")
+	hipchatApiUrl	       = flag.String("hipchatApiUrl","https://api.hipchat.com/v1/", "Hipchat API URL");
 )
 
 // A Notifier is responsible for sending notifications for alerts according to
@@ -276,6 +278,46 @@ func (n *notifier) sendPushoverNotification(token, userKey string, a *Alert) err
 	return err
 }
 
+func (n *notifier) sendHipChatNotification(token, room string, a *Alert) error {
+	// https://www.hipchat.com/
+        incidentKey := a.Fingerprint()
+        buf, err := json.Marshal(map[string]interface{}{
+                "event_type":   "trigger",
+                "description":  a.Description,
+                "incident_key": incidentKey,
+                "details": map[string]interface{}{
+                        "grouping_labels": a.Labels,
+                        "extra_labels":    a.Payload,
+                },
+        })
+        if err != nil {
+                return err
+        }
+
+	flag.Parse()
+	if *token == "" || *room == "" {
+		flag.PrintDefaults()
+		return
+	}
+	c := hipchat.NewClient(*token)
+	
+	notifRq := &hipchat.NotificationRequest{Message: bytes.NewBuffer(buf)}
+	resp, err := c.Room.Notification(*room, notifRq)
+
+        if err != nil {
+                return err
+        }
+        defer resp.Body.Close()
+
+        respBuf, err := ioutil.ReadAll(resp.Body)
+        if err != nil {
+                return err
+        }
+
+        glog.Infof("Sent Hipchat notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+        return nil
+}
+
 func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
 	for _, pdConfig := range config.PagerdutyConfig {
 		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), a); err != nil {
@@ -296,6 +338,12 @@ func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
 			glog.Error("Error sending Pushover notification: ", err)
 		}
 	}
+	for _, hcConfig := range config.HipchatConfig {
+                if err := n.sendHipChatNotification(hcConfig.GetToken(), hcConfig.GetRoom(), a); err != nil {
+                        glog.Error("Error sending Hipchat notification: ", err)
+                }
+        }
+
 }
 
 func (n *notifier) Dispatch() {

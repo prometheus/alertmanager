@@ -5,6 +5,10 @@ notification_config {
   email_config {
     email: "test@testservice.org"
   }
+  hipchat_config {
+    token: "supersecrettoken",
+    room: "supersecretroomid"
+  }
 }
 
 notification_config {
@@ -14,6 +18,10 @@ notification_config {
   }
   email_config {
     email: "test@testservice.org"
+  }
+  hipchat_config {
+    token: "supersecrettoken",
+    room: "supersecretroomid"
   }
 }
 
