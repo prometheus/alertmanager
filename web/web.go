@@ -46,7 +46,16 @@ func (w WebService) ServeForever() error {
 		http.Error(w, "", 404)
 	}))
 
-	http.Handle("/", prometheus.InstrumentHandler("index", w.AlertsHandler))
+	http.HandleFunc("/", prometheus.InstrumentHandlerFunc("index", func(rw http.ResponseWriter, req *http.Request) {
+		// The "/" pattern matches everything, so we need to check
+		// that we're at the root here.
+		if req.URL.Path != "/" {
+			http.NotFound(rw, req)
+			return
+		}
+		w.AlertsHandler.ServeHTTP(rw, req)
+	}))
+
 	http.Handle("/alerts", prometheus.InstrumentHandler("alerts", w.AlertsHandler))
 	http.Handle("/silences", prometheus.InstrumentHandler("silences", w.SilencesHandler))
 	http.Handle("/status", prometheus.InstrumentHandler("status", w.StatusHandler))
