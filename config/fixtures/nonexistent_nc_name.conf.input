@@ -6,6 +6,10 @@ notification_config {
   email_config {
     email: "test@testservice.org"
   }
+  hipchat_config {
+    token: "supersecrettoken",
+    room: "supersecretroomid"
+  }
 }
 
 aggregation_rule {

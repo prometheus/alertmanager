@@ -10,6 +10,10 @@ notification_config {
     token: "mypushovertoken"
     user_key: "mypushoverkey"
   }
+  hipchat_config {
+    token: "supersecrettoken",
+    room: "supersecretroomid"
+  }
 }
 
 aggregation_rule {
