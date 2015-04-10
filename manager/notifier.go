@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"io/ioutil"
 	"net"
@@ -28,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/thorduri/pushover"
@@ -56,6 +58,7 @@ var (
 	pagerdutyApiUrl        = flag.String("pagerdutyApiUrl", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
 	smtpSmartHost          = flag.String("smtpSmartHost", "", "Address of the smarthost to send all email notifications to.")
 	smtpSender             = flag.String("smtpSender", "alertmanager@example.org", "Sender email address to use in email notifications.")
+	hipchatUrl             = flag.String("hipchat.url", "https://api.hipchat.com/v2/", "HipChat API V2 URL.")
 )
 
 // A Notifier is responsible for sending notifications for alerts according to
@@ -160,6 +163,43 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, a *Alert) error 
 	}
 
 	glog.Infof("Sent PagerDuty notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	// BUG: Check response for result of operation.
+	return nil
+}
+
+func (n *notifier) sendHipChatNotification(authToken string, roomId int32, color string, notify bool, a *Alert) error {
+	// https://www.hipchat.com/docs/apiv2/method/send_room_notification
+	incidentKey := a.Fingerprint()
+	buf, err := json.Marshal(map[string]interface{}{
+		"color":          color,
+		"message":        fmt.Sprintf("%s: %s <a href='%s'>view</a>", html.EscapeString(a.Labels["alertname"]), html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
+		"notify":         notify,
+		"message_format": "html",
+	})
+	if err != nil {
+		return err
+	}
+
+	timeout := time.Duration(5 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Post(
+		*hipchatUrl+fmt.Sprintf("/room/%d/notification?auth_token=%s", roomId, authToken),
+		contentTypeJson,
+		bytes.NewBuffer(buf),
+	)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBuf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	glog.Infof("Sent HipChat notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
 	// BUG: Check response for result of operation.
 	return nil
 }
@@ -294,6 +334,11 @@ func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
 	for _, poConfig := range config.PushoverConfig {
 		if err := n.sendPushoverNotification(poConfig.GetToken(), poConfig.GetUserKey(), a); err != nil {
 			glog.Error("Error sending Pushover notification: ", err)
+		}
+	}
+	for _, hcConfig := range config.HipchatConfig {
+		if err := n.sendHipChatNotification(hcConfig.GetAuthToken(), hcConfig.GetRoomId(), hcConfig.GetColor(), hcConfig.GetNotify(), a); err != nil {
+			glog.Error("Error sending HipChat notification: ", err)
 		}
 	}
 }

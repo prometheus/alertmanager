@@ -34,6 +34,20 @@ message PushoverConfig {
   optional string user_key = 2;
 }
 
+// Configuration for notification via HipChat.
+message HipChatConfig {
+  // https://www.hipchat.com/docs/apiv2/method/send_room_notification
+
+  // HipChat auth token, (https://www.hipchat.com/docs/api/auth).
+  optional string auth_token = 1;
+  // HipChat room id, (https://www.hipchat.com/rooms/ids).
+  optional int32 room_id = 2;
+  // Color of message.
+  optional string color = 3 [default = "purple"];
+  // Should this message notify or not.
+  optional bool notify = 4 [default = false];
+}
+
 // Notification configuration definition.
 message NotificationConfig {
   // Name of this NotificationConfig. Referenced from AggregationRule.
@@ -44,6 +58,8 @@ message NotificationConfig {
   repeated EmailConfig email_config = 3;
   // Zero or more pushover notification configurations.
   repeated PushoverConfig pushover_config = 4;
+  // Zero or more hipchat notification configurations.
+  repeated HipChatConfig hipchat_config = 5;
 }
 
 // A regex-based label filter used in aggregations.

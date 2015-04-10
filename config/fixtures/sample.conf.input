@@ -10,6 +10,10 @@ notification_config {
     token: "mypushovertoken"
     user_key: "mypushoverkey"
   }
+  hipchat_config {
+    auth_token: "hipchatauthtoken"
+    room_id: 123456
+  }
 }
 
 aggregation_rule {
