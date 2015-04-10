@@ -6,7 +6,7 @@ ENV PKGPATH $GOPATH/src/github.com/prometheus/alertmanager
 ENV GOROOT  /usr/src/go
 
 ADD . $PKGPATH
-RUN cd $PKGPATH && go get -d && make
+RUN cd $PKGPATH && go get -d && make && rm -rf $PKGPATH/.deps
 
 USER       nobody
 WORKDIR    /alertmanager
