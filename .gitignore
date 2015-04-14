@@ -1,2 +1,5 @@
+.deps/
 alertmanager
 *-stamp
+*.config
+silences.json

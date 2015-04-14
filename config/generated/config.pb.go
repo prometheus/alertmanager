@@ -2,15 +2,30 @@
 // source: config.proto
 // DO NOT EDIT!
 
+/*
+Package io_prometheus_alertmanager is a generated protocol buffer package.
+
+It is generated from these files:
+	config.proto
+
+It has these top-level messages:
+	PagerDutyConfig
+	EmailConfig
+	PushoverConfig
+	HipChatConfig
+	NotificationConfig
+	Filter
+	AggregationRule
+	InhibitRule
+	AlertManagerConfig
+*/
 package io_prometheus_alertmanager
 
-import proto "code.google.com/p/goprotobuf/proto"
-import json "encoding/json"
+import proto "github.com/golang/protobuf/proto"
 import math "math"
 
-// Reference proto, json, and math imports to suppress error if they are not otherwise used.
+// Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = &json.SyntaxError{}
 var _ = math.Inf
 
 // Configuration for notification via PagerDuty.
@@ -77,6 +92,53 @@ func (m *PushoverConfig) GetUserKey() string {
 	return ""
 }
 
+type HipChatConfig struct {
+	// Hipchat auth token, https://www.hipchat.com/docs/api/auth
+	AuthToken *string `protobuf:"bytes,1,opt,name=auth_token" json:"auth_token,omitempty"`
+	// Hipchat room id, https://www.hipchat.com/rooms/ids
+	RoomId *int32 `protobuf:"varint,2,opt,name=room_id" json:"room_id,omitempty"`
+	// color of message
+	Color *string `protobuf:"bytes,3,opt,name=color,def=purple" json:"color,omitempty"`
+	// should this message notify or not
+	Notify           *bool  `protobuf:"varint,4,opt,name=notify,def=0" json:"notify,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *HipChatConfig) Reset()         { *m = HipChatConfig{} }
+func (m *HipChatConfig) String() string { return proto.CompactTextString(m) }
+func (*HipChatConfig) ProtoMessage()    {}
+
+const Default_HipChatConfig_Color string = "purple"
+const Default_HipChatConfig_Notify bool = false
+
+func (m *HipChatConfig) GetAuthToken() string {
+	if m != nil && m.AuthToken != nil {
+		return *m.AuthToken
+	}
+	return ""
+}
+
+func (m *HipChatConfig) GetRoomId() int32 {
+	if m != nil && m.RoomId != nil {
+		return *m.RoomId
+	}
+	return 0
+}
+
+func (m *HipChatConfig) GetColor() string {
+	if m != nil && m.Color != nil {
+		return *m.Color
+	}
+	return Default_HipChatConfig_Color
+}
+
+func (m *HipChatConfig) GetNotify() bool {
+	if m != nil && m.Notify != nil {
+		return *m.Notify
+	}
+	return Default_HipChatConfig_Notify
+}
+
 // Notification configuration definition.
 type NotificationConfig struct {
 	// Name of this NotificationConfig. Referenced from AggregationRule.
@@ -86,8 +148,10 @@ type NotificationConfig struct {
 	// Zero or more email notification configurations.
 	EmailConfig []*EmailConfig `protobuf:"bytes,3,rep,name=email_config" json:"email_config,omitempty"`
 	// Zero or more pushover notification configurations.
-	PushoverConfig   []*PushoverConfig `protobuf:"bytes,4,rep,name=pushover_config" json:"pushover_config,omitempty"`
-	XXX_unrecognized []byte            `json:"-"`
+	PushoverConfig []*PushoverConfig `protobuf:"bytes,4,rep,name=pushover_config" json:"pushover_config,omitempty"`
+	// Zero or more hipchat notification configuration.
+	HipchatConfig    []*HipChatConfig `protobuf:"bytes,5,rep,name=hipchat_config" json:"hipchat_config,omitempty"`
+	XXX_unrecognized []byte           `json:"-"`
 }
 
 func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
@@ -118,6 +182,13 @@ func (m *NotificationConfig) GetEmailConfig() []*EmailConfig {
 func (m *NotificationConfig) GetPushoverConfig() []*PushoverConfig {
 	if m != nil {
 		return m.PushoverConfig
+	}
+	return nil
+}
+
+func (m *NotificationConfig) GetHipchatConfig() []*HipChatConfig {
+	if m != nil {
+		return m.HipchatConfig
 	}
 	return nil
 }

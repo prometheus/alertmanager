@@ -10,7 +10,8 @@ following aspects:
 * aggregating alerts by labelset
 * handling notification repeats
 * sending alert notifications via external services (currently email,
-[PagerDuty](http://www.pagerduty.com/) or
+[PagerDuty](http://www.pagerduty.com/),
+[HipChat](http://www.hipchat.com/), or
 [Pushover](https://www.pushover.net/))
 
 See [config/fixtures/sample.conf.input](config/fixtures/sample.conf.input) for
