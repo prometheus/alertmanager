@@ -43,6 +43,8 @@ Alertmanager.
 
 ## Running tests
 
+[![Build Status](https://travis-ci.org/prometheus/alertmanager.svg)](https://travis-ci.org/prometheus/alertmanager)
+
     make test
 
 ## Caveats and roadmap

@@ -33,7 +33,7 @@ endif
 
 MAKEFILE_DIR ?= $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 
-GO_VERSION ?= 1.4.1
+GO_VERSION ?= 1.4.2
 GOURL      ?= https://golang.org/dl
 GOPKG      ?= go$(GO_VERSION).$(GOOS)-$(GOARCH)$(RELEASE_SUFFIX).tar.gz
 GOROOT     := $(MAKEFILE_DIR)/.deps/go
