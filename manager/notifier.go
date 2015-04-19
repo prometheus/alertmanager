@@ -41,6 +41,7 @@ const contentTypeJson = "application/json"
 
 var bodyTmpl = template.Must(template.New("message").Parse(`From: Prometheus Alertmanager <{{.From}}>
 To: {{.To}}
+Date: {{.Date}}
 Subject: [ALERT] {{.Alert.Labels.alertname}}: {{.Alert.Summary}}
 
 {{.Alert.Description}}
@@ -205,13 +206,19 @@ func (n *notifier) sendHipChatNotification(authToken string, roomId int32, color
 }
 
 func writeEmailBody(w io.Writer, from string, to string, a *Alert) error {
+	return writeEmailBodyWithTime(w, from, to, a, time.Now())
+}
+
+func writeEmailBodyWithTime(w io.Writer, from string, to string, a *Alert, moment time.Time) error {
 	err := bodyTmpl.Execute(w, struct {
 		From  string
 		To    string
+		Date  string
 		Alert *Alert
 	}{
 		From:  from,
 		To:    to,
+		Date:  moment.Format("Mon, 2 Jan 2006 15:04:05 -0700"),
 		Alert: a,
 	})
 	if err != nil {

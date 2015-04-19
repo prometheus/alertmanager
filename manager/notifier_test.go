@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestWriteEmailBody(t *testing.T) {
@@ -36,10 +37,13 @@ func TestWriteEmailBody(t *testing.T) {
 		},
 	}
 	buf := &bytes.Buffer{}
-	writeEmailBody(buf, "from@prometheus.io", "to@prometheus.io", event)
+	location, _ := time.LoadLocation("Europe/Amsterdam")
+	moment := time.Date(1918, 11, 11, 11, 0, 3, 0, location)
+	writeEmailBodyWithTime(buf, "from@prometheus.io", "to@prometheus.io", event, moment)
 
 	expected := `From: Prometheus Alertmanager <from@prometheus.io>
 To: to@prometheus.io
+Date: Mon, 11 Nov 1918 11:00:03 +0019
 Subject: [ALERT] TestAlert: Testsummary
 
 Test alert description, something went wrong here.
