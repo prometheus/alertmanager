@@ -173,7 +173,7 @@ func (n *notifier) sendHipChatNotification(authToken string, roomId int32, color
 	incidentKey := a.Fingerprint()
 	buf, err := json.Marshal(map[string]interface{}{
 		"color":          color,
-		"message":        fmt.Sprintf("%s: %s <a href='%s'>view</a>", html.EscapeString(a.Labels["alertname"]), html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
+		"message":        fmt.Sprintf("<b>%s</b>: %s (<a href='%s'>view</a>)", html.EscapeString(a.Labels["alertname"]), html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
 		"notify":         notify,
 		"message_format": "html",
 	})
