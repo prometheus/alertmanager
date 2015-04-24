@@ -24,14 +24,18 @@ message PagerDutyConfig {
 message EmailConfig {
   // Email address to notify.
   optional string email = 1;
+  // Notify when resolved.
+  optional bool send_resolved = 2 [default = false];
 }
 
 // Configuration for notification via pushover.net.
 message PushoverConfig {
-  // Pushover token
+  // Pushover token.
   optional string token = 1;
-  // Pushover user_key
+  // Pushover user_key.
   optional string user_key = 2;
+  // Notify when resolved.
+  optional bool send_resolved = 3 [default = false];
 }
 
 // Configuration for notification via HipChat.
@@ -42,10 +46,14 @@ message HipChatConfig {
   optional string auth_token = 1;
   // HipChat room id, (https://www.hipchat.com/rooms/ids).
   optional int32 room_id = 2;
-  // Color of message.
+  // Color of message when triggered.
   optional string color = 3 [default = "purple"];
+  // Color of message when resolved.
+  optional string color_resolved = 5 [default = "green"];
   // Should this message notify or not.
   optional bool notify = 4 [default = false];
+  // Notify when resolved.
+  optional bool send_resolved = 6 [default = false];
 }
 
 // Notification configuration definition.

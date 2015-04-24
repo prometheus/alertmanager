@@ -39,7 +39,7 @@ func TestWriteEmailBody(t *testing.T) {
 	buf := &bytes.Buffer{}
 	location, _ := time.LoadLocation("Europe/Amsterdam")
 	moment := time.Date(1918, 11, 11, 11, 0, 3, 0, location)
-	writeEmailBodyWithTime(buf, "from@prometheus.io", "to@prometheus.io", event, moment)
+	writeEmailBodyWithTime(buf, "from@prometheus.io", "to@prometheus.io", "ALERT", event, moment)
 
 	expected := `From: Prometheus Alertmanager <from@prometheus.io>
 To: to@prometheus.io

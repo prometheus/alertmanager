@@ -279,6 +279,7 @@ func (s *memoryAlertManager) removeExpiredAggregates() {
 
 		if time.Since(agg.LastRefreshed) > s.minRefreshInterval {
 			delete(s.aggregates, agg.Alert.Fingerprint())
+			s.notifier.QueueNotification(agg.Alert, notificationOpResolve, agg.Rule.NotificationConfigName)
 			s.needsNotificationRefresh = true
 		} else {
 			heap.Push(&s.aggregatesByLastRefreshed, agg)
@@ -342,7 +343,7 @@ func (s *memoryAlertManager) refreshNotifications() {
 			continue
 		}
 		if agg.Rule != nil {
-			s.notifier.QueueNotification(agg.Alert, agg.Rule.NotificationConfigName)
+			s.notifier.QueueNotification(agg.Alert, notificationOpTrigger, agg.Rule.NotificationConfigName)
 			agg.LastNotification = time.Now()
 			agg.NextNotification = agg.LastNotification.Add(agg.Rule.RepeatRate)
 			numSent++

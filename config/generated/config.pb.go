@@ -50,13 +50,17 @@ func (m *PagerDutyConfig) GetServiceKey() string {
 // Configuration for notification via mail.
 type EmailConfig struct {
 	// Email address to notify.
-	Email            *string `protobuf:"bytes,1,opt,name=email" json:"email,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Email *string `protobuf:"bytes,1,opt,name=email" json:"email,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,2,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
 }
 
 func (m *EmailConfig) Reset()         { *m = EmailConfig{} }
 func (m *EmailConfig) String() string { return proto.CompactTextString(m) }
 func (*EmailConfig) ProtoMessage()    {}
+
+const Default_EmailConfig_SendResolved bool = false
 
 func (m *EmailConfig) GetEmail() string {
 	if m != nil && m.Email != nil {
@@ -65,18 +69,29 @@ func (m *EmailConfig) GetEmail() string {
 	return ""
 }
 
+func (m *EmailConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_EmailConfig_SendResolved
+}
+
 // Configuration for notification via pushover.net.
 type PushoverConfig struct {
-	// Pushover token
+	// Pushover token.
 	Token *string `protobuf:"bytes,1,opt,name=token" json:"token,omitempty"`
-	// Pushover user_key
-	UserKey          *string `protobuf:"bytes,2,opt,name=user_key" json:"user_key,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	// Pushover user_key.
+	UserKey *string `protobuf:"bytes,2,opt,name=user_key" json:"user_key,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,3,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
 }
 
 func (m *PushoverConfig) Reset()         { *m = PushoverConfig{} }
 func (m *PushoverConfig) String() string { return proto.CompactTextString(m) }
 func (*PushoverConfig) ProtoMessage()    {}
+
+const Default_PushoverConfig_SendResolved bool = false
 
 func (m *PushoverConfig) GetToken() string {
 	if m != nil && m.Token != nil {
@@ -92,15 +107,27 @@ func (m *PushoverConfig) GetUserKey() string {
 	return ""
 }
 
+func (m *PushoverConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_PushoverConfig_SendResolved
+}
+
+// Configuration for notification via HipChat.
 type HipChatConfig struct {
-	// Hipchat auth token, https://www.hipchat.com/docs/api/auth
+	// HipChat auth token, (https://www.hipchat.com/docs/api/auth).
 	AuthToken *string `protobuf:"bytes,1,opt,name=auth_token" json:"auth_token,omitempty"`
-	// Hipchat room id, https://www.hipchat.com/rooms/ids
+	// HipChat room id, (https://www.hipchat.com/rooms/ids).
 	RoomId *int32 `protobuf:"varint,2,opt,name=room_id" json:"room_id,omitempty"`
-	// color of message
+	// Color of message when triggered.
 	Color *string `protobuf:"bytes,3,opt,name=color,def=purple" json:"color,omitempty"`
-	// should this message notify or not
-	Notify           *bool  `protobuf:"varint,4,opt,name=notify,def=0" json:"notify,omitempty"`
+	// Color of message when resolved.
+	ColorResolved *string `protobuf:"bytes,5,opt,name=color_resolved,def=green" json:"color_resolved,omitempty"`
+	// Should this message notify or not.
+	Notify *bool `protobuf:"varint,4,opt,name=notify,def=0" json:"notify,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,6,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
@@ -109,7 +136,9 @@ func (m *HipChatConfig) String() string { return proto.CompactTextString(m) }
 func (*HipChatConfig) ProtoMessage()    {}
 
 const Default_HipChatConfig_Color string = "purple"
+const Default_HipChatConfig_ColorResolved string = "green"
 const Default_HipChatConfig_Notify bool = false
+const Default_HipChatConfig_SendResolved bool = false
 
 func (m *HipChatConfig) GetAuthToken() string {
 	if m != nil && m.AuthToken != nil {
@@ -132,11 +161,25 @@ func (m *HipChatConfig) GetColor() string {
 	return Default_HipChatConfig_Color
 }
 
+func (m *HipChatConfig) GetColorResolved() string {
+	if m != nil && m.ColorResolved != nil {
+		return *m.ColorResolved
+	}
+	return Default_HipChatConfig_ColorResolved
+}
+
 func (m *HipChatConfig) GetNotify() bool {
 	if m != nil && m.Notify != nil {
 		return *m.Notify
 	}
 	return Default_HipChatConfig_Notify
+}
+
+func (m *HipChatConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_HipChatConfig_SendResolved
 }
 
 // Notification configuration definition.
@@ -149,7 +192,7 @@ type NotificationConfig struct {
 	EmailConfig []*EmailConfig `protobuf:"bytes,3,rep,name=email_config" json:"email_config,omitempty"`
 	// Zero or more pushover notification configurations.
 	PushoverConfig []*PushoverConfig `protobuf:"bytes,4,rep,name=pushover_config" json:"pushover_config,omitempty"`
-	// Zero or more hipchat notification configuration.
+	// Zero or more hipchat notification configurations.
 	HipchatConfig    []*HipChatConfig `protobuf:"bytes,5,rep,name=hipchat_config" json:"hipchat_config,omitempty"`
 	XXX_unrecognized []byte           `json:"-"`
 }
