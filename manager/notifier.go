@@ -366,7 +366,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 	}
 	for _, emailConfig := range config.EmailConfig {
 		if op == notificationOpResolve && !emailConfig.GetSendResolved() {
-			return
+			continue
 		}
 		if *smtpSmartHost == "" {
 			glog.Warning("No SMTP smarthost configured, not sending email notification.")
@@ -378,7 +378,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 	}
 	for _, poConfig := range config.PushoverConfig {
 		if op == notificationOpResolve && !poConfig.GetSendResolved() {
-			return
+			continue
 		}
 		if err := n.sendPushoverNotification(poConfig.GetToken(), op, poConfig.GetUserKey(), a); err != nil {
 			glog.Error("Error sending Pushover notification: ", err)
@@ -386,7 +386,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 	}
 	for _, hcConfig := range config.HipchatConfig {
 		if op == notificationOpResolve && !hcConfig.GetSendResolved() {
-			return
+			continue
 		}
 		if err := n.sendHipChatNotification(op, hcConfig, a); err != nil {
 			glog.Error("Error sending HipChat notification: ", err)
