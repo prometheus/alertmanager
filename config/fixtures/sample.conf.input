@@ -13,6 +13,7 @@ notification_config {
   hipchat_config {
     auth_token: "hipchatauthtoken"
     room_id: 123456
+    send_resolved: true
   }
 }
 

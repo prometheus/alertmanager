@@ -37,12 +37,17 @@ import (
 	pb "github.com/prometheus/alertmanager/config/generated"
 )
 
-const contentTypeJson = "application/json"
+const (
+	contentTypeJson = "application/json"
+
+	notificationOpTrigger notificationOp = iota
+	notificationOpResolve
+)
 
 var bodyTmpl = template.Must(template.New("message").Parse(`From: Prometheus Alertmanager <{{.From}}>
 To: {{.To}}
 Date: {{.Date}}
-Subject: [ALERT] {{.Alert.Labels.alertname}}: {{.Alert.Summary}}
+Subject: [{{ .Status }}] {{.Alert.Labels.alertname}}: {{.Alert.Summary}}
 
 {{.Alert.Description}}
 
@@ -62,11 +67,13 @@ var (
 	hipchatUrl             = flag.String("notification.hipchat.url", "https://api.hipchat.com/v2", "HipChat API V2 URL.")
 )
 
+type notificationOp int
+
 // A Notifier is responsible for sending notifications for alerts according to
 // a provided notification configuration.
 type Notifier interface {
 	// Queue a notification for asynchronous dispatching.
-	QueueNotification(a *Alert, configName string) error
+	QueueNotification(a *Alert, op notificationOp, configName string) error
 	// Replace current notification configs. Already enqueued messages will remain
 	// unaffected.
 	SetNotificationConfigs([]*pb.NotificationConfig)
@@ -80,6 +87,7 @@ type Notifier interface {
 type notificationReq struct {
 	alert              *Alert
 	notificationConfig *pb.NotificationConfig
+	op                 notificationOp
 }
 
 // Alert notification multiplexer and dispatcher.
@@ -112,7 +120,7 @@ func (n *notifier) SetNotificationConfigs(configs []*pb.NotificationConfig) {
 	}
 }
 
-func (n *notifier) QueueNotification(a *Alert, configName string) error {
+func (n *notifier) QueueNotification(a *Alert, op notificationOp, configName string) error {
 	n.mu.Lock()
 	nc, ok := n.notificationConfigs[configName]
 	n.mu.Unlock()
@@ -127,16 +135,24 @@ func (n *notifier) QueueNotification(a *Alert, configName string) error {
 	n.pendingNotifications <- &notificationReq{
 		alert:              a,
 		notificationConfig: nc,
+		op:                 op,
 	}
 	return nil
 }
 
-func (n *notifier) sendPagerDutyNotification(serviceKey string, a *Alert) error {
+func (n *notifier) sendPagerDutyNotification(serviceKey string, op notificationOp, a *Alert) error {
 	// http://developer.pagerduty.com/documentation/integration/events/trigger
+	eventType := ""
+	switch op {
+	case notificationOpTrigger:
+		eventType = "trigger"
+	case notificationOpResolve:
+		eventType = "resolve"
+	}
 	incidentKey := a.Fingerprint()
 	buf, err := json.Marshal(map[string]interface{}{
 		"service_key":  serviceKey,
-		"event_type":   "trigger",
+		"event_type":   eventType,
 		"description":  a.Description,
 		"incident_key": incidentKey,
 		"details": map[string]interface{}{
@@ -168,13 +184,23 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, a *Alert) error 
 	return nil
 }
 
-func (n *notifier) sendHipChatNotification(authToken string, roomId int32, color string, notify bool, a *Alert) error {
+func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChatConfig, a *Alert) error {
 	// https://www.hipchat.com/docs/apiv2/method/send_room_notification
 	incidentKey := a.Fingerprint()
+	color := ""
+	status := ""
+	switch op {
+	case notificationOpTrigger:
+		color = config.GetColor()
+		status = "firing"
+	case notificationOpResolve:
+		color = config.GetColorResolved()
+		status = "resolved"
+	}
 	buf, err := json.Marshal(map[string]interface{}{
 		"color":          color,
-		"message":        fmt.Sprintf("<b>%s</b>: %s (<a href='%s'>view</a>)", html.EscapeString(a.Labels["alertname"]), html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
-		"notify":         notify,
+		"message":        fmt.Sprintf("<b>%s %s</b>: %s (<a href='%s'>view</a>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
+		"notify":         config.GetNotify(),
 		"message_format": "html",
 	})
 	if err != nil {
@@ -186,7 +212,7 @@ func (n *notifier) sendHipChatNotification(authToken string, roomId int32, color
 		Timeout: timeout,
 	}
 	resp, err := client.Post(
-		*hipchatUrl+fmt.Sprintf("/room/%d/notification?auth_token=%s", roomId, authToken),
+		fmt.Sprintf("%s/room/%d/notification?auth_token=%s", *hipchatUrl, config.GetRoomId(), config.GetAuthToken()),
 		contentTypeJson,
 		bytes.NewBuffer(buf),
 	)
@@ -205,21 +231,23 @@ func (n *notifier) sendHipChatNotification(authToken string, roomId int32, color
 	return nil
 }
 
-func writeEmailBody(w io.Writer, from string, to string, a *Alert) error {
-	return writeEmailBodyWithTime(w, from, to, a, time.Now())
+func writeEmailBody(w io.Writer, from, to, status string, a *Alert) error {
+	return writeEmailBodyWithTime(w, from, to, status, a, time.Now())
 }
 
-func writeEmailBodyWithTime(w io.Writer, from string, to string, a *Alert, moment time.Time) error {
+func writeEmailBodyWithTime(w io.Writer, from, to, status string, a *Alert, moment time.Time) error {
 	err := bodyTmpl.Execute(w, struct {
-		From  string
-		To    string
-		Date  string
-		Alert *Alert
+		From   string
+		To     string
+		Date   string
+		Alert  *Alert
+		Status string
 	}{
-		From:  from,
-		To:    to,
-		Date:  moment.Format("Mon, 2 Jan 2006 15:04:05 -0700"),
-		Alert: a,
+		From:   from,
+		To:     to,
+		Date:   moment.Format("Mon, 2 Jan 2006 15:04:05 -0700"),
+		Alert:  a,
+		Status: status,
 	})
 	if err != nil {
 		return err
@@ -263,7 +291,14 @@ func getSMTPAuth(hasAuth bool, mechs string) (smtp.Auth, *tls.Config, error) {
 	return nil, nil, nil
 }
 
-func (n *notifier) sendEmailNotification(to string, a *Alert) error {
+func (n *notifier) sendEmailNotification(to string, op notificationOp, a *Alert) error {
+	status := ""
+	switch op {
+	case notificationOpTrigger:
+		status = "ALERT"
+	case notificationOpResolve:
+		status = "RESOLVED"
+	}
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(*smtpSmartHost)
 	if err != nil {
@@ -300,10 +335,10 @@ func (n *notifier) sendEmailNotification(to string, a *Alert) error {
 	}
 	defer wc.Close()
 
-	return writeEmailBody(wc, *smtpSender, to, a)
+	return writeEmailBody(wc, *smtpSender, status, to, a)
 }
 
-func (n *notifier) sendPushoverNotification(token, userKey string, a *Alert) error {
+func (n *notifier) sendPushoverNotification(token string, op notificationOp, userKey string, a *Alert) error {
 	po, err := pushover.NewPushover(token, userKey)
 	if err != nil {
 		return err
@@ -323,28 +358,37 @@ func (n *notifier) sendPushoverNotification(token, userKey string, a *Alert) err
 	return err
 }
 
-func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
+func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.NotificationConfig) {
 	for _, pdConfig := range config.PagerdutyConfig {
-		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), a); err != nil {
+		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), op, a); err != nil {
 			glog.Error("Error sending PagerDuty notification: ", err)
 		}
 	}
 	for _, emailConfig := range config.EmailConfig {
+		if op == notificationOpResolve && !emailConfig.GetSendResolved() {
+			return
+		}
 		if *smtpSmartHost == "" {
 			glog.Warning("No SMTP smarthost configured, not sending email notification.")
 			continue
 		}
-		if err := n.sendEmailNotification(emailConfig.GetEmail(), a); err != nil {
+		if err := n.sendEmailNotification(emailConfig.GetEmail(), op, a); err != nil {
 			glog.Error("Error sending email notification: ", err)
 		}
 	}
 	for _, poConfig := range config.PushoverConfig {
-		if err := n.sendPushoverNotification(poConfig.GetToken(), poConfig.GetUserKey(), a); err != nil {
+		if op == notificationOpResolve && !poConfig.GetSendResolved() {
+			return
+		}
+		if err := n.sendPushoverNotification(poConfig.GetToken(), op, poConfig.GetUserKey(), a); err != nil {
 			glog.Error("Error sending Pushover notification: ", err)
 		}
 	}
 	for _, hcConfig := range config.HipchatConfig {
-		if err := n.sendHipChatNotification(hcConfig.GetAuthToken(), hcConfig.GetRoomId(), hcConfig.GetColor(), hcConfig.GetNotify(), a); err != nil {
+		if op == notificationOpResolve && !hcConfig.GetSendResolved() {
+			return
+		}
+		if err := n.sendHipChatNotification(op, hcConfig, a); err != nil {
 			glog.Error("Error sending HipChat notification: ", err)
 		}
 	}
@@ -352,7 +396,7 @@ func (n *notifier) handleNotification(a *Alert, config *pb.NotificationConfig) {
 
 func (n *notifier) Dispatch() {
 	for req := range n.pendingNotifications {
-		n.handleNotification(req.alert, req.notificationConfig)
+		n.handleNotification(req.alert, req.op, req.notificationConfig)
 	}
 }
 
