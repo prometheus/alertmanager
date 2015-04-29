@@ -40,51 +40,58 @@ type WebService struct {
 	StatusHandler       *StatusHandler
 }
 
-func (w WebService) ServeForever() error {
+func (w WebService) ServeForever(pathPrefix string) error {
 
-	http.Handle("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Handle(pathPrefix + "favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", 404)
 	}))
+
 
 	http.HandleFunc("/", prometheus.InstrumentHandlerFunc("index", func(rw http.ResponseWriter, req *http.Request) {
 		// The "/" pattern matches everything, so we need to check
 		// that we're at the root here.
-		if req.URL.Path != "/" {
+		if req.URL.Path == pathPrefix {
+			w.AlertsHandler.ServeHTTP(rw, req)
+		} else if req.URL.Path == "/" {
+			// We're running under a prefix but the user requested "/".
+			http.Redirect(rw, req, pathPrefix, http.StatusFound)
+		} else {
 			http.NotFound(rw, req)
-			return
 		}
-		w.AlertsHandler.ServeHTTP(rw, req)
 	}))
 
-	http.Handle("/alerts", prometheus.InstrumentHandler("alerts", w.AlertsHandler))
-	http.Handle("/silences", prometheus.InstrumentHandler("silences", w.SilencesHandler))
-	http.Handle("/status", prometheus.InstrumentHandler("status", w.StatusHandler))
+	http.Handle(pathPrefix + "alerts", prometheus.InstrumentHandler("alerts", w.AlertsHandler))
+	http.Handle(pathPrefix + "silences", prometheus.InstrumentHandler("silences", w.SilencesHandler))
+	http.Handle(pathPrefix + "status", prometheus.InstrumentHandler("status", w.StatusHandler))
 
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle(pathPrefix + "metrics", prometheus.Handler())
 	if *useLocalAssets {
-		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+		http.Handle(pathPrefix + "static/", http.StripPrefix(pathPrefix + "static/", http.FileServer(http.Dir("web/static"))))
 	} else {
-		http.Handle("/static/", http.StripPrefix("/static/", new(blob.Handler)))
+		http.Handle(pathPrefix + "static/", http.StripPrefix(pathPrefix + "static/", new(blob.Handler)))
 	}
-	http.Handle("/api/", w.AlertManagerService.Handler())
+	http.Handle(pathPrefix + "api/", w.AlertManagerService.Handler())
 
 	glog.Info("listening on ", *listenAddress)
 
 	return http.ListenAndServe(*listenAddress, nil)
 }
 
-func getLocalTemplate(name string) (*template.Template, error) {
+func getLocalTemplate(name string, pathPrefix string) (*template.Template, error) {
 	t := template.New("_base.html")
 	t.Funcs(webHelpers)
+	t.Funcs(template.FuncMap{"pathPrefix": func() string { return pathPrefix }})
+
 	return t.ParseFiles(
 		"web/templates/_base.html",
 		fmt.Sprintf("web/templates/%s.html", name),
 	)
 }
 
-func getEmbeddedTemplate(name string) (*template.Template, error) {
+func getEmbeddedTemplate(name string, pathPrefix string) (*template.Template, error) {
 	t := template.New("_base.html")
 	t.Funcs(webHelpers)
+	t.Funcs(template.FuncMap{"pathPrefix": func() string { return pathPrefix }})
 
 	file, err := blob.GetFile(blob.TemplateFiles, "_base.html")
 	if err != nil {
@@ -103,11 +110,11 @@ func getEmbeddedTemplate(name string) (*template.Template, error) {
 	return t, nil
 }
 
-func getTemplate(name string) (t *template.Template, err error) {
+func getTemplate(name string, pathPrefix string) (t *template.Template, err error) {
 	if *useLocalAssets {
-		t, err = getLocalTemplate(name)
+		t, err = getLocalTemplate(name, pathPrefix)
 	} else {
-		t, err = getEmbeddedTemplate(name)
+		t, err = getEmbeddedTemplate(name, pathPrefix)
 	}
 
 	if err != nil {
@@ -117,8 +124,8 @@ func getTemplate(name string) (t *template.Template, err error) {
 	return t, nil
 }
 
-func executeTemplate(w http.ResponseWriter, name string, data interface{}) {
-	tpl, err := getTemplate(name)
+func executeTemplate(w http.ResponseWriter, name string, data interface{}, pathPrefix string) {
+	tpl, err := getTemplate(name, pathPrefix)
 	if err != nil {
 		glog.Error("Error preparing layout template: ", err)
 		return

@@ -22,10 +22,11 @@ import (
 type StatusHandler struct {
 	mu sync.Mutex
 
-	BuildInfo map[string]string
-	Config    string
-	Flags     map[string]string
-	Birth     time.Time
+	BuildInfo  map[string]string
+	Config     string
+	Flags      map[string]string
+	Birth      time.Time
+	PathPrefix string
 }
 
 func (h *StatusHandler) UpdateConfig(c string) {
@@ -39,5 +40,5 @@ func (h *StatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	executeTemplate(w, "status", h)
+	executeTemplate(w, "status", h, h.PathPrefix)
 }
