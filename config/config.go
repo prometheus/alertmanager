@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	pb "github.com/prometheus/alertmanager/config/generated"
 
