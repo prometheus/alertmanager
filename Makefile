@@ -1,4 +1,4 @@
-# Copyright 2013 The Prometheus Authors
+# Copyright 2015 The Prometheus Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,47 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include Makefile.INCLUDE
+VERSION  := 0.0.1
+TARGET   := alertmanager
 
-default: $(BINARY)
+web: web/blob/files.go
 
-.deps/$(GOPKG):
-	mkdir -p .deps
-	curl -q -o .deps/$(GOPKG) -L $(GOURL)/$(GOPKG)
+web/blob/files.go: $(shell find web/templates/ web/static/ -type f)
+	./web/blob/embed-static.sh static templates | $(GOFMT) > $@
 
-$(GOCC): .deps/$(GOPKG)
-	tar -C .deps -xzf .deps/$(GOPKG)
-	touch $@
-
-$(SELFLINK):
-	mkdir -p $(GOPATH)/src/github.com/prometheus
-	ln -s $(CURDIR) $(SELFLINK)
-
-dependencies: $(GOCC) $(SELFLINK) web config
-	$(GO) get -d
-
-config:
-	$(MAKE) -C config
-
-web: $(GOCC)
-	$(MAKE) -C web
-
-$(BINARY): $(GOCC) dependencies
-	$(GO) build $(BUILDFLAGS) -o $@
-
-$(ARCHIVE): $(BINARY)
-	tar -czf $@ $<
-
-release: REMOTE     ?= $(error "can't release, REMOTE not set")
-release: REMOTE_DIR ?= $(error "can't release, REMOTE_DIR not set")
-release: $(ARCHIVE)
-	scp $< $(REMOTE):$(REMOTE_DIR)/$(ARCHIVE)
-
-test: $(GOCC) dependencies
-	$(GO) test ./...
-
-clean:
-	$(MAKE) -C web clean
-	-rm -rf alertmanager .deps
-
-.PHONY: clean config default dependencies release test web
+include Makefile.COMMON
