@@ -14,6 +14,8 @@
 VERSION  := 0.0.1
 TARGET   := alertmanager
 
+include Makefile.COMMON
+
 web: web/blob/files.go
 
 web/blob/files.go: $(shell find web/templates/ web/static/ -type f)
@@ -22,5 +24,3 @@ web/blob/files.go: $(shell find web/templates/ web/static/ -type f)
 .PHONY: config
 config:
 	$(MAKE) -C config
-
-include Makefile.COMMON
