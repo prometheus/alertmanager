@@ -72,6 +72,11 @@ func (c Config) Validate() error {
 				return fmt.Errorf("Missing room in HipChat config: %s", proto.MarshalTextString(hcc))
 			}
 		}
+		for _, sc := range nc.SlackConfig {
+			if sc.WebhookUrl == nil {
+				return fmt.Errorf("Missing webhook URL in Slack config: %s", proto.MarshalTextString(sc))
+			}
+		}
 
 		if _, ok := ncNames[nc.GetName()]; ok {
 			return fmt.Errorf("Notification config name not unique: %s", nc.GetName())
