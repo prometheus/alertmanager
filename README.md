@@ -17,7 +17,8 @@ following aspects:
 * handling notification repeats
 * sending alert notifications via external services (currently email,
 [PagerDuty](http://www.pagerduty.com/),
-[HipChat](http://www.hipchat.com/), or
+[HipChat](http://www.hipchat.com/),
+[Slack](http://www.slack.com/), or
 [Pushover](https://www.pushover.net/))
 
 See [config/fixtures/sample.conf.input](config/fixtures/sample.conf.input) for

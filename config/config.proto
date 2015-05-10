@@ -56,6 +56,20 @@ message HipChatConfig {
   optional bool send_resolved = 6 [default = false];
 }
 
+// Configuration for notification via Slack.
+message SlackConfig {
+  // Slack webhook url, (https://api.slack.com/incoming-webhooks).
+  optional string webhook_url = 1;
+  // Slack channel override, (like #other-channel or @username).
+  optional string channel = 2;
+  // Color of message when triggered.
+  optional string color = 3 [default = "warning"];
+  // Color of message when resolved.
+  optional string color_resolved = 4 [default = "good"];
+  // Notify when resolved.
+  optional bool send_resolved = 5 [default = false];
+}
+
 // Notification configuration definition.
 message NotificationConfig {
   // Name of this NotificationConfig. Referenced from AggregationRule.
@@ -68,6 +82,8 @@ message NotificationConfig {
   repeated PushoverConfig pushover_config = 4;
   // Zero or more hipchat notification configurations.
   repeated HipChatConfig hipchat_config = 5;
+  // Zero or more slack notification configurations.
+  repeated SlackConfig slack_config = 6;
 }
 
 // A regex-based label filter used in aggregations.

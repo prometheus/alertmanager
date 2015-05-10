@@ -15,6 +15,10 @@ notification_config {
     room_id: 123456
     send_resolved: true
   }
+  slack_config {
+    webhook_url: "webhookurl"
+    send_resolved: true
+  }
 }
 
 aggregation_rule {

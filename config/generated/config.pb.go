@@ -13,6 +13,7 @@ It has these top-level messages:
 	EmailConfig
 	PushoverConfig
 	HipChatConfig
+	SlackConfig
 	NotificationConfig
 	Filter
 	AggregationRule
@@ -182,6 +183,64 @@ func (m *HipChatConfig) GetSendResolved() bool {
 	return Default_HipChatConfig_SendResolved
 }
 
+// Configuration for notification via Slack.
+type SlackConfig struct {
+	// Slack webhook url, (https://api.slack.com/incoming-webhooks).
+	WebhookUrl *string `protobuf:"bytes,1,opt,name=webhook_url" json:"webhook_url,omitempty"`
+	// Slack channel override, (like #other-channel or @username).
+	Channel *string `protobuf:"bytes,2,opt,name=channel" json:"channel,omitempty"`
+	// Color of message when triggered.
+	Color *string `protobuf:"bytes,3,opt,name=color,def=warning" json:"color,omitempty"`
+	// Color of message when resolved.
+	ColorResolved *string `protobuf:"bytes,4,opt,name=color_resolved,def=good" json:"color_resolved,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,5,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *SlackConfig) Reset()         { *m = SlackConfig{} }
+func (m *SlackConfig) String() string { return proto.CompactTextString(m) }
+func (*SlackConfig) ProtoMessage()    {}
+
+const Default_SlackConfig_Color string = "warning"
+const Default_SlackConfig_ColorResolved string = "good"
+const Default_SlackConfig_SendResolved bool = false
+
+func (m *SlackConfig) GetWebhookUrl() string {
+	if m != nil && m.WebhookUrl != nil {
+		return *m.WebhookUrl
+	}
+	return ""
+}
+
+func (m *SlackConfig) GetChannel() string {
+	if m != nil && m.Channel != nil {
+		return *m.Channel
+	}
+	return ""
+}
+
+func (m *SlackConfig) GetColor() string {
+	if m != nil && m.Color != nil {
+		return *m.Color
+	}
+	return Default_SlackConfig_Color
+}
+
+func (m *SlackConfig) GetColorResolved() string {
+	if m != nil && m.ColorResolved != nil {
+		return *m.ColorResolved
+	}
+	return Default_SlackConfig_ColorResolved
+}
+
+func (m *SlackConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_SlackConfig_SendResolved
+}
+
 // Notification configuration definition.
 type NotificationConfig struct {
 	// Name of this NotificationConfig. Referenced from AggregationRule.
@@ -193,8 +252,10 @@ type NotificationConfig struct {
 	// Zero or more pushover notification configurations.
 	PushoverConfig []*PushoverConfig `protobuf:"bytes,4,rep,name=pushover_config" json:"pushover_config,omitempty"`
 	// Zero or more hipchat notification configurations.
-	HipchatConfig    []*HipChatConfig `protobuf:"bytes,5,rep,name=hipchat_config" json:"hipchat_config,omitempty"`
-	XXX_unrecognized []byte           `json:"-"`
+	HipchatConfig []*HipChatConfig `protobuf:"bytes,5,rep,name=hipchat_config" json:"hipchat_config,omitempty"`
+	// Zero or more slack notification configurations.
+	SlackConfig      []*SlackConfig `protobuf:"bytes,6,rep,name=slack_config" json:"slack_config,omitempty"`
+	XXX_unrecognized []byte         `json:"-"`
 }
 
 func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
@@ -232,6 +293,13 @@ func (m *NotificationConfig) GetPushoverConfig() []*PushoverConfig {
 func (m *NotificationConfig) GetHipchatConfig() []*HipChatConfig {
 	if m != nil {
 		return m.HipchatConfig
+	}
+	return nil
+}
+
+func (m *NotificationConfig) GetSlackConfig() []*SlackConfig {
+	if m != nil {
+		return m.SlackConfig
 	}
 	return nil
 }

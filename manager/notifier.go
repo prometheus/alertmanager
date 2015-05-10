@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	contentTypeJson = "application/json"
+	contentTypeJSON = "application/json"
 
 	notificationOpTrigger notificationOp = iota
 	notificationOpResolve
@@ -61,10 +61,10 @@ Payload labels:
 
 var (
 	notificationBufferSize = flag.Int("notification.buffer-size", 1000, "Size of buffer for pending notifications.")
-	pagerdutyApiUrl        = flag.String("notification.pagerduty.url", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
+	pagerdutyAPIURL        = flag.String("notification.pagerduty.url", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
 	smtpSmartHost          = flag.String("notification.smtp.smarthost", "", "Address of the smarthost to send all email notifications to.")
 	smtpSender             = flag.String("notification.smtp.sender", "alertmanager@example.org", "Sender email address to use in email notifications.")
-	hipchatUrl             = flag.String("notification.hipchat.url", "https://api.hipchat.com/v2", "HipChat API V2 URL.")
+	hipchatURL             = flag.String("notification.hipchat.url", "https://api.hipchat.com/v2", "HipChat API V2 URL.")
 )
 
 type notificationOp int
@@ -101,7 +101,7 @@ type notifier struct {
 	notificationConfigs map[string]*pb.NotificationConfig
 }
 
-// Construct a new notifier.
+// NewNotifier construct a new notifier.
 func NewNotifier(configs []*pb.NotificationConfig) *notifier {
 	notifier := &notifier{
 		pendingNotifications: make(chan *notificationReq, *notificationBufferSize),
@@ -165,8 +165,8 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, op notificationO
 	}
 
 	resp, err := http.Post(
-		*pagerdutyApiUrl,
-		contentTypeJson,
+		*pagerdutyAPIURL,
+		contentTypeJSON,
 		bytes.NewBuffer(buf),
 	)
 	if err != nil {
@@ -212,8 +212,8 @@ func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChat
 		Timeout: timeout,
 	}
 	resp, err := client.Post(
-		fmt.Sprintf("%s/room/%d/notification?auth_token=%s", *hipchatUrl, config.GetRoomId(), config.GetAuthToken()),
-		contentTypeJson,
+		fmt.Sprintf("%s/room/%d/notification?auth_token=%s", *hipchatURL, config.GetRoomId(), config.GetAuthToken()),
+		contentTypeJSON,
 		bytes.NewBuffer(buf),
 	)
 	if err != nil {
@@ -227,6 +227,100 @@ func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChat
 	}
 
 	glog.Infof("Sent HipChat notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	// BUG: Check response for result of operation.
+	return nil
+}
+
+// slackReq is the request for sending a slack notification.
+type slackReq struct {
+	Channel     string            `json:"channel,omitempty"`
+	Attachments []slackAttachment `json:"attachments"`
+}
+
+// slackAttachment is used to display a richly-formatted message block.
+type slackAttachment struct {
+	Fallback  string                 `json:"fallback"`
+	Pretext   string                 `json:"pretext,omitempty"`
+	Title     string                 `json:"title,omitempty"`
+	TitleLink string                 `json:"title_link,omitempty"`
+	Text      string                 `json:"text"`
+	Color     string                 `json:"color,omitempty"`
+	MrkdwnIn  []string               `json:"mrkdwn_in,omitempty"`
+	Fields    []slackAttachmentField `json:"fields,omitempty"`
+}
+
+// slackAttachmentField is displayed in a table inside the message attachment.
+type slackAttachmentField struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short,omitempty"`
+}
+
+func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConfig, a *Alert) error {
+	// https://api.slack.com/incoming-webhooks
+	incidentKey := a.Fingerprint()
+	color := ""
+	status := ""
+	switch op {
+	case notificationOpTrigger:
+		color = config.GetColor()
+		status = "firing"
+	case notificationOpResolve:
+		color = config.GetColorResolved()
+		status = "resolved"
+	}
+
+	statusField := &slackAttachmentField{
+		Title: "Status",
+		Value: status,
+		Short: true,
+	}
+
+	attachment := &slackAttachment{
+		Fallback:  fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
+		Pretext:   fmt.Sprintf("*%s*", html.EscapeString(a.Labels["alertname"])),
+		Title:     html.EscapeString(a.Summary),
+		TitleLink: a.Payload["GeneratorURL"],
+		Text:      html.EscapeString(a.Description),
+		Color:     color,
+		MrkdwnIn:  []string{"fallback", "pretext"},
+		Fields: []slackAttachmentField{
+			*statusField,
+		},
+	}
+
+	req := &slackReq{
+		Channel: config.GetChannel(),
+		Attachments: []slackAttachment{
+			*attachment,
+		},
+	}
+
+	buf, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	timeout := time.Duration(5 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Post(
+		config.GetWebhookUrl(),
+		contentTypeJSON,
+		bytes.NewBuffer(buf),
+	)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBuf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	glog.Infof("Sent Slack notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
 	// BUG: Check response for result of operation.
 	return nil
 }
@@ -361,7 +455,7 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.NotificationConfig) {
 	for _, pdConfig := range config.PagerdutyConfig {
 		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), op, a); err != nil {
-			glog.Error("Error sending PagerDuty notification: ", err)
+			glog.Errorln("Error sending PagerDuty notification:", err)
 		}
 	}
 	for _, emailConfig := range config.EmailConfig {
@@ -373,7 +467,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if err := n.sendEmailNotification(emailConfig.GetEmail(), op, a); err != nil {
-			glog.Error("Error sending email notification: ", err)
+			glog.Errorln("Error sending email notification:", err)
 		}
 	}
 	for _, poConfig := range config.PushoverConfig {
@@ -381,7 +475,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if err := n.sendPushoverNotification(poConfig.GetToken(), op, poConfig.GetUserKey(), a); err != nil {
-			glog.Error("Error sending Pushover notification: ", err)
+			glog.Errorln("Error sending Pushover notification:", err)
 		}
 	}
 	for _, hcConfig := range config.HipchatConfig {
@@ -389,7 +483,15 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if err := n.sendHipChatNotification(op, hcConfig, a); err != nil {
-			glog.Error("Error sending HipChat notification: ", err)
+			glog.Errorln("Error sending HipChat notification:", err)
+		}
+	}
+	for _, scConfig := range config.SlackConfig {
+		if op == notificationOpResolve && !scConfig.GetSendResolved() {
+			continue
+		}
+		if err := n.sendSlackNotification(op, scConfig, a); err != nil {
+			glog.Errorln("Error sending Slack notification:", err)
 		}
 	}
 }
