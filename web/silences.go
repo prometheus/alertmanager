@@ -25,11 +25,12 @@ type SilenceStatus struct {
 
 type SilencesHandler struct {
 	Silencer *manager.Silencer
+	PathPrefix string
 }
 
 func (h *SilencesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	silenceStatus := &SilenceStatus{
 		Silences: h.Silencer.SilenceSummary(),
 	}
-	executeTemplate(w, "silences", silenceStatus)
+	executeTemplate(w, "silences", silenceStatus, h.PathPrefix)
 }

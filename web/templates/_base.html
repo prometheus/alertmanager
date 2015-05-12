@@ -7,13 +7,13 @@
 
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
 
-    <link href="/static/vendor/bootstrap/css/bootstrap.min.css" media="all" rel="stylesheet" type="text/css" />
-    <script src="/static/vendor/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+    <link href="{{ pathPrefix }}static/vendor/bootstrap/css/bootstrap.min.css" media="all" rel="stylesheet" type="text/css" />
+    <script src="{{ pathPrefix }}static/vendor/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
 
-    <link href="/static/vendor/tarruda_bootstrap_datetimepicker/css/bootstrap-datetimepicker.min.css" media="all" rel="stylesheet" type="text/css" />
-    <script src="/static/vendor/tarruda_bootstrap_datetimepicker/js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+    <link href="{{ pathPrefix }}static/vendor/tarruda_bootstrap_datetimepicker/css/bootstrap-datetimepicker.min.css" media="all" rel="stylesheet" type="text/css" />
+    <script src="{{ pathPrefix }}static/vendor/tarruda_bootstrap_datetimepicker/js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
 
-    <link href="/static/css/default.css" media="all" rel="stylesheet" type="text/css" />
+    <link href="{{ pathPrefix }}static/css/default.css" media="all" rel="stylesheet" type="text/css" />
 
     {{template "head" .}}
   </head>
@@ -26,9 +26,9 @@
           {{define "alertsTabClass"}}{{end}}
           {{define "silencesTabClass"}}{{end}}
           {{define "statusTabClass"}}{{end}}
-          <li class="{{template "alertsTabClass"}}"><a href="/alerts">Alerts</a></li>
-          <li class="{{template "silencesTabClass"}}"><a href="/silences">Silences</a></li>
-          <li class="{{template "statusTabClass"}}"><a href="/status">Status</a></li>
+          <li class="{{template "alertsTabClass"}}"><a href="{{ pathPrefix }}alerts">Alerts</a></li>
+          <li class="{{template "silencesTabClass"}}"><a href="{{ pathPrefix }}silences">Silences</a></li>
+          <li class="{{template "statusTabClass"}}"><a href="{{ pathPrefix }}status">Status</a></li>
         </ul>
       </div>
     </div>

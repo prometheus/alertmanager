@@ -16,6 +16,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -30,10 +31,18 @@ var (
 	configFile       = flag.String("config.file", "alertmanager.conf", "Alert Manager configuration file name.")
 	silencesFile     = flag.String("silences.file", "silences.json", "Silence storage file name.")
 	minRefreshPeriod = flag.Duration("alerts.min-refresh-period", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
+	pathPrefix       = flag.String("web.path-prefix", "/", "Prefix for all web paths.")
 )
 
 func main() {
 	flag.Parse()
+
+	if !strings.HasPrefix(*pathPrefix, "/") {
+		*pathPrefix = "/" + *pathPrefix
+	}
+	if !strings.HasSuffix(*pathPrefix, "/") {
+		*pathPrefix = *pathPrefix + "/"
+	}
 
 	versionInfoTmpl.Execute(os.Stdout, BuildInfo)
 
@@ -79,17 +88,19 @@ func main() {
 	})
 
 	statusHandler := &web.StatusHandler{
-		Config:    conf.String(),
-		Flags:     flags,
-		BuildInfo: BuildInfo,
-		Birth:     time.Now(),
+		Config:     conf.String(),
+		Flags:      flags,
+		BuildInfo:  BuildInfo,
+		Birth:      time.Now(),
+		PathPrefix: *pathPrefix,
 	}
 
 	webService := &web.WebService{
 		// REST API Service.
 		AlertManagerService: &api.AlertManagerService{
-			Manager:  alertManager,
-			Silencer: silencer,
+			Manager:    alertManager,
+			Silencer:   silencer,
+			PathPrefix: *pathPrefix,
 		},
 
 		// Template-based page handlers.
@@ -102,7 +113,7 @@ func main() {
 		},
 		StatusHandler: statusHandler,
 	}
-	go webService.ServeForever()
+	go webService.ServeForever(*pathPrefix)
 
 	// React to configuration changes.
 	watcher := config.NewFileWatcher(*configFile)

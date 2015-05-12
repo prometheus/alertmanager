@@ -27,6 +27,7 @@ type AlertStatus struct {
 type AlertsHandler struct {
 	Manager                manager.AlertManager
 	IsSilencedInterrogator manager.IsSilencedInterrogator
+	PathPrefix             string
 }
 
 func (h *AlertsHandler) silenceForAlert(a *manager.Alert) *manager.Silence {
@@ -39,5 +40,5 @@ func (h *AlertsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		AlertAggregates: h.Manager.GetAll(nil),
 		SilenceForAlert: h.silenceForAlert,
 	}
-	executeTemplate(w, "alerts", alertStatus)
+	executeTemplate(w, "alerts", alertStatus, h.PathPrefix)
 }
