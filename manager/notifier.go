@@ -444,10 +444,19 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 		return err
 	}
 
+	status := "unknown"
+	switch op {
+	case notificationOpTrigger:
+		status = "firing"
+	case notificationOpResolve:
+		status = "resolved"
+	}
+	alertname := html.EscapeString(a.Labels["alertname"])
+
 	// Send pushover message
 	_, _, err = po.Push(&pushover.Message{
-		Title:   a.Summary,
-		Message: a.Description,
+		Title:   fmt.Sprintf("%s: %s", alertname, status),
+		Message: a.Summary,
 	})
 	return err
 }
