@@ -19,6 +19,10 @@ notification_config {
     webhook_url: "webhookurl"
     send_resolved: true
   }
+  flowdock_config {
+    api_token: "4c7234902348234902384234234cdb59"
+    from_address: "aliaswithgravatar@somehwere.com"
+  }
 }
 
 aggregation_rule {
