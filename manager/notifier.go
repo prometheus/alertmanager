@@ -65,6 +65,7 @@ var (
 	smtpSmartHost          = flag.String("notification.smtp.smarthost", "", "Address of the smarthost to send all email notifications to.")
 	smtpSender             = flag.String("notification.smtp.sender", "alertmanager@example.org", "Sender email address to use in email notifications.")
 	hipchatURL             = flag.String("notification.hipchat.url", "https://api.hipchat.com/v2", "HipChat API V2 URL.")
+	flowdockURL            = flag.String("notification.flowdock.url", "https://api.flowdock.com/v1/messages/team_inbox", "Flowdock API V1 URL.")
 )
 
 type notificationOp int
@@ -325,6 +326,59 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 	return nil
 }
 
+// https://www.flowdock.com/api/team-inbox
+// compulsory fields in Flowdock JSON: source, from_address, subject, content
+// Content-type: application/json
+// POST to https://api.flowdock.com/v1/messages/team_inbox/:flow_api_token
+type FlowdockMessage struct {
+	Source      string   `json:"source"`
+	FromAddress string   `json:"from_address"`
+	Subject     string   `json:"subject"`
+	Content     string   `json:"content"`
+	Format      string   `json:"format"`
+	Link        string   `json:"link"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+func jsonize(msg interface{}) []byte {
+	buf, err := json.Marshal(msg)
+	if err != nil {
+		glog.Errorln("Error compiling JSON:", err)
+	}
+	return buf
+}
+func getFlowdockNotificationMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) *FlowdockMessage {
+	status := ""
+	switch op {
+	case notificationOpTrigger:
+		status = "firing"
+	case notificationOpResolve:
+		status = "resolved"
+	}
+	msg := &FlowdockMessage{
+		Source:      "Prometheus",
+		FromAddress: config.GetFromAddress(),
+		Subject:     html.EscapeString(a.Summary),
+		Format:      "html",
+		Content:     fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
+		Link:        a.Payload["GeneratorURL"],
+		Tags:        config.GetTags(),
+	}
+	return msg
+}
+
+func postJSONtoURL(jsonMessage []byte, url string) *http.Response {
+	timeout := time.Duration(5 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	response, err := client.Post(url, contentTypeJSON, bytes.NewBuffer(jsonMessage))
+	if err != nil {
+		glog.Errorln("Error while sending Flowdock notification:", err)
+	}
+	return response
+}
+
 func writeEmailBody(w io.Writer, from, to, status string, a *Alert) error {
 	return writeEmailBodyWithTime(w, from, to, status, a, time.Now())
 }
@@ -452,6 +506,16 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 	return err
 }
 
+func processResponse(r *http.Response, targetName string, a *Alert) {
+	defer r.Body.Close()
+
+	respBuf, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		glog.Errorln("Error reading HTTP response:", err)
+	}
+	glog.Infof("Sent %s notification for alert %v. Response: HTTP %d: %s", targetName, a.Fingerprint(), r.StatusCode, respBuf)
+}
+
 func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.NotificationConfig) {
 	for _, pdConfig := range config.PagerdutyConfig {
 		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), op, a); err != nil {
@@ -493,6 +557,15 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 		if err := n.sendSlackNotification(op, scConfig, a); err != nil {
 			glog.Errorln("Error sending Slack notification:", err)
 		}
+	}
+	for _, fdConfig := range config.FlowdockConfig {
+		if op == notificationOpResolve && !fdConfig.GetSendResolved() {
+			continue
+		}
+		flowdockMessage := getFlowdockNotificationMessage(op, fdConfig, a)
+		url := *flowdockURL + "/" + fdConfig.GetApiToken()
+		httpResponse := postJSONtoURL(jsonize(flowdockMessage), url)
+		processResponse(httpResponse, "Flowdock", a)
 	}
 }
 

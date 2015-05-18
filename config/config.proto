@@ -70,6 +70,17 @@ message SlackConfig {
   optional bool send_resolved = 5 [default = false];
 }
 
+message FlowdockConfig {
+  // Flowdock flow API token
+  optional string api_token = 2;
+  // Flowdock from_address
+  optional string from_address = 3;
+  // Flowdock flow tags
+  repeated string tags = 4;
+  // Color of message when triggered.
+  optional bool send_resolved = 7 [default = false];
+}
+
 // Notification configuration definition.
 message NotificationConfig {
   // Name of this NotificationConfig. Referenced from AggregationRule.
@@ -84,6 +95,8 @@ message NotificationConfig {
   repeated HipChatConfig hipchat_config = 5;
   // Zero or more slack notification configurations.
   repeated SlackConfig slack_config = 6;
+  // Zero or more Flowdock notification configurations.
+  repeated FlowdockConfig flowdock_config = 7;
 }
 
 // A regex-based label filter used in aggregations.

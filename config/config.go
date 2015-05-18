@@ -77,6 +77,14 @@ func (c Config) Validate() error {
 				return fmt.Errorf("Missing webhook URL in Slack config: %s", proto.MarshalTextString(sc))
 			}
 		}
+		for _, fc := range nc.FlowdockConfig {
+			if fc.ApiToken == nil {
+				return fmt.Errorf("Missing API token in Flowdock config: %s", proto.MarshalTextString(fc))
+			}
+			if fc.FromAddress == nil {
+				return fmt.Errorf("Missing from_address Flowdock config: %s", proto.MarshalTextString(fc))
+			}
+		}
 
 		if _, ok := ncNames[nc.GetName()]; ok {
 			return fmt.Errorf("Notification config name not unique: %s", nc.GetName())
