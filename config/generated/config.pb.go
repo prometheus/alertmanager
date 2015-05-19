@@ -14,6 +14,7 @@ It has these top-level messages:
 	PushoverConfig
 	HipChatConfig
 	SlackConfig
+	FlowdockConfig
 	NotificationConfig
 	Filter
 	AggregationRule
@@ -241,6 +242,52 @@ func (m *SlackConfig) GetSendResolved() bool {
 	return Default_SlackConfig_SendResolved
 }
 
+type FlowdockConfig struct {
+	// Flowdock flow API token.
+	ApiToken *string `protobuf:"bytes,1,opt,name=api_token" json:"api_token,omitempty"`
+	// Flowdock from_address.
+	FromAddress *string `protobuf:"bytes,2,opt,name=from_address" json:"from_address,omitempty"`
+	// Flowdock flow tags.
+	Tag []string `protobuf:"bytes,3,rep,name=tag" json:"tag,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,4,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *FlowdockConfig) Reset()         { *m = FlowdockConfig{} }
+func (m *FlowdockConfig) String() string { return proto.CompactTextString(m) }
+func (*FlowdockConfig) ProtoMessage()    {}
+
+const Default_FlowdockConfig_SendResolved bool = false
+
+func (m *FlowdockConfig) GetApiToken() string {
+	if m != nil && m.ApiToken != nil {
+		return *m.ApiToken
+	}
+	return ""
+}
+
+func (m *FlowdockConfig) GetFromAddress() string {
+	if m != nil && m.FromAddress != nil {
+		return *m.FromAddress
+	}
+	return ""
+}
+
+func (m *FlowdockConfig) GetTag() []string {
+	if m != nil {
+		return m.Tag
+	}
+	return nil
+}
+
+func (m *FlowdockConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_FlowdockConfig_SendResolved
+}
+
 // Notification configuration definition.
 type NotificationConfig struct {
 	// Name of this NotificationConfig. Referenced from AggregationRule.
@@ -254,8 +301,10 @@ type NotificationConfig struct {
 	// Zero or more hipchat notification configurations.
 	HipchatConfig []*HipChatConfig `protobuf:"bytes,5,rep,name=hipchat_config" json:"hipchat_config,omitempty"`
 	// Zero or more slack notification configurations.
-	SlackConfig      []*SlackConfig `protobuf:"bytes,6,rep,name=slack_config" json:"slack_config,omitempty"`
-	XXX_unrecognized []byte         `json:"-"`
+	SlackConfig []*SlackConfig `protobuf:"bytes,6,rep,name=slack_config" json:"slack_config,omitempty"`
+	// Zero or more Flowdock notification configurations.
+	FlowdockConfig   []*FlowdockConfig `protobuf:"bytes,7,rep,name=flowdock_config" json:"flowdock_config,omitempty"`
+	XXX_unrecognized []byte            `json:"-"`
 }
 
 func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
@@ -300,6 +349,13 @@ func (m *NotificationConfig) GetHipchatConfig() []*HipChatConfig {
 func (m *NotificationConfig) GetSlackConfig() []*SlackConfig {
 	if m != nil {
 		return m.SlackConfig
+	}
+	return nil
+}
+
+func (m *NotificationConfig) GetFlowdockConfig() []*FlowdockConfig {
+	if m != nil {
+		return m.FlowdockConfig
 	}
 	return nil
 }
