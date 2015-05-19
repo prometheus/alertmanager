@@ -71,11 +71,11 @@ message SlackConfig {
 }
 
 message FlowdockConfig {
-  // Flowdock flow API token
+  // Flowdock flow API token.
   optional string api_token = 1;
-  // Flowdock from_address
+  // Flowdock from_address.
   optional string from_address = 2;
-  // Flowdock flow tags
+  // Flowdock flow tags.
   repeated string tag = 3;
   // Notify when resolved.
   optional bool send_resolved = 4 [default = false];
