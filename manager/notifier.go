@@ -508,13 +508,17 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 }
 
 func processResponse(r *http.Response, targetName string, a *Alert) {
-	defer r.Body.Close()
-
-	respBuf, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		glog.Errorln("Error reading HTTP response:", err)
+	spec := fmt.Sprintf("%s notification for alert %v", targetName, a.Fingerprint())
+	if r == nil {
+		glog.Errorln("No HTTP response for", spec)
+	} else {
+		defer r.Body.Close()
+		respBuf, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			glog.Errorln("Error reading HTTP response for", spec, err)
+		}
+		glog.Infof("Sent %s. Response: HTTP %d: %s", spec, r.StatusCode, respBuf)
 	}
-	glog.Infof("Sent %s notification for alert %v. Response: HTTP %d: %s", targetName, a.Fingerprint(), r.StatusCode, respBuf)
 }
 
 func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.NotificationConfig) {
