@@ -22,6 +22,7 @@ notification_config {
   flowdock_config {
     api_token: "4c7234902348234902384234234cdb59"
     from_address: "aliaswithgravatar@somehwere.com"
+    tag: "monitoring"
   }
 }
 

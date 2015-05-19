@@ -330,7 +330,7 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 // compulsory fields in Flowdock JSON: source, from_address, subject, content
 // Content-type: application/json
 // POST to https://api.flowdock.com/v1/messages/team_inbox/:flow_api_token
-type FlowdockMessage struct {
+type flowdockMessage struct {
 	Source      string   `json:"source"`
 	FromAddress string   `json:"from_address"`
 	Subject     string   `json:"subject"`
@@ -340,14 +340,14 @@ type FlowdockMessage struct {
 	Tags        []string `json:"tags,omitempty"`
 }
 
-func jsonize(msg interface{}) []byte {
+func marshallJSON(msg interface{}) []byte {
 	buf, err := json.Marshal(msg)
 	if err != nil {
-		glog.Errorln("Error compiling JSON:", err)
+		glog.Errorln("Error marshalling JSON:", err)
 	}
 	return buf
 }
-func getFlowdockNotificationMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) *FlowdockMessage {
+func newFlowdockNotificationMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) *flowdockMessage {
 	status := ""
 	switch op {
 	case notificationOpTrigger:
@@ -355,26 +355,27 @@ func getFlowdockNotificationMessage(op notificationOp, config *pb.FlowdockConfig
 	case notificationOpResolve:
 		status = "resolved"
 	}
-	msg := &FlowdockMessage{
+
+	msg := &flowdockMessage{
 		Source:      "Prometheus",
 		FromAddress: config.GetFromAddress(),
 		Subject:     html.EscapeString(a.Summary),
 		Format:      "html",
 		Content:     fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
 		Link:        a.Payload["GeneratorURL"],
-		Tags:        config.GetTags(),
+		Tags:        append(config.GetTag(), status),
 	}
 	return msg
 }
 
-func postJSONtoURL(jsonMessage []byte, url string) *http.Response {
+func postJSON(jsonMessage []byte, url string) *http.Response {
 	timeout := time.Duration(5 * time.Second)
 	client := http.Client{
 		Timeout: timeout,
 	}
 	response, err := client.Post(url, contentTypeJSON, bytes.NewBuffer(jsonMessage))
 	if err != nil {
-		glog.Errorln("Error while sending Flowdock notification:", err)
+		glog.Errorln("Error while posting JSON:", err)
 	}
 	return response
 }
@@ -562,9 +563,9 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 		if op == notificationOpResolve && !fdConfig.GetSendResolved() {
 			continue
 		}
-		flowdockMessage := getFlowdockNotificationMessage(op, fdConfig, a)
+		flowdockMessage := newFlowdockNotificationMessage(op, fdConfig, a)
 		url := *flowdockURL + "/" + fdConfig.GetApiToken()
-		httpResponse := postJSONtoURL(jsonize(flowdockMessage), url)
+		httpResponse := postJSON(marshallJSON(flowdockMessage), url)
 		processResponse(httpResponse, "Flowdock", a)
 	}
 }

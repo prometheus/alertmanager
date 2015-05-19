@@ -18,8 +18,9 @@ following aspects:
 * sending alert notifications via external services (currently email,
 [PagerDuty](http://www.pagerduty.com/),
 [HipChat](http://www.hipchat.com/),
-[Slack](http://www.slack.com/), or
-[Pushover](https://www.pushover.net/))
+[Slack](http://www.slack.com/),
+[Pushover](https://www.pushover.net/)), or
+[Flowdock](https://www.flowdock.com/))
 
 See [config/fixtures/sample.conf.input](config/fixtures/sample.conf.input) for
 an example config. The full configuration schema including a documentation for

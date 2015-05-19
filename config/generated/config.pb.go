@@ -244,13 +244,13 @@ func (m *SlackConfig) GetSendResolved() bool {
 
 type FlowdockConfig struct {
 	// Flowdock flow API token
-	ApiToken *string `protobuf:"bytes,2,opt,name=api_token" json:"api_token,omitempty"`
+	ApiToken *string `protobuf:"bytes,1,opt,name=api_token" json:"api_token,omitempty"`
 	// Flowdock from_address
-	FromAddress *string `protobuf:"bytes,3,opt,name=from_address" json:"from_address,omitempty"`
+	FromAddress *string `protobuf:"bytes,2,opt,name=from_address" json:"from_address,omitempty"`
 	// Flowdock flow tags
-	Tags []string `protobuf:"bytes,4,rep,name=tags" json:"tags,omitempty"`
-	// Color of message when triggered.
-	SendResolved     *bool  `protobuf:"varint,7,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	Tag []string `protobuf:"bytes,3,rep,name=tag" json:"tag,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,4,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
@@ -274,9 +274,9 @@ func (m *FlowdockConfig) GetFromAddress() string {
 	return ""
 }
 
-func (m *FlowdockConfig) GetTags() []string {
+func (m *FlowdockConfig) GetTag() []string {
 	if m != nil {
-		return m.Tags
+		return m.Tag
 	}
 	return nil
 }
