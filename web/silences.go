@@ -24,7 +24,7 @@ type SilenceStatus struct {
 }
 
 type SilencesHandler struct {
-	Silencer *manager.Silencer
+	Silencer   *manager.Silencer
 	PathPrefix string
 }
 

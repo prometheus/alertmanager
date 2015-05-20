@@ -403,7 +403,7 @@ func (s *memoryAlertManager) runIteration() {
 // Run the memoryAlertManager's main dispatcher loop.
 func (s *memoryAlertManager) Run() {
 	iterationTicker := time.NewTicker(time.Second)
-	for _ = range iterationTicker.C {
+	for range iterationTicker.C {
 		s.checkSanity()
 		s.runIteration()
 	}

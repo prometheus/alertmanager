@@ -15,6 +15,7 @@ It has these top-level messages:
 	HipChatConfig
 	SlackConfig
 	FlowdockConfig
+	WebhookConfig
 	NotificationConfig
 	Filter
 	AggregationRule
@@ -186,7 +187,7 @@ func (m *HipChatConfig) GetSendResolved() bool {
 
 // Configuration for notification via Slack.
 type SlackConfig struct {
-	// Slack webhook url, (https://api.slack.com/incoming-webhooks).
+	// Slack webhook URL, (https://api.slack.com/incoming-webhooks).
 	WebhookUrl *string `protobuf:"bytes,1,opt,name=webhook_url" json:"webhook_url,omitempty"`
 	// Slack channel override, (like #other-channel or @username).
 	Channel *string `protobuf:"bytes,2,opt,name=channel" json:"channel,omitempty"`
@@ -242,6 +243,7 @@ func (m *SlackConfig) GetSendResolved() bool {
 	return Default_SlackConfig_SendResolved
 }
 
+// Configuration for notification via Flowdock.
 type FlowdockConfig struct {
 	// Flowdock flow API token.
 	ApiToken *string `protobuf:"bytes,1,opt,name=api_token" json:"api_token,omitempty"`
@@ -288,6 +290,35 @@ func (m *FlowdockConfig) GetSendResolved() bool {
 	return Default_FlowdockConfig_SendResolved
 }
 
+// Configuration for notification via generic webhook.
+type WebhookConfig struct {
+	// URL to send POST request to.
+	Url *string `protobuf:"bytes,1,opt,name=url" json:"url,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,2,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *WebhookConfig) Reset()         { *m = WebhookConfig{} }
+func (m *WebhookConfig) String() string { return proto.CompactTextString(m) }
+func (*WebhookConfig) ProtoMessage()    {}
+
+const Default_WebhookConfig_SendResolved bool = false
+
+func (m *WebhookConfig) GetUrl() string {
+	if m != nil && m.Url != nil {
+		return *m.Url
+	}
+	return ""
+}
+
+func (m *WebhookConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_WebhookConfig_SendResolved
+}
+
 // Notification configuration definition.
 type NotificationConfig struct {
 	// Name of this NotificationConfig. Referenced from AggregationRule.
@@ -303,8 +334,10 @@ type NotificationConfig struct {
 	// Zero or more slack notification configurations.
 	SlackConfig []*SlackConfig `protobuf:"bytes,6,rep,name=slack_config" json:"slack_config,omitempty"`
 	// Zero or more Flowdock notification configurations.
-	FlowdockConfig   []*FlowdockConfig `protobuf:"bytes,7,rep,name=flowdock_config" json:"flowdock_config,omitempty"`
-	XXX_unrecognized []byte            `json:"-"`
+	FlowdockConfig []*FlowdockConfig `protobuf:"bytes,7,rep,name=flowdock_config" json:"flowdock_config,omitempty"`
+	// Zero or more generic web hook notification configurations.
+	WebhookConfig    []*WebhookConfig `protobuf:"bytes,8,rep,name=webhook_config" json:"webhook_config,omitempty"`
+	XXX_unrecognized []byte           `json:"-"`
 }
 
 func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
@@ -356,6 +389,13 @@ func (m *NotificationConfig) GetSlackConfig() []*SlackConfig {
 func (m *NotificationConfig) GetFlowdockConfig() []*FlowdockConfig {
 	if m != nil {
 		return m.FlowdockConfig
+	}
+	return nil
+}
+
+func (m *NotificationConfig) GetWebhookConfig() []*WebhookConfig {
+	if m != nil {
+		return m.WebhookConfig
 	}
 	return nil
 }
