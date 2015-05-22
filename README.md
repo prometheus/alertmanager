@@ -19,7 +19,7 @@ following aspects:
 [PagerDuty](http://www.pagerduty.com/),
 [HipChat](http://www.hipchat.com/),
 [Slack](http://www.slack.com/),
-[Pushover](https://www.pushover.net/)), or
+[Pushover](https://www.pushover.net/), or
 [Flowdock](https://www.flowdock.com/))
 
 See [config/fixtures/sample.conf.input](config/fixtures/sample.conf.input) for
