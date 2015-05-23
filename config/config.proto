@@ -54,6 +54,14 @@ message HipChatConfig {
   optional bool notify = 4 [default = false];
   // Notify when resolved.
   optional bool send_resolved = 6 [default = false];
+  // Prefix to be put in front of the message (useful for @mentions, etc.).
+  optional string prefix = 7 [default = ""];
+  // Format the message as "html" or "text".
+  enum MessageFormat {
+    HTML = 0;
+    TEXT = 1;
+  }
+  optional MessageFormat message_format = 8 [default = HTML];
 }
 
 // Configuration for notification via Slack.
