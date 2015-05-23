@@ -14,8 +14,8 @@
 package config
 
 import (
-	"github.com/golang/glog"
 	"github.com/howeyc/fsnotify"
+	"github.com/prometheus/log"
 )
 
 type ReloadCallback func(*Config)
@@ -37,25 +37,25 @@ func NewFileWatcher(fileName string) *fileWatcher {
 func (w *fileWatcher) Watch(cb ReloadCallback) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		glog.Fatal(err)
+		log.Fatal(err)
 	}
 
 	err = watcher.WatchFlags(w.fileName, fsnotify.FSN_MODIFY)
 	if err != nil {
-		glog.Fatal(err)
+		log.Fatal(err)
 	}
 
 	for {
 		select {
 		case ev := <-watcher.Event:
-			glog.Infof("Config file changed (%s), attempting reload", ev)
+			log.Infof("Config file changed (%s), attempting reload", ev)
 			conf, err := LoadFromFile(w.fileName)
 			if err != nil {
-				glog.Error("Error loading new config: ", err)
+				log.Error("Error loading new config: ", err)
 				failedConfigReloads.Inc()
 			} else {
 				cb(&conf)
-				glog.Info("Config reloaded successfully")
+				log.Info("Config reloaded successfully")
 				configReloads.Inc()
 			}
 			// Re-add the file watcher since it can get lost on some changes. E.g.
@@ -63,7 +63,7 @@ func (w *fileWatcher) Watch(cb ReloadCallback) {
 			// sequence, after which the newly written file is no longer watched.
 			err = watcher.WatchFlags(w.fileName, fsnotify.FSN_MODIFY)
 		case err := <-watcher.Error:
-			glog.Error("Error watching config: ", err)
+			log.Error("Error watching config: ", err)
 		}
 	}
 }

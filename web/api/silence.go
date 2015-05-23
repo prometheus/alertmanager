@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"net/http"
 
-	//"github.com/golang/glog"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/prometheus/alertmanager/manager"

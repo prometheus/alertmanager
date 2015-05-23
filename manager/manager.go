@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
+	"github.com/prometheus/log"
 )
 
 // AlertManager stores Alerts and removes them upon expiry.
@@ -243,7 +243,7 @@ func (s *memoryAlertManager) SetAggregationRules(rules AggregationRules) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	glog.Infof("Replacing aggregator rules (old: %d, new: %d)...", len(s.rules), len(rules))
+	log.Infof("Replacing aggregator rules (old: %d, new: %d)...", len(s.rules), len(rules))
 	s.rules = rules
 
 	// Reassign AlertAggregates to the first new matching rule, set the rule to
@@ -350,7 +350,7 @@ func (s *memoryAlertManager) refreshNotifications() {
 		}
 	}
 	if numSent > 0 {
-		glog.Infof("Sent %d notifications", numSent)
+		log.Infof("Sent %d notifications", numSent)
 		heap.Init(&s.aggregatesByNextNotification)
 	}
 }
@@ -395,7 +395,7 @@ func (s *memoryAlertManager) runIteration() {
 	s.removeExpiredAggregates()
 	s.checkNotificationRepeats()
 	if refresh, reasons := s.refreshNeeded(); refresh {
-		glog.Infof("Recomputing notification outputs (%s)", strings.Join(reasons, ", "))
+		log.Infof("Recomputing notification outputs (%s)", strings.Join(reasons, ", "))
 		s.refreshNotifications()
 	}
 }

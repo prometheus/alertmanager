@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/golang/glog"
+	"github.com/prometheus/log"
 )
 
 const (
@@ -51,7 +51,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	file, err := GetFile(StaticFiles, name)
 	if err != nil {
 		if err != io.EOF {
-			glog.Error("Could not get file: ", err)
+			log.Error("Could not get file: ", err)
 		}
 		w.WriteHeader(http.StatusNotFound)
 		return

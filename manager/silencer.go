@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
+	"github.com/prometheus/log"
 )
 
 type SilenceID uint
@@ -136,7 +136,7 @@ func (s *Silencer) setupExpiryTimer(sc *Silence) {
 	expDuration := sc.EndsAt.Sub(time.Now())
 	sc.expiryTimer = time.AfterFunc(expDuration, func() {
 		if err := s.DelSilence(sc.ID); err != nil {
-			glog.Errorf("Failed to delete silence %d: %s", sc.ID, err)
+			log.Errorf("Failed to delete silence %d: %s", sc.ID, err)
 		}
 	})
 }
