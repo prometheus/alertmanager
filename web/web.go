@@ -19,6 +19,7 @@ import (
 	"html/template"
 	"net/http"
 	_ "net/http/pprof"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,35 +43,37 @@ type WebService struct {
 
 func (w WebService) ServeForever(pathPrefix string) error {
 
-	http.Handle(pathPrefix + "favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Handle(pathPrefix+"favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", 404)
 	}))
-
 
 	http.HandleFunc("/", prometheus.InstrumentHandlerFunc("index", func(rw http.ResponseWriter, req *http.Request) {
 		// The "/" pattern matches everything, so we need to check
 		// that we're at the root here.
 		if req.URL.Path == pathPrefix {
 			w.AlertsHandler.ServeHTTP(rw, req)
-		} else if req.URL.Path == "/" {
-			// We're running under a prefix but the user requested "/".
+		} else if req.URL.Path == strings.TrimRight(pathPrefix, "/") {
 			http.Redirect(rw, req, pathPrefix, http.StatusFound)
+		} else if !strings.HasPrefix(req.URL.Path, pathPrefix) {
+			// We're running under a prefix but the user requested something
+			// outside of it. Let's see if this page exists under the prefix.
+			http.Redirect(rw, req, pathPrefix+strings.TrimLeft(req.URL.Path, "/"), http.StatusFound)
 		} else {
 			http.NotFound(rw, req)
 		}
 	}))
 
-	http.Handle(pathPrefix + "alerts", prometheus.InstrumentHandler("alerts", w.AlertsHandler))
-	http.Handle(pathPrefix + "silences", prometheus.InstrumentHandler("silences", w.SilencesHandler))
-	http.Handle(pathPrefix + "status", prometheus.InstrumentHandler("status", w.StatusHandler))
+	http.Handle(pathPrefix+"alerts", prometheus.InstrumentHandler("alerts", w.AlertsHandler))
+	http.Handle(pathPrefix+"silences", prometheus.InstrumentHandler("silences", w.SilencesHandler))
+	http.Handle(pathPrefix+"status", prometheus.InstrumentHandler("status", w.StatusHandler))
 
-	http.Handle(pathPrefix + "metrics", prometheus.Handler())
+	http.Handle(pathPrefix+"metrics", prometheus.Handler())
 	if *useLocalAssets {
-		http.Handle(pathPrefix + "static/", http.StripPrefix(pathPrefix + "static/", http.FileServer(http.Dir("web/static"))))
+		http.Handle(pathPrefix+"static/", http.StripPrefix(pathPrefix+"static/", http.FileServer(http.Dir("web/static"))))
 	} else {
-		http.Handle(pathPrefix + "static/", http.StripPrefix(pathPrefix + "static/", new(blob.Handler)))
+		http.Handle(pathPrefix+"static/", http.StripPrefix(pathPrefix+"static/", new(blob.Handler)))
 	}
-	http.Handle(pathPrefix + "api/", w.AlertManagerService.Handler())
+	http.Handle(pathPrefix+"api/", w.AlertManagerService.Handler())
 
 	glog.Info("listening on ", *listenAddress)
 
