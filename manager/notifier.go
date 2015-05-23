@@ -31,7 +31,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/golang/glog"
+	"github.com/prometheus/log"
 	"github.com/thorduri/pushover"
 
 	pb "github.com/prometheus/alertmanager/config/generated"
@@ -180,7 +180,7 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, op notificationO
 		return err
 	}
 
-	glog.Infof("Sent PagerDuty notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	log.Infof("Sent PagerDuty notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
 	// BUG: Check response for result of operation.
 	return nil
 }
@@ -227,7 +227,7 @@ func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChat
 		return err
 	}
 
-	glog.Infof("Sent HipChat notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	log.Infof("Sent HipChat notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
 	// BUG: Check response for result of operation.
 	return nil
 }
@@ -321,7 +321,7 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 		return err
 	}
 
-	glog.Infof("Sent Slack notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	log.Infof("Sent Slack notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
 	// BUG: Check response for result of operation.
 	return nil
 }
@@ -528,14 +528,14 @@ func processResponse(r *http.Response, targetName string, a *Alert) error {
 	if err != nil {
 		return err
 	}
-	glog.Infof("Sent %s. Response: HTTP %d: %s", spec, r.StatusCode, respBuf)
+	log.Infof("Sent %s. Response: HTTP %d: %s", spec, r.StatusCode, respBuf)
 	return nil
 }
 
 func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.NotificationConfig) {
 	for _, pdConfig := range config.PagerdutyConfig {
 		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), op, a); err != nil {
-			glog.Errorln("Error sending PagerDuty notification:", err)
+			log.Errorln("Error sending PagerDuty notification:", err)
 		}
 	}
 	for _, emailConfig := range config.EmailConfig {
@@ -543,11 +543,11 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if *smtpSmartHost == "" {
-			glog.Warning("No SMTP smarthost configured, not sending email notification.")
+			log.Warn("No SMTP smarthost configured, not sending email notification.")
 			continue
 		}
 		if err := n.sendEmailNotification(emailConfig.GetEmail(), op, a); err != nil {
-			glog.Errorln("Error sending email notification:", err)
+			log.Errorln("Error sending email notification:", err)
 		}
 	}
 	for _, poConfig := range config.PushoverConfig {
@@ -555,7 +555,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if err := n.sendPushoverNotification(poConfig.GetToken(), op, poConfig.GetUserKey(), a); err != nil {
-			glog.Errorln("Error sending Pushover notification:", err)
+			log.Errorln("Error sending Pushover notification:", err)
 		}
 	}
 	for _, hcConfig := range config.HipchatConfig {
@@ -563,7 +563,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if err := n.sendHipChatNotification(op, hcConfig, a); err != nil {
-			glog.Errorln("Error sending HipChat notification:", err)
+			log.Errorln("Error sending HipChat notification:", err)
 		}
 	}
 	for _, scConfig := range config.SlackConfig {
@@ -571,7 +571,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if err := n.sendSlackNotification(op, scConfig, a); err != nil {
-			glog.Errorln("Error sending Slack notification:", err)
+			log.Errorln("Error sending Slack notification:", err)
 		}
 	}
 	for _, fdConfig := range config.FlowdockConfig {
@@ -579,7 +579,7 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 			continue
 		}
 		if err := n.sendFlowdockNotification(op, fdConfig, a); err != nil {
-			glog.Errorln("Error sending Flowdock notification:", err)
+			log.Errorln("Error sending Flowdock notification:", err)
 		}
 	}
 }

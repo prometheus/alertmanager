@@ -32,7 +32,7 @@ configuration updates.
 ## Building and running
 
     make
-    ./alertmanager -logtostderr -config.file=/path/to/alertmanager.conf
+    ./alertmanager -config.file=/path/to/alertmanager.conf
 
 ## Configuring Prometheus to send alerts
 

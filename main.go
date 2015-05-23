@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
+	"github.com/prometheus/log"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/manager"
@@ -53,13 +53,13 @@ func main() {
 
 	err := silencer.LoadFromFile(*silencesFile)
 	if err != nil {
-		glog.Warning("Couldn't load silences, starting up with empty silence list: ", err)
+		log.Warn("Couldn't load silences, starting up with empty silence list: ", err)
 	}
 	saveSilencesTicker := time.NewTicker(10 * time.Second)
 	go func() {
 		for _ = range saveSilencesTicker.C {
 			if err := silencer.SaveToFile(*silencesFile); err != nil {
-				glog.Error("Error saving silences to file: ", err)
+				log.Error("Error saving silences to file: ", err)
 			}
 		}
 	}()
@@ -124,6 +124,6 @@ func main() {
 		statusHandler.UpdateConfig(conf.String())
 	})
 
-	glog.Info("Running notification dispatcher...")
+	log.Info("Running notification dispatcher...")
 	notifier.Dispatch()
 }

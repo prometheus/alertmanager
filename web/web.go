@@ -21,8 +21,8 @@ import (
 	_ "net/http/pprof"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/log"
 
 	"github.com/prometheus/alertmanager/web/api"
 	"github.com/prometheus/alertmanager/web/blob"
@@ -75,7 +75,7 @@ func (w WebService) ServeForever(pathPrefix string) error {
 	}
 	http.Handle(pathPrefix+"api/", w.AlertManagerService.Handler())
 
-	glog.Info("listening on ", *listenAddress)
+	log.Info("listening on ", *listenAddress)
 
 	return http.ListenAndServe(*listenAddress, nil)
 }
@@ -98,14 +98,14 @@ func getEmbeddedTemplate(name string, pathPrefix string) (*template.Template, er
 
 	file, err := blob.GetFile(blob.TemplateFiles, "_base.html")
 	if err != nil {
-		glog.Error("Could not read base template: ", err)
+		log.Error("Could not read base template: ", err)
 		return nil, err
 	}
 	t.Parse(string(file))
 
 	file, err = blob.GetFile(blob.TemplateFiles, name+".html")
 	if err != nil {
-		glog.Errorf("Could not read %s template: %s", name, err)
+		log.Errorf("Could not read %s template: %s", name, err)
 		return nil, err
 	}
 	t.Parse(string(file))
@@ -130,11 +130,11 @@ func getTemplate(name string, pathPrefix string) (t *template.Template, err erro
 func executeTemplate(w http.ResponseWriter, name string, data interface{}, pathPrefix string) {
 	tpl, err := getTemplate(name, pathPrefix)
 	if err != nil {
-		glog.Error("Error preparing layout template: ", err)
+		log.Error("Error preparing layout template: ", err)
 		return
 	}
 	err = tpl.Execute(w, data)
 	if err != nil {
-		glog.Error("Error executing template: ", err)
+		log.Error("Error executing template: ", err)
 	}
 }
