@@ -14,8 +14,8 @@
 package config
 
 import (
-	"github.com/howeyc/fsnotify"
 	"github.com/prometheus/log"
+	"gopkg.in/fsnotify.v0"
 )
 
 type ReloadCallback func(*Config)
