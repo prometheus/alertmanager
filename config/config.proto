@@ -58,7 +58,7 @@ message HipChatConfig {
 
 // Configuration for notification via Slack.
 message SlackConfig {
-  // Slack webhook url, (https://api.slack.com/incoming-webhooks).
+  // Slack webhook URL, (https://api.slack.com/incoming-webhooks).
   optional string webhook_url = 1;
   // Slack channel override, (like #other-channel or @username).
   optional string channel = 2;
@@ -70,6 +70,7 @@ message SlackConfig {
   optional bool send_resolved = 5 [default = false];
 }
 
+// Configuration for notification via Flowdock.
 message FlowdockConfig {
   // Flowdock flow API token.
   optional string api_token = 1;
@@ -79,6 +80,14 @@ message FlowdockConfig {
   repeated string tag = 3;
   // Notify when resolved.
   optional bool send_resolved = 4 [default = false];
+}
+
+// Configuration for notification via generic webhook.
+message WebhookConfig {
+  // URL to send POST request to.
+  optional string url = 1;
+  // Notify when resolved.
+  optional bool send_resolved = 2 [default = false];
 }
 
 // Notification configuration definition.
@@ -97,6 +106,8 @@ message NotificationConfig {
   repeated SlackConfig slack_config = 6;
   // Zero or more Flowdock notification configurations.
   repeated FlowdockConfig flowdock_config = 7;
+  // Zero or more generic web hook notification configurations.
+  repeated WebhookConfig webhook_config = 8;
 }
 
 // A regex-based label filter used in aggregations.

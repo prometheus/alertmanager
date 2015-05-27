@@ -25,19 +25,19 @@ import (
 )
 
 type AlertManagerService struct {
-	Manager  manager.AlertManager
-	Silencer *manager.Silencer
+	Manager    manager.AlertManager
+	Silencer   *manager.Silencer
 	PathPrefix string
 }
 
 func (s AlertManagerService) Handler() http.Handler {
 	r := httprouter.New()
-	r.POST(s.PathPrefix + "api/alerts", s.addAlerts)
-	r.GET(s.PathPrefix + "api/silences", s.silenceSummary)
-	r.POST(s.PathPrefix + "api/silences", s.addSilence)
-	r.GET(s.PathPrefix + "api/silences/:id", s.getSilence)
-	r.POST(s.PathPrefix + "api/silences/:id", s.updateSilence)
-	r.DELETE(s.PathPrefix + "api/silences/:id", s.deleteSilence)
+	r.POST(s.PathPrefix+"api/alerts", s.addAlerts)
+	r.GET(s.PathPrefix+"api/silences", s.silenceSummary)
+	r.POST(s.PathPrefix+"api/silences", s.addSilence)
+	r.GET(s.PathPrefix+"api/silences/:id", s.getSilence)
+	r.POST(s.PathPrefix+"api/silences/:id", s.updateSilence)
+	r.DELETE(s.PathPrefix+"api/silences/:id", s.deleteSilence)
 
 	return r
 }

@@ -33,14 +33,14 @@ type Alerts []*Alert
 // Alert models an action triggered by Prometheus.
 type Alert struct {
 	// Short summary of alert.
-	Summary string
+	Summary string `json:"summary"`
 	// Long description of alert.
-	Description string
+	Description string `json:"description"`
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include an "alertname" label.
-	Labels AlertLabelSet
+	Labels AlertLabelSet `json:"labels"`
 	// Extra key/value information which is not used for aggregation.
-	Payload AlertPayload
+	Payload AlertPayload `json:"payload"`
 }
 
 func (a *Alert) Name() string {

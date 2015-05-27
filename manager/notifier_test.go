@@ -16,10 +16,17 @@ package manager
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"reflect"
 	"testing"
 	"time"
+
+	pb "github.com/prometheus/alertmanager/config/generated"
 )
 
 func TestWriteEmailBody(t *testing.T) {
@@ -167,5 +174,50 @@ func TestGetSMTPAuth(t *testing.T) {
 	os.Setenv("SMTP_AUTH_PASSWORD", "p")
 	if auth, cfg, err := getSMTPAuth(true, "PLAIN"); err == nil {
 		t.Errorf("PLAIN auth with bad host-port: expected error but got %T, %v", auth, cfg)
+	}
+}
+
+func TestSendWebhookNotification(t *testing.T) {
+	var body []byte
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("error reading webhook notification: %s", err)
+		}
+	}))
+	defer ts.Close()
+
+	config := &pb.WebhookConfig{
+		Url: &ts.URL,
+	}
+	alert := &Alert{
+		Summary:     "Testsummary",
+		Description: "Test alert description, something went wrong here.",
+		Labels: AlertLabelSet{
+			"alertname": "TestAlert",
+		},
+		Payload: AlertPayload{
+			"payload_label1": "payload_value1",
+		},
+	}
+	n := &notifier{}
+	err := n.sendWebhookNotification(notificationOpTrigger, config, alert)
+	if err != nil {
+		t.Errorf("error sending webhook notification: %s", err)
+	}
+
+	var msg webhookMessage
+	err = json.Unmarshal(body, &msg)
+	if err != nil {
+		t.Errorf("error unmarshalling webhook notification: %s", err)
+	}
+	expected := webhookMessage{
+		Version: "1",
+		Status:  "firing",
+		Alerts:  []Alert{*alert},
+	}
+	if !reflect.DeepEqual(msg, expected) {
+		t.Errorf("incorrect webhook notification: Expected: %s Actual: %s", expected, msg)
 	}
 }

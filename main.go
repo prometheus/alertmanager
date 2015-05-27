@@ -57,7 +57,7 @@ func main() {
 	}
 	saveSilencesTicker := time.NewTicker(10 * time.Second)
 	go func() {
-		for _ = range saveSilencesTicker.C {
+		for range saveSilencesTicker.C {
 			if err := silencer.SaveToFile(*silencesFile); err != nil {
 				log.Error("Error saving silences to file: ", err)
 			}

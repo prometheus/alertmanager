@@ -374,6 +374,40 @@ func newFlowdockMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) 
 	return msg
 }
 
+type webhookMessage struct {
+	Version string  `json:"version"`
+	Status  string  `json:"status"`
+	Alerts  []Alert `json:"alert"`
+}
+
+func (n *notifier) sendWebhookNotification(op notificationOp, config *pb.WebhookConfig, a *Alert) error {
+	status := ""
+	switch op {
+	case notificationOpTrigger:
+		status = "firing"
+	case notificationOpResolve:
+		status = "resolved"
+	}
+
+	msg := &webhookMessage{
+		Version: "1",
+		Status:  status,
+		Alerts:  []Alert{*a},
+	}
+	jsonMessage, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	httpResponse, err := postJSON(jsonMessage, config.GetUrl())
+	if err != nil {
+		return err
+	}
+	if err := processResponse(httpResponse, "Webhook", a); err != nil {
+		return err
+	}
+	return nil
+}
+
 func postJSON(jsonMessage []byte, url string) (*http.Response, error) {
 	timeout := time.Duration(5 * time.Second)
 	client := http.Client{
@@ -580,6 +614,14 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 		}
 		if err := n.sendFlowdockNotification(op, fdConfig, a); err != nil {
 			log.Errorln("Error sending Flowdock notification:", err)
+		}
+	}
+	for _, whConfig := range config.WebhookConfig {
+		if op == notificationOpResolve && !whConfig.GetSendResolved() {
+			continue
+		}
+		if err := n.sendWebhookNotification(op, whConfig, a); err != nil {
+			log.Errorln("Error sending Webhook notification:", err)
 		}
 	}
 }

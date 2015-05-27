@@ -16,6 +16,7 @@ following aspects:
 * aggregating alerts by labelset
 * handling notification repeats
 * sending alert notifications via external services (currently email,
+generic web hook,
 [PagerDuty](http://www.pagerduty.com/),
 [HipChat](http://www.hipchat.com/),
 [Slack](http://www.slack.com/),
