@@ -190,6 +190,8 @@ func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChat
 	incidentKey := a.Fingerprint()
 	color := ""
 	status := ""
+	message := ""
+	messageFormat := ""
 	switch op {
 	case notificationOpTrigger:
 		color = config.GetColor()
@@ -198,11 +200,18 @@ func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChat
 		color = config.GetColorResolved()
 		status = "resolved"
 	}
+	if config.GetMessageFormat() == pb.HipChatConfig_TEXT {
+		message = fmt.Sprintf("%s%s %s: %s", config.GetPrefix(), a.Labels["alertname"], status, a.Summary)
+		messageFormat = "text"
+	} else {
+		message = fmt.Sprintf("%s<b>%s %s</b>: %s (<a href='%s'>view</a>)", config.GetPrefix(), html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["GeneratorURL"])
+		messageFormat = "html"
+	}
 	buf, err := json.Marshal(map[string]interface{}{
 		"color":          color,
-		"message":        fmt.Sprintf("<b>%s %s</b>: %s (<a href='%s'>view</a>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["GeneratorURL"]),
+		"message":        message,
 		"notify":         config.GetNotify(),
-		"message_format": "html",
+		"message_format": messageFormat,
 	})
 	if err != nil {
 		return err

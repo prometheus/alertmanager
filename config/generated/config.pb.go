@@ -31,6 +31,40 @@ import math "math"
 var _ = proto.Marshal
 var _ = math.Inf
 
+// Format the message as "html" or "text".
+type HipChatConfig_MessageFormat int32
+
+const (
+	HipChatConfig_HTML HipChatConfig_MessageFormat = 0
+	HipChatConfig_TEXT HipChatConfig_MessageFormat = 1
+)
+
+var HipChatConfig_MessageFormat_name = map[int32]string{
+	0: "HTML",
+	1: "TEXT",
+}
+var HipChatConfig_MessageFormat_value = map[string]int32{
+	"HTML": 0,
+	"TEXT": 1,
+}
+
+func (x HipChatConfig_MessageFormat) Enum() *HipChatConfig_MessageFormat {
+	p := new(HipChatConfig_MessageFormat)
+	*p = x
+	return p
+}
+func (x HipChatConfig_MessageFormat) String() string {
+	return proto.EnumName(HipChatConfig_MessageFormat_name, int32(x))
+}
+func (x *HipChatConfig_MessageFormat) UnmarshalJSON(data []byte) error {
+	value, err := proto.UnmarshalJSONEnum(HipChatConfig_MessageFormat_value, data, "HipChatConfig_MessageFormat")
+	if err != nil {
+		return err
+	}
+	*x = HipChatConfig_MessageFormat(value)
+	return nil
+}
+
 // Configuration for notification via PagerDuty.
 type PagerDutyConfig struct {
 	// PagerDuty service key, see:
@@ -130,8 +164,11 @@ type HipChatConfig struct {
 	// Should this message notify or not.
 	Notify *bool `protobuf:"varint,4,opt,name=notify,def=0" json:"notify,omitempty"`
 	// Notify when resolved.
-	SendResolved     *bool  `protobuf:"varint,6,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
-	XXX_unrecognized []byte `json:"-"`
+	SendResolved *bool `protobuf:"varint,6,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	// Prefix to be put in front of the message (useful for @mentions, etc.).
+	Prefix           *string                      `protobuf:"bytes,7,opt,name=prefix,def=" json:"prefix,omitempty"`
+	MessageFormat    *HipChatConfig_MessageFormat `protobuf:"varint,8,opt,name=message_format,enum=io.prometheus.alertmanager.HipChatConfig_MessageFormat,def=0" json:"message_format,omitempty"`
+	XXX_unrecognized []byte                       `json:"-"`
 }
 
 func (m *HipChatConfig) Reset()         { *m = HipChatConfig{} }
@@ -142,6 +179,7 @@ const Default_HipChatConfig_Color string = "purple"
 const Default_HipChatConfig_ColorResolved string = "green"
 const Default_HipChatConfig_Notify bool = false
 const Default_HipChatConfig_SendResolved bool = false
+const Default_HipChatConfig_MessageFormat HipChatConfig_MessageFormat = HipChatConfig_HTML
 
 func (m *HipChatConfig) GetAuthToken() string {
 	if m != nil && m.AuthToken != nil {
@@ -183,6 +221,20 @@ func (m *HipChatConfig) GetSendResolved() bool {
 		return *m.SendResolved
 	}
 	return Default_HipChatConfig_SendResolved
+}
+
+func (m *HipChatConfig) GetPrefix() string {
+	if m != nil && m.Prefix != nil {
+		return *m.Prefix
+	}
+	return ""
+}
+
+func (m *HipChatConfig) GetMessageFormat() HipChatConfig_MessageFormat {
+	if m != nil && m.MessageFormat != nil {
+		return *m.MessageFormat
+	}
+	return Default_HipChatConfig_MessageFormat
 }
 
 // Configuration for notification via Slack.
@@ -594,4 +646,5 @@ func (m *AlertManagerConfig) GetInhibitRule() []*InhibitRule {
 }
 
 func init() {
+	proto.RegisterEnum("io.prometheus.alertmanager.HipChatConfig_MessageFormat", HipChatConfig_MessageFormat_name, HipChatConfig_MessageFormat_value)
 }
