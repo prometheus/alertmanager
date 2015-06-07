@@ -75,3 +75,16 @@ are going to be addressed in the future:
   configurable amount of time for A to start firing as well before sending
   notifications for B. This is not yet supported.
 * Alertmanager has not been tested or optimized for high alert loads yet.
+
+## Using Docker
+
+You can deploy the Alertmanager using the [prom/alertmanager](https://registry.hub.docker.com/u/prom/alertmanager/) Docker image.
+
+For example:
+
+```bash
+docker pull prom/alertmanager
+
+docker run -d -p 9093:9093 -v $PWD/alertmanager.conf:/alertmanager.conf \
+        prom/alertmanager -config.file=/alertmanager.conf
+```
