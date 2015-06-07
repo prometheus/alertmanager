@@ -1,19 +1,10 @@
-FROM       golang:latest
-MAINTAINER Prometheus Team <prometheus-developers@googlegroups.com>
+FROM        sdurrheimer/alpine-golang-make-onbuild
+MAINTAINER  Prometheus Team <prometheus-developers@googlegroups.com>
 
-RUN apt-get -qy update && apt-get -qy install vim-common
-ENV PKGPATH $GOPATH/src/github.com/prometheus/alertmanager
-ENV GOROOT  /usr/src/go
+USER root
+RUN  mkdir /alertmanager \
+     && chown golang:golang /alertmanager
 
-ADD . $PKGPATH
-RUN cd $PKGPATH \
-    && go get -d \
-    && make \
-    && rm -rf $PKGPATH/.deps \
-    && mkdir /alertmanager \
-    && chown nobody /alertmanager
-
-USER       nobody
-WORKDIR    /alertmanager
-ENTRYPOINT [ "/go/src/github.com/prometheus/alertmanager/alertmanager" ]
-EXPOSE     9093
+USER        golang
+WORKDIR     /alertmanager
+EXPOSE      9093
