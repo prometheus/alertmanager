@@ -529,7 +529,7 @@ func (n *notifier) sendEmailNotification(to string, op notificationOp, a *Alert)
 	}
 	defer wc.Close()
 
-	return writeEmailBody(wc, *smtpSender, status, to, a)
+	return writeEmailBody(wc, *smtpSender, to, status, a)
 }
 
 func (n *notifier) sendPushoverNotification(token string, op notificationOp, userKey string, a *Alert) error {
