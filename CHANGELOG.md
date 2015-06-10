@@ -1,3 +1,6 @@
+## 0.0.3 / 2015-06-10
+* [BUGFIX] Fix email template body writer being called with parameters in wrong order.
+
 ## 0.0.2 / 2015-06-09
 
 * [BUGFIX] Fixed silences.json permissions in Docker image.
