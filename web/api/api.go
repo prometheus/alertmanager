@@ -32,6 +32,7 @@ type AlertManagerService struct {
 
 func (s AlertManagerService) Handler() http.Handler {
 	r := httprouter.New()
+	r.GET(s.PathPrefix+"api/alerts", s.getAlerts)
 	r.POST(s.PathPrefix+"api/alerts", s.addAlerts)
 	r.GET(s.PathPrefix+"api/silences", s.silenceSummary)
 	r.POST(s.PathPrefix+"api/silences", s.addSilence)

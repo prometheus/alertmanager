@@ -22,6 +22,12 @@ import (
 	"github.com/prometheus/alertmanager/manager"
 )
 
+// Return all currently firing alerts as JSON.
+func (s AlertManagerService) getAlerts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	aggs := s.Manager.GetAll(nil)
+	respondJSON(w, aggs)
+}
+
 func (s AlertManagerService) addAlerts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	alerts := manager.Alerts{}
 	if err := parseJSON(w, r, &alerts); err != nil {
