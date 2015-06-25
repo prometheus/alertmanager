@@ -36,6 +36,8 @@ type Alert struct {
 	Summary string `json:"summary"`
 	// Long description of alert.
 	Description string `json:"description"`
+	// Runbook link or reference for the alert.
+	Runbook string `json:"runbook"`
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include an "alertname" label.
 	Labels AlertLabelSet `json:"labels"`

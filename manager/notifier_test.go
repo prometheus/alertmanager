@@ -33,6 +33,7 @@ func TestWriteEmailBody(t *testing.T) {
 	event := &Alert{
 		Summary:     "Testsummary",
 		Description: "Test alert description, something went wrong here.",
+		Runbook:     "http://runbook/",
 		Labels: AlertLabelSet{
 			"alertname":       "TestAlert",
 			"grouping_label1": "grouping_value1",
@@ -46,7 +47,7 @@ func TestWriteEmailBody(t *testing.T) {
 	buf := &bytes.Buffer{}
 	location, _ := time.LoadLocation("Europe/Amsterdam")
 	moment := time.Date(1918, 11, 11, 11, 0, 3, 0, location)
-	writeEmailBodyWithTime(buf, "from@prometheus.io", "to@prometheus.io", "ALERT", event, moment)
+	writeEmailBodyWithTime(buf, "from@prometheus.io", "to@prometheus.io", "ALERT", event, moment, "http://alertmanager/")
 
 	expected := `From: Prometheus Alertmanager <from@prometheus.io>
 To: to@prometheus.io
@@ -54,6 +55,9 @@ Date: Mon, 11 Nov 1918 11:00:03 +0019
 Subject: [ALERT] TestAlert: Testsummary
 
 Test alert description, something went wrong here.
+
+Alertmanager: http://alertmanager/
+Runbook entry: http://runbook/
 
 Grouping labels:
 

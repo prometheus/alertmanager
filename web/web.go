@@ -30,7 +30,6 @@ import (
 
 // Commandline flags.
 var (
-	listenAddress  = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 	useLocalAssets = flag.Bool("web.use-local-assets", false, "Serve assets and templates from local files instead of from the binary.")
 )
 
@@ -41,8 +40,7 @@ type WebService struct {
 	StatusHandler       *StatusHandler
 }
 
-func (w WebService) ServeForever(pathPrefix string) error {
-
+func (w WebService) ServeForever(addr string, pathPrefix string) error {
 	http.Handle(pathPrefix+"favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", 404)
 	}))
@@ -75,9 +73,9 @@ func (w WebService) ServeForever(pathPrefix string) error {
 	}
 	http.Handle(pathPrefix+"api/", w.AlertManagerService.Handler())
 
-	log.Info("listening on ", *listenAddress)
+	log.Info("listening on ", addr)
 
-	return http.ListenAndServe(*listenAddress, nil)
+	return http.ListenAndServe(addr, nil)
 }
 
 func getLocalTemplate(name string, pathPrefix string) (*template.Template, error) {

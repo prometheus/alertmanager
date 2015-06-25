@@ -51,6 +51,9 @@ Subject: [{{ .Status }}] {{.Alert.Labels.alertname}}: {{.Alert.Summary}}
 
 {{.Alert.Description}}
 
+Alertmanager: {{.AlertmanagerURL}}
+{{if .Alert.Runbook}}Runbook entry: {{.Alert.Runbook}}{{end}}
+
 Grouping labels:
 {{range $label, $value := .Alert.Labels}}
   {{$label}} = "{{$value}}"{{end}}
@@ -95,6 +98,8 @@ type notificationReq struct {
 type notifier struct {
 	// Notifications that are queued to be sent.
 	pendingNotifications chan *notificationReq
+	// URL that points back to this Alertmanager instance.
+	alertmanagerURL string
 
 	// Mutex to protect the fields below.
 	mu sync.Mutex
@@ -103,9 +108,10 @@ type notifier struct {
 }
 
 // NewNotifier construct a new notifier.
-func NewNotifier(configs []*pb.NotificationConfig) *notifier {
+func NewNotifier(configs []*pb.NotificationConfig, amURL string) *notifier {
 	notifier := &notifier{
 		pendingNotifications: make(chan *notificationReq, *notificationBufferSize),
+		alertmanagerURL:      amURL,
 	}
 	notifier.SetNotificationConfigs(configs)
 	return notifier
@@ -156,9 +162,13 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, op notificationO
 		"event_type":   eventType,
 		"description":  a.Description,
 		"incident_key": incidentKey,
+		"client":       "Prometheus Alertmanager",
+		"client_url":   n.alertmanagerURL,
 		"details": map[string]interface{}{
 			"grouping_labels": a.Labels,
 			"extra_labels":    a.Payload,
+			"runbook":         a.Runbook,
+			"summary":         a.Summary,
 		},
 	})
 	if err != nil {
@@ -425,23 +435,25 @@ func postJSON(jsonMessage []byte, url string) (*http.Response, error) {
 	return client.Post(url, contentTypeJSON, bytes.NewBuffer(jsonMessage))
 }
 
-func writeEmailBody(w io.Writer, from, to, status string, a *Alert) error {
-	return writeEmailBodyWithTime(w, from, to, status, a, time.Now())
+func writeEmailBody(w io.Writer, from, to, status string, a *Alert, amURL string) error {
+	return writeEmailBodyWithTime(w, from, to, status, a, time.Now(), amURL)
 }
 
-func writeEmailBodyWithTime(w io.Writer, from, to, status string, a *Alert, moment time.Time) error {
+func writeEmailBodyWithTime(w io.Writer, from, to, status string, a *Alert, moment time.Time, amURL string) error {
 	err := bodyTmpl.Execute(w, struct {
-		From   string
-		To     string
-		Date   string
-		Alert  *Alert
-		Status string
+		From            string
+		To              string
+		Date            string
+		Alert           *Alert
+		Status          string
+		AlertmanagerURL string
 	}{
-		From:   from,
-		To:     to,
-		Date:   moment.Format("Mon, 2 Jan 2006 15:04:05 -0700"),
-		Alert:  a,
-		Status: status,
+		From:            from,
+		To:              to,
+		Date:            moment.Format("Mon, 2 Jan 2006 15:04:05 -0700"),
+		Alert:           a,
+		Status:          status,
+		AlertmanagerURL: amURL,
 	})
 	if err != nil {
 		return err
@@ -529,7 +541,7 @@ func (n *notifier) sendEmailNotification(to string, op notificationOp, a *Alert)
 	}
 	defer wc.Close()
 
-	return writeEmailBody(wc, *smtpSender, to, status, a)
+	return writeEmailBody(wc, *smtpSender, to, status, a, n.alertmanagerURL)
 }
 
 func (n *notifier) sendPushoverNotification(token string, op notificationOp, userKey string, a *Alert) error {
