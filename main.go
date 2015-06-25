@@ -15,6 +15,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -31,8 +33,26 @@ var (
 	configFile       = flag.String("config.file", "alertmanager.conf", "Alert Manager configuration file name.")
 	silencesFile     = flag.String("silences.file", "silences.json", "Silence storage file name.")
 	minRefreshPeriod = flag.Duration("alerts.min-refresh-period", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
+	listenAddress    = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 	pathPrefix       = flag.String("web.path-prefix", "/", "Prefix for all web paths.")
+	hostname         = flag.String("web.hostname", "", "Hostname on which the Alertmanager is available to the outside world.")
 )
+
+func alertmanagerURL(hostname, pathPrefix, addr string) (string, error) {
+	var err error
+	if hostname == "" {
+		hostname, err = os.Hostname()
+		if err != nil {
+			return "", err
+		}
+	}
+
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("http://%s:%s%s", hostname, port, pathPrefix), nil
+}
 
 func main() {
 	flag.Parse()
@@ -65,7 +85,11 @@ func main() {
 	}()
 	defer saveSilencesTicker.Stop()
 
-	notifier := manager.NewNotifier(conf.NotificationConfig)
+	amURL, err := alertmanagerURL(*hostname, *pathPrefix, *listenAddress)
+	if err != nil {
+		log.Fatalln("Error building Alertmanager URL:", err)
+	}
+	notifier := manager.NewNotifier(conf.NotificationConfig, amURL)
 	defer notifier.Close()
 
 	inhibitor := new(manager.Inhibitor)
@@ -113,7 +137,7 @@ func main() {
 		},
 		StatusHandler: statusHandler,
 	}
-	go webService.ServeForever(*pathPrefix)
+	go webService.ServeForever(*listenAddress, *pathPrefix)
 
 	// React to configuration changes.
 	watcher := config.NewFileWatcher(*configFile)
