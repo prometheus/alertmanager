@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-VERSION  := 0.0.3
+VERSION  := 0.0.4
 TARGET   := alertmanager
 
 include Makefile.COMMON

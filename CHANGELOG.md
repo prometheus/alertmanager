@@ -1,3 +1,7 @@
+## 0.0.4 / 2015-06-26
+* [FEATURE] Add runbook and Alertmanager URLs to PagerDuty and email notifications.
+* [FEATURE] Add a GET api to /api/alerts which pulls JSON formatted AlertAggregates.
+
 ## 0.0.3 / 2015-06-10
 * [BUGFIX] Fix email template body writer being called with parameters in wrong order.
 
