@@ -16,36 +16,35 @@ package manager
 import (
 	"fmt"
 	"hash/fnv"
-	"regexp"
+
+	"github.com/prometheus/alertmanager/config"
 )
 
 type Filters []*Filter
 
 type Filter struct {
-	Name         *regexp.Regexp
-	Value        *regexp.Regexp
-	NamePattern  string
+	Name         string
+	Value        *config.Regexp
 	ValuePattern string
 
 	fingerprint uint64
 }
 
-func NewFilter(namePattern string, valuePattern string) *Filter {
+func NewFilter(name string, value *config.Regexp) *Filter {
 	summer := fnv.New64a()
-	fmt.Fprintf(summer, namePattern, valuePattern)
+	fmt.Fprintf(summer, name, value.String())
 
 	return &Filter{
-		Name:         regexp.MustCompile("^" + namePattern + "$"),
-		Value:        regexp.MustCompile("^" + valuePattern + "$"),
-		NamePattern:  namePattern,
-		ValuePattern: valuePattern,
+		Name:         name,
+		Value:        value,
+		ValuePattern: value.String(),
 		fingerprint:  summer.Sum64(),
 	}
 }
 
 func (f *Filter) Handles(l AlertLabelSet) bool {
 	for k, v := range l {
-		if f.Name.MatchString(k) && f.Value.MatchString(v) {
+		if f.Name == k && f.Value.MatchString(v) {
 			return true
 		}
 	}

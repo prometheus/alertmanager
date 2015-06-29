@@ -17,10 +17,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"sync"
 	"time"
 
 	"github.com/prometheus/log"
+
+	"github.com/prometheus/alertmanager/config"
 )
 
 type SilenceID uint
@@ -56,8 +59,8 @@ type ApiSilence struct {
 func (s *Silence) MarshalJSON() ([]byte, error) {
 	filters := map[string]string{}
 	for _, f := range s.Filters {
-		name := f.Name.String()[1 : len(f.Name.String())-1]
-		value := f.Value.String()[1 : len(f.Value.String())-1]
+		name := f.Name
+		value := f.ValuePattern
 		filters[name] = value
 	}
 
@@ -76,8 +79,13 @@ func (s *Silence) UnmarshalJSON(data []byte) error {
 	json.Unmarshal(data, sc)
 
 	filters := make(Filters, 0, len(sc.Filters))
+
 	for label, value := range sc.Filters {
-		filters = append(filters, NewFilter(label, value))
+		re, err := regexp.Compile(value)
+		if err != nil {
+			return err
+		}
+		filters = append(filters, NewFilter(label, &config.Regexp{*re}))
 	}
 
 	if sc.CreatedAtSeconds == 0 {

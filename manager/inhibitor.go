@@ -16,7 +16,7 @@ package manager
 import (
 	"sync"
 
-	_ "github.com/prometheus/alertmanager/config/generated"
+	"github.com/prometheus/alertmanager/config"
 )
 
 type InhibitRules []*InhibitRule
@@ -53,16 +53,30 @@ func (i *InhibitRule) Filter(s AlertLabelSets, t AlertLabelSets) AlertLabelSets 
 // emits uninhibited alert labelsets.
 type Inhibitor struct {
 	mu           sync.Mutex
-	inhibitRules InhibitRules
+	inhibitRules []*InhibitRule
 	dirty        bool
 }
 
 // Replaces the current InhibitRules with a new set.
-func (i *Inhibitor) SetInhibitRules(r InhibitRules) {
+func (i *Inhibitor) SetInhibitRules(r []*config.InhibitRule) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	i.inhibitRules = r
+	i.inhibitRules = i.inhibitRules[:0]
+
+	for _, ih := range r {
+		ihr := &InhibitRule{
+			MatchOn: ih.MatchOn,
+		}
+		for _, f := range ih.SourceFilters {
+			ihr.SourceFilters = append(ihr.SourceFilters, NewFilter(f.Name, f.Regex))
+		}
+		for _, f := range ih.TargetFilters {
+			ihr.TargetFilters = append(ihr.TargetFilters, NewFilter(f.Name, f.Regex))
+		}
+
+		i.inhibitRules = append(i.inhibitRules, ihr)
+	}
 	i.dirty = true
 }
 

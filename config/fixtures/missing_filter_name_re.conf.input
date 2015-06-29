@@ -1,6 +1,0 @@
-aggregation_rule {
-  filter {
-    value_re: "test"
-  }
-  repeat_rate_seconds: 3600
-}

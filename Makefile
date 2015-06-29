@@ -20,7 +20,3 @@ web: web/blob/files.go
 
 web/blob/files.go: $(shell find web/templates/ web/static/ -type f)
 	./web/blob/embed-static.sh web/static web/templates | $(GOFMT) > $@
-
-.PHONY: config
-config:
-	$(MAKE) -C config

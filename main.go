@@ -66,12 +66,16 @@ func main() {
 
 	versionInfoTmpl.Execute(os.Stdout, BuildInfo)
 
-	conf := config.MustLoadFromFile(*configFile)
+	conf, err := config.LoadFile(*configFile)
+	if err != nil {
+		log.Errorf("error loading config: %s", err)
+		os.Exit(1)
+	}
 
 	silencer := manager.NewSilencer()
 	defer silencer.Close()
 
-	err := silencer.LoadFromFile(*silencesFile)
+	err = silencer.LoadFromFile(*silencesFile)
 	if err != nil {
 		log.Warn("Couldn't load silences, starting up with empty silence list: ", err)
 	}
@@ -89,11 +93,11 @@ func main() {
 	if err != nil {
 		log.Fatalln("Error building Alertmanager URL:", err)
 	}
-	notifier := manager.NewNotifier(conf.NotificationConfig, amURL)
+	notifier := manager.NewNotifier(conf.NotificationConfigs, amURL)
 	defer notifier.Close()
 
 	inhibitor := new(manager.Inhibitor)
-	inhibitor.SetInhibitRules(conf.InhibitRules())
+	inhibitor.SetInhibitRules(conf.InhibitRules)
 
 	options := &manager.MemoryAlertManagerOptions{
 		Inhibitor:          inhibitor,
@@ -102,7 +106,7 @@ func main() {
 		MinRefreshInterval: *minRefreshPeriod,
 	}
 	alertManager := manager.NewMemoryAlertManager(options)
-	alertManager.SetAggregationRules(conf.AggregationRules())
+	alertManager.SetAggregationRules(conf.AggrRules)
 	go alertManager.Run()
 
 	// Web initialization.
@@ -138,15 +142,6 @@ func main() {
 		StatusHandler: statusHandler,
 	}
 	go webService.ServeForever(*listenAddress, *pathPrefix)
-
-	// React to configuration changes.
-	watcher := config.NewFileWatcher(*configFile)
-	go watcher.Watch(func(conf *config.Config) {
-		inhibitor.SetInhibitRules(conf.InhibitRules())
-		notifier.SetNotificationConfigs(conf.NotificationConfig)
-		alertManager.SetAggregationRules(conf.AggregationRules())
-		statusHandler.UpdateConfig(conf.String())
-	})
 
 	log.Info("Running notification dispatcher...")
 	notifier.Dispatch()
