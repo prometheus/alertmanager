@@ -17,9 +17,9 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
-)
 
-const AlertNameLabel = "alertname"
+	"github.com/prometheus/common/model"
+)
 
 type AlertFingerprint uint64
 

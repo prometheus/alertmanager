@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/prometheus/alertmanager/config/generated"
+	"github.com/prometheus/alertmanager/config"
 )
 
 func TestWriteEmailBody(t *testing.T) {
@@ -192,8 +192,8 @@ func TestSendWebhookNotification(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	config := &pb.WebhookConfig{
-		Url: &ts.URL,
+	conf := &config.WebhookConfig{
+		URL: ts.URL,
 	}
 	alert := &Alert{
 		Summary:     "Testsummary",
@@ -206,7 +206,7 @@ func TestSendWebhookNotification(t *testing.T) {
 		},
 	}
 	n := &notifier{}
-	err := n.sendWebhookNotification(notificationOpTrigger, config, alert)
+	err := n.sendWebhookNotification(notificationOpTrigger, conf, alert)
 	if err != nil {
 		t.Errorf("error sending webhook notification: %s", err)
 	}

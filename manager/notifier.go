@@ -34,7 +34,7 @@ import (
 	"github.com/prometheus/log"
 	"github.com/thorduri/pushover"
 
-	pb "github.com/prometheus/alertmanager/config/generated"
+	"github.com/prometheus/alertmanager/config"
 )
 
 const (
@@ -77,10 +77,10 @@ type notificationOp int
 // a provided notification configuration.
 type Notifier interface {
 	// Queue a notification for asynchronous dispatching.
-	QueueNotification(a *Alert, op notificationOp, configName string) error
+	QueueNotification(a *Alert, op notificationOp, configs []string) error
 	// Replace current notification configs. Already enqueued messages will remain
 	// unaffected.
-	SetNotificationConfigs([]*pb.NotificationConfig)
+	SetNotificationConfigs([]*config.NotificationConfig)
 	// Start alert notification dispatch loop.
 	Dispatch()
 	// Stop the alert notification dispatch loop.
@@ -90,7 +90,7 @@ type Notifier interface {
 // Request for sending a notification.
 type notificationReq struct {
 	alert              *Alert
-	notificationConfig *pb.NotificationConfig
+	notificationConfig *config.NotificationConfig
 	op                 notificationOp
 }
 
@@ -104,11 +104,11 @@ type notifier struct {
 	// Mutex to protect the fields below.
 	mu sync.Mutex
 	// Map of notification configs by name.
-	notificationConfigs map[string]*pb.NotificationConfig
+	notificationConfigs map[string]*config.NotificationConfig
 }
 
 // NewNotifier construct a new notifier.
-func NewNotifier(configs []*pb.NotificationConfig, amURL string) *notifier {
+func NewNotifier(configs []*config.NotificationConfig, amURL string) *notifier {
 	notifier := &notifier{
 		pendingNotifications: make(chan *notificationReq, *notificationBufferSize),
 		alertmanagerURL:      amURL,
@@ -117,32 +117,34 @@ func NewNotifier(configs []*pb.NotificationConfig, amURL string) *notifier {
 	return notifier
 }
 
-func (n *notifier) SetNotificationConfigs(configs []*pb.NotificationConfig) {
+func (n *notifier) SetNotificationConfigs(configs []*config.NotificationConfig) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	n.notificationConfigs = map[string]*pb.NotificationConfig{}
+	n.notificationConfigs = map[string]*config.NotificationConfig{}
 	for _, c := range configs {
-		n.notificationConfigs[c.GetName()] = c
+		n.notificationConfigs[c.Name] = c
 	}
 }
 
-func (n *notifier) QueueNotification(a *Alert, op notificationOp, configName string) error {
-	n.mu.Lock()
-	nc, ok := n.notificationConfigs[configName]
-	n.mu.Unlock()
+func (n *notifier) QueueNotification(a *Alert, op notificationOp, configs []string) error {
+	for _, cname := range configs {
+		n.mu.Lock()
+		nc, ok := n.notificationConfigs[cname]
+		n.mu.Unlock()
 
-	if !ok {
-		return fmt.Errorf("No such notification configuration %s", configName)
-	}
+		if !ok {
+			return fmt.Errorf("No such notification configuration %s", cname)
+		}
 
-	// We need to save a reference to the notification config in the
-	// notificationReq since the config might be replaced or gone at the time the
-	// message gets dispatched.
-	n.pendingNotifications <- &notificationReq{
-		alert:              a,
-		notificationConfig: nc,
-		op:                 op,
+		// We need to save a reference to the notification config in the
+		// notificationReq since the config might be replaced or gone at the time the
+		// message gets dispatched.
+		n.pendingNotifications <- &notificationReq{
+			alert:              a,
+			notificationConfig: nc,
+			op:                 op,
+		}
 	}
 	return nil
 }
@@ -195,32 +197,34 @@ func (n *notifier) sendPagerDutyNotification(serviceKey string, op notificationO
 	return nil
 }
 
-func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChatConfig, a *Alert) error {
+func (n *notifier) sendHipChatNotification(op notificationOp, conf *config.HipchatConfig, a *Alert) error {
 	// https://www.hipchat.com/docs/apiv2/method/send_room_notification
 	incidentKey := a.Fingerprint()
-	color := ""
-	status := ""
-	message := ""
-	messageFormat := ""
+	var (
+		color         string
+		status        string
+		message       string
+		messageFormat config.HipchatFormat
+	)
 	switch op {
 	case notificationOpTrigger:
-		color = config.GetColor()
+		color = conf.Color
 		status = "firing"
 	case notificationOpResolve:
-		color = config.GetColorResolved()
+		color = conf.ColorResolved
 		status = "resolved"
 	}
-	if config.GetMessageFormat() == pb.HipChatConfig_TEXT {
-		message = fmt.Sprintf("%s%s %s: %s", config.GetPrefix(), a.Labels["alertname"], status, a.Summary)
+	if conf.MessageFormat == config.HipchatFormatText {
+		message = fmt.Sprintf("%s%s %s: %s", conf.Prefix, a.Labels["alertname"], status, a.Summary)
 		messageFormat = "text"
 	} else {
-		message = fmt.Sprintf("%s<b>%s %s</b>: %s (<a href='%s'>view</a>)", config.GetPrefix(), html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["generatorURL"])
+		message = fmt.Sprintf("%s<b>%s %s</b>: %s (<a href='%s'>view</a>)", conf.Prefix, html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["generatorURL"])
 		messageFormat = "html"
 	}
 	buf, err := json.Marshal(map[string]interface{}{
 		"color":          color,
 		"message":        message,
-		"notify":         config.GetNotify(),
+		"notify":         conf.Notify,
 		"message_format": messageFormat,
 	})
 	if err != nil {
@@ -232,7 +236,7 @@ func (n *notifier) sendHipChatNotification(op notificationOp, config *pb.HipChat
 		Timeout: timeout,
 	}
 	resp, err := client.Post(
-		fmt.Sprintf("%s/room/%d/notification?auth_token=%s", *hipchatURL, config.GetRoomId(), config.GetAuthToken()),
+		fmt.Sprintf("%s/room/%d/notification?auth_token=%s", *hipchatURL, conf.RoomID, conf.AuthToken),
 		contentTypeJSON,
 		bytes.NewBuffer(buf),
 	)
@@ -276,17 +280,17 @@ type slackAttachmentField struct {
 	Short bool   `json:"short,omitempty"`
 }
 
-func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConfig, a *Alert) error {
+func (n *notifier) sendSlackNotification(op notificationOp, conf *config.SlackConfig, a *Alert) error {
 	// https://api.slack.com/incoming-webhooks
 	incidentKey := a.Fingerprint()
 	color := ""
 	status := ""
 	switch op {
 	case notificationOpTrigger:
-		color = config.GetColor()
+		color = conf.Color
 		status = "firing"
 	case notificationOpResolve:
-		color = config.GetColorResolved()
+		color = conf.ColorResolved
 		status = "resolved"
 	}
 
@@ -310,7 +314,7 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 	}
 
 	req := &slackReq{
-		Channel: config.GetChannel(),
+		Channel: conf.Channel,
 		Attachments: []slackAttachment{
 			*attachment,
 		},
@@ -325,11 +329,7 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 	client := http.Client{
 		Timeout: timeout,
 	}
-	resp, err := client.Post(
-		config.GetWebhookUrl(),
-		contentTypeJSON,
-		bytes.NewBuffer(buf),
-	)
+	resp, err := client.Post(conf.WebhookURL, contentTypeJSON, bytes.NewBuffer(buf))
 	if err != nil {
 		return err
 	}
@@ -355,9 +355,10 @@ type flowdockMessage struct {
 	Tags        []string `json:"tags,omitempty"`
 }
 
-func (n *notifier) sendFlowdockNotification(op notificationOp, config *pb.FlowdockConfig, a *Alert) error {
-	flowdockMessage := newFlowdockMessage(op, config, a)
-	url := strings.TrimRight(*flowdockURL, "/") + "/" + config.GetApiToken()
+func (n *notifier) sendFlowdockNotification(op notificationOp, conf *config.FlowdockConfig, a *Alert) error {
+	flowdockMessage := newFlowdockMessage(op, conf, a)
+	url := strings.TrimRight(*flowdockURL, "/") + "/" + conf.APIToken
+
 	jsonMessage, err := json.Marshal(flowdockMessage)
 	if err != nil {
 		return err
@@ -372,7 +373,7 @@ func (n *notifier) sendFlowdockNotification(op notificationOp, config *pb.Flowdo
 	return nil
 }
 
-func newFlowdockMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) *flowdockMessage {
+func newFlowdockMessage(op notificationOp, conf *config.FlowdockConfig, a *Alert) *flowdockMessage {
 	status := ""
 	switch op {
 	case notificationOpTrigger:
@@ -383,12 +384,12 @@ func newFlowdockMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) 
 
 	msg := &flowdockMessage{
 		Source:      "Prometheus",
-		FromAddress: config.GetFromAddress(),
+		FromAddress: conf.FromAddress,
 		Subject:     html.EscapeString(a.Summary),
 		Format:      "html",
 		Content:     fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["generatorURL"]),
 		Link:        a.Payload["generatorURL"],
-		Tags:        append(config.GetTag(), status),
+		Tags:        append(conf.Tags, status),
 	}
 	return msg
 }
@@ -399,7 +400,7 @@ type webhookMessage struct {
 	Alerts  []Alert `json:"alert"`
 }
 
-func (n *notifier) sendWebhookNotification(op notificationOp, config *pb.WebhookConfig, a *Alert) error {
+func (n *notifier) sendWebhookNotification(op notificationOp, conf *config.WebhookConfig, a *Alert) error {
 	status := ""
 	switch op {
 	case notificationOpTrigger:
@@ -417,7 +418,7 @@ func (n *notifier) sendWebhookNotification(op notificationOp, config *pb.Webhook
 	if err != nil {
 		return err
 	}
-	httpResponse, err := postJSON(jsonMessage, config.GetUrl())
+	httpResponse, err := postJSON(jsonMessage, conf.URL)
 	if err != nil {
 		return err
 	}
@@ -587,61 +588,47 @@ func processResponse(r *http.Response, targetName string, a *Alert) error {
 	return nil
 }
 
-func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.NotificationConfig) {
-	for _, pdConfig := range config.PagerdutyConfig {
-		if err := n.sendPagerDutyNotification(pdConfig.GetServiceKey(), op, a); err != nil {
+func (n *notifier) handleNotification(a *Alert, op notificationOp, conf *config.NotificationConfig) {
+	if op == notificationOpResolve && !conf.SendResolved {
+		return
+	}
+
+	for _, c := range conf.PagerdutyConfigs {
+		if err := n.sendPagerDutyNotification(c.ServiceKey, op, a); err != nil {
 			log.Errorln("Error sending PagerDuty notification:", err)
 		}
 	}
-	for _, emailConfig := range config.EmailConfig {
-		if op == notificationOpResolve && !emailConfig.GetSendResolved() {
-			continue
-		}
+	for _, c := range conf.EmailConfigs {
 		if *smtpSmartHost == "" {
 			log.Warn("No SMTP smarthost configured, not sending email notification.")
 			continue
 		}
-		if err := n.sendEmailNotification(emailConfig.GetEmail(), op, a); err != nil {
+		if err := n.sendEmailNotification(c.Email, op, a); err != nil {
 			log.Errorln("Error sending email notification:", err)
 		}
 	}
-	for _, poConfig := range config.PushoverConfig {
-		if op == notificationOpResolve && !poConfig.GetSendResolved() {
-			continue
-		}
-		if err := n.sendPushoverNotification(poConfig.GetToken(), op, poConfig.GetUserKey(), a); err != nil {
+	for _, c := range conf.PushoverConfigs {
+		if err := n.sendPushoverNotification(c.Token, op, c.UserKey, a); err != nil {
 			log.Errorln("Error sending Pushover notification:", err)
 		}
 	}
-	for _, hcConfig := range config.HipchatConfig {
-		if op == notificationOpResolve && !hcConfig.GetSendResolved() {
-			continue
-		}
-		if err := n.sendHipChatNotification(op, hcConfig, a); err != nil {
+	for _, c := range conf.HipchatConfigs {
+		if err := n.sendHipChatNotification(op, c, a); err != nil {
 			log.Errorln("Error sending HipChat notification:", err)
 		}
 	}
-	for _, scConfig := range config.SlackConfig {
-		if op == notificationOpResolve && !scConfig.GetSendResolved() {
-			continue
-		}
-		if err := n.sendSlackNotification(op, scConfig, a); err != nil {
+	for _, c := range conf.SlackConfigs {
+		if err := n.sendSlackNotification(op, c, a); err != nil {
 			log.Errorln("Error sending Slack notification:", err)
 		}
 	}
-	for _, fdConfig := range config.FlowdockConfig {
-		if op == notificationOpResolve && !fdConfig.GetSendResolved() {
-			continue
-		}
-		if err := n.sendFlowdockNotification(op, fdConfig, a); err != nil {
+	for _, c := range conf.FlowdockConfigs {
+		if err := n.sendFlowdockNotification(op, c, a); err != nil {
 			log.Errorln("Error sending Flowdock notification:", err)
 		}
 	}
-	for _, whConfig := range config.WebhookConfig {
-		if op == notificationOpResolve && !whConfig.GetSendResolved() {
-			continue
-		}
-		if err := n.sendWebhookNotification(op, whConfig, a); err != nil {
+	for _, c := range conf.WebhookConfigs {
+		if err := n.sendWebhookNotification(op, c, a); err != nil {
 			log.Errorln("Error sending Webhook notification:", err)
 		}
 	}

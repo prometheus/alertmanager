@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/log"
 )
 
@@ -30,7 +31,7 @@ type AlertManager interface {
 	// Retrieves all alerts from the store that match the provided Filters.
 	GetAll(Filters) AlertAggregates
 	// Sets the AggregationRules to associate with alerts.
-	SetAggregationRules(AggregationRules)
+	SetAggregationRules([]*config.AggrRule)
 	// Runs the AlertManager dispatcher loop.
 	Run()
 }
@@ -39,9 +40,9 @@ type AggregationRules []*AggregationRule
 
 // AggregationRule creates and manages the scope for received events.
 type AggregationRule struct {
-	Filters                Filters
-	RepeatRate             time.Duration
-	NotificationConfigName string
+	Filters             Filters
+	RepeatRate          time.Duration
+	NotificationConfigs []string
 }
 
 // Returns whether a given AggregationRule matches an Alert.
@@ -239,9 +240,22 @@ func (s memoryAlertManager) GetAll(f Filters) AlertAggregates {
 }
 
 // Replace the current set of loaded AggregationRules by another.
-func (s *memoryAlertManager) SetAggregationRules(rules AggregationRules) {
+func (s *memoryAlertManager) SetAggregationRules(crs []*config.AggrRule) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	var rules AggregationRules
+	for _, ar := range crs {
+		var filters Filters
+		for _, f := range ar.Filters {
+			filters = append(filters, NewFilter(f.Name, f.Regex))
+		}
+		rules = append(rules, &AggregationRule{
+			Filters:             filters,
+			RepeatRate:          time.Duration(ar.RepeatRate),
+			NotificationConfigs: ar.NotificationConfigs,
+		})
+	}
 
 	log.Infof("Replacing aggregator rules (old: %d, new: %d)...", len(s.rules), len(rules))
 	s.rules = rules
@@ -279,7 +293,7 @@ func (s *memoryAlertManager) removeExpiredAggregates() {
 
 		if time.Since(agg.LastRefreshed) > s.minRefreshInterval {
 			delete(s.aggregates, agg.Alert.Fingerprint())
-			s.notifier.QueueNotification(agg.Alert, notificationOpResolve, agg.Rule.NotificationConfigName)
+			s.notifier.QueueNotification(agg.Alert, notificationOpResolve, agg.Rule.NotificationConfigs)
 			s.needsNotificationRefresh = true
 		} else {
 			heap.Push(&s.aggregatesByLastRefreshed, agg)
@@ -343,7 +357,7 @@ func (s *memoryAlertManager) refreshNotifications() {
 			continue
 		}
 		if agg.Rule != nil {
-			s.notifier.QueueNotification(agg.Alert, notificationOpTrigger, agg.Rule.NotificationConfigName)
+			s.notifier.QueueNotification(agg.Alert, notificationOpTrigger, agg.Rule.NotificationConfigs)
 			agg.LastNotification = time.Now()
 			agg.NextNotification = agg.LastNotification.Add(agg.Rule.RepeatRate)
 			numSent++
