@@ -218,7 +218,7 @@ func (n *notifier) sendHipChatNotification(op notificationOp, conf *config.Hipch
 		message = fmt.Sprintf("%s%s %s: %s", conf.Prefix, a.Labels["alertname"], status, a.Summary)
 		messageFormat = "text"
 	} else {
-		message = fmt.Sprintf("%s<b>%s %s</b>: %s (<a href='%s'>view</a>)", conf.Prefix, html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["generatorURL"])
+		message = fmt.Sprintf("%s<b>%s %s</b>: %s (<a href='%s'>view</a>)", conf.Prefix, html.EscapeString(a.Name()), status, html.EscapeString(a.Summary), a.Payload["generatorURL"])
 		messageFormat = "html"
 	}
 	buf, err := json.Marshal(map[string]interface{}{
@@ -301,8 +301,8 @@ func (n *notifier) sendSlackNotification(op notificationOp, conf *config.SlackCo
 	}
 
 	attachment := &slackAttachment{
-		Fallback:  fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["generatorURL"]),
-		Pretext:   fmt.Sprintf("*%s*", html.EscapeString(a.Labels["alertname"])),
+		Fallback:  fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Name()), status, html.EscapeString(a.Summary), a.Payload["generatorURL"]),
+		Pretext:   fmt.Sprintf("*%s*", html.EscapeString(a.Name())),
 		Title:     html.EscapeString(a.Summary),
 		TitleLink: a.Payload["generatorURL"],
 		Text:      html.EscapeString(a.Description),
@@ -387,7 +387,7 @@ func newFlowdockMessage(op notificationOp, conf *config.FlowdockConfig, a *Alert
 		FromAddress: conf.FromAddress,
 		Subject:     html.EscapeString(a.Summary),
 		Format:      "html",
-		Content:     fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["generatorURL"]),
+		Content:     fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Name()), status, html.EscapeString(a.Summary), a.Payload["generatorURL"]),
 		Link:        a.Payload["generatorURL"],
 		Tags:        append(conf.Tags, status),
 	}
@@ -564,7 +564,7 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 	case notificationOpResolve:
 		status = "resolved"
 	}
-	alertname := html.EscapeString(a.Labels["alertname"])
+	alertname := html.EscapeString(a.Name())
 
 	// Send pushover message
 	_, _, err = po.Push(&pushover.Message{

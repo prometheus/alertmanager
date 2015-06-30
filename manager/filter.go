@@ -17,22 +17,24 @@ import (
 	"fmt"
 	"hash/fnv"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/alertmanager/config"
 )
 
 type Filters []*Filter
 
 type Filter struct {
-	Name         string
+	Name         model.LabelName
 	Value        *config.Regexp
 	ValuePattern string
 
 	fingerprint uint64
 }
 
-func NewFilter(name string, value *config.Regexp) *Filter {
+func NewFilter(name model.LabelName, value *config.Regexp) *Filter {
 	summer := fnv.New64a()
-	fmt.Fprintf(summer, name, value.String())
+	fmt.Fprintf(summer, string(name), value.String())
 
 	return &Filter{
 		Name:         name,
@@ -42,9 +44,9 @@ func NewFilter(name string, value *config.Regexp) *Filter {
 	}
 }
 
-func (f *Filter) Handles(l AlertLabelSet) bool {
+func (f *Filter) Handles(l model.LabelSet) bool {
 	for k, v := range l {
-		if f.Name == k && f.Value.MatchString(v) {
+		if k == f.Name && f.Value.MatchString(string(v)) {
 			return true
 		}
 	}
@@ -52,7 +54,7 @@ func (f *Filter) Handles(l AlertLabelSet) bool {
 	return false
 }
 
-func (f Filters) Handles(l AlertLabelSet) bool {
+func (f Filters) Handles(l model.LabelSet) bool {
 	fCount := len(f)
 	fMatch := 0
 
@@ -65,8 +67,8 @@ func (f Filters) Handles(l AlertLabelSet) bool {
 	return fCount == fMatch
 }
 
-func (f Filters) Filter(l AlertLabelSets) AlertLabelSets {
-	out := AlertLabelSets{}
+func (f Filters) Filter(l []model.LabelSet) []model.LabelSet {
+	out := []model.LabelSet{}
 	for _, labels := range l {
 		if f.Handles(labels) {
 			out = append(out, labels)

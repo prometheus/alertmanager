@@ -20,8 +20,8 @@ import (
 
 type testSilencerScenario struct {
 	silences   Silences
-	silenced   Alerts
-	unsilenced Alerts
+	silenced   []*Alert
+	unsilenced []*Alert
 }
 
 func (scenario *testSilencerScenario) test(i int, t *testing.T) {
@@ -59,11 +59,11 @@ func (scenario *testSilencerScenario) test(i int, t *testing.T) {
 		}
 	}
 
-	l := AlertLabelSets{}
+	l := []model.LabelSet{}
 	for _, a := range append(scenario.silenced, scenario.unsilenced...) {
 		l = append(l, a.Labels)
 	}
-	unsilenced := AlertLabelSets{}
+	unsilenced := []model.LabelSet{}
 	for _, a := range scenario.unsilenced {
 		unsilenced = append(unsilenced, a.Labels)
 	}

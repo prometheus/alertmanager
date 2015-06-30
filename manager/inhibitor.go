@@ -16,6 +16,8 @@ package manager
 import (
 	"sync"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/alertmanager/config"
 )
 
@@ -24,19 +26,19 @@ type InhibitRules []*InhibitRule
 type InhibitRule struct {
 	SourceFilters Filters
 	TargetFilters Filters
-	MatchOn       []string
+	MatchOn       model.LabelNames
 }
 
-// Returns those target AlertLabelSets which are not inhibited by any of the
-// source AlertLabelSets.
-func (i *InhibitRule) Filter(s AlertLabelSets, t AlertLabelSets) AlertLabelSets {
+// Returns those target []model.LabelSet which are not inhibited by any of the
+// source []model.LabelSet.
+func (i *InhibitRule) Filter(s, t []model.LabelSet) []model.LabelSet {
 	s = i.SourceFilters.Filter(s)
-	out := AlertLabelSets{}
+	out := []model.LabelSet{}
 	for _, tl := range t {
 		inhibited := false
 		if i.TargetFilters.Handles(tl) {
 			for _, sl := range s {
-				if tl.MatchOnLabels(sl, i.MatchOn) {
+				if matchOnLabels(tl, sl, i.MatchOn) {
 					inhibited = true
 					break
 				}
@@ -47,6 +49,15 @@ func (i *InhibitRule) Filter(s AlertLabelSets, t AlertLabelSets) AlertLabelSets 
 		}
 	}
 	return out
+}
+
+func matchOnLabels(l, r model.LabelSet, labels model.LabelNames) bool {
+	for _, ln := range labels {
+		if l[ln] != r[ln] {
+			return false
+		}
+	}
+	return true
 }
 
 // Inhibitor calculates inhibition rules between its labelset inputs and only
@@ -80,9 +91,9 @@ func (i *Inhibitor) SetInhibitRules(r []*config.InhibitRule) {
 	i.dirty = true
 }
 
-// Returns those AlertLabelSets which are not inhibited by any other
+// Returns those []model.LabelSet which are not inhibited by any other
 // AlertLabelSet in the provided list.
-func (i *Inhibitor) Filter(l AlertLabelSets) AlertLabelSets {
+func (i *Inhibitor) Filter(l []model.LabelSet) []model.LabelSet {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -94,13 +105,13 @@ func (i *Inhibitor) Filter(l AlertLabelSets) AlertLabelSets {
 }
 
 // Returns whether a given AlertLabelSet is inhibited by a group of other
-// AlertLabelSets.
-func (i *Inhibitor) IsInhibited(t AlertLabelSet, l AlertLabelSets) bool {
+// []model.LabelSet.
+func (i *Inhibitor) IsInhibited(t model.LabelSet, l []model.LabelSet) bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	for _, r := range i.inhibitRules {
-		if len(r.Filter(l, AlertLabelSets{t})) != 1 {
+		if len(r.Filter(l, []model.LabelSet{t})) != 1 {
 			return true
 		}
 	}
