@@ -15,12 +15,14 @@ package manager
 
 import (
 	"testing"
+
+	"github.com/prometheus/common/model"
 )
 
 type testInhibitorScenario struct {
 	rules       InhibitRules
-	inhibited   AlertLabelSets
-	uninhibited AlertLabelSets
+	inhibited   []model.LabelSet
+	uninhibited []model.LabelSet
 }
 
 func (s *testInhibitorScenario) test(i int, t *testing.T) {
@@ -41,18 +43,18 @@ func TestInhibitor(t *testing.T) {
 	scenarios := []testInhibitorScenario{
 		// No rules.
 		{
-			uninhibited: AlertLabelSets{
-				AlertLabelSet{
+			uninhibited: []model.LabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "1",
 					"job":       "testjob",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "2",
 					"job":       "testjob",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "JobDown",
 					"job":       "testinstance",
 				},
@@ -71,18 +73,18 @@ func TestInhibitor(t *testing.T) {
 					MatchOn: []string{"job"},
 				},
 			},
-			uninhibited: AlertLabelSets{
-				AlertLabelSet{
+			uninhibited: []model.LabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "1",
 					"job":       "testjob",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "2",
 					"job":       "testjob",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "JobDown",
 					"job":       "testinstance",
 				},
@@ -101,20 +103,20 @@ func TestInhibitor(t *testing.T) {
 					MatchOn: []string{"job", "zone"},
 				},
 			},
-			uninhibited: AlertLabelSets{
-				AlertLabelSet{
+			uninhibited: []model.LabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "1",
 					"job":       "testjob",
 					"zone":      "aa",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "2",
 					"job":       "testjob",
 					"zone":      "aa",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "JobDown",
 					"job":       "testinstance",
 					"zone":      "ab",
@@ -143,26 +145,26 @@ func TestInhibitor(t *testing.T) {
 					MatchOn: []string{"owner"},
 				},
 			},
-			uninhibited: AlertLabelSets{
-				AlertLabelSet{
+			uninhibited: []model.LabelSet{
+				{
 					"alertname": "JobDown",
 					"job":       "testjob",
 					"zone":      "aa",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "JobDown",
 					"job":       "testjob",
 					"zone":      "ab",
 				},
 			},
-			inhibited: AlertLabelSets{
-				AlertLabelSet{
+			inhibited: []model.LabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "1",
 					"job":       "testjob",
 					"zone":      "aa",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "2",
 					"job":       "testjob",
@@ -192,30 +194,30 @@ func TestInhibitor(t *testing.T) {
 					MatchOn: []string{"zone"},
 				},
 			},
-			uninhibited: AlertLabelSets{
-				AlertLabelSet{
+			uninhibited: []model.LabelSet{
+				{
 					"alertname": "ZoneDown",
 					"zone":      "aa",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "JobDown",
 					"job":       "testjob",
 					"zone":      "ab",
 				},
 			},
-			inhibited: AlertLabelSets{
-				AlertLabelSet{
+			inhibited: []model.LabelSet{
+				{
 					"alertname": "JobDown",
 					"job":       "testjob",
 					"zone":      "aa",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "1",
 					"job":       "testjob",
 					"zone":      "aa",
 				},
-				AlertLabelSet{
+				{
 					"alertname": "InstanceDown",
 					"instance":  "2",
 					"job":       "testjob",

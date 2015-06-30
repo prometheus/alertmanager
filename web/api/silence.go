@@ -17,12 +17,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/julienschmidt/httprouter"
-
 	"github.com/prometheus/alertmanager/manager"
 )
 
-func (s AlertManagerService) addSilence(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s AlertManagerService) addSilence(w http.ResponseWriter, r *http.Request) {
 	sc := manager.Silence{}
 	if err := parseJSON(w, r, &sc); err != nil {
 		return
@@ -34,8 +32,8 @@ func (s AlertManagerService) addSilence(w http.ResponseWriter, r *http.Request, 
 	w.Header().Set("Location", fmt.Sprintf("/api/silences/%d", id))
 }
 
-func (s AlertManagerService) getSilence(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	silence, err := s.Silencer.GetSilence(manager.SilenceID(getID(p)))
+func (s AlertManagerService) getSilence(w http.ResponseWriter, r *http.Request) {
+	silence, err := s.Silencer.GetSilence(manager.SilenceID(getID(r)))
 	if err != nil {
 		http.Error(w, fmt.Sprint("Error getting silence: ", err), http.StatusNotFound)
 		return
@@ -44,26 +42,26 @@ func (s AlertManagerService) getSilence(w http.ResponseWriter, r *http.Request, 
 	respondJSON(w, &silence)
 }
 
-func (s AlertManagerService) updateSilence(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s AlertManagerService) updateSilence(w http.ResponseWriter, r *http.Request) {
 	sc := manager.Silence{}
 	if err := parseJSON(w, r, &sc); err != nil {
 		return
 	}
 	// BUG: add server-side form validation.
-	sc.ID = manager.SilenceID(getID(p))
+	sc.ID = manager.SilenceID(getID(r))
 	if err := s.Silencer.UpdateSilence(&sc); err != nil {
 		http.Error(w, fmt.Sprint("Error updating silence: ", err), http.StatusNotFound)
 		return
 	}
 }
 
-func (s AlertManagerService) deleteSilence(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	if err := s.Silencer.DelSilence(manager.SilenceID(getID(p))); err != nil {
+func (s AlertManagerService) deleteSilence(w http.ResponseWriter, r *http.Request) {
+	if err := s.Silencer.DelSilence(manager.SilenceID(getID(r))); err != nil {
 		http.Error(w, fmt.Sprint("Error deleting silence: ", err), http.StatusNotFound)
 		return
 	}
 }
 
-func (s AlertManagerService) silenceSummary(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s AlertManagerService) silenceSummary(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, s.Silencer.SilenceSummary())
 }

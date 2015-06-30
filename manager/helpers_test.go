@@ -16,9 +16,11 @@ package manager
 import (
 	"sort"
 	"testing"
+
+	"github.com/prometheus/common/model"
 )
 
-type alertLabelSetsByFingerprint AlertLabelSets
+type alertLabelSetsByFingerprint []model.LabelSet
 
 func (a alertLabelSetsByFingerprint) Len() int {
 	return len(a)
@@ -32,7 +34,7 @@ func (a alertLabelSetsByFingerprint) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-func labelSetsMustBeEqual(i int, t *testing.T, expected, actual AlertLabelSets) {
+func labelSetsMustBeEqual(i int, t *testing.T, expected, actual []model.LabelSet) {
 	if len(actual) != len(expected) {
 		t.Fatalf("%d. Expected %d labelsets, got %d", i, len(expected), len(actual))
 	}

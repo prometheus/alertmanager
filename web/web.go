@@ -19,9 +19,9 @@ import (
 	"html/template"
 	"net/http"
 	_ "net/http/pprof"
-	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/route"
 	"github.com/prometheus/log"
 
 	"github.com/prometheus/alertmanager/web/api"
@@ -41,37 +41,32 @@ type WebService struct {
 }
 
 func (w WebService) ServeForever(addr string, pathPrefix string) error {
-	http.Handle(pathPrefix+"favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "", 404)
-	}))
+	router := route.New()
 
-	http.HandleFunc("/", prometheus.InstrumentHandlerFunc("index", func(rw http.ResponseWriter, req *http.Request) {
-		// The "/" pattern matches everything, so we need to check
-		// that we're at the root here.
-		if req.URL.Path == pathPrefix {
-			w.AlertsHandler.ServeHTTP(rw, req)
-		} else if req.URL.Path == strings.TrimRight(pathPrefix, "/") {
-			http.Redirect(rw, req, pathPrefix, http.StatusFound)
-		} else if !strings.HasPrefix(req.URL.Path, pathPrefix) {
-			// We're running under a prefix but the user requested something
-			// outside of it. Let's see if this page exists under the prefix.
-			http.Redirect(rw, req, pathPrefix+strings.TrimLeft(req.URL.Path, "/"), http.StatusFound)
-		} else {
-			http.NotFound(rw, req)
-		}
-	}))
-
-	http.Handle(pathPrefix+"alerts", prometheus.InstrumentHandler("alerts", w.AlertsHandler))
-	http.Handle(pathPrefix+"silences", prometheus.InstrumentHandler("silences", w.SilencesHandler))
-	http.Handle(pathPrefix+"status", prometheus.InstrumentHandler("status", w.StatusHandler))
-
-	http.Handle(pathPrefix+"metrics", prometheus.Handler())
-	if *useLocalAssets {
-		http.Handle(pathPrefix+"static/", http.StripPrefix(pathPrefix+"static/", http.FileServer(http.Dir("web/static"))))
-	} else {
-		http.Handle(pathPrefix+"static/", http.StripPrefix(pathPrefix+"static/", new(blob.Handler)))
+	if pathPrefix != "" {
+		// If the prefix is missing for the root path, prepend it.
+		router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, pathPrefix, http.StatusFound)
+		})
+		router = router.WithPrefix(pathPrefix)
 	}
-	http.Handle(pathPrefix+"api/", w.AlertManagerService.Handler())
+
+	instrf := prometheus.InstrumentHandlerFunc
+	instrh := prometheus.InstrumentHandler
+
+	router.Get("/alerts", instrh("alerts", w.AlertsHandler))
+	router.Get("/silences", instrh("silences", w.SilencesHandler))
+	router.Get("/status", instrh("status", w.StatusHandler))
+
+	router.Get("/metrics", prometheus.Handler().ServeHTTP)
+
+	if *useLocalAssets {
+		router.Get("/static/*filepath", instrf("static", route.FileServe("web/blob/static")))
+	} else {
+		router.Get("/static/*filepath", instrh("static", blob.Handler{}))
+	}
+
+	w.AlertManagerService.Register(router.WithPrefix("/api"))
 
 	log.Info("listening on ", addr)
 

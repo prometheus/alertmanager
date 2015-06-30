@@ -134,7 +134,7 @@ type InhibitRule struct {
 
 	// A set of label names whose label values need to be identical in source and
 	// target alerts in order for the inhibition to take effect.
-	MatchOn []string `yaml:"match_on,omitempty"`
+	MatchOn model.LabelNames `yaml:"match_on,omitempty"`
 
 	// How many seconds to wait for a corresponding inhibit source alert to
 	// appear before sending any notifications for active target alerts.
@@ -192,8 +192,8 @@ func (r *AggrRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A regex-based label filter used in aggregations.
 type Filter struct {
-	Name  string  `yaml:"name"`
-	Regex *Regexp `yaml:"regex"`
+	Name  model.LabelName `yaml:"name"`
+	Regex *Regexp         `yaml:"regex"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`

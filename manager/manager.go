@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/log"
 )
 
@@ -27,7 +28,7 @@ import (
 type AlertManager interface {
 	// Ingests a new alert entry into the store. If an alert with the same
 	// fingerprint already exists, it only updates the existing entry's metadata.
-	Receive(Alerts)
+	Receive([]*Alert)
 	// Retrieves all alerts from the store that match the provided Filters.
 	GetAll(Filters) AlertAggregates
 	// Sets the AggregationRules to associate with alerts.
@@ -140,13 +141,13 @@ type memoryAlertManager struct {
 	// Currently loaded set of AggregationRules.
 	rules AggregationRules
 	// Main AlertAggregates index by fingerprint.
-	aggregates map[AlertFingerprint]*AlertAggregate
+	aggregates map[model.Fingerprint]*AlertAggregate
 	// Secondary AlertAggregates index by LastRefreshed time.
 	aggregatesByLastRefreshed aggregatesByLastRefreshed
 	// Secondary AlertAggregates index by NextNotification time.
 	aggregatesByNextNotification aggregatesByNextNotification
 	// Cache of the last result of computing uninhibited/unsilenced alerts.
-	filteredAlerts AlertLabelSets
+	filteredAlerts []model.LabelSet
 	// Tracks whether a change has occurred that requires a recomputation of
 	// notification outputs.
 	needsNotificationRefresh bool
@@ -167,7 +168,7 @@ type MemoryAlertManagerOptions struct {
 // Constructs a new memoryAlertManager.
 func NewMemoryAlertManager(o *MemoryAlertManagerOptions) AlertManager {
 	return &memoryAlertManager{
-		aggregates: make(map[AlertFingerprint]*AlertAggregate),
+		aggregates: make(map[model.Fingerprint]*AlertAggregate),
 
 		minRefreshInterval: o.MinRefreshInterval,
 		inhibitor:          o.Inhibitor,
@@ -177,7 +178,7 @@ func NewMemoryAlertManager(o *MemoryAlertManagerOptions) AlertManager {
 }
 
 // Receive and ingest a new list of alert messages (e.g. from the web API).
-func (s *memoryAlertManager) Receive(as Alerts) {
+func (s *memoryAlertManager) Receive(as []*Alert) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -325,12 +326,12 @@ func (s *memoryAlertManager) checkNotificationRepeats() {
 }
 
 // Returns all active AlertLabelSets that are neither inhibited nor silenced.
-func (s *memoryAlertManager) filteredLabelSets(useCache bool) AlertLabelSets {
+func (s *memoryAlertManager) filteredLabelSets(useCache bool) []model.LabelSet {
 	if useCache && s.filteredAlerts != nil {
 		return s.filteredAlerts
 	}
 
-	l := make(AlertLabelSets, 0, len(s.aggregates))
+	l := make([]model.LabelSet, 0, len(s.aggregates))
 	for _, agg := range s.aggregates {
 		l = append(l, agg.Alert.Labels)
 	}

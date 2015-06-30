@@ -17,19 +17,19 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/manager"
 )
 
 // Return all currently firing alerts as JSON.
-func (s AlertManagerService) getAlerts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s AlertManagerService) getAlerts(w http.ResponseWriter, r *http.Request) {
 	aggs := s.Manager.GetAll(nil)
 	respondJSON(w, aggs)
 }
 
-func (s AlertManagerService) addAlerts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	alerts := manager.Alerts{}
+func (s AlertManagerService) addAlerts(w http.ResponseWriter, r *http.Request) {
+	alerts := []*manager.Alert{}
 	if err := parseJSON(w, r, &alerts); err != nil {
 		return
 	}
@@ -38,7 +38,7 @@ func (s AlertManagerService) addAlerts(w http.ResponseWriter, r *http.Request, p
 			http.Error(w, fmt.Sprintf("Missing field in alert %d: %s", i, a), http.StatusBadRequest)
 			return
 		}
-		if _, ok := a.Labels[manager.AlertNameLabel]; !ok {
+		if _, ok := a.Labels[model.AlertNameLabel]; !ok {
 			http.Error(w, fmt.Sprintf("Missing alert name label in alert %d: %s", i, a), http.StatusBadRequest)
 			return
 		}

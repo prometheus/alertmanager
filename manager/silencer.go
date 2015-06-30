@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/log"
 
 	"github.com/prometheus/alertmanager/config"
@@ -53,11 +54,11 @@ type ApiSilence struct {
 	CreatedAtSeconds int64
 	EndsAtSeconds    int64
 	Comment          string
-	Filters          map[string]string
+	Filters          map[model.LabelName]string
 }
 
 func (s *Silence) MarshalJSON() ([]byte, error) {
-	filters := map[string]string{}
+	filters := map[model.LabelName]string{}
 	for _, f := range s.Filters {
 		name := f.Name
 		value := f.ValuePattern
@@ -106,7 +107,7 @@ func (s *Silence) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s Silence) Matches(l AlertLabelSet) bool {
+func (s Silence) Matches(l model.LabelSet) bool {
 	return s.Filters.Handles(l)
 }
 
@@ -123,7 +124,7 @@ type Silencer struct {
 }
 
 type IsSilencedInterrogator interface {
-	IsSilenced(AlertLabelSet) (bool, *Silence)
+	IsSilenced(model.LabelSet) (bool, *Silence)
 }
 
 func NewSilencer() *Silencer {
@@ -221,7 +222,7 @@ func (s *Silencer) SilenceSummary() Silences {
 	return silences
 }
 
-func (s *Silencer) IsSilenced(l AlertLabelSet) (bool, *Silence) {
+func (s *Silencer) IsSilenced(l model.LabelSet) (bool, *Silence) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -233,14 +234,14 @@ func (s *Silencer) IsSilenced(l AlertLabelSet) (bool, *Silence) {
 	return false, nil
 }
 
-// Returns only those AlertLabelSets which are not matched by any silence.
-func (s *Silencer) Filter(l AlertLabelSets) AlertLabelSets {
+// Returns only those label sets which are not matched by any silence.
+func (s *Silencer) Filter(l []model.LabelSet) []model.LabelSet {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	out := l
 	for _, sc := range s.Silences {
-		unsilenced := AlertLabelSets{}
+		unsilenced := []model.LabelSet{}
 		for _, labels := range out {
 			if !sc.Matches(labels) {
 				unsilenced = append(unsilenced, labels)

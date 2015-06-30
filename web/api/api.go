@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/prometheus/common/route"
 
 	"github.com/prometheus/alertmanager/manager"
 )
@@ -30,17 +30,16 @@ type AlertManagerService struct {
 	PathPrefix string
 }
 
-func (s AlertManagerService) Handler() http.Handler {
-	r := httprouter.New()
-	r.GET(s.PathPrefix+"api/alerts", s.getAlerts)
-	r.POST(s.PathPrefix+"api/alerts", s.addAlerts)
-	r.GET(s.PathPrefix+"api/silences", s.silenceSummary)
-	r.POST(s.PathPrefix+"api/silences", s.addSilence)
-	r.GET(s.PathPrefix+"api/silences/:id", s.getSilence)
-	r.POST(s.PathPrefix+"api/silences/:id", s.updateSilence)
-	r.DELETE(s.PathPrefix+"api/silences/:id", s.deleteSilence)
+func (s AlertManagerService) Register(r *route.Router) {
+	r.Get("/alerts", s.getAlerts)
+	r.Post("/alerts", s.addAlerts)
 
-	return r
+	r.Get("/silences", s.silenceSummary)
+	r.Post("/silences", s.addSilence)
+
+	r.Get("/silences/:id", s.getSilence)
+	r.Post("/silences/:id", s.updateSilence)
+	r.Del("/silences/:id", s.deleteSilence)
 }
 
 func respondJSON(w http.ResponseWriter, v interface{}) {
@@ -53,8 +52,9 @@ func respondJSON(w http.ResponseWriter, v interface{}) {
 	w.Write(resultBytes)
 }
 
-func getID(p httprouter.Params) int {
-	n, _ := strconv.Atoi(p.ByName("id"))
+func getID(r *http.Request) int {
+	ctx := route.Context(r)
+	n, _ := strconv.Atoi(route.Param(ctx, "id"))
 	return n
 }
 
