@@ -15,8 +15,3 @@ VERSION  := 0.0.3
 TARGET   := alertmanager
 
 include Makefile.COMMON
-
-web: web/blob/files.go
-
-web/blob/files.go: $(shell find web/templates/ web/static/ -type f)
-	./web/blob/embed-static.sh web/static web/templates | $(GOFMT) > $@
