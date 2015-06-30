@@ -29,8 +29,8 @@ type InhibitRule struct {
 	MatchOn       model.LabelNames
 }
 
-// Returns those target []model.LabelSet which are not inhibited by any of the
-// source []model.LabelSet.
+// Returns those target label sets which are not inhibited by any of the
+// source label sets.
 func (i *InhibitRule) Filter(s, t []model.LabelSet) []model.LabelSet {
 	s = i.SourceFilters.Filter(s)
 	out := []model.LabelSet{}
