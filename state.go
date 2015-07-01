@@ -1,31 +1,18 @@
 package main
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/prometheus/common/model"
 )
 
-// Manager handles active alerts
-type Manager struct {
-	state State
-}
-
-func New(s State) *Manager {
-	return &Manager{
-		state: s,
-	}
-}
-
-// Run starts the processing of the manager and blocks.
-func (m *Manager) Run() {
-
-}
-
 // A State serves the Alertmanager's internal state about active silences.
 type State interface {
-	AlertState
-	ConfigState
-	NotifyState
-	SilenceState
+	Silence() SilenceState
+	// Config() ConfigState
+	// Notify() NotifyState
+	// Alert() AlertState
 }
 
 type AlertState interface{}
@@ -36,33 +23,77 @@ type NotifyState interface{}
 
 type SilenceState interface {
 	// Silences returns a list of all silences.
-	Silences() ([]*Silence, error)
+	GetAll() ([]*Silence, error)
 
 	// SetSilence sets the given silence.
-	SetSilence(*Silence) error
+	Set(*Silence) error
+	Del(sid string) error
+	Get(sid string) (*Silence, error)
 }
 
 // memState implements the State interface based on in-memory storage.
 type memState struct {
-	silences map[uint64]*Silence
+	silences *memSilences
+	mtx      sync.RWMutex
 }
 
 func NewMemState() State {
 	return &memState{
-		silences: map[uint64]*Silence{},
+		silences: &memSilences{
+			m:      map[string]*Silence{},
+			nextID: 1,
+		},
 	}
 }
 
-func (s *memState) Silences() ([]*Silence, error) {
-	sils := make([]*Silence, 0, len(s.silences))
-	for _, sil := range s.silences {
+func (s *memState) Silence() SilenceState {
+	return s.silences
+}
+
+type memSilences struct {
+	m   map[string]*Silence
+	mtx sync.RWMutex
+
+	nextID uint64
+}
+
+func (s *memSilences) genID() string {
+	sid := fmt.Sprintf("%x", s.nextID)
+	s.nextID++
+	return sid
+}
+
+func (s *memSilences) Get(sid string) (*Silence, error) {
+	return nil, nil
+}
+func (s *memSilences) Del(sid string) error {
+	if _, ok := s.m[sid]; !ok {
+		return fmt.Errorf("silence with ID %s does not exist", sid)
+	}
+	delete(s.m, sid)
+	return nil
+}
+
+func (s *memSilences) GetAll() ([]*Silence, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	sils := make([]*Silence, 0, len(s.m))
+	for _, sil := range s.m {
 		sils = append(sils, sil)
 	}
 	return sils, nil
 }
 
-func (s *memState) SetSilence(sil *Silence) error {
-	s.silences[sil.ID] = sil
+func (s *memSilences) Set(sil *Silence) error {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	if sil.ID == "" {
+		sil.ID = s.genID()
+	}
+
+	s.m[sil.ID] = sil
 	return nil
 }
 

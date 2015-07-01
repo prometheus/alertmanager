@@ -19,7 +19,7 @@ import (
 
 type Silence struct {
 	// The numeric ID of the silence.
-	ID uint64
+	ID string
 
 	// Name/email of the silence creator.
 	CreatedBy string

@@ -13,10 +13,18 @@
 
 package main
 
+import (
+	"net/http"
+
+	"github.com/prometheus/common/route"
+)
+
 func main() {
 	state := NewMemState()
 
-	am := New(state)
+	router := route.New()
 
-	go am.Run()
+	NewAPI(router.WithPrefix("/api"), state)
+
+	http.ListenAndServe(":9091", router)
 }

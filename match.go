@@ -28,6 +28,27 @@ type Matcher struct {
 	regex   *regexp.Regexp
 }
 
+// IsRegex returns true of the matcher compares against a regular expression.
+func (m *Matcher) IsRegex() bool {
+	return m.isRegex
+}
+
+// Match checks whether the label of the matcher has the specified
+// matching value.
+func (m *Matcher) Match(lset model.LabelSet) bool {
+	// Unset labels are treated as unset labels globally. Thus, if a
+	// label is not set we retrieve the empty label which is correct
+	// for the comparison below.
+	v := lset[m.Name]
+
+	if m.isRegex {
+		return m.regex.MatchString(string(v))
+	}
+	return string(v) == m.Value
+}
+
+// NewMatcher returns a new matcher that compares against equality of
+// the given value.
 func NewMatcher(name model.LabelName, value string) *Matcher {
 	return &Matcher{
 		Name:  name,
@@ -35,6 +56,8 @@ func NewMatcher(name model.LabelName, value string) *Matcher {
 	}
 }
 
+// NewRegexMatcher returns a new matcher that treats value as a regular
+// expression which is used for matching.
 func NewRegexMatcher(name model.LabelName, value string) (*Matcher, error) {
 	re, err := regexp.Compile(value)
 	if err != nil {
@@ -50,3 +73,13 @@ func NewRegexMatcher(name model.LabelName, value string) (*Matcher, error) {
 }
 
 type Matchers []*Matcher
+
+// MatchAll checks whether all matchers are fulfilled against the given label set.
+func (ms Matchers) MatchAll(lset model.LabelSet) bool {
+	for _, m := range ms {
+		if !m.Match(lset) {
+			return false
+		}
+	}
+	return true
+}
