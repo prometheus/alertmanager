@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package manager
 
 import (
 	"fmt"
@@ -64,7 +64,7 @@ func LoadFile(filename string) (*Config, error) {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	AggrRules           []*AggrRule           `yaml:"aggregation_rules,omitempty"`
+	Routes              []*Route              `yaml:"routes,omitempty"`
 	InhibitRules        []*InhibitRule        `yaml:"inhibit_rules,omitempty"`
 	NotificationConfigs []*NotificationConfig `yaml:"notification_configs,omitempty"`
 

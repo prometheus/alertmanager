@@ -14,17 +14,37 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"net/http"
 
 	"github.com/prometheus/common/route"
+	// "gopkg.in/yaml.v2"
+
+	"github.com/prometheus/alertmanager/manager"
+)
+
+var (
+	configFile = flag.String("config.file", "config.yml", "The configuration file")
 )
 
 func main() {
-	state := NewMemState()
+	conf, err := manager.LoadFile(*configFile)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(conf)
+
+	for _, r := range conf.Routes {
+		fmt.Println(r)
+	}
+
+	state := manager.NewMemState()
 
 	router := route.New()
 
-	NewAPI(router.WithPrefix("/api"), state)
+	manager.NewAPI(router.WithPrefix("/api"), state)
 
 	http.ListenAndServe(":9091", router)
 }

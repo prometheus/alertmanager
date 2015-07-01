@@ -11,9 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package manager
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/prometheus/common/model"
@@ -26,6 +27,13 @@ type Matcher struct {
 
 	isRegex bool
 	regex   *regexp.Regexp
+}
+
+func (m *Matcher) String() string {
+	if m.isRegex {
+		return fmt.Sprintf("<RegexMatcher %s:%q>", m.Name, m.regex)
+	}
+	return fmt.Sprintf("<Matcher %s:%q>", m.Name, m.Value)
 }
 
 // IsRegex returns true of the matcher compares against a regular expression.
