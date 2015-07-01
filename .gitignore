@@ -4,3 +4,5 @@ alertmanager
 *-stamp
 *.config
 silences.json
+*.yml
+*.yaml
