@@ -3,6 +3,7 @@ package manager
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -18,9 +19,33 @@ routes:
 
   send_to: 'notify-A'
 
+  routes:
+  - match:
+      env: 'testing'
+
+    send_to: 'notify-testing'
+
+  - match:
+      env: "production"
+
+    send_to: 'notify-productionA'
+    group_wait: 1m
+
+    continue: true
+
+  - match_re:
+      env: "^produ.*$"
+
+    send_to: 'notify-productionB'
+    group_wait: 10m
+    group_by: ['job']
+
+
 - match_re:
     owner: '^team-(B|C)$'
 
+  group_by: ['foo', 'bar']
+  group_wait: 2m
   send_to: 'notify-BC'
 `
 
@@ -29,7 +54,15 @@ routes:
 		t.Fatal(err)
 	}
 
-	var emptySet = map[model.LabelName]struct{}{}
+	lset := func(labels ...string) map[model.LabelName]struct{} {
+		s := map[model.LabelName]struct{}{}
+		for _, ls := range labels {
+			s[model.LabelName(ls)] = struct{}{}
+		}
+		return s
+	}
+
+	gwait := func(d time.Duration) *time.Duration { return &d }
 
 	tests := []struct {
 		input  model.LabelSet
@@ -42,7 +75,61 @@ routes:
 			result: []*RouteOpts{
 				{
 					SendTo:  "notify-A",
-					GroupBy: emptySet,
+					GroupBy: lset(),
+				},
+			},
+		},
+		{
+			input: model.LabelSet{
+				"owner": "team-A",
+				"env":   "unset",
+			},
+			result: []*RouteOpts{
+				{
+					SendTo:  "notify-A",
+					GroupBy: lset(),
+				},
+			},
+		},
+		{
+			input: model.LabelSet{
+				"owner": "team-C",
+			},
+			result: []*RouteOpts{
+				{
+					SendTo:    "notify-BC",
+					GroupBy:   lset("foo", "bar"),
+					groupWait: gwait(2 * time.Minute),
+				},
+			},
+		},
+		{
+			input: model.LabelSet{
+				"owner": "team-A",
+				"env":   "testing",
+			},
+			result: []*RouteOpts{
+				{
+					SendTo:  "notify-testing",
+					GroupBy: lset(),
+				},
+			},
+		},
+		{
+			input: model.LabelSet{
+				"owner": "team-A",
+				"env":   "production",
+			},
+			result: []*RouteOpts{
+				{
+					SendTo:    "notify-productionA",
+					GroupBy:   lset(),
+					groupWait: gwait(1 * time.Minute),
+				},
+				{
+					SendTo:    "notify-productionB",
+					GroupBy:   lset("job"),
+					groupWait: gwait(10 * time.Minute),
 				},
 			},
 		},

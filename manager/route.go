@@ -29,6 +29,8 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 		return nil
 	}
 
+	fmt.Println("opts", r)
+
 	var allMatches []*RouteOpts
 
 	for _, cr := range r.Routes {
@@ -40,7 +42,8 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 
 		allMatches = append(allMatches, matches...)
 
-		if matches != nil && !r.Continue {
+		if matches != nil && !cr.Continue {
+			fmt.Println("break")
 			break
 		}
 	}
