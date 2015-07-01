@@ -12,10 +12,13 @@ type State interface {
 	Silence() SilenceState
 	// Config() ConfigState
 	// Notify() NotifyState
-	// Alert() AlertState
+	Alert() AlertState
 }
 
-type AlertState interface{}
+type AlertState interface {
+	Add(...*Alert) error
+	GetAll() ([]*Alert, error)
+}
 
 type ConfigState interface{}
 
@@ -34,7 +37,7 @@ type SilenceState interface {
 // memState implements the State interface based on in-memory storage.
 type memState struct {
 	silences *memSilences
-	mtx      sync.RWMutex
+	alerts   *memAlerts
 }
 
 func NewMemState() State {
@@ -43,11 +46,39 @@ func NewMemState() State {
 			m:      map[string]*Silence{},
 			nextID: 1,
 		},
+		alerts: &memAlerts{},
 	}
+}
+
+func (s *memState) Alert() AlertState {
+	return s.alerts
 }
 
 func (s *memState) Silence() SilenceState {
 	return s.silences
+}
+
+type memAlerts struct {
+	alerts []*Alert
+	mtx    sync.RWMutex
+}
+
+func (s *memAlerts) GetAll() ([]*Alert, error) {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	alerts := make([]*Alert, len(s.alerts))
+	copy(alerts, s.alerts)
+
+	return alerts, nil
+}
+
+func (s *memAlerts) Add(alerts ...*Alert) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.alerts = append(s.alerts, alerts...)
+	return nil
 }
 
 type memSilences struct {

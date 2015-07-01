@@ -21,8 +21,9 @@ func NewAPI(r *route.Router, s State) *API {
 		state:   s,
 		context: route.Context,
 	}
-	// r.Get("/alerts", s.getAlerts)
-	// r.Post("/alerts", s.addAlerts)
+
+	r.Get("/alerts", api.listAlerts)
+	r.Post("/alerts", api.addAlerts)
 
 	r.Get("/silences", api.listSilences)
 	r.Post("/silences", api.addSilence)
@@ -50,6 +51,36 @@ type apiError struct {
 
 func (e *apiError) Error() string {
 	return fmt.Sprintf("%s: %s", e.typ, e.err)
+}
+
+func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
+	alerts, err := api.state.Alert().GetAll()
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+	respond(w, alerts)
+}
+
+func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
+	var alerts []*Alert
+	if err := receive(r, &alerts); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// TODO(fabxc): validate input.
+	if err := api.state.Alert().Add(alerts...); err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+
+	respond(w, nil)
 }
 
 func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
