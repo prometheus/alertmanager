@@ -15,11 +15,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net/http"
 
 	"github.com/prometheus/common/route"
-	// "gopkg.in/yaml.v2"
+	"github.com/prometheus/log"
 
 	"github.com/prometheus/alertmanager/manager"
 )
@@ -31,18 +30,19 @@ var (
 func main() {
 	conf, err := manager.LoadFile(*configFile)
 	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println(conf)
-
-	for _, r := range conf.Routes {
-		fmt.Println(r)
+		log.Fatal(err)
 	}
 
-	state := manager.NewMemState()
+	state := manager.NewSimpleState()
 
+	if err = state.Config().Set(conf); err != nil {
+		log.Fatal(err)
+	}
+
+	disp := manager.NewDispatcher(state)
 	router := route.New()
+
+	go disp.Run()
 
 	manager.NewAPI(router.WithPrefix("/api"), state)
 

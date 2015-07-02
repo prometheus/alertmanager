@@ -64,7 +64,7 @@ func LoadFile(filename string) (*Config, error) {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Routes              []*Route              `yaml:"routes,omitempty"`
+	Routes              Routes                `yaml:"routes,omitempty"`
 	InhibitRules        []*InhibitRule        `yaml:"inhibit_rules,omitempty"`
 	NotificationConfigs []*NotificationConfig `yaml:"notification_configs,omitempty"`
 

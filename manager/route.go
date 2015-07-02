@@ -7,6 +7,15 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+type Routes []*Route
+
+func (rs Routes) Match(lset model.LabelSet) []*RouteOpts {
+	fakeParent := &Route{
+		Routes: rs,
+	}
+	return fakeParent.Match(lset)
+}
+
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
 	// The configuration parameters for matches of this route.
@@ -15,11 +24,12 @@ type Route struct {
 	// Equality or regex matchers an alert has to fulfill to match
 	// this route.
 	Matchers Matchers
+
 	// If true, an alert matches further routes on the same level.
 	Continue bool
 
 	// Children routes of this route.
-	Routes []*Route
+	Routes Routes
 }
 
 // Match does a depth-first left-to-right search through the route tree
@@ -29,9 +39,7 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 		return nil
 	}
 
-	fmt.Println("opts", r)
-
-	var allMatches []*RouteOpts
+	var all []*RouteOpts
 
 	for _, cr := range r.Routes {
 		matches := cr.Match(lset)
@@ -40,19 +48,18 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 			ro.populateDefault(&r.RouteOpts)
 		}
 
-		allMatches = append(allMatches, matches...)
+		all = append(all, matches...)
 
 		if matches != nil && !cr.Continue {
-			fmt.Println("break")
 			break
 		}
 	}
 
-	if len(allMatches) == 0 {
-		allMatches = append(allMatches, &r.RouteOpts)
+	if len(all) == 0 {
+		all = append(all, &r.RouteOpts)
 	}
 
-	return allMatches
+	return all
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

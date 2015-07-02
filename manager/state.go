@@ -3,14 +3,16 @@ package manager
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/prometheus/common/model"
+	// "github.com/prometheus/log"
 )
 
 // A State serves the Alertmanager's internal state about active silences.
 type State interface {
 	Silence() SilenceState
-	// Config() ConfigState
+	Config() ConfigState
 	// Notify() NotifyState
 	Alert() AlertState
 }
@@ -18,9 +20,14 @@ type State interface {
 type AlertState interface {
 	Add(...*Alert) error
 	GetAll() ([]*Alert, error)
+
+	Next() *Alert
 }
 
-type ConfigState interface{}
+type ConfigState interface {
+	Set(*Config) error
+	Get() (*Config, error)
+}
 
 type NotifyState interface{}
 
@@ -34,32 +41,61 @@ type SilenceState interface {
 	Get(sid string) (*Silence, error)
 }
 
-// memState implements the State interface based on in-memory storage.
-type memState struct {
+// simpleState implements the State interface based on in-memory storage.
+type simpleState struct {
 	silences *memSilences
 	alerts   *memAlerts
+	config   *memConfig
 }
 
-func NewMemState() State {
-	return &memState{
+func NewSimpleState() State {
+	return &simpleState{
 		silences: &memSilences{
 			m:      map[string]*Silence{},
 			nextID: 1,
 		},
-		alerts: &memAlerts{},
+		alerts: &memAlerts{
+			ch: make(chan *Alert, 100),
+		},
+		config: &memConfig{},
 	}
 }
 
-func (s *memState) Alert() AlertState {
+func (s *simpleState) Alert() AlertState {
 	return s.alerts
 }
 
-func (s *memState) Silence() SilenceState {
+func (s *simpleState) Silence() SilenceState {
 	return s.silences
+}
+
+func (s *simpleState) Config() ConfigState {
+	return s.config
+}
+
+type memConfig struct {
+	config *Config
+	mtx    sync.RWMutex
+}
+
+func (c *memConfig) Set(conf *Config) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	c.config = conf
+	return nil
+}
+
+func (c *memConfig) Get() (*Config, error) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	return c.config, nil
 }
 
 type memAlerts struct {
 	alerts []*Alert
+	ch     chan *Alert
 	mtx    sync.RWMutex
 }
 
@@ -78,7 +114,16 @@ func (s *memAlerts) Add(alerts ...*Alert) error {
 	defer s.mtx.Unlock()
 
 	s.alerts = append(s.alerts, alerts...)
+
+	// TODO(fabxc): remove this as it blocks if the channel is full.
+	for _, alert := range alerts {
+		s.ch <- alert
+	}
 	return nil
+}
+
+func (s *memAlerts) Next() *Alert {
+	return <-s.ch
 }
 
 type memSilences struct {
@@ -130,6 +175,13 @@ func (s *memSilences) Set(sil *Silence) error {
 
 // Alert models an action triggered by Prometheus.
 type Alert struct {
+	// Label value pairs for purpose of aggregation, matching, and disposition
+	// dispatching. This must minimally include an "alertname" label.
+	Labels model.LabelSet `json:"labels"`
+
+	// Extra key/value information which is not used for aggregation.
+	Payload map[string]string `json:"payload"`
+
 	// Short summary of alert.
 	Summary string `json:"summary"`
 
@@ -139,12 +191,8 @@ type Alert struct {
 	// Runbook link or reference for the alert.
 	Runbook string `json:"runbook"`
 
-	// Label value pairs for purpose of aggregation, matching, and disposition
-	// dispatching. This must minimally include an "alertname" label.
-	Labels model.LabelSet `json:"labels"`
-
-	// Extra key/value information which is not used for aggregation.
-	Payload map[string]string `json:"payload"`
+	// When the alert was reported.
+	Timestamp time.Time `json:"-"`
 }
 
 // Name returns the name of the alert. It is equivalent to the "alertname" label.

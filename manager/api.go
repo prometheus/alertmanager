@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/common/route"
 	"golang.org/x/net/context"
@@ -71,6 +72,10 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	for _, alert := range alerts {
+		alert.Timestamp = time.Now()
+	}
+
 	// TODO(fabxc): validate input.
 	if err := api.state.Alert().Add(alerts...); err != nil {
 		respondError(w, apiError{
@@ -172,8 +177,8 @@ type response struct {
 }
 
 func respond(w http.ResponseWriter, data interface{}) {
-	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
 
 	b, err := json.Marshal(&response{
 		Status: statusSuccess,
@@ -186,8 +191,8 @@ func respond(w http.ResponseWriter, data interface{}) {
 }
 
 func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
-	w.WriteHeader(422)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
 
 	b, err := json.Marshal(&response{
 		Status:    statusError,
