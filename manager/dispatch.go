@@ -82,20 +82,18 @@ func (d *Dispatcher) Run() {
 			}
 
 			if !alert.Resolved() {
+				a := *alert
+				a.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
+
 				// After the constant timeout update the alert to be resolved.
 				go func(alert *Alert) {
-					for {
-						// TODO: get most recent version first.
-						time.Sleep(ResolveTimeout)
+					now := time.Now()
 
-						a := *alert
-						a.ResolvedAt = time.Now()
-
-						if err := d.state.Alert().Add(&a); err != nil {
-							log.Error(err)
-							continue
-						}
-						return
+					if a.ResolvedAt.After(now) {
+						time.Sleep(now.Sub(a.ResolvedAt))
+					}
+					if err := d.state.Alert().Add(&a); err != nil {
+						log.Errorf("alert auto-resolve failed: %s", err)
 					}
 				}(alert)
 			}
