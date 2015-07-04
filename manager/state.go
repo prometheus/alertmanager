@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/prometheus/common/model"
@@ -104,10 +105,14 @@ func (s *memAlerts) GetAll() ([]*Alert, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
-	alerts := make([]*Alert, len(s.alerts))
-	for i, a := range s.alerts {
-		alerts[i] = a
+	alerts := make([]*Alert, 0, len(s.alerts))
+	for _, a := range s.alerts {
+		alerts = append(alerts, a)
 	}
+
+	// TODO(fabxc): specify whether time sorting is an interface
+	// requirement.
+	sort.Sort(alertTimeline(alerts))
 
 	return alerts, nil
 }
