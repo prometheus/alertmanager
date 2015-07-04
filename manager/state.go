@@ -3,7 +3,6 @@ package manager
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/prometheus/common/model"
 	// "github.com/prometheus/log"
@@ -19,6 +18,7 @@ type State interface {
 
 type AlertState interface {
 	Add(...*Alert) error
+	Get(model.Fingerprint) (*Alert, error)
 	GetAll() ([]*Alert, error)
 
 	Next() *Alert
@@ -51,11 +51,12 @@ type simpleState struct {
 func NewSimpleState() State {
 	return &simpleState{
 		silences: &memSilences{
-			m:      map[string]*Silence{},
+			sils:   map[string]*Silence{},
 			nextID: 1,
 		},
 		alerts: &memAlerts{
-			ch: make(chan *Alert, 100),
+			alerts: map[model.Fingerprint]*Alert{},
+			ch:     make(chan *Alert, 100),
 		},
 		config: &memConfig{},
 	}
@@ -94,7 +95,7 @@ func (c *memConfig) Get() (*Config, error) {
 }
 
 type memAlerts struct {
-	alerts []*Alert
+	alerts map[model.Fingerprint]*Alert
 	ch     chan *Alert
 	mtx    sync.RWMutex
 }
@@ -104,7 +105,9 @@ func (s *memAlerts) GetAll() ([]*Alert, error) {
 	defer s.mtx.RUnlock()
 
 	alerts := make([]*Alert, len(s.alerts))
-	copy(alerts, s.alerts)
+	for i, a := range s.alerts {
+		alerts[i] = a
+	}
 
 	return alerts, nil
 }
@@ -113,13 +116,30 @@ func (s *memAlerts) Add(alerts ...*Alert) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	s.alerts = append(s.alerts, alerts...)
-
-	// TODO(fabxc): remove this as it blocks if the channel is full.
 	for _, alert := range alerts {
+		fp := alert.Fingerprint()
+
+		// Last write wins.
+		if prev, ok := s.alerts[fp]; !ok || alert.Timestamp.After(prev.Timestamp) {
+			s.alerts[fp] = alert
+		}
+
+		// TODO(fabxc): remove this as it blocks if the channel is full.
 		s.ch <- alert
 	}
+
 	return nil
+}
+
+func (s *memAlerts) Get(fp model.Fingerprint) (*Alert, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if a, ok := s.alerts[fp]; ok {
+		return a, nil
+	}
+
+	return nil, fmt.Errorf("alert with fingerprint %s does not exist", fp)
 }
 
 func (s *memAlerts) Next() *Alert {
@@ -127,9 +147,9 @@ func (s *memAlerts) Next() *Alert {
 }
 
 type memSilences struct {
-	m   map[string]*Silence
-	mtx sync.RWMutex
+	sils map[string]*Silence
 
+	mtx    sync.RWMutex
 	nextID uint64
 }
 
@@ -140,13 +160,22 @@ func (s *memSilences) genID() string {
 }
 
 func (s *memSilences) Get(sid string) (*Silence, error) {
-	return nil, nil
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	if sil, ok := s.sils[sid]; ok {
+		return sil, nil
+	}
+
+	return nil, fmt.Errorf("silence with ID %s does not exist", sid)
 }
+
 func (s *memSilences) Del(sid string) error {
-	if _, ok := s.m[sid]; !ok {
+	if _, ok := s.sils[sid]; !ok {
 		return fmt.Errorf("silence with ID %s does not exist", sid)
 	}
-	delete(s.m, sid)
+
+	delete(s.sils, sid)
 	return nil
 }
 
@@ -154,8 +183,8 @@ func (s *memSilences) GetAll() ([]*Silence, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	sils := make([]*Silence, 0, len(s.m))
-	for _, sil := range s.m {
+	sils := make([]*Silence, 0, len(s.sils))
+	for _, sil := range s.sils {
 		sils = append(sils, sil)
 	}
 	return sils, nil
@@ -169,39 +198,6 @@ func (s *memSilences) Set(sil *Silence) error {
 		sil.ID = s.genID()
 	}
 
-	s.m[sil.ID] = sil
+	s.sils[sil.ID] = sil
 	return nil
-}
-
-// Alert models an action triggered by Prometheus.
-type Alert struct {
-	// Label value pairs for purpose of aggregation, matching, and disposition
-	// dispatching. This must minimally include an "alertname" label.
-	Labels model.LabelSet `json:"labels"`
-
-	// Extra key/value information which is not used for aggregation.
-	Payload map[string]string `json:"payload"`
-
-	// Short summary of alert.
-	Summary string `json:"summary"`
-
-	// Long description of alert.
-	Description string `json:"description"`
-
-	// Runbook link or reference for the alert.
-	Runbook string `json:"runbook"`
-
-	// When the alert was reported.
-	Timestamp time.Time `json:"-"`
-}
-
-// Name returns the name of the alert. It is equivalent to the "alertname" label.
-func (a *Alert) Name() string {
-	return string(a.Labels[model.AlertNameLabel])
-}
-
-// Fingerprint returns a unique hash for the alert. It is equivalent to
-// the fingerprint of the alert's label set.
-func (a *Alert) Fingerprint() model.Fingerprint {
-	return a.Labels.Fingerprint()
 }

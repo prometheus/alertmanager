@@ -73,7 +73,9 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, alert := range alerts {
-		alert.Timestamp = time.Now()
+		if alert.Timestamp.IsZero() {
+			alert.Timestamp = time.Now()
+		}
 	}
 
 	// TODO(fabxc): validate input.

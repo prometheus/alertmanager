@@ -1,13 +1,14 @@
 package manager
 
 import (
-	"sort"
 	"sync"
 	"time"
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/log"
 )
+
+const ResolveTimeout = 15 * time.Second
 
 // Dispatcher dispatches alerts. It is absed on the alert's data
 // rather than the time they arrive. Thus it can recover it's state
@@ -47,6 +48,33 @@ func (d *Dispatcher) Run() {
 		for _, m := range conf.Routes.Match(alert.Labels) {
 			d.processAlert(alert, m)
 		}
+
+		if !alert.Resolved {
+			// After the constant timeout update the alert to be resolved.
+			go func(alert *Alert) {
+				for {
+					// TODO: get most recent version first.
+					time.Sleep(ResolveTimeout)
+
+					a := *alert
+					a.Resolved = true
+
+					if err := d.state.Alert().Add(&a); err != nil {
+						log.Error(err)
+						continue
+					}
+					return
+				}
+			}(alert)
+		}
+
+		// Cleanup routine.
+		for _, ag := range d.aggrGroups {
+			if ag.empty() {
+				ag.stop()
+				delete(d.aggrGroups, ag.fingerprint())
+			}
+		}
 	}
 }
 
@@ -63,16 +91,43 @@ func (d *Dispatcher) processAlert(alert *Alert, opts *RouteOpts) {
 
 	ag, ok := d.aggrGroups[fp]
 	if !ok {
-		ag = newAggrGroup(group, opts)
+		ag = newAggrGroup(d, group, opts)
 		d.aggrGroups[fp] = ag
 	}
 
 	ag.insert(alert)
+}
 
-	if ag.empty() {
-		ag.stop()
-		delete(d.aggrGroups, fp)
-	}
+// Alert models an action triggered by Prometheus.
+type Alert struct {
+	// Label value pairs for purpose of aggregation, matching, and disposition
+	// dispatching. This must minimally include an "alertname" label.
+	Labels model.LabelSet `json:"labels"`
+
+	// Extra key/value information which is not used for aggregation.
+	Payload map[string]string `json:"payload"`
+
+	// Short summary of alert.
+	Summary     string `json:"summary"`
+	Description string `json:"description"`
+	Runbook     string `json:"runbook"`
+
+	// When the alert was reported.
+	Timestamp time.Time `json:"timestamp"`
+
+	// Whether the alert with the given label set is resolved.
+	Resolved bool `json:"resolved"`
+}
+
+// Name returns the name of the alert. It is equivalent to the "alertname" label.
+func (a *Alert) Name() string {
+	return string(a.Labels[model.AlertNameLabel])
+}
+
+// Fingerprint returns a unique hash for the alert. It is equivalent to
+// the fingerprint of the alert's label set.
+func (a *Alert) Fingerprint() model.Fingerprint {
+	return a.Labels.Fingerprint()
 }
 
 // aggrGroup aggregates alerts into groups based on
@@ -80,32 +135,28 @@ func (d *Dispatcher) processAlert(alert *Alert, opts *RouteOpts) {
 type aggrGroup struct {
 	dispatcher *Dispatcher
 
-	labels    model.LabelSet
-	alertsOld alertTimeline
-	alertsNew alertTimeline
-	notify    string
+	labels model.LabelSet
+	opts   *RouteOpts
 
-	wait      time.Duration
-	waitTimer *time.Timer
+	next *time.Timer
+	done chan struct{}
 
-	done chan bool
-	mtx  sync.RWMutex
+	mtx     sync.RWMutex
+	alerts  map[model.Fingerprint]struct{}
+	hasSent bool
 }
 
 // newAggrGroup returns a new aggregation group and starts background processing
 // that sends notifications about the contained alerts.
-func newAggrGroup(labels model.LabelSet, opts *RouteOpts) *aggrGroup {
+func newAggrGroup(d *Dispatcher, labels model.LabelSet, opts *RouteOpts) *aggrGroup {
 	ag := &aggrGroup{
 		dispatcher: d,
 
-		labels:    group,
-		wait:      opts.GroupWait(),
-		waitTimer: time.NewTimer(opts.GroupWait()),
-		notify:    opts.SendTo,
-		done:      make(chan bool),
-	}
-	if ag.wait == 0 {
-		ag.waitTimer.Stop()
+		labels: labels,
+		opts:   opts,
+
+		alerts: map[model.Fingerprint]struct{}{},
+		done:   make(chan struct{}),
 	}
 
 	go ag.run()
@@ -114,10 +165,19 @@ func newAggrGroup(labels model.LabelSet, opts *RouteOpts) *aggrGroup {
 }
 
 func (ag *aggrGroup) run() {
+	// Set an initial one-time wait before flushing
+	// the first batch of notifications.
+	ag.next = time.NewTimer(ag.opts.GroupWait)
+
+	defer ag.next.Stop()
+
 	for {
 		select {
-		case <-ag.waitTimer.C:
+		case <-ag.next.C:
 			ag.flush()
+			// Wait the configured interval before calling flush again.
+			ag.next.Reset(ag.opts.GroupInterval)
+
 		case <-ag.done:
 			return
 		}
@@ -125,7 +185,6 @@ func (ag *aggrGroup) run() {
 }
 
 func (ag *aggrGroup) stop() {
-	ag.waitTimer.Stop()
 	close(ag.done)
 }
 
@@ -136,21 +195,16 @@ func (ag *aggrGroup) fingerprint() model.Fingerprint {
 // insert the alert into the aggregation group. If the aggregation group
 // is empty afterwards, true is returned.
 func (ag *aggrGroup) insert(alert *Alert) {
+	fp := alert.Fingerprint()
+
 	ag.mtx.Lock()
-
-	ag.alertsNew = append(ag.alertsNew, alert)
-	sort.Sort(ag.alertsNew)
-
+	ag.alerts[fp] = struct{}{}
 	ag.mtx.Unlock()
 
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
-	if alert.Timestamp.Add(ag.wait).Before(time.Now()) {
-		ag.flush()
-	}
-
-	if ag.wait > 0 {
-		ag.waitTimer.Reset(ag.wait)
+	if !ag.hasSent && alert.Timestamp.Add(ag.opts.GroupWait).Before(time.Now()) {
+		ag.next.Reset(0)
 	}
 }
 
@@ -158,7 +212,7 @@ func (ag *aggrGroup) empty() bool {
 	ag.mtx.RLock()
 	defer ag.mtx.RUnlock()
 
-	return len(ag.alertsNew)+len(ag.alertsOld) == 0
+	return len(ag.alerts) == 0
 }
 
 // flush sends notifications for all new alerts.
@@ -166,10 +220,22 @@ func (ag *aggrGroup) flush() {
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
 
-	ag.dispatcher.notify(ag.notify, ag.alertsNew...)
+	var alerts []*Alert
+	for fp := range ag.alerts {
+		a, err := ag.dispatcher.state.Alert().Get(fp)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		// TODO(fabxc): only delete if notify successful.
+		if a.Resolved {
+			delete(ag.alerts, fp)
+		}
+		alerts = append(alerts, a)
+	}
 
-	ag.alertsOld = append(ag.alertsOld, ag.alertsNew...)
-	ag.alertsNew = ag.alertsNew[:0]
+	ag.dispatcher.notify(ag.opts.SendTo, alerts...)
+	ag.hasSent = true
 }
 
 // alertTimeline is a list of alerts sorted by their timestamp.
