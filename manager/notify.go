@@ -5,10 +5,15 @@ import (
 )
 
 type Notifier interface {
+	Name() string
 	Send(...interface{})
 }
 
 type LogNotifier struct {
+}
+
+func (*LogNotifier) Name() string {
+	return "default"
 }
 
 func (*LogNotifier) Send(v ...interface{}) {

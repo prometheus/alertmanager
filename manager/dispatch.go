@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -26,7 +27,10 @@ func NewDispatcher(state State) *Dispatcher {
 	}
 }
 
-func (d *Dispatcher) notify(name string, alerts ...*Alert) {
+func (d *Dispatcher) notify(name string, alerts ...*Alert) error {
+	if len(alerts) == 0 {
+		return
+	}
 	n := &LogNotifier{}
 	i := []interface{}{name, "::"}
 	for _, a := range alerts {
@@ -49,7 +53,7 @@ func (d *Dispatcher) Run() {
 			d.processAlert(alert, m)
 		}
 
-		if !alert.Resolved {
+		if !alert.Resolved() {
 			// After the constant timeout update the alert to be resolved.
 			go func(alert *Alert) {
 				for {
@@ -57,7 +61,7 @@ func (d *Dispatcher) Run() {
 					time.Sleep(ResolveTimeout)
 
 					a := *alert
-					a.Resolved = true
+					a.ResolvedAt = time.Now()
 
 					if err := d.state.Alert().Add(&a); err != nil {
 						log.Error(err)
@@ -105,18 +109,16 @@ type Alert struct {
 	Labels model.LabelSet `json:"labels"`
 
 	// Extra key/value information which is not used for aggregation.
-	Payload map[string]string `json:"payload"`
+	Payload     map[string]string `json:"payload,omitempty"`
+	Summary     string            `json:"summary,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Runbook     string            `json:"runbook,omitempty"`
 
-	// Short summary of alert.
-	Summary     string `json:"summary"`
-	Description string `json:"description"`
-	Runbook     string `json:"runbook"`
+	CreatedAt  time.Time `json:"created_at,omitempty"`
+	ResolvedAt time.Time `json:"resolved_at,omitempty"`
 
-	// When the alert was reported.
+	// The authoritative timestamp.
 	Timestamp time.Time `json:"timestamp"`
-
-	// Whether the alert with the given label set is resolved.
-	Resolved bool `json:"resolved"`
 }
 
 // Name returns the name of the alert. It is equivalent to the "alertname" label.
@@ -128,6 +130,18 @@ func (a *Alert) Name() string {
 // the fingerprint of the alert's label set.
 func (a *Alert) Fingerprint() model.Fingerprint {
 	return a.Labels.Fingerprint()
+}
+
+func (a *Alert) String() string {
+	s := fmt.Sprintf("%s[%x]", a.Name(), a.Fingerprint())
+	if a.Resolved() {
+		return s + "[resolved]"
+	}
+	return s + "[active]"
+}
+
+func (a *Alert) Resolved() bool {
+	return a.ResolvedAt.After(a.CreatedAt)
 }
 
 // aggrGroup aggregates alerts into groups based on
@@ -228,7 +242,7 @@ func (ag *aggrGroup) flush() {
 			continue
 		}
 		// TODO(fabxc): only delete if notify successful.
-		if a.Resolved {
+		if a.Resolved() {
 			delete(ag.alerts, fp)
 		}
 		alerts = append(alerts, a)

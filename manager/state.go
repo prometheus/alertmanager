@@ -125,7 +125,7 @@ func (s *memAlerts) Add(alerts ...*Alert) error {
 		fp := alert.Fingerprint()
 
 		// Last write wins.
-		if prev, ok := s.alerts[fp]; !ok || alert.Timestamp.After(prev.Timestamp) {
+		if prev, ok := s.alerts[fp]; !ok || !prev.Timestamp.After(alert.Timestamp) {
 			s.alerts[fp] = alert
 		}
 

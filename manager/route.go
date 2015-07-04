@@ -8,8 +8,8 @@ import (
 )
 
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:     1 * time.Minute,
-	GroupInterval: 1 * time.Minute,
+	GroupWait:     10 * time.Second,
+	GroupInterval: 10 * time.Second,
 }
 
 type Routes []*Route
