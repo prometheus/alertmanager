@@ -54,43 +54,50 @@ func (d *Dispatcher) notify(name string, alerts ...*Alert) error {
 }
 
 func (d *Dispatcher) Run() {
+
+	updates := d.state.Alert().Iter()
+	cleanup := time.Tick(30 * time.Second)
+
 	for {
-		alert := d.state.Alert().Next()
-
-		conf, err := d.state.Config().Get()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-
-		for _, m := range conf.Routes.Match(alert.Labels) {
-			d.processAlert(alert, m)
-		}
-
-		if !alert.Resolved() {
-			// After the constant timeout update the alert to be resolved.
-			go func(alert *Alert) {
-				for {
-					// TODO: get most recent version first.
-					time.Sleep(ResolveTimeout)
-
-					a := *alert
-					a.ResolvedAt = time.Now()
-
-					if err := d.state.Alert().Add(&a); err != nil {
-						log.Error(err)
-						continue
-					}
-					return
+		select {
+		case <-cleanup:
+			// Cleanup routine.
+			for _, ag := range d.aggrGroups {
+				if ag.empty() {
+					ag.stop()
+					delete(d.aggrGroups, ag.fingerprint())
 				}
-			}(alert)
-		}
+			}
 
-		// Cleanup routine.
-		for _, ag := range d.aggrGroups {
-			if ag.empty() {
-				ag.stop()
-				delete(d.aggrGroups, ag.fingerprint())
+		case alert := <-updates:
+
+			conf, err := d.state.Config().Get()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+
+			for _, m := range conf.Routes.Match(alert.Labels) {
+				d.processAlert(alert, m)
+			}
+
+			if !alert.Resolved() {
+				// After the constant timeout update the alert to be resolved.
+				go func(alert *Alert) {
+					for {
+						// TODO: get most recent version first.
+						time.Sleep(ResolveTimeout)
+
+						a := *alert
+						a.ResolvedAt = time.Now()
+
+						if err := d.state.Alert().Add(&a); err != nil {
+							log.Error(err)
+							continue
+						}
+						return
+					}
+				}(alert)
 			}
 		}
 	}
