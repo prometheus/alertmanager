@@ -18,18 +18,12 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 )
 
 var (
-	DefaultAggrRule = AggrRule{
-		RepeatRate:   model.Duration(2 * time.Hour),
-		SendResolved: false,
-	}
-
 	DefaultHipchatConfig = HipchatConfig{
 		Color:         "purple",
 		ColorResolved: "green",
@@ -156,38 +150,6 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	return checkOverflow(r.XXX, "inhibit rule")
-}
-
-// Grouping and notification setting definitions for alerts.
-type AggrRule struct {
-	// Filters that define which alerts are matched by this AggregationRule.
-	Filters []*Filter `yaml:"filters,omitempty"`
-
-	// How many seconds to wait before resending a notification for a specific alert.
-	RepeatRate model.Duration `yaml:"repeat_rate"`
-
-	// Notification configurations to use for this AggregationRule, referenced
-	// by their name.
-	NotificationConfigs []string `yaml:"notification_configs"`
-
-	// Notify when resolved.
-	SendResolved bool `yaml:"send_resolved"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (r *AggrRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*r = DefaultAggrRule
-	type plain AggrRule
-	if err := unmarshal((*plain)(r)); err != nil {
-		return err
-	}
-	if len(r.NotificationConfigs) == 0 {
-		return fmt.Errorf("aggregation rule needs at least one notification config")
-	}
-	return checkOverflow(r.XXX, "aggregation rule")
 }
 
 // A regex-based label filter used in aggregations.
