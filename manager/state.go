@@ -20,6 +20,7 @@ type State interface {
 
 type AlertState interface {
 	Add(...*Alert) error
+	Del(model.Fingerprint) error
 	Get(model.Fingerprint) (*Alert, error)
 	GetAll() ([]*Alert, error)
 
@@ -31,7 +32,8 @@ type ConfigState interface {
 	Get() (*Config, error)
 }
 
-type NotifyState interface{}
+type NotifyState interface {
+}
 
 type SilenceState interface {
 	// Silences returns a list of all silences.
@@ -167,6 +169,14 @@ func (s *memAlerts) Get(fp model.Fingerprint) (*Alert, error) {
 	}
 
 	return nil, fmt.Errorf("alert with fingerprint %s does not exist", fp)
+}
+
+func (s *memAlerts) Del(fp model.Fingerprint) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	delete(s.alerts, fp)
+	return nil
 }
 
 func (s *memAlerts) Iter() <-chan *Alert {

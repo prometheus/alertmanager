@@ -69,6 +69,16 @@ func (d *Dispatcher) Run() {
 				}
 			}
 
+			now := time.Now()
+
+			for _, a := range d.state.Alert().GetAll() {
+				if a.Resolved() && a.ResolvedAt.Before(now.Sub(ResolveTimeout)) {
+					if err := d.state.Alert().Del(a.Fingerprint()); err != nil {
+						log.Errorf("error cleaning resolved alerts: %s", err)
+					}
+				}
+			}
+
 		case alert := <-updates:
 
 			conf, err := d.state.Config().Get()
