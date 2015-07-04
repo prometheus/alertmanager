@@ -7,11 +7,17 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+var DefaultRouteOpts = RouteOpts{
+	GroupWait:     1 * time.Minute,
+	GroupInterval: 1 * time.Minute,
+}
+
 type Routes []*Route
 
 func (rs Routes) Match(lset model.LabelSet) []*RouteOpts {
 	fakeParent := &Route{
-		Routes: rs,
+		Routes:    rs,
+		RouteOpts: DefaultRouteOpts,
 	}
 	return fakeParent.Match(lset)
 }
@@ -65,9 +71,10 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type route struct {
-		SendTo    string            `yaml:"send_to,omitempty"`
-		GroupBy   []model.LabelName `yaml:"group_by,omitempty"`
-		GroupWait *model.Duration   `yaml:"group_wait,omitempty"`
+		SendTo        string            `yaml:"send_to,omitempty"`
+		GroupBy       []model.LabelName `yaml:"group_by,omitempty"`
+		GroupWait     *model.Duration   `yaml:"group_wait,omitempty"`
+		GroupInterval *model.Duration   `yaml:"group_interval,omitempty"`
 
 		Match    map[string]string `yaml:"match,omitempty"`
 		MatchRE  map[string]string `yaml:"match_re,omitempty"`
@@ -112,7 +119,14 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		r.RouteOpts.GroupBy[ln] = struct{}{}
 	}
 
-	r.RouteOpts.groupWait = (*time.Duration)(v.GroupWait)
+	if v.GroupWait != nil {
+		r.RouteOpts.GroupWait = time.Duration(*v.GroupWait)
+		r.RouteOpts.hasWait = true
+	}
+	if v.GroupInterval != nil {
+		r.RouteOpts.GroupInterval = time.Duration(*v.GroupInterval)
+		r.RouteOpts.hasInterval = true
+	}
 	r.RouteOpts.SendTo = v.SendTo
 
 	r.Continue = v.Continue
@@ -130,7 +144,10 @@ type RouteOpts struct {
 
 	// How long to wait to group matching alerts before sending
 	// a notificaiton
-	groupWait *time.Duration
+	GroupWait     time.Duration
+	GroupInterval time.Duration
+
+	hasWait, hasInterval bool
 }
 
 func (ro *RouteOpts) String() string {
@@ -138,14 +155,7 @@ func (ro *RouteOpts) String() string {
 	for ln := range ro.GroupBy {
 		labels = append(labels, ln)
 	}
-	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_wait:%q>", ro.SendTo, labels, ro.groupWait)
-}
-
-func (ro *RouteOpts) GroupWait() time.Duration {
-	if ro.groupWait == nil {
-		return 0
-	}
-	return *ro.groupWait
+	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_wait:%q>", ro.SendTo, labels, ro.GroupWait)
 }
 
 func (ro *RouteOpts) populateDefault(parent *RouteOpts) {
@@ -157,7 +167,10 @@ func (ro *RouteOpts) populateDefault(parent *RouteOpts) {
 	if ro.SendTo == "" {
 		ro.SendTo = parent.SendTo
 	}
-	if ro.groupWait == nil {
-		ro.groupWait = parent.groupWait
+	if ro.hasWait {
+		ro.GroupWait = parent.GroupWait
+	}
+	if ro.hasInterval {
+		ro.GroupInterval = parent.GroupInterval
 	}
 }
