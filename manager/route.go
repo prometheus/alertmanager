@@ -167,10 +167,10 @@ func (ro *RouteOpts) populateDefault(parent *RouteOpts) {
 	if ro.SendTo == "" {
 		ro.SendTo = parent.SendTo
 	}
-	if ro.hasWait {
+	if !ro.hasWait {
 		ro.GroupWait = parent.GroupWait
 	}
-	if ro.hasInterval {
+	if !ro.hasInterval {
 		ro.GroupInterval = parent.GroupInterval
 	}
 }

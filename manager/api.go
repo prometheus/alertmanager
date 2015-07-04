@@ -73,9 +73,13 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, alert := range alerts {
+		now := time.Now()
+
 		if alert.Timestamp.IsZero() {
-			alert.Timestamp = time.Now()
-			alert.CreatedAt = alert.Timestamp
+			alert.Timestamp = now
+		}
+		if alert.CreatedAt.IsZero() {
+			alert.CreatedAt = now
 		}
 	}
 

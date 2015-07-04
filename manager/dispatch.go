@@ -18,25 +18,39 @@ type Dispatcher struct {
 	state State
 
 	aggrGroups map[model.Fingerprint]*aggrGroup
+	notifiers  map[string]Notifier
+
+	mtx sync.RWMutex
 }
 
-func NewDispatcher(state State) *Dispatcher {
-	return &Dispatcher{
+func NewDispatcher(state State, notifiers []Notifier) *Dispatcher {
+	disp := &Dispatcher{
 		state:      state,
 		aggrGroups: map[model.Fingerprint]*aggrGroup{},
+		notifiers:  map[string]Notifier{},
 	}
+
+	for _, n := range notifiers {
+		disp.notifiers[n.Name()] = n
+	}
+
+	return disp
 }
 
 func (d *Dispatcher) notify(name string, alerts ...*Alert) error {
 	if len(alerts) == 0 {
-		return
+		return nil
 	}
-	n := &LogNotifier{}
-	i := []interface{}{name, "::"}
-	for _, a := range alerts {
-		i = append(i, a)
+
+	d.mtx.RLock()
+	notifier, ok := d.notifiers[name]
+	d.mtx.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("notifier %q does not exist", name)
 	}
-	n.Send(i...)
+
+	return notifier.Send(alerts...)
 }
 
 func (d *Dispatcher) Run() {
@@ -171,6 +185,10 @@ func newAggrGroup(d *Dispatcher, labels model.LabelSet, opts *RouteOpts) *aggrGr
 
 		alerts: map[model.Fingerprint]struct{}{},
 		done:   make(chan struct{}),
+
+		// Set an initial one-time wait before flushing
+		// the first batch of notifications.
+		next: time.NewTimer(opts.GroupWait),
 	}
 
 	go ag.run()
@@ -179,9 +197,6 @@ func newAggrGroup(d *Dispatcher, labels model.LabelSet, opts *RouteOpts) *aggrGr
 }
 
 func (ag *aggrGroup) run() {
-	// Set an initial one-time wait before flushing
-	// the first batch of notifications.
-	ag.next = time.NewTimer(ag.opts.GroupWait)
 
 	defer ag.next.Stop()
 

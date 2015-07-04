@@ -39,7 +39,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	disp := manager.NewDispatcher(state)
+	disp := manager.NewDispatcher(state, []manager.Notifier{
+		manager.NewLogNotifier("default"),
+	})
+
 	router := route.New()
 
 	go disp.Run()
