@@ -96,21 +96,8 @@ func (d *Dispatcher) Run() {
 				d.processAlert(alert, m)
 			}
 
-			if !alert.Resolved() {
-				a := *alert
-				a.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
-
-				// After the constant timeout update the alert to be resolved.
-				go func(a Alert) {
-					now := time.Now()
-
-					if a.ResolvedAt.After(now) {
-						time.Sleep(a.ResolvedAt.Sub(now))
-					}
-					if err := d.state.Alert().Add(&a); err != nil {
-						log.Errorf("alert auto-resolve failed: %s", err)
-					}
-				}(a)
+			if alert.ResolvedAt.IsZero() {
+				alert.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
 			}
 		}
 	}
@@ -167,7 +154,7 @@ func (a *Alert) Fingerprint() model.Fingerprint {
 }
 
 func (a *Alert) String() string {
-	s := fmt.Sprintf("%s[%x]", a.Name(), a.Fingerprint())
+	s := fmt.Sprintf("%s[%s]", a.Name(), a.Fingerprint())
 	if a.Resolved() {
 		return s + "[resolved]"
 	}
@@ -175,7 +162,10 @@ func (a *Alert) String() string {
 }
 
 func (a *Alert) Resolved() bool {
-	return a.ResolvedAt.After(a.CreatedAt)
+	if a.ResolvedAt.IsZero() {
+		return false
+	}
+	return !a.ResolvedAt.After(time.Now())
 }
 
 // aggrGroup aggregates alerts into groups based on
