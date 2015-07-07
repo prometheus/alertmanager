@@ -69,15 +69,20 @@ func (d *Dispatcher) Run() {
 				}
 			}
 
-			now := time.Now()
+			// now := time.Now()
 
-			for _, a := range d.state.Alert().GetAll() {
-				if a.Resolved() && a.ResolvedAt.Before(now.Sub(ResolveTimeout)) {
-					if err := d.state.Alert().Del(a.Fingerprint()); err != nil {
-						log.Errorf("error cleaning resolved alerts: %s", err)
-					}
-				}
-			}
+			// list, err := d.state.Alert().GetAll()
+			// if err != nil {
+			// 	log.Error(err)
+			// }
+
+			// for _, a := range list {
+			// 	if a.Resolved() && a.ResolvedAt.Before(now.Sub(ResolveTimeout)) {
+			// 		if err := d.state.Alert().Del(a.Fingerprint()); err != nil {
+			// 			log.Errorf("error cleaning resolved alerts: %s", err)
+			// 		}
+			// 	}
+			// }
 
 		case alert := <-updates:
 
@@ -96,16 +101,16 @@ func (d *Dispatcher) Run() {
 				a.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
 
 				// After the constant timeout update the alert to be resolved.
-				go func(alert *Alert) {
+				go func(a Alert) {
 					now := time.Now()
 
 					if a.ResolvedAt.After(now) {
-						time.Sleep(now.Sub(a.ResolvedAt))
+						time.Sleep(a.ResolvedAt.Sub(now))
 					}
 					if err := d.state.Alert().Add(&a); err != nil {
 						log.Errorf("alert auto-resolve failed: %s", err)
 					}
-				}(alert)
+				}(a)
 			}
 		}
 	}
