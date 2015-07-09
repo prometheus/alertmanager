@@ -567,8 +567,9 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 
 	// Send pushover message
 	_, _, err = po.Push(&pushover.Message{
-		Title:   fmt.Sprintf("%s: %s", alertname, status),
-		Message: a.Summary,
+		Title:    fmt.Sprintf("%s: %s", alertname, status),
+		Message:  a.Summary,
+		Priority: pushover.Emergency,
 	})
 	return err
 }
