@@ -16,7 +16,7 @@ import (
 type State interface {
 	Silence() SilenceState
 	Config() ConfigState
-	// Notify() NotifyState
+	Notify() NotifyState
 	Alert() AlertState
 }
 
@@ -34,11 +34,13 @@ type ConfigState interface {
 }
 
 type NotifyState interface {
+	Get(model.Fingerprint) (*NotifyInfo, error)
+	Set(model.Fingerprint, *NotifyInfo) error
 }
 
 type SilenceState interface {
 	// Silences returns a list of all silences.
-	GetAll() ([]*Silence, error)
+	List() ([]*Silence, error)
 
 	// SetSilence sets the given silence.
 	Set(*Silence) error
@@ -51,6 +53,7 @@ type simpleState struct {
 	silences *memSilences
 	alerts   *crdtAlerts
 	config   *memConfig
+	notify   *memNotify
 }
 
 func NewSimpleState() State {
@@ -65,6 +68,9 @@ func NewSimpleState() State {
 		// 	updates: make(chan *Alert, 100),
 		// },
 		config: &memConfig{},
+		notify: &memNotify{
+			m: map[model.Fingerprint]*NotifyInfo{},
+		},
 	}
 
 	go state.alerts.run()
@@ -82,6 +88,31 @@ func (s *simpleState) Silence() SilenceState {
 
 func (s *simpleState) Config() ConfigState {
 	return s.config
+}
+
+func (s *simpleState) Notify() NotifyState {
+	return s.notify
+}
+
+type NotifyInfo struct {
+	LastSent     time.Time
+	LastResolved bool
+}
+
+type memNotify struct {
+	m map[model.Fingerprint]*NotifyInfo
+}
+
+func (s *memNotify) Get(fp model.Fingerprint) (*NotifyInfo, error) {
+	if info, ok := s.m[fp]; ok {
+		return info, nil
+	}
+	return nil, fmt.Errorf("notify info for %s not found", fp)
+}
+
+func (s *memNotify) Set(fp model.Fingerprint, info *NotifyInfo) error {
+	s.m[fp] = info
+	return nil
 }
 
 type memConfig struct {
@@ -324,7 +355,7 @@ func (s *memSilences) Del(sid string) error {
 	return nil
 }
 
-func (s *memSilences) GetAll() ([]*Silence, error) {
+func (s *memSilences) List() ([]*Silence, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 

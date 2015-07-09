@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/log"
 )
 
-const ResolveTimeout = 15 * time.Second
+const ResolveTimeout = 35 * time.Second
 
 // Dispatcher dispatches alerts. It is absed on the alert's data
 // rather than the time they arrive. Thus it can recover it's state
@@ -37,7 +37,47 @@ func NewDispatcher(state State, notifiers []Notifier) *Dispatcher {
 	return disp
 }
 
+func (d *Dispatcher) filter(alerts ...*Alert) ([]*Alert, error) {
+
+	silences, err := d.state.Silence().List()
+	if err != nil {
+		return nil, err
+	}
+
+	var sentAlerts []*Alert
+
+	for _, alert := range alerts {
+		add := true
+		// None of the existing silences must match the alert.
+		for _, sil := range silences {
+			if sil.Match(alert.Labels) {
+				add = false
+				break
+			}
+		}
+		if !add {
+			continue
+		}
+
+		// Filter out alerts that have already been sent.
+		ni, err := d.state.Notify().Get(alert.Fingerprint())
+		// Always try to send on error as the safest option.
+		if err == nil && ni.LastSent.Before(alert.ResolvedAt) && ni.LastResolved == alert.Resolved() {
+			continue
+		}
+
+		sentAlerts = append(sentAlerts, alert)
+	}
+
+	return sentAlerts, nil
+}
+
 func (d *Dispatcher) notify(name string, alerts ...*Alert) error {
+	alerts, err := d.filter(alerts...)
+	if err != nil {
+		return err
+	}
+
 	if len(alerts) == 0 {
 		return nil
 	}
@@ -50,13 +90,25 @@ func (d *Dispatcher) notify(name string, alerts ...*Alert) error {
 		return fmt.Errorf("notifier %q does not exist", name)
 	}
 
-	return notifier.Send(alerts...)
+	if err = notifier.Send(alerts...); err != nil {
+		return err
+	}
+
+	for _, alert := range alerts {
+		_ = d.state.Notify().Set(alert.Fingerprint(), &NotifyInfo{
+			LastSent:     time.Now(),
+			LastResolved: alert.Resolved(),
+		})
+	}
+
+	return nil
 }
 
 func (d *Dispatcher) Run() {
-
-	updates := d.state.Alert().Iter()
-	cleanup := time.Tick(30 * time.Second)
+	var (
+		updates = d.state.Alert().Iter()
+		cleanup = time.Tick(30 * time.Second)
+	)
 
 	for {
 		select {
@@ -68,21 +120,6 @@ func (d *Dispatcher) Run() {
 					delete(d.aggrGroups, ag.fingerprint())
 				}
 			}
-
-			// now := time.Now()
-
-			// list, err := d.state.Alert().GetAll()
-			// if err != nil {
-			// 	log.Error(err)
-			// }
-
-			// for _, a := range list {
-			// 	if a.Resolved() && a.ResolvedAt.Before(now.Sub(ResolveTimeout)) {
-			// 		if err := d.state.Alert().Del(a.Fingerprint()); err != nil {
-			// 			log.Errorf("error cleaning resolved alerts: %s", err)
-			// 		}
-			// 	}
-			// }
 
 		case alert := <-updates:
 
@@ -99,6 +136,7 @@ func (d *Dispatcher) Run() {
 			if alert.ResolvedAt.IsZero() {
 				alert.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
 			}
+
 		}
 	}
 }
@@ -121,6 +159,31 @@ func (d *Dispatcher) processAlert(alert *Alert, opts *RouteOpts) {
 	}
 
 	ag.insert(alert)
+}
+
+type Silence struct {
+	Matchers Matchers
+
+	// The numeric ID of the silence.
+	ID string
+
+	// Name/email of the silence creator.
+	CreatedBy string
+	// When the silence was first created (Unix timestamp).
+	CreatedAt, EndsAt time.Time
+
+	// Additional comment about the silence.
+	Comment string
+}
+
+func (sil *Silence) Match(lset model.LabelSet) bool {
+	now := time.Now()
+
+	if now.Before(sil.CreatedAt) || now.After(sil.EndsAt) {
+		return false
+	}
+
+	return sil.Matchers.Match(lset)
 }
 
 // Alert models an action triggered by Prometheus.

@@ -82,8 +82,8 @@ func NewRegexMatcher(name model.LabelName, value string) (*Matcher, error) {
 
 type Matchers []*Matcher
 
-// MatchAll checks whether all matchers are fulfilled against the given label set.
-func (ms Matchers) MatchAll(lset model.LabelSet) bool {
+// Match checks whether all matchers are fulfilled against the given label set.
+func (ms Matchers) Match(lset model.LabelSet) bool {
 	for _, m := range ms {
 		if !m.Match(lset) {
 			return false

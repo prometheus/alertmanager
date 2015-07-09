@@ -3,8 +3,6 @@ package crdt
 import (
 	"errors"
 	"sync"
-
-	"github.com/prometheus/log"
 )
 
 var (
@@ -53,8 +51,6 @@ func (lww *LWW) Add(key string, score uint64, val interface{}) error {
 	if e.add > score || e.del > score {
 		return nil
 	}
-
-	log.Infof("adding %s", val)
 
 	e.del = 0
 	e.add = score

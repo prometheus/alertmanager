@@ -41,7 +41,7 @@ type Route struct {
 // Match does a depth-first left-to-right search through the route tree
 // and returns the flattened configuration for the reached node.
 func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
-	if !r.Matchers.MatchAll(lset) {
+	if !r.Matchers.Match(lset) {
 		return nil
 	}
 

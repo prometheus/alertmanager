@@ -158,7 +158,7 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	sils, err := api.state.Silence().GetAll()
+	sils, err := api.state.Silence().List()
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
