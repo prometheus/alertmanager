@@ -1,7 +1,9 @@
 package manager
 
 import (
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -63,6 +65,33 @@ func NewSimpleState() State {
 			nextID: 1,
 		},
 		alerts: newCRDTAlerts(crdt.NewMemStorage()),
+		// alerts: &memAlerts{
+		// 	alerts:  map[model.Fingerprint]*Alert{},
+		// 	updates: make(chan *Alert, 100),
+		// },
+		config: &memConfig{},
+		notify: &memNotify{
+			m: map[model.Fingerprint]*NotifyInfo{},
+		},
+	}
+
+	go state.alerts.run()
+
+	return state
+}
+
+func NewPersistentState(path string) State {
+	alertDB, err := crdt.NewLevelDBStorage(filepath.Join(path, "/alerts"))
+	if err != nil {
+		panic(err)
+	}
+
+	state := &simpleState{
+		silences: &memSilences{
+			sils:   map[string]*Silence{},
+			nextID: 1,
+		},
+		alerts: newCRDTAlerts(alertDB),
 		// alerts: &memAlerts{
 		// 	alerts:  map[model.Fingerprint]*Alert{},
 		// 	updates: make(chan *Alert, 100),
@@ -169,7 +198,13 @@ func (s *crdtAlerts) run() {
 
 func (s *crdtAlerts) Add(alerts ...*Alert) error {
 	for _, a := range alerts {
-		err := s.set.Add(a.Fingerprint().String(), uint64(a.Timestamp.UnixNano()/1e6), a)
+
+		b, err := json.Marshal(a)
+		if err != nil {
+			return err
+		}
+
+		err = s.set.Add(a.Fingerprint().String(), uint64(a.Timestamp.UnixNano()/1e6), b)
 		if err != nil {
 			return err
 		}
@@ -185,9 +220,13 @@ func (s *crdtAlerts) Get(fp model.Fingerprint) (*Alert, error) {
 		return nil, err
 	}
 
-	alert := e.Value.(*Alert)
+	var alert Alert
+	err = json.Unmarshal(e.Value, &alert)
+	if err != nil {
+		return nil, err
+	}
 
-	return alert, nil
+	return &alert, nil
 }
 
 func (s *crdtAlerts) GetAll() ([]*Alert, error) {
@@ -198,7 +237,13 @@ func (s *crdtAlerts) GetAll() ([]*Alert, error) {
 
 	var alerts []*Alert
 	for _, e := range list {
-		alerts = append(alerts, e.Value.(*Alert))
+		var alert Alert
+		err = json.Unmarshal(e.Value, &alert)
+		if err != nil {
+			return nil, err
+		}
+
+		alerts = append(alerts, &alert)
 	}
 	return alerts, nil
 }

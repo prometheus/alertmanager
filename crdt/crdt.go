@@ -1,8 +1,11 @@
 package crdt
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var (
@@ -12,21 +15,21 @@ var (
 type Elem struct {
 	Key   string
 	Score uint64
-	Value interface{}
+	Value json.RawMessage
 }
 
 type Set interface {
 	Get(key string) (*Elem, error)
 	List() ([]*Elem, error)
 
-	Add(key string, score uint64, v interface{}) error
+	Add(key string, score uint64, v json.RawMessage) error
 	Del(key string, score uint64) error
 }
 
 type Entity struct {
-	add uint64
-	del uint64
-	val interface{}
+	Add uint64
+	Del uint64
+	Val json.RawMessage
 }
 
 type LWW struct {
@@ -39,22 +42,29 @@ func NewLWW(storage Storage) Set {
 	}
 }
 
-func (lww *LWW) Add(key string, score uint64, val interface{}) error {
-	e, err := lww.storage.Get(key)
-	if err != nil && err != ErrNotFound {
+func (lww *LWW) Add(key string, score uint64, val json.RawMessage) error {
+	has, err := lww.storage.Has(key)
+	if err != nil {
 		return err
 	}
-	if err == ErrNotFound {
+	var e *Entity
+
+	if !has {
 		e = &Entity{0, 0, nil}
+	} else {
+		e, err = lww.storage.Get(key)
+		if err != nil {
+			return err
+		}
 	}
 
-	if e.add > score || e.del > score {
+	if e.Add > score || e.Del > score {
 		return nil
 	}
 
-	e.del = 0
-	e.add = score
-	e.val = val
+	e.Del = 0
+	e.Add = score
+	e.Val = val
 
 	return lww.storage.Set(key, e)
 }
@@ -65,13 +75,13 @@ func (lww *LWW) Del(key string, score uint64) error {
 		return err
 	}
 
-	if e.add > score || e.del > score {
+	if e.Add > score || e.Del > score {
 		return nil
 	}
 
-	e.del = score
-	e.add = 0
-	e.val = nil
+	e.Del = score
+	e.Add = 0
+	e.Val = nil
 
 	return lww.storage.Set(key, e)
 }
@@ -81,15 +91,17 @@ func (lww *LWW) Get(key string) (*Elem, error) {
 	if err != nil {
 		return nil, err
 	}
-	if e.del > e.add {
+	if e.Del > e.Add {
 		return nil, ErrNotFound
 	}
 
-	return &Elem{
+	res := &Elem{
 		Key:   key,
-		Score: e.add,
-		Value: e.val,
-	}, nil
+		Score: e.Add,
+		Value: e.Val,
+	}
+
+	return res, nil
 }
 
 func (lww *LWW) List() ([]*Elem, error) {
@@ -100,14 +112,16 @@ func (lww *LWW) List() ([]*Elem, error) {
 
 	var res []*Elem
 	for k, e := range kval {
-		if e.add <= e.del {
+		if e.Add <= e.Del {
 			continue
 		}
-		res = append(res, &Elem{
-			Key:   k,
-			Score: e.add,
-			Value: e.val,
-		})
+		el := &Elem{Key: k, Score: e.Add}
+
+		if err := json.Unmarshal(e.Val, &el.Value); err != nil {
+			return nil, err
+		}
+
+		res = append(res, el)
 	}
 
 	return res, nil
@@ -180,6 +194,68 @@ func (s *memStorage) All() (map[string]*Entity, error) {
 	res := make(map[string]*Entity, len(s.kval))
 	for k, v := range s.kval {
 		res[k] = v
+	}
+
+	return res, nil
+}
+
+type ldbStorage struct {
+	db *leveldb.DB
+}
+
+func NewLevelDBStorage(path string) (Storage, error) {
+	db, err := leveldb.OpenFile(path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ldbs := &ldbStorage{
+		db: db,
+	}
+	return ldbs, nil
+}
+
+func (s *ldbStorage) Set(key string, e *Entity) error {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	return s.db.Put([]byte(key), b, nil)
+}
+
+func (s *ldbStorage) Get(key string) (*Entity, error) {
+	b, err := s.db.Get([]byte(key), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var e Entity
+	if err := json.Unmarshal(b, &e); err != nil {
+		return nil, err
+	}
+
+	return &e, nil
+}
+
+func (s *ldbStorage) Del(key string) error {
+	return nil
+}
+
+func (s *ldbStorage) Has(key string) (bool, error) {
+	return s.db.Has([]byte(key), nil)
+}
+
+func (s *ldbStorage) All() (map[string]*Entity, error) {
+	it := s.db.NewIterator(nil, nil)
+
+	res := map[string]*Entity{}
+
+	for it.Next() {
+		var e Entity
+		if err := json.Unmarshal(it.Value(), &e); err != nil {
+			return nil, err
+		}
+		res[string(it.Key())] = &e
 	}
 
 	return res, nil

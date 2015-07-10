@@ -308,6 +308,8 @@ func (ag *aggrGroup) insert(alert *Alert) {
 	if !ag.hasSent && alert.Timestamp.Add(ag.opts.GroupWait).Before(time.Now()) {
 		ag.next.Reset(0)
 	}
+
+	log.Infof("inserted %s", alert)
 }
 
 func (ag *aggrGroup) empty() bool {

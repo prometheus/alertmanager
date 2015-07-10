@@ -33,7 +33,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	state := manager.NewSimpleState()
+	state := manager.NewPersistentState("data")
 
 	if err = state.Config().Set(conf); err != nil {
 		log.Fatal(err)
