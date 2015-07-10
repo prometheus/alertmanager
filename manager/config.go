@@ -120,15 +120,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type InhibitRule struct {
 	// The set of Filters which define the group of source alerts (which inhibit
 	// the target alerts).
-	SourceFilters []*Filter `yaml:"source_filters,omitempty"`
+	SourceMatchers Matchers
 
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
-	TargetFilters []*Filter `yaml:"target_filters,omitempty"`
+	TargetMatchers Matchers
 
 	// A set of label names whose label values need to be identical in source and
 	// target alerts in order for the inhibition to take effect.
-	MatchOn model.LabelNames `yaml:"match_on,omitempty"`
+	Equal model.LabelNames
 
 	// How many seconds to wait for a corresponding inhibit source alert to
 	// appear before sending any notifications for active target alerts.
@@ -138,36 +138,68 @@ type InhibitRule struct {
 	// disappears before sending any notifications for active target alerts.
 	// TODO(julius): Not supported yet. Implement this!
 	// optional int32 after_allowance = 5 [default = 0];
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain InhibitRule
-	if err := unmarshal((*plain)(r)); err != nil {
+	v := struct {
+		SourceMatch   map[string]string `yaml:"source_match"`
+		SourceMatchRE map[string]string `yaml:"source_match_re"`
+		TargetMatch   map[string]string `yaml:"target_match"`
+		TargetMatchRE map[string]string `yaml:"target_match_re"`
+		Equal         model.LabelNames  `yaml:"equal"`
+		// Catches all undefined fields and must be empty after parsing.
+		XXX map[string]interface{} `yaml:",inline"`
+	}{}
+	if err := unmarshal(v); err != nil {
 		return err
 	}
-	return checkOverflow(r.XXX, "inhibit rule")
-}
 
-// A regex-based label filter used in aggregations.
-type Filter struct {
-	Name  model.LabelName `yaml:"name"`
-	Regex *Regexp         `yaml:"regex"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (f *Filter) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain Filter
-	if err := unmarshal((*plain)(f)); err != nil {
-		return err
+	for k, val := range v.SourceMatch {
+		if !model.LabelNameRE.MatchString(k) {
+			fmt.Errorf("invalid label name %q", k)
+		}
+		ln := model.LabelName(k)
+		r.SourceMatchers = append(r.SourceMatchers, NewMatcher(ln, val))
 	}
-	return checkOverflow(f.XXX, "aggregation rule")
+
+	for k, val := range v.SourceMatchRE {
+		if !model.LabelNameRE.MatchString(k) {
+			fmt.Errorf("invalid label name %q", k)
+		}
+		ln := model.LabelName(k)
+
+		m, err := NewRegexMatcher(ln, val)
+		if err != nil {
+			return err
+		}
+		r.SourceMatchers = append(r.SourceMatchers, m)
+	}
+
+	for k, val := range v.TargetMatch {
+		if !model.LabelNameRE.MatchString(k) {
+			fmt.Errorf("invalid label name %q", k)
+		}
+		ln := model.LabelName(k)
+		r.TargetMatchers = append(r.TargetMatchers, NewMatcher(ln, val))
+	}
+
+	for k, val := range v.TargetMatchRE {
+		if !model.LabelNameRE.MatchString(k) {
+			fmt.Errorf("invalid label name %q", k)
+		}
+		ln := model.LabelName(k)
+
+		m, err := NewRegexMatcher(ln, val)
+		if err != nil {
+			return err
+		}
+		r.TargetMatchers = append(r.TargetMatchers, m)
+	}
+
+	r.Equal = v.Equal
+
+	return checkOverflow(v.XXX, "inhibit rule")
 }
 
 // Notification configuration definition.

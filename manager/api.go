@@ -81,6 +81,9 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		if alert.CreatedAt.IsZero() {
 			alert.CreatedAt = now
 		}
+		if alert.ResolvedAt.IsZero() {
+			alert.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
+		}
 	}
 
 	// TODO(fabxc): validate input.

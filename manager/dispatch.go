@@ -132,11 +132,6 @@ func (d *Dispatcher) Run() {
 			for _, m := range conf.Routes.Match(alert.Labels) {
 				d.processAlert(alert, m)
 			}
-
-			if alert.ResolvedAt.IsZero() {
-				alert.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
-			}
-
 		}
 	}
 }
@@ -308,8 +303,6 @@ func (ag *aggrGroup) insert(alert *Alert) {
 	if !ag.hasSent && alert.Timestamp.Add(ag.opts.GroupWait).Before(time.Now()) {
 		ag.next.Reset(0)
 	}
-
-	log.Infof("inserted %s", alert)
 }
 
 func (ag *aggrGroup) empty() bool {
@@ -338,7 +331,9 @@ func (ag *aggrGroup) flush() {
 		alerts = append(alerts, a)
 	}
 
-	ag.dispatcher.notify(ag.opts.SendTo, alerts...)
+	if err := ag.dispatcher.notify(ag.opts.SendTo, alerts...); err != nil {
+		log.Error(err)
+	}
 	ag.hasSent = true
 }
 
