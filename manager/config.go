@@ -148,10 +148,11 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		TargetMatch   map[string]string `yaml:"target_match"`
 		TargetMatchRE map[string]string `yaml:"target_match_re"`
 		Equal         model.LabelNames  `yaml:"equal"`
+
 		// Catches all undefined fields and must be empty after parsing.
 		XXX map[string]interface{} `yaml:",inline"`
 	}{}
-	if err := unmarshal(v); err != nil {
+	if err := unmarshal(&v); err != nil {
 		return err
 	}
 
@@ -210,26 +211,13 @@ type NotificationConfig struct {
 	// Notify when resolved.
 	SendResolved bool `yaml:"send_resolved"`
 
-	// Zero or more PagerDuty notification configurations.
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs"`
-
-	// Zero or more email notification configurations.
-	EmailConfigs []*EmailConfig `yaml:"email_configs"`
-
-	// Zero or more pushover notification configurations.
-	PushoverConfigs []*PushoverConfig `yaml:"pushover_configs"`
-
-	// Zero or more hipchat notification configurations.
-	HipchatConfigs []*HipchatConfig `yaml:"hipchat_configs"`
-
-	// Zero or more slack notification configurations.
-	SlackConfigs []*SlackConfig `yaml:"slack_config"`
-
-	// Zero or more Flowdock notification configurations.
-	FlowdockConfigs []*FlowdockConfig `yaml:"flowdock_config"`
-
-	// Zero or more generic web hook notification configurations.
-	WebhookConfigs []*WebhookConfig `yaml:"webhook_config"`
+	EmailConfigs     []*EmailConfig     `yaml:"email_configs"`
+	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs"`
+	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs"`
+	SlackConfigs     []*SlackConfig     `yaml:"slack_config"`
+	FlowdockConfigs  []*FlowdockConfig  `yaml:"flowdock_config"`
+	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_config"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`

@@ -38,6 +38,7 @@ type ConfigState interface {
 type NotifyState interface {
 	Get(model.Fingerprint) (*NotifyInfo, error)
 	Set(model.Fingerprint, *NotifyInfo) error
+	List() ([]*NotifyInfo, error)
 }
 
 type SilenceState interface {
@@ -126,6 +127,7 @@ func (s *simpleState) Notify() NotifyState {
 type NotifyInfo struct {
 	LastSent     time.Time
 	LastResolved bool
+	Labels       model.LabelSet
 }
 
 type memNotify struct {
@@ -142,6 +144,14 @@ func (s *memNotify) Get(fp model.Fingerprint) (*NotifyInfo, error) {
 func (s *memNotify) Set(fp model.Fingerprint, info *NotifyInfo) error {
 	s.m[fp] = info
 	return nil
+}
+
+func (s *memNotify) List() ([]*NotifyInfo, error) {
+	var res []*NotifyInfo
+	for _, ni := range s.m {
+		res = append(res, ni)
+	}
+	return res, nil
 }
 
 type memConfig struct {

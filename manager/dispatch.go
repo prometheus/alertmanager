@@ -39,6 +39,45 @@ func NewDispatcher(state State, notifiers []Notifier) *Dispatcher {
 
 func (d *Dispatcher) filter(alerts ...*Alert) ([]*Alert, error) {
 
+	conf, err := d.state.Config().Get()
+	if err != nil {
+		return nil, err
+	}
+	notifies, err := d.state.Notify().List()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infoln("check inhibit")
+
+	var blaAlerts []*Alert
+
+	for _, alert := range alerts {
+		inhibited := false
+		for _, ir := range conf.InhibitRules {
+			log.Infoln(ir, "against", alert)
+			if !ir.TargetMatchers.Match(alert.Labels) {
+				continue
+			}
+
+			for _, n := range notifies {
+				if !n.LastResolved && ir.SourceMatchers.Match(n.Labels) {
+					inhibited = true
+					break
+				}
+			}
+			if inhibited {
+				break
+			}
+		}
+		if !inhibited {
+			log.Infoln("not inhibited", alert)
+			blaAlerts = append(blaAlerts, alert)
+		} else {
+			log.Infoln("inhibited", alert)
+		}
+	}
+
 	silences, err := d.state.Silence().List()
 	if err != nil {
 		return nil, err
@@ -98,6 +137,7 @@ func (d *Dispatcher) notify(name string, alerts ...*Alert) error {
 		_ = d.state.Notify().Set(alert.Fingerprint(), &NotifyInfo{
 			LastSent:     time.Now(),
 			LastResolved: alert.Resolved(),
+			Labels:       alert.Labels,
 		})
 	}
 
