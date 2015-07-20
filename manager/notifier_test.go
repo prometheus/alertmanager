@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -296,4 +297,77 @@ func TestSendFlowdockNotification(t *testing.T) {
 	if !reflect.DeepEqual(msg, expected) {
 		t.Errorf("incorrect Flowdock notification: Expected: %s Actual: %s", expected, msg)
 	}
+}
+
+func TestSendOpsGenieNotification(t *testing.T) {
+	var body []byte
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("error reading webhook notification: %s", err)
+		}
+	}))
+	defer ts.Close()
+	opsgenieAPIURL = &ts.URL
+	apikey := "AAAB"
+	config := &pb.OpsGenieConfig{
+		ApiKey:       &apikey,
+		LabelsToTags: []string{"alertname"},
+		Teams:        []string{"prometheus"},
+	}
+	alert := &Alert{
+		Summary:     "Testsummary",
+		Description: "Test alert description, something went wrong here.",
+		Labels: AlertLabelSet{
+			"alertname": "TestAlert",
+		},
+		Payload: AlertPayload{
+			"payload_label1": "payload_value1",
+		},
+	}
+	n := &notifier{}
+	err := n.sendOpsGenieNotification(notificationOpTrigger, config, alert)
+	if err != nil {
+		t.Errorf("error sending OpsGenie notification: %s", err)
+	}
+
+	var msg opsGenieMessageCreate
+	err = json.Unmarshal(body, &msg)
+	if err != nil {
+		t.Errorf("error unmarshalling OpsGenie notification: %s", err)
+	}
+	expected := opsGenieMessageCreate{
+		ApiKey:      "AAAB",
+		Message:     "Testsummary",
+		Description: "Test alert description, something went wrong here.",
+		Tags:        []string{"TestAlert"},
+		Teams:       []string{"prometheus"},
+		Alias:       strconv.FormatUint(uint64(alert.Fingerprint()), 10),
+		Details: map[string]interface{}{
+			"extra_labels":    convertPayloadMap(alert.Payload),
+			"grouping_labels": convertAlertLabelSetMap(alert.Labels),
+			"runbook":         alert.Runbook,
+		},
+	}
+
+	if !reflect.DeepEqual(msg, expected) {
+		t.Errorf("incorrect OpsGenie notification: Expected: %s Actual: %s", expected, msg)
+	}
+}
+
+func convertPayloadMap(m AlertPayload) map[string]interface{} {
+	m1 := map[string]interface{}{}
+	for k, v := range m {
+		m1[k] = v
+	}
+	return m1
+}
+
+func convertAlertLabelSetMap(m AlertLabelSet) map[string]interface{} {
+	m1 := map[string]interface{}{}
+	for k, v := range m {
+		m1[k] = v
+	}
+	return m1
 }

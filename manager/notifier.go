@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -83,6 +84,7 @@ var contentTmpl = htmltemplate.Must(htmltemplate.New("content").Parse(
 var (
 	notificationBufferSize = flag.Int("notification.buffer-size", 1000, "Size of buffer for pending notifications.")
 	pagerdutyAPIURL        = flag.String("notification.pagerduty.url", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
+	opsgenieAPIURL         = flag.String("notification.opsgenie.url", "https://api.opsgenie.com/v1/json/alert", "OpsGenie API URL.")
 	smtpSmartHost          = flag.String("notification.smtp.smarthost", "", "Address of the smarthost to send all email notifications to.")
 	smtpSender             = flag.String("notification.smtp.sender", "alertmanager@example.org", "Sender email address to use in email notifications.")
 	hipchatURL             = flag.String("notification.hipchat.url", "https://api.hipchat.com/v2", "HipChat API V2 URL.")
@@ -570,6 +572,94 @@ func (n *notifier) sendEmailNotification(to string, op notificationOp, a *Alert)
 	return writeEmailBody(wc, *smtpSender, to, status, a, n.alertmanagerURL)
 }
 
+// opGenieMessageCreate is the request for sending an opsGenie notification. We are not specifying all the
+// fields. The Details field is populated with the labels from the alert.
+type opsGenieMessageCreate struct {
+	ApiKey      string                 `json:"apiKey"`
+	Message     string                 `json:"message"`
+	Description string                 `json:"description"`
+	Alias       string                 `json:"alias"`
+	Source      string                 `json:"source"`
+	Tags        []string               `json:"tags"`
+	Teams       []string               `json:"teams"`
+	Details     map[string]interface{} `json:"details"`
+}
+
+// opsGenieMessageClose closes an open alert in OpsGenie.
+type opsGenieMessageClose struct {
+	ApiKey string `json:"apiKey"`
+	Alias  string `json:"alias"`
+}
+
+func (n *notifier) sendOpsGenieNotification(op notificationOp, config *pb.OpsGenieConfig, a *Alert) error {
+	var (
+		incidentKey = a.Fingerprint()
+		buf         []byte
+		err         error
+	)
+	switch op {
+	case notificationOpTrigger:
+		msg := &opsGenieMessageCreate{
+			ApiKey:      config.GetApiKey(),
+			Message:     a.Summary,
+			Description: a.Description,
+			Alias:       strconv.FormatUint(uint64(incidentKey), 10),
+			Source:      n.alertmanagerURL,
+			Teams:       config.Teams,
+			Details: map[string]interface{}{
+				"grouping_labels": a.Labels,
+				"extra_labels":    a.Payload,
+				"runbook":         a.Runbook,
+			},
+		}
+		// For label names specificed in labels_to_tag we put the value in the tags
+		for _, label := range config.GetLabelsToTags() {
+			v, ok := a.Labels[label]
+			if ok {
+				msg.Tags = append(msg.Tags, v)
+			}
+		}
+
+		buf, err = json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+	case notificationOpResolve:
+		msg := &opsGenieMessageClose{
+			ApiKey: config.GetApiKey(),
+			Alias:  strconv.FormatUint(uint64(incidentKey), 10),
+		}
+
+		buf, err = json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+	}
+
+	timeout := time.Duration(5 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Post(
+		*opsgenieAPIURL,
+		contentTypeJSON,
+		bytes.NewBuffer(buf),
+	)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBuf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Sent OpsGenie notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	// BUG: Check response for result of operation.
+	return nil
+}
+
 func (n *notifier) sendPushoverNotification(token string, op notificationOp, userKey string, a *Alert) error {
 	po, err := pushover.NewPushover(token, userKey)
 	if err != nil {
@@ -670,6 +760,14 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 		}
 		if err := n.sendWebhookNotification(op, whConfig, a); err != nil {
 			log.Errorln("Error sending Webhook notification:", err)
+		}
+	}
+	for _, ogConfig := range config.OpsgenieConfig {
+		if op == notificationOpResolve && !ogConfig.GetSendResolved() {
+			continue
+		}
+		if err := n.sendOpsGenieNotification(op, ogConfig, a); err != nil {
+			log.Errorln("Error sending OpsGenie notification:", err)
 		}
 	}
 }
