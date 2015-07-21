@@ -340,7 +340,7 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 		return err
 	}
 
-	log.Infof("Sent Slack notification: %v: HTTP %d: %s", incidentKey, resp.StatusCode, respBuf)
+	log.Infof("Sent Slack notification (channel %s): %v: HTTP %d: %s", config.GetChannel(), incidentKey, resp.StatusCode, respBuf)
 	// BUG: Check response for result of operation.
 	return nil
 }
