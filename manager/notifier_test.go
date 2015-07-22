@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -223,5 +224,76 @@ func TestSendWebhookNotification(t *testing.T) {
 	}
 	if !reflect.DeepEqual(msg, expected) {
 		t.Errorf("incorrect webhook notification: Expected: %s Actual: %s", expected, msg)
+	}
+}
+
+func TestSendFlowdockNotification(t *testing.T) {
+	var body []byte
+	var url string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		url = r.URL.String()
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("error reading flowdock notification: %s", err)
+		}
+	}))
+	defer ts.Close()
+	flowdockURL = &ts.URL
+	testApiToken := "123"
+	testFromAddress := "from@prometheus.io"
+	testTag := []string{"T1", "T2"}
+
+	config := &pb.FlowdockConfig{
+		ApiToken:    &testApiToken,
+		FromAddress: &testFromAddress,
+		Tag:         testTag,
+	}
+	alert := &Alert{
+		Summary:     "Testsummary",
+		Description: "Test alert description, something went wrong here.",
+		Labels: AlertLabelSet{
+			"alertname": "TestAlert",
+		},
+		Payload: AlertPayload{
+			"payload_label1": "payload_value1",
+			"generatorURL":   "http://graph",
+		},
+	}
+	n := &notifier{}
+	err := n.sendFlowdockNotification(notificationOpTrigger, config, alert)
+	if err != nil {
+		t.Errorf("error sending flowdock notification: %s", err)
+	}
+
+	var msg flowdockMessage
+
+	expectedUrl := "/" + testApiToken
+	if url != expectedUrl {
+		t.Error("Flowdock message POSTed to wrong URL, expected %s and got %s", expectedUrl, url)
+	}
+	err = json.Unmarshal(body, &msg)
+	if err != nil {
+		t.Errorf("error unmarshalling flowdock notification: %s", err)
+	}
+
+	contentBuf := &bytes.Buffer{}
+	err = contentTmpl.Execute(contentBuf, struct{ Alert *Alert }{Alert: alert})
+	if err != nil {
+		t.Errorf("error expanding expected HTML content for Flowdock message: %s", err)
+	}
+
+	expected := flowdockMessage{
+		Source:      "Prometheus",
+		FromAddress: testFromAddress,
+		Subject:     html.EscapeString(alert.Summary),
+		Format:      "html",
+		Content:     contentBuf.String(),
+		Link:        "http://graph",
+		Tags:        append(testTag, "firing"),
+	}
+
+	if !reflect.DeepEqual(msg, expected) {
+		t.Errorf("incorrect Flowdock notification: Expected: %s Actual: %s", expected, msg)
 	}
 }

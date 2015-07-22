@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	htmltemplate "html/template"
 	"io"
 	"io/ioutil"
 	"net"
@@ -61,6 +62,23 @@ Grouping labels:
 Payload labels:
 {{range $label, $value := .Alert.Payload}}
   {{$label}} = "{{$value}}"{{end}}`))
+
+var contentTmpl = htmltemplate.Must(htmltemplate.New("content").Parse(
+	`<p><b><i>{{.Alert.Description}}</i></b></p>
+
+<div><i>Grouping labels</i></div>
+<ul>
+{{range $label, $value := .Alert.Labels}}
+  <li><b>{{$label}}:</b> {{$value}}</li>
+{{end}}
+</ul>
+
+<div><i>Payload labels</i></div>
+<ul>
+{{range $label, $value := .Alert.Payload}}
+  <li><b>{{$label}}:</b> {{$value}}</li>
+{{end}}
+</ul>`))
 
 var (
 	notificationBufferSize = flag.Int("notification.buffer-size", 1000, "Size of buffer for pending notifications.")
@@ -356,7 +374,10 @@ type flowdockMessage struct {
 }
 
 func (n *notifier) sendFlowdockNotification(op notificationOp, config *pb.FlowdockConfig, a *Alert) error {
-	flowdockMessage := newFlowdockMessage(op, config, a)
+	flowdockMessage, err := newFlowdockMessage(op, config, a)
+	if err != nil {
+		return err
+	}
 	url := strings.TrimRight(*flowdockURL, "/") + "/" + config.GetApiToken()
 	jsonMessage, err := json.Marshal(flowdockMessage)
 	if err != nil {
@@ -372,7 +393,7 @@ func (n *notifier) sendFlowdockNotification(op notificationOp, config *pb.Flowdo
 	return nil
 }
 
-func newFlowdockMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) *flowdockMessage {
+func newFlowdockMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) (*flowdockMessage, error) {
 	status := ""
 	switch op {
 	case notificationOpTrigger:
@@ -380,17 +401,22 @@ func newFlowdockMessage(op notificationOp, config *pb.FlowdockConfig, a *Alert) 
 	case notificationOpResolve:
 		status = "resolved"
 	}
+	contentBuf := &bytes.Buffer{}
+	err := contentTmpl.Execute(contentBuf, struct{ Alert *Alert }{Alert: a})
+	if err != nil {
+		return nil, err
+	}
 
 	msg := &flowdockMessage{
 		Source:      "Prometheus",
 		FromAddress: config.GetFromAddress(),
 		Subject:     html.EscapeString(a.Summary),
 		Format:      "html",
-		Content:     fmt.Sprintf("*%s %s*: %s (<%s|view>)", html.EscapeString(a.Labels["alertname"]), status, html.EscapeString(a.Summary), a.Payload["generatorURL"]),
+		Content:     contentBuf.String(),
 		Link:        a.Payload["generatorURL"],
 		Tags:        append(config.GetTag(), status),
 	}
-	return msg
+	return msg, nil
 }
 
 type webhookMessage struct {
