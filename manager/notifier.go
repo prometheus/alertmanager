@@ -596,6 +596,8 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 		Title:    fmt.Sprintf("%s: %s", alertname, status),
 		Message:  a.Summary,
 		Priority: pushover.Emergency,
+		Retry:    10 * 60, // 10min
+		Expire:   60 * 60, // 1h
 	})
 	return err
 }
