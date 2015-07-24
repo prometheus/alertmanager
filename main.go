@@ -36,9 +36,14 @@ var (
 	listenAddress    = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 	pathPrefix       = flag.String("web.path-prefix", "/", "Prefix for all web paths.")
 	hostname         = flag.String("web.hostname", "", "Hostname on which the Alertmanager is available to the outside world.")
+	externalURL      = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If omitted, relevant URL components will be derived automatically.")
 )
 
-func alertmanagerURL(hostname, pathPrefix, addr string) (string, error) {
+func alertmanagerURL(hostname, pathPrefix, addr, externalURL string) (string, error) {
+	if externalURL != "" {
+		return externalURL, nil
+	}
+
 	var err error
 	if hostname == "" {
 		hostname, err = os.Hostname()
@@ -85,7 +90,7 @@ func main() {
 	}()
 	defer saveSilencesTicker.Stop()
 
-	amURL, err := alertmanagerURL(*hostname, *pathPrefix, *listenAddress)
+	amURL, err := alertmanagerURL(*hostname, *pathPrefix, *listenAddress, *externalURL)
 	if err != nil {
 		log.Fatalln("Error building Alertmanager URL:", err)
 	}
