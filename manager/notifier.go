@@ -87,6 +87,8 @@ var (
 	smtpSender             = flag.String("notification.smtp.sender", "alertmanager@example.org", "Sender email address to use in email notifications.")
 	hipchatURL             = flag.String("notification.hipchat.url", "https://api.hipchat.com/v2", "HipChat API V2 URL.")
 	flowdockURL            = flag.String("notification.flowdock.url", "https://api.flowdock.com/v1/messages/team_inbox", "Flowdock API V1 URL.")
+	pushoverRetryTimeout   = flag.Int("notification.pushover.retry-interval", 60, "Interval in seconds at which Pushover should retry pushing a message to receiving users.")
+	pushoverExpireTimeout  = flag.Int("notification.pushover.retry-expiry-interval", 7200, "Timeout after which unacknowledged Pushover messages will not be retried further.")
 )
 
 type notificationOp int
@@ -596,6 +598,8 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 		Title:    fmt.Sprintf("%s: %s", alertname, status),
 		Message:  a.Summary,
 		Priority: pushover.Emergency,
+		Retry:    *pushoverRetryTimeout,
+		Expire:   *pushoverExpireTimeout,
 	})
 	return err
 }
