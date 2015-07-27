@@ -89,6 +89,7 @@ var (
 	flowdockURL            = flag.String("notification.flowdock.url", "https://api.flowdock.com/v1/messages/team_inbox", "Flowdock API V1 URL.")
 	pushoverRetryTimeout   = flag.Int("notification.pushover.retry-interval", 60, "Interval in seconds at which Pushover should retry pushing a message to receiving users.")
 	pushoverExpireTimeout  = flag.Int("notification.pushover.retry-expiry-interval", 7200, "Timeout after which unacknowledged Pushover messages will not be retried further.")
+	slackConnectTimeout    = flag.Int("notification.slack.timeout", 10, "HTTP timeout to talk to Slack (in seconds).")
 )
 
 type notificationOp int
@@ -341,7 +342,7 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 		return err
 	}
 
-	timeout := time.Duration(5 * time.Second)
+	timeout := time.Duration(*slackConnectTimeout) * time.Second
 	client := http.Client{
 		Timeout: timeout,
 	}
