@@ -85,6 +85,11 @@ func (c Config) Validate() error {
 				return fmt.Errorf("Missing from_address Flowdock config: %s", proto.MarshalTextString(fc))
 			}
 		}
+		for _, snsConfig := range nc.AmazonSnsConfig {
+			if snsConfig.TopicArn == nil {
+				return fmt.Errorf("Missing Topic ARN in Amazon SNS config: %s", proto.MarshalTextString(snsConfig))
+			}
+		}
 
 		if _, ok := ncNames[nc.GetName()]; ok {
 			return fmt.Errorf("Notification config name not unique: %s", nc.GetName())

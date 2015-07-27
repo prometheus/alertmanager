@@ -110,6 +110,14 @@ message WebhookConfig {
   optional bool send_resolved = 2 [default = false];
 }
 
+// Configuration for notification via Amazon SNS.
+message AmazonSnsConfig {
+  // SNS Topic ARN.
+  optional string topic_arn = 1;
+  // Notify when resolved.
+  optional bool send_resolved = 2 [default = false];
+}
+
 // Notification configuration definition.
 message NotificationConfig {
   // Name of this NotificationConfig. Referenced from AggregationRule.
@@ -130,6 +138,8 @@ message NotificationConfig {
   repeated WebhookConfig webhook_config = 8;
   // Zero or more OpsGenieConfig notification configurations.
   repeated OpsGenieConfig opsgenie_config = 9;
+  // Zero or more Amazon SNS notification configurations.
+  repeated AmazonSnsConfig amazon_sns_config = 10;
 }
 
 // A regex-based label filter used in aggregations.
