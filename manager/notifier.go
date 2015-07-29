@@ -35,6 +35,8 @@ import (
 
 	"github.com/prometheus/log"
 	"github.com/thorduri/pushover"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/sns"
 
 	pb "github.com/prometheus/alertmanager/config/generated"
 )
@@ -458,6 +460,28 @@ func (n *notifier) sendWebhookNotification(op notificationOp, config *pb.Webhook
 	return nil
 }
 
+func (n *notifier) sendAmazonSnsNotification(op notificationOp, config *pb.AmazonSnsConfig, a *Alert) error {
+	snsAPI := sns.New(nil)
+
+	status := ""
+	switch op {
+	case notificationOpTrigger:
+		status = "firing"
+	case notificationOpResolve:
+		status = "resolved"
+	}
+
+	params := &sns.PublishInput{
+		Message: aws.String(fmt.Sprintf("%s -- %s", a.Description, status)),
+		MessageStructure: aws.String("string"),
+		Subject:          aws.String(fmt.Sprintf("%s -- %s", a.Summary, status)),
+		TopicARN:         aws.String(config.GetTopicArn()),
+	}
+	_, err := snsAPI.Publish(params)
+
+	return err
+}
+
 func postJSON(jsonMessage []byte, url string) (*http.Response, error) {
 	timeout := time.Duration(5 * time.Second)
 	client := http.Client{
@@ -773,6 +797,14 @@ func (n *notifier) handleNotification(a *Alert, op notificationOp, config *pb.No
 		}
 		if err := n.sendOpsGenieNotification(op, ogConfig, a); err != nil {
 			log.Errorln("Error sending OpsGenie notification:", err)
+		}
+	}
+	for _, snsConfig := range config.AmazonSnsConfig {
+		if op == notificationOpResolve && !snsConfig.GetSendResolved() {
+			continue
+		}
+		if err := n.sendAmazonSnsNotification(op, snsConfig, a); err != nil {
+			log.Errorln("Error sending Amazon SNS notification:", err)
 		}
 	}
 }

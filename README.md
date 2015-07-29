@@ -20,8 +20,11 @@ generic web hook,
 [PagerDuty](http://www.pagerduty.com/),
 [HipChat](http://www.hipchat.com/),
 [Slack](http://www.slack.com/),
-[Pushover](https://www.pushover.net/), or
-[Flowdock](https://www.flowdock.com/))
+[Pushover](https://www.pushover.net/),
+[Flowdock](https://www.flowdock.com/), or
+[Amazon SNS](http://aws.amazon.com/sns/‎))
+
+Note: Amazon SNS notifications depend on your Amazon credentials being configured as described [here](https://github.com/aws/aws-sdk-go).
 
 See [config/fixtures/sample.conf.input](config/fixtures/sample.conf.input) for
 an example config. The full configuration schema including a documentation for

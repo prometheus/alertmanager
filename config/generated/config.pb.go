@@ -17,6 +17,7 @@ It has these top-level messages:
 	FlowdockConfig
 	OpsGenieConfig
 	WebhookConfig
+	AmazonSnsConfig
 	NotificationConfig
 	Filter
 	AggregationRule
@@ -419,6 +420,35 @@ func (m *WebhookConfig) GetSendResolved() bool {
 	return Default_WebhookConfig_SendResolved
 }
 
+// Configuration for notification via Amazon SNS.
+type AmazonSnsConfig struct {
+	// SNS Topic ARN.
+	TopicArn *string `protobuf:"bytes,1,opt,name=topic_arn" json:"topic_arn,omitempty"`
+	// Notify when resolved
+	SendResolved     *bool  `protobuf:"varint,2,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *AmazonSnsConfig) Reset()         { *m = AmazonSnsConfig{} }
+func (m *AmazonSnsConfig) String() string { return proto.CompactTextString(m) }
+func (*AmazonSnsConfig) ProtoMessage()    {}
+
+const Default_AmazonSnsConfig_SendResolved bool = false
+
+func (m *AmazonSnsConfig) GetTopicArn() string {
+	if m != nil && m.TopicArn != nil {
+		return *m.TopicArn
+	}
+	return ""
+}
+
+func (m *AmazonSnsConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_AmazonSnsConfig_SendResolved
+}
+
 // Notification configuration definition.
 type NotificationConfig struct {
 	// Name of this NotificationConfig. Referenced from AggregationRule.
@@ -439,7 +469,9 @@ type NotificationConfig struct {
 	WebhookConfig []*WebhookConfig `protobuf:"bytes,8,rep,name=webhook_config" json:"webhook_config,omitempty"`
 	// Zero or more OpsGenieConfig notification configurations.
 	OpsgenieConfig   []*OpsGenieConfig `protobuf:"bytes,9,rep,name=opsgenie_config" json:"opsgenie_config,omitempty"`
-	XXX_unrecognized []byte            `json:"-"`
+	// Zero or more Amazon SNS notification configurations.
+	AmazonSnsConfig  []*AmazonSnsConfig `protobuf:"bytes,10,rep,name=amazon_sns_config" json:"amazon_sns_config,omitempty"`
+	XXX_unrecognized []byte             `json:"-"`
 }
 
 func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
@@ -505,6 +537,13 @@ func (m *NotificationConfig) GetWebhookConfig() []*WebhookConfig {
 func (m *NotificationConfig) GetOpsgenieConfig() []*OpsGenieConfig {
 	if m != nil {
 		return m.OpsgenieConfig
+	}
+	return nil
+}
+
+func (m *NotificationConfig) GetAmazonSnsConfig() []*AmazonSnsConfig {
+	if m != nil {
+		return m.AmazonSnsConfig
 	}
 	return nil
 }

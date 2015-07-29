@@ -24,6 +24,10 @@ notification_config {
     from_address: "aliaswithgravatar@somehwere.com"
     tag: "monitoring"
   }
+  amazon_sns_config {
+    topic_arn: "arn:aws:sns:us-east-1:an-arn-id:topic"
+    send_resolved: true
+  }
 }
 
 aggregation_rule {
