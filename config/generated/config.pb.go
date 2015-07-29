@@ -15,6 +15,7 @@ It has these top-level messages:
 	HipChatConfig
 	SlackConfig
 	FlowdockConfig
+	OpsGenieConfig
 	WebhookConfig
 	NotificationConfig
 	Filter
@@ -342,6 +343,53 @@ func (m *FlowdockConfig) GetSendResolved() bool {
 	return Default_FlowdockConfig_SendResolved
 }
 
+// Configuration for notification via OpsGenie.
+type OpsGenieConfig struct {
+	// OpsGenie API token.
+	ApiKey *string `protobuf:"bytes,1,opt,name=api_key" json:"api_key,omitempty"`
+	// List of team names which will be responsible for the alert.
+	Teams []string `protobuf:"bytes,2,rep,name=teams" json:"teams,omitempty"`
+	// List of labels that have their values converted to tags.
+	LabelsToTags []string `protobuf:"bytes,3,rep,name=labels_to_tags" json:"labels_to_tags,omitempty"`
+	// Notify when resolved.
+	SendResolved     *bool  `protobuf:"varint,4,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *OpsGenieConfig) Reset()         { *m = OpsGenieConfig{} }
+func (m *OpsGenieConfig) String() string { return proto.CompactTextString(m) }
+func (*OpsGenieConfig) ProtoMessage()    {}
+
+const Default_OpsGenieConfig_SendResolved bool = false
+
+func (m *OpsGenieConfig) GetApiKey() string {
+	if m != nil && m.ApiKey != nil {
+		return *m.ApiKey
+	}
+	return ""
+}
+
+func (m *OpsGenieConfig) GetTeams() []string {
+	if m != nil {
+		return m.Teams
+	}
+	return nil
+}
+
+func (m *OpsGenieConfig) GetLabelsToTags() []string {
+	if m != nil {
+		return m.LabelsToTags
+	}
+	return nil
+}
+
+func (m *OpsGenieConfig) GetSendResolved() bool {
+	if m != nil && m.SendResolved != nil {
+		return *m.SendResolved
+	}
+	return Default_OpsGenieConfig_SendResolved
+}
+
 // Configuration for notification via generic webhook.
 type WebhookConfig struct {
 	// URL to send POST request to.
@@ -388,8 +436,10 @@ type NotificationConfig struct {
 	// Zero or more Flowdock notification configurations.
 	FlowdockConfig []*FlowdockConfig `protobuf:"bytes,7,rep,name=flowdock_config" json:"flowdock_config,omitempty"`
 	// Zero or more generic web hook notification configurations.
-	WebhookConfig    []*WebhookConfig `protobuf:"bytes,8,rep,name=webhook_config" json:"webhook_config,omitempty"`
-	XXX_unrecognized []byte           `json:"-"`
+	WebhookConfig []*WebhookConfig `protobuf:"bytes,8,rep,name=webhook_config" json:"webhook_config,omitempty"`
+	// Zero or more OpsGenieConfig notification configurations.
+	OpsgenieConfig   []*OpsGenieConfig `protobuf:"bytes,9,rep,name=opsgenie_config" json:"opsgenie_config,omitempty"`
+	XXX_unrecognized []byte            `json:"-"`
 }
 
 func (m *NotificationConfig) Reset()         { *m = NotificationConfig{} }
@@ -448,6 +498,13 @@ func (m *NotificationConfig) GetFlowdockConfig() []*FlowdockConfig {
 func (m *NotificationConfig) GetWebhookConfig() []*WebhookConfig {
 	if m != nil {
 		return m.WebhookConfig
+	}
+	return nil
+}
+
+func (m *NotificationConfig) GetOpsgenieConfig() []*OpsGenieConfig {
+	if m != nil {
+		return m.OpsgenieConfig
 	}
 	return nil
 }

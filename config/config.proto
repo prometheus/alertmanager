@@ -90,6 +90,18 @@ message FlowdockConfig {
   optional bool send_resolved = 4 [default = false];
 }
 
+// Configuration for notification via OpsGenie.
+message OpsGenieConfig {
+  // OpsGenie API token.
+  optional string api_key = 1;
+  // List of team names which will be responsible for the alert.
+  repeated string teams = 2;
+  // List of labels that have their values converted to tags.
+  repeated string labels_to_tags = 3;
+  // Notify when resolved.
+  optional bool send_resolved = 4 [default = false];
+}
+
 // Configuration for notification via generic webhook.
 message WebhookConfig {
   // URL to send POST request to.
@@ -116,6 +128,8 @@ message NotificationConfig {
   repeated FlowdockConfig flowdock_config = 7;
   // Zero or more generic web hook notification configurations.
   repeated WebhookConfig webhook_config = 8;
+  // Zero or more OpsGenieConfig notification configurations.
+  repeated OpsGenieConfig opsgenie_config = 9;
 }
 
 // A regex-based label filter used in aggregations.
