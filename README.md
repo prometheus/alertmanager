@@ -15,14 +15,16 @@ following aspects:
 * inhibiting alerts based on alert dependencies
 * aggregating alerts by labelset
 * handling notification repeats
-* sending alert notifications via external services (currently email,
-generic web hook,
-[PagerDuty](http://www.pagerduty.com/),
-[HipChat](http://www.hipchat.com/),
-[Slack](http://www.slack.com/),
-[Pushover](https://www.pushover.net/),
-[Flowdock](https://www.flowdock.com/), or
-[Amazon SNS](http://aws.amazon.com/sns/‎))
+* sending alert notifications via external services:
+  * email
+  * generic web hook
+  * [Amazon SNS](http://aws.amazon.com/sns/)
+  * [Flowdock](https://www.flowdock.com/)
+  * [HipChat](http://www.hipchat.com/)
+  * [OpsGenie](https://www.opsgenie.com/)
+  * [PagerDuty](http://www.pagerduty.com/)
+  * [Pushover](https://www.pushover.net/)
+  * [Slack](http://www.slack.com/)
 
 Note: Amazon SNS notifications depend on your Amazon credentials being configured as described [here](https://github.com/aws/aws-sdk-go).
 
