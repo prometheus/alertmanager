@@ -475,7 +475,7 @@ func (n *notifier) sendAmazonSnsNotification(op notificationOp, config *pb.Amazo
 		Message: aws.String(fmt.Sprintf("%s -- %s", a.Description, status)),
 		MessageStructure: aws.String("string"),
 		Subject:          aws.String(fmt.Sprintf("%s -- %s", a.Summary, status)),
-		TopicARN:         aws.String(config.GetTopicArn()),
+		TopicArn:         aws.String(config.GetTopicArn()),
 	}
 	_, err := snsAPI.Publish(params)
 
