@@ -18,6 +18,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"io/ioutil"
+	"encoding/json"
+	"strconv"
 
 	"github.com/prometheus/log"
 )
@@ -97,6 +100,15 @@ func (aggs aggregatesByNextNotification) Less(i, j int) bool {
 	return aggs.AlertAggregates[i].NextNotification.Before(aggs.AlertAggregates[j].NextNotification)
 }
 
+// rebuildFrom rebuilds the aggregatesByLastRefreshed index from a provided
+// authoritative AlertAggregates slice.
+func (aggs *aggregatesByLastRefreshed) rebuildFrom(aa AlertAggregates) {
+	aggs.AlertAggregates = aggs.AlertAggregates[:0]
+	for _, a := range aa {
+		aggs.Push(a)
+	}
+}
+
 // rebuildFrom rebuilds the aggregatesByNextNotification index from a provided
 // authoritative AlertAggregates slice.
 func (aggs *aggregatesByNextNotification) rebuildFrom(aa AlertAggregates) {
@@ -133,6 +145,8 @@ type memoryAlertManager struct {
 	silencer *Silencer
 	// Notifier for dispatching notifications.
 	notifier Notifier
+	// JSON file which memory alert manager will persist itself to
+	persistenceFile string
 
 	// Mutex protecting all fields below.
 	mu sync.Mutex
@@ -161,6 +175,8 @@ type MemoryAlertManagerOptions struct {
 	Notifier Notifier
 	// The minimum interval for alert refreshes before being purged.
 	MinRefreshInterval time.Duration
+	// Disk persistence file for the memory alert manager
+	PersistenceFile string
 }
 
 // Constructs a new memoryAlertManager.
@@ -172,7 +188,85 @@ func NewMemoryAlertManager(o *MemoryAlertManagerOptions) AlertManager {
 		inhibitor:          o.Inhibitor,
 		silencer:           o.Silencer,
 		notifier:           o.Notifier,
+		persistenceFile:	o.PersistenceFile,
 	}
+}
+
+// Loads a JSON representation of the memoryManager from a file.
+func (s *memoryAlertManager) loadFromFile() error {
+	s.mu.Lock()
+	
+	aggregateJson, err := ioutil.ReadFile(s.persistenceFile)
+	if err != nil {
+		log.Infof("Couldn't load memory manager persistence file. Starting up with new file: %s", err.Error())
+		s.mu.Unlock()
+		return nil
+	}
+	
+	aggregates := make(map[string]*AlertAggregate)
+	if err = json.Unmarshal(aggregateJson, &aggregates); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	
+	// Assign and rebuild internal state
+	s.aggregates = make(map[AlertFingerprint]*AlertAggregate)
+	for k, v := range aggregates {
+		if fp, err := strconv.ParseUint(k, 10, 64); err == nil {
+			s.aggregates[AlertFingerprint(fp)] = v
+		} else {
+			log.Errorf("Corrupt persistence file found. Not restoring state: %s", err.Error())
+			s.mu.Unlock()
+			return err
+		}
+	} 
+	
+	aggs := make(AlertAggregates, 0, len(s.aggregates))
+	for _, v := range s.aggregates {
+		aggs = append(aggs, v)
+	}
+	
+	s.aggregatesByNextNotification.rebuildFrom(aggs)
+	s.aggregatesByLastRefreshed.rebuildFrom(aggs)
+	
+	s.mu.Unlock()
+	
+	// Force refresh
+	s.removeExpiredAggregates()
+	s.refreshNotifications()
+	
+	log.Infof("Loaded memory manager state from persistence file: %s", s.persistenceFile)
+	
+	return nil
+}
+
+// Saves a JSON representation of the memoryManager to a file.
+func (s *memoryAlertManager) saveToFile() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	if s.persistenceFile == "" {
+		log.Debug("no persistence file configured")
+		return nil
+	}
+	
+	aggregates := make(map[string]*AlertAggregate)
+	for k, v := range s.aggregates {
+		aggregates[strconv.FormatUint(uint64(k), 10)] = v
+	}
+	
+	resultBytes, err := json.Marshal(aggregates)
+	if err != nil {
+		log.Errorf("could not marshal aggregates: %s", err.Error())
+		return err
+	}
+	
+	err = ioutil.WriteFile(s.persistenceFile, resultBytes, 0644)
+	if err != nil {
+		log.Errorf("error persisting memory manager state: %s", err.Error())
+		return err
+	}
+	return nil
 }
 
 // Receive and ingest a new list of alert messages (e.g. from the web API).
@@ -397,11 +491,16 @@ func (s *memoryAlertManager) runIteration() {
 	if refresh, reasons := s.refreshNeeded(); refresh {
 		log.Infof("Recomputing notification outputs (%s)", strings.Join(reasons, ", "))
 		s.refreshNotifications()
+		s.saveToFile()
 	}
 }
 
 // Run the memoryAlertManager's main dispatcher loop.
 func (s *memoryAlertManager) Run() {
+	if err := s.loadFromFile(); err != nil {
+		log.Fatalf("Error loading persistence file: %s", err.Error())
+	}
+	
 	iterationTicker := time.NewTicker(time.Second)
 	for range iterationTicker.C {
 		s.checkSanity()
