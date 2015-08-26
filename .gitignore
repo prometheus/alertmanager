@@ -1,8 +1,5 @@
 .build
-.deps/
+data
 alertmanager
-*-stamp
-*.config
-silences.json
 *.yml
 *.yaml
