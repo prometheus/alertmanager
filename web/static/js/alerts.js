@@ -126,6 +126,19 @@ function populateSilenceLabels(form) {
   }
 }
 
+function bindAlertExpanders() {
+  $(".alert_expand").click(function() {
+    var expanderIcon = $(this).find("i.icon-chevron-down");
+    if (expanderIcon.length != 0) {
+      expanderIcon.removeClass("icon-chevron-down").addClass("icon-chevron-up");
+    } else {
+      var collapserIcon = $(this).find("i.icon-chevron-up");
+      collapserIcon.removeClass("icon-chevron-up").addClass("icon-chevron-down");
+    }
+    $(this).parent("tr").next().toggle();
+  });
+}
+
 function init() {
   $.ajaxSetup({
     cache: false
@@ -205,6 +218,8 @@ function init() {
   $(".silence_link").click(function() {
     alert("Linking to silence not yet supported");
   });
+
+  bindAlertExpanders();
 }
 
 $(init);

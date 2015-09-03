@@ -9,3 +9,16 @@ body {
 .add_silence_form {
   display: inline;
 }
+
+.alert_expand {
+  width: 20px;
+  cursor: pointer;
+}
+
+.alert_expand i {
+  margin-left: 4px;
+}
+
+.alert_detail_row {
+  display: none;
+}
