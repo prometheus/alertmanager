@@ -15,6 +15,7 @@ package web
 
 import (
 	"net/http"
+	"sort"
 
 	"github.com/prometheus/alertmanager/manager"
 )
@@ -35,9 +36,25 @@ func (h *AlertsHandler) silenceForAlert(a *manager.Alert) *manager.Silence {
 	return silence
 }
 
+type aggregatesByLabelset struct {
+	manager.AlertAggregates
+}
+
+func (aggs aggregatesByLabelset) Less(i, j int) bool {
+	iAlert := aggs.AlertAggregates[i].Alert
+	jAlert := aggs.AlertAggregates[j].Alert
+	if iAlert.Name() == jAlert.Name() {
+		return iAlert.Fingerprint() < jAlert.Fingerprint()
+	}
+	return iAlert.Name() < jAlert.Name()
+}
+
 func (h *AlertsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	aggs := h.Manager.GetAll(nil)
+	sort.Sort(aggregatesByLabelset{aggs})
+
 	alertStatus := &AlertStatus{
-		AlertAggregates: h.Manager.GetAll(nil),
+		AlertAggregates: aggs,
 		SilenceForAlert: h.silenceForAlert,
 	}
 	executeTemplate(w, "alerts", alertStatus, h.PathPrefix)
