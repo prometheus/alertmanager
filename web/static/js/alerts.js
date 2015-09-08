@@ -126,16 +126,22 @@ function populateSilenceLabels(form) {
   }
 }
 
+function toggleAlertDetails($row) {
+  var expanderIcon = $row.find("i.icon-chevron-down");
+  if (expanderIcon.length != 0) {
+    expanderIcon.removeClass("icon-chevron-down").addClass("icon-chevron-up");
+  } else {
+    var collapserIcon = $row.find("i.icon-chevron-up");
+    collapserIcon.removeClass("icon-chevron-up").addClass("icon-chevron-down");
+  }
+
+  $row.toggleClass("warning");
+  $row.next().toggle();
+}
+
 function bindAlertExpanders() {
   $(".alert_expand").click(function() {
-    var expanderIcon = $(this).find("i.icon-chevron-down");
-    if (expanderIcon.length != 0) {
-      expanderIcon.removeClass("icon-chevron-down").addClass("icon-chevron-up");
-    } else {
-      var collapserIcon = $(this).find("i.icon-chevron-up");
-      collapserIcon.removeClass("icon-chevron-up").addClass("icon-chevron-down");
-    }
-    $(this).parent("tr").next().toggle();
+    toggleAlertDetails($(this).parent("tr"));
   });
 }
 
@@ -220,6 +226,13 @@ function init() {
   });
 
   bindAlertExpanders();
+
+  if (window.location.hash) {
+    var highlightedAlert = $(window.location.hash + ".alert_overview_row");
+    if (highlightedAlert.length) {
+      toggleAlertDetails(highlightedAlert);
+    }
+  }
 }
 
 $(init);

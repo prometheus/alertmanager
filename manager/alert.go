@@ -23,6 +23,10 @@ const AlertNameLabel = "alertname"
 
 type AlertFingerprint uint64
 
+func (fp AlertFingerprint) String() string {
+	return fmt.Sprintf("%x", uint64(fp))
+}
+
 type AlertLabelSet map[string]string
 type AlertLabelSets []AlertLabelSet
 
