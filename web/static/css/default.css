@@ -10,13 +10,16 @@ body {
   display: inline;
 }
 
-.alert_expand {
+.icon_col {
   width: 20px;
-  cursor: pointer;
 }
 
-.alert_expand i {
+.icon_col i {
   margin-left: 4px;
+}
+
+.alert_expand {
+  cursor: pointer;
 }
 
 .alert_detail_row {
