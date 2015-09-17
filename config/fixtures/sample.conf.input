@@ -28,6 +28,11 @@ notification_config {
     topic_arn: "arn:aws:sns:us-east-1:an-arn-id:topic"
     send_resolved: true
   }
+  opsgenie_config {
+    api_key: "opsgenieapikey"
+    teams: "opsgenieteamname"
+    send_resolved: true
+  }
 }
 
 aggregation_rule {
