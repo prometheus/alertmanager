@@ -623,9 +623,11 @@ func (n *notifier) sendOpsGenieNotification(op notificationOp, config *pb.OpsGen
 		incidentKey = a.Fingerprint()
 		buf         []byte
 		err         error
+		postUrl     string
 	)
 	switch op {
 	case notificationOpTrigger:
+		postUrl = *opsgenieAPIURL
 		msg := &opsGenieMessageCreate{
 			ApiKey:      config.GetApiKey(),
 			Message:     a.Summary,
@@ -652,6 +654,7 @@ func (n *notifier) sendOpsGenieNotification(op notificationOp, config *pb.OpsGen
 			return err
 		}
 	case notificationOpResolve:
+		postUrl = *opsgenieAPIURL + "/close"
 		msg := &opsGenieMessageClose{
 			ApiKey: config.GetApiKey(),
 			Alias:  strconv.FormatUint(uint64(incidentKey), 10),
@@ -668,7 +671,7 @@ func (n *notifier) sendOpsGenieNotification(op notificationOp, config *pb.OpsGen
 		Timeout: timeout,
 	}
 	resp, err := client.Post(
-		*opsgenieAPIURL,
+		postUrl,
 		contentTypeJSON,
 		bytes.NewBuffer(buf),
 	)
