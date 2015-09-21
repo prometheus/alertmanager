@@ -25,6 +25,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -353,6 +354,49 @@ func TestSendOpsGenieNotification(t *testing.T) {
 
 	if !reflect.DeepEqual(msg, expected) {
 		t.Errorf("incorrect OpsGenie notification: Expected: %s Actual: %s", expected, msg)
+	}
+}
+
+func TestCloseOpsGenieNotification(t *testing.T) {
+	var body []byte
+	var url string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		url = r.URL.String()
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("error reading webhook notification: %s", err)
+		}
+	}))
+	defer ts.Close()
+	opsgenieAPIURL = &ts.URL
+	apikey := "AAAB"
+	config := &pb.OpsGenieConfig{
+		ApiKey: &apikey,
+	}
+	alert := &Alert{}
+	n := &notifier{}
+	err := n.sendOpsGenieNotification(notificationOpResolve, config, alert)
+	if err != nil {
+		t.Errorf("error sending OpsGenie notification: %s", err)
+	}
+
+	var msg opsGenieMessageClose
+	err = json.Unmarshal(body, &msg)
+	if err != nil {
+		t.Errorf("error unmarshalling OpsGenie notification: %s", err)
+	}
+	expected := opsGenieMessageClose{
+		ApiKey: "AAAB",
+		Alias:  strconv.FormatUint(uint64(alert.Fingerprint()), 10),
+	}
+
+	if !reflect.DeepEqual(msg, expected) {
+		t.Errorf("incorrect OpsGenie notification: Expected: %s Actual: %s", expected, msg)
+	}
+
+	if !strings.HasSuffix(url, "/close") {
+		t.Errorf("OpsGenie close notifications must be POSTed to /close endpoint, was posted to %s", url)
 	}
 }
 
