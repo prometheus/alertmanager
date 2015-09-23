@@ -311,9 +311,9 @@ func TestSendOpsGenieNotification(t *testing.T) {
 	}))
 	defer ts.Close()
 	opsgenieAPIURL = &ts.URL
-	apikey := "AAAB"
+	apiKey := "AAAB"
 	config := &pb.OpsGenieConfig{
-		ApiKey:       &apikey,
+		ApiKey:       &apiKey,
 		LabelsToTags: []string{"alertname"},
 		Teams:        []string{"prometheus"},
 	}
@@ -339,7 +339,7 @@ func TestSendOpsGenieNotification(t *testing.T) {
 		t.Errorf("error unmarshalling OpsGenie notification: %s", err)
 	}
 	expected := opsGenieMessageCreate{
-		ApiKey:      "AAAB",
+		APIKey:      "AAAB",
 		Message:     "Testsummary",
 		Description: "Test alert description, something went wrong here.",
 		Tags:        []string{"TestAlert"},
@@ -371,9 +371,9 @@ func TestCloseOpsGenieNotification(t *testing.T) {
 	}))
 	defer ts.Close()
 	opsgenieAPIURL = &ts.URL
-	apikey := "AAAB"
+	apiKey := "AAAB"
 	config := &pb.OpsGenieConfig{
-		ApiKey: &apikey,
+		ApiKey: &apiKey,
 	}
 	alert := &Alert{}
 	n := &notifier{}
@@ -388,7 +388,7 @@ func TestCloseOpsGenieNotification(t *testing.T) {
 		t.Errorf("error unmarshalling OpsGenie notification: %s", err)
 	}
 	expected := opsGenieMessageClose{
-		ApiKey: "AAAB",
+		APIKey: "AAAB",
 		Alias:  strconv.FormatUint(uint64(alert.Fingerprint()), 10),
 	}
 

@@ -33,10 +33,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/prometheus/log"
-	"github.com/thorduri/pushover"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sns"
+	"github.com/prometheus/log"
+	"github.com/thorduri/pushover"
 
 	pb "github.com/prometheus/alertmanager/config/generated"
 )
@@ -472,7 +472,7 @@ func (n *notifier) sendAmazonSnsNotification(op notificationOp, config *pb.Amazo
 	}
 
 	params := &sns.PublishInput{
-		Message: aws.String(fmt.Sprintf("%s -- %s", a.Description, status)),
+		Message:          aws.String(fmt.Sprintf("%s -- %s", a.Description, status)),
 		MessageStructure: aws.String("string"),
 		Subject:          aws.String(fmt.Sprintf("%s -- %s", a.Summary, status)),
 		TopicArn:         aws.String(config.GetTopicArn()),
@@ -602,7 +602,7 @@ func (n *notifier) sendEmailNotification(to string, op notificationOp, a *Alert)
 // opGenieMessageCreate is the request for sending an opsGenie notification. We are not specifying all the
 // fields. The Details field is populated with the labels from the alert.
 type opsGenieMessageCreate struct {
-	ApiKey      string                 `json:"apiKey"`
+	APIKey      string                 `json:"apiKey"`
 	Message     string                 `json:"message"`
 	Description string                 `json:"description"`
 	Alias       string                 `json:"alias"`
@@ -614,7 +614,7 @@ type opsGenieMessageCreate struct {
 
 // opsGenieMessageClose closes an open alert in OpsGenie.
 type opsGenieMessageClose struct {
-	ApiKey string `json:"apiKey"`
+	APIKey string `json:"apiKey"`
 	Alias  string `json:"alias"`
 }
 
@@ -623,13 +623,13 @@ func (n *notifier) sendOpsGenieNotification(op notificationOp, config *pb.OpsGen
 		incidentKey = a.Fingerprint()
 		buf         []byte
 		err         error
-		postUrl     string
+		postURL     string
 	)
 	switch op {
 	case notificationOpTrigger:
-		postUrl = *opsgenieAPIURL
+		postURL = *opsgenieAPIURL
 		msg := &opsGenieMessageCreate{
-			ApiKey:      config.GetApiKey(),
+			APIKey:      config.GetApiKey(),
 			Message:     a.Summary,
 			Description: a.Description,
 			Alias:       strconv.FormatUint(uint64(incidentKey), 10),
@@ -654,9 +654,9 @@ func (n *notifier) sendOpsGenieNotification(op notificationOp, config *pb.OpsGen
 			return err
 		}
 	case notificationOpResolve:
-		postUrl = *opsgenieAPIURL + "/close"
+		postURL = *opsgenieAPIURL + "/close"
 		msg := &opsGenieMessageClose{
-			ApiKey: config.GetApiKey(),
+			APIKey: config.GetApiKey(),
 			Alias:  strconv.FormatUint(uint64(incidentKey), 10),
 		}
 
@@ -671,7 +671,7 @@ func (n *notifier) sendOpsGenieNotification(op notificationOp, config *pb.OpsGen
 		Timeout: timeout,
 	}
 	resp, err := client.Post(
-		postUrl,
+		postURL,
 		contentTypeJSON,
 		bytes.NewBuffer(buf),
 	)
