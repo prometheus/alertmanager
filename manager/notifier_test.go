@@ -25,6 +25,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -310,9 +311,9 @@ func TestSendOpsGenieNotification(t *testing.T) {
 	}))
 	defer ts.Close()
 	opsgenieAPIURL = &ts.URL
-	apikey := "AAAB"
+	apiKey := "AAAB"
 	config := &pb.OpsGenieConfig{
-		ApiKey:       &apikey,
+		ApiKey:       &apiKey,
 		LabelsToTags: []string{"alertname"},
 		Teams:        []string{"prometheus"},
 	}
@@ -338,7 +339,7 @@ func TestSendOpsGenieNotification(t *testing.T) {
 		t.Errorf("error unmarshalling OpsGenie notification: %s", err)
 	}
 	expected := opsGenieMessageCreate{
-		ApiKey:      "AAAB",
+		APIKey:      "AAAB",
 		Message:     "Testsummary",
 		Description: "Test alert description, something went wrong here.",
 		Tags:        []string{"TestAlert"},
@@ -349,6 +350,46 @@ func TestSendOpsGenieNotification(t *testing.T) {
 			"grouping_labels": convertAlertLabelSetMap(alert.Labels),
 			"runbook":         alert.Runbook,
 		},
+	}
+
+	if !reflect.DeepEqual(msg, expected) {
+		t.Errorf("incorrect OpsGenie notification: Expected: %s Actual: %s", expected, msg)
+	}
+}
+
+func TestCloseOpsGenieNotification(t *testing.T) {
+	var body []byte
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("error reading webhook notification: %s", err)
+		}
+		if !strings.HasSuffix(r.URL.String(), "/close") {
+			t.Errorf("OpsGenie close notifications must be POSTed to /close endpoint, was posted to %s", r.URL.String())
+		}
+	}))
+	defer ts.Close()
+	opsgenieAPIURL = &ts.URL
+	apiKey := "AAAB"
+	config := &pb.OpsGenieConfig{
+		ApiKey: &apiKey,
+	}
+	alert := &Alert{}
+	n := &notifier{}
+	err := n.sendOpsGenieNotification(notificationOpResolve, config, alert)
+	if err != nil {
+		t.Errorf("error sending OpsGenie notification: %s", err)
+	}
+
+	var msg opsGenieMessageClose
+	err = json.Unmarshal(body, &msg)
+	if err != nil {
+		t.Errorf("error unmarshalling OpsGenie notification: %s", err)
+	}
+	expected := opsGenieMessageClose{
+		APIKey: "AAAB",
+		Alias:  strconv.FormatUint(uint64(alert.Fingerprint()), 10),
 	}
 
 	if !reflect.DeepEqual(msg, expected) {
