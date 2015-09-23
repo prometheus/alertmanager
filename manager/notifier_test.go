@@ -359,13 +359,14 @@ func TestSendOpsGenieNotification(t *testing.T) {
 
 func TestCloseOpsGenieNotification(t *testing.T) {
 	var body []byte
-	var url string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		url = r.URL.String()
 		body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("error reading webhook notification: %s", err)
+		}
+		if !strings.HasSuffix(r.URL.String(), "/close") {
+			t.Errorf("OpsGenie close notifications must be POSTed to /close endpoint, was posted to %s", r.URL.String())
 		}
 	}))
 	defer ts.Close()
@@ -393,10 +394,6 @@ func TestCloseOpsGenieNotification(t *testing.T) {
 
 	if !reflect.DeepEqual(msg, expected) {
 		t.Errorf("incorrect OpsGenie notification: Expected: %s Actual: %s", expected, msg)
-	}
-
-	if !strings.HasSuffix(url, "/close") {
-		t.Errorf("OpsGenie close notifications must be POSTed to /close endpoint, was posted to %s", url)
 	}
 }
 
