@@ -129,7 +129,7 @@ func (db *DB) Write(b *Batch, wo *opt.WriteOptions) (err error) {
 		return
 	}
 
-	b.init(wo.GetSync())
+	b.init(wo.GetSync() && !db.s.o.GetNoSync())
 
 	// The write happen synchronously.
 	select {
@@ -249,8 +249,7 @@ func (db *DB) Put(key, value []byte, wo *opt.WriteOptions) error {
 	return db.Write(b, wo)
 }
 
-// Delete deletes the value for the given key. It returns ErrNotFound if
-// the DB does not contain the key.
+// Delete deletes the value for the given key.
 //
 // It is safe to modify the contents of the arguments after Delete returns.
 func (db *DB) Delete(key []byte, wo *opt.WriteOptions) error {

@@ -1,4 +1,3 @@
-.build
 data
 alertmanager
 *.yml
