@@ -71,10 +71,10 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type route struct {
-		SendTo        string            `yaml:"send_to,omitempty"`
-		GroupBy       []model.LabelName `yaml:"group_by,omitempty"`
-		GroupWait     *model.Duration   `yaml:"group_wait,omitempty"`
-		GroupInterval *model.Duration   `yaml:"group_interval,omitempty"`
+		SendTo         string            `yaml:"send_to,omitempty"`
+		GroupBy        []model.LabelName `yaml:"group_by,omitempty"`
+		GroupWait      *model.Duration   `yaml:"group_wait,omitempty"`
+		RepeatInterval *model.Duration   `yaml:"repeat_interval,omitempty"`
 
 		Match    map[string]string `yaml:"match,omitempty"`
 		MatchRE  map[string]string `yaml:"match_re,omitempty"`
@@ -123,8 +123,8 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		r.RouteOpts.GroupWait = time.Duration(*v.GroupWait)
 		r.RouteOpts.hasWait = true
 	}
-	if v.GroupInterval != nil {
-		r.RouteOpts.GroupInterval = time.Duration(*v.GroupInterval)
+	if v.RepeatInterval != nil {
+		r.RouteOpts.RepeatInterval = time.Duration(*v.RepeatInterval)
 		r.RouteOpts.hasInterval = true
 	}
 	r.RouteOpts.SendTo = v.SendTo
@@ -144,8 +144,8 @@ type RouteOpts struct {
 
 	// How long to wait to group matching alerts before sending
 	// a notificaiton
-	GroupWait     time.Duration
-	GroupInterval time.Duration
+	GroupWait      time.Duration
+	RepeatInterval time.Duration
 
 	hasWait, hasInterval bool
 }
@@ -171,6 +171,6 @@ func (ro *RouteOpts) populateDefault(parent *RouteOpts) {
 		ro.GroupWait = parent.GroupWait
 	}
 	if !ro.hasInterval {
-		ro.GroupInterval = parent.GroupInterval
+		ro.RepeatInterval = parent.RepeatInterval
 	}
 }
