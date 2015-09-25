@@ -15,10 +15,12 @@ package manager
 
 import (
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/config"
 )
 
-// AlertProvider gives access to a set of alerts.
-type AlertProvider interface {
+// Alerts gives access to a set of alerts.
+type Alerts interface {
 	// Iter returns a channel on which all active alerts from the
 	// beginning of time are sent. They are not guaranteed to be in
 	// chronological order.
@@ -31,8 +33,8 @@ type AlertProvider interface {
 	Del(model.Fingerprint) error
 }
 
-// SilenceProvider gives access to silences.
-type SilenceProvider interface {
+// Silences gives access to silences.
+type Silences interface {
 	Silencer
 
 	// All returns all existing silences.
@@ -45,9 +47,13 @@ type SilenceProvider interface {
 	Get(model.Fingerprint) (*Silence, error)
 }
 
-type ConfigProvider interface {
+// Reloadable is a component that can change its state based
+// on a new configuration.
+type Reloadable interface {
+	ApplyConfig(*config.Config)
+}
+
+type Config interface {
 	// Reload initiates a configuration reload.
-	Reload() error
-	// Get returns the current configuration.
-	Get() *Config
+	Reload(...Reloadable) error
 }

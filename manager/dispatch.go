@@ -8,6 +8,8 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/log"
 	"golang.org/x/net/context"
+
+	"github.com/prometheus/alertmanager/provider"
 )
 
 const ResolveTimeout = 30 * time.Second
@@ -16,7 +18,7 @@ const ResolveTimeout = 30 * time.Second
 // assigns the correct notifiers to each.
 type Dispatcher struct {
 	routes        Routes
-	alertProvider AlertProvider
+	alertProvider provider.Alerts
 
 	aggrGroups map[model.Fingerprint]*aggrGroup
 	notifiers  map[string]Notifier
