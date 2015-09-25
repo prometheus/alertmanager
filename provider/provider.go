@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/types"
 )
 
 // Alerts gives access to a set of alerts.
@@ -24,17 +25,18 @@ type Alerts interface {
 	// Iter returns a channel on which all active alerts from the
 	// beginning of time are sent. They are not guaranteed to be in
 	// chronological order.
-	IterActive() <-chan *Alert
+	IterActive() <-chan *types.Alert
 	// Get returns the alert for a given fingerprint.
-	Get(model.Fingerprint) (*Alert, error)
+	Get(model.Fingerprint) (*types.Alert, error)
 	// Put adds the given alert to the set.
-	Put(*Alert) error
-	// Del deletes the alert for the given fingerprint.
-	Del(model.Fingerprint) error
+	Put(*types.Alert) error
 }
 
 // Silences gives access to silences.
 type Silences interface {
+	// The Silences provider must implement the Silencer interface
+	// for all its silences. The data provider may have access to an
+	// optimized view of the data to perform this evaluation.
 	Silencer
 
 	// All returns all existing silences.
