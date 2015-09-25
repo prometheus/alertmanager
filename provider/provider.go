@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package manager
+package provider
 
 import (
 	"github.com/prometheus/common/model"
@@ -37,16 +37,16 @@ type Silences interface {
 	// The Silences provider must implement the Silencer interface
 	// for all its silences. The data provider may have access to an
 	// optimized view of the data to perform this evaluation.
-	Silencer
+	types.Silencer
 
 	// All returns all existing silences.
-	All() []*Silence
+	All() []*types.Silence
 	// Set a new silence.
-	Set(*Silence) error
+	Set(*types.Silence) error
 	// Del removes a silence.
 	Del(model.Fingerprint) error
 	// Get a silence associated with a fingerprint.
-	Get(model.Fingerprint) (*Silence, error)
+	Get(model.Fingerprint) (*types.Silence, error)
 }
 
 // Reloadable is a component that can change its state based

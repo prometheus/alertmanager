@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/log"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 )
 
@@ -28,7 +29,7 @@ var (
 )
 
 func main() {
-	conf, err := manager.LoadFile(*configFile)
+	conf, err := config.LoadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -36,11 +37,13 @@ func main() {
 	memAlerts := provider.NewMemAlerts()
 	disp := NewDispatcher(memAlerts)
 
+	defer disp.Stop()
+
 	disp.ApplyConfig(conf)
 
 	router := route.New()
 
-	manager.NewAPI(router.WithPrefix("/api"), state)
+	NewAPI(router.WithPrefix("/api"))
 
 	http.ListenAndServe(":9091", router)
 }

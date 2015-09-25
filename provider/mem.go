@@ -33,13 +33,13 @@ type MemAlerts struct {
 	listeners []chan *types.Alert
 }
 
-func NewMemAlert() *MemAlerts {
+func NewMemAlerts() *MemAlerts {
 	return &MemAlerts{
-		alerts: map[model.Fingerprint]*types.Alert,
+		alerts: map[model.Fingerprint]*types.Alert{},
 	}
 }
 
-func (a *MemAlerts) IterActive() <-chan *Alert {
+func (a *MemAlerts) IterActive() <-chan *types.Alert {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -54,7 +54,7 @@ func (a *MemAlerts) IterActive() <-chan *Alert {
 	return ch
 }
 
-func (a *MemAlerts) Put(alert *Alert) error {
+func (a *MemAlerts) Put(alert *types.Alert) error {
 	a.mtx.RLock()
 	defer a.mtx.RUnlock()
 

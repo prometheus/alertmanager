@@ -1,5 +1,12 @@
 package types
 
+import (
+	"fmt"
+	"time"
+
+	"github.com/prometheus/common/model"
+)
+
 type Alert struct {
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include an "alertname" label.
@@ -51,3 +58,38 @@ type alertTimeline []*Alert
 func (at alertTimeline) Len() int           { return len(at) }
 func (at alertTimeline) Less(i, j int) bool { return at[i].Timestamp.Before(at[j].Timestamp) }
 func (at alertTimeline) Swap(i, j int)      { at[i], at[j] = at[j], at[i] }
+
+// A Silencer determines whether a given label set is muted.
+type Silencer interface {
+	Mutes(model.LabelSet) bool
+}
+
+// A Silence determines whether a given label set is muted
+// at the current time.
+type Silence struct {
+	ID model.Fingerprint
+
+	// A set of matchers determining if an alert is
+	Matchers Matchers
+	// Name/email of the silence creator.
+	CreatedBy string
+	// When the silence was first created (Unix timestamp).
+	CreatedAt, EndsAt time.Time
+
+	// Additional comment about the silence.
+	Comment string
+
+	// timeFunc provides the time against which to evaluate
+	// the silence.
+	timeFunc func() time.Time
+}
+
+func (sil *Silence) Mutes(lset model.LabelSet) bool {
+	t := sil.timeFunc()
+
+	if t.Before(sil.CreatedAt) || t.After(sil.EndsAt) {
+		return false
+	}
+
+	return sil.Matchers.Match(lset)
+}

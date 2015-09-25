@@ -1,4 +1,4 @@
-package manager
+package main
 
 import (
 	"reflect"
@@ -7,6 +7,8 @@ import (
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
+
+	"github.com/prometheus/alertmanager/config"
 )
 
 func TestRouteMatch(t *testing.T) {
@@ -49,10 +51,12 @@ routes:
   send_to: 'notify-BC'
 `
 
-	var tree Route
-	if err := yaml.Unmarshal([]byte(in), &tree); err != nil {
+	var ctree config.Route
+	if err := yaml.Unmarshal([]byte(in), &ctree); err != nil {
 		t.Fatal(err)
 	}
+
+	tree := NewRoute(&ctree)
 
 	lset := func(labels ...string) map[model.LabelName]struct{} {
 		s := map[model.LabelName]struct{}{}
@@ -61,8 +65,6 @@ routes:
 		}
 		return s
 	}
-
-	gwait := func(d time.Duration) *time.Duration { return &d }
 
 	tests := []struct {
 		input  model.LabelSet
@@ -99,7 +101,8 @@ routes:
 				{
 					SendTo:    "notify-BC",
 					GroupBy:   lset("foo", "bar"),
-					groupWait: gwait(2 * time.Minute),
+					GroupWait: 2 * time.Minute,
+					hasWait:   true,
 				},
 			},
 		},
@@ -124,12 +127,14 @@ routes:
 				{
 					SendTo:    "notify-productionA",
 					GroupBy:   lset(),
-					groupWait: gwait(1 * time.Minute),
+					GroupWait: 1 * time.Minute,
+					hasWait:   true,
 				},
 				{
 					SendTo:    "notify-productionB",
 					GroupBy:   lset("job"),
-					groupWait: gwait(10 * time.Minute),
+					GroupWait: 10 * time.Minute,
+					hasWait:   true,
 				},
 			},
 		},
@@ -139,7 +144,7 @@ routes:
 		matches := tree.Match(test.input)
 
 		if !reflect.DeepEqual(matches, test.result) {
-			t.Errorf("expected:\n%v\n\ngot:\n%v", test.result, matches)
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", test.result, matches)
 		}
 	}
 }

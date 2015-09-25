@@ -15,7 +15,7 @@
 
 set -e
 
-repo_path="github.com/prometheus/prometheus"
+repo_path="github.com/prometheus/alertmanager"
 
 version=$( cat version/VERSION )
 revision=$( git rev-parse --short HEAD 2> /dev/null || echo 'unknown' )
@@ -38,10 +38,7 @@ ldflags="
 
 export GO15VENDOREXPERIMENT="1"
 
-echo " >   prometheus"
-go build -ldflags "${ldflags}" -o prometheus${ext} ${repo_path}/cmd/prometheus
-
-echo " >   promtool"
-go build -ldflags "${ldflags}" -o promtool${ext} ${repo_path}/cmd/promtool
+echo " >   alertmanager"
+go build -ldflags "${ldflags}" -o alertmanager${ext} ${repo_path}
 
 exit 0

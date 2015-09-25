@@ -1,15 +1,18 @@
-package manager
+package main
 
 import (
 	"fmt"
 	"time"
 
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/types"
 )
 
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:     10 * time.Second,
-	GroupInterval: 10 * time.Second,
+	GroupWait:      10 * time.Second,
+	RepeatInterval: 10 * time.Second,
 }
 
 type Routes []*Route
@@ -29,13 +32,62 @@ type Route struct {
 
 	// Equality or regex matchers an alert has to fulfill to match
 	// this route.
-	Matchers Matchers
+	Matchers types.Matchers
 
 	// If true, an alert matches further routes on the same level.
 	Continue bool
 
 	// Children routes of this route.
 	Routes Routes
+}
+
+func NewRoute(cr *config.Route) *Route {
+	groupBy := map[model.LabelName]struct{}{}
+	for _, ln := range cr.GroupBy {
+		groupBy[ln] = struct{}{}
+	}
+
+	opts := RouteOpts{
+		SendTo:      cr.SendTo,
+		GroupBy:     groupBy,
+		hasWait:     cr.GroupWait != nil,
+		hasInterval: cr.RepeatInterval != nil,
+	}
+	if opts.hasWait {
+		opts.GroupWait = time.Duration(*cr.GroupWait)
+	}
+	if opts.hasInterval {
+		opts.RepeatInterval = time.Duration(*cr.RepeatInterval)
+	}
+
+	var matchers types.Matchers
+
+	for ln, lv := range cr.Match {
+		matchers = append(matchers, types.NewMatcher(model.LabelName(ln), lv))
+	}
+	for ln, lv := range cr.MatchRE {
+		m, err := types.NewRegexMatcher(model.LabelName(ln), lv.String())
+		if err != nil {
+			// Must have been sanitized during config validation.
+			panic(err)
+		}
+		matchers = append(matchers, m)
+	}
+
+	return &Route{
+		RouteOpts: opts,
+		Matchers:  matchers,
+		Continue:  cr.Continue,
+		Routes:    NewRoutes(cr.Routes),
+	}
+}
+
+func NewRoutes(croutes []*config.Route) Routes {
+	res := Routes{}
+	for _, cr := range croutes {
+		res = append(res, NewRoute(cr))
+	}
+	return res
 }
 
 // Match does a depth-first left-to-right search through the route tree
@@ -68,73 +120,6 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 	return all
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type route struct {
-		SendTo         string            `yaml:"send_to,omitempty"`
-		GroupBy        []model.LabelName `yaml:"group_by,omitempty"`
-		GroupWait      *model.Duration   `yaml:"group_wait,omitempty"`
-		RepeatInterval *model.Duration   `yaml:"repeat_interval,omitempty"`
-
-		Match    map[string]string `yaml:"match,omitempty"`
-		MatchRE  map[string]string `yaml:"match_re,omitempty"`
-		Continue bool              `yaml:"continue,omitempty"`
-		Routes   []*Route          `yaml:"routes,omitempty"`
-
-		// Catches all undefined fields and must be empty after parsing.
-		XXX map[string]interface{} `yaml:",inline"`
-	}
-	var v route
-	if err := unmarshal(&v); err != nil {
-		return err
-	}
-
-	for k, val := range v.Match {
-		if !model.LabelNameRE.MatchString(k) {
-			fmt.Errorf("invalid label name %q", k)
-		}
-		ln := model.LabelName(k)
-		r.Matchers = append(r.Matchers, NewMatcher(ln, val))
-	}
-
-	for k, val := range v.MatchRE {
-		if !model.LabelNameRE.MatchString(k) {
-			fmt.Errorf("invalid label name %q", k)
-		}
-		ln := model.LabelName(k)
-
-		m, err := NewRegexMatcher(ln, val)
-		if err != nil {
-			return err
-		}
-		r.Matchers = append(r.Matchers, m)
-	}
-
-	r.RouteOpts.GroupBy = make(map[model.LabelName]struct{}, len(v.GroupBy))
-
-	for _, ln := range v.GroupBy {
-		if _, ok := r.RouteOpts.GroupBy[ln]; ok {
-			return fmt.Errorf("duplicated label %q in group_by", ln)
-		}
-		r.RouteOpts.GroupBy[ln] = struct{}{}
-	}
-
-	if v.GroupWait != nil {
-		r.RouteOpts.GroupWait = time.Duration(*v.GroupWait)
-		r.RouteOpts.hasWait = true
-	}
-	if v.RepeatInterval != nil {
-		r.RouteOpts.RepeatInterval = time.Duration(*v.RepeatInterval)
-		r.RouteOpts.hasInterval = true
-	}
-	r.RouteOpts.SendTo = v.SendTo
-
-	r.Continue = v.Continue
-	r.Routes = v.Routes
-
-	return checkOverflow(v.XXX, "route")
-}
-
 type RouteOpts struct {
 	// The identifier of the associated notification configuration
 	SendTo string
@@ -155,7 +140,7 @@ func (ro *RouteOpts) String() string {
 	for ln := range ro.GroupBy {
 		labels = append(labels, ln)
 	}
-	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_wait:%q>", ro.SendTo, labels, ro.GroupWait)
+	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_wait:%q %q %q>", ro.SendTo, labels, ro.GroupWait)
 }
 
 func (ro *RouteOpts) populateDefault(parent *RouteOpts) {

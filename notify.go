@@ -1,70 +1,45 @@
-package manager
+package main
 
 import (
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/log"
 	"golang.org/x/net/context"
+
+	"github.com/prometheus/alertmanager/types"
 )
 
 type Notifier interface {
-	Notify(context.Context, *Alert) error
+	Notify(context.Context, *types.Alert) error
 }
 
 type LogNotifier struct {
 	name string
 }
 
-func (ln *LogNotifier) Notify(ctx context.Context, a *Alert) error {
+func (ln *LogNotifier) Notify(ctx context.Context, a *types.Alert) error {
 	log.Infof("notify %q", ln.name)
 
-	for _, a := range alerts {
-		log.Infof("  - %v", a)
-	}
+	// for _, a := range alerts {
+	log.Infof("  - %v", a)
+	// }
 	return nil
 }
 
-// routedNotifier forwards alerts to notifiers matching the alert in
-// a routing tree.
-type routedNotifier struct {
-	notifiers map[string]Notifier
-}
-
-func (n *routedNotifier) Notify(alert *Alert) error {
-
-}
-
-// A Silencer determines whether a given label set is muted.
-type Silencer interface {
-	Mutes(model.LabelSet) bool
-}
-
-// A Silence determines whether a given label set is muted
-// at the current time.
-type Silence struct {
-	ID model.Fingerprint
-
-	// A set of matchers determining if an alert is
-	Matchers Matchers
-	// Name/email of the silence creator.
-	CreatedBy string
-	// When the silence was first created (Unix timestamp).
-	CreatedAt, EndsAt time.Time
-
-	// Additional comment about the silence.
-	Comment string
-
-	// timeFunc provides the time against which to evaluate
-	// the silence.
-	timeFunc func() time.Time
-}
-
-func (sil *Silence) Mutes(lset model.LabelSet) bool {
-	t := sil.timeFunc()
-
-	if t.Before(sil.CreatedAt) || t.After(sil.EndsAt) {
-		return false
-	}
-
-	return sil.Matchers.Match(lset)
+// An InhibitRule specifies that a class of (source) alerts should inhibit
+// notifications for another class of (target) alerts if all specified matching
+// labels are equal between the two alerts. This may be used to inhibit alerts
+// from sending notifications if their meaning is logically a subset of a
+// higher-level alert.
+type InhibitRule struct {
+	// The set of Filters which define the group of source alerts (which inhibit
+	// the target alerts).
+	SourceMatchers types.Matchers
+	// The set of Filters which define the group of target alerts (which are
+	// inhibited by the source alerts).
+	TargetMatchers types.Matchers
+	// A set of label names whose label values need to be identical in source and
+	// target alerts in order for the inhibition to take effect.
+	Equal model.LabelNames
 }
 
 // silencedNotifier wraps a notifier and applies a Silencer
@@ -72,10 +47,10 @@ func (sil *Silence) Mutes(lset model.LabelSet) bool {
 type silencedNotifier struct {
 	Notifier
 
-	silencer Silencer
+	silencer types.Silencer
 }
 
-func (n *silencedNotifier) Notify(alert *Alert) error {
+func (n *silencedNotifier) Notify(ctx context.Context, alert *types.Alert) error {
 	// TODO(fabxc): increment total alerts counter.
 	// Do not send the alert if the silencer mutes it.
 	if n.silencer.Mutes(alert.Labels) {
@@ -83,7 +58,7 @@ func (n *silencedNotifier) Notify(alert *Alert) error {
 		return nil
 	}
 
-	return n.Notifier.Send(alert)
+	return n.Notifier.Notify(ctx, alert)
 }
 
 type Inhibitor interface {

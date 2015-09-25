@@ -1,7 +1,6 @@
-package manager
+package main
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/prometheus/log"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -36,21 +36,23 @@ func NewDispatcher(ap provider.Alerts) *Dispatcher {
 }
 
 // ApplyConfig updates the dispatcher to match the new configuration.
-func (d *Dispatcher) ApplyConfig(conf *Config) {
+func (d *Dispatcher) ApplyConfig(conf *config.Config) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	d.Stop()
+	// If a cancelation function is set, the dispatcher is running.
+	if d.cancel != nil {
+		d.Stop()
+		defer func() { go d.Run() }()
+	}
 
-	d.routes = conf.Routes
+	d.routes = NewRoutes(conf.Routes)
 	d.notifiers = map[string]Notifier{}
 
 	// TODO(fabxc): build correct notifiers from new conf.NotificationConfigs.
 	for _, ncfg := range conf.NotificationConfigs {
 		d.notifiers[ncfg.Name] = &LogNotifier{ncfg.Name}
 	}
-
-	go d.Run()
 }
 
 // Run starts dispatching alerts incoming via the updates channel.
@@ -60,10 +62,10 @@ func (d *Dispatcher) Run() {
 
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 
-	updates := d.alertProvider.IterActive()
+	updates := d.alerts.IterActive()
 
 	defer close(d.done)
-	defer close(updates)
+	// TODO(fabxc): updates channel is never closed!!!
 
 	d.run(updates)
 }
@@ -99,6 +101,7 @@ func (d *Dispatcher) run(updates <-chan *types.Alert) {
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
 	d.cancel()
+	d.cancel = nil
 	<-d.done
 }
 
@@ -106,7 +109,7 @@ func (d *Dispatcher) Stop() {
 // with the given fingerprint. It aborts on context cancelation.
 // It returns whether the alert has successfully been communiated as
 // resolved.
-type notifyFunc func(context.Context, model.Fingerprint) bool
+type notifyFunc func(context.Context, *types.Alert) bool
 
 // notifyFunc returns a function which performs a notification
 // as required by the routing options.
@@ -116,9 +119,7 @@ func (d *Dispatcher) notifyFunc(dest string) notifyFunc {
 
 	notifier := d.notifiers[dest]
 
-	return func(ctx context.Context, fp model.Fingerprint) bool {
-		alert := d.alerts.Get(fp)
-
+	return func(ctx context.Context, alert *types.Alert) bool {
 		if err := notifier.Notify(ctx, alert); err != nil {
 			log.Errorf("Notify for %v failed: %s", alert, err)
 			return false
@@ -143,8 +144,8 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 	// If the group does not exist, create it.
 	ag, ok := d.aggrGroups[fp]
 	if !ok {
-		ag = newAggrGroup(d, group, opts)
-		ag.run(ag.notifyFunc(opts.SendTo))
+		ag = newAggrGroup(d.ctx, group, opts)
+		ag.run(d.notifyFunc(opts.SendTo))
 
 		d.aggrGroups[fp] = ag
 	}
@@ -162,11 +163,11 @@ type aggrGroup struct {
 	ctx    context.Context
 	cancel func()
 	done   chan struct{}
+	next   *time.Timer
 
 	mtx     sync.RWMutex
-	alerts  map[model.Fingerprint]struct{}
+	alerts  map[model.Fingerprint]*types.Alert
 	hasSent bool
-	curRev  int
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -174,7 +175,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts) *
 	ag := &aggrGroup{
 		labels: labels,
 		opts:   opts,
-		alerts: map[model.Fingerprint]struct{}{},
+		alerts: map[model.Fingerprint]*types.Alert{},
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
@@ -186,7 +187,7 @@ func (ag *aggrGroup) run(notify notifyFunc) {
 
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
-	next := time.NewTimer(opts.GroupWait)
+	ag.next = time.NewTimer(ag.opts.GroupWait)
 
 	defer close(ag.done)
 	defer ag.next.Stop()
@@ -199,10 +200,10 @@ func (ag *aggrGroup) run(notify notifyFunc) {
 			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.RepeatInterval*2/3)
 
 			// Wait the configured interval before calling flush again.
-			next.Reset(ag.opts.RepeatInterval)
+			ag.next.Reset(ag.opts.RepeatInterval)
 
-			ag.flush(func(fp model.Fingerprint) bool {
-				notify(ctx, fp)
+			ag.flush(func(a *types.Alert) bool {
+				return notify(ctx, a)
 			})
 
 		case <-ag.ctx.Done():
@@ -224,12 +225,11 @@ func (ag *aggrGroup) fingerprint() model.Fingerprint {
 
 // insert the alert into the aggregation group. If the aggregation group
 // is empty afterwards, true is returned.
-func (ag *aggrGroup) insert(fp model.Fingerprint) {
+func (ag *aggrGroup) insert(alert *types.Alert) {
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
 
-	ag.curRev++
-	ag.alerts[fp] = ag.curRev
+	ag.alerts[alert.Fingerprint()] = alert
 
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
@@ -246,12 +246,12 @@ func (ag *aggrGroup) empty() bool {
 }
 
 // flush sends notifications for all new alerts.
-func (ag *aggrGroup) flush(notify func(model.Fingerprint) bool) {
+func (ag *aggrGroup) flush(notify func(*types.Alert) bool) {
 	ag.mtx.Lock()
 
-	alerts := make(map[model.Fingerprint]int, len(ag.alerts))
-	for fp, rev := range ag.alerts {
-		alerts[fp] = rev
+	alerts := make(map[model.Fingerprint]*types.Alert, len(ag.alerts))
+	for fp, alert := range ag.alerts {
+		alerts[fp] = alert
 	}
 
 	ag.mtx.Unlock()
@@ -259,21 +259,21 @@ func (ag *aggrGroup) flush(notify func(model.Fingerprint) bool) {
 	var wg sync.WaitGroup
 	wg.Add(len(alerts))
 
-	for fp, rev := range alerts {
-		go func(fp model.Fingerprint) {
+	for fp, a := range alerts {
+		go func(fp model.Fingerprint, a *types.Alert) {
 			// notify returns whether the alert can be deleted
 			// afterwards.
-			if notify(fp) {
+			if notify(a) {
 				ag.mtx.Lock()
 				// Only delete if the fingerprint has not been inserted
 				// again since we notified about it.
-				if ag.alerts[fp] == rev {
+				if ag.alerts[fp] == a {
 					delete(alerts, fp)
 				}
 				ag.mtx.Unlock()
 			}
 			wg.Done()
-		}(fp)
+		}(fp, a)
 	}
 
 	wg.Wait()
