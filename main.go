@@ -20,7 +20,7 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/log"
 
-	"github.com/prometheus/alertmanager/manager"
+	"github.com/prometheus/alertmanager/provider"
 )
 
 var (
@@ -33,19 +33,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	state := manager.NewPersistentState("data")
+	memAlerts := provider.NewMemAlerts()
+	disp := NewDispatcher(memAlerts)
 
-	if err = state.Config().Set(conf); err != nil {
-		log.Fatal(err)
-	}
-
-	disp := manager.NewDispatcher(state, []manager.Notifier{
-		manager.NewLogNotifier("default"),
-	})
+	disp.ApplyConfig(conf)
 
 	router := route.New()
-
-	go disp.Run()
 
 	manager.NewAPI(router.WithPrefix("/api"), state)
 
