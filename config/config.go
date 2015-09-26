@@ -101,10 +101,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
-	SendTo         string            `yaml:"send_to,omitempty"`
-	GroupBy        []model.LabelName `yaml:"group_by,omitempty"`
-	GroupWait      *model.Duration   `yaml:"group_wait,omitempty"`
-	RepeatInterval *model.Duration   `yaml:"repeat_interval,omitempty"`
+	SendTo        string            `yaml:"send_to,omitempty"`
+	GroupBy       []model.LabelName `yaml:"group_by,omitempty"`
+	GroupWait     *model.Duration   `yaml:"group_wait,omitempty"`
+	GroupInterval *model.Duration   `yaml:"group_interval,omitempty"`
 
 	Match    map[string]string `yaml:"match,omitempty"`
 	MatchRE  map[string]Regexp `yaml:"match_re,omitempty"`
@@ -196,8 +196,8 @@ type NotificationConfig struct {
 	// Name of this NotificationConfig. Referenced from AggregationRule.
 	Name string `yaml:"name"`
 
-	// Notify when resolved.
-	SendResolved bool `yaml:"send_resolved"`
+	SendResolved   bool           `yaml:"send_resolved"`
+	RepeatInterval model.Duration `yaml:"repeat_interval"`
 
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs"`
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs"`

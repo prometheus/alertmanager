@@ -203,12 +203,12 @@ func (ag *aggrGroup) run(notify notifyFunc) {
 	for {
 		select {
 		case <-ag.next.C:
-			// Give the notifcations 2/3 the time of the repeat interval
-			// to finish before terminating them.
-			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.RepeatInterval*2/3)
+			// Give the notifcations time until the next flush to
+			// finish before terminating them.
+			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.GroupInterval)
 
 			// Wait the configured interval before calling flush again.
-			ag.next.Reset(ag.opts.RepeatInterval)
+			ag.next.Reset(ag.opts.GroupInterval)
 
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return notify(ctx, alerts...)

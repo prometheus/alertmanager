@@ -11,8 +11,8 @@ import (
 )
 
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:      1 * time.Second,
-	RepeatInterval: 10 * time.Second,
+	GroupWait:     1 * time.Second,
+	GroupInterval: 10 * time.Second,
 }
 
 type Routes []*Route
@@ -51,13 +51,13 @@ func NewRoute(cr *config.Route) *Route {
 		SendTo:      cr.SendTo,
 		GroupBy:     groupBy,
 		hasWait:     cr.GroupWait != nil,
-		hasInterval: cr.RepeatInterval != nil,
+		hasInterval: cr.GroupInterval != nil,
 	}
 	if opts.hasWait {
 		opts.GroupWait = time.Duration(*cr.GroupWait)
 	}
 	if opts.hasInterval {
-		opts.RepeatInterval = time.Duration(*cr.RepeatInterval)
+		opts.GroupInterval = time.Duration(*cr.GroupInterval)
 	}
 
 	var matchers types.Matchers
@@ -129,8 +129,8 @@ type RouteOpts struct {
 
 	// How long to wait to group matching alerts before sending
 	// a notificaiton
-	GroupWait      time.Duration
-	RepeatInterval time.Duration
+	GroupWait     time.Duration
+	GroupInterval time.Duration
 
 	hasWait, hasInterval bool
 }
@@ -140,7 +140,7 @@ func (ro *RouteOpts) String() string {
 	for ln := range ro.GroupBy {
 		labels = append(labels, ln)
 	}
-	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_wait:%q>", ro.SendTo, labels, ro.GroupWait)
+	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q timers:%q|%q>", ro.SendTo, labels, ro.GroupWait, ro.GroupInterval)
 }
 
 func (ro *RouteOpts) populateDefault(parent *RouteOpts) {
@@ -156,6 +156,6 @@ func (ro *RouteOpts) populateDefault(parent *RouteOpts) {
 		ro.GroupWait = parent.GroupWait
 	}
 	if !ro.hasInterval {
-		ro.RepeatInterval = parent.RepeatInterval
+		ro.GroupInterval = parent.GroupInterval
 	}
 }
