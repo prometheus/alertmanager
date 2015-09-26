@@ -64,7 +64,6 @@ func (d *Dispatcher) Run() {
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 
 	updates := d.alerts.IterActive()
-
 	defer updates.Close()
 
 	d.run(updates.Next())
@@ -109,8 +108,7 @@ func (d *Dispatcher) Stop() {
 
 // notifyFunc is a function that performs notifcation for the alert
 // with the given fingerprint. It aborts on context cancelation.
-// It returns whether the alert has successfully been communiated as
-// resolved.
+// Returns false iff notifying failed.
 type notifyFunc func(context.Context, ...*types.Alert) bool
 
 // notifyFunc returns a function which performs a notification
@@ -134,8 +132,6 @@ func (d *Dispatcher) notifyFunc(dest string) notifyFunc {
 // and insert it.
 func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 	group := model.LabelSet{}
-	fmt.Println("processing", alert)
-	defer fmt.Println("proecssing done", alert)
 
 	for ln, lv := range alert.Labels {
 		if _, ok := opts.GroupBy[ln]; ok {
