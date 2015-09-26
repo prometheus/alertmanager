@@ -40,10 +40,11 @@ func main() {
 	defer disp.Stop()
 
 	disp.ApplyConfig(conf)
+	go disp.Run()
 
 	router := route.New()
 
-	NewAPI(router.WithPrefix("/api"))
+	NewAPI(router.WithPrefix("/api"), memAlerts)
 
 	http.ListenAndServe(":9091", router)
 }

@@ -4,24 +4,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	// "time"
+	"time"
 
 	"github.com/prometheus/common/route"
 	"golang.org/x/net/context"
+
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type API struct {
+	alerts provider.Alerts
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
 }
 
-func NewAPI(r *route.Router) *API {
+func NewAPI(r *route.Router, alerts provider.Alerts) *API {
 	api := &API{
 		context: route.Context,
+		alerts:  alerts,
 	}
 
-	// r.Get("/alerts", api.listAlerts)
-	// r.Post("/alerts", api.addAlerts)
+	r.Get("/alerts", api.listAlerts)
+	r.Post("/alerts", api.addAlerts)
 
 	// r.Get("/silences", api.listSilences)
 	// r.Post("/silences", api.addSilence)
@@ -51,49 +56,49 @@ func (e *apiError) Error() string {
 	return fmt.Sprintf("%s: %s", e.typ, e.err)
 }
 
-// func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
-// 	alerts, err := api.state.Alert().GetAll()
-// 	if err != nil {
-// 		respondError(w, apiError{
-// 			typ: errorBadData,
-// 			err: err,
-// 		}, nil)
-// 		return
-// 	}
-// 	respond(w, alerts)
-// }
+func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
+	alerts, err := api.alerts.All()
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+	respond(w, alerts)
+}
 
-// func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
-// 	var alerts []*Alert
-// 	if err := receive(r, &alerts); err != nil {
-// 		http.Error(w, err.Error(), http.StatusBadRequest)
-// 		return
-// 	}
-// 	for _, alert := range alerts {
-// 		now := time.Now()
+func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
+	var alerts []*types.Alert
+	if err := receive(r, &alerts); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	for _, alert := range alerts {
+		now := time.Now()
 
-// 		if alert.Timestamp.IsZero() {
-// 			alert.Timestamp = now
-// 		}
-// 		if alert.CreatedAt.IsZero() {
-// 			alert.CreatedAt = now
-// 		}
-// 		if alert.ResolvedAt.IsZero() {
-// 			alert.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
-// 		}
-// 	}
+		if alert.Timestamp.IsZero() {
+			alert.Timestamp = now
+		}
+		if alert.CreatedAt.IsZero() {
+			alert.CreatedAt = now
+		}
+		if alert.ResolvedAt.IsZero() {
+			alert.ResolvedAt = alert.CreatedAt.Add(ResolveTimeout)
+		}
+	}
 
-// 	// TODO(fabxc): validate input.
-// 	if err := api.state.Alert().Add(alerts...); err != nil {
-// 		respondError(w, apiError{
-// 			typ: errorBadData,
-// 			err: err,
-// 		}, nil)
-// 		return
-// 	}
+	// TODO(fabxc): validate input.
+	if err := api.alerts.Put(alerts...); err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
 
-// 	respond(w, nil)
-// }
+	respond(w, nil)
+}
 
 // func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 // 	var sil Silence
