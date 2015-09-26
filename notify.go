@@ -5,6 +5,7 @@ import (
 	"github.com/prometheus/log"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -39,7 +40,49 @@ type InhibitRule struct {
 	TargetMatchers types.Matchers
 	// A set of label names whose label values need to be identical in source and
 	// target alerts in order for the inhibition to take effect.
-	Equal model.LabelNames
+	Equal map[model.LabelName]struct{}
+}
+
+func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
+	var (
+		sourcem types.Matchers
+		targetm types.Matchers
+		equal   map[model.LabelName]struct{}
+	)
+
+	for ln, lv := range cr.SourceMatch {
+		sourcem = append(sourcem, types.NewMatcher(model.LabelName(ln), lv))
+	}
+	for ln, lv := range cr.SourceMatchRE {
+		m, err := types.NewRegexMatcher(model.LabelName(ln), lv.String())
+		if err != nil {
+			// Must have been sanitized during config validation.
+			panic(err)
+		}
+		sourcem = append(sourcem, m)
+	}
+
+	for ln, lv := range cr.TargetMatch {
+		targetm = append(targetm, types.NewMatcher(model.LabelName(ln), lv))
+	}
+	for ln, lv := range cr.TargetMatchRE {
+		m, err := types.NewRegexMatcher(model.LabelName(ln), lv.String())
+		if err != nil {
+			// Must have been sanitized during config validation.
+			panic(err)
+		}
+		targetm = append(targetm, m)
+	}
+
+	for _, ln := range cr.Equal {
+		equal[ln] = struct{}{}
+	}
+
+	return &InhibitRule{
+		SourceMatchers: sourcem,
+		TargetMatchers: targetm,
+		Equal:          equal,
+	}
 }
 
 // silencedNotifier wraps a notifier and applies a Silencer
@@ -62,8 +105,4 @@ func (n *silencedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 	}
 
 	return n.Notifier.Notify(ctx, filtered...)
-}
-
-type Inhibitor interface {
-	Inhibits(model.LabelSet) bool
 }
