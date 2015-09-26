@@ -20,16 +20,24 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+type AlertIterator interface {
+	Next() <-chan *types.Alert
+	Err() error
+	Close()
+}
+
 // Alerts gives access to a set of alerts.
 type Alerts interface {
-	// Iter returns a channel on which all active alerts from the
-	// beginning of time are sent. They are not guaranteed to be in
-	// chronological order.
-	IterActive() <-chan *types.Alert
+	// IterActive returns an iterator over active alerts from the
+	// beginning of time. They are not guaranteed to be in chronological order.
+	IterActive() AlertIterator
+	// All returns a list of all existing alerts.
+	// TODO(fabxc): this is not a scalable solution
+	All() ([]*types.Alert, error)
 	// Get returns the alert for a given fingerprint.
 	Get(model.Fingerprint) (*types.Alert, error)
 	// Put adds the given alert to the set.
-	Put(*types.Alert) error
+	Put(...*types.Alert) error
 }
 
 // Silences gives access to silences.

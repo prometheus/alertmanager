@@ -11,7 +11,7 @@ import (
 )
 
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:      10 * time.Second,
+	GroupWait:      1 * time.Second,
 	RepeatInterval: 10 * time.Second,
 }
 
@@ -140,7 +140,7 @@ func (ro *RouteOpts) String() string {
 	for ln := range ro.GroupBy {
 		labels = append(labels, ln)
 	}
-	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_wait:%q %q %q>", ro.SendTo, labels, ro.GroupWait)
+	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_wait:%q>", ro.SendTo, labels, ro.GroupWait)
 }
 
 func (ro *RouteOpts) populateDefault(parent *RouteOpts) {

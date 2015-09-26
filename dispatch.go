@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -64,18 +65,18 @@ func (d *Dispatcher) Run() {
 
 	updates := d.alerts.IterActive()
 
-	defer close(d.done)
-	// TODO(fabxc): updates channel is never closed!!!
+	defer updates.Close()
 
-	d.run(updates)
+	d.run(updates.Next())
 }
 
 func (d *Dispatcher) run(updates <-chan *types.Alert) {
-	cleanup := time.Tick(30 * time.Second)
+	cleanup := time.Tick(15 * time.Second)
 
 	for {
 		select {
 		case alert := <-updates:
+			fmt.Println("update", alert)
 			d.mtx.RLock()
 			routes := d.routes.Match(alert.Labels)
 			d.mtx.RUnlock()
@@ -85,6 +86,7 @@ func (d *Dispatcher) run(updates <-chan *types.Alert) {
 			}
 
 		case <-cleanup:
+			fmt.Println("cleanup")
 			for _, ag := range d.aggrGroups {
 				if ag.empty() {
 					ag.stop()
@@ -102,6 +104,7 @@ func (d *Dispatcher) run(updates <-chan *types.Alert) {
 func (d *Dispatcher) Stop() {
 	d.cancel()
 	d.cancel = nil
+
 	<-d.done
 }
 
@@ -132,6 +135,7 @@ func (d *Dispatcher) notifyFunc(dest string) notifyFunc {
 // and insert it.
 func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 	group := model.LabelSet{}
+	fmt.Println("processing", alert)
 
 	for ln, lv := range alert.Labels {
 		if _, ok := opts.GroupBy[ln]; ok {
@@ -248,6 +252,7 @@ func (ag *aggrGroup) empty() bool {
 // flush sends notifications for all new alerts.
 func (ag *aggrGroup) flush(notify func(*types.Alert) bool) {
 	ag.mtx.Lock()
+	fmt.Println("flushing", ag)
 
 	alerts := make(map[model.Fingerprint]*types.Alert, len(ag.alerts))
 	for fp, alert := range ag.alerts {

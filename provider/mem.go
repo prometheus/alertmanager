@@ -26,6 +26,18 @@ var (
 	ErrNotFound = fmt.Errorf("item not found")
 )
 
+type memAlertIterator struct {
+	ch    <-chan *types.Alert
+	close func()
+}
+
+func (ai memAlertIterator) Next() <-chan *types.Alert {
+	return ai.ch
+}
+
+func (ai memAlertIterator) Err() error { return nil }
+func (ai memAlertIterator) Close()     { ai.close() }
+
 // MemAlerts implements an Alerts provider based on in-memory data.
 type MemAlerts struct {
 	mtx       sync.RWMutex
@@ -39,29 +51,57 @@ func NewMemAlerts() *MemAlerts {
 	}
 }
 
-func (a *MemAlerts) IterActive() <-chan *types.Alert {
+func (a *MemAlerts) IterActive() AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
-	ch := make(chan *types.Alert)
-
-	for _, alert := range a.alerts {
-		ch <- alert
+	var alerts []*types.Alert
+	for _, a := range a.alerts {
+		if !a.Resolved() {
+			alerts = append(alerts, a)
+		}
 	}
 
+	ch := make(chan *types.Alert)
+
+	go func() {
+		for _, a := range alerts {
+			ch <- a
+		}
+	}()
+
+	i := len(a.listeners)
 	a.listeners = append(a.listeners, ch)
 
-	return ch
+	return memAlertIterator{
+		ch: ch,
+		close: func() {
+			a.mtx.Lock()
+			a.listeners = append(a.listeners[:i], a.listeners[i+1:]...)
+			close(ch)
+			a.mtx.Unlock()
+		},
+	}
 }
 
-func (a *MemAlerts) Put(alert *types.Alert) error {
+func (a *MemAlerts) All() ([]*types.Alert, error) {
+	var alerts []*types.Alert
+	for _, a := range a.alerts {
+		alerts = append(alerts, a)
+	}
+	return alerts, nil
+}
+
+func (a *MemAlerts) Put(alerts ...*types.Alert) error {
 	a.mtx.RLock()
 	defer a.mtx.RUnlock()
 
-	a.alerts[alert.Fingerprint()] = alert
+	for _, alert := range alerts {
+		a.alerts[alert.Fingerprint()] = alert
 
-	for _, ch := range a.listeners {
-		ch <- alert
+		for _, ch := range a.listeners {
+			ch <- alert
+		}
 	}
 
 	return nil
