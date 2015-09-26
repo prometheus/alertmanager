@@ -9,19 +9,19 @@ import (
 )
 
 type Notifier interface {
-	Notify(context.Context, *types.Alert) error
+	Notify(context.Context, ...*types.Alert) error
 }
 
 type LogNotifier struct {
 	name string
 }
 
-func (ln *LogNotifier) Notify(ctx context.Context, a *types.Alert) error {
+func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	log.Infof("notify %q", ln.name)
 
-	// for _, a := range alerts {
-	log.Infof("  - %v", a)
-	// }
+	for _, a := range alerts {
+		log.Infof("  - %v", a)
+	}
 	return nil
 }
 
@@ -50,15 +50,18 @@ type silencedNotifier struct {
 	silencer types.Silencer
 }
 
-func (n *silencedNotifier) Notify(ctx context.Context, alert *types.Alert) error {
-	// TODO(fabxc): increment total alerts counter.
-	// Do not send the alert if the silencer mutes it.
-	if n.silencer.Mutes(alert.Labels) {
-		// TODO(fabxc): increment muted alerts counter.
-		return nil
+func (n *silencedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	var filtered []*types.Alert
+	for _, a := range alerts {
+		// TODO(fabxc): increment total alerts counter.
+		// Do not send the alert if the silencer mutes it.
+		if !n.silencer.Mutes(a.Labels) {
+			// TODO(fabxc): increment muted alerts counter.
+			filtered = append(filtered, a)
+		}
 	}
 
-	return n.Notifier.Notify(ctx, alert)
+	return n.Notifier.Notify(ctx, filtered...)
 }
 
 type Inhibitor interface {
