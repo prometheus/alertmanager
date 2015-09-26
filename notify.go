@@ -20,7 +20,7 @@ func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error
 	log.Infof("notify %q", ln.name)
 
 	for _, a := range alerts {
-		log.Infof("  - %v", a)
+		log.Infof("- %v", a)
 	}
 	return nil
 }

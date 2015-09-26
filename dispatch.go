@@ -75,10 +75,8 @@ func (d *Dispatcher) run(updates <-chan *types.Alert) {
 	defer cleanup.Stop()
 
 	for {
-		fmt.Println("run")
 		select {
 		case alert := <-updates:
-			fmt.Println("update", alert)
 			d.mtx.RLock()
 			routes := d.routes.Match(alert.Labels)
 			d.mtx.RUnlock()
@@ -88,7 +86,6 @@ func (d *Dispatcher) run(updates <-chan *types.Alert) {
 			}
 
 		case <-cleanup.C:
-			fmt.Println("cleanup")
 			for _, ag := range d.aggrGroups {
 				if ag.empty() {
 					ag.stop()
@@ -189,6 +186,10 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts) *
 	return ag
 }
 
+func (ag *aggrGroup) String() string {
+	return fmt.Sprintf("%x", ag.fingerprint())
+}
+
 func (ag *aggrGroup) run(notify notifyFunc) {
 	ag.done = make(chan struct{})
 
@@ -255,7 +256,6 @@ func (ag *aggrGroup) empty() bool {
 // flush sends notifications for all new alerts.
 func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	ag.mtx.Lock()
-	fmt.Println("flushing", ag)
 
 	var (
 		alerts      = make(map[model.Fingerprint]*types.Alert, len(ag.alerts))
@@ -274,7 +274,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 			// Only delete if the fingerprint has not been inserted
 			// again since we notified about it.
 			if a.Resolved() && ag.alerts[fp] == a {
-				delete(alerts, fp)
+				delete(ag.alerts, fp)
 			}
 		}
 		ag.mtx.Unlock()
