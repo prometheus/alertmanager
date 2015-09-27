@@ -20,10 +20,14 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-type AlertIterator interface {
-	Next() <-chan *types.Alert
+type Iterator interface {
 	Err() error
 	Close()
+}
+
+type AlertIterator interface {
+	Iterator
+	Next() <-chan *types.Alert
 }
 
 // Alerts gives access to a set of alerts.
@@ -48,13 +52,34 @@ type Silences interface {
 	types.Silencer
 
 	// All returns all existing silences.
-	All() []*types.Silence
+	All() ([]*types.Silence, error)
 	// Set a new silence.
 	Set(*types.Silence) error
 	// Del removes a silence.
 	Del(model.Fingerprint) error
 	// Get a silence associated with a fingerprint.
 	Get(model.Fingerprint) (*types.Silence, error)
+}
+
+type Notify struct {
+	Target  string
+	Alerts  []model.Fingerprint
+	Pending bool
+}
+
+type NotifyIterator interface {
+	Iterator
+	Next() <-chan *Notify
+}
+
+// Notifies provides information about pending and successful
+// notifications.
+type Notifies interface {
+	// IterPending returns an iterator over all notifies that have not
+	// yet been sent successfully.
+	IterPending() NotifyIterator
+	//
+	Set(*Notify) error
 }
 
 // Reloadable is a component that can change its state based

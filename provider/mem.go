@@ -85,6 +85,9 @@ func (a *MemAlerts) IterActive() AlertIterator {
 }
 
 func (a *MemAlerts) All() ([]*types.Alert, error) {
+	a.mtx.RLock()
+	defer a.mtx.RUnlock()
+
 	var alerts []*types.Alert
 	for _, a := range a.alerts {
 		alerts = append(alerts, a)
@@ -93,8 +96,8 @@ func (a *MemAlerts) All() ([]*types.Alert, error) {
 }
 
 func (a *MemAlerts) Put(alerts ...*types.Alert) error {
-	a.mtx.RLock()
-	defer a.mtx.RUnlock()
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
 
 	for _, alert := range alerts {
 		a.alerts[alert.Fingerprint()] = alert
