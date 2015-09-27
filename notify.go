@@ -31,6 +31,15 @@ type dedupingNotifier struct {
 	notifier Notifier
 }
 
+func dedupingNotifierConstructor(notifies provider.Notifies) func(Notifier) Notifier {
+	return func(n Notifier) Notifier {
+		return &dedupingNotifier{
+			notifies: notifies,
+			notifier: n,
+		}
+	}
+}
+
 func (n *dedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	name, ok := ctx.Value(notifyName).(string)
 	if !ok {
@@ -65,40 +74,39 @@ func (n *dedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 	for i, a := range alerts {
 		last := notifies[i]
 
-		// If the initial alert was not delivered successfully,
-		// there is no point in sending a resolved notification.
-		if a.Resolved() && (!last.Delivered || !sendResolved) {
-			continue
-		}
-
-		// Always send if the alert went from resolved to unresolved.
-		if last.Resolved && !a.Resolved() {
-			// Do not send again if last was delivered unless
-			// the repeat interval has already passed.
-			if last.Delivered && !now.After(last.Timestamp.Add(repeatInterval)) {
+		if last != nil {
+			// If the initial alert was not delivered successfully,
+			// there is no point in sending a resolved notification.
+			if a.Resolved() && (!last.Delivered || !sendResolved) {
 				continue
+			}
+
+			// Always send if the alert went from resolved to unresolved.
+			if last.Resolved && !a.Resolved() {
+				// Do not send again if last was delivered unless
+				// the repeat interval has already passed.
+				if last.Delivered && !now.After(last.Timestamp.Add(repeatInterval)) {
+					continue
+				}
 			}
 		}
 
-		newNotifies = append(newNotifies, last)
 		filtered = append(filtered, a)
+
+		newNotifies = append(newNotifies, &types.Notify{
+			Alert:     a.Fingerprint(),
+			SendTo:    name,
+			Delivered: true,
+			Resolved:  a.Resolved(),
+			Timestamp: now,
+		})
 	}
 
 	if err := n.notifier.Notify(ctx, filtered...); err != nil {
 		return err
 	}
 
-	// Properly set new notifies which are currently copies of the
-	// old ones.
-	for i, notify := range newNotifies {
-		alert := filtered[i]
-
-		notify.Delivered = true
-		notify.Resolved = alert.Resolved()
-		notify.Timestamp = now
-	}
-
-	return n.notifier.Set(name, newNotifies...)
+	return n.notifies.Set(name, newNotifies...)
 }
 
 // routedNotifier dispatches the alerts to one of a set of
@@ -110,11 +118,18 @@ type routedNotifier struct {
 
 	// build creates a new set of named notifiers based on a config.
 	build func(*config.Config) map[string]Notifier
+	// decorate wraps notifier with additional functionality before
+	// it is executed.
+	decorate func(Notifier) Notifier
 }
 
-func newRoutedNotifier(build func(*config.Config) map[string]Notifier) *routedNotifier {
+func newRoutedNotifier(
+	build func(*config.Config) map[string]Notifier,
+	decorate func(Notifier) Notifier,
+) *routedNotifier {
 	return &routedNotifier{
-		build: build,
+		build:    build,
+		decorate: decorate,
 	}
 }
 
@@ -137,6 +152,8 @@ func (n *routedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	// of the notifier.
 	ctx = context.WithValue(ctx, notifyRepeatInterval, opts.RepeatInterval)
 	ctx = context.WithValue(ctx, notifySendResolved, opts.SendResolved)
+
+	notifier = n.decorate(notifier)
 
 	return notifier.Notify(ctx, alerts...)
 }

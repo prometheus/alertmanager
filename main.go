@@ -37,18 +37,22 @@ func main() {
 	data := provider.NewMemData()
 
 	alerts := provider.NewMemAlerts(data)
+	notifies := provider.NewMemNotifies(data)
 	silences := provider.NewMemSilences()
 
 	inhibitor := &Inhibitor{alerts: alerts}
 	inhibitor.ApplyConfig(conf)
 
-	routedNotifier := newRoutedNotifier(func(conf *config.Config) map[string]Notifier {
-		res := map[string]Notifier{}
-		for _, cn := range conf.NotificationConfigs {
-			res[cn.Name] = &LogNotifier{name: cn.Name}
-		}
-		return res
-	})
+	routedNotifier := newRoutedNotifier(
+		func(conf *config.Config) map[string]Notifier {
+			res := map[string]Notifier{}
+			for _, cn := range conf.NotificationConfigs {
+				res[cn.Name] = &LogNotifier{name: cn.Name}
+			}
+			return res
+		},
+		dedupingNotifierConstructor(notifies),
+	)
 	routedNotifier.ApplyConfig(conf)
 
 	var notifier Notifier
