@@ -150,7 +150,7 @@ func (n *routedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 
 	// Populate the context with the the filtering options
 	// of the notifier.
-	ctx = context.WithValue(ctx, notifyRepeatInterval, opts.RepeatInterval)
+	ctx = context.WithValue(ctx, notifyRepeatInterval, time.Duration(opts.RepeatInterval))
 	ctx = context.WithValue(ctx, notifySendResolved, opts.SendResolved)
 
 	notifier = n.decorate(notifier)
@@ -163,6 +163,11 @@ func (n *routedNotifier) ApplyConfig(conf *config.Config) {
 	defer n.mtx.Unlock()
 
 	n.notifiers = n.build(conf)
+	n.notifierOpts = map[string]*config.NotificationConfig{}
+
+	for _, opts := range conf.NotificationConfigs {
+		n.notifierOpts[opts.Name] = opts
+	}
 }
 
 // mutingNotifier wraps a notifier and applies a Silencer
