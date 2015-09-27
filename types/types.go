@@ -8,13 +8,15 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+type Annotations map[model.LabelName]string
+
 type Alert struct {
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include an "alertname" label.
 	Labels model.LabelSet `json:"labels"`
 
-	// Extra key/value information which is not used for aggregation.
-	Payload map[string]string `json:"payload,omitempty"`
+	// Extra key/value information which does not define alert identity.
+	Annotations Annotations `json:"annotations,omitempty"`
 
 	CreatedAt  time.Time `json:"createdAt,omitempty"`
 	ResolvedAt time.Time `json:"resolvedAt,omitempty"`
