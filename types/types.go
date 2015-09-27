@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,8 +16,8 @@ type Alert struct {
 	// Extra key/value information which is not used for aggregation.
 	Payload map[string]string `json:"payload,omitempty"`
 
-	CreatedAt  time.Time `json:"created_at,omitempty"`
-	ResolvedAt time.Time `json:"resolved_at,omitempty"`
+	CreatedAt  time.Time `json:"createdAt,omitempty"`
+	ResolvedAt time.Time `json:"resolvedAt,omitempty"`
 
 	// The authoritative timestamp.
 	Timestamp time.Time `json:"timestamp"`
@@ -73,7 +74,7 @@ type Silence struct {
 	// by the silence.
 	Matchers Matchers
 	// The activity interval of the silence.
-	CreatedAt, EndsAt time.Time
+	StartsAt, EndsAt time.Time
 
 	// Additional creation information.
 	CreateBy, Comment string
@@ -86,9 +87,78 @@ type Silence struct {
 func (sil *Silence) Mutes(lset model.LabelSet) bool {
 	t := sil.timeFunc()
 
-	if t.Before(sil.CreatedAt) || t.After(sil.EndsAt) {
+	if t.Before(sil.StartsAt) || t.After(sil.EndsAt) {
 		return false
 	}
 
 	return sil.Matchers.Match(lset)
+}
+
+func (sil *Silence) UnmarshalJSON(b []byte) error {
+	var v = struct {
+		ID       model.Fingerprint
+		Matchers []struct {
+			Name    model.LabelName `json:"name"`
+			Value   string          `json:"value"`
+			IsRegex bool            `json:"isRegex"`
+		} `json:"matchers"`
+		StartsAt  time.Time `json:"startsAt"`
+		EndsAt    time.Time `json:"endsAt"`
+		CreatedBy string    `json:"createdBy"`
+		Comment   string    `json:"comment,omitempty"`
+	}{}
+
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+
+	sil.ID = v.ID
+	sil.CreateBy = v.CreatedBy
+	sil.Comment = v.Comment
+	sil.StartsAt = v.StartsAt
+	sil.EndsAt = v.EndsAt
+
+	for _, m := range v.Matchers {
+		if !m.IsRegex {
+			sil.Matchers = append(sil.Matchers, NewMatcher(m.Name, m.Value))
+			continue
+		}
+		rem, err := NewRegexMatcher(m.Name, m.Value)
+		if err != nil {
+			return err
+		}
+		sil.Matchers = append(sil.Matchers, rem)
+	}
+	return nil
+}
+
+func (sil *Silence) MarshalJSON() ([]byte, error) {
+	type matcher struct {
+		Name    model.LabelName `json:"name"`
+		Value   string          `json:"value"`
+		IsRegex bool            `json:"isRegex"`
+	}
+	var v = struct {
+		ID        model.Fingerprint
+		Matchers  []matcher `json:"matchers"`
+		StartsAt  time.Time `json:"startsAt"`
+		EndsAt    time.Time `json:"endsAt"`
+		CreatedBy string    `json:"createdBy"`
+		Comment   string    `json:"comment,omitempty"`
+	}{
+		ID:        sil.ID,
+		StartsAt:  sil.StartsAt,
+		EndsAt:    sil.EndsAt,
+		CreatedBy: sil.CreateBy,
+		Comment:   sil.Comment,
+	}
+
+	for _, m := range sil.Matchers {
+		v.Matchers = append(v.Matchers, matcher{
+			Name:    m.Name,
+			Value:   m.Value,
+			IsRegex: m.isRegex,
+		})
+	}
+	return json.Marshal(v)
 }
