@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"golang.org/x/net/context"
 
@@ -14,26 +16,28 @@ import (
 )
 
 type API struct {
-	alerts provider.Alerts
+	alerts   provider.Alerts
+	silences provider.Silences
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
 }
 
-func NewAPI(r *route.Router, alerts provider.Alerts) *API {
+func NewAPI(r *route.Router, alerts provider.Alerts, silences provider.Silences) *API {
 	api := &API{
-		context: route.Context,
-		alerts:  alerts,
+		context:  route.Context,
+		alerts:   alerts,
+		silences: silences,
 	}
 
 	r.Get("/alerts", api.listAlerts)
 	r.Post("/alerts", api.addAlerts)
 
-	// r.Get("/silences", api.listSilences)
-	// r.Post("/silences", api.addSilence)
+	r.Get("/silences", api.listSilences)
+	r.Post("/silences", api.addSilence)
 
-	// r.Get("/silence/:sid", api.getSilence)
-	// r.Put("/silence/:sid", api.setSilence)
-	// r.Del("/silence/:sid", api.delSilence)
+	r.Get("/silence/:sid", api.getSilence)
+	r.Put("/silence/:sid", api.setSilence)
+	r.Del("/silence/:sid", api.delSilence)
 
 	return api
 }
@@ -100,79 +104,101 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 	respond(w, nil)
 }
 
-// func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
-// 	var sil Silence
-// 	if err := receive(r, &sil); err != nil {
-// 		http.Error(w, err.Error(), http.StatusBadRequest)
-// 		return
-// 	}
-// 	// TODO(fabxc): validate input.
-// 	if err := api.state.Silence().Set(&sil); err != nil {
-// 		respondError(w, apiError{
-// 			typ: errorBadData,
-// 			err: err,
-// 		}, nil)
-// 		return
-// 	}
+func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
+	var sil types.Silence
+	if err := receive(r, &sil); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// TODO(fabxc): validate input.
+	if err := api.silences.Set(&sil); err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
 
-// 	respond(w, nil)
-// }
+	respond(w, nil)
+}
 
-// func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
-// 	sid := route.Param(api.context(r), "sid")
+func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
+	sids := route.Param(api.context(r), "sid")
+	sid, err := strconv.ParseUint(sids, 10, 64)
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+	}
 
-// 	sil, err := api.state.Silence().Get(sid)
-// 	if err != nil {
-// 		http.Error(w, fmt.Sprint("Error getting silence: ", err), http.StatusNotFound)
-// 		return
-// 	}
+	sil, err := api.silences.Get(model.Fingerprint(sid))
+	if err != nil {
+		http.Error(w, fmt.Sprint("Error getting silence: ", err), http.StatusNotFound)
+		return
+	}
 
-// 	respond(w, &sil)
-// }
+	respond(w, &sil)
+}
 
-// func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
-// 	var sil Silence
-// 	if err := receive(r, &sil); err != nil {
-// 		http.Error(w, err.Error(), http.StatusBadRequest)
-// 		return
-// 	}
-// 	// TODO(fabxc): validate input.
-// 	sil.ID = route.Param(api.context(r), "sid")
+func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
+	var sil types.Silence
+	if err := receive(r, &sil); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-// 	if err := api.state.Silence().Set(&sil); err != nil {
-// 		respondError(w, apiError{
-// 			typ: errorBadData,
-// 			err: err,
-// 		}, &sil)
-// 		return
-// 	}
-// 	respond(w, nil)
-// }
+	sids := route.Param(api.context(r), "sid")
+	sid, err := strconv.ParseUint(sids, 10, 64)
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+	}
+	sil.ID = model.Fingerprint(sid)
 
-// func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
-// 	sid := route.Param(api.context(r), "sid")
+	if err := api.silences.Set(&sil); err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, &sil)
+		return
+	}
+	respond(w, nil)
+}
 
-// 	if err := api.state.Silence().Del(sid); err != nil {
-// 		respondError(w, apiError{
-// 			typ: errorBadData,
-// 			err: err,
-// 		}, nil)
-// 		return
-// 	}
-// 	respond(w, nil)
-// }
+func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
+	sids := route.Param(api.context(r), "sid")
+	sid, err := strconv.ParseUint(sids, 10, 64)
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+	}
 
-// func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-// 	sils, err := api.state.Silence().List()
-// 	if err != nil {
-// 		respondError(w, apiError{
-// 			typ: errorBadData,
-// 			err: err,
-// 		}, nil)
-// 		return
-// 	}
-// 	respond(w, sils)
-// }
+	if err := api.silences.Del(model.Fingerprint(sid)); err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+	respond(w, nil)
+}
+
+func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
+	sils, err := api.silences.All()
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+	respond(w, sils)
+}
 
 type status string
 

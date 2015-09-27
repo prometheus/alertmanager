@@ -21,19 +21,6 @@ type Notifier interface {
 	Notify(context.Context, ...*types.Alert) error
 }
 
-type LogNotifier struct {
-	name string
-}
-
-func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	log.Infof("notify %q", ln.name)
-
-	for _, a := range alerts {
-		log.Infof("- %v", a)
-	}
-	return nil
-}
-
 // routedNotifier dispatches the alerts to one of a set of
 // named notifiers based on the name value provided in the context.
 type routedNotifier struct {
@@ -89,4 +76,17 @@ func (n *mutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	}
 
 	return n.Notifier.Notify(ctx, filtered...)
+}
+
+type LogNotifier struct {
+	name string
+}
+
+func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	log.Infof("notify %q", ln.name)
+
+	for _, a := range alerts {
+		log.Infof("- %v", a)
+	}
+	return nil
 }

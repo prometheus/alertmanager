@@ -62,7 +62,7 @@ func main() {
 
 	router := route.New()
 
-	NewAPI(router.WithPrefix("/api"), memAlerts)
+	NewAPI(router.WithPrefix("/api"), memAlerts, memSilences)
 
 	http.ListenAndServe(":9091", router)
 }

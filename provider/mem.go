@@ -144,12 +144,23 @@ func (s *MemSilences) Mutes(lset model.LabelSet) bool {
 }
 
 func (s *MemSilences) All() ([]*types.Silence, error) {
-	return nil, nil
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	var sils []*types.Silence
+	for _, sil := range s.silences {
+		sils = append(sils, sil)
+	}
+	return sils, nil
 }
 
 func (s *MemSilences) Set(sil *types.Silence) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	if sil.ID == 0 {
+		sil.ID = model.Fingerprint(len(s.silences) + 1)
+	}
 
 	s.silences[sil.ID] = sil
 	return nil

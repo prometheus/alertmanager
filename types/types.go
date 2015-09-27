@@ -69,15 +69,14 @@ type Silencer interface {
 type Silence struct {
 	ID model.Fingerprint
 
-	// A set of matchers determining if an alert is
+	// A set of matchers determining if an alert is affected
+	// by the silence.
 	Matchers Matchers
-	// Name/email of the silence creator.
-	CreatedBy string
-	// When the silence was first created (Unix timestamp).
+	// The activity interval of the silence.
 	CreatedAt, EndsAt time.Time
 
-	// Additional comment about the silence.
-	Comment string
+	// Additional creation information.
+	CreateBy, Comment string
 
 	// timeFunc provides the time against which to evaluate
 	// the silence.
