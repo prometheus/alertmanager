@@ -40,7 +40,12 @@ func main() {
 	inhibitor := &Inhibitor{alerts: memAlerts}
 	inhibitor.ApplyConfig(conf)
 
-	routedNotifier := &routedNotifier{}
+	routedNotifier := newRoutedNotifier(func(conf *config.Config) map[string]Notifier {
+		res := map[string]Notifier{}
+		for _, cn := range conf.NotificationConfigs {
+			res[cn.Name] = &LogNotifier{name: cn.Name}
+		}
+	})
 	routedNotifier.ApplyConfig(conf)
 
 	var notifier Notifier

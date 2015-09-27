@@ -26,6 +26,15 @@ type Notifier interface {
 type routedNotifier struct {
 	mtx       sync.RWMutex
 	notifiers map[string]Notifier
+
+	// build creates a new set of named notifiers based on a config.
+	build func(*config.Config) map[string]Notifier
+}
+
+func newRoutedNotifier(build func(*config.Config) map[string]Notifier) {
+	return &routedNotifier{
+		build: build,
+	}
 }
 
 func (n *routedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
@@ -49,11 +58,7 @@ func (n *routedNotifier) ApplyConfig(conf *config.Config) {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
-	n.notifiers = map[string]Notifier{}
-	for _, cn := range conf.NotificationConfigs {
-		// TODO(fabxc): create proper notifiers.
-		n.notifiers[cn.Name] = &LogNotifier{name: cn.Name}
-	}
+	n.notifiers = n.build(conf)
 }
 
 // mutingNotifier wraps a notifier and applies a Silencer
