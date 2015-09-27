@@ -110,5 +110,15 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 }
 
 func (r *InhibitRule) Mutes(source, target model.LabelSet) bool {
-	return r.TargetMatchers.Match(target) && r.SourceMatchers.Match(source)
+	if r.TargetMatchers.Match(target) && r.SourceMatchers.Match(source) {
+		for ln := range r.Equal {
+			if source[ln] != target[ln] {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
+	return true
 }
