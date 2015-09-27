@@ -35,12 +35,30 @@ func main() {
 	}
 
 	memAlerts := provider.NewMemAlerts()
-	disp := NewDispatcher(memAlerts)
 
-	defer disp.Stop()
+	inhibitor := &Inhibitor{alerts: memAlerts}
+	inhibitor.ApplyConfig(conf)
+
+	routedNotifier := &routedNotifier{}
+	routedNotifier.ApplyConfig(conf)
+
+	var notifier Notifier
+	notifier = routedNotifier
+	notifier = &mutingNotifier{
+		Notifier: notifier,
+		silencer: inhibitor,
+	}
+	// TODO(fabxc)
+	// notifier = &mutingNotifier{
+	// 	Notifier: notifier,
+	// 	silencer: provider.Silences
+	// }
+
+	disp := NewDispatcher(memAlerts, notifier)
 
 	disp.ApplyConfig(conf)
 	go disp.Run()
+	defer disp.Stop()
 
 	router := route.New()
 

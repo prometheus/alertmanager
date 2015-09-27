@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/prometheus/common/model"
@@ -10,6 +11,12 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
+)
+
+type notifyKey int
+
+const (
+	notifyName notifyKey = iota
 )
 
 type Notifier interface {
@@ -29,15 +36,50 @@ func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error
 	return nil
 }
 
-// silencedNotifier wraps a notifier and applies a Silencer
+// routedNotifier dispatches the alerts to one of a set of
+// named notifiers based on the name value provided in the context.
+type routedNotifier struct {
+	mtx       sync.RWMutex
+	notifiers map[string]Notifier
+}
+
+func (n *routedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	name, ok := ctx.Value(notifyName).(string)
+	if !ok {
+		return fmt.Errorf("notifier name missing")
+	}
+
+	n.mtx.RLock()
+	defer n.mtx.RUnlock()
+
+	notifier, ok := n.notifiers[name]
+	if !ok {
+		return fmt.Errorf("notifier %q does not exist", name)
+	}
+
+	return notifier.Notify(ctx, alerts...)
+}
+
+func (n *routedNotifier) ApplyConfig(conf *config.Config) {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	n.notifiers = map[string]Notifier{}
+	for _, cn := range conf.NotificationConfigs {
+		// TODO(fabxc): create proper notifiers.
+		n.notifiers[cn.Name] = &LogNotifier{name: cn.Name}
+	}
+}
+
+// mutingNotifier wraps a notifier and applies a Silencer
 // before sending out an alert.
-type silencedNotifier struct {
+type mutingNotifier struct {
 	Notifier
 
 	silencer types.Silencer
 }
 
-func (n *silencedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+func (n *mutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.

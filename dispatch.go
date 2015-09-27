@@ -19,11 +19,11 @@ const ResolveTimeout = 30 * time.Second
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	routes Routes
-	alerts provider.Alerts
+	routes   Routes
+	alerts   provider.Alerts
+	notifier Notifier
 
 	aggrGroups map[model.Fingerprint]*aggrGroup
-	notifiers  map[string]Notifier
 
 	mtx    sync.RWMutex
 	done   chan struct{}
@@ -32,8 +32,11 @@ type Dispatcher struct {
 }
 
 // NewDispatcher returns a new Dispatcher.
-func NewDispatcher(ap provider.Alerts) *Dispatcher {
-	return &Dispatcher{alerts: ap}
+func NewDispatcher(ap provider.Alerts, n Notifier) *Dispatcher {
+	return &Dispatcher{
+		alerts:   ap,
+		notifier: n,
+	}
 }
 
 // ApplyConfig updates the dispatcher to match the new configuration.
@@ -48,12 +51,6 @@ func (d *Dispatcher) ApplyConfig(conf *config.Config) {
 	}
 
 	d.routes = NewRoutes(conf.Routes)
-	d.notifiers = map[string]Notifier{}
-
-	// TODO(fabxc): build correct notifiers from new conf.NotificationConfigs.
-	for _, ncfg := range conf.NotificationConfigs {
-		d.notifiers[ncfg.Name] = &LogNotifier{ncfg.Name}
-	}
 }
 
 // Run starts dispatching alerts incoming via the updates channel.
@@ -111,23 +108,6 @@ func (d *Dispatcher) Stop() {
 // Returns false iff notifying failed.
 type notifyFunc func(context.Context, ...*types.Alert) bool
 
-// notifyFunc returns a function which performs a notification
-// as required by the routing options.
-func (d *Dispatcher) notifyFunc(dest string) notifyFunc {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	notifier := d.notifiers[dest]
-
-	return func(ctx context.Context, alerts ...*types.Alert) bool {
-		if err := notifier.Notify(ctx, alerts...); err != nil {
-			log.Errorf("Notify for %d alerts failed: %s", len(alerts), err)
-			return false
-		}
-		return true
-	}
-}
-
 // processAlert determins in which aggregation group the alert falls
 // and insert it.
 func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
@@ -145,9 +125,15 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 	ag, ok := d.aggrGroups[fp]
 	if !ok {
 		ag = newAggrGroup(d.ctx, group, opts)
-		go ag.run(d.notifyFunc(opts.SendTo))
-
 		d.aggrGroups[fp] = ag
+
+		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
+			if err := d.notifier.Notify(ctx, alerts...); err != nil {
+				log.Errorf("Notify for %d alerts failed: %s", len(alerts), err)
+				return false
+			}
+			return true
+		})
 	}
 
 	ag.insert(alert)
@@ -202,6 +188,9 @@ func (ag *aggrGroup) run(notify notifyFunc) {
 			// Give the notifcations time until the next flush to
 			// finish before terminating them.
 			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.GroupInterval)
+
+			// Populate context with the destination name.
+			ctx = context.WithValue(ctx, notifyName, ag.opts.SendTo)
 
 			// Wait the configured interval before calling flush again.
 			ag.next.Reset(ag.opts.GroupInterval)
