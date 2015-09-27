@@ -59,6 +59,8 @@ func (n *dedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 
 	now := time.Now()
 
+	var newNotifies []*types.Notify
+
 	var filtered []*types.Alert
 	for i, a := range alerts {
 		last := notifies[i]
@@ -78,6 +80,7 @@ func (n *dedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 			}
 		}
 
+		newNotifies = append(newNotifies, last)
 		filtered = append(filtered, a)
 	}
 
@@ -85,7 +88,17 @@ func (n *dedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		return err
 	}
 
-	return nil
+	// Properly set new notifies which are currently copies of the
+	// old ones.
+	for i, notify := range newNotifies {
+		alert := filtered[i]
+
+		notify.Delivered = true
+		notify.Resolved = alert.Resolved()
+		notify.Timestamp = now
+	}
+
+	return n.notifier.Set(name, newNotifies...)
 }
 
 // routedNotifier dispatches the alerts to one of a set of
