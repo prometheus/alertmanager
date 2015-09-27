@@ -1,11 +1,14 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/log"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -26,6 +29,68 @@ func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error
 	return nil
 }
 
+// silencedNotifier wraps a notifier and applies a Silencer
+// before sending out an alert.
+type silencedNotifier struct {
+	Notifier
+
+	silencer types.Silencer
+}
+
+func (n *silencedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	var filtered []*types.Alert
+	for _, a := range alerts {
+		// TODO(fabxc): increment total alerts counter.
+		// Do not send the alert if the silencer mutes it.
+		if !n.silencer.Mutes(a.Labels) {
+			// TODO(fabxc): increment muted alerts counter.
+			filtered = append(filtered, a)
+		}
+	}
+
+	return n.Notifier.Notify(ctx, filtered...)
+}
+
+type Inhibitor struct {
+	alerts provider.Alerts
+	rules  []*InhibitRule
+
+	mtx sync.RWMutex
+}
+
+func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
+	ih.mtx.RLock()
+	defer ih.mtx.RUnlock()
+
+	alerts, err := ih.alerts.All()
+	if err != nil {
+		// TODO(fabxc): log error.
+		return false
+	}
+
+	for _, alert := range alerts {
+		if alert.Resolved() {
+			continue
+		}
+		for _, rule := range ih.rules {
+			if rule.Mutes(alert.Labels, lset) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (ih *Inhibitor) ApplyConfig(conf *config.Config) {
+	ih.mtx.Lock()
+	defer ih.mtx.Unlock()
+
+	ih.rules = []*InhibitRule{}
+	for _, cr := range conf.InhibitRules {
+		ih.rules = append(ih.rules, NewInhibitRule(cr))
+	}
+}
+
 // An InhibitRule specifies that a class of (source) alerts should inhibit
 // notifications for another class of (target) alerts if all specified matching
 // labels are equal between the two alerts. This may be used to inhibit alerts
@@ -43,7 +108,7 @@ type InhibitRule struct {
 	Equal map[model.LabelName]struct{}
 }
 
-func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
+func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	var (
 		sourcem types.Matchers
 		targetm types.Matchers
@@ -85,24 +150,6 @@ func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	}
 }
 
-// silencedNotifier wraps a notifier and applies a Silencer
-// before sending out an alert.
-type silencedNotifier struct {
-	Notifier
-
-	silencer types.Silencer
-}
-
-func (n *silencedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	var filtered []*types.Alert
-	for _, a := range alerts {
-		// TODO(fabxc): increment total alerts counter.
-		// Do not send the alert if the silencer mutes it.
-		if !n.silencer.Mutes(a.Labels) {
-			// TODO(fabxc): increment muted alerts counter.
-			filtered = append(filtered, a)
-		}
-	}
-
-	return n.Notifier.Notify(ctx, filtered...)
+func (r *InhibitRule) Mutes(source, target model.LabelSet) bool {
+	return r.TargetMatchers.Match(target) && r.SourceMatchers.Match(source)
 }
