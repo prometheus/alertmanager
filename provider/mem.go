@@ -26,6 +26,19 @@ var (
 	ErrNotFound = fmt.Errorf("item not found")
 )
 
+type MemData struct {
+	mtx      sync.RWMutex
+	alerts   map[model.Fingerprint]*types.Alert
+	notifies map[model.Fingerprint]*types.Notify
+}
+
+func NewMemData() *MemData {
+	return &MemData{
+		alerts:   map[model.Fingerprint]*types.Alert{},
+		notifies: map[model.Fingerprint]*types.Notify{},
+	}
+}
+
 type memAlertIterator struct {
 	ch    <-chan *types.Alert
 	close func()
@@ -40,23 +53,26 @@ func (ai memAlertIterator) Close()     { ai.close() }
 
 // MemAlerts implements an Alerts provider based on in-memory data.
 type MemAlerts struct {
+	data *MemData
+
 	mtx       sync.RWMutex
-	alerts    map[model.Fingerprint]*types.Alert
 	listeners []chan *types.Alert
 }
 
-func NewMemAlerts() *MemAlerts {
+func NewMemAlerts(data *MemData) *MemAlerts {
 	return &MemAlerts{
-		alerts: map[model.Fingerprint]*types.Alert{},
+		data: data,
 	}
 }
 
 func (a *MemAlerts) IterActive() AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
+	a.data.mtx.Lock()
+	defer a.data.mtx.Unlock()
 
 	var alerts []*types.Alert
-	for _, a := range a.alerts {
+	for _, a := range a.data.alerts {
 		if !a.Resolved() {
 			alerts = append(alerts, a)
 		}
@@ -85,11 +101,11 @@ func (a *MemAlerts) IterActive() AlertIterator {
 }
 
 func (a *MemAlerts) All() ([]*types.Alert, error) {
-	a.mtx.RLock()
-	defer a.mtx.RUnlock()
+	a.data.mtx.RLock()
+	defer a.data.mtx.RUnlock()
 
 	var alerts []*types.Alert
-	for _, a := range a.alerts {
+	for _, a := range a.data.alerts {
 		alerts = append(alerts, a)
 	}
 	return alerts, nil
@@ -98,9 +114,11 @@ func (a *MemAlerts) All() ([]*types.Alert, error) {
 func (a *MemAlerts) Put(alerts ...*types.Alert) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
+	a.data.mtx.Lock()
+	defer a.data.mtx.Unlock()
 
 	for _, alert := range alerts {
-		a.alerts[alert.Fingerprint()] = alert
+		a.data.alerts[alert.Fingerprint()] = alert
 
 		for _, ch := range a.listeners {
 			ch <- alert
@@ -111,14 +129,25 @@ func (a *MemAlerts) Put(alerts ...*types.Alert) error {
 }
 
 func (a *MemAlerts) Get(fp model.Fingerprint) (*types.Alert, error) {
-	a.mtx.RLock()
-	defer a.mtx.RUnlock()
+	a.data.mtx.RLock()
+	defer a.data.mtx.RUnlock()
 
-	if a, ok := a.alerts[fp]; ok {
+	if a, ok := a.data.alerts[fp]; ok {
 		return a, nil
 	}
 	return nil, ErrNotFound
 }
+
+// type MemNotifies struct {
+// 	data *MemData
+// }
+
+// func (n *MemNotifies) Set(notify *Notify) error {
+// 	n.data.mtx.Lock()
+// 	defer n.data.mtx.Unlock()
+
+// 	n.data.notifies[]
+// }
 
 type MemSilences struct {
 	mtx      sync.RWMutex

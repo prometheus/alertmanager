@@ -61,25 +61,17 @@ type Silences interface {
 	Get(model.Fingerprint) (*types.Silence, error)
 }
 
-type Notify struct {
-	Target  string
-	Alerts  []model.Fingerprint
-	Pending bool
-}
-
 type NotifyIterator interface {
 	Iterator
-	Next() <-chan *Notify
+	Next() <-chan *types.Notify
 }
 
 // Notifies provides information about pending and successful
 // notifications.
 type Notifies interface {
-	// IterPending returns an iterator over all notifies that have not
-	// yet been sent successfully.
-	IterPending() NotifyIterator
-	//
-	Set(*Notify) error
+	Get(dest string, fps ...model.Fingerprint) ([]*types.Notify, error)
+	// Set several notifies at once. All or none must succeed.
+	Set(...*types.Notify) error
 }
 
 // Reloadable is a component that can change its state based

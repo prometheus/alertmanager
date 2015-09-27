@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -163,4 +164,21 @@ func (sil *Silence) MarshalJSON() ([]byte, error) {
 		})
 	}
 	return json.Marshal(v)
+}
+
+type Notify struct {
+	Alert     model.Fingerprint
+	SendTo    string
+	Resolved  bool
+	Delivered bool
+	Timestamp time.Time
+}
+
+func (n *Notify) Fingerprint() model.Fingerprint {
+	h := fnv.New64a()
+	h.Write([]byte(n.SendTo))
+
+	fp := model.Fingerprint(h.Sum64())
+
+	return fp ^ n.Alert
 }
