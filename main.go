@@ -34,10 +34,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	memAlerts := provider.NewMemAlerts()
-	memSilences := provider.NewMemSilences()
+	data := provider.NewMemData()
 
-	inhibitor := &Inhibitor{alerts: memAlerts}
+	alerts := provider.NewMemAlerts(data)
+	silences := provider.NewMemSilences()
+
+	inhibitor := &Inhibitor{alerts: alerts}
 	inhibitor.ApplyConfig(conf)
 
 	routedNotifier := newRoutedNotifier(func(conf *config.Config) map[string]Notifier {
@@ -45,21 +47,22 @@ func main() {
 		for _, cn := range conf.NotificationConfigs {
 			res[cn.Name] = &LogNotifier{name: cn.Name}
 		}
+		return res
 	})
 	routedNotifier.ApplyConfig(conf)
 
 	var notifier Notifier
 	notifier = routedNotifier
 	notifier = &mutingNotifier{
-		Notifier: notifier,
+		notifier: notifier,
 		silencer: inhibitor,
 	}
 	notifier = &mutingNotifier{
-		Notifier: notifier,
-		silencer: memSilences,
+		notifier: notifier,
+		silencer: silences,
 	}
 
-	disp := NewDispatcher(memAlerts, notifier)
+	disp := NewDispatcher(alerts, notifier)
 
 	disp.ApplyConfig(conf)
 	go disp.Run()
@@ -67,7 +70,7 @@ func main() {
 
 	router := route.New()
 
-	NewAPI(router.WithPrefix("/api"), memAlerts, memSilences)
+	NewAPI(router.WithPrefix("/api"), alerts, silences)
 
 	http.ListenAndServe(":9091", router)
 }

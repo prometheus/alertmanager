@@ -240,6 +240,9 @@ func (ag *aggrGroup) empty() bool {
 
 // flush sends notifications for all new alerts.
 func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
+	if ag.empty() {
+		return
+	}
 	ag.mtx.Lock()
 
 	var (
