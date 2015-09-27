@@ -35,6 +35,7 @@ func main() {
 	}
 
 	memAlerts := provider.NewMemAlerts()
+	memSilences := provider.NewMemSilences()
 
 	inhibitor := &Inhibitor{alerts: memAlerts}
 	inhibitor.ApplyConfig(conf)
@@ -48,11 +49,10 @@ func main() {
 		Notifier: notifier,
 		silencer: inhibitor,
 	}
-	// TODO(fabxc)
-	// notifier = &mutingNotifier{
-	// 	Notifier: notifier,
-	// 	silencer: provider.Silences
-	// }
+	notifier = &mutingNotifier{
+		Notifier: notifier,
+		silencer: memSilences,
+	}
 
 	disp := NewDispatcher(memAlerts, notifier)
 

@@ -119,3 +119,57 @@ func (a *MemAlerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	}
 	return nil, ErrNotFound
 }
+
+type MemSilences struct {
+	mtx      sync.RWMutex
+	silences map[model.Fingerprint]*types.Silence
+}
+
+func NewMemSilences() *MemSilences {
+	return &MemSilences{
+		silences: map[model.Fingerprint]*types.Silence{},
+	}
+}
+
+func (s *MemSilences) Mutes(lset model.LabelSet) bool {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	for _, sil := range s.silences {
+		if sil.Mutes(lset) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *MemSilences) All() ([]*types.Silence, error) {
+	return nil, nil
+}
+
+func (s *MemSilences) Set(sil *types.Silence) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.silences[sil.ID] = sil
+	return nil
+}
+
+func (s *MemSilences) Del(id model.Fingerprint) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	delete(s.silences, id)
+	return nil
+}
+
+func (s *MemSilences) Get(id model.Fingerprint) (*types.Silence, error) {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	sil, ok := s.silences[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return sil, nil
+}
