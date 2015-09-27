@@ -31,12 +31,10 @@ type dedupingNotifier struct {
 	notifier Notifier
 }
 
-func dedupingNotifierConstructor(notifies provider.Notifies) func(Notifier) Notifier {
-	return func(n Notifier) Notifier {
-		return &dedupingNotifier{
-			notifies: notifies,
-			notifier: n,
-		}
+func newDedupingNotifier(notifies provider.Notifies, n Notifier) Notifier {
+	return &dedupingNotifier{
+		notifies: notifies,
+		notifier: n,
 	}
 }
 
@@ -118,19 +116,10 @@ type routedNotifier struct {
 
 	// build creates a new set of named notifiers based on a config.
 	build func(*config.Config) map[string]Notifier
-	// decorate wraps notifier with additional functionality before
-	// it is executed.
-	decorate func(Notifier) Notifier
 }
 
-func newRoutedNotifier(
-	build func(*config.Config) map[string]Notifier,
-	decorate func(Notifier) Notifier,
-) *routedNotifier {
-	return &routedNotifier{
-		build:    build,
-		decorate: decorate,
-	}
+func newRoutedNotifier(build func(*config.Config) map[string]Notifier) *routedNotifier {
+	return &routedNotifier{build: build}
 }
 
 func (n *routedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
@@ -152,8 +141,6 @@ func (n *routedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	// of the notifier.
 	ctx = context.WithValue(ctx, notifyRepeatInterval, time.Duration(opts.RepeatInterval))
 	ctx = context.WithValue(ctx, notifySendResolved, opts.SendResolved)
-
-	notifier = n.decorate(notifier)
 
 	return notifier.Notify(ctx, alerts...)
 }
