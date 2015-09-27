@@ -165,14 +165,15 @@ func (n *MemNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.Notif
 	n.data.mtx.RLock()
 	defer n.data.mtx.RUnlock()
 
+	res := make([]*types.Notify, len(fps))
+
 	ns, ok := n.data.notifies[dest]
 	if !ok {
-		return nil, nil
+		return res, nil
 	}
 
-	var res []*types.Notify
-	for _, fp := range fps {
-		res = append(res, ns[fp])
+	for i, fp := range fps {
+		res[i] = ns[fp]
 	}
 
 	return res, nil
