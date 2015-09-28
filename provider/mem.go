@@ -151,6 +151,9 @@ func (n *MemNotifies) Set(dest string, ns ...*types.Notify) error {
 	defer n.data.mtx.Unlock()
 
 	for _, notify := range ns {
+		if notify == nil {
+			continue
+		}
 		am, ok := n.data.notifies[dest]
 		if !ok {
 			am = map[model.Fingerprint]*types.Notify{}

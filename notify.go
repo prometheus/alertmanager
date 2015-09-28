@@ -31,7 +31,7 @@ type dedupingNotifier struct {
 	notifier Notifier
 }
 
-func newDedupingNotifier(notifies provider.Notifies, n Notifier) Notifier {
+func newDedupingNotifier(notifies provider.Notifies, n Notifier) *dedupingNotifier {
 	return &dedupingNotifier{
 		notifies: notifies,
 		notifier: n,
@@ -73,14 +73,19 @@ func (n *dedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		last := notifies[i]
 
 		if last != nil {
-			// If the initial alert was not delivered successfully,
-			// there is no point in sending a resolved notification.
-			if a.Resolved() && (!last.Delivered || !sendResolved) {
-				continue
-			}
-
-			// Always send if the alert went from resolved to unresolved.
-			if last.Resolved && !a.Resolved() {
+			if a.Resolved() {
+				if !sendResolved {
+					continue
+				}
+				// If the initial alert was not delivered successfully,
+				// there is no point in sending a resolved notification.
+				if !last.Resolved && !last.Delivered {
+					continue
+				}
+				if last.Resolved && last.Delivered {
+					continue
+				}
+			} else if !last.Resolved {
 				// Do not send again if last was delivered unless
 				// the repeat interval has already passed.
 				if last.Delivered && !now.After(last.Timestamp.Add(repeatInterval)) {

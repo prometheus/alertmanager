@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -21,6 +23,188 @@ func (n *recordNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
 	n.ctx = ctx
 	n.alerts = append(n.alerts, as...)
 	return nil
+}
+
+type failNotifier struct{}
+
+func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
+	return fmt.Errorf("")
+}
+
+func TestDedupingNotifier(t *testing.T) {
+	var (
+		record   = &recordNotifier{}
+		notifies = provider.NewMemNotifies(provider.NewMemData())
+		deduper  = newDedupingNotifier(notifies, record)
+		ctx      = context.Background()
+	)
+	ctx = context.WithValue(ctx, notifyName, "name")
+	ctx = context.WithValue(ctx, notifyRepeatInterval, time.Duration(100*time.Minute))
+	ctx = context.WithValue(ctx, notifySendResolved, true)
+
+	now := time.Now()
+
+	alerts := []*types.Alert{
+		{
+			Labels: model.LabelSet{"alertname": "1"},
+		},
+		{
+			Labels: model.LabelSet{"alertname": "2"},
+		},
+		{
+			Labels:     model.LabelSet{"alertname": "3"},
+			ResolvedAt: now.Add(-20 * time.Minute),
+		},
+		{
+			Labels:     model.LabelSet{"alertname": "4"},
+			ResolvedAt: now.Add(-10 * time.Minute),
+		},
+		{
+			Labels:     model.LabelSet{"alertname": "5"},
+			ResolvedAt: now.Add(-10 * time.Minute),
+		},
+		{
+			Labels: model.LabelSet{"alertname": "6"},
+		},
+	}
+
+	var fps []model.Fingerprint
+	for _, a := range alerts {
+		fps = append(fps, a.Fingerprint())
+	}
+
+	nsBefore := []*types.Notify{
+		// The first alert is another attempt to send a previously
+		// failing and firing notification.
+		{
+			Alert:     fps[0],
+			SendTo:    "name",
+			Resolved:  false,
+			Delivered: false,
+			Timestamp: now.Add(-20 * time.Minute),
+		},
+		// The second alert comes through for the first time and
+		// is omitted here.
+		nil,
+		// The third alert is another attempt to send a previously
+		// failing and resolved notification.
+		{
+			Alert:     fps[2],
+			SendTo:    "name",
+			Resolved:  true,
+			Delivered: false,
+			Timestamp: now.Add(-10 * time.Minute),
+		},
+		// The fourth alert is an attempt to resolve a previously
+		// firing and delivered alert.
+		{
+			Alert:     fps[3],
+			SendTo:    "name",
+			Resolved:  false,
+			Delivered: true,
+			Timestamp: now.Add(-10 * time.Minute),
+		},
+		// The fifth alert is an attempt to resolve an alert again
+		// even though the previous notification succeeded.
+		{
+			Alert:     fps[4],
+			SendTo:    "name",
+			Resolved:  true,
+			Delivered: true,
+			Timestamp: now.Add(-10 * time.Minute),
+		},
+		// The sixth alert resends a previously successful notification
+		// that was longer than ago than the repeat interval.
+		{
+			Alert:     fps[5],
+			SendTo:    "name",
+			Resolved:  false,
+			Delivered: true,
+			Timestamp: now.Add(-110 * time.Minute),
+		},
+	}
+
+	if err := notifies.Set("name", nsBefore...); err != nil {
+		t.Fatalf("Setting notifies failed: %s", err)
+	}
+
+	deduper.notifier = &failNotifier{}
+	if err := deduper.Notify(ctx, alerts...); err == nil {
+		t.Fatalf("Fail notifier did not fail")
+	}
+	// After a failing notify the notifies data must be unchanged.
+	nsCur, err := notifies.Get("name", fps...)
+	if err != nil {
+		t.Fatalf("Error getting notifies", err)
+	}
+	if !reflect.DeepEqual(nsBefore, nsCur) {
+		t.Fatalf("Notifies data has changed unexpectedly")
+	}
+
+	deduper.notifier = record
+	if err := deduper.Notify(ctx, alerts...); err != nil {
+		t.Fatalf("Notify failed: %s", err)
+	}
+
+	alertsExp := []*types.Alert{
+		alerts[0],
+		alerts[1],
+		alerts[2],
+		alerts[3],
+		alerts[5],
+	}
+
+	nsAfter := []*types.Notify{
+		{
+			Alert:     fps[0],
+			SendTo:    "name",
+			Resolved:  false,
+			Delivered: true,
+		},
+		{
+			Alert:     fps[1],
+			SendTo:    "name",
+			Resolved:  false,
+			Delivered: true,
+		},
+		{
+			Alert:     fps[2],
+			SendTo:    "name",
+			Resolved:  true,
+			Delivered: true,
+			Timestamp: now.Add(-1000),
+		},
+		// Unmodified.
+		{
+			Alert:     fps[3],
+			SendTo:    "name",
+			Resolved:  false,
+			Delivered: true,
+			Timestamp: now.Add(-1000),
+		},
+		// Unmodified.
+		{
+			Alert:     fps[4],
+			SendTo:    "name",
+			Resolved:  true,
+			Delivered: true,
+			Timestamp: now.Add(-1000),
+		},
+		{
+			Alert:     fps[5],
+			SendTo:    "name",
+			Resolved:  false,
+			Delivered: true,
+		},
+	}
+
+	// if !reflect.DeepEqual(record.ctx, ctx) {
+	// 	t.Fatalf("Context was modified unexpectedly")
+	// }
+	if !reflect.DeepEqual(record.alerts, alertsExp) {
+		t.Fatalf("Expected alerts %v, got %v", alertsExp, record.alerts)
+	}
+	var _ = nsAfter
 }
 
 func TestRoutedNotifier(t *testing.T) {
