@@ -31,7 +31,20 @@ func (a *Alert) Name() string {
 	return string(a.Labels[model.AlertNameLabel])
 }
 
-// func (a *Alert) Merge(o *Alert) bool {
+// Merges the timespan of two alerts based and overwrites annotations
+// based on the authoritative timestamp.
+// A new alert is returned, the labels are assumed to be equal.
+// func (a *Alert) Merge(o *Alert) *Alert {
+// 	// Let o always be the younger alert.
+// 	if a.Timestamp.Before(a.Timestamp) {
+// 		return o.Merge(a)
+// 	}
+
+// 	res := &Alert{
+// 		Labels:       o.Labels,
+// 		Annotiations: o.Annotations,
+// 		Timestamp:    o.Timestamp,
+// 	}
 
 // }
 
@@ -64,9 +77,13 @@ func (at alertTimeline) Less(i, j int) bool { return at[i].Timestamp.Before(at[j
 func (at alertTimeline) Swap(i, j int)      { at[i], at[j] = at[j], at[i] }
 
 // A Silencer determines whether a given label set is muted.
-type Silencer interface {
+type Muter interface {
 	Mutes(model.LabelSet) bool
 }
+
+type MuteFunc func(model.LabelSet) bool
+
+func (f MuteFunc) Mutes(lset model.LabelSet) bool { return f(lset) }
 
 // A Silence determines whether a given label set is muted
 // at the current time.

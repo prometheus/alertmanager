@@ -160,8 +160,8 @@ func (n *routedNotifier) ApplyConfig(conf *config.Config) {
 // mutingNotifier wraps a notifier and applies a Silencer
 // before sending out an alert.
 type mutingNotifier struct {
+	types.Muter
 	notifier Notifier
-	silencer types.Silencer
 }
 
 func (n *mutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
@@ -169,7 +169,7 @@ func (n *mutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if the silencer mutes it.
-		if !n.silencer.Mutes(a.Labels) {
+		if !n.Mutes(a.Labels) {
 			// TODO(fabxc): increment muted alerts counter.
 			filtered = append(filtered, a)
 		}

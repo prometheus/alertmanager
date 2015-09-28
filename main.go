@@ -56,11 +56,11 @@ func main() {
 	notifier = routedNotifier
 	notifier = &mutingNotifier{
 		notifier: notifier,
-		silencer: inhibitor,
+		Muter:    inhibitor,
 	}
 	notifier = &mutingNotifier{
 		notifier: notifier,
-		silencer: silences,
+		Muter:    silences,
 	}
 
 	disp := NewDispatcher(alerts, notifier)

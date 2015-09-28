@@ -46,10 +46,10 @@ type Alerts interface {
 
 // Silences gives access to silences.
 type Silences interface {
-	// The Silences provider must implement the Silencer interface
+	// The Silences provider must implement the Muter interface
 	// for all its silences. The data provider may have access to an
 	// optimized view of the data to perform this evaluation.
-	types.Silencer
+	types.Muter
 
 	// All returns all existing silences.
 	All() ([]*types.Silence, error)
