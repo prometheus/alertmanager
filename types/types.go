@@ -191,6 +191,10 @@ type Notify struct {
 	Timestamp time.Time
 }
 
+func (n *Notify) String() string {
+	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v deli=%v>", n.Alert, n.Timestamp, n.SendTo, n.Resolved, n.Delivered)
+}
+
 func (n *Notify) Fingerprint() model.Fingerprint {
 	h := fnv.New64a()
 	h.Write([]byte(n.SendTo))

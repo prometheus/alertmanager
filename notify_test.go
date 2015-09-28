@@ -172,15 +172,12 @@ func TestDedupingNotifier(t *testing.T) {
 			SendTo:    "name",
 			Resolved:  true,
 			Delivered: true,
-			Timestamp: now.Add(-1000),
 		},
-		// Unmodified.
 		{
 			Alert:     fps[3],
 			SendTo:    "name",
-			Resolved:  false,
+			Resolved:  true,
 			Delivered: true,
-			Timestamp: now.Add(-1000),
 		},
 		// Unmodified.
 		{
@@ -188,7 +185,7 @@ func TestDedupingNotifier(t *testing.T) {
 			SendTo:    "name",
 			Resolved:  true,
 			Delivered: true,
-			Timestamp: now.Add(-1000),
+			Timestamp: now.Add(-10 * time.Minute),
 		},
 		{
 			Alert:     fps[5],
@@ -198,13 +195,27 @@ func TestDedupingNotifier(t *testing.T) {
 		},
 	}
 
-	// if !reflect.DeepEqual(record.ctx, ctx) {
-	// 	t.Fatalf("Context was modified unexpectedly")
-	// }
 	if !reflect.DeepEqual(record.alerts, alertsExp) {
 		t.Fatalf("Expected alerts %v, got %v", alertsExp, record.alerts)
 	}
-	var _ = nsAfter
+	nsCur, err = notifies.Get("name", fps...)
+	if err != nil {
+		t.Fatalf("Error getting notifies", err)
+	}
+
+	// Hack correct timestamps back in if they are sane.
+	for i, after := range nsAfter {
+		cur := nsCur[i]
+		if after.Timestamp.IsZero() {
+			if cur.Timestamp.Before(now) {
+				t.Fatalf("Wrong timestamp for notify %v", cur)
+			}
+			after.Timestamp = cur.Timestamp
+		}
+		if !reflect.DeepEqual(after, cur) {
+			t.Errorf("Unexpected notifies, expected: %v, got: %v", after, cur)
+		}
+	}
 }
 
 func TestRoutedNotifier(t *testing.T) {
