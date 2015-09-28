@@ -17,8 +17,8 @@ import (
 	"flag"
 	"net/http"
 
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
-	"github.com/prometheus/log"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"

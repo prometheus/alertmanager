@@ -18,19 +18,19 @@
 			"revisionTime": "2015-09-05T19:25:33+02:00"
 		},
 		{
+			"path": "github.com/prometheus/common/log",
+			"revision": "210d6543ee217ec38b676a40549af1df9431d80d",
+			"revisionTime": "2015-09-28T11:56:39+02:00"
+		},
+		{
 			"path": "github.com/prometheus/common/model",
-			"revision": "51d43993bd4018e9470540600641285cad786840",
-			"revisionTime": "2015-09-22T12:03:38+02:00"
+			"revision": "210d6543ee217ec38b676a40549af1df9431d80d",
+			"revisionTime": "2015-09-28T11:56:39+02:00"
 		},
 		{
 			"path": "github.com/prometheus/common/route",
-			"revision": "51d43993bd4018e9470540600641285cad786840",
-			"revisionTime": "2015-09-22T12:03:38+02:00"
-		},
-		{
-			"path": "github.com/prometheus/log",
-			"revision": "439e5db48fbb50ebbaf2c816030473a62f505f55",
-			"revisionTime": "2015-05-29T14:22:02+02:00"
+			"revision": "210d6543ee217ec38b676a40549af1df9431d80d",
+			"revisionTime": "2015-09-28T11:56:39+02:00"
 		},
 		{
 			"path": "github.com/syndtr/goleveldb/leveldb",
