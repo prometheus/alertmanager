@@ -95,6 +95,8 @@ func (a *MemAlerts) Subscribe() AlertIterator {
 				return
 			}
 		}
+
+		<-done
 	}()
 
 	return memAlertIterator{
