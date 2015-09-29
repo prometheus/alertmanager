@@ -43,7 +43,7 @@ func NewDispatcher(ap provider.Alerts, n Notifier) *Dispatcher {
 }
 
 // ApplyConfig updates the dispatcher to match the new configuration.
-func (d *Dispatcher) ApplyConfig(conf *config.Config) {
+func (d *Dispatcher) ApplyConfig(conf *config.Config) bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
@@ -54,6 +54,8 @@ func (d *Dispatcher) ApplyConfig(conf *config.Config) {
 	}
 
 	d.routes = NewRoutes(conf.Routes)
+
+	return true
 }
 
 // Run starts dispatching alerts incoming via the updates channel.

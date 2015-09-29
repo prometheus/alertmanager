@@ -25,6 +25,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
 )
 
 var (
@@ -34,11 +35,6 @@ var (
 func main() {
 	flag.Parse()
 
-	conf, err := config.LoadFile(*configFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	data := provider.NewMemData()
 
 	alerts := provider.NewMemAlerts(data)
@@ -46,7 +42,6 @@ func main() {
 	silences := provider.NewMemSilences()
 
 	inhibitor := &Inhibitor{alerts: alerts}
-	inhibitor.ApplyConfig(conf)
 
 	routedNotifier := newRoutedNotifier(func(conf *config.Config) map[string]Notifier {
 		res := map[string]Notifier{}
@@ -55,7 +50,6 @@ func main() {
 		}
 		return res
 	})
-	routedNotifier.ApplyConfig(conf)
 
 	var notifier Notifier
 	notifier = routedNotifier
@@ -70,7 +64,10 @@ func main() {
 
 	disp := NewDispatcher(alerts, notifier)
 
-	disp.ApplyConfig(conf)
+	if !reloadConfig(*configFile, disp, routedNotifier, inhibitor) {
+		os.Exit(1)
+	}
+
 	go disp.Run()
 	defer disp.Stop()
 
@@ -80,10 +77,37 @@ func main() {
 
 	go http.ListenAndServe(":9091", router)
 
-	term := make(chan os.Signal)
+	var (
+		hup  = make(chan os.Signal)
+		term = make(chan os.Signal)
+	)
+	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		for range hup {
+			reloadConfig(*configFile, disp, routedNotifier, inhibitor)
+		}
+	}()
+
 	<-term
 
 	log.Infoln("Received SIGTERM, exiting gracefully...")
 	os.Exit(0)
+}
+
+func reloadConfig(filename string, rls ...types.Reloadable) (success bool) {
+	log.Infof("Loading configuration file %s", filename)
+
+	conf, err := config.LoadFile(filename)
+	if err != nil {
+		log.Errorf("Couldn't load configuration (-config.file=%s): %v", filename, err)
+		return false
+	}
+	success = true
+
+	for _, rl := range rls {
+		success = success && rl.ApplyConfig(conf)
+	}
+	return success
 }

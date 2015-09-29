@@ -150,7 +150,7 @@ func (n *routedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	return notifier.Notify(ctx, alerts...)
 }
 
-func (n *routedNotifier) ApplyConfig(conf *config.Config) {
+func (n *routedNotifier) ApplyConfig(conf *config.Config) bool {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
@@ -160,6 +160,8 @@ func (n *routedNotifier) ApplyConfig(conf *config.Config) {
 	for _, opts := range conf.NotificationConfigs {
 		n.notifierOpts[opts.Name] = opts
 	}
+
+	return true
 }
 
 // mutingNotifier wraps a notifier and applies a Silencer

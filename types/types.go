@@ -7,7 +7,15 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/config"
 )
+
+// Reloadable is a component that can change its state based
+// on a new configuration.
+type Reloadable interface {
+	ApplyConfig(*config.Config) bool
+}
 
 type Annotations map[model.LabelName]string
 

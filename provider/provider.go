@@ -16,7 +16,6 @@ package provider
 import (
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -70,13 +69,7 @@ type Notifies interface {
 	Set(dest string, ns ...*types.Notify) error
 }
 
-// Reloadable is a component that can change its state based
-// on a new configuration.
-type Reloadable interface {
-	ApplyConfig(*config.Config)
-}
-
 type Config interface {
 	// Reload initiates a configuration reload.
-	Reload(...Reloadable) error
+	Reload(...types.Reloadable) error
 }
