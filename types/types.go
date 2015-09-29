@@ -19,6 +19,13 @@ type Reloadable interface {
 
 type Annotations map[model.LabelName]string
 
+type AlertStatus string
+
+const (
+	AlertFiring   AlertStatus = "firing"
+	AlertResolved AlertStatus = "resolved"
+)
+
 type Alert struct {
 	// Label value pairs for purpose of aggregation, matching, and disposition
 	// dispatching. This must minimally include an "alertname" label.
