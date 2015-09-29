@@ -203,9 +203,9 @@ type NotificationConfig struct {
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs"`
 	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_config"`
-	FlowdockConfigs  []*FlowdockConfig  `yaml:"flowdock_config"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_config"`
+	SlackConfigs     []*SlackConfig     `yaml:"slack_configs"`
+	FlowdockConfigs  []*FlowdockConfig  `yaml:"flowdock_configs"`
+	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
