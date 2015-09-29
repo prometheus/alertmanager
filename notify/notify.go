@@ -13,6 +13,23 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+func Build(confs []*config.NotificationConfig) map[string]Notifier {
+	// Create new notifiers. If the type is not implemented yet, fallback
+	// to logging notifiers.
+	res := map[string]Notifier{}
+	for _, nc := range confs {
+		var all Notifiers
+		for _, wc := range nc.WebhookConfigs {
+			all = append(all, NewWebhook(wc))
+		}
+		for range nc.EmailConfigs {
+			all = append(&LogNotifier{name: cn.Name})
+		}
+		res[nc.Name] = all
+	}
+	return res
+}
+
 type Webhook struct {
 	URL string
 }

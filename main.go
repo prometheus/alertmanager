@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/common/route"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -43,10 +44,10 @@ func main() {
 
 	inhibitor := &Inhibitor{alerts: alerts}
 
-	routedNotifier := newRoutedNotifier(func(conf *config.Config) map[string]Notifier {
-		res := map[string]Notifier{}
-		for _, cn := range conf.NotificationConfigs {
-			res[cn.Name] = newDedupingNotifier(notifies, &LogNotifier{name: cn.Name})
+	routedNotifier := newRoutedNotifier(func(confs []*config.NotificationConfig) map[string]Notifier {
+		res := notify.Build()
+		for name, n := range res {
+			res[name] = newDedupingNotifier(notifies, n)
 		}
 		return res
 	})
