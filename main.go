@@ -83,5 +83,7 @@ func main() {
 	term := make(chan os.Signal)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 	<-term
-	log.Warn("Received SIGTERM, exiting gracefully...")
+
+	log.Infoln("Received SIGTERM, exiting gracefully...")
+	os.Exit(0)
 }

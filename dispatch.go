@@ -29,6 +29,8 @@ type Dispatcher struct {
 	done   chan struct{}
 	ctx    context.Context
 	cancel func()
+
+	log log.Logger
 }
 
 // NewDispatcher returns a new Dispatcher.
@@ -36,6 +38,7 @@ func NewDispatcher(ap provider.Alerts, n Notifier) *Dispatcher {
 	return &Dispatcher{
 		alerts:   ap,
 		notifier: n,
+		log:      log.With("component", "dispatcher"),
 	}
 }
 
@@ -72,6 +75,8 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 	for {
 		select {
 		case alert := <-it.Next():
+			d.log.With("alert", alert).Debug("Received alert")
+
 			// Log errors but keep trying
 			if err := it.Err(); err != nil {
 				log.Errorf("Error on alert update: %s", err)
