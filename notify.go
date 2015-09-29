@@ -26,6 +26,29 @@ type Notifier interface {
 	Notify(context.Context, ...*types.Alert) error
 }
 
+// Notifiers fans out notifications to all notifiers it holds
+// at once.
+type Notifiers []Notifier
+
+func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	var wg sync.WaitGroup
+	wg.Add(len(ns))
+
+	for _, n := range ns {
+		go func(n Notifier) {
+			err := n.Notify(ctx, alerts...)
+			if err != nil {
+				log.Errorf("Error on notify: %s", err)
+			}
+			wg.Done()
+		}(n)
+	}
+
+	wg.Wait()
+
+	return nil
+}
+
 type dedupingNotifier struct {
 	notifies provider.Notifies
 	notifier Notifier
@@ -120,7 +143,7 @@ type routedNotifier struct {
 	notifierOpts map[string]*config.NotificationConfig
 
 	// build creates a new set of named notifiers based on a config.
-	build func(*config.Config) map[string]Notifier
+	build func([]*conf.NotificationConfigs) map[string]Notifier
 }
 
 func newRoutedNotifier(build func(*config.Config) map[string]Notifier) *routedNotifier {
@@ -154,7 +177,7 @@ func (n *routedNotifier) ApplyConfig(conf *config.Config) bool {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
-	n.notifiers = n.build(conf)
+	n.notifiers = n.build(conf.NotificationConfigs)
 	n.notifierOpts = map[string]*config.NotificationConfig{}
 
 	for _, opts := range conf.NotificationConfigs {
