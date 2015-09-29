@@ -16,13 +16,18 @@ notification_configs:
 
 func TestSomething(T *testing.T) {
 	t := NewE2ETest(T, &E2ETestOpts{
-		timeFactor: 1,
+		timeFactor: 0.5,
 		conf:       somethingConfig,
 	})
 
-	t.push(at(1), alert("alertname", "test"))
+	am := t.alertmanager()
+	co := t.collector()
 
-	t.want(between(2, 4), alert("alertname", "test"))
+	go runMockWebhook(":8088", co)
+
+	am.push(at(1), alert("alertname", "test"))
+
+	co.want(between(2, 4), alert("alertname", "test"))
 
 	t.Run()
 }
