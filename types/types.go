@@ -34,11 +34,11 @@ type Alert struct {
 	// Extra key/value information which does not define alert identity.
 	Annotations Annotations `json:"annotations,omitempty"`
 
-	CreatedAt  time.Time `json:"createdAt,omitempty"`
-	ResolvedAt time.Time `json:"resolvedAt,omitempty"`
+	StartsAt time.Time `json:"startsAt,omitempty"`
+	EndsAt   time.Time `json:"endsAt,omitempty"`
 
 	// The authoritative timestamp.
-	Timestamp time.Time `json:"timestamp"`
+	UpdatedAt time.Time `json:"timestamp"`
 }
 
 // Name returns the name of the alert. It is equivalent to the "alertname" label.
@@ -78,17 +78,17 @@ func (a *Alert) String() string {
 }
 
 func (a *Alert) Resolved() bool {
-	if a.ResolvedAt.IsZero() {
+	if a.EndsAt.IsZero() {
 		return false
 	}
-	return !a.ResolvedAt.After(time.Now())
+	return !a.EndsAt.After(time.Now())
 }
 
 // alertTimeline is a list of alerts sorted by their timestamp.
 type alertTimeline []*Alert
 
 func (at alertTimeline) Len() int           { return len(at) }
-func (at alertTimeline) Less(i, j int) bool { return at[i].Timestamp.Before(at[j].Timestamp) }
+func (at alertTimeline) Less(i, j int) bool { return at[i].UpdatedAt.Before(at[j].UpdatedAt) }
 func (at alertTimeline) Swap(i, j int)      { at[i], at[j] = at[j], at[i] }
 
 // A Silencer determines whether a given label set is muted.

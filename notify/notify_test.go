@@ -52,16 +52,16 @@ func TestDedupingNotifier(t *testing.T) {
 			Labels: model.LabelSet{"alertname": "2"},
 		},
 		{
-			Labels:     model.LabelSet{"alertname": "3"},
-			ResolvedAt: now.Add(-20 * time.Minute),
+			Labels: model.LabelSet{"alertname": "3"},
+			EndsAt: now.Add(-20 * time.Minute),
 		},
 		{
-			Labels:     model.LabelSet{"alertname": "4"},
-			ResolvedAt: now.Add(-10 * time.Minute),
+			Labels: model.LabelSet{"alertname": "4"},
+			EndsAt: now.Add(-10 * time.Minute),
 		},
 		{
-			Labels:     model.LabelSet{"alertname": "5"},
-			ResolvedAt: now.Add(-10 * time.Minute),
+			Labels: model.LabelSet{"alertname": "5"},
+			EndsAt: now.Add(-10 * time.Minute),
 		},
 		{
 			Labels: model.LabelSet{"alertname": "6"},

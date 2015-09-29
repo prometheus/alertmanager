@@ -238,7 +238,7 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
-	if !ag.hasSent && alert.Timestamp.Add(ag.opts.GroupWait).Before(time.Now()) {
+	if !ag.hasSent && alert.UpdatedAt.Add(ag.opts.GroupWait).Before(time.Now()) {
 		ag.next.Reset(0)
 	}
 }
