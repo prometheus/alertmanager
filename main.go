@@ -16,6 +16,9 @@ package main
 import (
 	"flag"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
@@ -73,5 +76,10 @@ func main() {
 
 	NewAPI(router.WithPrefix("/api"), alerts, silences)
 
-	http.ListenAndServe(":9091", router)
+	go http.ListenAndServe(":9091", router)
+
+	term := make(chan os.Signal)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	<-term
+	log.Warn("Received SIGTERM, exiting gracefully...")
 }
