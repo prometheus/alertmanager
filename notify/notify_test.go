@@ -1,4 +1,4 @@
-package main
+package notify
 
 import (
 	"fmt"
@@ -35,12 +35,12 @@ func TestDedupingNotifier(t *testing.T) {
 	var (
 		record   = &recordNotifier{}
 		notifies = provider.NewMemNotifies(provider.NewMemData())
-		deduper  = newDedupingNotifier(notifies, record)
+		deduper  = NewDedupingNotifier(notifies, record)
 		ctx      = context.Background()
 	)
-	ctx = context.WithValue(ctx, notifyName, "name")
-	ctx = context.WithValue(ctx, notifyRepeatInterval, time.Duration(100*time.Minute))
-	ctx = context.WithValue(ctx, notifySendResolved, true)
+	ctx = context.WithValue(ctx, NotifyName, "name")
+	ctx = context.WithValue(ctx, NotifyRepeatInterval, time.Duration(100*time.Minute))
+	ctx = context.WithValue(ctx, NotifySendResolved, true)
 
 	now := time.Now()
 
@@ -238,14 +238,14 @@ func TestRoutedNotifier(t *testing.T) {
 			RepeatInterval: 30000,
 		},
 	}
-	routed := &routedNotifier{
+	routed := &RoutedNotifier{
 		notifiers:    notifiers,
 		notifierOpts: notifierOpts,
 	}
 
 	for _, route := range []string{"3", "2", "1"} {
 		var (
-			ctx   = context.WithValue(context.Background(), notifyName, route)
+			ctx   = context.WithValue(context.Background(), NotifyName, route)
 			alert = &types.Alert{
 				Labels: model.LabelSet{"route": model.LabelValue(route)},
 			}
@@ -262,17 +262,17 @@ func TestRoutedNotifier(t *testing.T) {
 
 		// The context handed down the chain must be populated with the
 		// necessary information of the notification config.
-		name, ok := rn.ctx.Value(notifyName).(string)
+		name, ok := rn.ctx.Value(NotifyName).(string)
 		if !ok || name != route {
 			t.Fatalf("Expected name %q, got %q", name, route)
 		}
 
-		repeatInterval, ok := rn.ctx.Value(notifyRepeatInterval).(time.Duration)
+		repeatInterval, ok := rn.ctx.Value(NotifyRepeatInterval).(time.Duration)
 		if ri := notifierOpts[route].RepeatInterval; !ok || repeatInterval != time.Duration(ri) {
 			t.Fatalf("Expected repeat interval %q, got %q", ri, repeatInterval)
 		}
 
-		sendResolved, ok := rn.ctx.Value(notifySendResolved).(bool)
+		sendResolved, ok := rn.ctx.Value(NotifySendResolved).(bool)
 		if sr := notifierOpts[route].SendResolved; !ok || sendResolved != sr {
 			t.Fatalf("Expected send resolved %q, got %q", sr, sendResolved)
 		}
@@ -287,8 +287,8 @@ func TestMutingNotifier(t *testing.T) {
 	})
 
 	record := &recordNotifier{}
-	muteNotifer := mutingNotifier{
-		notifier: record,
+	muteNotifer := MutingNotifier{
+		Notifier: record,
 		Muter:    muter,
 	}
 

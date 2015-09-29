@@ -10,6 +10,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -21,7 +22,7 @@ const ResolveTimeout = 30 * time.Second
 type Dispatcher struct {
 	routes   Routes
 	alerts   provider.Alerts
-	notifier Notifier
+	notifier notify.Notifier
 
 	aggrGroups map[model.Fingerprint]*aggrGroup
 
@@ -34,7 +35,7 @@ type Dispatcher struct {
 }
 
 // NewDispatcher returns a new Dispatcher.
-func NewDispatcher(ap provider.Alerts, n Notifier) *Dispatcher {
+func NewDispatcher(ap provider.Alerts, n notify.Notifier) *Dispatcher {
 	return &Dispatcher{
 		alerts:   ap,
 		notifier: n,
@@ -183,7 +184,7 @@ func (ag *aggrGroup) String() string {
 	return fmt.Sprintf("%x", ag.fingerprint())
 }
 
-func (ag *aggrGroup) run(notify notifyFunc) {
+func (ag *aggrGroup) run(nf notifyFunc) {
 	ag.done = make(chan struct{})
 
 	// Set an initial one-time wait before flushing
@@ -201,13 +202,13 @@ func (ag *aggrGroup) run(notify notifyFunc) {
 			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.GroupInterval)
 
 			// Populate context with the destination name.
-			ctx = context.WithValue(ctx, notifyName, ag.opts.SendTo)
+			ctx = context.WithValue(ctx, notify.NotifyName, ag.opts.SendTo)
 
 			// Wait the configured interval before calling flush again.
 			ag.next.Reset(ag.opts.GroupInterval)
 
 			ag.flush(func(alerts ...*types.Alert) bool {
-				return notify(ctx, alerts...)
+				return nf(ctx, alerts...)
 			})
 
 		case <-ag.ctx.Done():

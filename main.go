@@ -44,22 +44,22 @@ func main() {
 
 	inhibitor := &Inhibitor{alerts: alerts}
 
-	routedNotifier := newRoutedNotifier(func(confs []*config.NotificationConfig) map[string]Notifier {
-		res := notify.Build()
+	routedNotifier := notify.NewRoutedNotifier(func(confs []*config.NotificationConfig) map[string]notify.Notifier {
+		res := notify.Build(confs)
 		for name, n := range res {
-			res[name] = newDedupingNotifier(notifies, n)
+			res[name] = notify.NewDedupingNotifier(notifies, n)
 		}
 		return res
 	})
 
-	var notifier Notifier
+	var notifier notify.Notifier
 	notifier = routedNotifier
-	notifier = &mutingNotifier{
-		notifier: notifier,
+	notifier = &notify.MutingNotifier{
+		Notifier: notifier,
 		Muter:    inhibitor,
 	}
-	notifier = &mutingNotifier{
-		notifier: notifier,
+	notifier = &notify.MutingNotifier{
+		Notifier: notifier,
 		Muter:    silences,
 	}
 
