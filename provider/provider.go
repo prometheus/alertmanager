@@ -32,9 +32,10 @@ type AlertIterator interface {
 
 // Alerts gives access to a set of alerts.
 type Alerts interface {
-	// IterActive returns an iterator over active alerts from the
-	// beginning of time. They are not guaranteed to be in chronological order.
-	IterActive() AlertIterator
+	// Subscribe returns an iterator over active alerts that have not been
+	// resolved and successfully notified about.
+	// They are not guaranteed to be in chronological order.
+	Subscribe() AlertIterator
 	// All returns a list of all existing alerts.
 	// TODO(fabxc): this is not a scalable solution
 	All() ([]*types.Alert, error)

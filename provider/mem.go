@@ -65,15 +65,27 @@ func NewMemAlerts(data *MemData) *MemAlerts {
 	}
 }
 
-func (a *MemAlerts) IterActive() AlertIterator {
+func (a *MemAlerts) Subscribe() AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.data.mtx.Lock()
 	defer a.data.mtx.Unlock()
 
+	// Get fingerprints for all alerts that have pending notifications.
+	fps := map[model.Fingerprint]struct{}{}
+	for _, ns := range a.data.notifies {
+		for fp, notify := range ns {
+			if !notify.Delivered {
+				fps[fp] = struct{}{}
+			}
+		}
+	}
+
+	// All alerts that have pending notifications are part of the
+	// new scubscription.
 	var alerts []*types.Alert
 	for _, a := range a.data.alerts {
-		if !a.Resolved() {
+		if _, ok := fps[a.Fingerprint()]; ok {
 			alerts = append(alerts, a)
 		}
 	}

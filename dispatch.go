@@ -60,19 +60,23 @@ func (d *Dispatcher) Run() {
 
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 
-	updates := d.alerts.IterActive()
-	defer updates.Close()
-
-	d.run(updates.Next())
+	d.run(d.alerts.Subscribe())
 }
 
-func (d *Dispatcher) run(updates <-chan *types.Alert) {
+func (d *Dispatcher) run(it provider.AlertIterator) {
 	cleanup := time.NewTicker(15 * time.Second)
 	defer cleanup.Stop()
 
+	defer it.Close()
+
 	for {
 		select {
-		case alert := <-updates:
+		case alert := <-it.Next():
+			// Log errors but keep trying
+			if err := it.Err(); err != nil {
+				log.Errorf("Error on alert update: %s", err)
+				continue
+			}
 			d.mtx.RLock()
 			routes := d.routes.Match(alert.Labels)
 			d.mtx.RUnlock()
