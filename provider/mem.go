@@ -40,8 +40,8 @@ func NewMemData() *MemData {
 }
 
 type memAlertIterator struct {
-	ch    <-chan *types.Alert
-	close func()
+	ch   <-chan *types.Alert
+	done chan struct{}
 }
 
 func (ai memAlertIterator) Next() <-chan *types.Alert {
@@ -49,7 +49,7 @@ func (ai memAlertIterator) Next() <-chan *types.Alert {
 }
 
 func (ai memAlertIterator) Err() error { return nil }
-func (ai memAlertIterator) Close()     { ai.close() }
+func (ai memAlertIterator) Close()     { close(ai.done) }
 
 // MemAlerts implements an Alerts provider based on in-memory data.
 type MemAlerts struct {
@@ -71,6 +71,69 @@ func (a *MemAlerts) Subscribe() AlertIterator {
 	a.data.mtx.Lock()
 	defer a.data.mtx.Unlock()
 
+	var (
+		alerts = a.getPending()
+		ch     = make(chan *types.Alert, 200)
+		done   = make(chan struct{})
+	)
+
+	i := len(a.listeners)
+	a.listeners = append(a.listeners, ch)
+
+	go func() {
+		defer func() {
+			a.mtx.Lock()
+			a.listeners = append(a.listeners[:i], a.listeners[i+1:]...)
+			close(ch)
+			a.mtx.Unlock()
+		}()
+
+		for _, a := range alerts {
+			select {
+			case ch <- a:
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	return memAlertIterator{
+		ch:   ch,
+		done: done,
+	}
+}
+
+func (a *MemAlerts) GetPending() AlertIterator {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	a.data.mtx.Lock()
+	defer a.data.mtx.Unlock()
+
+	var (
+		alerts = a.getPending()
+		ch     = make(chan *types.Alert, 200)
+		done   = make(chan struct{})
+	)
+
+	go func() {
+		defer close(ch)
+
+		for _, a := range alerts {
+			select {
+			case ch <- a:
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	return memAlertIterator{
+		ch:   ch,
+		done: done,
+	}
+}
+
+func (a *MemAlerts) getPending() []*types.Alert {
 	// Get fingerprints for all alerts that have pending notifications.
 	fps := map[model.Fingerprint]struct{}{}
 	for _, ns := range a.data.notifies {
@@ -90,37 +153,7 @@ func (a *MemAlerts) Subscribe() AlertIterator {
 		}
 	}
 
-	ch := make(chan *types.Alert)
-
-	go func() {
-		for _, a := range alerts {
-			ch <- a
-		}
-	}()
-
-	i := len(a.listeners)
-	a.listeners = append(a.listeners, ch)
-
-	return memAlertIterator{
-		ch: ch,
-		close: func() {
-			a.mtx.Lock()
-			a.listeners = append(a.listeners[:i], a.listeners[i+1:]...)
-			close(ch)
-			a.mtx.Unlock()
-		},
-	}
-}
-
-func (a *MemAlerts) All() ([]*types.Alert, error) {
-	a.data.mtx.RLock()
-	defer a.data.mtx.RUnlock()
-
-	var alerts []*types.Alert
-	for _, a := range a.data.alerts {
-		alerts = append(alerts, a)
-	}
-	return alerts, nil
+	return alerts
 }
 
 func (a *MemAlerts) Put(alerts ...*types.Alert) error {
@@ -136,6 +169,14 @@ func (a *MemAlerts) Put(alerts ...*types.Alert) error {
 			ch <- alert
 		}
 	}
+
+	ch := make(chan *types.Alert)
+
+	go func() {
+		for _, a := range alerts {
+			ch <- a
+		}
+	}()
 
 	return nil
 }

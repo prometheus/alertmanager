@@ -61,15 +61,15 @@ func (e *apiError) Error() string {
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
-	alerts, err := api.alerts.All()
-	if err != nil {
-		respondError(w, apiError{
-			typ: errorBadData,
-			err: err,
-		}, nil)
-		return
-	}
-	respond(w, alerts)
+	// 	alerts, err := api.alerts.GetAll()
+	// 	if err != nil {
+	// 		respondError(w, apiError{
+	// 			typ: errorBadData,
+	// 			err: err,
+	// 		}, nil)
+	// 		return
+	// 	}
+	// 	respond(w, alerts)
 }
 
 func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {

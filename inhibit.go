@@ -3,6 +3,7 @@ package main
 import (
 	"sync"
 
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
@@ -21,13 +22,14 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	ih.mtx.RLock()
 	defer ih.mtx.RUnlock()
 
-	alerts, err := ih.alerts.All()
-	if err != nil {
-		// TODO(fabxc): log error.
-		return false
-	}
+	alerts := ih.alerts.GetPending()
+	defer alerts.Close()
 
-	for _, alert := range alerts {
+	for alert := range alerts.Next() {
+		if err := alerts.Err(); err != nil {
+			log.Errorf("Error iterating alerts: %s", err)
+			continue
+		}
 		if alert.Resolved() {
 			continue
 		}

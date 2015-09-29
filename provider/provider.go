@@ -36,9 +36,9 @@ type Alerts interface {
 	// resolved and successfully notified about.
 	// They are not guaranteed to be in chronological order.
 	Subscribe() AlertIterator
-	// All returns a list of all existing alerts.
-	// TODO(fabxc): this is not a scalable solution
-	All() ([]*types.Alert, error)
+	// GetPending returns an iterator over all alerts that have
+	// pending notifications.
+	GetPending() AlertIterator
 	// Get returns the alert for a given fingerprint.
 	Get(model.Fingerprint) (*types.Alert, error)
 	// Put adds the given alert to the set.
