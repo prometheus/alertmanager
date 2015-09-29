@@ -32,6 +32,8 @@ var (
 )
 
 func main() {
+	flag.Parse()
+
 	conf, err := config.LoadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
