@@ -78,15 +78,17 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	for _, alert := range alerts {
-		now := time.Now()
 
+	now := time.Now()
+
+	for _, alert := range alerts {
 		alert.UpdatedAt = now
 
 		if alert.StartsAt.IsZero() {
 			alert.StartsAt = now
 		}
 		if alert.EndsAt.IsZero() {
+			alert.Timeout = true
 			alert.EndsAt = alert.StartsAt.Add(ResolveTimeout)
 		}
 	}

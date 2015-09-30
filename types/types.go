@@ -32,13 +32,23 @@ type Alert struct {
 	Labels model.LabelSet `json:"labels"`
 
 	// Extra key/value information which does not define alert identity.
-	Annotations Annotations `json:"annotations,omitempty"`
+	Annotations Annotations `json:"annotations"`
 
 	StartsAt time.Time `json:"startsAt,omitempty"`
 	EndsAt   time.Time `json:"endsAt,omitempty"`
 
 	// The authoritative timestamp.
-	UpdatedAt time.Time `json:"timestamp"`
+	UpdatedAt time.Time `json:"-"`
+	Timeout   bool      `json:"-"`
+}
+
+func (a *Alert) MarshalJSON() ([]byte, error) {
+	b := *a
+	if b.Timeout {
+		b.EndsAt = time.Time{}
+	}
+
+	return json.Marshal(b)
 }
 
 // Name returns the name of the alert. It is equivalent to the "alertname" label.
