@@ -26,7 +26,7 @@ func TestSomething(T *testing.T) {
 	})
 
 	am := t.alertmanager()
-	co := t.collector()
+	co := t.collector("webhook")
 
 	go runMockWebhook(":8088", co)
 

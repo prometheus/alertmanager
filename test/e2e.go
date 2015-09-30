@@ -82,9 +82,10 @@ func (t *E2ETest) alertmanager() *Alertmanager {
 	return am
 }
 
-func (t *E2ETest) collector() *collector {
+func (t *E2ETest) collector(name string) *collector {
 	co := &collector{
 		t:         t.T,
+		name:      name,
 		opts:      t.opts,
 		collected: map[float64][]*types.Alert{},
 		exepected: map[interval][]*types.Alert{},
@@ -122,8 +123,8 @@ func (t *E2ETest) Run() {
 	}
 
 	for _, am := range t.ams {
-		t.Logf("stdout: %v", am.cmd.Stdout)
-		t.Logf("stderr: %v", am.cmd.Stderr)
+		t.Logf("stdout:\n%v", am.cmd.Stdout)
+		t.Logf("stderr:\n%v", am.cmd.Stderr)
 	}
 }
 
@@ -200,10 +201,15 @@ func (am *Alertmanager) kill() {
 // and verifies whether all arrived and within the correct time boundaries.
 type collector struct {
 	t    *testing.T
+	name string
 	opts *E2ETestOpts
 
 	collected map[float64][]*types.Alert
 	exepected map[interval][]*types.Alert
+}
+
+func (c *collector) String() string {
+	return c.name
 }
 
 // latest returns the latest relative point in time where a notification is
@@ -237,14 +243,14 @@ func (c *collector) add(alerts ...*types.Alert) {
 }
 
 func (c *collector) check() string {
-	report := fmt.Sprintf("\ncollector %q:\n", c)
+	report := fmt.Sprintf("\ncollector %q:\n\n", c)
 
 	for iv, expected := range c.exepected {
 		report += fmt.Sprintf("interval %v\n", iv)
 
 		for _, exp := range expected {
 			var found *types.Alert
-			report += fmt.Sprintf("  expected: %v\n", exp)
+			report += fmt.Sprintf("- %v  ", exp)
 
 			for at, got := range c.collected {
 				if !iv.contains(at) {
@@ -262,10 +268,10 @@ func (c *collector) check() string {
 			}
 
 			if found != nil {
-				report += fmt.Sprintf("  found:   %v\n", found)
+				report += fmt.Sprintf("✓\n")
 			} else {
 				c.t.Fail()
-				report += fmt.Sprintf("  not found [X]\n")
+				report += fmt.Sprintf("✗\n")
 			}
 		}
 	}
@@ -284,7 +290,7 @@ func (c *collector) check() string {
 	}
 
 	if c.t.Failed() {
-		report += "\n\nreceived:\n"
+		report += "\nreceived:\n"
 
 		for at, col := range c.collected {
 			for _, a := range col {
