@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -49,6 +50,18 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	return test
 }
 
+func freeAddress() string {
+	// Let the OS allocate a free address, close it and hope
+	// it is still free when starting Alertmanager.
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		panic(err)
+	}
+	defer l.Close()
+
+	return l.Addr().String()
+}
+
 // Alertmanager returns a new structure that allows starting an instance
 // of Alertmanager on a random port.
 func (t *AcceptanceTest) Alertmanager() *Alertmanager {
@@ -68,8 +81,14 @@ func (t *AcceptanceTest) Alertmanager() *Alertmanager {
 		t.Fatal(err)
 	}
 
-	am.url = fmt.Sprintf("http://localhost:%d", 9091)
-	am.cmd = exec.Command("../../alertmanager", "-config.file", cf.Name(), "-log.level=debug")
+	addr := freeAddress()
+
+	am.url = fmt.Sprintf("http://%s", addr)
+	am.cmd = exec.Command("../../alertmanager",
+		"-config.file", cf.Name(),
+		"-log.level", "debug",
+		"-web.listen-address", addr,
+	)
 
 	var outb, errb bytes.Buffer
 	am.cmd.Stdout = &outb
