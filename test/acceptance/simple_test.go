@@ -49,7 +49,7 @@ func TestSomething(t *testing.T) {
 	// the defined time intervals.
 	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(1))
 	co.Want(Between(3, 3.5), Alert("alertname", "test").Active(1))
-	co.Want(Between(3.5, 4.5), Alert("alertname", "test").Active(1, 3))
+	co.Want(Between(4, 4.5), Alert("alertname", "test").Active(1, 3))
 
 	// Start the flow as defined above and run the checks afterwards.
 	at.Run()
