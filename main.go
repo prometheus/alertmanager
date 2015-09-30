@@ -47,20 +47,34 @@ func main() {
 	routedNotifier := notify.NewRoutedNotifier(func(confs []*config.NotificationConfig) map[string]notify.Notifier {
 		res := notify.Build(confs)
 		for name, n := range res {
-			res[name] = notify.NewDedupingNotifier(notifies, n)
+			res[name] = &notify.LogNotifier{
+				Log:      log.With("notifier", "dedup"),
+				Notifier: notify.NewDedupingNotifier(notifies, n),
+			}
 		}
 		return res
 	})
 
 	var notifier notify.Notifier
-	notifier = routedNotifier
+	notifier = &notify.LogNotifier{
+		Log:      log.With("notifier", "routed"),
+		Notifier: routedNotifier,
+	}
 	notifier = &notify.MutingNotifier{
 		Notifier: notifier,
 		Muter:    inhibitor,
 	}
+	notifier = &notify.LogNotifier{
+		Log:      log.With("notifier", "inhibit"),
+		Notifier: notifier,
+	}
 	notifier = &notify.MutingNotifier{
 		Notifier: notifier,
 		Muter:    silences,
+	}
+	notifier = &notify.LogNotifier{
+		Log:      log.With("notifier", "silencer"),
+		Notifier: notifier,
 	}
 
 	disp := NewDispatcher(alerts, notifier)

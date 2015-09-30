@@ -209,14 +209,15 @@ func (n *MutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 }
 
 type LogNotifier struct {
-	name string
+	Log      log.Logger
+	Notifier Notifier
 }
 
 func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	log.Infof("notify %q", ln.name)
+	ln.Log.Debugf("notify %v", alerts)
 
-	for _, a := range alerts {
-		log.Infof("- %v", a)
+	if ln.Notifier != nil {
+		return ln.Notifier.Notify(ctx, alerts...)
 	}
 	return nil
 }

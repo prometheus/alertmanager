@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/prometheus/common/log"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
@@ -21,10 +22,13 @@ func Build(confs []*config.NotificationConfig) map[string]Notifier {
 		var all Notifiers
 
 		for _, wc := range nc.WebhookConfigs {
-			all = append(all, NewWebhook(wc))
+			all = append(all, &LogNotifier{
+				Log:      log.With("notifier", "webhook"),
+				Notifier: NewWebhook(wc),
+			})
 		}
 		for range nc.EmailConfigs {
-			all = append(all, &LogNotifier{name: nc.Name})
+			all = append(all, &LogNotifier{Log: log.With("name", nc.Name)})
 		}
 
 		res[nc.Name] = all
