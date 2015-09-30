@@ -38,6 +38,14 @@ type E2ETestOpts struct {
 	conf string
 }
 
+func (opts *E2ETestOpts) expandTime(rel float64) time.Time {
+	return opts.baseTime.Add(time.Duration(rel * float64(time.Second)))
+}
+
+func (opts *E2ETestOpts) relativeTime(act time.Time) float64 {
+	return float64(act.Sub(opts.baseTime)) / float64(time.Second)
+}
+
 func NewE2ETest(t *testing.T, opts *E2ETestOpts) *E2ETest {
 	test := &E2ETest{
 		T:    t,
@@ -114,7 +122,7 @@ func (t *E2ETest) Run() {
 		}
 	}
 
-	deadline := expandTime(latest, time.Now(), t.opts.timeFactor)
+	deadline := t.opts.expandTime(latest)
 	time.Sleep(deadline.Sub(time.Now()))
 
 	for _, coll := range t.collectors {
@@ -146,7 +154,7 @@ type Alertmanager struct {
 func (am *Alertmanager) push(at float64, alerts ...*testAlert) {
 	var nas []*types.Alert
 	for _, a := range alerts {
-		nas = append(nas, a.nativeAlert(am.opts.baseTime, am.opts.timeFactor))
+		nas = append(nas, a.nativeAlert(am.opts))
 	}
 	am.input[at] = append(am.input[at], nas...)
 }
@@ -165,7 +173,7 @@ func (am *Alertmanager) runQueries() {
 	var wg sync.WaitGroup
 
 	for at, as := range am.input {
-		ts := expandTime(at, am.opts.baseTime, am.opts.timeFactor)
+		ts := am.opts.expandTime(at)
 		wg.Add(1)
 
 		go func(as ...*types.Alert) {
@@ -229,7 +237,7 @@ func (c *collector) latest() float64 {
 func (c *collector) want(iv interval, alerts ...*testAlert) {
 	var nas []*types.Alert
 	for _, a := range alerts {
-		nas = append(nas, a.nativeAlert(c.opts.baseTime, c.opts.timeFactor))
+		nas = append(nas, a.nativeAlert(c.opts))
 	}
 
 	c.exepected[iv] = append(c.exepected[iv], nas...)
@@ -237,7 +245,7 @@ func (c *collector) want(iv interval, alerts ...*testAlert) {
 
 // add the given alerts to the collected alerts.
 func (c *collector) add(alerts ...*types.Alert) {
-	arrival := relativeTime(time.Now(), c.opts.baseTime, c.opts.timeFactor)
+	arrival := c.opts.relativeTime(time.Now())
 
 	c.collected[arrival] = append(c.collected[arrival], alerts...)
 }
@@ -324,7 +332,7 @@ func equalTime(a, b time.Time, opts *E2ETestOpts) bool {
 		return false
 	}
 
-	tol := time.Duration(float64(time.Second) * opts.timeFactor * opts.tolerance)
+	tol := time.Duration(float64(time.Second) * opts.tolerance)
 	diff := a.Sub(b)
 
 	if diff < 0 {
@@ -337,14 +345,6 @@ type testAlert struct {
 	labels           model.LabelSet
 	annotations      types.Annotations
 	startsAt, endsAt float64
-}
-
-func expandTime(rel float64, base time.Time, factor float64) time.Time {
-	return base.Add(time.Duration(rel * factor * float64(time.Second)))
-}
-
-func relativeTime(act time.Time, base time.Time, factor float64) float64 {
-	return float64(act.Sub(base)) / factor / float64(time.Second)
 }
 
 // at is a convenience method to allow for declarative syntax of e2e
@@ -394,16 +394,16 @@ func alert(keyval ...interface{}) *testAlert {
 
 // nativeAlert converts the declared test alert into a full alert based
 // on the given paramters.
-func (a *testAlert) nativeAlert(base time.Time, f float64) *types.Alert {
+func (a *testAlert) nativeAlert(opts *E2ETestOpts) *types.Alert {
 	na := &types.Alert{
 		Labels:      a.labels,
 		Annotations: a.annotations,
 	}
 	if a.startsAt > 0 {
-		na.StartsAt = expandTime(a.startsAt, base, f)
+		na.StartsAt = opts.expandTime(a.startsAt)
 	}
 	if a.endsAt > 0 {
-		na.EndsAt = expandTime(a.endsAt, base, f)
+		na.EndsAt = opts.expandTime(a.endsAt)
 	}
 	return na
 }
@@ -431,11 +431,10 @@ func (a *testAlert) active(tss ...float64) *testAlert {
 	if len(tss) > 2 || len(tss) == 0 {
 		panic("only one or two timestamps allowed")
 	}
-	if len(tss) == 1 {
-		a.startsAt = tss[0]
-	} else {
+	if len(tss) == 2 {
 		a.endsAt = tss[1]
 	}
+	a.startsAt = tss[0]
 
 	return a
 }

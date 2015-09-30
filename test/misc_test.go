@@ -20,9 +20,8 @@ notification_configs:
 
 func TestSomething(T *testing.T) {
 	t := NewE2ETest(T, &E2ETestOpts{
-		timeFactor: 1,
-		tolerance:  0.2,
-		conf:       somethingConfig,
+		tolerance: 0.2,
+		conf:      somethingConfig,
 	})
 
 	am := t.alertmanager()
