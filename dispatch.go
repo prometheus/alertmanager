@@ -139,6 +139,8 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 		ag = newAggrGroup(d.ctx, group, opts)
 		d.aggrGroups[fp] = ag
 
+		ag.log = log.With("aggrGroup", ag)
+
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			if err := d.notifier.Notify(ctx, alerts...); err != nil {
 				log.Errorf("Notify for %d alerts failed: %s", len(alerts), err)
@@ -157,6 +159,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 type aggrGroup struct {
 	labels model.LabelSet
 	opts   *RouteOpts
+	log    log.Logger
 
 	ctx    context.Context
 	cancel func()
@@ -181,7 +184,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts) *
 }
 
 func (ag *aggrGroup) String() string {
-	return fmt.Sprintf("%x", ag.fingerprint())
+	return fmt.Sprintf("%v", ag.fingerprint())
 }
 
 func (ag *aggrGroup) run(nf notifyFunc) {
@@ -267,6 +270,8 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	}
 
 	ag.mtx.Unlock()
+
+	ag.log.Debugln("flushing", alertsSlice)
 
 	if notify(alertsSlice...) {
 		ag.mtx.Lock()
