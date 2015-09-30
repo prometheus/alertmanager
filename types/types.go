@@ -95,11 +95,20 @@ func (a *Alert) Resolved() bool {
 }
 
 // alertTimeline is a list of alerts sorted by their timestamp.
-type alertTimeline []*Alert
+type AlertTimeline []*Alert
 
-func (at alertTimeline) Len() int           { return len(at) }
-func (at alertTimeline) Less(i, j int) bool { return at[i].UpdatedAt.Before(at[j].UpdatedAt) }
-func (at alertTimeline) Swap(i, j int)      { at[i], at[j] = at[j], at[i] }
+func (at AlertTimeline) Len() int      { return len(at) }
+func (at AlertTimeline) Swap(i, j int) { at[i], at[j] = at[j], at[i] }
+
+func (at AlertTimeline) Less(i, j int) bool {
+	if at[i].StartsAt.Before(at[j].StartsAt) {
+		return true
+	}
+	if at[i].EndsAt.Before(at[j].EndsAt) {
+		return true
+	}
+	return at[i].Fingerprint() < at[j].Fingerprint()
+}
 
 // A Silencer determines whether a given label set is muted.
 type Muter interface {
