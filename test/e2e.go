@@ -33,7 +33,9 @@ type E2ETest struct {
 type E2ETestOpts struct {
 	baseTime   time.Time
 	timeFactor float64
-	conf       string
+	tolerance  float64
+
+	conf string
 }
 
 func NewE2ETest(t *testing.T, opts *E2ETestOpts) *E2ETest {
@@ -63,6 +65,10 @@ func (t *E2ETest) alertmanager() *Alertmanager {
 		t.Fatal(err)
 	}
 	am.confFile = cf
+
+	if _, err := cf.WriteString(t.opts.conf); err != nil {
+		t.Fatal(err)
+	}
 
 	am.url = fmt.Sprintf("http://localhost:%d", 9091)
 	am.cmd = exec.Command("../alertmanager", "-config.file", cf.Name(), "-log.level=debug")
@@ -141,7 +147,6 @@ func (am *Alertmanager) push(at float64, alerts ...*testAlert) {
 	for _, a := range alerts {
 		nas = append(nas, a.nativeAlert(am.opts.baseTime, am.opts.timeFactor))
 	}
-
 	am.input[at] = append(am.input[at], nas...)
 }
 
@@ -232,7 +237,7 @@ func (c *collector) add(alerts ...*types.Alert) {
 }
 
 func (c *collector) check() string {
-	report := ""
+	report := fmt.Sprintf("\ncollector %q:\n", c)
 
 	for iv, expected := range c.exepected {
 		report += fmt.Sprintf("interval %v\n", iv)
@@ -246,7 +251,7 @@ func (c *collector) check() string {
 					continue
 				}
 				for _, a := range got {
-					if reflect.DeepEqual(exp, a) {
+					if equalAlerts(exp, a, c.opts) {
 						found = a
 						break
 					}
@@ -260,7 +265,7 @@ func (c *collector) check() string {
 				report += fmt.Sprintf("  found:   %v\n", found)
 			} else {
 				c.t.Fail()
-				report += fmt.Sprintf("  not found [X]")
+				report += fmt.Sprintf("  not found [X]\n")
 			}
 		}
 	}
@@ -278,7 +283,48 @@ func (c *collector) check() string {
 		report += fmt.Sprintf("\nExpected total of %d alerts, got %d", totalExp, totalAct)
 	}
 
+	if c.t.Failed() {
+		report += "\n\nreceived:\n"
+
+		for at, col := range c.collected {
+			for _, a := range col {
+				report += fmt.Sprintf("- %v @ %v\n", a.String(), at)
+			}
+		}
+	}
+
 	return report
+}
+
+func equalAlerts(a, b *types.Alert, opts *E2ETestOpts) bool {
+	if !reflect.DeepEqual(a.Labels, b.Labels) {
+		return false
+	}
+	if !reflect.DeepEqual(a.Annotations, b.Annotations) {
+		return false
+	}
+
+	if !equalTime(a.StartsAt, b.StartsAt, opts) {
+		return false
+	}
+	if !equalTime(a.EndsAt, b.EndsAt, opts) {
+		return false
+	}
+	return true
+}
+
+func equalTime(a, b time.Time, opts *E2ETestOpts) bool {
+	if a.IsZero() != b.IsZero() {
+		return false
+	}
+
+	tol := time.Duration(float64(time.Second) * opts.timeFactor * opts.tolerance)
+	diff := a.Sub(b)
+
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= tol
 }
 
 type testAlert struct {
@@ -288,11 +334,11 @@ type testAlert struct {
 }
 
 func expandTime(rel float64, base time.Time, factor float64) time.Time {
-	return base.Add(time.Duration(rel*factor) * time.Second)
+	return base.Add(time.Duration(rel * factor * float64(time.Second)))
 }
 
 func relativeTime(act time.Time, base time.Time, factor float64) float64 {
-	return float64(act.Sub(base)) / factor
+	return float64(act.Sub(base)) / factor / float64(time.Second)
 }
 
 // at is a convenience method to allow for declarative syntax of e2e
@@ -310,7 +356,7 @@ func (iv interval) String() string {
 }
 
 func (iv interval) contains(f float64) bool {
-	return iv.start <= f && iv.end >= f
+	return f >= iv.start && f <= iv.end
 }
 
 // between is a convenience constructor for an interval for declarative syntax
