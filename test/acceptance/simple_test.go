@@ -108,10 +108,12 @@ func TestBatching(t *testing.T) {
 	// until the 5s repeat interval has ended.
 	co.Want(Between(7, 8.5),
 		Alert("alertname", "test1").Active(1),
+		Alert("alertname", "test5").Active(1),
+	)
+	co.Want(Between(7, 8.5),
 		Alert("alertname", "test2").Active(1.5),
 		Alert("alertname", "test3").Active(1.5),
 		Alert("alertname", "test4").Active(1.6),
-		Alert("alertname", "test5").Active(1),
 	)
 
 	at.Run()

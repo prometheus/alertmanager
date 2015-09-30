@@ -104,8 +104,8 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 		t:         t.T,
 		name:      name,
 		opts:      t.opts,
-		collected: map[float64][]*types.Alert{},
-		exepected: map[Interval][]*types.Alert{},
+		collected: map[float64][][]*types.Alert{},
+		exepected: map[Interval][][]*types.Alert{},
 	}
 	t.collectors = append(t.collectors, co)
 
