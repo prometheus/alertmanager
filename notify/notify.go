@@ -128,6 +128,12 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		})
 	}
 
+	// The deduping notifier is the last one before actually sending notifications.
+	// Thus, this is the place where we abort if after all filtering, nothing is left.
+	if len(filtered) == 0 {
+		return nil
+	}
+
 	if err := n.notifier.Notify(ctx, filtered...); err != nil {
 		return err
 	}
