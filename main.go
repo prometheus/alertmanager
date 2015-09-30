@@ -30,7 +30,8 @@ import (
 )
 
 var (
-	configFile = flag.String("config.file", "config.yml", "The configuration file")
+	configFile    = flag.String("config.file", "config.yml", "The configuration file")
+	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 )
 
 func main() {
@@ -90,7 +91,7 @@ func main() {
 
 	NewAPI(router.WithPrefix("/api"), alerts, silences)
 
-	go http.ListenAndServe(":9091", router)
+	go http.ListenAndServe(*listenAddress, router)
 
 	var (
 		hup  = make(chan os.Signal)
