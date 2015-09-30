@@ -89,9 +89,11 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 
 	now := time.Now()
 
-	var newNotifies []*types.Notify
-
-	var filtered []*types.Alert
+	var (
+		doResend    bool
+		resendQueue []*types.Alert
+		filtered    []*types.Alert
+	)
 	for i, a := range alerts {
 		last := notifies[i]
 
@@ -111,14 +113,34 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 			} else if !last.Resolved {
 				// Do not send again if last was delivered unless
 				// the repeat interval has already passed.
-				if last.Delivered && !now.After(last.Timestamp.Add(repeatInterval)) {
-					continue
+				if last.Delivered {
+					if !now.After(last.Timestamp.Add(repeatInterval)) {
+						// To not repeat initial batch fragmentation after the repeat interval
+						// has passed, store them and send them anyway if on of the other
+						// alerts has already passed the repeat interval.
+						// This way we unify batches again.
+						resendQueue = append(resendQueue, a)
+
+						continue
+					} else {
+						doResend = true
+					}
 				}
 			}
 		}
 
 		filtered = append(filtered, a)
+	}
 
+	// As we are resending an alert anyway, resend all of them even if their
+	// repeat interval has not yet passed.
+	if doResend {
+		filtered = append(filtered, resendQueue...)
+	}
+
+	var newNotifies []*types.Notify
+
+	for _, a := range filtered {
 		newNotifies = append(newNotifies, &types.Notify{
 			Alert:     a.Fingerprint(),
 			SendTo:    name,
