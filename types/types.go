@@ -62,12 +62,6 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 
 // }
 
-// Fingerprint returns a unique hash for the alert. It is equivalent to
-// the fingerprint of the alert's label set.
-func (a *Alert) Fingerprint() model.Fingerprint {
-	return a.Labels.Fingerprint()
-}
-
 // alertTimeline is a list of alerts sorted by their timestamp.
 type AlertTimeline []*Alert
 
