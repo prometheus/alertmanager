@@ -95,15 +95,12 @@ func TestSilencing(t *testing.T) {
 	)
 
 	// Add a silence that affects the first alert.
-	sil := Silence(2, 4.5).Match("alertname", "test1")
-	am.SetSilence(At(2.5), sil)
+	am.SetSilence(At(2.5), Silence(2, 4.5).Match("alertname", "test1"))
 
 	co.Want(Between(3, 3.5), Alert("alertname", "test2").Active(1))
 	co.Want(Between(4, 4.5), Alert("alertname", "test2").Active(1))
 
-	// Remove the silence so in the next interval we receive both
-	// alerts again.
-	am.DelSilence(At(4.5), sil)
+	// Silence should be over now and we receive both alerts again.
 
 	co.Want(Between(5, 5.5),
 		Alert("alertname", "test1").Active(1),
