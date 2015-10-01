@@ -204,8 +204,9 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// finish before terminating them.
 			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.GroupInterval)
 
-			// Populate context with the destination name.
+			// Populate context with the destination name and group identifier.
 			ctx = context.WithValue(ctx, notify.NotifyName, ag.opts.SendTo)
+			ctx = context.WithValue(ctx, notify.NotifyGroup, ag.String())
 
 			// Wait the configured interval before calling flush again.
 			ag.next.Reset(ag.opts.GroupInterval)

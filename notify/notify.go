@@ -20,6 +20,7 @@ const (
 	NotifyName notifyKey = iota
 	NotifyRepeatInterval
 	NotifySendResolved
+	NotifyGroup
 )
 
 type Notifier interface {
