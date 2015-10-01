@@ -18,7 +18,9 @@ type Reloadable interface {
 }
 
 // Alert wraps a model.Alert with additional information relevant
-// to the Alertmanager.
+// to internal of the Alertmanager.
+// The type is never exposed to external communication and the
+// embedded alert has to be sanitized beforehand.
 type Alert struct {
 	model.Alert
 
@@ -27,15 +29,20 @@ type Alert struct {
 	Timeout   bool
 }
 
-func (a *Alert) MarshalJSON() ([]byte, error) {
-	v := a.Alert
-	// If the end timestamp was set as the expected value in case
-	// of a timeout, do not expose it.
-	if a.Timeout {
-		v.EndsAt = time.Time{}
+// Alerts turns a sequence of internal alerts into a list of
+// exposable model.Alert structures.
+func Alerts(alerts ...*Alert) model.Alerts {
+	var res model.Alerts
+	for _, a := range alerts {
+		v := a.Alert
+		// If the end timestamp was set as the expected value in case
+		// of a timeout, do not expose it.
+		if a.Timeout {
+			v.EndsAt = time.Time{}
+		}
+		res = append(res, &v)
 	}
-
-	return json.Marshal(&v)
+	return res
 }
 
 // Merges the timespan of two alerts based and overwrites annotations
@@ -54,22 +61,6 @@ func (a *Alert) MarshalJSON() ([]byte, error) {
 // 	}
 
 // }
-
-// alertTimeline is a list of alerts sorted by their timestamp.
-type AlertTimeline []*Alert
-
-func (at AlertTimeline) Len() int      { return len(at) }
-func (at AlertTimeline) Swap(i, j int) { at[i], at[j] = at[j], at[i] }
-
-func (at AlertTimeline) Less(i, j int) bool {
-	if at[i].StartsAt.Before(at[j].StartsAt) {
-		return true
-	}
-	if at[i].EndsAt.Before(at[j].EndsAt) {
-		return true
-	}
-	return at[i].Fingerprint() < at[j].Fingerprint()
-}
 
 // A Silencer determines whether a given label set is muted.
 type Muter interface {

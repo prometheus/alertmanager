@@ -60,3 +60,37 @@ func (a *Alert) Status() AlertStatus {
 	}
 	return AlertFiring
 }
+
+// Alert is a list of alerts that can be sorted in chronological order.
+type Alerts []*Alert
+
+func (as Alerts) Len() int      { return len(as) }
+func (as Alerts) Swap(i, j int) { as[i], as[j] = as[j], as[i] }
+
+func (as Alerts) Less(i, j int) bool {
+	if as[i].StartsAt.Before(as[j].StartsAt) {
+		return true
+	}
+	if as[i].EndsAt.Before(as[j].EndsAt) {
+		return true
+	}
+	return as[i].Fingerprint() < as[j].Fingerprint()
+}
+
+// HasFiring returns true iff one of the alerts is not resolved.
+func (as Alerts) HasFiring() bool {
+	for _, a := range as {
+		if !a.Resolved() {
+			return true
+		}
+	}
+	return false
+}
+
+// Status returns StatusFiring iff at least one of the alerts is firing.
+func (as Alerts) Status() AlertStatus {
+	if as.HasFiring() {
+		return AlertFiring
+	}
+	return AlertResolved
+}
