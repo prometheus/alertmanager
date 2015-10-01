@@ -106,8 +106,9 @@ func TestBatching(t *testing.T) {
 
 	// While no changes happen expect no additional notifications
 	// until the 5s repeat interval has ended.
-	// The last three notifications are sent with the first too even
-	// though their wait interval has not yet passed. This way fragmented
+
+	// The last three notifications should sent with the first two even
+	// though their repeat interval has not yet passed. This way fragmented
 	// batches are unified and notification noise reduced.
 	co.Want(Between(7, 7.5),
 		Alert("alertname", "test1").Active(1),
