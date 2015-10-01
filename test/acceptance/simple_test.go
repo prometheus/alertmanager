@@ -57,6 +57,63 @@ func TestSomething(t *testing.T) {
 	at.Run()
 }
 
+var silenceConfig = `
+routes:
+- send_to: "default"
+  group_wait:     1s
+  group_interval: 1s
+
+notification_configs:
+- name: "default"
+  send_resolved: true
+
+  webhook_configs:
+  - url: 'http://localhost:8090'
+`
+
+func TestSilencing(t *testing.T) {
+	t.Parallel()
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+		Config:    somethingConfig,
+	})
+
+	am := at.Alertmanager()
+	co := at.Collector("webhook")
+
+	go NewWebhook(":8090", co).Run()
+
+	// No repeat interval is configured. Thus, we receive an alert
+	// notification every second.
+	am.Push(At(1), Alert("alertname", "test122").Active(1))
+	am.Push(At(1), Alert("alertname", "test2").Active(1))
+
+	co.Want(Between(2, 2.5),
+		Alert("alertname", "test1").Active(1),
+		Alert("alertname", "test2").Active(1),
+	)
+
+	// Add a silence that affects the first alert.
+	sil := Silence(2, 4.5).Match("alertname", "test1")
+	am.SetSilence(At(2.5), sil)
+
+	co.Want(Between(3, 3.5), Alert("alertname", "test2").Active(1))
+	co.Want(Between(4, 4.5), Alert("alertname", "test2").Active(1))
+
+	// Remove the silence so in the next interval we receive both
+	// alerts again.
+	am.DelSilence(At(4.5), sil)
+
+	co.Want(Between(5, 5.5),
+		Alert("alertname", "test1").Active(1),
+		Alert("alertname", "test2").Active(1),
+	)
+
+	// Start the flow as defined above and run the checks afterwards.
+	// at.Run()
+}
+
 var batchConfig = `
 routes:
 - send_to: "default"

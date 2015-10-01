@@ -52,16 +52,27 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	return test
 }
 
-func freeAddress() string {
-	// Let the OS allocate a free address, close it and hope
-	// it is still free when starting Alertmanager.
-	l, err := net.Listen("tcp", ":0")
-	if err != nil {
-		panic(err)
-	}
-	l.Close()
+var freeAdresses []string
 
-	return l.Addr().String()
+func freeAddress() string {
+	if len(freeAdresses) == 0 {
+		for i := 0; i < 100; i++ {
+			// Let the OS allocate a free address, close it and hope
+			// it is still free when starting Alertmanager.
+			l, err := net.Listen("tcp", ":0")
+			if err != nil {
+				panic(err)
+			}
+			defer l.Close()
+
+			freeAdresses = append(freeAdresses, l.Addr().String())
+		}
+	}
+
+	next := freeAdresses[0]
+	freeAdresses = freeAdresses[1:]
+
+	return next
 }
 
 // Alertmanager returns a new structure that allows starting an instance
@@ -84,6 +95,8 @@ func (t *AcceptanceTest) Alertmanager() *Alertmanager {
 	}
 
 	am.addr = freeAddress()
+
+	t.Logf("AM on %s", am.addr)
 
 	client, err := alertmanager.New(alertmanager.Config{
 		Address: fmt.Sprintf("http://%s", am.addr),

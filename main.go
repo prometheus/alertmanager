@@ -89,7 +89,7 @@ func main() {
 
 	router := route.New()
 
-	NewAPI(router.WithPrefix("/api"), alerts, silences)
+	NewAPI(router.WithPrefix("/api/v1"), alerts, silences)
 
 	go http.ListenAndServe(*listenAddress, router)
 
