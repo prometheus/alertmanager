@@ -13,7 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/api/alertmanager"
 	"github.com/prometheus/common/model"
+	"golang.org/x/net/context"
 )
 
 type AcceptanceTest struct {
@@ -57,7 +59,7 @@ func freeAddress() string {
 	if err != nil {
 		panic(err)
 	}
-	defer l.Close()
+	l.Close()
 
 	return l.Addr().String()
 }
@@ -81,13 +83,20 @@ func (t *AcceptanceTest) Alertmanager() *Alertmanager {
 		t.Fatal(err)
 	}
 
-	addr := freeAddress()
+	am.addr = freeAddress()
 
-	am.url = fmt.Sprintf("http://%s", addr)
+	client, err := alertmanager.New(alertmanager.Config{
+		Address: fmt.Sprintf("http://%s", am.addr),
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	am.client = client
+
 	am.cmd = exec.Command("../../alertmanager",
 		"-config.file", cf.Name(),
 		"-log.level", "debug",
-		"-web.listen-address", addr,
+		"-web.listen-address", am.addr,
 	)
 
 	var outb, errb bytes.Buffer
@@ -149,16 +158,17 @@ func (t *AcceptanceTest) Run() {
 // declaring alerts being pushed to it at fixed points in time.
 type Alertmanager struct {
 	t    *testing.T
-	url  string
-	cmd  *exec.Cmd
 	opts *AcceptanceOpts
 
+	addr     string
+	client   alertmanager.Client
+	cmd      *exec.Cmd
 	confFile *os.File
 
 	actions map[float64][]func()
 }
 
-// push declares alerts that are to be pushed to the Alertmanager
+// Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 	var nas model.Alerts
@@ -173,7 +183,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 			return
 		}
 
-		resp, err := http.Post(am.url+"/api/alerts", "application/json", &buf)
+		resp, err := http.Post(fmt.Sprintf("http://%s/api/alerts", am.addr), "application/json", &buf)
 		if err != nil {
 			am.t.Error(err)
 			return
@@ -182,14 +192,32 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 	})
 }
 
-func (am *Alertmanager) SetSilence(at float64) {
+// SetSilence updates or creates the given Silence.
+func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
+	silences := alertmanager.NewSilenceAPI(am.client)
 
+	am.Do(at, func() {
+		sid, err := silences.Set(context.Background(), sil.nativeSilence(am.opts))
+		if err != nil {
+			am.t.Error(err)
+			return
+		}
+		sil.ID = sid
+	})
 }
 
-func (am *Alertmanager) DelSilence(at float64) {
+// DelSilence deletes the silence with the sid at the given time.
+func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
+	silences := alertmanager.NewSilenceAPI(am.client)
 
+	am.Do(at, func() {
+		if err := silences.Del(context.Background(), sil.ID); err != nil {
+			am.t.Error(err)
+		}
+	})
 }
 
+// Do sets the given function to be executed at the given time.
 func (am *Alertmanager) Do(at float64, f func()) {
 	am.actions[at] = append(am.actions[at], f)
 }

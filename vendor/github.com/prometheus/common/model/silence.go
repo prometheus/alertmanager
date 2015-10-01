@@ -37,7 +37,7 @@ func (m *Matcher) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("label name in matcher must not be empty")
 	}
 	if m.IsRegex {
-		if _, err := regexp.Compile(expr); err != nil {
+		if _, err := regexp.Compile(m.Value); err != nil {
 			return err
 		}
 	}

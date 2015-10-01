@@ -12,12 +12,6 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 )
 
-type TestAlert struct {
-	labels           model.LabelSet
-	annotations      model.LabelSet
-	startsAt, endsAt float64
-}
-
 // At is a convenience method to allow for declarative syntax of Acceptance
 // test definitions.
 func At(ts float64) float64 {
@@ -40,6 +34,73 @@ func (iv Interval) contains(f float64) bool {
 // of Acceptance test definitions.
 func Between(start, end float64) Interval {
 	return Interval{start: start, end: end}
+}
+
+// TestSilence models a model.Silence with relative times.
+type TestSilence struct {
+	ID               uint64
+	match            []string
+	matchRE          []string
+	startsAt, endsAt float64
+}
+
+// Silence creates a new TestSilence active for the relative interval given
+// by start and end.
+func Silence(start, end float64) *TestSilence {
+	return &TestSilence{
+		startsAt: start,
+		endsAt:   end,
+	}
+}
+
+// Match adds a new plain matcher to the silence.
+func (s *TestSilence) Match(v ...string) *TestSilence {
+	s.match = append(s.match, v...)
+	return s
+}
+
+// MatchRE adds a new regex matcher to the silence
+func (s *TestSilence) MatchRE(v ...string) *TestSilence {
+	if len(v)%2 == 1 {
+		panic("bad key/values")
+	}
+	s.matchRE = append(s.matchRE, v...)
+	return s
+}
+
+// nativeSilence converts the declared test silence into a regular
+// silence with resolved times.
+func (sil *TestSilence) nativeSilence(opts *AcceptanceOpts) *model.Silence {
+	nsil := &model.Silence{}
+
+	for i := 0; i < len(sil.match); i += 2 {
+		nsil.Matchers = append(nsil.Matchers, &model.Matcher{
+			Name:  model.LabelName(sil.match[i]),
+			Value: sil.match[i+1],
+		})
+	}
+	for i := 0; i < len(sil.matchRE); i += 2 {
+		nsil.Matchers = append(nsil.Matchers, &model.Matcher{
+			Name:    model.LabelName(sil.match[i]),
+			Value:   sil.match[i+1],
+			IsRegex: true,
+		})
+	}
+
+	if sil.startsAt > 0 {
+		nsil.StartsAt = opts.expandTime(sil.startsAt)
+	}
+	if sil.endsAt > 0 {
+		nsil.EndsAt = opts.expandTime(sil.endsAt)
+	}
+	return nsil
+}
+
+// TestAlert models a model.Alert with relative times.
+type TestAlert struct {
+	labels           model.LabelSet
+	annotations      model.LabelSet
+	startsAt, endsAt float64
 }
 
 // alert creates a new alert declaration with the given key/value pairs

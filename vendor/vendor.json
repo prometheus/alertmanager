@@ -59,8 +59,8 @@
 		},
 		{
 			"path": "github.com/prometheus/common/model",
-			"revision": "4e3fbe8499d234bee309a86d934b0f77d2963a17",
-			"revisionTime": "2015-10-01T18:06:56+02:00"
+			"revision": "4c9032a3f7aceade2585f2bbe302bf8c9ea3e9a9",
+			"revisionTime": "2015-10-01T18:35:54+02:00"
 		},
 		{
 			"path": "github.com/prometheus/common/route",
