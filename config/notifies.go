@@ -19,13 +19,13 @@ import (
 
 var (
 	DefaultHipchatConfig = HipchatConfig{
-		Color:         "purple",
+		ColorFiring:   "purple",
 		ColorResolved: "green",
 		MessageFormat: HipchatFormatHTML,
 	}
 
 	DefaultSlackConfig = SlackConfig{
-		Color:         "warning",
+		ColorFiring:   "warning",
 		ColorResolved: "good",
 	}
 )
@@ -116,10 +116,8 @@ type HipchatConfig struct {
 	// HipChat room id, (https://www.hipchat.com/rooms/ids).
 	RoomID int `yaml:"room_id"`
 
-	// Color of message when triggered.
-	Color string `yaml:"color"`
-
-	// Color of message when resolved.
+	// The message colors.
+	ColorFiring   string `yaml:"color_firing"`
 	ColorResolved string `yaml:"color_resolved"`
 
 	// Should this message notify or not.
@@ -160,7 +158,7 @@ type SlackConfig struct {
 	Channel string `yaml:"channel"`
 
 	// The message colors.
-	ColorFiring   string `yaml:"color"`
+	ColorFiring   string `yaml:"color_firing"`
 	ColorResolved string `yaml:"color_resolved"`
 
 	// Catches all undefined fields and must be empty after parsing.
