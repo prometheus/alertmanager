@@ -239,12 +239,12 @@ func (n *MemNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.Notif
 
 type MemSilences struct {
 	mtx      sync.RWMutex
-	silences map[uint64]*types.Silence
+	silences map[uint64]*model.Silence
 }
 
 func NewMemSilences() *MemSilences {
 	return &MemSilences{
-		silences: map[uint64]*types.Silence{},
+		silences: map[uint64]*model.Silence{},
 	}
 }
 
@@ -253,7 +253,7 @@ func (s *MemSilences) Mutes(lset model.LabelSet) bool {
 	defer s.mtx.RUnlock()
 
 	for _, sil := range s.silences {
-		if sil.Mutes(lset) {
+		if types.NewSilence(sil).Mutes(lset) {
 			return true
 		}
 	}
@@ -266,7 +266,7 @@ func (s *MemSilences) All() ([]*types.Silence, error) {
 
 	var sils []*types.Silence
 	for _, sil := range s.silences {
-		sils = append(sils, sil)
+		sils = append(sils, types.NewSilence(sil))
 	}
 	return sils, nil
 }
@@ -283,7 +283,7 @@ func (s *MemSilences) Set(sil *types.Silence) (uint64, error) {
 		}
 	}
 
-	s.silences[sil.ID] = sil
+	s.silences[sil.ID] = &sil.Silence
 	return sil.ID, nil
 }
 
@@ -303,5 +303,5 @@ func (s *MemSilences) Get(id uint64) (*types.Silence, error) {
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return sil, nil
+	return types.NewSilence(sil), nil
 }

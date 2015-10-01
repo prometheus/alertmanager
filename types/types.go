@@ -113,7 +113,9 @@ func (sil *Silence) Mutes(lset model.LabelSet) bool {
 		return false
 	}
 
-	return sil.Matchers.Match(lset)
+	b := sil.Matchers.Match(lset)
+
+	return b
 }
 
 // Notify holds information about the last notification state

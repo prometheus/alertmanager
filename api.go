@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
 	"golang.org/x/net/context"
 
@@ -258,5 +259,9 @@ func receive(r *http.Request, v interface{}) error {
 	dec := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 
-	return dec.Decode(v)
+	err := dec.Decode(v)
+	if err != nil {
+		log.Debugf("Decoding request failed: %v", err)
+	}
+	return err
 }
