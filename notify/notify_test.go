@@ -45,27 +45,34 @@ func TestDedupingNotifier(t *testing.T) {
 	now := time.Now()
 
 	alerts := []*types.Alert{
-		{Alert: model.Alert{
-			Labels: model.LabelSet{"alertname": "1"},
-		}},
-		{Alert: model.Alert{
-			Labels: model.LabelSet{"alertname": "2"},
-		}},
-		{Alert: model.Alert{
-			Labels: model.LabelSet{"alertname": "3"},
-			EndsAt: now.Add(-20 * time.Minute),
-		}},
-		{Alert: model.Alert{
-			Labels: model.LabelSet{"alertname": "4"},
-			EndsAt: now.Add(-10 * time.Minute),
-		}},
-		{Alert: model.Alert{
-			Labels: model.LabelSet{"alertname": "5"},
-			EndsAt: now.Add(-10 * time.Minute),
-		}},
-		{Alert: model.Alert{
-			Labels: model.LabelSet{"alertname": "6"},
-		}},
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "1"},
+			},
+		}, {
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "2"},
+			},
+		}, {
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "3"},
+				EndsAt: now.Add(-20 * time.Minute),
+			},
+		}, {
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "4"},
+				EndsAt: now.Add(-10 * time.Minute),
+			},
+		}, {
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "5"},
+				EndsAt: now.Add(-10 * time.Minute),
+			},
+		}, {
+			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "6"},
+			},
+		},
 	}
 
 	var fps []model.Fingerprint
