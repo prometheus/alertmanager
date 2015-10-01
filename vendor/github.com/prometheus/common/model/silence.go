@@ -16,36 +16,44 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 )
+
+// Matcher describes a matches the value of a given label.
+type Matcher struct {
+	Name    LabelName `json:"name"`
+	Value   string    `json:"value"`
+	IsRegex bool      `json:"isRegex"`
+}
+
+func (m *Matcher) UnmarshalJSON(b []byte) error {
+	type plain Matcher
+	if err := json.Unmarshal(b, (*plain)(m)); err != nil {
+		return err
+	}
+
+	if len(m.Name) == 0 {
+		return fmt.Errorf("label name in matcher must not be empty")
+	}
+	if m.IsRegex {
+		if _, err := regexp.Compile(expr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // Silence defines the representation of a silence definiton
 // in the Prometheus eco-system.
 type Silence struct {
 	ID uint64 `json:"id,omitempty"`
 
-	Matchers []struct {
-		Name    LabelName `json:"name,omitempty"`
-		Value   string    `json:"value,omitempty"`
-		IsRegex bool      `json:"isRegex"`
-	} `json:"matchers"`
+	Matchers []*Matcher `json:"matchers"`
 
 	StartsAt time.Time `json:"startsAt"`
 	EndsAt   time.Time `json:"endsAt"`
 
 	CreatedBy string `json:"createdBy"`
 	Comment   string `json:"comment,omitempty"`
-}
-
-func (s *Silence) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, s); err != nil {
-		return err
-	}
-
-	for _, m := range s.Matchers {
-		if len(m.Name) == 0 {
-			return fmt.Errorf("label name in matcher must not be empty")
-		}
-	}
-	return nil
 }
