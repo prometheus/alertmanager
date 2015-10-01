@@ -76,7 +76,7 @@ func TestSilencing(t *testing.T) {
 
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
 		Tolerance: 150 * time.Millisecond,
-		Config:    somethingConfig,
+		Config:    silenceConfig,
 	})
 
 	am := at.Alertmanager()
@@ -86,7 +86,7 @@ func TestSilencing(t *testing.T) {
 
 	// No repeat interval is configured. Thus, we receive an alert
 	// notification every second.
-	am.Push(At(1), Alert("alertname", "test122").Active(1))
+	am.Push(At(1), Alert("alertname", "test1").Active(1))
 	am.Push(At(1), Alert("alertname", "test2").Active(1))
 
 	co.Want(Between(2, 2.5),
@@ -111,7 +111,7 @@ func TestSilencing(t *testing.T) {
 	)
 
 	// Start the flow as defined above and run the checks afterwards.
-	// at.Run()
+	at.Run()
 }
 
 var batchConfig = `

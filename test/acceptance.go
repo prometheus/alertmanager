@@ -52,27 +52,16 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	return test
 }
 
-var freeAdresses []string
-
 func freeAddress() string {
-	if len(freeAdresses) == 0 {
-		for i := 0; i < 100; i++ {
-			// Let the OS allocate a free address, close it and hope
-			// it is still free when starting Alertmanager.
-			l, err := net.Listen("tcp", ":0")
-			if err != nil {
-				panic(err)
-			}
-			defer l.Close()
-
-			freeAdresses = append(freeAdresses, l.Addr().String())
-		}
+	// Let the OS allocate a free address, close it and hope
+	// it is still free when starting Alertmanager.
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		panic(err)
 	}
+	defer l.Close()
 
-	next := freeAdresses[0]
-	freeAdresses = freeAdresses[1:]
-
-	return next
+	return l.Addr().String()
 }
 
 // Alertmanager returns a new structure that allows starting an instance
@@ -196,7 +185,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 			return
 		}
 
-		resp, err := http.Post(fmt.Sprintf("http://%s/api/alerts", am.addr), "application/json", &buf)
+		resp, err := http.Post(fmt.Sprintf("http://%s/api/v1/alerts", am.addr), "application/json", &buf)
 		if err != nil {
 			am.t.Error(err)
 			return
@@ -253,11 +242,11 @@ func (am *Alertmanager) runActions() {
 		wg.Add(len(fs))
 
 		for _, f := range fs {
-			go func() {
+			go func(f func()) {
 				time.Sleep(ts.Sub(time.Now()))
 				f()
 				wg.Done()
-			}()
+			}(f)
 		}
 	}
 
