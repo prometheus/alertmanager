@@ -56,9 +56,9 @@ type Silences interface {
 	// Set a new silence.
 	Set(*types.Silence) error
 	// Del removes a silence.
-	Del(model.Fingerprint) error
+	Del(uint64) error
 	// Get a silence associated with a fingerprint.
-	Get(model.Fingerprint) (*types.Silence, error)
+	Get(uint64) (*types.Silence, error)
 }
 
 // Notifies provides information about pending and successful

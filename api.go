@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"golang.org/x/net/context"
 
@@ -133,7 +132,7 @@ func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 	}
 
-	sil, err := api.silences.Get(model.Fingerprint(sid))
+	sil, err := api.silences.Get(sid)
 	if err != nil {
 		http.Error(w, fmt.Sprint("Error getting silence: ", err), http.StatusNotFound)
 		return
@@ -157,7 +156,7 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 			err: err,
 		}, nil)
 	}
-	sil.ID = model.Fingerprint(sid)
+	sil.ID = sid
 
 	if err := api.silences.Set(&sil); err != nil {
 		respondError(w, apiError{
@@ -179,7 +178,7 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 	}
 
-	if err := api.silences.Del(model.Fingerprint(sid)); err != nil {
+	if err := api.silences.Del(sid); err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
