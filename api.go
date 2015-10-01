@@ -111,7 +111,8 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// TODO(fabxc): validate input.
-	if err := api.silences.Set(&sil); err != nil {
+	sid, err := api.silences.Set(&sil)
+	if err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
@@ -119,7 +120,11 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respond(w, nil)
+	respond(w, struct {
+		SilenceID uint64 `json:"silenceId"`
+	}{
+		SilenceID: sid,
+	})
 }
 
 func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
@@ -158,14 +163,19 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 	}
 	sil.ID = sid
 
-	if err := api.silences.Set(&sil); err != nil {
+	sid, err = api.silences.Set(&sil)
+	if err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, &sil)
 		return
 	}
-	respond(w, nil)
+	respond(w, struct {
+		SilenceID uint64 `json:"silenceId"`
+	}{
+		SilenceID: sid,
+	})
 }
 
 func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
