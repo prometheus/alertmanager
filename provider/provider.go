@@ -54,7 +54,7 @@ type Silences interface {
 	// All returns all existing silences.
 	All() ([]*types.Silence, error)
 	// Set a new silence.
-	Set(*types.Silence) error
+	Set(*types.Silence) (uint64, error)
 	// Del removes a silence.
 	Del(uint64) error
 	// Get a silence associated with a fingerprint.

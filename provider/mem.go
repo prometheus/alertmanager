@@ -271,16 +271,20 @@ func (s *MemSilences) All() ([]*types.Silence, error) {
 	return sils, nil
 }
 
-func (s *MemSilences) Set(sil *types.Silence) error {
+func (s *MemSilences) Set(sil *types.Silence) (uint64, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	if sil.ID == 0 {
 		sil.ID = uint64(len(s.silences) + 1)
+	} else {
+		if _, ok := s.silences[sil.ID]; !ok {
+			return 0, ErrNotFound
+		}
 	}
 
 	s.silences[sil.ID] = sil
-	return nil
+	return sil.ID, nil
 }
 
 func (s *MemSilences) Del(id uint64) error {
