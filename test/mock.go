@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/notify"
-	"github.com/prometheus/alertmanager/types"
 )
 
 type TestAlert struct {
@@ -66,11 +65,11 @@ func Alert(keyval ...interface{}) *TestAlert {
 
 // nativeAlert converts the declared test alert into a full alert based
 // on the given paramters.
-func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *types.Alert {
-	na := &types.Alert{}
-
-	na.Labels = a.labels
-	na.Annotations = a.annotations
+func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *model.Alert {
+	na := &model.Alert{
+		Labels:      a.labels,
+		Annotations: a.annotations,
+	}
 
 	if a.startsAt > 0 {
 		na.StartsAt = opts.expandTime(a.startsAt)
@@ -112,7 +111,7 @@ func (a *TestAlert) Active(tss ...float64) *TestAlert {
 	return a
 }
 
-func equalAlerts(a, b *types.Alert, opts *AcceptanceOpts) bool {
+func equalAlerts(a, b *model.Alert, opts *AcceptanceOpts) bool {
 	if !reflect.DeepEqual(a.Labels, b.Labels) {
 		return false
 	}

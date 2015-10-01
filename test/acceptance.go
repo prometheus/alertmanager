@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 type AcceptanceTest struct {
@@ -104,8 +104,8 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 		t:         t.T,
 		name:      name,
 		opts:      t.opts,
-		collected: map[float64][][]*types.Alert{},
-		exepected: map[Interval][][]*types.Alert{},
+		collected: map[float64][]model.Alerts{},
+		exepected: map[Interval][]model.Alerts{},
 	}
 	t.collectors = append(t.collectors, co)
 
@@ -161,7 +161,7 @@ type Alertmanager struct {
 // push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var nas []*types.Alert
+	var nas model.Alerts
 	for _, a := range alerts {
 		nas = append(nas, a.nativeAlert(am.opts))
 	}
@@ -180,6 +180,14 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 		}
 		resp.Body.Close()
 	})
+}
+
+func (am *Alertmanager) SetSilence(at float64) {
+
+}
+
+func (am *Alertmanager) DelSilence(at float64) {
+
 }
 
 func (am *Alertmanager) Do(at float64, f func()) {

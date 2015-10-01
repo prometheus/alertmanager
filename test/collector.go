@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 // Collector gathers alerts received by a notification destination
@@ -16,21 +16,22 @@ type Collector struct {
 	name string
 	opts *AcceptanceOpts
 
-	collected map[float64][][]*types.Alert
-	exepected map[Interval][][]*types.Alert
+	collected map[float64][]model.Alerts
+	exepected map[Interval][]model.Alerts
 }
 
 func (c *Collector) String() string {
 	return c.name
 }
 
-func batchesEqual(as, bs []*types.Alert, opts *AcceptanceOpts) bool {
+func batchesEqual(as, bs model.Alerts, opts *AcceptanceOpts) bool {
 	if len(as) != len(bs) {
 		return false
 	}
 
-	sort.Sort(types.AlertTimeline(as))
-	sort.Sort(types.AlertTimeline(bs))
+	// Ensure sorting.
+	sort.Sort(as)
+	sort.Sort(bs)
 
 	for i, a := range as {
 		if !equalAlerts(a, bs[i], opts) {
@@ -55,7 +56,7 @@ func (c *Collector) latest() float64 {
 // want declares that the Collector expects to receive the given alerts
 // within the given time boundaries.
 func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
-	var nas []*types.Alert
+	var nas model.Alerts
 	for _, a := range alerts {
 		nas = append(nas, a.nativeAlert(c.opts))
 	}
@@ -64,10 +65,10 @@ func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
 }
 
 // add the given alerts to the collected alerts.
-func (c *Collector) add(alerts ...*types.Alert) {
+func (c *Collector) add(alerts ...*model.Alert) {
 	arrival := c.opts.relativeTime(time.Now())
 
-	c.collected[arrival] = append(c.collected[arrival], alerts)
+	c.collected[arrival] = append(c.collected[arrival], model.Alerts(alerts))
 }
 
 func (c *Collector) check() string {
@@ -77,7 +78,8 @@ func (c *Collector) check() string {
 		report += fmt.Sprintf("interval %v\n", iv)
 
 		for _, exp := range expected {
-			var found []*types.Alert
+			var found model.Alerts
+
 			report += fmt.Sprintf("---\n")
 
 			for _, e := range exp {
