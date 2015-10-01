@@ -159,10 +159,8 @@ type SlackConfig struct {
 	// Slack channel override, (like #other-channel or @username).
 	Channel string `yaml:"channel"`
 
-	// Color of message when triggered.
-	Color string `yaml:"color"`
-
-	// Color of message when resolved.
+	// The message colors.
+	ColorFiring   string `yaml:"color"`
 	ColorResolved string `yaml:"color_resolved"`
 
 	// Catches all undefined fields and must be empty after parsing.
