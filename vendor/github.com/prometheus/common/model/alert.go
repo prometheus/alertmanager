@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+type AlertStatus string
+
+const (
+	AlertFiring   AlertStatus = "firing"
+	AlertResolved AlertStatus = "resolved"
+)
+
 // Alert is a generic representation of an alert in the Prometheus eco-system.
 type Alert struct {
 	// Label value pairs for purpose of aggregation, matching, and disposition
@@ -44,4 +51,12 @@ func (a *Alert) Resolved() bool {
 		return false
 	}
 	return !a.EndsAt.After(time.Now())
+}
+
+// Status returns the status of the alert.
+func (a *Alert) Status() AlertStatus {
+	if a.Resolved() {
+		return AlertResolved
+	}
+	return AlertFiring
 }

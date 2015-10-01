@@ -17,13 +17,6 @@ type Reloadable interface {
 	ApplyConfig(*config.Config) bool
 }
 
-type AlertStatus string
-
-const (
-	AlertFiring   AlertStatus = "firing"
-	AlertResolved AlertStatus = "resolved"
-)
-
 // Alert wraps a model.Alert with additional information relevant
 // to the Alertmanager.
 type Alert struct {
