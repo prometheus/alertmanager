@@ -15,7 +15,7 @@ import (
 
 type TestAlert struct {
 	labels           model.LabelSet
-	annotations      types.Annotations
+	annotations      model.LabelSet
 	startsAt, endsAt float64
 }
 
@@ -51,7 +51,7 @@ func Alert(keyval ...interface{}) *TestAlert {
 	}
 	a := &TestAlert{
 		labels:      model.LabelSet{},
-		annotations: types.Annotations{},
+		annotations: model.LabelSet{},
 	}
 
 	for i := 0; i < len(keyval); i += 2 {
@@ -67,10 +67,11 @@ func Alert(keyval ...interface{}) *TestAlert {
 // nativeAlert converts the declared test alert into a full alert based
 // on the given paramters.
 func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *types.Alert {
-	na := &types.Alert{
-		Labels:      a.labels,
-		Annotations: a.annotations,
-	}
+	na := &types.Alert{}
+
+	na.Labels = a.labels
+	na.Annotations = a.annotations
+
 	if a.startsAt > 0 {
 		na.StartsAt = opts.expandTime(a.startsAt)
 	}
@@ -88,7 +89,7 @@ func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
 
 	for i := 0; i < len(keyval); i += 2 {
 		ln := model.LabelName(keyval[i].(string))
-		lv := keyval[i+1].(string)
+		lv := model.LabelValue(keyval[i+1].(string))
 
 		a.annotations[ln] = lv
 	}

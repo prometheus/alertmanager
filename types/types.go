@@ -17,8 +17,6 @@ type Reloadable interface {
 	ApplyConfig(*config.Config) bool
 }
 
-type Annotations map[model.LabelName]string
-
 type AlertStatus string
 
 const (
@@ -26,34 +24,25 @@ const (
 	AlertResolved AlertStatus = "resolved"
 )
 
+// Alert wraps a model.Alert with additional information relevant
+// to the Alertmanager.
 type Alert struct {
-	// Label value pairs for purpose of aggregation, matching, and disposition
-	// dispatching. This must minimally include an "alertname" label.
-	Labels model.LabelSet `json:"labels"`
-
-	// Extra key/value information which does not define alert identity.
-	Annotations Annotations `json:"annotations"`
-
-	StartsAt time.Time `json:"startsAt,omitempty"`
-	EndsAt   time.Time `json:"endsAt,omitempty"`
+	model.Alert
 
 	// The authoritative timestamp.
-	UpdatedAt time.Time `json:"-"`
-	Timeout   bool      `json:"-"`
+	UpdatedAt time.Time
+	Timeout   bool
 }
 
 func (a *Alert) MarshalJSON() ([]byte, error) {
-	b := *a
-	if b.Timeout {
-		b.EndsAt = time.Time{}
+	v := a.Alert
+	// If the end timestamp was set as the expected value in case
+	// of a timeout, do not expose it.
+	if a.Timeout {
+		v.EndsAt = time.Time{}
 	}
 
-	return json.Marshal(b)
-}
-
-// Name returns the name of the alert. It is equivalent to the "alertname" label.
-func (a *Alert) Name() string {
-	return string(a.Labels[model.AlertNameLabel])
+	return json.Marshal(&v)
 }
 
 // Merges the timespan of two alerts based and overwrites annotations
@@ -77,21 +66,6 @@ func (a *Alert) Name() string {
 // the fingerprint of the alert's label set.
 func (a *Alert) Fingerprint() model.Fingerprint {
 	return a.Labels.Fingerprint()
-}
-
-func (a *Alert) String() string {
-	s := fmt.Sprintf("%s[%s]", a.Name(), a.Fingerprint())
-	if a.Resolved() {
-		return s + "[resolved]"
-	}
-	return s + "[active]"
-}
-
-func (a *Alert) Resolved() bool {
-	if a.EndsAt.IsZero() {
-		return false
-	}
-	return !a.EndsAt.After(time.Now())
 }
 
 // alertTimeline is a list of alerts sorted by their timestamp.

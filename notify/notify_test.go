@@ -45,27 +45,27 @@ func TestDedupingNotifier(t *testing.T) {
 	now := time.Now()
 
 	alerts := []*types.Alert{
-		{
+		{Alert: model.Alert{
 			Labels: model.LabelSet{"alertname": "1"},
-		},
-		{
+		}},
+		{Alert: model.Alert{
 			Labels: model.LabelSet{"alertname": "2"},
-		},
-		{
+		}},
+		{Alert: model.Alert{
 			Labels: model.LabelSet{"alertname": "3"},
 			EndsAt: now.Add(-20 * time.Minute),
-		},
-		{
+		}},
+		{Alert: model.Alert{
 			Labels: model.LabelSet{"alertname": "4"},
 			EndsAt: now.Add(-10 * time.Minute),
-		},
-		{
+		}},
+		{Alert: model.Alert{
 			Labels: model.LabelSet{"alertname": "5"},
 			EndsAt: now.Add(-10 * time.Minute),
-		},
-		{
+		}},
+		{Alert: model.Alert{
 			Labels: model.LabelSet{"alertname": "6"},
-		},
+		}},
 	}
 
 	var fps []model.Fingerprint
@@ -247,7 +247,9 @@ func TestRoutedNotifier(t *testing.T) {
 		var (
 			ctx   = context.WithValue(context.Background(), NotifyName, route)
 			alert = &types.Alert{
-				Labels: model.LabelSet{"route": model.LabelValue(route)},
+				Alert: model.Alert{
+					Labels: model.LabelSet{"route": model.LabelValue(route)},
+				},
 			}
 		)
 		err := routed.Notify(ctx, alert)
@@ -311,7 +313,9 @@ func TestMutingNotifier(t *testing.T) {
 
 	var inAlerts []*types.Alert
 	for _, lset := range in {
-		inAlerts = append(inAlerts, &types.Alert{Labels: lset})
+		inAlerts = append(inAlerts, &types.Alert{
+			Alert: model.Alert{Labels: lset},
+		})
 	}
 
 	if err := muteNotifer.Notify(nil, inAlerts...); err != nil {
