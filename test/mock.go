@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"reflect"
 	"time"
@@ -203,18 +204,24 @@ func equalTime(a, b time.Time, opts *AcceptanceOpts) bool {
 
 type MockWebhook struct {
 	collector *Collector
-	addr      string
+	listener  net.Listener
 }
 
-func NewWebhook(addr string, c *Collector) *MockWebhook {
-	return &MockWebhook{
-		addr:      addr,
+func NewWebhook(c *Collector) *MockWebhook {
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		// TODO(fabxc): if shutdown of mock destinations ever becomes a concern
+		// we want to shut them down after test completion. Then we might want to
+		// log the error properly, too.
+		panic(err)
+	}
+	wh := &MockWebhook{
+		listener:  l,
 		collector: c,
 	}
-}
+	go http.Serve(l, wh)
 
-func (ws *MockWebhook) Run() {
-	http.ListenAndServe(ws.addr, ws)
+	return wh
 }
 
 func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -227,4 +234,8 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	ws.collector.add(v.Alerts...)
+}
+
+func (ws *MockWebhook) Address() string {
+	return ws.listener.Addr().String()
 }

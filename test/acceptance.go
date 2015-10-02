@@ -32,10 +32,8 @@ type AcceptanceTest struct {
 
 // AcceptanceOpts defines configuration paramters for an acceptance test.
 type AcceptanceOpts struct {
-	baseTime  time.Time
 	Tolerance time.Duration
-
-	Config string
+	baseTime  time.Time
 }
 
 // expandTime returns the absolute time for the relative time
@@ -83,7 +81,7 @@ func (t *AcceptanceTest) Do(at float64, f func()) {
 
 // Alertmanager returns a new structure that allows starting an instance
 // of Alertmanager on a random port.
-func (t *AcceptanceTest) Alertmanager() *Alertmanager {
+func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 	am := &Alertmanager{
 		t:    t,
 		opts: t.opts,
@@ -95,7 +93,7 @@ func (t *AcceptanceTest) Alertmanager() *Alertmanager {
 	}
 	am.confFile = cf
 
-	if _, err := cf.WriteString(t.opts.Config); err != nil {
+	if _, err := cf.WriteString(conf); err != nil {
 		t.Fatal(err)
 	}
 

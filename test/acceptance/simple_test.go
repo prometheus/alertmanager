@@ -1,13 +1,17 @@
 package test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	. "github.com/prometheus/alertmanager/test"
 )
 
-var somethingConfig = `
+func TestSomething(t *testing.T) {
+	t.Parallel()
+
+	conf := `
 routes:
 - send_to: "default"
   group_wait:     1s
@@ -18,29 +22,25 @@ notification_configs:
   send_resolved: true
 
   webhook_configs:
-  - url: 'http://localhost:8088'
+  - url: 'http://%s'
 `
-
-func TestSomething(t *testing.T) {
-	t.Parallel()
 
 	// Create a new acceptance test that instantiates new Alertmanagers
 	// with the given configuration and verifies times with the given
 	// tollerance.
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
 		Tolerance: 150 * time.Millisecond,
-		Config:    somethingConfig,
 	})
 
-	// Create a new Alertmanager process listening to a random port
-	am := at.Alertmanager()
 	// Create a collector to which alerts can be written and verified
 	// against a set of expected alert notifications.
 	co := at.Collector("webhook")
-
 	// Run something that satisfies the webhook interface to which the
 	// Alertmanager pushes as defined by its configuration.
-	go NewWebhook(":8088", co).Run()
+	wh := NewWebhook(co)
+
+	// Create a new Alertmanager process listening to a random port
+	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
 
 	// Declare pushes to be made to the Alertmanager at the given time.
 	// Times are provided in fractions of seconds.
@@ -57,7 +57,10 @@ func TestSomething(t *testing.T) {
 	at.Run()
 }
 
-var silenceConfig = `
+func TestSilencing(t *testing.T) {
+	t.Parallel()
+
+	conf := `
 routes:
 - send_to: "default"
   group_wait:     1s
@@ -68,21 +71,17 @@ notification_configs:
   send_resolved: true
 
   webhook_configs:
-  - url: 'http://localhost:8090'
+  - url: 'http://%s'
 `
-
-func TestSilencing(t *testing.T) {
-	t.Parallel()
 
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
 		Tolerance: 150 * time.Millisecond,
-		Config:    silenceConfig,
 	})
 
-	am := at.Alertmanager()
 	co := at.Collector("webhook")
+	wh := NewWebhook(co)
 
-	go NewWebhook(":8090", co).Run()
+	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
 
 	// No repeat interval is configured. Thus, we receive an alert
 	// notification every second.
@@ -111,7 +110,10 @@ func TestSilencing(t *testing.T) {
 	at.Run()
 }
 
-var batchConfig = `
+func TestBatching(t *testing.T) {
+	t.Parallel()
+
+	conf := `
 routes:
 - send_to: "default"
   group_wait:     1s
@@ -123,21 +125,17 @@ notification_configs:
   repeat_interval: 5s
 
   webhook_configs:
-  - url: 'http://localhost:8089'
+  - url: 'http://%s'
 `
-
-func TestBatching(t *testing.T) {
-	t.Parallel()
 
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
 		Tolerance: 150 * time.Millisecond,
-		Config:    batchConfig,
 	})
 
-	am := at.Alertmanager()
 	co := at.Collector("webhook")
+	wh := NewWebhook(co)
 
-	go NewWebhook(":8089", co).Run()
+	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
 
 	am.Push(At(1.1), Alert("alertname", "test1").Active(1))
 	am.Push(At(1.9), Alert("alertname", "test5").Active(1))
