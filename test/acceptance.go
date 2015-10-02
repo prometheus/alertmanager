@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -134,8 +135,11 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 // whether all expected notifications have arrived at the expected destination.
 func (t *AcceptanceTest) Run() {
 	for _, am := range t.ams {
-		am.start()
-		defer am.kill()
+		am.Start()
+		defer func(am *Alertmanager) {
+			am.Terminate()
+			am.cleanup()
+		}(am)
 	}
 
 	t.runActions()
@@ -193,6 +197,29 @@ type Alertmanager struct {
 	confFile *os.File
 }
 
+// Start the alertmanager and wait until it is ready to receive.
+func (am *Alertmanager) Start() {
+	if err := am.cmd.Start(); err != nil {
+		am.t.Fatalf("Starting alertmanager failed: %s", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+}
+
+// kill the underlying Alertmanager process and remove intermediate data.
+func (am *Alertmanager) Terminate() {
+	syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM)
+}
+
+// Reload sends the reloading signal to the Alertmanager process.
+func (am *Alertmanager) Reload() {
+	syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP)
+}
+
+func (am *Alertmanager) cleanup() {
+	os.RemoveAll(am.confFile.Name())
+}
+
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
@@ -240,19 +267,4 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 			am.t.Error(err)
 		}
 	})
-}
-
-// start the alertmanager and wait until it is ready to receive.
-func (am *Alertmanager) start() {
-	if err := am.cmd.Start(); err != nil {
-		am.t.Fatalf("Starting alertmanager failed: %s", err)
-	}
-
-	time.Sleep(100 * time.Millisecond)
-}
-
-// kill the underlying Alertmanager process and remove intermediate data.
-func (am *Alertmanager) kill() {
-	am.cmd.Process.Kill()
-	os.RemoveAll(am.confFile.Name())
 }
