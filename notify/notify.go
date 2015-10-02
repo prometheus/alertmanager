@@ -128,6 +128,8 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 					}
 				}
 			}
+		} else if a.Resolved() && !sendResolved {
+			continue
 		}
 
 		filtered = append(filtered, a)
