@@ -25,6 +25,8 @@ type AcceptanceTest struct {
 
 	ams        []*Alertmanager
 	collectors []*Collector
+
+	actions map[float64][]func()
 }
 
 type AcceptanceOpts struct {
@@ -44,8 +46,9 @@ func (opts *AcceptanceOpts) relativeTime(act time.Time) float64 {
 
 func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 	test := &AcceptanceTest{
-		T:    t,
-		opts: opts,
+		T:       t,
+		opts:    opts,
+		actions: map[float64][]func(){},
 	}
 	opts.baseTime = time.Now()
 
@@ -64,13 +67,17 @@ func freeAddress() string {
 	return l.Addr().String()
 }
 
+// Do sets the given function to be executed at the given time.
+func (t *AcceptanceTest) Do(at float64, f func()) {
+	t.actions[at] = append(t.actions[at], f)
+}
+
 // Alertmanager returns a new structure that allows starting an instance
 // of Alertmanager on a random port.
 func (t *AcceptanceTest) Alertmanager() *Alertmanager {
 	am := &Alertmanager{
-		t:       t.T,
-		opts:    t.opts,
-		actions: map[float64][]func(){},
+		t:    t,
+		opts: t.opts,
 	}
 
 	cf, err := ioutil.TempFile("", "am_config")
@@ -131,9 +138,7 @@ func (t *AcceptanceTest) Run() {
 		defer am.kill()
 	}
 
-	for _, am := range t.ams {
-		go am.runActions()
-	}
+	t.runActions()
 
 	var latest float64
 	for _, coll := range t.collectors {
@@ -156,18 +161,36 @@ func (t *AcceptanceTest) Run() {
 	}
 }
 
+// runActions performs the stored actions at the defined times.
+func (t *AcceptanceTest) runActions() {
+	var wg sync.WaitGroup
+
+	for at, fs := range t.actions {
+		ts := t.opts.expandTime(at)
+		wg.Add(len(fs))
+
+		for _, f := range fs {
+			go func(f func()) {
+				time.Sleep(ts.Sub(time.Now()))
+				f()
+				wg.Done()
+			}(f)
+		}
+	}
+
+	wg.Wait()
+}
+
 // Alertmanager encapsulates an Alertmanager process and allows
 // declaring alerts being pushed to it at fixed points in time.
 type Alertmanager struct {
-	t    *testing.T
+	t    *AcceptanceTest
 	opts *AcceptanceOpts
 
 	addr     string
 	client   alertmanager.Client
 	cmd      *exec.Cmd
 	confFile *os.File
-
-	actions map[float64][]func()
 }
 
 // Push declares alerts that are to be pushed to the Alertmanager
@@ -178,7 +201,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 		nas = append(nas, a.nativeAlert(am.opts))
 	}
 
-	am.Do(at, func() {
+	am.t.Do(at, func() {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(nas); err != nil {
 			am.t.Error(err)
@@ -198,7 +221,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	silences := alertmanager.NewSilenceAPI(am.client)
 
-	am.Do(at, func() {
+	am.t.Do(at, func() {
 		sid, err := silences.Set(context.Background(), sil.nativeSilence(am.opts))
 		if err != nil {
 			am.t.Error(err)
@@ -212,16 +235,11 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	silences := alertmanager.NewSilenceAPI(am.client)
 
-	am.Do(at, func() {
+	am.t.Do(at, func() {
 		if err := silences.Del(context.Background(), sil.ID); err != nil {
 			am.t.Error(err)
 		}
 	})
-}
-
-// Do sets the given function to be executed at the given time.
-func (am *Alertmanager) Do(at float64, f func()) {
-	am.actions[at] = append(am.actions[at], f)
 }
 
 // start the alertmanager and wait until it is ready to receive.
@@ -231,26 +249,6 @@ func (am *Alertmanager) start() {
 	}
 
 	time.Sleep(100 * time.Millisecond)
-}
-
-// runActions performs the stored actions at the defined times.
-func (am *Alertmanager) runActions() {
-	var wg sync.WaitGroup
-
-	for at, fs := range am.actions {
-		ts := am.opts.expandTime(at)
-		wg.Add(len(fs))
-
-		for _, f := range fs {
-			go func(f func()) {
-				time.Sleep(ts.Sub(time.Now()))
-				f()
-				wg.Done()
-			}(f)
-		}
-	}
-
-	wg.Wait()
 }
 
 // kill the underlying Alertmanager process and remove intermediate data.
