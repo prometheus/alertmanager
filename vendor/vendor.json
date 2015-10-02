@@ -34,7 +34,7 @@
 		},
 		{
 			"path": "github.com/prometheus/client_golang/api/alertmanager",
-			"revision": "49a4de893c5c086adac5d22b6969d8942d7008ee",
+			"revision": "9e9bce47953966ea391ddefea0c640be17335487",
 			"revisionTime": "2015-10-01T20:12:39+02:00"
 		},
 		{

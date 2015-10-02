@@ -2,11 +2,9 @@ package test
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"sync"
@@ -239,19 +237,12 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 		nas = append(nas, a.nativeAlert(am.opts))
 	}
 
-	am.t.Do(at, func() {
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(nas); err != nil {
-			am.t.Error(err)
-			return
-		}
+	alertAPI := alertmanager.NewAlertAPI(am.client)
 
-		resp, err := http.Post(fmt.Sprintf("http://%s/api/v1/alerts", am.addr), "application/json", &buf)
-		if err != nil {
+	am.t.Do(at, func() {
+		if err := alertAPI.Push(context.Background(), nas...); err != nil {
 			am.t.Error(err)
-			return
 		}
-		resp.Body.Close()
 	})
 }
 

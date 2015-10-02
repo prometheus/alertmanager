@@ -241,7 +241,7 @@ func (h *httpAlertAPI) Push(ctx context.Context, alerts ...*model.Alert) error {
 		return err
 	}
 
-	req, _ := http.NewRequest("PUT", u.String(), &buf)
+	req, _ := http.NewRequest("POST", u.String(), &buf)
 
 	_, _, err := h.client.do(ctx, req)
 	return err
