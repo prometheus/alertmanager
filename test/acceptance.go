@@ -92,10 +92,7 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 		t.Fatal(err)
 	}
 	am.confFile = cf
-
-	if _, err := cf.WriteString(conf); err != nil {
-		t.Fatal(err)
-	}
+	am.UpdateConfig(conf)
 
 	am.addr = freeAddress()
 
@@ -267,4 +264,17 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 			am.t.Error(err)
 		}
 	})
+}
+
+// UpdateConfig rewrites the configuration file for the Alertmanager. It does not
+// initiate config reloading.
+func (am *Alertmanager) UpdateConfig(conf string) {
+	if _, err := am.confFile.WriteString(conf); err != nil {
+		am.t.Error(err)
+		return
+	}
+	if err := am.confFile.Sync(); err != nil {
+		am.t.Error(err)
+		return
+	}
 }
