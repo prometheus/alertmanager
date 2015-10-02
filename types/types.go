@@ -47,19 +47,27 @@ func Alerts(alerts ...*Alert) model.Alerts {
 // Merges the timespan of two alerts based and overwrites annotations
 // based on the authoritative timestamp.
 // A new alert is returned, the labels are assumed to be equal.
-// func (a *Alert) Merge(o *Alert) *Alert {
-// 	// Let o always be the younger alert.
-// 	if a.Timestamp.Before(a.Timestamp) {
-// 		return o.Merge(a)
-// 	}
+func (a *Alert) Merge(o *Alert) *Alert {
+	// Let o always be the younger alert.
+	if !a.UpdatedAt.Before(o.UpdatedAt) {
+		return o.Merge(a)
+	}
 
-// 	res := &Alert{
-// 		Labels:       o.Labels,
-// 		Annotiations: o.Annotations,
-// 		Timestamp:    o.Timestamp,
-// 	}
+	res := *o
 
-// }
+	// Always pick the earliest starting time.
+	if a.StartsAt.Before(o.StartsAt) {
+		res.StartsAt = a.StartsAt
+	}
+
+	// An non-timeout resolved timestamp always rules.
+	// The latest explicit resolved timestamp wins.
+	if a.EndsAt.After(o.EndsAt) && !a.Timeout {
+		res.EndsAt = a.EndsAt
+	}
+
+	return &res
+}
 
 // A Silencer determines whether a given label set is muted.
 type Muter interface {

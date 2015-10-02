@@ -165,20 +165,19 @@ func (a *MemAlerts) Put(alerts ...*types.Alert) error {
 	defer a.data.mtx.Unlock()
 
 	for _, alert := range alerts {
-		a.data.alerts[alert.Fingerprint()] = alert
+		fp := alert.Fingerprint()
+
+		// Merge the alert with the existant one.
+		if old, ok := a.data.alerts[fp]; ok {
+			alert = old.Merge(alert)
+		}
+
+		a.data.alerts[fp] = alert
 
 		for _, ch := range a.listeners {
 			ch <- alert
 		}
 	}
-
-	ch := make(chan *types.Alert)
-
-	go func() {
-		for _, a := range alerts {
-			ch <- a
-		}
-	}()
 
 	return nil
 }
