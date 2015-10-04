@@ -56,12 +56,14 @@ type MemAlerts struct {
 	data *MemData
 
 	mtx       sync.RWMutex
-	listeners []chan *types.Alert
+	listeners map[int]chan *types.Alert
+	next      int
 }
 
 func NewMemAlerts(data *MemData) *MemAlerts {
 	return &MemAlerts{
-		data: data,
+		data:      data,
+		listeners: map[int]chan *types.Alert{},
 	}
 }
 
@@ -77,13 +79,15 @@ func (a *MemAlerts) Subscribe() AlertIterator {
 		done   = make(chan struct{})
 	)
 
-	i := len(a.listeners)
-	a.listeners = append(a.listeners, ch)
+	i := a.next
+	a.next++
+
+	a.listeners[i] = ch
 
 	go func() {
 		defer func() {
 			a.mtx.Lock()
-			a.listeners = append(a.listeners[:i], a.listeners[i+1:]...)
+			delete(a.listeners, i)
 			close(ch)
 			a.mtx.Unlock()
 		}()
