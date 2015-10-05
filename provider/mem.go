@@ -141,11 +141,11 @@ func (a *MemAlerts) GetPending() AlertIterator {
 
 func (a *MemAlerts) getPending() []*types.Alert {
 	// Get fingerprints for all alerts that have pending notifications.
-	fps := map[model.Fingerprint]struct{}{}
+	over := map[model.Fingerprint]struct{}{}
 	for _, ns := range a.data.notifies {
 		for fp, notify := range ns {
-			if !notify.Resolved || !notify.Delivered {
-				fps[fp] = struct{}{}
+			if notify.Resolved && notify.Delivered {
+				over[fp] = struct{}{}
 			}
 		}
 	}
@@ -154,7 +154,7 @@ func (a *MemAlerts) getPending() []*types.Alert {
 	// new scubscription.
 	var alerts []*types.Alert
 	for _, a := range a.data.alerts {
-		if _, ok := fps[a.Fingerprint()]; ok {
+		if _, ok := over[a.Fingerprint()]; !ok {
 			alerts = append(alerts, a)
 		}
 	}
