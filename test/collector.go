@@ -17,7 +17,7 @@ type Collector struct {
 	opts *AcceptanceOpts
 
 	collected map[float64][]model.Alerts
-	exepected map[Interval][]model.Alerts
+	expected  map[Interval][]model.Alerts
 }
 
 func (c *Collector) String() string {
@@ -45,7 +45,7 @@ func batchesEqual(as, bs model.Alerts, opts *AcceptanceOpts) bool {
 // expected.
 func (c *Collector) latest() float64 {
 	var latest float64
-	for iv := range c.exepected {
+	for iv := range c.expected {
 		if iv.end > latest {
 			latest = iv.end
 		}
@@ -61,7 +61,7 @@ func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
 		nas = append(nas, a.nativeAlert(c.opts))
 	}
 
-	c.exepected[iv] = append(c.exepected[iv], nas)
+	c.expected[iv] = append(c.expected[iv], nas)
 }
 
 // add the given alerts to the collected alerts.
@@ -74,7 +74,7 @@ func (c *Collector) add(alerts ...*model.Alert) {
 func (c *Collector) check() string {
 	report := fmt.Sprintf("\ncollector %q:\n\n", c)
 
-	for iv, expected := range c.exepected {
+	for iv, expected := range c.expected {
 		report += fmt.Sprintf("interval %v\n", iv)
 
 		for _, exp := range expected {
@@ -112,7 +112,7 @@ func (c *Collector) check() string {
 
 	// Detect unexpected notifications.
 	var totalExp, totalAct int
-	for _, exp := range c.exepected {
+	for _, exp := range c.expected {
 		for _, e := range exp {
 			totalExp += len(e)
 		}
