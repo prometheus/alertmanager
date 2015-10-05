@@ -22,7 +22,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	ih.mtx.RLock()
 	defer ih.mtx.RUnlock()
 
-	alerts := ih.alerts.GetPending()
+	alerts := ih.alerts.Subscribe()
 	defer alerts.Close()
 
 	for alert := range alerts.Next() {
