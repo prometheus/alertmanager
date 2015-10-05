@@ -49,18 +49,31 @@ inhibit_rules:
 
 	// This JobDown in zone aa should inhibit InstanceDown in zone aa in the
 	// second batch of notifications.
-	am.Push(At(2.2), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
+	am.Push(At(2.2), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2, 4))
 
-	co.Want(Between(2, 2.5),
+	co.Want(Between(2, 2.8),
 		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
 		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1),
 		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
 	)
 
-	co.Want(Between(3, 3.5),
+	co.Want(Between(3, 3.8),
 		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
 		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
-		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2, 4),
+	)
+
+	co.Want(Between(4, 4.8),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2, 4),
+	)
+
+	co.Want(Between(5, 5.8),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
 	)
 
 	at.Run()
