@@ -35,8 +35,6 @@ func batchesEqual(as, bs model.Alerts, opts *AcceptanceOpts) bool {
 
 	for i, a := range as {
 		if !equalAlerts(a, bs[i], opts) {
-			fmt.Println(a, bs[i])
-			fmt.Printf("%s != %s\n", a.StartsAt, bs[i].StartsAt)
 			return false
 		}
 	}
