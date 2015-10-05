@@ -75,7 +75,6 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	var (
 		sourcem types.Matchers
 		targetm types.Matchers
-		equal   map[model.LabelName]struct{}
 	)
 
 	for ln, lv := range cr.SourceMatch {
@@ -102,6 +101,7 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		targetm = append(targetm, m)
 	}
 
+	equal := make(map[model.LabelName]struct{})
 	for _, ln := range cr.Equal {
 		equal[ln] = struct{}{}
 	}
