@@ -36,6 +36,13 @@ type AcceptanceOpts struct {
 	baseTime  time.Time
 }
 
+func (opts *AcceptanceOpts) alertString(a *model.Alert) string {
+	if a.EndsAt.IsZero() {
+		return fmt.Sprintf("%s[%v:]", a, opts.relativeTime(a.StartsAt))
+	}
+	return fmt.Sprintf("%s[%v:%v]", a, opts.relativeTime(a.StartsAt), opts.relativeTime(a.EndsAt))
+}
+
 // expandTime returns the absolute time for the relative time
 // calculated from the test's base time.
 func (opts *AcceptanceOpts) expandTime(rel float64) time.Time {

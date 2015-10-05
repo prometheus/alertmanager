@@ -52,15 +52,15 @@ inhibit_rules:
 	am.Push(At(2.2), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
 
 	co.Want(Between(2, 2.5),
-		Alert("alertname", "test1", "job", "testjob", "zone", "aa"),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab"),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
 	)
 
 	co.Want(Between(3, 3.5),
-		Alert("alertname", "test1", "job", "testjob", "zone", "aa"),
-		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab"),
-		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2),
 	)
 
 	at.Run()

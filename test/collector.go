@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 	"time"
 
@@ -29,12 +28,15 @@ func batchesEqual(as, bs model.Alerts, opts *AcceptanceOpts) bool {
 		return false
 	}
 
-	// Ensure sorting.
-	sort.Sort(as)
-	sort.Sort(bs)
-
-	for i, a := range as {
-		if !equalAlerts(a, bs[i], opts) {
+	for _, a := range as {
+		found := false
+		for _, b := range bs {
+			if equalAlerts(a, b, opts) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}
@@ -83,7 +85,7 @@ func (c *Collector) check() string {
 			report += fmt.Sprintf("---\n")
 
 			for _, e := range exp {
-				report += fmt.Sprintf("- %v\n", e)
+				report += fmt.Sprintf("- %v\n", c.opts.alertString(e))
 			}
 
 			for at, got := range c.collected {
@@ -137,7 +139,7 @@ func (c *Collector) check() string {
 			for _, alerts := range col {
 				report += fmt.Sprintf("@ %v\n", at)
 				for _, a := range alerts {
-					report += fmt.Sprintf("- %v\n", a)
+					report += fmt.Sprintf("- %v\n", c.opts.alertString(a))
 				}
 			}
 		}
