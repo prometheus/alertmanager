@@ -144,7 +144,7 @@ func (a *MemAlerts) getPending() []*types.Alert {
 	fps := map[model.Fingerprint]struct{}{}
 	for _, ns := range a.data.notifies {
 		for fp, notify := range ns {
-			if !notify.Delivered {
+			if !notify.Resolved || !notify.Delivered {
 				fps[fp] = struct{}{}
 			}
 		}
