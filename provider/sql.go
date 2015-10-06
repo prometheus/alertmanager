@@ -23,8 +23,8 @@ func (s *SQLSilences) Close() error {
 	return s.db.Close()
 }
 
-func NewSQLSilences() (*SQLSilences, error) {
-	db, err := sql.Open("ql", "data/am.db")
+func NewSQLSilences(file string) (*SQLSilences, error) {
+	db, err := sql.Open("ql", file)
 	if err != nil {
 		return nil, err
 	}

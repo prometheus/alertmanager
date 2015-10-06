@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/prometheus/common/log"
@@ -31,6 +32,7 @@ import (
 
 var (
 	configFile    = flag.String("config.file", "config.yml", "The configuration file")
+	dataDir       = flag.String("data.dir", "data/", "The data directory")
 	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 )
 
@@ -41,8 +43,8 @@ func main() {
 
 	alerts := provider.NewMemAlerts(data)
 	notifies := provider.NewMemNotifies(data)
-	// silences := provider.NewMemSilences()
-	silences, err := provider.NewSQLSilences()
+
+	silences, err := provider.NewSQLSilences(filepath.Join(*dataDir, "am.db"))
 	if err != nil {
 		log.Fatal(err)
 	}
