@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"testing"
@@ -94,7 +95,11 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 		opts: t.opts,
 	}
 
-	cf, err := ioutil.TempFile("", "am_config")
+	dir, err := ioutil.TempDir("", "am_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf, err := os.Create(filepath.Join(dir, "config.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,6 +122,7 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 		"-config.file", cf.Name(),
 		"-log.level", "debug",
 		"-web.listen-address", am.addr,
+		"-data.dir", dir,
 	)
 
 	var outb, errb bytes.Buffer
