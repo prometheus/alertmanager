@@ -16,6 +16,104 @@ func init() {
 	ql.RegisterDriver()
 }
 
+type SQLNotifyInfo struct {
+	db *sql.DB
+}
+
+func NewSQLNotifyInfo(file string) (*SQLNotifyInfo, error) {
+	db, err := sql.Open("ql", file)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(createNotifyInfoTable); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	tx.Commit()
+
+	return &SQLNotifyInfo{db: db}, nil
+}
+
+const createNotifyInfoTable = `
+CREATE TABLE IF NOT EXISTS notify_info (
+	alert       uint64
+	destination string
+	resolved    bool
+	delivered   bool
+	timestamp   time
+);
+CREATE UNIQUE INDEX IF NOT EXISTS notify_alert
+	ON notify_info (alert, destination);
+CREATE INDEX IF NOT EXISTS notify_delivered
+	ON notify_info (delivered);
+`
+
+func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Notify, error) {
+	var result []*types.Notify
+
+	for _, fp := range fps {
+		row := n.db.QueryRow(`
+			SELECT alert, destination, resolved, delivered, timestamp
+			FROM notify_info
+			WHERE destination == $1 AND fingerprint == $1
+		`, fp)
+
+		var ni types.Notify
+		if err := row.Scan(&ni.Alert, &ni.SendTo, &ni.Resolved, &ni.Delivered, &ni.Timestamp); err != nil {
+			return nil, err
+		}
+
+		result = append(result, &ni)
+	}
+
+	return result, nil
+}
+
+func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
+	tx, err := n.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	insert, err := tx.Prepare(`
+		INSERT INTO notify_info(alert, destination, resolved, delivered, timestamp)
+		VALUES ($1, $2, $3, $4, $5);
+	`)
+	if err != nil {
+		return err
+	}
+	defer insert.Close()
+
+	del, err := tx.Prepare(`
+		DELETE FROM notify_info
+		WHERE alert == $1 AND destination == $2
+	`)
+	if err != nil {
+		return err
+	}
+	defer del.Close()
+
+	for _, ni := range ns {
+		if _, err := del.Exec(ni.Alert, ni.SendTo); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if _, err := insert.Exec(ni.Alert, ni.SendTo, ni.Resolved, ni.Delivered, ni.Timestamp); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	tx.Commit()
+
+	return nil
+}
+
 type SQLAlerts struct {
 	db *sql.DB
 
