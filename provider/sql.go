@@ -64,7 +64,13 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 		`, fp)
 
 		var ni types.Notify
-		if err := row.Scan(&ni.Alert, &ni.SendTo, &ni.Resolved, &ni.Delivered, &ni.Timestamp); err != nil {
+		if err := row.Scan(
+			&ni.Alert,
+			&ni.SendTo,
+			&ni.Resolved,
+			&ni.Delivered,
+			&ni.Timestamp,
+		); err != nil {
 			return nil, err
 		}
 
@@ -103,7 +109,13 @@ func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
 			tx.Rollback()
 			return err
 		}
-		if _, err := insert.Exec(ni.Alert, ni.SendTo, ni.Resolved, ni.Delivered, ni.Timestamp); err != nil {
+		if _, err := insert.Exec(
+			ni.Alert,
+			ni.SendTo,
+			ni.Resolved,
+			ni.Delivered,
+			ni.Timestamp,
+		); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -218,7 +230,14 @@ func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
 			annotations string
 			al          types.Alert
 		)
-		if err := rows.Scan(&labels, &annotations, &al.StartsAt, &al.EndsAt, &al.UpdatedAt, &al.Timeout); err != nil {
+		if err := rows.Scan(
+			&labels,
+			&annotations,
+			&al.StartsAt,
+			&al.EndsAt,
+			&al.UpdatedAt,
+			&al.Timeout,
+		); err != nil {
 			return nil, err
 		}
 
@@ -297,7 +316,14 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 				na  types.Alert
 				ann string
 			)
-			if err := olaps.Scan(&id, &ann, &na.StartsAt, &na.EndsAt, &na.UpdatedAt, &na.Timeout); err != nil {
+			if err := olaps.Scan(
+				&id,
+				&ann,
+				&na.StartsAt,
+				&na.EndsAt,
+				&na.UpdatedAt,
+				&na.Timeout,
+			); err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -434,7 +460,15 @@ func (s *SQLSilences) All() ([]*types.Silence, error) {
 			matchers string
 		)
 
-		if err := rows.Scan(&sil.ID, &matchers, &sil.StartsAt, &sil.EndsAt, &sil.CreatedAt, &sil.CreatedBy, &sil.Comment); err != nil {
+		if err := rows.Scan(
+			&sil.ID,
+			&matchers,
+			&sil.StartsAt,
+			&sil.EndsAt,
+			&sil.CreatedAt,
+			&sil.CreatedBy,
+			&sil.Comment,
+		); err != nil {
 			return nil, err
 		}
 
@@ -515,7 +549,15 @@ func (s *SQLSilences) Get(sid uint64) (*types.Silence, error) {
 		sil      model.Silence
 		matchers string
 	)
-	err := row.Scan(&sil.ID, &matchers, &sil.StartsAt, &sil.EndsAt, &sil.CreatedAt, &sil.CreatedBy, &sil.Comment)
+	err := row.Scan(
+		&sil.ID,
+		&matchers,
+		&sil.StartsAt,
+		&sil.EndsAt,
+		&sil.CreatedAt,
+		&sil.CreatedBy,
+		&sil.Comment,
+	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
