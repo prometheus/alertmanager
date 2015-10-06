@@ -54,6 +54,7 @@ type Silence struct {
 	StartsAt time.Time `json:"startsAt"`
 	EndsAt   time.Time `json:"endsAt"`
 
-	CreatedBy string `json:"createdBy"`
-	Comment   string `json:"comment,omitempty"`
+	CreatedAt time.Time `json:"createdAt,omitempty"`
+	CreatedBy string    `json:"createdBy"`
+	Comment   string    `json:"comment,omitempty"`
 }
