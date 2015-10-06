@@ -66,7 +66,7 @@ type Silences interface {
 type Notifies interface {
 	Get(dest string, fps ...model.Fingerprint) ([]*types.Notify, error)
 	// Set several notifies at once. All or none must succeed.
-	Set(dest string, ns ...*types.Notify) error
+	Set(ns ...*types.Notify) error
 }
 
 type Config interface {

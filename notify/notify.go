@@ -163,7 +163,7 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		return err
 	}
 
-	return n.notifies.Set(name, newNotifies...)
+	return n.notifies.Set(newNotifies...)
 }
 
 // RoutedNotifier dispatches the alerts to one of a set of

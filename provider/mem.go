@@ -204,7 +204,7 @@ func NewMemNotifies(data *MemData) *MemNotifies {
 	return &MemNotifies{data: data}
 }
 
-func (n *MemNotifies) Set(dest string, ns ...*types.Notify) error {
+func (n *MemNotifies) Set(ns ...*types.Notify) error {
 	n.data.mtx.Lock()
 	defer n.data.mtx.Unlock()
 
@@ -212,10 +212,10 @@ func (n *MemNotifies) Set(dest string, ns ...*types.Notify) error {
 		if notify == nil {
 			continue
 		}
-		am, ok := n.data.notifies[dest]
+		am, ok := n.data.notifies[notify.SendTo]
 		if !ok {
 			am = map[model.Fingerprint]*types.Notify{}
-			n.data.notifies[dest] = am
+			n.data.notifies[notify.SendTo] = am
 		}
 		am[notify.Alert] = notify
 	}
