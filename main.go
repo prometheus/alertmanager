@@ -14,6 +14,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"net/http"
 	"os"
@@ -39,17 +40,24 @@ var (
 func main() {
 	flag.Parse()
 
-	data := provider.NewMemData()
-
-	alerts := provider.NewMemAlerts(data)
-	notifies := provider.NewMemNotifies(data)
-
-	// silences := provider.NewMemSilences()
-	silences, err := provider.NewSQLSilences(filepath.Join(*dataDir, "am.db"))
+	db, err := sql.Open("ql", filepath.Join(*dataDir, "am.db"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer silences.Close()
+	defer db.Close()
+
+	alerts, err := provider.NewSQLAlerts(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+	notifies, err := provider.NewSQLNotifyInfo(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+	silences, err := provider.NewSQLSilences(db)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	inhibitor := &Inhibitor{alerts: alerts}
 

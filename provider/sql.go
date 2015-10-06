@@ -20,12 +20,7 @@ type SQLNotifyInfo struct {
 	db *sql.DB
 }
 
-func NewSQLNotifyInfo(file string) (*SQLNotifyInfo, error) {
-	db, err := sql.Open("ql", file)
-	if err != nil {
-		return nil, err
-	}
-
+func NewSQLNotifyInfo(db *sql.DB) (*SQLNotifyInfo, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -134,12 +129,7 @@ type SQLAlerts struct {
 	next      int
 }
 
-func NewSQLAlerts(file string) (*SQLAlerts, error) {
-	db, err := sql.Open("ql", file)
-	if err != nil {
-		return nil, err
-	}
-
+func NewSQLAlerts(db *sql.DB) (*SQLAlerts, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -426,16 +416,7 @@ type SQLSilences struct {
 	db *sql.DB
 }
 
-func (s *SQLSilences) Close() error {
-	return s.db.Close()
-}
-
-func NewSQLSilences(file string) (*SQLSilences, error) {
-	db, err := sql.Open("ql", file)
-	if err != nil {
-		return nil, err
-	}
-
+func NewSQLSilences(db *sql.DB) (*SQLSilences, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
