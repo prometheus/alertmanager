@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	"github.com/cznic/ql"
-	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/types"
@@ -51,9 +50,9 @@ CREATE TABLE IF NOT EXISTS silences (
 	created_by string,
 	comment    string
 );
-CREATE INDEX IF NOT EXISTS silences_end ON silences (starts_at);
-CREATE INDEX IF NOT EXISTS silences_end ON silences (ends_at);
-CREATE INDEX IF NOT EXISTS silences_id  ON silences (id());
+CREATE INDEX IF NOT EXISTS silences_start ON silences (starts_at);
+CREATE INDEX IF NOT EXISTS silences_end   ON silences (ends_at);
+CREATE INDEX IF NOT EXISTS silences_id    ON silences (id());
 `
 
 func (s *SQLSilences) Mutes(lset model.LabelSet) bool {
@@ -83,7 +82,7 @@ func (s *SQLSilences) All() ([]*types.Silence, error) {
 
 	for rows.Next() {
 		var (
-			sil      types.Silence
+			sil      model.Silence
 			matchers string
 		)
 
@@ -95,7 +94,7 @@ func (s *SQLSilences) All() ([]*types.Silence, error) {
 			return nil, err
 		}
 
-		silences = append(silences, &sil)
+		silences = append(silences, types.NewSilence(&sil))
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -105,7 +104,7 @@ func (s *SQLSilences) All() ([]*types.Silence, error) {
 }
 
 func (s *SQLSilences) Set(sil *types.Silence) (uint64, error) {
-	mb, err := json.Marshal(sil.Matchers)
+	mb, err := json.Marshal(sil.Silence.Matchers)
 	if err != nil {
 		return 0, err
 	}
@@ -158,7 +157,7 @@ func (s *SQLSilences) Get(sid uint64) (*types.Silence, error) {
 	row := s.db.QueryRow(`SELECT id(), matchers, starts_at, ends_at, created_at, created_by, comment FROM silences WHERE id() == $1`, sid)
 
 	var (
-		sil      types.Silence
+		sil      model.Silence
 		matchers string
 	)
 	err := row.Scan(&sil.ID, &matchers, &sil.StartsAt, &sil.EndsAt, &sil.CreatedAt, &sil.CreatedBy, &sil.Comment)
@@ -172,5 +171,5 @@ func (s *SQLSilences) Get(sid uint64) (*types.Silence, error) {
 		return nil, err
 	}
 
-	return &sil, nil
+	return types.NewSilence(&sil), nil
 }

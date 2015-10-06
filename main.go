@@ -44,6 +44,7 @@ func main() {
 	alerts := provider.NewMemAlerts(data)
 	notifies := provider.NewMemNotifies(data)
 
+	// silences := provider.NewMemSilences()
 	silences, err := provider.NewSQLSilences(filepath.Join(*dataDir, "am.db"))
 	if err != nil {
 		log.Fatal(err)
