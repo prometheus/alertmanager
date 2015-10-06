@@ -111,6 +111,11 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	if sil.CreatedAt.IsZero() {
+		sil.CreatedAt = time.Now()
+	}
+
 	// TODO(fabxc): validate input.
 	sid, err := api.silences.Set(&sil)
 	if err != nil {
