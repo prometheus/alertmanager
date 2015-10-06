@@ -41,7 +41,12 @@ func main() {
 
 	alerts := provider.NewMemAlerts(data)
 	notifies := provider.NewMemNotifies(data)
-	silences := provider.NewMemSilences()
+	// silences := provider.NewMemSilences()
+	silences, err := provider.NewSQLSilences()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer silences.Close()
 
 	inhibitor := &Inhibitor{alerts: alerts}
 
