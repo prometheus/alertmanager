@@ -3,7 +3,6 @@ package provider
 import (
 	"database/sql"
 	"encoding/json"
-	"time"
 
 	"github.com/cznic/ql"
 	"github.com/prometheus/common/model"
@@ -45,12 +44,13 @@ func NewSQLSilences() (*SQLSilences, error) {
 const createSilencesTable = `
 CREATE TABLE IF NOT EXISTS silences (
 	matchers   string,
-	start_at   time,
+	starts_at  time,
 	ends_at    time,
 	created_at time,
 	created_by string,
 	comment    string
 );
+CREATE INDEX IF NOT EXISTS silences_end ON silences (starts_at);
 CREATE INDEX IF NOT EXISTS silences_end ON silences (ends_at);
 CREATE INDEX IF NOT EXISTS silences_id  ON silences (id());
 `
@@ -60,7 +60,7 @@ func (s *SQLSilences) Mutes(lset model.LabelSet) bool {
 }
 
 func (s *SQLSilences) All() ([]*types.Silence, error) {
-	rows, err := s.db.Query(`SELECT id(), matchers, start_at, ends_at, created_at, created_by, comment FROM silences`)
+	rows, err := s.db.Query(`SELECT id(), matchers, starts_at, ends_at, created_at, created_by, comment FROM silences ORDER BY starts_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +70,11 @@ func (s *SQLSilences) All() ([]*types.Silence, error) {
 
 	for rows.Next() {
 		var (
-			createdAt time.Time
-			sil       types.Silence
-			matchers  string
+			sil      types.Silence
+			matchers string
 		)
 
-		if err := rows.Scan(&sil.ID, &matchers, &sil.StartsAt, &sil.EndsAt, &createdAt, &sil.CreatedBy, &sil.Comment); err != nil {
+		if err := rows.Scan(&sil.ID, &matchers, &sil.StartsAt, &sil.EndsAt, &sil.CreatedAt, &sil.CreatedBy, &sil.Comment); err != nil {
 			return nil, err
 		}
 
@@ -103,11 +102,11 @@ func (s *SQLSilences) Set(sil *types.Silence) (uint64, error) {
 		return 0, err
 	}
 
-	res, err := tx.Exec(`INSERT INTO silences VALUES ($1, $2, $3, $3, $5, $6)`,
+	res, err := tx.Exec(`INSERT INTO silences VALUES ($1, $2, $3, $4, $5, $6)`,
 		string(mb),
 		sil.StartsAt,
 		sil.EndsAt,
-		time.Time{},
+		sil.CreatedAt,
 		sil.CreatedBy,
 		sil.Comment,
 	)
