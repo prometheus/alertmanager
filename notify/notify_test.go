@@ -131,7 +131,7 @@ func TestDedupingNotifier(t *testing.T) {
 		},
 	}
 
-	if err := notifies.Set("name", nsBefore...); err != nil {
+	if err := notifies.Set(nsBefore...); err != nil {
 		t.Fatalf("Setting notifies failed: %s", err)
 	}
 
