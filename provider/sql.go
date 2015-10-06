@@ -36,10 +36,10 @@ func NewSQLNotifyInfo(db *sql.DB) (*SQLNotifyInfo, error) {
 
 const createNotifyInfoTable = `
 CREATE TABLE IF NOT EXISTS notify_info (
-	alert       uint64
-	destination string
-	resolved    bool
-	delivered   bool
+	alert       int64,
+	destination string,
+	resolved    bool,
+	delivered   bool,
 	timestamp   time
 );
 CREATE UNIQUE INDEX IF NOT EXISTS notify_alert
@@ -55,17 +55,22 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 		row := n.db.QueryRow(`
 			SELECT alert, destination, resolved, delivered, timestamp
 			FROM notify_info
-			WHERE destination == $1 AND fingerprint == $1
-		`, fp)
+			WHERE destination == $1 AND alert == $2
+		`, dest, fp)
 
 		var ni types.Notify
-		if err := row.Scan(
+		err := row.Scan(
 			&ni.Alert,
 			&ni.SendTo,
 			&ni.Resolved,
 			&ni.Delivered,
 			&ni.Timestamp,
-		); err != nil {
+		)
+		if err == sql.ErrNoRows {
+			result = append(result, nil)
+			continue
+		}
+		if err != nil {
 			return nil, err
 		}
 
@@ -148,12 +153,12 @@ func NewSQLAlerts(db *sql.DB) (*SQLAlerts, error) {
 
 const createAlertsTable = `
 CREATE TABLE IF NOT EXISTS alerts (
-	fingerprint uint64
-	labels      string
-	annotations string
-	starts_at   time
-	ends_at     time
-	updated_at  time
+	fingerprint int64,
+	labels      string,
+	annotations string,
+	starts_at   time,
+	ends_at     time,
+	updated_at  time,
 	timeout     bool
 );
 CREATE INDEX IF NOT EXISTS alerts_start ON alerts (starts_at);
@@ -232,7 +237,7 @@ func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
 			alerts AS a LEFT OUTER JOIN notify_info AS n
 			ON a.fingerprint == n.fingerprint
 		WHERE
-			NOT (n.delivered AND n.resolved)
+			!n.delivered OR !n.resolved
 	`)
 	if err != nil {
 		return nil, err
@@ -291,9 +296,12 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	// if existant, and insert the new alert we retrieved by merging.
 	overlap, err := tx.Prepare(`
 		SELECT id(), annotations, starts_at, ends_at, updated_at, timeout FROM alerts
-		WHERE fingerprint = $1 AND $2 =< ends_at OR $3 >= starts_at
+		WHERE fingerprint == $1 AND
+			(starts_at >= $2 AND ends_at <= $2) OR 
+			(starts_at >= $3 AND ends_at <= $3)
 	`)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	defer overlap.Close()
@@ -301,10 +309,13 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	delOverlap, err := tx.Prepare(`
 		DELETE FROM alerts WHERE id() IN (
 			SELECT id() FROM alerts
-			WHERE fingerprint = $1 AND $2 =< ends_at OR $3 >= starts_at
+			WHERE fingerprint == $1 AND
+				(starts_at >= $2 AND ends_at <= $2) OR 
+				(starts_at >= $3 AND ends_at <= $3)
 		)
 	`)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	defer delOverlap.Close()
@@ -314,6 +325,7 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	defer insert.Close()
@@ -387,7 +399,7 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 		}
 
 		_, err = insert.Exec(
-			fp,
+			uint64(fp),
 			string(labels),
 			string(annotations),
 			alert.StartsAt,
@@ -516,7 +528,7 @@ func (s *SQLSilences) Set(sil *types.Silence) (uint64, error) {
 	}
 
 	res, err := tx.Exec(`
-		INSERT INTO silences(matchers, starts_at, ends_at, created_at, created_by. comment)
+		INSERT INTO silences(matchers, starts_at, ends_at, created_at, created_by, comment)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`,
 		string(mb),
