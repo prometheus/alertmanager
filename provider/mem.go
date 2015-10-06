@@ -42,13 +42,14 @@ func NewMemData() *MemData {
 type memAlertIterator struct {
 	ch   <-chan *types.Alert
 	done chan struct{}
+	err  error
 }
 
 func (ai memAlertIterator) Next() <-chan *types.Alert {
 	return ai.ch
 }
 
-func (ai memAlertIterator) Err() error { return nil }
+func (ai memAlertIterator) Err() error { return ai.err }
 func (ai memAlertIterator) Close()     { close(ai.done) }
 
 // MemAlerts implements an Alerts provider based on in-memory data.
