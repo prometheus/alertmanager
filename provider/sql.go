@@ -234,10 +234,10 @@ func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
 	rows, err := a.db.Query(`
 		SELECT a.labels, a.annotations, a.starts_at, a.ends_at, a.updated_at, a.timeout
 		FROM 
-			alerts AS a LEFT OUTER JOIN notify_info AS n
-			ON a.fingerprint == n.fingerprint
-		WHERE
-			!n.delivered OR !n.resolved
+			alerts AS a 
+		  LEFT OUTER JOIN 
+			(SELECT * FROM notify_info WHERE !delivered OR !resolved) AS n
+		  ON a.fingerprint == n.alert
 	`)
 	if err != nil {
 		return nil, err

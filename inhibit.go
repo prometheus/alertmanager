@@ -25,6 +25,9 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	alerts := ih.alerts.GetPending()
 	defer alerts.Close()
 
+	// TODO(fabxc): improve erroring for iterators so it does not
+	// go silenced here.
+
 	for alert := range alerts.Next() {
 		if err := alerts.Err(); err != nil {
 			log.Errorf("Error iterating alerts: %s", err)
