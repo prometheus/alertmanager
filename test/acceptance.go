@@ -99,6 +99,8 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 	if err != nil {
 		t.Fatal(err)
 	}
+	am.dir = dir
+
 	cf, err := os.Create(filepath.Join(dir, "config.yml"))
 	if err != nil {
 		t.Fatal(err)
@@ -117,17 +119,6 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 		t.Error(err)
 	}
 	am.client = client
-
-	am.cmd = exec.Command("../../alertmanager",
-		"-config.file", cf.Name(),
-		"-log.level", "debug",
-		"-web.listen-address", am.addr,
-		"-data.dir", dir,
-	)
-
-	var outb, errb bytes.Buffer
-	am.cmd.Stdout = &outb
-	am.cmd.Stderr = &errb
 
 	t.ams = append(t.ams, am)
 
@@ -212,20 +203,42 @@ type Alertmanager struct {
 	client   alertmanager.Client
 	cmd      *exec.Cmd
 	confFile *os.File
+	dir      string
 }
 
 // Start the alertmanager and wait until it is ready to receive.
 func (am *Alertmanager) Start() {
+	cmd := exec.Command("../../alertmanager",
+		"-config.file", am.confFile.Name(),
+		"-log.level", "debug",
+		"-web.listen-address", am.addr,
+		"-data.dir", am.dir,
+	)
+
+	if am.cmd == nil {
+		var outb, errb bytes.Buffer
+		cmd.Stdout = &outb
+		cmd.Stderr = &errb
+	} else {
+		cmd.Stdout = am.cmd.Stdout
+		cmd.Stderr = am.cmd.Stderr
+	}
+	am.cmd = cmd
+
 	if err := am.cmd.Start(); err != nil {
 		am.t.Fatalf("Starting alertmanager failed: %s", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 }
 
 // kill the underlying Alertmanager process and remove intermediate data.
 func (am *Alertmanager) Terminate() {
 	syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM)
+
+	if err := am.cmd.Wait(); err != nil {
+		am.t.Fatal(err)
+	}
 }
 
 // Reload sends the reloading signal to the Alertmanager process.

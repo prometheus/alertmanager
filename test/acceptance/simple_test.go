@@ -45,6 +45,11 @@ notification_configs:
 	// Declare pushes to be made to the Alertmanager at the given time.
 	// Times are provided in fractions of seconds.
 	am.Push(At(1), Alert("alertname", "test").Active(1))
+
+	at.Do(At(1.2), func() {
+		am.Terminate()
+		am.Start()
+	})
 	am.Push(At(3.5), Alert("alertname", "test").Active(1, 3))
 
 	// Declare which alerts are expected to arrive at the collector within

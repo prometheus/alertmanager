@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-const ResolveTimeout = 30 * time.Second
+const ResolveTimeout = 5 * time.Minute
 
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
@@ -180,6 +180,10 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts) *
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
+	// Set an initial one-time wait before flushing
+	// the first batch of notifications.
+	ag.next = time.NewTimer(ag.opts.GroupWait)
+
 	return ag
 }
 
@@ -189,10 +193,6 @@ func (ag *aggrGroup) String() string {
 
 func (ag *aggrGroup) run(nf notifyFunc) {
 	ag.done = make(chan struct{})
-
-	// Set an initial one-time wait before flushing
-	// the first batch of notifications.
-	ag.next = time.NewTimer(ag.opts.GroupWait)
 
 	defer close(ag.done)
 	defer ag.next.Stop()
