@@ -65,23 +65,28 @@ func main() {
 	routedNotifier := notify.NewRoutedNotifier(func(confs []*config.NotificationConfig) map[string]notify.Notifier {
 		res := notify.Build(confs)
 		for name, n := range res {
-			n = &notify.LogNotifier{
+			res[name] = &notify.LogNotifier{
 				Log:      log.With("notifier", fmt.Sprintf("%T", n)),
 				Notifier: n,
-			}
-			res[name] = &notify.LogNotifier{
-				Log:      log.With("notifier", "dedup"),
-				Notifier: notify.NewDedupingNotifier(notifies, n),
 			}
 		}
 		return res
 	})
 
+	// Connect the pipeline of notifiers. Notifications will be sent
+	// through them in inverted order.
 	var notifier notify.Notifier
 	notifier = &notify.LogNotifier{
 		Log:      log.With("notifier", "routed"),
 		Notifier: routedNotifier,
 	}
+
+	notifier = notify.NewDedupingNotifier(notifies, notifier)
+	notifier = &notify.LogNotifier{
+		Log:      log.With("notifier", "dedup"),
+		Notifier: notifier,
+	}
+
 	notifier = &notify.MutingNotifier{
 		Notifier: notifier,
 		Muter:    inhibitor,
@@ -90,6 +95,7 @@ func main() {
 		Log:      log.With("notifier", "inhibit"),
 		Notifier: notifier,
 	}
+
 	notifier = &notify.MutingNotifier{
 		Notifier: notifier,
 		Muter:    silences,
