@@ -9,7 +9,6 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -231,23 +230,8 @@ func TestRoutedNotifier(t *testing.T) {
 		"2": &recordNotifier{},
 		"3": &recordNotifier{},
 	}
-	notifierOpts := map[string]*config.NotificationConfig{
-		"1": &config.NotificationConfig{
-			SendResolved:   false,
-			RepeatInterval: 10000,
-		},
-		"2": &config.NotificationConfig{
-			SendResolved:   true,
-			RepeatInterval: 20000,
-		},
-		"3": &config.NotificationConfig{
-			SendResolved:   false,
-			RepeatInterval: 30000,
-		},
-	}
 	routed := &RoutedNotifier{
-		notifiers:    notifiers,
-		notifierOpts: notifierOpts,
+		notifiers: notifiers,
 	}
 
 	for _, route := range []string{"3", "2", "1"} {
@@ -267,23 +251,6 @@ func TestRoutedNotifier(t *testing.T) {
 		rn := routed.notifiers[route].(*recordNotifier)
 		if len(rn.alerts) != 1 && alert != rn.alerts[0] {
 			t.Fatalf("Expeceted alert %v, got %v", alert, rn.alerts)
-		}
-
-		// The context handed down the chain must be populated with the
-		// necessary information of the notification config.
-		name, ok := rn.ctx.Value(NotifyName).(string)
-		if !ok || name != route {
-			t.Fatalf("Expected name %q, got %q", name, route)
-		}
-
-		repeatInterval, ok := rn.ctx.Value(NotifyRepeatInterval).(time.Duration)
-		if ri := notifierOpts[route].RepeatInterval; !ok || repeatInterval != time.Duration(ri) {
-			t.Fatalf("Expected repeat interval %q, got %q", ri, repeatInterval)
-		}
-
-		sendResolved, ok := rn.ctx.Value(NotifySendResolved).(bool)
-		if sr := notifierOpts[route].SendResolved; !ok || sendResolved != sr {
-			t.Fatalf("Expected send resolved %q, got %q", sr, sendResolved)
 		}
 	}
 }

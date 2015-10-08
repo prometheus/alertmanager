@@ -16,6 +16,7 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -64,6 +65,10 @@ func main() {
 	routedNotifier := notify.NewRoutedNotifier(func(confs []*config.NotificationConfig) map[string]notify.Notifier {
 		res := notify.Build(confs)
 		for name, n := range res {
+			n = &notify.LogNotifier{
+				Log:      log.With("notifier", fmt.Sprintf("%T", n)),
+				Notifier: n,
+			}
 			res[name] = &notify.LogNotifier{
 				Log:      log.With("notifier", "dedup"),
 				Notifier: notify.NewDedupingNotifier(notifies, n),

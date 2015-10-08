@@ -39,7 +39,9 @@ routes:
       env: "^produ.*$"
 
     send_to: 'notify-productionB'
-    group_wait: 10m
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 1h
     group_by: ['job']
 
 
@@ -48,6 +50,7 @@ routes:
 
   group_by: ['foo', 'bar']
   group_wait: 2m
+  send_resolved: false
   send_to: 'notify-BC'
 `
 
@@ -55,9 +58,10 @@ routes:
 	if err := yaml.Unmarshal([]byte(in), &ctree); err != nil {
 		t.Fatal(err)
 	}
-
-	tree := NewRoute(&ctree)
-
+	var (
+		def  = DefaultRouteOpts
+		tree = NewRoute(&ctree, &def)
+	)
 	lset := func(labels ...string) map[model.LabelName]struct{} {
 		s := map[model.LabelName]struct{}{}
 		for _, ls := range labels {
@@ -76,8 +80,12 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:  "notify-A",
-					GroupBy: lset(),
+					SendTo:         "notify-A",
+					GroupBy:        lset(),
+					GroupWait:      def.GroupWait,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
+					SendResolved:   def.SendResolved,
 				},
 			},
 		},
@@ -88,8 +96,12 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:  "notify-A",
-					GroupBy: lset(),
+					SendTo:         "notify-A",
+					GroupBy:        lset(),
+					GroupWait:      def.GroupWait,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
+					SendResolved:   def.SendResolved,
 				},
 			},
 		},
@@ -99,10 +111,12 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:    "notify-BC",
-					GroupBy:   lset("foo", "bar"),
-					GroupWait: 2 * time.Minute,
-					hasWait:   true,
+					SendTo:         "notify-BC",
+					GroupBy:        lset("foo", "bar"),
+					GroupWait:      2 * time.Minute,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
+					SendResolved:   false,
 				},
 			},
 		},
@@ -113,8 +127,12 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:  "notify-testing",
-					GroupBy: lset(),
+					SendTo:         "notify-testing",
+					GroupBy:        lset(),
+					GroupWait:      def.GroupWait,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
+					SendResolved:   def.SendResolved,
 				},
 			},
 		},
@@ -125,16 +143,20 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:    "notify-productionA",
-					GroupBy:   lset(),
-					GroupWait: 1 * time.Minute,
-					hasWait:   true,
+					SendTo:         "notify-productionA",
+					GroupBy:        lset(),
+					GroupWait:      1 * time.Minute,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
+					SendResolved:   def.SendResolved,
 				},
 				{
-					SendTo:    "notify-productionB",
-					GroupBy:   lset("job"),
-					GroupWait: 10 * time.Minute,
-					hasWait:   true,
+					SendTo:         "notify-productionB",
+					GroupBy:        lset("job"),
+					GroupWait:      30 * time.Second,
+					GroupInterval:  5 * time.Minute,
+					RepeatInterval: 1 * time.Hour,
+					SendResolved:   def.SendResolved,
 				},
 			},
 		},

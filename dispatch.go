@@ -54,7 +54,7 @@ func (d *Dispatcher) ApplyConfig(conf *config.Config) bool {
 		defer func() { go d.Run() }()
 	}
 
-	d.routes = NewRoutes(conf.Routes)
+	d.routes = NewRoutes(conf.Routes, nil)
 
 	return true
 }
@@ -207,6 +207,9 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// Populate context with the destination name and group identifier.
 			ctx = context.WithValue(ctx, notify.NotifyName, ag.opts.SendTo)
 			ctx = context.WithValue(ctx, notify.NotifyGroup, ag.String())
+
+			ctx = context.WithValue(ctx, notify.NotifyRepeatInterval, ag.opts.RepeatInterval)
+			ctx = context.WithValue(ctx, notify.NotifySendResolved, ag.opts.SendResolved)
 
 			// Wait the configured interval before calling flush again.
 			ag.next.Reset(ag.opts.GroupInterval)

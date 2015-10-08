@@ -169,9 +169,8 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 // RoutedNotifier dispatches the alerts to one of a set of
 // named notifiers based on the name value provided in the context.
 type RoutedNotifier struct {
-	mtx          sync.RWMutex
-	notifiers    map[string]Notifier
-	notifierOpts map[string]*config.NotificationConfig
+	mtx       sync.RWMutex
+	notifiers map[string]Notifier
 
 	// build creates a new set of named notifiers based on a config.
 	build func([]*config.NotificationConfig) map[string]Notifier
@@ -194,12 +193,6 @@ func (n *RoutedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	if !ok {
 		return fmt.Errorf("notifier %q does not exist", name)
 	}
-	opts := n.notifierOpts[name]
-
-	// Populate the context with the the filtering options
-	// of the notifier.
-	ctx = context.WithValue(ctx, NotifyRepeatInterval, time.Duration(opts.RepeatInterval))
-	ctx = context.WithValue(ctx, NotifySendResolved, opts.SendResolved)
 
 	return notifier.Notify(ctx, alerts...)
 }
@@ -209,11 +202,6 @@ func (n *RoutedNotifier) ApplyConfig(conf *config.Config) bool {
 	defer n.mtx.Unlock()
 
 	n.notifiers = n.build(conf.NotificationConfigs)
-	n.notifierOpts = map[string]*config.NotificationConfig{}
-
-	for _, opts := range conf.NotificationConfigs {
-		n.notifierOpts[opts.Name] = opts
-	}
 
 	return true
 }

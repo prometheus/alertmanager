@@ -11,8 +11,10 @@ import (
 )
 
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:     1 * time.Second,
-	GroupInterval: 10 * time.Second,
+	GroupWait:      20 * time.Second,
+	GroupInterval:  5 * time.Minute,
+	RepeatInterval: 1 * time.Hour,
+	SendResolved:   true,
 }
 
 type Routes []*Route
@@ -41,25 +43,33 @@ type Route struct {
 	Routes Routes
 }
 
-func NewRoute(cr *config.Route) *Route {
+func NewRoute(cr *config.Route, parent *RouteOpts) *Route {
 	groupBy := map[model.LabelName]struct{}{}
 	for _, ln := range cr.GroupBy {
 		groupBy[ln] = struct{}{}
 	}
 
-	opts := RouteOpts{
-		SendTo:      cr.SendTo,
-		GroupBy:     groupBy,
-		hasWait:     cr.GroupWait != nil,
-		hasInterval: cr.GroupInterval != nil,
+	// Create default and overwrite with configured settings.
+	opts := *parent
+	opts.GroupBy = groupBy
+
+	if cr.SendTo != "" {
+		opts.SendTo = cr.SendTo
 	}
-	if opts.hasWait {
+	if cr.GroupWait != nil {
 		opts.GroupWait = time.Duration(*cr.GroupWait)
 	}
-	if opts.hasInterval {
+	if cr.GroupInterval != nil {
 		opts.GroupInterval = time.Duration(*cr.GroupInterval)
 	}
+	if cr.RepeatInterval != nil {
+		opts.RepeatInterval = time.Duration(*cr.RepeatInterval)
+	}
+	if cr.SendResolved != nil {
+		opts.SendResolved = *cr.SendResolved
+	}
 
+	// Build matchers.
 	var matchers types.Matchers
 
 	for ln, lv := range cr.Match {
@@ -78,14 +88,17 @@ func NewRoute(cr *config.Route) *Route {
 		RouteOpts: opts,
 		Matchers:  matchers,
 		Continue:  cr.Continue,
-		Routes:    NewRoutes(cr.Routes),
+		Routes:    NewRoutes(cr.Routes, &opts),
 	}
 }
 
-func NewRoutes(croutes []*config.Route) Routes {
+func NewRoutes(croutes []*config.Route, parent *RouteOpts) Routes {
+	if parent == nil {
+		parent = &DefaultRouteOpts
+	}
 	res := Routes{}
 	for _, cr := range croutes {
-		res = append(res, NewRoute(cr))
+		res = append(res, NewRoute(cr, parent))
 	}
 	return res
 }
@@ -101,10 +114,6 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 
 	for _, cr := range r.Routes {
 		matches := cr.Match(lset)
-
-		for _, ro := range matches {
-			ro.populateDefault(&r.RouteOpts)
-		}
 
 		all = append(all, matches...)
 
@@ -122,17 +131,17 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 
 type RouteOpts struct {
 	// The identifier of the associated notification configuration
-	SendTo string
+	SendTo       string
+	SendResolved bool
 
 	// What labels to group alerts by for notifications.
 	GroupBy map[model.LabelName]struct{}
 
 	// How long to wait to group matching alerts before sending
 	// a notificaiton
-	GroupWait     time.Duration
-	GroupInterval time.Duration
-
-	hasWait, hasInterval bool
+	GroupWait      time.Duration
+	GroupInterval  time.Duration
+	RepeatInterval time.Duration
 }
 
 func (ro *RouteOpts) String() string {
@@ -141,21 +150,4 @@ func (ro *RouteOpts) String() string {
 		labels = append(labels, ln)
 	}
 	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q timers:%q|%q>", ro.SendTo, labels, ro.GroupWait, ro.GroupInterval)
-}
-
-func (ro *RouteOpts) populateDefault(parent *RouteOpts) {
-	for ln := range parent.GroupBy {
-		if _, ok := ro.GroupBy[ln]; !ok {
-			ro.GroupBy[ln] = struct{}{}
-		}
-	}
-	if ro.SendTo == "" {
-		ro.SendTo = parent.SendTo
-	}
-	if !ro.hasWait {
-		ro.GroupWait = parent.GroupWait
-	}
-	if !ro.hasInterval {
-		ro.GroupInterval = parent.GroupInterval
-	}
 }

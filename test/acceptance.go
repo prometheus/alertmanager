@@ -116,7 +116,7 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 		Address: fmt.Sprintf("http://%s", am.addr),
 	})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	am.client = client
 
@@ -262,7 +262,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 
 	am.t.Do(at, func() {
 		if err := alertAPI.Push(context.Background(), nas...); err != nil {
-			am.t.Error(err)
+			am.t.Fatal(err)
 		}
 	})
 }
@@ -274,7 +274,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
 		sid, err := silences.Set(context.Background(), sil.nativeSilence(am.opts))
 		if err != nil {
-			am.t.Error(err)
+			am.t.Fatal(err)
 			return
 		}
 		sil.ID = sid
@@ -287,7 +287,7 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 
 	am.t.Do(at, func() {
 		if err := silences.Del(context.Background(), sil.ID); err != nil {
-			am.t.Error(err)
+			am.t.Fatal(err)
 		}
 	})
 }
@@ -296,11 +296,11 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 // initiate config reloading.
 func (am *Alertmanager) UpdateConfig(conf string) {
 	if _, err := am.confFile.WriteString(conf); err != nil {
-		am.t.Error(err)
+		am.t.Fatal(err)
 		return
 	}
 	if err := am.confFile.Sync(); err != nil {
-		am.t.Error(err)
+		am.t.Fatal(err)
 		return
 	}
 }

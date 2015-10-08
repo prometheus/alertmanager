@@ -14,13 +14,12 @@ func TestSomething(t *testing.T) {
 	conf := `
 routes:
 - send_to: "default"
-  group_wait:     1s
-  group_interval: 1s
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1s
 
 notification_configs:
 - name: "default"
-  send_resolved: true
-
   webhook_configs:
   - url: 'http://%s'
 `
@@ -68,13 +67,12 @@ func TestSilencing(t *testing.T) {
 	conf := `
 routes:
 - send_to: "default"
-  group_wait:     1s
-  group_interval: 1s
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1s
 
 notification_configs:
 - name: "default"
-  send_resolved: true
-
   webhook_configs:
   - url: 'http://%s'
 `
@@ -121,14 +119,12 @@ func TestBatching(t *testing.T) {
 	conf := `
 routes:
 - send_to: "default"
-  group_wait:     1s
-  group_interval: 1s
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 5s
 
 notification_configs:
 - name:            "default"
-  send_resolved:   true
-  repeat_interval: 5s
-
   webhook_configs:
   - url: 'http://%s'
 `
