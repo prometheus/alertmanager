@@ -15,6 +15,9 @@
 
     <link href="{{ pathPrefix }}static/css/default.css" media="all" rel="stylesheet" type="text/css" />
 
+    <script>
+      var PATH_PREFIX = "{{ pathPrefix }}".replace(/\/$/, '');
+    </script>
     {{template "head" .}}
   </head>
   <body>

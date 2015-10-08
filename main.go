@@ -136,9 +136,11 @@ func main() {
 		AlertsHandler: &web.AlertsHandler{
 			Manager:                alertManager,
 			IsSilencedInterrogator: silencer,
+			PathPrefix:             *pathPrefix,
 		},
 		SilencesHandler: &web.SilencesHandler{
-			Silencer: silencer,
+			Silencer:   silencer,
+			PathPrefix: *pathPrefix,
 		},
 		StatusHandler: statusHandler,
 	}
