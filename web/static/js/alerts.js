@@ -59,7 +59,7 @@ function silenceJsonFromForm() {
 function createSilence() {
   $.ajax({
     type: "POST",
-    url: "/api/silences",
+    url: PATH_PREFIX + "/api/silences",
     data: silenceJsonFromForm(),
     dataType: "text",
     success: function(data, textStatus, jqXHR) {
@@ -74,7 +74,7 @@ function createSilence() {
 function updateSilence() {
   $.ajax({
     type: "POST",
-    url: "/api/silences/" + silenceID,
+    url: PATH_PREFIX + "/api/silences/" + silenceID,
     data: silenceJsonFromForm(),
     dataType: "text",
     success: function(data, textStatus, jqXHR) {
@@ -89,7 +89,7 @@ function updateSilence() {
 function getSilence(silenceID, successFn) {
   $.ajax({
     type: "GET",
-    url: "/api/silences/" + silenceID,
+    url: PATH_PREFIX + "/api/silences/" + silenceID,
     async: false,
     success: successFn,
     error: function(data, textStatus, jqXHR) {
@@ -101,7 +101,7 @@ function getSilence(silenceID, successFn) {
 function deleteSilence(silenceID, silenceRow) {
   $.ajax({
     type: "DELETE",
-    url: "/api/silences/" + silenceID,
+    url: PATH_PREFIX + "/api/silences/" + silenceID,
     success: function(data, textStatus, jqXHR) {
       silenceRow.remove();
       $("#del_silence_modal").modal("hide");
