@@ -27,10 +27,12 @@ It has these top-level messages:
 package io_prometheus_alertmanager
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
 var _ = math.Inf
 
 // Format the message as "html" or "text".
@@ -158,7 +160,7 @@ type HipChatConfig struct {
 	// HipChat auth token, (https://www.hipchat.com/docs/api/auth).
 	AuthToken *string `protobuf:"bytes,1,opt,name=auth_token" json:"auth_token,omitempty"`
 	// HipChat room id, (https://www.hipchat.com/rooms/ids).
-	RoomId *int32 `protobuf:"varint,2,opt,name=room_id" json:"room_id,omitempty"`
+	RoomId *string `protobuf:"bytes,2,opt,name=room_id" json:"room_id,omitempty"`
 	// Color of message when triggered.
 	Color *string `protobuf:"bytes,3,opt,name=color,def=purple" json:"color,omitempty"`
 	// Color of message when resolved.
@@ -190,11 +192,11 @@ func (m *HipChatConfig) GetAuthToken() string {
 	return ""
 }
 
-func (m *HipChatConfig) GetRoomId() int32 {
+func (m *HipChatConfig) GetRoomId() string {
 	if m != nil && m.RoomId != nil {
 		return *m.RoomId
 	}
-	return 0
+	return ""
 }
 
 func (m *HipChatConfig) GetColor() string {
@@ -424,7 +426,7 @@ func (m *WebhookConfig) GetSendResolved() bool {
 type AmazonSnsConfig struct {
 	// SNS Topic ARN.
 	TopicArn *string `protobuf:"bytes,1,opt,name=topic_arn" json:"topic_arn,omitempty"`
-	// Notify when resolved
+	// Notify when resolved.
 	SendResolved     *bool  `protobuf:"varint,2,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
@@ -468,7 +470,7 @@ type NotificationConfig struct {
 	// Zero or more generic web hook notification configurations.
 	WebhookConfig []*WebhookConfig `protobuf:"bytes,8,rep,name=webhook_config" json:"webhook_config,omitempty"`
 	// Zero or more OpsGenieConfig notification configurations.
-	OpsgenieConfig   []*OpsGenieConfig `protobuf:"bytes,9,rep,name=opsgenie_config" json:"opsgenie_config,omitempty"`
+	OpsgenieConfig []*OpsGenieConfig `protobuf:"bytes,9,rep,name=opsgenie_config" json:"opsgenie_config,omitempty"`
 	// Zero or more Amazon SNS notification configurations.
 	AmazonSnsConfig  []*AmazonSnsConfig `protobuf:"bytes,10,rep,name=amazon_sns_config" json:"amazon_sns_config,omitempty"`
 	XXX_unrecognized []byte             `json:"-"`

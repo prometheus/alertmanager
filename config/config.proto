@@ -45,7 +45,7 @@ message HipChatConfig {
   // HipChat auth token, (https://www.hipchat.com/docs/api/auth).
   optional string auth_token = 1;
   // HipChat room id, (https://www.hipchat.com/rooms/ids).
-  optional int32 room_id = 2;
+  optional string room_id = 2;
   // Color of message when triggered.
   optional string color = 3 [default = "purple"];
   // Color of message when resolved.
