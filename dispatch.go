@@ -197,16 +197,22 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 	defer close(ag.done)
 	defer ag.next.Stop()
 
+	timeout := ag.opts.GroupInterval
+
+	if timeout < notify.MinTimeout {
+		timeout = notify.MinTimeout
+	}
+
 	for {
 		select {
 		case now := <-ag.next.C:
 			// Give the notifcations time until the next flush to
 			// finish before terminating them.
-			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.GroupInterval)
+			ctx, cancel := context.WithTimeout(ag.ctx, timeout)
 
 			// The now time we retrieve from the ticker is the only reliable
 			// point of time reference for the subsequent notification pipeline.
-			// Calculating the current time directly is prone to avoid flaky behavior,
+			// Calculating the current time directly is prone to flaky behavior,
 			// which usually only becomes apparent in tests.
 			ctx = notify.WithNow(ctx, now)
 
@@ -222,6 +228,8 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
 			})
+
+			cancel()
 
 		case <-ag.ctx.Done():
 			return

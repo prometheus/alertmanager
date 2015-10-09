@@ -14,6 +14,10 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// The minimum timeout that is set for the context of a call
+// to a notification pipeline.
+const MinTimeout = 10 * time.Second
+
 type notifyKey int
 
 const (
