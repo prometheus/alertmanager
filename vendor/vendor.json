@@ -23,6 +23,11 @@
 			"revisionTime": "2014-07-28T11:10:50-07:00"
 		},
 		{
+			"path": "github.com/cenkalti/backoff",
+			"revision": "4dc77674aceaabba2c7e3da25d4c823edfb73f99",
+			"revisionTime": "2015-08-14T12:43:33+03:00"
+		},
+		{
 			"path": "github.com/cznic/b",
 			"revision": "b96e30f1b7bd34b0b9d8760798d67eca83d7f09e",
 			"revisionTime": "2015-09-21T11:48:29+02:00"
