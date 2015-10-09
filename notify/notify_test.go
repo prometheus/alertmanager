@@ -27,7 +27,7 @@ func (n *recordNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
 type failNotifier struct{}
 
 func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
-	return fmt.Errorf("")
+	return fmt.Errorf("some error")
 }
 
 func TestDedupingNotifier(t *testing.T) {

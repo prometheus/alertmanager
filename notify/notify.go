@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
@@ -96,6 +97,36 @@ func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	}
 
 	wg.Wait()
+
+	return nil
+}
+
+type RetryNotifier struct {
+	Notifier Notifier
+}
+
+func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	var (
+		i    = 0
+		b    = backoff.NewExponentialBackOff()
+		tick = backoff.NewTicker(b)
+	)
+	defer tick.Stop()
+
+	for {
+		i++
+
+		select {
+		case <-tick.C:
+			if err := n.Notifier.Notify(ctx, alerts...); err != nil {
+				log.Warnf("notify attempt %d failed: %s", i, err)
+			} else {
+				return nil
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 
 	return nil
 }

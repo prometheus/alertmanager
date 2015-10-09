@@ -65,10 +65,14 @@ func main() {
 	routedNotifier := notify.NewRoutedNotifier(func(confs []*config.NotificationConfig) map[string]notify.Notifier {
 		res := notify.Build(confs)
 		for name, n := range res {
-			res[name] = &notify.LogNotifier{
+			n = &notify.RetryNotifier{
+				Notifier: n,
+			}
+			n = &notify.LogNotifier{
 				Log:      log.With("notifier", fmt.Sprintf("%T", n)),
 				Notifier: n,
 			}
+			res[name] = n
 		}
 		return res
 	})
