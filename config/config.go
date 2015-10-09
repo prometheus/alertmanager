@@ -16,6 +16,7 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -40,7 +41,28 @@ func LoadFile(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Load(string(content))
+	cfg, err := Load(string(content))
+	if err != nil {
+		return nil, err
+	}
+
+	resolveFilepaths(filepath.Dir(filename), cfg)
+	return cfg, nil
+}
+
+// resolveFilepaths joins all relative paths in a configuration
+// with a given base directory.
+func resolveFilepaths(baseDir string, cfg *Config) {
+	join := func(fp string) string {
+		if len(fp) > 0 && !filepath.IsAbs(fp) {
+			fp = filepath.Join(baseDir, fp)
+		}
+		return fp
+	}
+
+	for i, tf := range cfg.Templates {
+		cfg.Templates[i] = join(tf)
+	}
 }
 
 // Config is the top-level configuration for Alertmanager's config files.
@@ -48,6 +70,7 @@ type Config struct {
 	Routes              []*Route              `yaml:"routes,omitempty"`
 	InhibitRules        []*InhibitRule        `yaml:"inhibit_rules,omitempty"`
 	NotificationConfigs []*NotificationConfig `yaml:"notification_configs,omitempty"`
+	Templates           []string              `yaml:"templates"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`

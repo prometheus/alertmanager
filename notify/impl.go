@@ -172,6 +172,6 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 
 var tmpl *template.Template
 
-func init() {
-	tmpl = template.Must(template.ParseGlob("templates/*.tmpl"))
+func SetTemplate(t *template.Template) {
+	tmpl = t
 }

@@ -16,6 +16,12 @@ type Reloadable interface {
 	ApplyConfig(*config.Config)
 }
 
+type ReloadFunc func(*config.Config)
+
+func (f ReloadFunc) ApplyConfig(cfg *config.Config) {
+	f(cfg)
+}
+
 // Alert wraps a model.Alert with additional information relevant
 // to internal of the Alertmanager.
 // The type is never exposed to external communication and the

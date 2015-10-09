@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"text/template"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
@@ -152,6 +153,16 @@ func reloadConfig(filename string, rls ...types.Reloadable) error {
 	if err != nil {
 		return err
 	}
+
+	t := template.New("")
+	for _, tpath := range conf.Templates {
+		t, err = t.ParseGlob(tpath)
+		if err != nil {
+			return err
+		}
+	}
+
+	notify.SetTemplate(t)
 
 	for _, rl := range rls {
 		rl.ApplyConfig(conf)
