@@ -86,10 +86,13 @@ func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	var wg sync.WaitGroup
 	wg.Add(len(ns))
 
+	failed := false
+
 	for _, n := range ns {
 		go func(n Notifier) {
 			err := n.Notify(ctx, alerts...)
 			if err != nil {
+				failed = true
 				log.Errorf("Error on notify: %s", err)
 			}
 			wg.Done()
@@ -98,7 +101,7 @@ func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 
 	wg.Wait()
 
-	return nil
+	return fmt.Errorf("some errors occurred")
 }
 
 type RetryNotifier struct {

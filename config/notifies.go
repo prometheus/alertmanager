@@ -36,6 +36,13 @@ var (
 			Fallback:  "slack_default_fallback",
 		},
 	}
+
+	DefaultEmailConfig = EmailConfig{
+		Templates: EmailTemplates{
+			HTML:  "email_default_html",
+			Plain: "email_default_plain",
+		},
+	}
 )
 
 // Configuration for notification via PagerDuty.
@@ -63,10 +70,19 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 // Configuration for notification via mail.
 type EmailConfig struct {
 	// Email address to notify.
-	Email string `yaml:"email"`
+	Email     string `yaml:"email"`
+	Smarthost string `yaml:"smarthost,omitempty"`
+	Sender    string `yaml:"sender"`
+
+	Templates EmailTemplates `yaml:"templates"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
+}
+
+type EmailTemplates struct {
+	HTML  string `yaml:"html"`
+	Plain string `yaml:"plain"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -77,6 +93,12 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.Email == "" {
 		return fmt.Errorf("missing email address in email config")
+	}
+	if c.Sender == "" {
+		return fmt.Errorf("missing SMTP sender in email config")
+	}
+	if c.Smarthost == "" {
+		return fmt.Errorf("missing smart host in email config")
 	}
 	return checkOverflow(c.XXX, "email config")
 }

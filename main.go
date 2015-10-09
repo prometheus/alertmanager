@@ -17,12 +17,12 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"html/template"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"text/template"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
