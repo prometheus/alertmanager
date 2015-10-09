@@ -13,7 +13,7 @@ import (
 // Reloadable is a component that can change its state based
 // on a new configuration.
 type Reloadable interface {
-	ApplyConfig(*config.Config) bool
+	ApplyConfig(*config.Config)
 }
 
 // Alert wraps a model.Alert with additional information relevant

@@ -250,13 +250,11 @@ func (n *RoutedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	return notifier.Notify(ctx, alerts...)
 }
 
-func (n *RoutedNotifier) ApplyConfig(conf *config.Config) bool {
+func (n *RoutedNotifier) ApplyConfig(conf *config.Config) {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
 	n.notifiers = n.build(conf.NotificationConfigs)
-
-	return true
 }
 
 // MutingNotifier wraps a notifier and applies a Silencer

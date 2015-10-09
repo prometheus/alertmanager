@@ -45,7 +45,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
-func (ih *Inhibitor) ApplyConfig(conf *config.Config) bool {
+func (ih *Inhibitor) ApplyConfig(conf *config.Config) {
 	ih.mtx.Lock()
 	defer ih.mtx.Unlock()
 
@@ -53,8 +53,6 @@ func (ih *Inhibitor) ApplyConfig(conf *config.Config) bool {
 	for _, cr := range conf.InhibitRules {
 		ih.rules = append(ih.rules, NewInhibitRule(cr))
 	}
-
-	return true
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit

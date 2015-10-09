@@ -107,8 +107,8 @@ func main() {
 
 	disp := NewDispatcher(alerts, notifier)
 
-	if !reloadConfig(*configFile, disp, routedNotifier, inhibitor) {
-		os.Exit(1)
+	if err := reloadConfig(*configFile, disp, routedNotifier, inhibitor); err != nil {
+		log.Fatalf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
 	}
 
 	go disp.Run()
@@ -129,7 +129,9 @@ func main() {
 
 	go func() {
 		for range hup {
-			reloadConfig(*configFile, disp, routedNotifier, inhibitor)
+			if err := reloadConfig(*configFile, disp, routedNotifier, inhibitor); err != nil {
+				log.Errorf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
+			}
 		}
 	}()
 
@@ -139,18 +141,16 @@ func main() {
 	os.Exit(0)
 }
 
-func reloadConfig(filename string, rls ...types.Reloadable) (success bool) {
+func reloadConfig(filename string, rls ...types.Reloadable) error {
 	log.Infof("Loading configuration file %s", filename)
 
 	conf, err := config.LoadFile(filename)
 	if err != nil {
-		log.Errorf("Couldn't load configuration (-config.file=%s): %v", filename, err)
-		return false
+		return err
 	}
-	success = true
 
 	for _, rl := range rls {
-		success = success && rl.ApplyConfig(conf)
+		rl.ApplyConfig(conf)
 	}
-	return success
+	return nil
 }
