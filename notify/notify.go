@@ -17,12 +17,57 @@ import (
 type notifyKey int
 
 const (
-	NotifyName notifyKey = iota
-	NotifyRepeatInterval
-	NotifySendResolved
-	NotifyGroup
-	NotifyTime
+	keyDestination notifyKey = iota
+	keyRepeatInterval
+	keySendResolved
+	keyGroup
+	keyNow
 )
+
+func WithDestination(ctx context.Context, dest string) context.Context {
+	return context.WithValue(ctx, keyDestination, dest)
+}
+
+func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
+	return context.WithValue(ctx, keyRepeatInterval, t)
+}
+
+func WithSendResolved(ctx context.Context, b bool) context.Context {
+	return context.WithValue(ctx, keySendResolved, b)
+}
+
+func WithGroup(ctx context.Context, g string) context.Context {
+	return context.WithValue(ctx, keyGroup, g)
+}
+
+func WithNow(ctx context.Context, t time.Time) context.Context {
+	return context.WithValue(ctx, keyNow, t)
+}
+
+func Destination(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyDestination).(string)
+	return v, ok
+}
+
+func RepeatInterval(ctx context.Context) (time.Duration, bool) {
+	v, ok := ctx.Value(keyRepeatInterval).(time.Duration)
+	return v, ok
+}
+
+func SendResolved(ctx context.Context) (bool, bool) {
+	v, ok := ctx.Value(keySendResolved).(bool)
+	return v, ok
+}
+
+func Group(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyGroup).(string)
+	return v, ok
+}
+
+func Now(ctx context.Context) (time.Time, bool) {
+	v, ok := ctx.Value(keyNow).(time.Time)
+	return v, ok
+}
 
 type Notifier interface {
 	Notify(context.Context, ...*types.Alert) error
@@ -64,22 +109,22 @@ func NewDedupingNotifier(notifies provider.Notifies, n Notifier) *DedupingNotifi
 }
 
 func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	name, ok := ctx.Value(NotifyName).(string)
+	name, ok := Destination(ctx)
 	if !ok {
 		return fmt.Errorf("notifier name missing")
 	}
 
-	repeatInterval, ok := ctx.Value(NotifyRepeatInterval).(time.Duration)
+	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
 		return fmt.Errorf("repeat interval missing")
 	}
 
-	sendResolved, ok := ctx.Value(NotifySendResolved).(bool)
+	sendResolved, ok := SendResolved(ctx)
 	if !ok {
 		return fmt.Errorf("send resolved missing")
 	}
 
-	now, ok := ctx.Value(NotifyTime).(time.Time)
+	now, ok := Now(ctx)
 	if !ok {
 		return fmt.Errorf("now time missing")
 	}
@@ -185,7 +230,7 @@ func NewRoutedNotifier(build func([]*config.NotificationConfig) map[string]Notif
 }
 
 func (n *RoutedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	name, ok := ctx.Value(NotifyName).(string)
+	name, ok := Destination(ctx)
 	if !ok {
 		return fmt.Errorf("notifier name missing")
 	}

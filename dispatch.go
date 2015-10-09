@@ -208,14 +208,13 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// point of time reference for the subsequent notification pipeline.
 			// Calculating the current time directly is prone to avoid flaky behavior,
 			// which usually only becomes apparent in tests.
-			ctx = context.WithValue(ctx, notify.NotifyTime, now)
+			ctx = notify.WithNow(ctx, now)
 
-			// Populate context with the destination name and group identifier.
-			ctx = context.WithValue(ctx, notify.NotifyName, ag.opts.SendTo)
-			ctx = context.WithValue(ctx, notify.NotifyGroup, ag.String())
-
-			ctx = context.WithValue(ctx, notify.NotifyRepeatInterval, ag.opts.RepeatInterval)
-			ctx = context.WithValue(ctx, notify.NotifySendResolved, ag.opts.SendResolved)
+			// Populate context with information needed along the pipeline.
+			ctx = notify.WithDestination(ctx, ag.opts.SendTo)
+			ctx = notify.WithGroup(ctx, ag.String())
+			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
+			ctx = notify.WithSendResolved(ctx, ag.opts.SendResolved)
 
 			// Wait the configured interval before calling flush again.
 			ag.next.Reset(ag.opts.GroupInterval)

@@ -39,10 +39,10 @@ func TestDedupingNotifier(t *testing.T) {
 	)
 	now := time.Now()
 
-	ctx = context.WithValue(ctx, NotifyName, "name")
-	ctx = context.WithValue(ctx, NotifyRepeatInterval, time.Duration(100*time.Minute))
-	ctx = context.WithValue(ctx, NotifySendResolved, true)
-	ctx = context.WithValue(ctx, NotifyTime, now)
+	ctx = WithDestination(ctx, "name")
+	ctx = WithRepeatInterval(ctx, time.Duration(100*time.Minute))
+	ctx = WithSendResolved(ctx, true)
+	ctx = WithNow(ctx, now)
 
 	alerts := []*types.Alert{
 		{
@@ -237,7 +237,7 @@ func TestRoutedNotifier(t *testing.T) {
 
 	for _, route := range []string{"3", "2", "1"} {
 		var (
-			ctx   = context.WithValue(context.Background(), NotifyName, route)
+			ctx   = WithDestination(context.Background(), route)
 			alert = &types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{"route": model.LabelValue(route)},
