@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"text/template"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
@@ -67,7 +68,6 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 		return err
 	}
 
-	// TODO(fabxc): implement retrying as long as context is not canceled.
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, w.URL, contentTypeJSON, &buf)
 	if err != nil {
 		return err
@@ -79,4 +79,99 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	}
 
 	return nil
+}
+
+type Slack struct {
+	conf *config.SlackConfig
+}
+
+// slackReq is the request for sending a slack notification.
+type slackReq struct {
+	Channel     string            `json:"channel,omitempty"`
+	Attachments []slackAttachment `json:"attachments"`
+}
+
+// slackAttachment is used to display a richly-formatted message block.
+type slackAttachment struct {
+	Title     string `json:"title,omitempty"`
+	TitleLink string `json:"title_link,omitempty"`
+	Pretext   string `json:"pretext,omitempty"`
+	Text      string `json:"text"`
+	Fallback  string `json:"fallback"`
+
+	Color    string                 `json:"color,omitempty"`
+	MrkdwnIn []string               `json:"mrkdwn_in,omitempty"`
+	Fields   []slackAttachmentField `json:"fields,omitempty"`
+}
+
+// slackAttachmentField is displayed in a table inside the message attachment.
+type slackAttachmentField struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short,omitempty"`
+}
+
+func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
+	var (
+		alerts = types.Alerts(as...)
+		color  = n.conf.ColorResolved
+		status = string(model.AlertResolved)
+	)
+	if alerts.HasFiring() {
+		color = n.conf.ColorFiring
+		status = string(model.AlertFiring)
+	}
+
+	var title, link, pretext, text, fallback bytes.Buffer
+
+	if err := tmpl.ExecuteTemplate(&title, n.conf.Templates.Title, alerts); err != nil {
+		return err
+	}
+	if err := tmpl.ExecuteTemplate(&text, n.conf.Templates.Text, alerts); err != nil {
+		return err
+	}
+
+	attachment := &slackAttachment{
+		Title:     title.String(),
+		TitleLink: link.String(),
+		Pretext:   pretext.String(),
+		Text:      text.String(),
+		Fallback:  fallback.String(),
+
+		Fields: []slackAttachmentField{{
+			Title: "Status",
+			Value: status,
+			Short: true,
+		}},
+		Color:    color,
+		MrkdwnIn: []string{"fallback", "pretext"},
+	}
+	req := &slackReq{
+		Channel:     n.conf.Channel,
+		Attachments: []slackAttachment{*attachment},
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
+	if err != nil {
+		return err
+	}
+	// TODO(fabxc): is 2xx status code really indicator for success for Slack API?
+	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+
+	return nil
+}
+
+var tmpl *template.Template
+
+func init() {
+	tmpl = template.Must(template.ParseGlob("templates/*.tmpl"))
 }

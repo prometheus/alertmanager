@@ -27,6 +27,14 @@ var (
 	DefaultSlackConfig = SlackConfig{
 		ColorFiring:   "warning",
 		ColorResolved: "good",
+
+		Templates: SlackTemplates{
+			Title:     "slack_default_title",
+			TitleLink: "slack_default_title_link",
+			Pretext:   "slack_default_pretext",
+			Text:      "slack_default_text",
+			Fallback:  "slack_default_fallback",
+		},
 	}
 )
 
@@ -151,8 +159,7 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Configuration for notification via Slack.
 type SlackConfig struct {
-	// Slack webhook URL, (https://api.slack.com/incoming-webhooks).
-	WebhookURL string `yaml:"webhook_url"`
+	URL string `yaml:"url"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel string `yaml:"channel"`
@@ -161,8 +168,18 @@ type SlackConfig struct {
 	ColorFiring   string `yaml:"color_firing"`
 	ColorResolved string `yaml:"color_resolved"`
 
+	Templates SlackTemplates `yaml:"templates"`
+
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
+}
+
+type SlackTemplates struct {
+	Title     string `yaml:"title"`
+	TitleLink string `yaml:"title_link"`
+	Pretext   string `yaml:"pretext"`
+	Text      string `yaml:"text"`
+	Fallback  string `yaml:"fallback"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -172,8 +189,8 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.WebhookURL == "" {
-		return fmt.Errorf("missing webhook URL in Slack config")
+	if c.URL == "" {
+		return fmt.Errorf("missing URL in Slack config")
 	}
 	if c.Channel == "" {
 		return fmt.Errorf("missing channel in Slack config")

@@ -119,7 +119,7 @@ func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) erro
 		select {
 		case <-tick.C:
 			if err := n.Notifier.Notify(ctx, alerts...); err != nil {
-				log.Warnf("notify attempt %d failed: %s", i, err)
+				log.Warnf("Notify attempt %d failed: %s", i, err)
 			} else {
 				return nil
 			}
