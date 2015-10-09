@@ -37,11 +37,12 @@ func TestDedupingNotifier(t *testing.T) {
 		deduper  = NewDedupingNotifier(notifies, record)
 		ctx      = context.Background()
 	)
+	now := time.Now()
+
 	ctx = context.WithValue(ctx, NotifyName, "name")
 	ctx = context.WithValue(ctx, NotifyRepeatInterval, time.Duration(100*time.Minute))
 	ctx = context.WithValue(ctx, NotifySendResolved, true)
-
-	now := time.Now()
+	ctx = context.WithValue(ctx, NotifyTime, now)
 
 	alerts := []*types.Alert{
 		{

@@ -199,10 +199,16 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 
 	for {
 		select {
-		case <-ag.next.C:
+		case now := <-ag.next.C:
 			// Give the notifcations time until the next flush to
 			// finish before terminating them.
 			ctx, _ := context.WithTimeout(ag.ctx, ag.opts.GroupInterval)
+
+			// The now time we retrieve from the ticker is the only reliable
+			// point of time reference for the subsequent notification pipeline.
+			// Calculating the current time directly is prone to avoid flaky behavior,
+			// which usually only becomes apparent in tests.
+			ctx = context.WithValue(ctx, notify.NotifyTime, now)
 
 			// Populate context with the destination name and group identifier.
 			ctx = context.WithValue(ctx, notify.NotifyName, ag.opts.SendTo)

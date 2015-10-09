@@ -21,6 +21,7 @@ const (
 	NotifyRepeatInterval
 	NotifySendResolved
 	NotifyGroup
+	NotifyTime
 )
 
 type Notifier interface {
@@ -78,6 +79,11 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		return fmt.Errorf("send resolved missing")
 	}
 
+	now, ok := ctx.Value(NotifyTime).(time.Time)
+	if !ok {
+		return fmt.Errorf("now time missing")
+	}
+
 	var fps []model.Fingerprint
 	for _, a := range alerts {
 		fps = append(fps, a.Fingerprint())
@@ -87,8 +93,6 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 	if err != nil {
 		return err
 	}
-
-	now := time.Now()
 
 	var (
 		doResend    bool
