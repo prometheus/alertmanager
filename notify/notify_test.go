@@ -232,7 +232,7 @@ func TestRoutedNotifier(t *testing.T) {
 		"3": &recordNotifier{},
 	}
 	routed := &RoutedNotifier{
-		notifiers: notifiers,
+		Notifiers: notifiers,
 	}
 
 	for _, route := range []string{"3", "2", "1"} {
@@ -249,7 +249,7 @@ func TestRoutedNotifier(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rn := routed.notifiers[route].(*recordNotifier)
+		rn := routed.Notifiers[route].(*recordNotifier)
 		if len(rn.alerts) != 1 && alert != rn.alerts[0] {
 			t.Fatalf("Expeceted alert %v, got %v", alert, rn.alerts)
 		}

@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -256,15 +255,8 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 // RoutedNotifier dispatches the alerts to one of a set of
 // named notifiers based on the name value provided in the context.
 type RoutedNotifier struct {
-	mtx       sync.RWMutex
-	notifiers map[string]Notifier
-
-	// build creates a new set of named notifiers based on a config.
-	build func([]*config.NotificationConfig) map[string]Notifier
-}
-
-func NewRoutedNotifier(build func([]*config.NotificationConfig) map[string]Notifier) *RoutedNotifier {
-	return &RoutedNotifier{build: build}
+	sync.RWMutex
+	Notifiers map[string]Notifier
 }
 
 func (n *RoutedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
@@ -273,10 +265,10 @@ func (n *RoutedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 		return fmt.Errorf("notifier name missing")
 	}
 
-	n.mtx.RLock()
-	defer n.mtx.RUnlock()
+	n.RLock()
+	defer n.RUnlock()
 
-	notifier, ok := n.notifiers[name]
+	notifier, ok := n.Notifiers[name]
 	if !ok {
 		return fmt.Errorf("notifier %q does not exist", name)
 	}
@@ -284,11 +276,10 @@ func (n *RoutedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 	return notifier.Notify(ctx, alerts...)
 }
 
-func (n *RoutedNotifier) ApplyConfig(conf *config.Config) {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
+type NotifyFunc func(ctx context.Context, alerts ...*types.Alert) error
 
-	n.notifiers = n.build(conf.NotificationConfigs)
+func (f NotifyFunc) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	return f(ctx, alerts...)
 }
 
 // MutingNotifier wraps a notifier and applies a Silencer

@@ -26,6 +26,7 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
+	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -63,20 +64,7 @@ func main() {
 
 	inhibitor := &Inhibitor{alerts: alerts}
 
-	routedNotifier := notify.NewRoutedNotifier(func(confs []*config.NotificationConfig) map[string]notify.Notifier {
-		res := notify.Build(confs)
-		for name, n := range res {
-			n = &notify.RetryNotifier{
-				Notifier: n,
-			}
-			n = &notify.LogNotifier{
-				Log:      log.With("notifier", fmt.Sprintf("%T", n)),
-				Notifier: n,
-			}
-			res[name] = n
-		}
-		return res
-	})
+	routedNotifier := &notify.RoutedNotifier{}
 
 	// Connect the pipeline of notifiers. Notifications will be sent
 	// through them in inverted order.
@@ -110,9 +98,60 @@ func main() {
 		Notifier: notifier,
 	}
 
+	build := func(conf *config.Config) {
+
+		res := map[string]notify.Notifier{}
+
+		for _, nc := range conf.NotificationConfigs {
+			var all notify.Notifiers
+
+			for _, wc := range nc.WebhookConfigs {
+				all = append(all, &notify.LogNotifier{
+					Log:      log.With("notifier", "webhook"),
+					Notifier: notify.NewWebhook(wc),
+				})
+			}
+			for _, ec := range nc.EmailConfigs {
+				all = append(all, &notify.LogNotifier{
+					Log:      log.With("notifier", "email"),
+					Notifier: notify.NewEmail(ec),
+				})
+			}
+
+			for i, nv := range all {
+				n := nv
+
+				n = &notify.RetryNotifier{Notifier: n}
+				n = notify.NewDedupingNotifier(notifies, n)
+				nn := notify.NotifyFunc(func(ctx context.Context, alerts ...*types.Alert) error {
+
+					dest, ok := notify.Destination(ctx)
+					if !ok {
+						return fmt.Errorf("missing destination name")
+					}
+					dest = fmt.Sprintf("%s/%s/%d", dest, nc.Name, i)
+
+					log.Debugln("destination new", dest)
+
+					ctx = notify.WithDestination(ctx, dest)
+					return n.Notify(ctx, alerts...)
+				})
+
+				all[i] = nn
+			}
+
+			res[nc.Name] = all
+		}
+
+		routedNotifier.Lock()
+		log.Debugf("set notifiers for routes %#v", res)
+		routedNotifier.Notifiers = res
+		routedNotifier.Unlock()
+	}
+
 	disp := NewDispatcher(alerts, notifier)
 
-	if err := reloadConfig(*configFile, disp, routedNotifier, inhibitor); err != nil {
+	if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor); err != nil {
 		log.Fatalf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
 	}
 
@@ -134,7 +173,7 @@ func main() {
 
 	go func() {
 		for range hup {
-			if err := reloadConfig(*configFile, disp, routedNotifier, inhibitor); err != nil {
+			if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor); err != nil {
 				log.Errorf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
 			}
 		}
