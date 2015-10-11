@@ -3,12 +3,23 @@ package types
 import (
 	"fmt"
 	"hash/fnv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 )
+
+type MultiError []error
+
+func (e MultiError) Error() string {
+	var es []string
+	for _, err := range e {
+		es = append(es, err.Error())
+	}
+	return strings.Join(es, "; ")
+}
 
 // Reloadable is a component that can change its state based
 // on a new configuration.
