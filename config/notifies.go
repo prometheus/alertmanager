@@ -29,19 +29,19 @@ var (
 		ColorResolved: "good",
 
 		Templates: SlackTemplates{
-			Title:     "slack_default_title",
-			TitleLink: "slack_default_title_link",
-			Pretext:   "slack_default_pretext",
-			Text:      "slack_default_text",
-			Fallback:  "slack_default_fallback",
+			Title:     "slack.default.title",
+			TitleLink: "slack.default.title_link",
+			Pretext:   "slack.default.pretext",
+			Text:      "slack.default.text",
+			Fallback:  "slack.default.fallback",
 		},
 	}
 
 	DefaultEmailConfig = EmailConfig{
 		Templates: EmailTemplates{
-			Header: "email_default_header",
-			HTML:   "email_default_html",
-			Plain:  "email_default_plain",
+			Header: "email.default.header",
+			HTML:   "email.default.html",
+			Plain:  "email.default.plain",
 		},
 	}
 )
