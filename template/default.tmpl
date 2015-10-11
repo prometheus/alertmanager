@@ -1,0 +1,39 @@
+{{ define "slack_default_fallback" }}
+fallback
+{{ end }}
+
+{{ define "slack_default_pretext" }}
+pre text
+{{ end }}
+
+{{ define "slack_default_title" }}
+Title
+{{ end }}
+
+{{ define "slack_default_titlelink" }}
+http://localhost:9090
+{{ end }}
+
+{{ define "slack_default_text" }}
+my text
+my text
+my text
+{{ end }}
+
+{{ define "email_default_header" }}From: "Prometheus Alertmanager" <{{ .From }}>
+To: {{ .To }}
+Date: {{ .Date }}
+Subject: [{{ .Alerts.Status }}]
+{{ end }}
+
+{{ define "email_default_plain" }}
+  {{ range .Alerts }}
+{{ .String }}
+  {{ end }}
+{{ end }}
+
+{{ define "email_default_html" }}
+  {{ range .Alerts }}
+{{ .String }}
+  {{ end }}
+{{ end }}
