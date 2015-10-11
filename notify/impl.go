@@ -11,9 +11,10 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
+	txttemplate "text/template"
 	"time"
 
-	// "github.com/prometheus/common/log"
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
@@ -132,8 +133,14 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		}
 	}
 
-	c.Mail(n.conf.Sender)
-	c.Rcpt(n.conf.Email)
+	if err := c.Mail(n.conf.Sender); err != nil {
+		return err
+	}
+	if err := c.Rcpt(n.conf.Email); err != nil {
+		return err
+	}
+
+	log.Debugln("sending mail", n.conf.Email, c)
 
 	// Send the email body.
 	wc, err := c.Data()
@@ -142,8 +149,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	defer wc.Close()
 
-	// TODO(fabxc): do a multipart write that considers the plain template.
-	return tmpl.ExecuteTemplate(wc, n.conf.Templates.HTML, struct {
+	data := struct {
 		Alerts model.Alerts
 		From   string
 		To     string
@@ -153,7 +159,14 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		From:   n.conf.Sender,
 		To:     n.conf.Email,
 		Date:   time.Now().Format(time.RFC1123Z),
-	})
+	}
+
+	if err := txttmpl.ExecuteTemplate(wc, n.conf.Templates.Header, &data); err != nil {
+		return err
+	}
+
+	// TODO(fabxc): do a multipart write that considers the plain template.
+	return tmpl.ExecuteTemplate(wc, n.conf.Templates.HTML, &data)
 }
 
 type Slack struct {
@@ -245,7 +258,9 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 }
 
 var tmpl *template.Template
+var txttmpl *txttemplate.Template
 
-func SetTemplate(t *template.Template) {
+func SetTemplate(t *template.Template, tt *txttemplate.Template) {
 	tmpl = t
+	txttmpl = tt
 }

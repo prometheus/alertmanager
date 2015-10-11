@@ -100,7 +100,10 @@ func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 
 	wg.Wait()
 
-	return fmt.Errorf("some errors occurred")
+	if failed {
+		return fmt.Errorf("some errors occurred")
+	}
+	return nil
 }
 
 type RetryNotifier struct {

@@ -39,8 +39,9 @@ var (
 
 	DefaultEmailConfig = EmailConfig{
 		Templates: EmailTemplates{
-			HTML:  "email_default_html",
-			Plain: "email_default_plain",
+			Header: "email_default_header",
+			HTML:   "email_default_html",
+			Plain:  "email_default_plain",
 		},
 	}
 )
@@ -81,12 +82,14 @@ type EmailConfig struct {
 }
 
 type EmailTemplates struct {
-	HTML  string `yaml:"html"`
-	Plain string `yaml:"plain"`
+	Header string `yaml:"header"`
+	HTML   string `yaml:"html"`
+	Plain  string `yaml:"plain"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultEmailConfig
 	type plain EmailConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
