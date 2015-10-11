@@ -22,6 +22,28 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// Build creates a fanout notifier for each notification configuration.
+func Build(confs []*config.NotificationConfig, tmpl *template.Template) map[string]Fanout {
+	res := map[string]Fanout{}
+
+	for _, nc := range confs {
+		var (
+			fo  = Fanout{}
+			add = func(i int, n Notifier) { fo[fmt.Sprintf("%T/%i", n, i)] = n }
+		)
+
+		for i, c := range nc.WebhookConfigs {
+			add(i, notify.NewWebhook(c))
+		}
+		for i, c := range nc.EmailConfigs {
+			add(i, notify.NewEmail(c, tmpl))
+		}
+
+		res[nc.Name] = fo
+	}
+	return res
+}
+
 const contentTypeJSON = "application/json"
 
 type Webhook struct {
