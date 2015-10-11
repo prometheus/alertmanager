@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -82,7 +81,7 @@ type Notifier interface {
 // at once.
 type Fanout map[string]Notifier
 
-func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
+func (ns Fanout) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	var (
 		wg sync.WaitGroup
 		me types.MultiError
@@ -94,9 +93,9 @@ func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 		return fmt.Errorf("destination missing")
 	}
 
-	for prefix, n := range ns {
+	for suffix, n := range ns {
 		// Suffix the destination with the unique key for the fanout.
-		foCtx := WithDestination(ctx, fmt.Sprintf("%s/%s", dest, prefix))
+		foCtx := WithDestination(ctx, fmt.Sprintf("%s/%s", dest, suffix))
 
 		go func(n Notifier) {
 			if err := n.Notify(foCtx, alerts...); err != nil {
@@ -109,11 +108,18 @@ func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 
 	wg.Wait()
 
-	return me
+	if len(me) > 0 {
+		return me
+	}
+	return nil
 }
 
 type RetryNotifier struct {
-	Notifier Notifier
+	notifier Notifier
+}
+
+func Retry(n Notifier) *RetryNotifier {
+	return &RetryNotifier{notifier: n}
 }
 
 func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
@@ -129,7 +135,7 @@ func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) erro
 
 		select {
 		case <-tick.C:
-			if err := n.Notifier.Notify(ctx, alerts...); err != nil {
+			if err := n.notifier.Notify(ctx, alerts...); err != nil {
 				log.Warnf("Notify attempt %d failed: %s", i, err)
 			} else {
 				return nil
@@ -147,11 +153,8 @@ type DedupingNotifier struct {
 	notifier Notifier
 }
 
-func NewDedupingNotifier(notifies provider.Notifies, n Notifier) *DedupingNotifier {
-	return &DedupingNotifier{
-		notifies: notifies,
-		notifier: n,
-	}
+func Dedup(notifies provider.Notifies, n Notifier) *DedupingNotifier {
+	return &DedupingNotifier{notifies: notifies, notifier: n}
 }
 
 func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
@@ -263,39 +266,31 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 
 // RoutedNotifier dispatches the alerts to one of a set of
 // named notifiers based on the name value provided in the context.
-type RoutedNotifier struct {
-	sync.RWMutex
-	Notifiers map[string]Notifier
-}
+type Router map[string]Notifier
 
-func (n *RoutedNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	name, ok := Destination(ctx)
+func (rs Router) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	dest, ok := Destination(ctx)
 	if !ok {
 		return fmt.Errorf("notifier name missing")
 	}
 
-	n.RLock()
-	defer n.RUnlock()
-
-	notifier, ok := n.Notifiers[name]
+	notifier, ok := rs[dest]
 	if !ok {
-		return fmt.Errorf("notifier %q does not exist", name)
+		return fmt.Errorf("notifier %q does not exist", dest)
 	}
 
 	return notifier.Notify(ctx, alerts...)
-}
-
-type NotifyFunc func(ctx context.Context, alerts ...*types.Alert) error
-
-func (f NotifyFunc) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	return f(ctx, alerts...)
 }
 
 // MutingNotifier wraps a notifier and applies a Silencer
 // before sending out an alert.
 type MutingNotifier struct {
 	types.Muter
-	Notifier Notifier
+	notifier Notifier
+}
+
+func Mute(m types.Muter, n Notifier) *MutingNotifier {
+	return &MutingNotifier{Muter: m, notifier: n}
 }
 
 func (n *MutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
@@ -309,19 +304,23 @@ func (n *MutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) err
 		}
 	}
 
-	return n.Notifier.Notify(ctx, filtered...)
+	return n.notifier.Notify(ctx, filtered...)
 }
 
 type LogNotifier struct {
-	Log      log.Logger
-	Notifier Notifier
+	log      log.Logger
+	notifier Notifier
 }
 
-func (ln *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	ln.Log.Debugf("notify %v", alerts)
+func Log(n Notifier, log log.Logger) *LogNotifier {
+	return &LogNotifier{log: log, notifier: n}
+}
 
-	if ln.Notifier != nil {
-		return ln.Notifier.Notify(ctx, alerts...)
+func (n *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	n.log.Debugf("notify %v", alerts)
+
+	if n.notifier != nil {
+		return n.notifier.Notify(ctx, alerts...)
 	}
 	return nil
 }

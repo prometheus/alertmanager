@@ -33,10 +33,10 @@ func Build(confs []*config.NotificationConfig, tmpl *template.Template) map[stri
 		)
 
 		for i, c := range nc.WebhookConfigs {
-			add(i, notify.NewWebhook(c))
+			add(i, NewWebhook(c))
 		}
 		for i, c := range nc.EmailConfigs {
-			add(i, notify.NewEmail(c, tmpl))
+			add(i, NewEmail(c, tmpl))
 		}
 
 		res[nc.Name] = fo

@@ -34,7 +34,7 @@ func TestDedupingNotifier(t *testing.T) {
 	var (
 		record   = &recordNotifier{}
 		notifies = provider.NewMemNotifies(provider.NewMemData())
-		deduper  = NewDedupingNotifier(notifies, record)
+		deduper  = Dedup(notifies, record)
 		ctx      = context.Background()
 	)
 	now := time.Now()
@@ -226,13 +226,10 @@ func TestDedupingNotifier(t *testing.T) {
 }
 
 func TestRoutedNotifier(t *testing.T) {
-	notifiers := map[string]Notifier{
+	router := Router{
 		"1": &recordNotifier{},
 		"2": &recordNotifier{},
 		"3": &recordNotifier{},
-	}
-	routed := &RoutedNotifier{
-		Notifiers: notifiers,
 	}
 
 	for _, route := range []string{"3", "2", "1"} {
@@ -244,12 +241,12 @@ func TestRoutedNotifier(t *testing.T) {
 				},
 			}
 		)
-		err := routed.Notify(ctx, alert)
+		err := router.Notify(ctx, alert)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		rn := routed.Notifiers[route].(*recordNotifier)
+		rn := router[route].(*recordNotifier)
 		if len(rn.alerts) != 1 && alert != rn.alerts[0] {
 			t.Fatalf("Expeceted alert %v, got %v", alert, rn.alerts)
 		}
@@ -264,10 +261,7 @@ func TestMutingNotifier(t *testing.T) {
 	})
 
 	record := &recordNotifier{}
-	muteNotifer := MutingNotifier{
-		Notifier: record,
-		Muter:    muter,
-	}
+	muteNotifer := Mute(muter, record)
 
 	in := []model.LabelSet{
 		{},
