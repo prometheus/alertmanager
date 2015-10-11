@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -79,7 +80,7 @@ type Notifier interface {
 
 // Notifiers fans out notifications to all notifiers it holds
 // at once.
-type Notifiers []Notifier
+type Fanout map[string]Notifier
 
 func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	var (
@@ -88,10 +89,17 @@ func (ns Notifiers) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	)
 	wg.Add(len(ns))
 
-	for _, n := range ns {
+	dest, ok := Destination(ctx)
+	if !ok {
+		return fmt.Errorf("destination missing")
+	}
+
+	for prefix, n := range ns {
+		// Suffix the destination with the unique key for the fanout.
+		foCtx := WithDestination(ctx, fmt.Sprintf("%s/%s", dest, prefix))
+
 		go func(n Notifier) {
-			err := n.Notify(ctx, alerts...)
-			if err != nil {
+			if err := n.Notify(foCtx, alerts...); err != nil {
 				me = append(me, err)
 				log.Errorf("Error on notify: %s", err)
 			}
