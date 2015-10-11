@@ -41,8 +41,8 @@ func Alerts(alerts ...*Alert) model.Alerts {
 	for _, a := range alerts {
 		v := a.Alert
 		// If the end timestamp was set as the expected value in case
-		// of a timeout, do not expose it.
-		if a.Timeout {
+		// of a timeout but is not reached yet, do not expose it.
+		if a.Timeout && !a.Resolved() {
 			v.EndsAt = time.Time{}
 		}
 		res = append(res, &v)
