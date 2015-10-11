@@ -26,7 +26,6 @@ type Dispatcher struct {
 
 	aggrGroups map[model.Fingerprint]*aggrGroup
 
-	mtx    sync.RWMutex
 	done   chan struct{}
 	ctx    context.Context
 	cancel func()
@@ -35,26 +34,14 @@ type Dispatcher struct {
 }
 
 // NewDispatcher returns a new Dispatcher.
-func NewDispatcher(ap provider.Alerts, n notify.Notifier) *Dispatcher {
-	return &Dispatcher{
+func NewDispatcher(ap provider.Alerts, r []*config.Route, n notify.Notifier) *Dispatcher {
+	disp := &Dispatcher{
 		alerts:   ap,
 		notifier: n,
+		routes:   NewRoutes(r, nil),
 		log:      log.With("component", "dispatcher"),
 	}
-}
-
-// ApplyConfig updates the dispatcher to match the new configuration.
-func (d *Dispatcher) ApplyConfig(conf *config.Config) {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	// If a cancelation function is set, the dispatcher is running.
-	if d.cancel != nil {
-		d.Stop()
-		defer func() { go d.Run() }()
-	}
-
-	d.routes = NewRoutes(conf.Routes, nil)
+	return disp
 }
 
 // Run starts dispatching alerts incoming via the updates channel.
@@ -65,10 +52,11 @@ func (d *Dispatcher) Run() {
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 
 	d.run(d.alerts.Subscribe())
+	close(d.done)
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
-	cleanup := time.NewTicker(15 * time.Second)
+	cleanup := time.NewTicker(5 * time.Minute)
 	defer cleanup.Stop()
 
 	defer it.Close()
@@ -78,16 +66,13 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 		case alert := <-it.Next():
 			d.log.With("alert", alert).Debug("Received alert")
 
-			// Log errors but keep trying
+			// Log errors but keep trying.
 			if err := it.Err(); err != nil {
 				log.Errorf("Error on alert update: %s", err)
 				continue
 			}
-			d.mtx.RLock()
-			routes := d.routes.Match(alert.Labels)
-			d.mtx.RUnlock()
 
-			for _, r := range routes {
+			for _, r := range d.routes.Match(alert.Labels) {
 				d.processAlert(alert, r)
 			}
 
@@ -107,6 +92,9 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
+	if d == nil || d.cancel == nil {
+		return
+	}
 	d.cancel()
 	d.cancel = nil
 
@@ -140,11 +128,11 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 		ag.log = log.With("aggrGroup", ag)
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
-			if err := d.notifier.Notify(ctx, alerts...); err != nil {
-				log.Errorf("Notify for %d alerts failed: %s", len(alerts), err)
-				return false
+			err := d.notifier.Notify(ctx, alerts...)
+			if err != nil {
+				log.Errorf("Notify for %d alerts failed: %s %T", len(alerts), err, err)
 			}
-			return true
+			return err != nil
 		})
 	}
 

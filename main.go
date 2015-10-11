@@ -16,7 +16,6 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,13 +24,11 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var (
@@ -49,8 +46,6 @@ func main() {
 	}
 	defer db.Close()
 
-	tmpl := &template.Template{}
-
 	alerts, err := provider.NewSQLAlerts(db)
 	if err != nil {
 		log.Fatal(err)
@@ -64,103 +59,73 @@ func main() {
 		log.Fatal(err)
 	}
 
-	inhibitor := &Inhibitor{alerts: alerts}
-
-	routedNotifier := &notify.RoutedNotifier{}
-
-	// Connect the pipeline of notifiers. Notifications will be sent
-	// through them in inverted order.
-	var notifier notify.Notifier
-	notifier = &notify.LogNotifier{
-		Log:      log.With("notifier", "routed"),
-		Notifier: routedNotifier,
-	}
-
-	notifier = notify.NewDedupingNotifier(notifies, notifier)
-	notifier = &notify.LogNotifier{
-		Log:      log.With("notifier", "dedup"),
-		Notifier: notifier,
-	}
-
-	notifier = &notify.MutingNotifier{
-		Notifier: notifier,
-		Muter:    inhibitor,
-	}
-	notifier = &notify.LogNotifier{
-		Log:      log.With("notifier", "inhibit"),
-		Notifier: notifier,
-	}
-
-	notifier = &notify.MutingNotifier{
-		Notifier: notifier,
-		Muter:    silences,
-	}
-	notifier = &notify.LogNotifier{
-		Log:      log.With("notifier", "silencer"),
-		Notifier: notifier,
-	}
-
-	build := func(conf *config.Config) {
-
-		res := map[string]notify.Notifier{}
-
-		for _, nc := range conf.NotificationConfigs {
-			var all notify.Notifiers
-
-			for _, wc := range nc.WebhookConfigs {
-				all = append(all, &notify.LogNotifier{
-					Log:      log.With("notifier", "webhook"),
-					Notifier: notify.NewWebhook(wc),
-				})
-			}
-			for _, ec := range nc.EmailConfigs {
-				all = append(all, &notify.LogNotifier{
-					Log:      log.With("notifier", "email"),
-					Notifier: notify.NewEmail(ec, tmpl),
-				})
-			}
-
-			for i, nv := range all {
-				n := nv
-
-				n = &notify.RetryNotifier{Notifier: n}
-				n = notify.NewDedupingNotifier(notifies, n)
-				nn := notify.NotifyFunc(func(ctx context.Context, alerts ...*types.Alert) error {
-
-					dest, ok := notify.Destination(ctx)
-					if !ok {
-						return fmt.Errorf("missing destination name")
-					}
-					dest = fmt.Sprintf("%s/%s/%d", dest, nc.Name, i)
-
-					log.Debugln("destination new", dest)
-
-					ctx = notify.WithDestination(ctx, dest)
-					return n.Notify(ctx, alerts...)
-				})
-
-				all[i] = nn
-			}
-
-			res[nc.Name] = all
-		}
-
-		routedNotifier.Lock()
-		routedNotifier.Notifiers = res
-		routedNotifier.Unlock()
-	}
-
-	disp := NewDispatcher(alerts, notifier)
-
-	if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor, tmpl); err != nil {
-		log.Fatalf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
-	}
-
-	go disp.Run()
+	var (
+		inhibitor *Inhibitor
+		tmpl      *template.Template
+		disp      *Dispatcher
+	)
 	defer disp.Stop()
 
-	router := route.New()
+	build := func(nconf []*config.NotificationConfig) notify.Notifier {
+		var (
+			router  = notify.Router{}
+			fanouts = notify.Build(nconf, tmpl)
+		)
+		for name, fo := range fanouts {
+			for i, n := range fo {
+				n = notify.Retry(n)
+				n = notify.Log(n, log.With("step", "retry"))
+				n = notify.Dedup(notifies, n)
+				n = notify.Log(n, log.With("step", "dedup"))
 
+				fo[i] = n
+			}
+			router[name] = fo
+		}
+		var n notify.Notifier = router
+
+		n = notify.Log(n, log.With("step", "route"))
+		n = notify.Mute(silences, n)
+		n = notify.Log(n, log.With("step", "silence"))
+		n = notify.Mute(inhibitor, n)
+		n = notify.Log(n, log.With("step", "inhibit"))
+
+		return n
+	}
+
+	reload := func() (err error) {
+		log.With("file", *configFile).Infof("Loading configuration file")
+		defer func() {
+			if err != nil {
+				log.With("file", *configFile).Errorf("Loading configuration file failed")
+			}
+		}()
+
+		conf, err := config.LoadFile(*configFile)
+		if err != nil {
+			return err
+		}
+
+		tmpl, err = template.FromGlobs(conf.Templates...)
+		if err != nil {
+			return err
+		}
+
+		disp.Stop()
+
+		inhibitor = NewInhibitor(alerts, conf.InhibitRules)
+		disp = NewDispatcher(alerts, conf.Routes, build(conf.NotificationConfigs))
+
+		go disp.Run()
+
+		return nil
+	}
+
+	if err := reload(); err != nil {
+		os.Exit(1)
+	}
+
+	router := route.New()
 	NewAPI(router.WithPrefix("/api/v1"), alerts, silences)
 
 	go http.ListenAndServe(*listenAddress, router)
@@ -174,28 +139,11 @@ func main() {
 
 	go func() {
 		for range hup {
-			if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor, tmpl); err != nil {
-				log.Errorf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
-			}
+			reload()
 		}
 	}()
 
 	<-term
 
 	log.Infoln("Received SIGTERM, exiting gracefully...")
-	os.Exit(0)
-}
-
-func reloadConfig(filename string, rls ...types.Reloadable) error {
-	log.Infof("Loading configuration file %s", filename)
-
-	conf, err := config.LoadFile(filename)
-	if err != nil {
-		return err
-	}
-
-	for _, rl := range rls {
-		rl.ApplyConfig(conf)
-	}
-	return nil
 }

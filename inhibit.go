@@ -18,10 +18,17 @@ type Inhibitor struct {
 	mtx sync.RWMutex
 }
 
-func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
-	ih.mtx.RLock()
-	defer ih.mtx.RUnlock()
+func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule) *Inhibitor {
+	ih := &Inhibitor{
+		alerts: ap,
+	}
+	for _, cr := range rs {
+		ih.rules = append(ih.rules, NewInhibitRule(cr))
+	}
+	return ih
+}
 
+func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	alerts := ih.alerts.GetPending()
 	defer alerts.Close()
 
@@ -43,16 +50,6 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 		}
 	}
 	return false
-}
-
-func (ih *Inhibitor) ApplyConfig(conf *config.Config) {
-	ih.mtx.Lock()
-	defer ih.mtx.Unlock()
-
-	ih.rules = []*InhibitRule{}
-	for _, cr := range conf.InhibitRules {
-		ih.rules = append(ih.rules, NewInhibitRule(cr))
-	}
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit

@@ -68,8 +68,3 @@ type Notifies interface {
 	// Set several notifies at once. All or none must succeed.
 	Set(ns ...*types.Notify) error
 }
-
-type Config interface {
-	// Reload initiates a configuration reload.
-	Reload(...types.Reloadable) error
-}
