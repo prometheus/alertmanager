@@ -126,7 +126,7 @@ func main() {
 	}
 
 	router := route.New()
-	NewAPI(router.WithPrefix("/api/v1"), alerts, silences)
+	RegisterAPI(router.WithPrefix("/api/v1"), alerts, silences)
 
 	go http.ListenAndServe(*listenAddress, router)
 

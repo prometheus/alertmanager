@@ -35,7 +35,7 @@ type API struct {
 	context func(r *http.Request) context.Context
 }
 
-func NewAPI(r *route.Router, alerts provider.Alerts, silences provider.Silences) *API {
+func RegisterAPI(r *route.Router, alerts provider.Alerts, silences provider.Silences) *API {
 	api := &API{
 		context:  route.Context,
 		alerts:   alerts,
