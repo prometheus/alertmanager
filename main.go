@@ -17,13 +17,11 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	txttemplate "text/template"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
@@ -32,6 +30,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -49,6 +48,8 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	tmpl := &template.Template{}
 
 	alerts, err := provider.NewSQLAlerts(db)
 	if err != nil {
@@ -115,7 +116,7 @@ func main() {
 			for _, ec := range nc.EmailConfigs {
 				all = append(all, &notify.LogNotifier{
 					Log:      log.With("notifier", "email"),
-					Notifier: notify.NewEmail(ec),
+					Notifier: notify.NewEmail(ec, tmpl),
 				})
 			}
 
@@ -145,14 +146,13 @@ func main() {
 		}
 
 		routedNotifier.Lock()
-		log.Debugf("set notifiers for routes %#v", res)
 		routedNotifier.Notifiers = res
 		routedNotifier.Unlock()
 	}
 
 	disp := NewDispatcher(alerts, notifier)
 
-	if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor); err != nil {
+	if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor, tmpl); err != nil {
 		log.Fatalf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
 	}
 
@@ -174,7 +174,7 @@ func main() {
 
 	go func() {
 		for range hup {
-			if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor); err != nil {
+			if err := reloadConfig(*configFile, disp, types.ReloadFunc(build), inhibitor, tmpl); err != nil {
 				log.Errorf("Couldn't load configuration (-config.file=%s): %v", *configFile, err)
 			}
 		}
@@ -193,23 +193,6 @@ func reloadConfig(filename string, rls ...types.Reloadable) error {
 	if err != nil {
 		return err
 	}
-
-	t := template.New("")
-	for _, tpath := range conf.Templates {
-		t, err = t.ParseGlob(tpath)
-		if err != nil {
-			return err
-		}
-	}
-	tt := txttemplate.New("")
-	for _, tpath := range conf.Templates {
-		tt, err = tt.ParseGlob(tpath)
-		if err != nil {
-			return err
-		}
-	}
-
-	notify.SetTemplate(t, tt)
 
 	for _, rl := range rls {
 		rl.ApplyConfig(conf)

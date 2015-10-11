@@ -5,13 +5,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net"
 	"net/http"
 	"net/smtp"
 	"os"
 	"strings"
-	txttemplate "text/template"
 	"time"
 
 	"github.com/prometheus/common/log"
@@ -20,6 +18,7 @@ import (
 	"golang.org/x/net/context/ctxhttp"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -68,10 +67,11 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 
 type Email struct {
 	conf *config.EmailConfig
+	tmpl *template.Template
 }
 
-func NewEmail(ec *config.EmailConfig) *Email {
-	return &Email{conf: ec}
+func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
+	return &Email{conf: c, tmpl: t}
 }
 
 func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
@@ -161,16 +161,17 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		Date:   time.Now().Format(time.RFC1123Z),
 	}
 
-	if err := txttmpl.ExecuteTemplate(wc, n.conf.Templates.Header, &data); err != nil {
+	if err := n.tmpl.ExecuteText(wc, n.conf.Templates.Header, &data); err != nil {
 		return err
 	}
 
 	// TODO(fabxc): do a multipart write that considers the plain template.
-	return tmpl.ExecuteTemplate(wc, n.conf.Templates.HTML, &data)
+	return n.tmpl.ExecuteHTML(wc, n.conf.Templates.HTML, &data)
 }
 
 type Slack struct {
 	conf *config.SlackConfig
+	tmpl *template.Template
 }
 
 // slackReq is the request for sending a slack notification.
@@ -209,21 +210,25 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 		color = n.conf.ColorFiring
 	}
 
-	var title, link, pretext, text, fallback bytes.Buffer
-
-	if err := tmpl.ExecuteTemplate(&title, n.conf.Templates.Title, alerts); err != nil {
-		return err
-	}
-	if err := tmpl.ExecuteTemplate(&text, n.conf.Templates.Text, alerts); err != nil {
-		return err
+	var err error
+	tmpl := func(name string) (s string) {
+		if err != nil {
+			return
+		}
+		s, err = n.tmpl.ExecuteHTMLString(name, struct {
+			Alerts model.Alerts
+		}{
+			Alerts: alerts,
+		})
+		return s
 	}
 
 	attachment := &slackAttachment{
-		Title:     title.String(),
-		TitleLink: link.String(),
-		Pretext:   pretext.String(),
-		Text:      text.String(),
-		Fallback:  fallback.String(),
+		Title:     tmpl(n.conf.Templates.Title),
+		TitleLink: tmpl(n.conf.Templates.TitleLink),
+		Pretext:   tmpl(n.conf.Templates.Pretext),
+		Text:      tmpl(n.conf.Templates.Text),
+		Fallback:  tmpl(n.conf.Templates.Fallback),
 
 		Fields: []slackAttachmentField{{
 			Title: "Status",
@@ -233,6 +238,10 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 		Color:    color,
 		MrkdwnIn: []string{"fallback", "pretext"},
 	}
+	if err != nil {
+		return err
+	}
+
 	req := &slackReq{
 		Channel:     n.conf.Channel,
 		Attachments: []slackAttachment{*attachment},
@@ -255,12 +264,4 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 
 	return nil
-}
-
-var tmpl *template.Template
-var txttmpl *txttemplate.Template
-
-func SetTemplate(t *template.Template, tt *txttemplate.Template) {
-	tmpl = t
-	txttmpl = tt
 }
