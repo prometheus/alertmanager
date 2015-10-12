@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
@@ -83,6 +84,13 @@ func (t *Template) ExecuteHTML(w io.Writer, name string, data interface{}) error
 var DefaultFuncs = FuncMap{
 	"upper": strings.ToUpper,
 	"lower": strings.ToLower,
+	"title": strings.Title,
+	"match": regexp.MatchString,
+	// replace performs regular expression replace-all on the input string.
+	"replace": func(pattern, repl, text string) string {
+		re := regexp.MustCompile(pattern)
+		return re.ReplaceAllString(text, repl)
+	},
 	// safe marks a string as safe to be not HTML-escaped.
 	"safe": func(s string) html_tmpl.HTML {
 		return html_tmpl.HTML(s)
