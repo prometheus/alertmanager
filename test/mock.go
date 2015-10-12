@@ -95,8 +95,8 @@ func (sil *TestSilence) nativeSilence(opts *AcceptanceOpts) *model.Silence {
 	}
 	for i := 0; i < len(sil.matchRE); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &model.Matcher{
-			Name:    model.LabelName(sil.match[i]),
-			Value:   sil.match[i+1],
+			Name:    model.LabelName(sil.matchRE[i]),
+			Value:   sil.matchRE[i+1],
 			IsRegex: true,
 		})
 	}
