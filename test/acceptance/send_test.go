@@ -21,7 +21,12 @@ import (
 	. "github.com/prometheus/alertmanager/test"
 )
 
-func TestSomething(t *testing.T) {
+// This file contains acceptance tests around the basic sending logic
+// for notifications, which includes batching and ensuring that each
+// notification is eventually sent at least once and ideally exactly
+// once.
+
+func TestRepeat(t *testing.T) {
 	t.Parallel()
 
 	conf := `
@@ -74,19 +79,24 @@ notification_configs:
 	at.Run()
 }
 
-func TestSilencing(t *testing.T) {
+func TestRetry(t *testing.T) {
 	t.Parallel()
 
+	// We create a notification config that fans out into two different
+	// webhooks.
+	// The succeeding one must still only receive the first successful
+	// notifications. Sending to the succeeding one must eventually succeed.
 	conf := `
 routes:
 - send_to: "default"
   group_wait:      1s
   group_interval:  1s
-  repeat_interval: 1s
+  repeat_interval: 3s
 
 notification_configs:
 - name: "default"
   webhook_configs:
+  - url: 'http://%s'
   - url: 'http://%s'
 `
 
@@ -94,36 +104,26 @@ notification_configs:
 		Tolerance: 150 * time.Millisecond,
 	})
 
-	co := at.Collector("webhook")
-	wh := NewWebhook(co)
+	co1 := at.Collector("webhook")
+	wh1 := NewWebhook(co1)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	co2 := at.Collector("webhook_failing")
+	wh2 := NewWebhook(co2)
 
-	// No repeat interval is configured. Thus, we receive an alert
-	// notification every second.
-	am.Push(At(1), Alert("alertname", "test1").Active(1))
-	am.Push(At(1), Alert("alertname", "test2").Active(1))
+	wh2.Func = func(ts float64) bool {
+		// Fail the first two interval periods but eventually
+		// succeed in the third interval after a few failed attempts.
+		return ts < 4.5
+	}
 
-	co.Want(Between(2, 2.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(1),
-	)
+	am := at.Alertmanager(fmt.Sprintf(conf, wh1.Address(), wh2.Address()))
 
-	// Add a silence that affects the first alert.
-	am.SetSilence(At(2.5), Silence(2, 4.5).Match("alertname", "test1"))
+	am.Push(At(1), Alert("alertname", "test1"))
 
-	co.Want(Between(3, 3.5), Alert("alertname", "test2").Active(1))
-	co.Want(Between(4, 4.5), Alert("alertname", "test2").Active(1))
+	co1.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
+	co1.Want(Between(5, 5.5), Alert("alertname", "test1").Active(1))
 
-	// Silence should be over now and we receive both alerts again.
-
-	co.Want(Between(5, 5.5),
-		Alert("alertname", "test1").Active(1),
-		Alert("alertname", "test2").Active(1),
-	)
-
-	// Start the flow as defined above and run the checks afterwards.
-	at.Run()
+	co2.Want(Between(4.5, 5), Alert("alertname", "test1").Active(1))
 }
 
 func TestBatching(t *testing.T) {
