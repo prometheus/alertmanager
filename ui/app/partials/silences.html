@@ -3,27 +3,30 @@
 		Start: <input ng-model="silence.startsAt" type="datetime-local">
 		End: <input ng-model="silence.endsAt" type="datetime-local">
 
-		<input ng-model="silence.matchers[0].name">
-		<input ng-model="silence.matchers[0].value">
-		<input type="checkbox" ng-model="silence.matchers[0].isRegex">
+		<input placeholder="name" ng-model="silence.matchers[0].name">
+		<input placeholder="value" ng-model="silence.matchers[0].value">
+		regex: <input type="checkbox" ng-model="silence.matchers[0].isRegex">
 
 		<button ng-click="create()">Create</button>
 	</form>
 </div>
 
 <div id="silences-query">
-	<input type="text" ng-model="query">
+	<input placeholder="search" ng-model="query">
+	
+	order by: 
 	<select ng-model="order">
-		<option value="startsAt">Start</option>
-		<option value="endsAt">End</option>
+		<option value="startsAt">start</option>
+		<option value="endsAt">end</option>
+		<option value="createdAt">created</option>
 	</select>
 </div>
 
 <div ng-show="silences.length == 0">No silences configured</div>
 <div ng-hide="silences.length == 0" id="silences-list">
 	<div ng-repeat="sil in silences | filter:query | orderBy:order">
-		{{ sil.startsAt }} – {{ sil.endsAt }}
-		created: {{ sil.createdAt }}
+		{{ sil.startsAt | date:'medium' }} – {{ sil.endsAt | date:'medium' }}
+		created: {{ sil.createdAt | date:'medium' }}
 		<div ng-repeat="m in sil.matchers | orderBy:name">
 			{{ m.name }} = {{ m.value }} <span ng-show="m.isRegex">[re]</span>
 		</div>
