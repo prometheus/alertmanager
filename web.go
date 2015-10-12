@@ -23,11 +23,11 @@ import (
 func RegisterWeb(r *route.Router) {
 
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
-		t := template.Must(template.ParseFiles("ui/index.html"))
+		t := template.Must(template.ParseFiles("ui/app/index.html"))
 		t.Execute(w, nil)
 	})
 
-	r.Get("/app/*filepath", route.FileServe("ui/app"))
-	r.Get("/static/*filepath", route.FileServe("ui/static/"))
+	r.Get("/app/*filepath", route.FileServe("ui/app/"))
+	r.Get("/static/*filepath", route.FileServe("ui/lib/"))
 
 }
