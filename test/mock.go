@@ -216,8 +216,11 @@ func equalTime(a, b time.Time, opts *AcceptanceOpts) bool {
 }
 
 type MockWebhook struct {
+	opts      *AcceptanceOpts
 	collector *Collector
 	listener  net.Listener
+
+	Func func(timestamp float64) bool
 }
 
 func NewWebhook(c *Collector) *MockWebhook {
@@ -238,6 +241,13 @@ func NewWebhook(c *Collector) *MockWebhook {
 }
 
 func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// Inject Func if it exists.
+	if ws.Func != nil {
+		if ws.Func(ws.opts.relativeTime(time.Now())) {
+			return
+		}
+	}
+
 	dec := json.NewDecoder(req.Body)
 	defer req.Body.Close()
 
