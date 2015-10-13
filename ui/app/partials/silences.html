@@ -1,11 +1,17 @@
 <div id="silence-create" ng-controller="SilenceCreateCtrl">
-	<form>
+	<form novalidate>
 		Start: <input ng-model="silence.startsAt" type="datetime-local">
 		End: <input ng-model="silence.endsAt" type="datetime-local">
 
-		<input placeholder="name" ng-model="silence.matchers[0].name">
-		<input placeholder="value" ng-model="silence.matchers[0].value">
-		regex: <input type="checkbox" ng-model="silence.matchers[0].isRegex">
+		<div ng-repeat="m in silence.matchers">
+			<input placeholder="name" ng-model="m.name">
+			<input placeholder="value" ng-model="m.value">
+			regex: <input type="checkbox" ng-model="m.isRegex">
+			<button ng-hide="$first" ng-click="delMatcher($index)">-</button>
+			<button ng-show="$last" ng-click="newMatcher()">+</button>
+		</div>
+
+		<div ng-show="error != null">Error: {{ error }}</div>
 
 		<button ng-click="create()">Create</button>
 	</form>

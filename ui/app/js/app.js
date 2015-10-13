@@ -24,8 +24,10 @@ angular.module('am.controllers').controller('SilencesCtrl',
     $scope.refresh = function() {
       Silence.query({},
         function(data) {
-          console.log(data);
           $scope.silences = data.data || [];
+        },
+        function(data) {
+
         }
       );
     }
@@ -54,13 +56,29 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
     $scope.silence = {
       startsAt: now,
       endsAt: end,
-      matchers: []
+      matchers: [{}]
     }
 
     $scope.create = function() {
-      Silence.create($scope.silence);
-      $scope.$parent.refresh();
+      Silence.create($scope.silence,
+        function(data) {
+          $scope.refresh();
+        },
+        function(data) {
+          $scope.error = data.data;
+        }
+      );
     }
+
+    $scope.error = null;
+
+    $scope.newMatcher = function() {
+      $scope.silence.matchers.push({});
+    }
+    $scope.delMatcher = function(i) {
+      $scope.silence.matchers.splice(i, 1);
+    }
+
   }
 );
 
