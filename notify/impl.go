@@ -42,7 +42,7 @@ func Build(confs []*config.NotificationConfig, tmpl *template.Template) map[stri
 	for _, nc := range confs {
 		var (
 			fo  = Fanout{}
-			add = func(i int, n Notifier) { fo[fmt.Sprintf("%T/%i", n, i)] = n }
+			add = func(i int, n Notifier) { fo[fmt.Sprintf("%T/%d", n, i)] = n }
 		)
 
 		for i, c := range nc.WebhookConfigs {
