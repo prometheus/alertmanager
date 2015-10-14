@@ -42,6 +42,30 @@ func NewSQLNotifyInfo(db *sql.DB) (*SQLNotifyInfo, error) {
 		tx.Rollback()
 		return nil, err
 	}
+
+	// XXX(bug-ish): The selection of pending alerts uses a NOT IN clause
+	// that will falsely be evaluated to false if the nested SELECT statement
+	// has no results at all.
+	// Thus, we insert a fake alert so there is always at least one result.
+	// The fingerprint must not be NULL as it doesn't work.
+	row := tx.QueryRow(`SELECT count() FROM notify_info WHERE alert == 0`)
+
+	var count int
+	if err := row.Scan(&count); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if count == 0 {
+		_, err := tx.Exec(`
+			INSERT INTO notify_info(alert, delivered, resolved)
+			VALUES (0, true, true)
+		`)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
 	tx.Commit()
 
 	return &SQLNotifyInfo{db: db}, nil
@@ -57,8 +81,8 @@ CREATE TABLE IF NOT EXISTS notify_info (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS notify_alert
 	ON notify_info (alert, destination);
-CREATE INDEX IF NOT EXISTS notify_delivered
-	ON notify_info (delivered);
+CREATE INDEX IF NOT EXISTS notify_done
+	ON notify_info (resolved, delivered);
 `
 
 func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Notify, error) {
@@ -104,6 +128,7 @@ func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
 		VALUES ($1, $2, $3, $4, $5);
 	`)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	defer insert.Close()
@@ -113,15 +138,18 @@ func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
 		WHERE alert == $1 AND destination == $2
 	`)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	defer del.Close()
 
 	for _, ni := range ns {
+		log.Debugln("deleting notify", ni.Alert, ni.SendTo)
 		if _, err := del.Exec(ni.Alert, ni.SendTo); err != nil {
 			tx.Rollback()
 			return err
 		}
+		log.Debugln("inserting notify", ni)
 		if _, err := insert.Exec(
 			ni.Alert,
 			ni.SendTo,
@@ -245,12 +273,12 @@ func (a *SQLAlerts) GetPending() AlertIterator {
 
 func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
 	rows, err := a.db.Query(`
-		SELECT a.labels, a.annotations, a.starts_at, a.ends_at, a.updated_at, a.timeout
-		FROM 
-			alerts AS a 
-		  LEFT OUTER JOIN 
-			(SELECT * FROM notify_info WHERE !delivered OR !resolved) AS n
-		  ON a.fingerprint == n.alert
+		SELECT labels, annotations, starts_at, ends_at, updated_at, timeout
+		FROM alerts
+		WHERE
+			fingerprint NOT IN (
+				SELECT alert FROM notify_info WHERE delivered AND resolved
+			)
 	`)
 	if err != nil {
 		return nil, err
