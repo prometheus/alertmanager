@@ -1,41 +1,94 @@
-<div id="silence-create" ng-controller="SilenceCreateCtrl">
-	<form novalidate>
-		Start: <input ng-model="silence.startsAt" type="datetime-local">
-		End: <input ng-model="silence.endsAt" type="datetime-local">
+<div ng-controller="SilenceCreateCtrl">
+	<form novalidate class="forms">
+		<fieldset id="silence-create">
+			<legend>Create <span class="desc">Define a new silence.</span></legend>
 
-		<div ng-repeat="m in silence.matchers">
-			<input placeholder="name" ng-model="m.name">
-			<input placeholder="value" ng-model="m.value">
-			regex: <input type="checkbox" ng-model="m.isRegex">
-			<button ng-hide="$first" ng-click="delMatcher($index)">-</button>
-			<button ng-show="$last" ng-click="newMatcher()">+</button>
+			<row>
+				<column cols="2">
+					<label>Start</label>
+					<input ng-model="silence.startsAt" type="datetime-local">
+				</column>
+				<column cols="3">
+					<label>End</label>
+					<input ng-model="silence.endsAt" type="datetime-local">
+				</column>
+				<column cols="2">
+					<label>Creator</label>
+					<input ng-model="silence.createdBy" type="email">
+				</column>
+				<column cols="3">
+					<label>Comment</label>
+					<input ng-model="silence.comment" type="text">
+				</column>
+			</row>
+	
+			<label>Matchers <span class="desc">Alerts affected by this silence.</span></label>
+			<row class="silence-matchers" ng-repeat="m in silence.matchers">
+				<column cols="2">
+					<input class="input-small" type="text" placeholder="name" ng-model="m.name">
+				</column>
+				<column cols="2">
+					<input class="input-small" type="text" placeholder="value" ng-model="m.value">
+				</column>
+				<column>
+					<label class="checkbox is-regex"><input type="checkbox" ng-model="m.isRegex"> /re/</label>
+				</column>
+
+				<column cols="1">
+					<button type="secondary" ng-hide="$first" ng-click="delMatcher($index)" small>-</button>
+					<button type="secondary" ng-show="$last" ng-click="newMatcher()" small>+</button>
+				</column>
+			</row>
+
+		</fieldset>
+
+		<div ng-show="error != null"><span class="error">{{ error }}</span></div>
+
+		<div class="btn-group">
+			<button type="primary" ng-disabled="silence.matchers.length == 0" ng-click="create()" small>Create</button>
+			<button type="seconday" ng-click="reset()" small>Reset</button>
 		</div>
-
-		<div ng-show="error != null">Error: {{ error }}</div>
-
-		<button ng-click="create()">Create</button>
 	</form>
 </div>
 
-<div id="silences-query">
-	<input placeholder="search" ng-model="query">
-	
-	order by: 
-	<select ng-model="order">
-		<option value="startsAt">start</option>
-		<option value="endsAt">end</option>
-		<option value="createdAt">created</option>
-	</select>
+<hr> 
+
+<div id="silences-query" class="forms">
+	<row>
+		<column cols="5">
+			<input type="search" placeholder="search" ng-model="query">
+		</column>
+		<column cols="2">
+			<select class="select" ng-model="order">
+				<option value="startsAt">start</option>
+				<option value="endsAt">end</option>
+				<option value="createdAt">created</option>
+			</select>
+		</column>
+	</row>
 </div>
 
 <div ng-show="silences.length == 0">No silences configured</div>
+
 <div ng-hide="silences.length == 0" id="silences-list">
-	<div ng-repeat="sil in silences | filter:query | orderBy:order">
-		{{ sil.startsAt | date:'medium' }} – {{ sil.endsAt | date:'medium' }}
-		created: {{ sil.createdAt | date:'medium' }}
-		<div ng-repeat="m in sil.matchers | orderBy:name">
-			{{ m.name }} = {{ m.value }} <span ng-show="m.isRegex">[re]</span>
+
+	<div class="list-item group" ng-repeat="sil in silences | filter:query | orderBy:order">
+		<div class="container-left">
+			<div class="silence-interval">{{ sil.startsAt | date:'medium' }} – {{ sil.endsAt | date:'medium' }}</div>
+			<span class="label-matcher label label-white" outline ng-repeat="m in sil.matchers | orderBy:name">
+				{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
+			</span>
 		</div>
-		<button ng-click="delete(sil)">Delete</button>
+		<div class="container-right group">
+			<blockquote class="left silence-created">
+				<div ng-show="sil.comment">{{ sil.comment }}</div>
+				<cite>created <span ng-show="sil.createdBy">by <strong>{{ sil.createdBy }}</strong></span> at {{ sil.createdAt | date:'medium' }}</cite>
+			</blockquote>
+
+			<div class="right">
+				<button type="secondary" ng-click="delete(sil)" small>Delete</button>
+			</div>
+		</div>
 	</div>
+
 </div>

@@ -9,38 +9,29 @@
 
 	<script src="/app/js/app.js"></script>
 
-	<link rel="stylesheet" href="/static/pure-min.css">
+	<link rel="stylesheet" href="/static/kube.min.css">
+	<link rel="stylesheet" href="/app/css/main.css">
 
 	<style>
 
 	</style>
 </head>
 <body>
-<div id="layout" class="content pure-g">
-	<div id="nav" class="pure-u">
-		<a href="#" class="nav-menu-button">Menu</a>
+<header class="group">
+	<h1 id="logo" class="thin hide-for-small">Alertmanager.</h1>
 
-		<div class="nav-inner">
-			<div class="pure-menu">
-				<ul class="pure-menu-list"><!-- 
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link">Alerts</a></li>
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link">Silences</li>
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link">Sent</a></li>
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link">Drafts</a></li>
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link">Trash</a></li>
-					<li class="pure-menu-heading">Labels</li>
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link"><span class="email-label-personal"></span>Personal</a></li>
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link"><span class="email-label-work"></span>Work</a></li>
-					<li class="pure-menu-item"><a href="#" class="pure-menu-link"><span class="email-label-travel"></span>Travel</a></li> -->
-				</ul>
-			</div>
-		</div>
-	</div>
-</div>
-	
-<h1>AM</h1>
+	<nav id="top-nav" ng-controller="NavCtrl">
+		<ul>
+			<li ng-repeat="item in items" ng-class="{'selected': selected(item)}">
+				<a ng-href="/#{{ item.url }}" class="upper">{{ item.name }}</a>
+			</li>
+		</ul>
+	</nav>
+</header>
 
-<div ng-view></div>
+<main id="content">
+	<div ng-view></div>
+</main>
 
 </body>
 </html>

@@ -16,6 +16,20 @@ angular.module('am.services').factory('Silence',
 
 angular.module('am.controllers', []);
 
+angular.module('am.controllers').controller('NavCtrl',
+  function($scope, $location) {
+    $scope.items = [
+      {name: 'Silences', url:'/silences'},
+      {name: 'Alerts', url:'/alerts'},
+      {name: 'Status', url:'/status'}
+    ];
+
+    $scope.selected = function(item) {
+      return item.url == $location.path()
+    }    
+  }
+);
+
 angular.module('am.controllers').controller('SilencesCtrl',
   function($scope, Silence) {
     $scope.silences = [];
