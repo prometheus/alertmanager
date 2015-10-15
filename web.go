@@ -14,20 +14,29 @@
 package main
 
 import (
-	"html/template"
+	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/prometheus/common/route"
 )
 
 func RegisterWeb(r *route.Router) {
 
-	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
-		t := template.Must(template.ParseFiles("ui/app/index.html"))
-		t.Execute(w, nil)
-	})
-
 	r.Get("/app/*filepath", route.FileServe("ui/app/"))
 	r.Get("/static/*filepath", route.FileServe("ui/lib/"))
 
+	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+		f, err := os.Open("ui/app/index.html")
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		b, err := ioutil.ReadAll(f)
+		if err != nil {
+			panic(err)
+		}
+		w.Write(b)
+	})
 }
