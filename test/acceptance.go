@@ -155,7 +155,11 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 // Run starts all Alertmanagers and runs queries against them. It then checks
 // whether all expected notifications have arrived at the expected destination.
 func (t *AcceptanceTest) Run() {
+	errc := make(chan error)
+
 	for _, am := range t.ams {
+		am.errc = errc
+
 		am.Start()
 		defer func(am *Alertmanager) {
 			am.Terminate()
@@ -163,7 +167,7 @@ func (t *AcceptanceTest) Run() {
 		}(am)
 	}
 
-	t.runActions()
+	go t.runActions()
 
 	var latest float64
 	for _, coll := range t.collectors {
@@ -173,7 +177,13 @@ func (t *AcceptanceTest) Run() {
 	}
 
 	deadline := t.opts.expandTime(latest)
-	time.Sleep(deadline.Sub(time.Now()))
+
+	select {
+	case <-time.After(deadline.Sub(time.Now())):
+		// continue
+	case err := <-errc:
+		t.Fatal(err)
+	}
 
 	for _, coll := range t.collectors {
 		report := coll.check()
@@ -217,6 +227,8 @@ type Alertmanager struct {
 	cmd      *exec.Cmd
 	confFile *os.File
 	dir      string
+
+	errc chan<- error
 }
 
 // Start the alertmanager and wait until it is ready to receive.
@@ -242,16 +254,18 @@ func (am *Alertmanager) Start() {
 		am.t.Fatalf("Starting alertmanager failed: %s", err)
 	}
 
+	go func() {
+		if err := am.cmd.Wait(); err != nil {
+			am.errc <- err
+		}
+	}()
+
 	time.Sleep(50 * time.Millisecond)
 }
 
 // kill the underlying Alertmanager process and remove intermediate data.
 func (am *Alertmanager) Terminate() {
 	syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM)
-
-	if err := am.cmd.Wait(); err != nil {
-		am.t.Fatal(err)
-	}
 }
 
 // Reload sends the reloading signal to the Alertmanager process.
