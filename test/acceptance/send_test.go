@@ -26,6 +26,47 @@ import (
 // notification is eventually sent at least once and ideally exactly
 // once.
 
+func TestMergeAlerts(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+routes:
+- send_to: "default"
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1s
+
+notification_configs:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(co)
+
+	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+
+	am.Push(At(1), Alert("alertname", "test").Active(1))
+	am.Push(At(1.2), Alert("alertname", "test").Active(1.1))
+
+	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(1))
+
+	am.Push(At(2.1), Alert("alertname", "test").Annotate("ann", "v1").Active(2))
+
+	co.Want(Between(3, 3.5), Alert("alertname", "test").Annotate("ann", "v1").Active(1))
+
+	am.Push(At(3.6), Alert("alertname", "test").Annotate("ann", "v2").Active(1.5))
+
+	co.Want(Between(4, 4.5), Alert("alertname", "test").Annotate("ann", "v2").Active(1))
+
+	at.Run()
+}
+
 func TestRepeat(t *testing.T) {
 	t.Parallel()
 
