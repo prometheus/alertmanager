@@ -338,8 +338,8 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	overlap, err := tx.Prepare(`
 		SELECT id(), annotations, starts_at, ends_at, updated_at, timeout FROM alerts
 		WHERE fingerprint == $1 AND
-			(starts_at >= $2 AND ends_at <= $2) OR 
-			(starts_at >= $3 AND ends_at <= $3)
+			(starts_at <= $2 AND ends_at >= $2) OR
+			(starts_at <= $3 AND ends_at >= $3)
 	`)
 	if err != nil {
 		tx.Rollback()
@@ -351,8 +351,8 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 		DELETE FROM alerts WHERE id() IN (
 			SELECT id() FROM alerts
 			WHERE fingerprint == $1 AND
-				(starts_at >= $2 AND ends_at <= $2) OR 
-				(starts_at >= $3 AND ends_at <= $3)
+				(starts_at <= $2 AND ends_at >= $2) OR
+				(starts_at <= $3 AND ends_at >= $3)
 		)
 	`)
 	if err != nil {
