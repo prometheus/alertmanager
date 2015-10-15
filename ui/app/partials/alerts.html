@@ -1,0 +1,38 @@
+<div id="alert-query" class="forms">
+	<row>
+		<column cols="5">
+			<input type="search" placeholder="search" ng-model="query">
+		</column>
+		<column cols="2">
+			<select class="select" ng-model="order">
+				<option value="startsAt">start</option>
+				<option value="endsAt">end</option>
+			</select>
+		</column>
+	</row>
+</div>
+
+<div ng-show="alerts.length == 0">No alerts found</div>
+
+<div ng-hide="alerts.length == 0" id="alerts-list">
+
+	<div class="list-item group" ng-repeat="a in alerts | filter:query | orderBy:order">
+		<div class="container-left">
+			<div class="silence-interval">{{ a.startsAt | date:'medium' }} – {{ a.endsAt | date:'medium' }}</div>
+			<span class="label-matcher label label-white" outline ng-repeat="(name, value) in a.labels | orderBy:name">
+				{{ name }} = '{{ value }}'
+			</span>
+		</div>
+		<div class="container-right group">
+			<table>
+				<tbody>
+					<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
+						<td>{{ name }}</td>
+						<td>{{ val }}</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+</div>

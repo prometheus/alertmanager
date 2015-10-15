@@ -14,6 +14,14 @@ angular.module('am.services').factory('Silence',
   }
 );
 
+angular.module('am.services').factory('Alert',
+  function($resource){
+    return $resource('', {}, {
+      'query':  {method: 'GET', url: '/api/v1/alerts'}
+    });
+  }
+);
+
 angular.module('am.controllers', []);
 
 angular.module('am.controllers').controller('NavCtrl',
@@ -27,6 +35,26 @@ angular.module('am.controllers').controller('NavCtrl',
     $scope.selected = function(item) {
       return item.url == $location.path()
     }    
+  }
+);
+
+angular.module('am.controllers').controller('AlertsCtrl',
+  function($scope, Alert) {
+    $scope.alerts = [];
+    $scope.order = "startsAt";
+
+    $scope.refresh = function() {
+      Alert.query({},
+        function(data) {
+          $scope.alerts = data.data || [];
+        },
+        function(data) {
+
+        }
+      );
+    }
+
+    $scope.refresh();
   }
 );
 
@@ -57,21 +85,6 @@ angular.module('am.controllers').controller('SilencesCtrl',
 
 angular.module('am.controllers').controller('SilenceCreateCtrl',
   function($scope, Silence) {
-    var now = new Date(),
-        end = new Date();
-
-    now.setMilliseconds(0);
-    end.setMilliseconds(0);
-    now.setSeconds(0);
-    end.setSeconds(0);
-
-    end.setHours(end.getHours() + 2)
-
-    $scope.silence = {
-      startsAt: now,
-      endsAt: end,
-      matchers: [{}]
-    }
 
     $scope.create = function() {
       Silence.create($scope.silence,
@@ -92,7 +105,27 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
     $scope.delMatcher = function(i) {
       $scope.silence.matchers.splice(i, 1);
     }
+    $scope.reset = function() {
+      var now = new Date(),
+          end = new Date();
 
+      now.setMilliseconds(0);
+      end.setMilliseconds(0);
+      now.setSeconds(0);
+      end.setSeconds(0);
+
+      end.setHours(end.getHours() + 2)
+
+      $scope.silence = {
+        startsAt: now,
+        endsAt: end,
+        matchers: [{}],
+        comment: "",
+        createdBy: ""
+      }
+    }
+
+    $scope.reset();
   }
 );
 
@@ -106,6 +139,10 @@ angular.module('am', [
 angular.module('am').config(
   function($routeProvider) {
     $routeProvider.
+      when('/alerts', {
+        templateUrl: '/app/partials/alerts.html',
+        controller: 'AlertsCtrl'
+      }).
       when('/silences', {
         templateUrl: '/app/partials/silences.html',
         controller: 'SilencesCtrl'
