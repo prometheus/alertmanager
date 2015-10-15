@@ -65,7 +65,7 @@ func Alerts(alerts ...*Alert) model.Alerts {
 // A new alert is returned, the labels are assumed to be equal.
 func (a *Alert) Merge(o *Alert) *Alert {
 	// Let o always be the younger alert.
-	if !a.UpdatedAt.Before(o.UpdatedAt) {
+	if o.UpdatedAt.Before(a.UpdatedAt) {
 		return o.Merge(a)
 	}
 
