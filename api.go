@@ -74,15 +74,29 @@ func (e *apiError) Error() string {
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
-	// 	alerts, err := api.alerts.GetAll()
-	// 	if err != nil {
-	// 		respondError(w, apiError{
-	// 			typ: errorBadData,
-	// 			err: err,
-	// 		}, nil)
-	// 		return
-	// 	}
-	// 	respond(w, alerts)
+	alerts := api.alerts.GetPending()
+	defer alerts.Close()
+
+	var (
+		err error
+		res []*types.Alert
+	)
+	// TODO(fabxc): enforce a sensible timeout.
+	for a := range alerts.Next() {
+		if err = alerts.Err(); err != nil {
+			break
+		}
+		res = append(res, a)
+	}
+
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+	respond(w, types.Alerts(res...))
 }
 
 func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
