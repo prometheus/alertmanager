@@ -182,7 +182,7 @@ func (t *AcceptanceTest) Run() {
 	case <-time.After(deadline.Sub(time.Now())):
 		// continue
 	case err := <-errc:
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	for _, coll := range t.collectors {
