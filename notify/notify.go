@@ -37,7 +37,7 @@ const (
 	keyDestination notifyKey = iota
 	keyRepeatInterval
 	keySendResolved
-	keyGroup
+	keyGroupLabels
 	keyNow
 )
 
@@ -53,8 +53,8 @@ func WithSendResolved(ctx context.Context, b bool) context.Context {
 	return context.WithValue(ctx, keySendResolved, b)
 }
 
-func WithGroup(ctx context.Context, g string) context.Context {
-	return context.WithValue(ctx, keyGroup, g)
+func WithGroupLabels(ctx context.Context, lset model.LabelSet) context.Context {
+	return context.WithValue(ctx, keyGroupLabels, lset)
 }
 
 func WithNow(ctx context.Context, t time.Time) context.Context {
@@ -76,8 +76,8 @@ func SendResolved(ctx context.Context) (bool, bool) {
 	return v, ok
 }
 
-func Group(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(keyGroup).(string)
+func GroupLabels(ctx context.Context) (model.LabelSet, bool) {
+	v, ok := ctx.Value(keyGroupLabels).(model.LabelSet)
 	return v, ok
 }
 

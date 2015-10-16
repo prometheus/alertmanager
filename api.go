@@ -127,6 +127,9 @@ func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
 				Annotations: la.Payload,
 			},
 		}
+		if a.Annotations == nil {
+			a.Annotations = model.LabelSet{}
+		}
 		a.Annotations["summary"] = la.Summary
 		a.Annotations["description"] = la.Description
 		a.Annotations["runbook"] = la.Runbook

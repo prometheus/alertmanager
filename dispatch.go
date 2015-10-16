@@ -24,7 +24,7 @@ type Dispatcher struct {
 	alerts   provider.Alerts
 	notifier notify.Notifier
 
-	aggrGroups map[model.Fingerprint]*aggrGroup
+	aggrGroups map[*RouteOpts]map[model.Fingerprint]*aggrGroup
 
 	done   chan struct{}
 	ctx    context.Context
@@ -47,7 +47,7 @@ func NewDispatcher(ap provider.Alerts, r []*config.Route, n notify.Notifier) *Di
 // Run starts dispatching alerts incoming via the updates channel.
 func (d *Dispatcher) Run() {
 	d.done = make(chan struct{})
-	d.aggrGroups = map[model.Fingerprint]*aggrGroup{}
+	d.aggrGroups = map[*RouteOpts]map[model.Fingerprint]*aggrGroup{}
 
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 
@@ -77,10 +77,12 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			}
 
 		case <-cleanup.C:
-			for _, ag := range d.aggrGroups {
-				if ag.empty() {
-					ag.stop()
-					delete(d.aggrGroups, ag.fingerprint())
+			for _, groups := range d.aggrGroups {
+				for _, ag := range groups {
+					if ag.empty() {
+						ag.stop()
+						delete(groups, ag.fingerprint())
+					}
 				}
 			}
 
@@ -119,11 +121,17 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 
 	fp := group.Fingerprint()
 
+	groups, ok := d.aggrGroups[opts]
+	if !ok {
+		groups = map[model.Fingerprint]*aggrGroup{}
+		d.aggrGroups[opts] = groups
+	}
+
 	// If the group does not exist, create it.
-	ag, ok := d.aggrGroups[fp]
+	ag, ok := groups[fp]
 	if !ok {
 		ag = newAggrGroup(d.ctx, group, opts)
-		d.aggrGroups[fp] = ag
+		groups[fp] = ag
 
 		ag.log = log.With("aggrGroup", ag)
 
@@ -203,8 +211,8 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithNow(ctx, now)
 
 			// Populate context with information needed along the pipeline.
+			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithDestination(ctx, ag.opts.SendTo)
-			ctx = notify.WithGroup(ctx, ag.String())
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 			ctx = notify.WithSendResolved(ctx, ag.opts.SendResolved)
 
