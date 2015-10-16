@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"golang.org/x/net/context"
 
@@ -41,6 +42,12 @@ func RegisterAPI(r *route.Router, alerts provider.Alerts, silences provider.Sile
 		alerts:   alerts,
 		silences: silences,
 	}
+
+	// Register legacy forwarder for alert pushing.
+	r.Post("/alerts", api.legacyAddAlerts)
+
+	// Register actual API.
+	r = r.WithPrefix("/v1")
 
 	r.Get("/alerts", api.listAlerts)
 	r.Post("/alerts", api.addAlerts)
@@ -97,6 +104,60 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, types.Alerts(res...))
+}
+
+func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
+	var legacyAlerts = []struct {
+		Summary     model.LabelValue `json:"summary"`
+		Description model.LabelValue `json:"description"`
+		Runbook     model.LabelValue `json:"runbook"`
+		Labels      model.LabelSet   `json:"labels"`
+		Payload     model.LabelSet   `json:"payload"`
+	}{}
+	if err := receive(r, &legacyAlerts); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var alerts []*types.Alert
+	for _, la := range legacyAlerts {
+		a := &types.Alert{
+			Alert: model.Alert{
+				Labels:      la.Labels,
+				Annotations: la.Payload,
+			},
+		}
+		a.Annotations["summary"] = la.Summary
+		a.Annotations["description"] = la.Description
+		a.Annotations["runbook"] = la.Runbook
+
+		alerts = append(alerts, a)
+	}
+
+	now := time.Now()
+
+	for _, alert := range alerts {
+		alert.UpdatedAt = now
+
+		if alert.StartsAt.IsZero() {
+			alert.StartsAt = now
+		}
+		if alert.EndsAt.IsZero() {
+			alert.Timeout = true
+			alert.EndsAt = alert.StartsAt.Add(ResolveTimeout)
+		}
+	}
+
+	// TODO(fabxc): validate input.
+	if err := api.alerts.Put(alerts...); err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+
+	respond(w, nil)
 }
 
 func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
