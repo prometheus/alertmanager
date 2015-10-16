@@ -175,8 +175,6 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		return err
 	}
 
-	log.Debugln("sending mail", n.conf.Email, c)
-
 	// Send the email body.
 	wc, err := c.Data()
 	if err != nil {
@@ -184,18 +182,26 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	defer wc.Close()
 
-	data := struct {
-		Alerts model.Alerts
-		From   string
-		To     string
-		Date   string
-	}{
-		Alerts: types.Alerts(as...),
-		From:   n.conf.Sender,
-		To:     n.conf.Email,
-		Date:   time.Now().Format(time.RFC1123Z),
+	groupLabels, ok := GroupLabels(ctx)
+	if !ok {
+		log.Error("missing group labels")
 	}
 
+	data := struct {
+		Alerts      model.Alerts
+		GroupLabels model.LabelSet
+		From        string
+		To          string
+		Date        string
+	}{
+		Alerts:      types.Alerts(as...),
+		GroupLabels: groupLabels,
+		From:        n.conf.Sender,
+		To:          n.conf.Email,
+		Date:        time.Now().Format(time.RFC1123Z),
+	}
+
+	// Expand the mail header first without HTML escaping
 	if err := n.tmpl.ExecuteText(wc, n.conf.Templates.Header, &data); err != nil {
 		return err
 	}

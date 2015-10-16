@@ -41,7 +41,6 @@ var (
 		Templates: EmailTemplates{
 			Header: "email.default.header",
 			HTML:   "email.default.html",
-			Plain:  "email.default.plain",
 		},
 	}
 )
@@ -84,7 +83,6 @@ type EmailConfig struct {
 type EmailTemplates struct {
 	Header string `yaml:"header"`
 	HTML   string `yaml:"html"`
-	Plain  string `yaml:"plain"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

@@ -56,7 +56,7 @@ func (d *Dispatcher) Run() {
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
-	cleanup := time.NewTicker(5 * time.Minute)
+	cleanup := time.NewTicker(30 * time.Second)
 	defer cleanup.Stop()
 
 	defer it.Close()
@@ -140,7 +140,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 			if err != nil {
 				log.Errorf("Notify for %d alerts failed: %s %T", len(alerts), err, err)
 			}
-			return err != nil
+			return err == nil
 		})
 	}
 

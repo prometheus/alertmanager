@@ -23,17 +23,37 @@ my text
 {{ define "email.default.header" }}From: "Prometheus Alertmanager" <{{ .From }}>
 To: {{ .To }}
 Date: {{ .Date }}
-Subject: [{{ .Alerts.Status }}]
-{{ end }}
-
-{{ define "email.default.plain" }}
-  {{ range .Alerts }}
-{{ .String }}
-  {{ end }}
+Subject: [{{ .Alerts.Status }}] {{ .GroupLabels }}
+Content-Type: text/html; charset=UTF-8
 {{ end }}
 
 {{ define "email.default.html" }}
+<h1 style="font-size: 115%">{{ len .Alerts }} alert(s) for {{ .GroupLabels }}</h1>
+
   {{ range .Alerts }}
-{{ .String }}
+<div style="
+	padding: 18px;
+	margin-top: 7px;
+	border: 1px solid #bbb;
+">
+  <strong>{{ .Status }}</strong><br>
+  <div style="float: left; min-width: 150px;">
+    <em>Labels</em><br>
+    <ul>
+{{range $label, $value := .Labels}}
+      <li>{{$label}}:	{{$value}}</li>
+{{end}}
+    </ul>
+  </div>
+  <div style="float: left; margin-left: 15px">
+    <em>Annotations</em><br>
+    <ul>
+{{ range $label, $value := .Annotations }}
+      <li>{{ $label }}:	{{ $value }}</li>
+{{end}}
+    </ul>
   {{ end }}
+  </div>
+  <div style="clear: both;"></div>
+</div>
 {{ end }}
