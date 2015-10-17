@@ -97,7 +97,7 @@ func main() {
 		log.With("file", *configFile).Infof("Loading configuration file")
 		defer func() {
 			if err != nil {
-				log.With("file", *configFile).Errorf("Loading configuration file failed")
+				log.With("file", *configFile).Errorf("Loading configuration file failed: %s", err)
 			}
 		}()
 
