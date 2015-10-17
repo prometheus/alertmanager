@@ -67,6 +67,7 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
+	Global              *GlobalConfig         `yaml:"global,omitempty"`
 	Routes              []*Route              `yaml:"routes,omitempty"`
 	InhibitRules        []*InhibitRule        `yaml:"inhibit_rules,omitempty"`
 	NotificationConfigs []*NotificationConfig `yaml:"notification_configs,omitempty"`
@@ -111,15 +112,51 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	// If a global block was open but empty the default global config is overwritten.
+	// We have to restore it here.
+	if c.Global == nil {
+		c.Global = &GlobalConfig{}
+		*c.Global = DefaultGlobalConfig
+	}
+
 	names := map[string]struct{}{}
 
 	for _, nc := range c.NotificationConfigs {
 		if _, ok := names[nc.Name]; ok {
 			return fmt.Errorf("notification config name %q is not unique", nc.Name)
 		}
+		for _, ec := range nc.EmailConfigs {
+			if ec.Smarthost == "" {
+				if c.Global.Smarthost == "" {
+					return fmt.Errorf("no global mail smarthost set")
+				}
+				ec.Smarthost = c.Global.Smarthost
+			}
+		}
+		for _, sc := range nc.SlackConfigs {
+			if sc.URL == "" {
+				if c.Global.SlackURL == "" {
+					return fmt.Errorf("no global Slack URL set")
+				}
+				sc.URL = c.Global.SlackURL
+			}
+		}
 		names[nc.Name] = struct{}{}
 	}
 	return checkOverflow(c.XXX, "config")
+}
+
+var DefaultGlobalConfig = GlobalConfig{}
+
+type GlobalConfig struct {
+	Smarthost string `yaml:"smarthost"`
+	SlackURL  string `yaml:"slack_url"`
+}
+
+func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultGlobalConfig
+	type plain GlobalConfig
+	return unmarshal((*plain)(c))
 }
 
 // A Route is a node that contains definitions of how to handle alerts.

@@ -98,9 +98,6 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Sender == "" {
 		return fmt.Errorf("missing SMTP sender in email config")
 	}
-	if c.Smarthost == "" {
-		return fmt.Errorf("missing smart host in email config")
-	}
 	return checkOverflow(c.XXX, "email config")
 }
 
@@ -211,9 +208,6 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain SlackConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
-	}
-	if c.URL == "" {
-		return fmt.Errorf("missing URL in Slack config")
 	}
 	if c.Channel == "" {
 		return fmt.Errorf("missing channel in Slack config")
