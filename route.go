@@ -97,12 +97,14 @@ func NewRoute(cr *config.Route, parent *RouteOpts) *Route {
 		matchers = append(matchers, m)
 	}
 
-	return &Route{
+	route := &Route{
 		RouteOpts: opts,
 		Matchers:  matchers,
 		Continue:  cr.Continue,
 		Routes:    NewRoutes(cr.Routes, &opts),
 	}
+
+	return route
 }
 
 func NewRoutes(croutes []*config.Route, parent *RouteOpts) Routes {

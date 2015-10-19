@@ -143,10 +143,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 		for _, pdc := range nc.PagerdutyConfigs {
 			if pdc.URL == "" {
-				if c.Global.PagerDutyURL == "" {
+				if c.Global.PagerdutyURL == "" {
 					return fmt.Errorf("no global PagerDuty URL set")
 				}
-				pdc.URL = c.Global.PagerDutyURL
+				pdc.URL = c.Global.PagerdutyURL
 			}
 		}
 		names[nc.Name] = struct{}{}
@@ -161,7 +161,7 @@ var DefaultGlobalConfig = GlobalConfig{
 type GlobalConfig struct {
 	Smarthost    string `yaml:"smarthost"`
 	SlackURL     string `yaml:"slack_url"`
-	PagerDutyURL string `yaml:"pagerduty_url"`
+	PagerdutyURL string `yaml:"pagerduty_url"`
 }
 
 func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {

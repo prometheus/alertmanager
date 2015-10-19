@@ -44,8 +44,8 @@ var (
 		},
 	}
 
-	DefaultPagerDutyConfig = PagerDutyConfig{
-		Templates: PagerDutyTemplates{
+	DefaultPagerdutyConfig = PagerdutyConfig{
+		Templates: PagerdutyTemplates{
 			Description: "pagerduty.default.description",
 		},
 	}
@@ -56,19 +56,19 @@ type PagerdutyConfig struct {
 	ServiceKey string `yaml:"service_key"`
 	URL        string `yaml:"url"`
 
-	Templates PagerDutyTemplates `yaml:"templates"`
+	Templates PagerdutyTemplates `yaml:"templates"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
-type PagerDutyTemplates struct {
+type PagerdutyTemplates struct {
 	Description string
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultPagerDutyConfig
+	*c = DefaultPagerdutyConfig
 	type plain PagerdutyConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err

@@ -51,6 +51,9 @@ func Build(confs []*config.NotificationConfig, tmpl *template.Template) map[stri
 		for i, c := range nc.EmailConfigs {
 			add(i, NewEmail(c, tmpl))
 		}
+		for i, c := range nc.PagerdutyConfigs {
+			add(i, NewPagerDuty(c, tmpl))
+		}
 
 		res[nc.Name] = fo
 	}
@@ -208,6 +211,68 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 
 	// TODO(fabxc): do a multipart write that considers the plain template.
 	return n.tmpl.ExecuteHTML(wc, n.conf.Templates.HTML, &data)
+}
+
+type PagerDuty struct {
+	conf *config.PagerdutyConfig
+	tmpl *template.Template
+}
+
+func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template) *PagerDuty {
+	return &PagerDuty{conf: c, tmpl: t}
+}
+
+const (
+	pagerDutyEventTrigger = "trigger"
+	pagerDutyEventResolve = "resolve"
+)
+
+type pagerDutyMessage struct {
+	ServiceKey  string            `json:"service_key"`
+	EventType   string            `json:"event_type"`
+	Description string            `json:"description"`
+	IncidentKey uint64            `json:"incident_key"`
+	Client      string            `json:"client,omitempty"`
+	ClientURL   string            `json:"client_url,omitempty"`
+	Details     map[string]string `json:"details"`
+}
+
+func (pd *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
+	// http://developer.pagerduty.com/documentation/integration/events/trigger
+	alerts := types.Alerts(as...)
+
+	eventType := pagerDutyEventTrigger
+	if alerts.Status() == model.AlertResolved {
+		eventType = pagerDutyEventResolve
+	}
+
+	msg := &pagerDutyMessage{
+		ServiceKey:  pd.conf.ServiceKey,
+		EventType:   eventType,
+		IncidentKey: 123,
+		Description: "",
+		Details:     nil,
+	}
+	if eventType == pagerDutyEventTrigger {
+		msg.Client = "Prometheus Alertmanager"
+		msg.ClientURL = ""
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, pd.conf.URL, contentTypeJSON, &buf)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+	return nil
 }
 
 type Slack struct {
