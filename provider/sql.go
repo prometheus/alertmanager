@@ -95,9 +95,11 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 			WHERE destination == $1 AND alert == $2
 		`, dest, fp)
 
+		var alertFP int64
+
 		var ni types.Notify
 		err := row.Scan(
-			&ni.Alert,
+			&alertFP,
 			&ni.SendTo,
 			&ni.Resolved,
 			&ni.Delivered,
@@ -110,6 +112,8 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 		if err != nil {
 			return nil, err
 		}
+
+		ni.Alert = model.Fingerprint(alertFP)
 
 		result = append(result, &ni)
 	}
@@ -151,7 +155,7 @@ func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
 		}
 		log.Debugln("inserting notify", ni)
 		if _, err := insert.Exec(
-			ni.Alert,
+			int64(ni.Alert),
 			ni.SendTo,
 			ni.Resolved,
 			ni.Delivered,
@@ -375,7 +379,7 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 		fp := alert.Fingerprint()
 
 		// Retrieve all intersecting alerts and delete them.
-		olaps, err := overlap.Query(fp, alert.StartsAt, alert.EndsAt)
+		olaps, err := overlap.Query(int64(fp), alert.StartsAt, alert.EndsAt)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -440,7 +444,7 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 		}
 
 		_, err = insert.Exec(
-			uint64(fp),
+			int64(fp),
 			string(labels),
 			string(annotations),
 			alert.StartsAt,
