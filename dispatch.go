@@ -9,7 +9,6 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
@@ -20,7 +19,7 @@ const ResolveTimeout = 5 * time.Minute
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	routes   Routes
+	route    *Route
 	alerts   provider.Alerts
 	notifier notify.Notifier
 
@@ -34,11 +33,11 @@ type Dispatcher struct {
 }
 
 // NewDispatcher returns a new Dispatcher.
-func NewDispatcher(ap provider.Alerts, r []*config.Route, n notify.Notifier) *Dispatcher {
+func NewDispatcher(ap provider.Alerts, r *Route, n notify.Notifier) *Dispatcher {
 	disp := &Dispatcher{
 		alerts:   ap,
 		notifier: n,
-		routes:   NewRoutes(r, nil),
+		route:    r,
 		log:      log.With("component", "dispatcher"),
 	}
 	return disp
@@ -72,7 +71,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				continue
 			}
 
-			for _, r := range d.routes.Match(alert.Labels) {
+			for _, r := range d.route.Match(alert.Labels) {
 				d.processAlert(alert, r)
 			}
 

@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -155,10 +156,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 var DefaultGlobalConfig = GlobalConfig{
+	GroupWait:      model.Duration(30 * time.Second),
+	GroupInterval:  model.Duration(5 * time.Minute),
+	RepeatInterval: model.Duration(1 * time.Hour),
+	SendResolved:   true,
+
 	PagerdutyURL: "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
 }
 
 type GlobalConfig struct {
+	GroupWait      model.Duration `yaml:"group_wait"`
+	GroupInterval  model.Duration `yaml:"group_interval"`
+	RepeatInterval model.Duration `yaml:"repeat_interval"`
+	SendResolved   bool           `yaml:"send_resolved"`
+
 	Smarthost    string `yaml:"smarthost"`
 	SlackURL     string `yaml:"slack_url"`
 	PagerdutyURL string `yaml:"pagerduty_url"`

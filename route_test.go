@@ -72,8 +72,13 @@ routes:
 		t.Fatal(err)
 	}
 	var (
-		def  = DefaultRouteOpts
-		tree = NewRoute(&ctree, &def)
+		def = &RouteOpts{
+			GroupWait:      20 * time.Second,
+			GroupInterval:  5 * time.Minute,
+			RepeatInterval: 1 * time.Hour,
+			SendResolved:   true,
+		}
+		tree = NewRoute(&ctree, def)
 	)
 	lset := func(labels ...string) map[model.LabelName]struct{} {
 		s := map[model.LabelName]struct{}{}
