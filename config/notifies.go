@@ -43,20 +43,32 @@ var (
 			HTML:   "email.default.html",
 		},
 	}
+
+	DefaultPagerDutyConfig = PagerDutyConfig{
+		Templates: PagerDutyTemplates{
+			Description: "pagerduty.default.description",
+		},
+	}
 )
 
 // Configuration for notification via PagerDuty.
 type PagerdutyConfig struct {
-	// PagerDuty service key, see:
-	// http://developer.pagerduty.com/documentation/integration/events
 	ServiceKey string `yaml:"service_key"`
+	URL        string `yaml:"url"`
+
+	Templates PagerDutyTemplates `yaml:"templates"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+type PagerDutyTemplates struct {
+	Description string
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultPagerDutyConfig
 	type plain PagerdutyConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err

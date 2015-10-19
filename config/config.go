@@ -141,16 +141,27 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sc.URL = c.Global.SlackURL
 			}
 		}
+		for _, pdc := range nc.PagerdutyConfigs {
+			if pdc.URL == "" {
+				if c.Global.PagerDutyURL == "" {
+					return fmt.Errorf("no global PagerDuty URL set")
+				}
+				pdc.URL = c.Global.PagerDutyURL
+			}
+		}
 		names[nc.Name] = struct{}{}
 	}
 	return checkOverflow(c.XXX, "config")
 }
 
-var DefaultGlobalConfig = GlobalConfig{}
+var DefaultGlobalConfig = GlobalConfig{
+	PagerdutyURL: "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+}
 
 type GlobalConfig struct {
-	Smarthost string `yaml:"smarthost"`
-	SlackURL  string `yaml:"slack_url"`
+	Smarthost    string `yaml:"smarthost"`
+	SlackURL     string `yaml:"slack_url"`
+	PagerDutyURL string `yaml:"pagerduty_url"`
 }
 
 func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
