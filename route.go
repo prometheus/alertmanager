@@ -28,6 +28,9 @@ var DefaultRouteOpts = RouteOpts{
 	GroupInterval:  5 * time.Minute,
 	RepeatInterval: 4 * time.Hour,
 	SendResolved:   true,
+	GroupBy: map[model.LabelName]struct{}{
+		model.AlertNameLabel: struct{}{},
+	},
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -50,17 +53,18 @@ func NewRoute(cr *config.Route, parent *RouteOpts) *Route {
 	if parent == nil {
 		parent = &DefaultRouteOpts
 	}
-	groupBy := map[model.LabelName]struct{}{}
-	for _, ln := range cr.GroupBy {
-		groupBy[ln] = struct{}{}
-	}
 
 	// Create default and overwrite with configured settings.
 	opts := *parent
-	opts.GroupBy = groupBy
 
 	if cr.SendTo != "" {
 		opts.SendTo = cr.SendTo
+	}
+	if cr.GroupBy != nil {
+		opts.GroupBy = map[model.LabelName]struct{}{}
+		for _, ln := range cr.GroupBy {
+			opts.GroupBy[ln] = struct{}{}
+		}
 	}
 	if cr.GroupWait != nil {
 		opts.GroupWait = time.Duration(*cr.GroupWait)

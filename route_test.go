@@ -39,6 +39,7 @@ routes:
       env: 'testing'
 
     send_to: 'notify-testing'
+    group_by: []
 
   - match:
       env: "production"
@@ -72,13 +73,8 @@ routes:
 		t.Fatal(err)
 	}
 	var (
-		def = &RouteOpts{
-			GroupWait:      20 * time.Second,
-			GroupInterval:  5 * time.Minute,
-			RepeatInterval: 1 * time.Hour,
-			SendResolved:   true,
-		}
-		tree = NewRoute(&ctree, def)
+		def  = DefaultRouteOpts
+		tree = NewRoute(&ctree, &def)
 	)
 	lset := func(labels ...string) map[model.LabelName]struct{} {
 		s := map[model.LabelName]struct{}{}
@@ -99,7 +95,7 @@ routes:
 			result: []*RouteOpts{
 				{
 					SendTo:         "notify-A",
-					GroupBy:        lset(),
+					GroupBy:        def.GroupBy,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -115,7 +111,7 @@ routes:
 			result: []*RouteOpts{
 				{
 					SendTo:         "notify-A",
-					GroupBy:        lset(),
+					GroupBy:        def.GroupBy,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -162,7 +158,7 @@ routes:
 			result: []*RouteOpts{
 				{
 					SendTo:         "notify-productionA",
-					GroupBy:        lset(),
+					GroupBy:        def.GroupBy,
 					GroupWait:      1 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,

@@ -32,6 +32,7 @@ func TestMergeAlerts(t *testing.T) {
 	conf := `
 route:
   send_to: "default"
+  group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s
@@ -73,6 +74,7 @@ func TestRepeat(t *testing.T) {
 	conf := `
 route:
   send_to: "default"
+  group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s
@@ -130,6 +132,7 @@ func TestRetry(t *testing.T) {
 	conf := `
 route:
   send_to: "default"
+  group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 3s
@@ -173,6 +176,7 @@ func TestBatching(t *testing.T) {
 	conf := `
 route:
   send_to: "default"
+  group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 5s
