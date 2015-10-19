@@ -25,8 +25,8 @@ func TestInhibiting(t *testing.T) {
 	t.Parallel()
 
 	conf := `
-routes:
-- send_to: "default"
+route:
+  send_to: "default"
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s

@@ -107,9 +107,6 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Email == "" {
 		return fmt.Errorf("missing email address in email config")
 	}
-	if c.Sender == "" {
-		return fmt.Errorf("missing SMTP sender in email config")
-	}
 	return checkOverflow(c.XXX, "email config")
 }
 

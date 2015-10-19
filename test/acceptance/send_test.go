@@ -30,8 +30,8 @@ func TestMergeAlerts(t *testing.T) {
 	t.Parallel()
 
 	conf := `
-routes:
-- send_to: "default"
+route:
+  send_to: "default"
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s
@@ -71,8 +71,8 @@ func TestRepeat(t *testing.T) {
 	t.Parallel()
 
 	conf := `
-routes:
-- send_to: "default"
+route:
+  send_to: "default"
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s
@@ -128,8 +128,8 @@ func TestRetry(t *testing.T) {
 	// The succeeding one must still only receive the first successful
 	// notifications. Sending to the succeeding one must eventually succeed.
 	conf := `
-routes:
-- send_to: "default"
+route:
+  send_to: "default"
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 3s
@@ -171,8 +171,8 @@ func TestBatching(t *testing.T) {
 	t.Parallel()
 
 	conf := `
-routes:
-- send_to: "default"
+route:
+  send_to: "default"
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 5s

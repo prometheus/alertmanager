@@ -69,7 +69,7 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
 	Global              *GlobalConfig         `yaml:"global,omitempty"`
-	Routes              []*Route              `yaml:"routes,omitempty"`
+	Route               *Route                `yaml:"route,omitempty"`
 	InhibitRules        []*InhibitRule        `yaml:"inhibit_rules,omitempty"`
 	NotificationConfigs []*NotificationConfig `yaml:"notification_configs,omitempty"`
 	Templates           []string              `yaml:"templates"`
@@ -133,6 +133,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				ec.Smarthost = c.Global.Smarthost
 			}
+			if ec.Sender == "" {
+				if c.Global.SMTPSender == "" {
+					return fmt.Errorf("no global SMTP sender set")
+				}
+				ec.Sender = c.Global.SMTPSender
+			}
 		}
 		for _, sc := range nc.SlackConfigs {
 			if sc.URL == "" {
@@ -170,6 +176,7 @@ type GlobalConfig struct {
 	RepeatInterval model.Duration `yaml:"repeat_interval"`
 	SendResolved   bool           `yaml:"send_resolved"`
 
+	SMTPSender   string `yaml:"smtp_sender"`
 	Smarthost    string `yaml:"smarthost"`
 	SlackURL     string `yaml:"slack_url"`
 	PagerdutyURL string `yaml:"pagerduty_url"`

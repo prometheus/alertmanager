@@ -23,6 +23,13 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+var DefaultRouteOpts = RouteOpts{
+	GroupWait:      30 * time.Second,
+	GroupInterval:  5 * time.Minute,
+	RepeatInterval: 4 * time.Hour,
+	SendResolved:   true,
+}
+
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
 	// The configuration parameters for matches of this route.
@@ -40,6 +47,9 @@ type Route struct {
 }
 
 func NewRoute(cr *config.Route, parent *RouteOpts) *Route {
+	if parent == nil {
+		parent = &DefaultRouteOpts
+	}
 	groupBy := map[model.LabelName]struct{}{}
 	for _, ln := range cr.GroupBy {
 		groupBy[ln] = struct{}{}

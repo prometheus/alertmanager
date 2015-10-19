@@ -21,7 +21,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
@@ -64,7 +63,6 @@ func main() {
 		inhibitor *Inhibitor
 		tmpl      *template.Template
 		disp      *Dispatcher
-		routes    *Route
 	)
 	defer disp.Stop()
 
@@ -116,13 +114,7 @@ func main() {
 		disp.Stop()
 
 		inhibitor = NewInhibitor(alerts, conf.InhibitRules)
-		routes = NewRoute(&config.Route{Routes: conf.Routes}, &RouteOpts{
-			GroupWait:      time.Duration(conf.Global.GroupWait),
-			GroupInterval:  time.Duration(conf.Global.GroupInterval),
-			RepeatInterval: time.Duration(conf.Global.RepeatInterval),
-			SendResolved:   conf.Global.SendResolved,
-		})
-		disp = NewDispatcher(alerts, routes, build(conf.NotificationConfigs))
+		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.NotificationConfigs))
 
 		go disp.Run()
 
