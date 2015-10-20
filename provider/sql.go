@@ -275,6 +275,8 @@ func (a *SQLAlerts) GetPending() AlertIterator {
 }
 
 func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
+	// TODO(fabxc): hacky query but proper one doesn't work for some reason.
+	// A few too many hacks – consider another DB in the long run.
 	rows, err := a.db.Query(`
 		SELECT labels, annotations, starts_at, ends_at, updated_at, timeout
 		FROM alerts
@@ -282,6 +284,7 @@ func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
 			fingerprint NOT IN (
 				SELECT alert FROM notify_info WHERE delivered AND resolved
 			)
+		ORDER BY starts_at
 	`)
 	if err != nil {
 		return nil, err

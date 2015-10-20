@@ -47,6 +47,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
       Alert.query({},
         function(data) {
           $scope.alerts = data.data || [];
+          console.log($scope.alerts)
         },
         function(data) {
 

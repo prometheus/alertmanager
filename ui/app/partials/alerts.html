@@ -20,11 +20,11 @@
 		<div class="container-left">
 			<div class="active-interval">
 				<span class="date">{{ a.startsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.startsAt | date:'HH:mm' }}</span>
-				– 
-				<span ng-hide="a.endsAt.getTime() == 0">
+				–
+				<span ng-hide="a.endsAt == '0001-01-01T00:00:00Z'">
 					<span class="date">{{ a.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.endsAt | date:'HH:mm' }}</span>
 				</span>
-				<span ng-show="a.endsAt.getTime() == 0">
+				<span ng-show="a.endsAt == '0001-01-01T00:00:00Z'">
 					<span class="time">now</span>
 				</span>
 			</div>
