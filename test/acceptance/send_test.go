@@ -52,8 +52,11 @@ notification_configs:
 
 	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
 
-	am.Push(At(1), Alert("alertname", "test").Active(1))
-	am.Push(At(1.2), Alert("alertname", "test").Active(1.1))
+	// Refresh an alert several times. The starting time must remain at the earliest
+	// point in time.
+	am.Push(At(1), Alert("alertname", "test").Active(1.1))
+	// Another Prometheus server might be sending later but with an earlier start time.
+	am.Push(At(1.2), Alert("alertname", "test").Active(1))
 
 	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(1))
 
@@ -61,9 +64,36 @@ notification_configs:
 
 	co.Want(Between(3, 3.5), Alert("alertname", "test").Annotate("ann", "v1").Active(1))
 
+	// Annotations are always overwritten by the alert that arrived most recently.
 	am.Push(At(3.6), Alert("alertname", "test").Annotate("ann", "v2").Active(1.5))
 
 	co.Want(Between(4, 4.5), Alert("alertname", "test").Annotate("ann", "v2").Active(1))
+
+	// If an alert is marked resolved twice, the latest point in time must be
+	// set as the eventual resolve time.
+	am.Push(At(4.6), Alert("alertname", "test").Annotate("ann", "v2").Active(3, 4.5))
+	am.Push(At(4.8), Alert("alertname", "test").Annotate("ann", "v3").Active(2.9, 4.8))
+	am.Push(At(4.8), Alert("alertname", "test").Annotate("ann", "v3").Active(2.9, 4.1))
+
+	co.Want(Between(5, 5.5), Alert("alertname", "test").Annotate("ann", "v3").Active(1, 4.8))
+
+	// Reactivate an alert after a previous occurrence has been resolved.
+	// No overlap, no merge must occur.
+	am.Push(At(5.3), Alert("alertname", "test"))
+
+	co.Want(Between(6, 6.5), Alert("alertname", "test").Active(5.3))
+
+	// Test against a bug which ocurrec after a restart. The previous occurrence of
+	// the alert was sent rather than the most recent one.
+	at.Do(At(6.7), func() {
+		am.Terminate()
+		am.Start()
+	})
+
+	// On restart the alert is flushed right away as the group_wait has already passed.
+	// However, it must be caught in the deduplication stage.
+	// The next attempt will be 1s later and won't be filtered in deduping.
+	co.Want(Between(7.7, 8), Alert("alertname", "test").Active(5.3))
 
 	at.Run()
 }
