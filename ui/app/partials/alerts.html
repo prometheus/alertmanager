@@ -18,7 +18,16 @@
 
 	<div class="list-item group" ng-repeat="a in alerts | filter:query | orderBy:order">
 		<div class="container-left">
-			<div class="silence-interval">{{ a.startsAt | date:'medium' }} – {{ a.endsAt | date:'medium' }}</div>
+			<div class="active-interval">
+				<span class="date">{{ a.startsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.startsAt | date:'HH:mm' }}</span>
+				– 
+				<span ng-hide="a.endsAt.getTime() == 0">
+					<span class="date">{{ a.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.endsAt | date:'HH:mm' }}</span>
+				</span>
+				<span ng-show="a.endsAt.getTime() == 0">
+					<span class="time">now</span>
+				</span>
+			</div>
 			<span class="label-matcher label label-white" outline ng-repeat="(name, value) in a.labels | orderBy:name">
 				{{ name }} = '{{ value }}'
 			</span>
@@ -29,7 +38,7 @@
 					<tbody>
 						<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
 							<td style="padding-right: 3em"><em>{{ name }}</em></td>
-							<td>{{ val }}</td>
+							<td style="whitespace: pre-wrap;">{{ val }}</td>
 						</tr>
 					</tbody>
 				</table>

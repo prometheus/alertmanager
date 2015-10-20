@@ -16,6 +16,7 @@ package provider
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/cznic/ql"
@@ -93,7 +94,7 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 			SELECT alert, destination, resolved, delivered, timestamp
 			FROM notify_info
 			WHERE destination == $1 AND alert == $2
-		`, dest, fp)
+		`, dest, int64(fp))
 
 		var alertFP int64
 
@@ -148,12 +149,10 @@ func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
 	defer del.Close()
 
 	for _, ni := range ns {
-		log.Debugln("deleting notify", ni.Alert, ni.SendTo)
-		if _, err := del.Exec(ni.Alert, ni.SendTo); err != nil {
+		if _, err := del.Exec(int64(ni.Alert), ni.SendTo); err != nil {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("deleting old notify failed: %s", err)
 		}
-		log.Debugln("inserting notify", ni)
 		if _, err := insert.Exec(
 			int64(ni.Alert),
 			ni.SendTo,
@@ -162,7 +161,7 @@ func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
 			ni.Timestamp,
 		); err != nil {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("inserting new notify failed: %s", err)
 		}
 	}
 
@@ -340,10 +339,12 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	// care about finding intersecting alerts for each new inserts, deleting them
 	// if existant, and insert the new alert we retrieved by merging.
 	overlap, err := tx.Prepare(`
-		SELECT id(), annotations, starts_at, ends_at, updated_at, timeout FROM alerts
-		WHERE fingerprint == $1 AND
+		SELECT id(), annotations, starts_at, ends_at, updated_at, timeout
+		FROM alerts
+		WHERE fingerprint == $1 AND (
 			(starts_at <= $2 AND ends_at >= $2) OR
 			(starts_at <= $3 AND ends_at >= $3)
+		)
 	`)
 	if err != nil {
 		tx.Rollback()
@@ -354,9 +355,10 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	delOverlap, err := tx.Prepare(`
 		DELETE FROM alerts WHERE id() IN (
 			SELECT id() FROM alerts
-			WHERE fingerprint == $1 AND
+			WHERE fingerprint == $1 AND (
 				(starts_at <= $2 AND ends_at >= $2) OR
 				(starts_at <= $3 AND ends_at >= $3)
+			)
 		)
 	`)
 	if err != nil {
@@ -426,7 +428,7 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 		}
 
 		// Delete the old ones.
-		if _, err := delOverlap.Exec(fp, alert.StartsAt, alert.EndsAt); err != nil {
+		if _, err := delOverlap.Exec(int64(fp), alert.StartsAt, alert.EndsAt); err != nil {
 			tx.Rollback()
 			return err
 		}

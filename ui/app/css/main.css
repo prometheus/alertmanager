@@ -80,13 +80,20 @@ header #logo {
 	padding: 1em;
 }
 
-.list-item .silence-interval {
+.list-item .active-interval {
 	font-family: Menlo, Monaco, Consolas, Courier, monospace;
 	font-size: .75em;
 	color: #fff;
 	padding-bottom: 3px;
 	margin-bottom: 4px;
 	border-bottom: 1px dotted #888;
+}
+
+.active-interval .time {
+	color: #f9f9f9;
+}
+.active-interval .date {
+	color: #c9c9c9;
 }
 
 .list-item .silence-created {
@@ -98,6 +105,7 @@ header #logo {
 .list-item .silence-comment {
 
 }
+
 
 /**/
 input[type="datetime-local"]  {

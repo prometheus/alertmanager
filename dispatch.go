@@ -137,7 +137,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			err := d.notifier.Notify(ctx, alerts...)
 			if err != nil {
-				log.Errorf("Notify for %d alerts failed: %s %T", len(alerts), err, err)
+				log.Errorf("Notify for %d alerts failed: %s", len(alerts), err)
 			}
 			return err == nil
 		})

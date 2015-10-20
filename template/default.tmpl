@@ -37,23 +37,23 @@ Content-Type: text/html; charset=UTF-8
 	border: 1px solid #bbb;
 ">
   <strong>{{ .Status }}</strong><br>
-  <div style="float: left; min-width: 150px;">
+  <div style="width: 42%; float: left; min-width: 220px;">
     <em>Labels</em><br>
     <ul>
-{{range $label, $value := .Labels}}
-      <li>{{$label}}:	{{$value}}</li>
-{{end}}
+{{ range $label, $value := .Labels }}
+      <li style="whitespace: pre-wrap;">{{ $label }}:	{{ $value }}</li>
+{{ end }}
     </ul>
   </div>
-  <div style="float: left; margin-left: 15px">
+  <div style="width: 55%; float: right; min-width: 220px">
     <em>Annotations</em><br>
     <ul>
 {{ range $label, $value := .Annotations }}
-      <li>{{ $label }}:	{{ $value }}</li>
-{{end}}
+      <li style="whitespace: pre-wrap;">{{ $label }}:	{{ $value }}</li>
+{{ end }}
     </ul>
   {{ end }}
   </div>
-  <div style="clear: both;"></div>
+  <div style="clear: both;"> </div>
 </div>
 {{ end }}
