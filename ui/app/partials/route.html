@@ -1,0 +1,22 @@
+<div class="route">
+	<div class="route-opts">
+		{{ route.RouteOpts.GroupBy }}
+	</div>
+	<div class="route-matchers">
+		{{ route.Matchers }}
+	</div>
+	<div ng-show="route.Groups" class="alert-groups">
+		<div class="alert-group" ng-repeat="group in route.Groups">
+			<div class="group-instance">
+				{{ group.Labels }}
+			</div>
+			<div ng-repeat="a in group.Alerts">
+			 	<alert class="list-item" a="a"></alert>
+			</div>
+		</div>
+	</div>
+
+	<div class="route" ng-repeat="r in route.Routes">
+		<route route="r"></route>
+	</div>
+</div>
