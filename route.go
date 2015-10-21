@@ -35,6 +35,8 @@ var DefaultRouteOpts = RouteOpts{
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
+	parent *Route
+
 	// The configuration parameters for matches of this route.
 	RouteOpts RouteOpts
 
@@ -49,13 +51,12 @@ type Route struct {
 	Routes []*Route
 }
 
-func NewRoute(cr *config.Route, parent *RouteOpts) *Route {
-	if parent == nil {
-		parent = &DefaultRouteOpts
-	}
-
+func NewRoute(cr *config.Route, parent *Route) *Route {
 	// Create default and overwrite with configured settings.
-	opts := *parent
+	opts := DefaultRouteOpts
+	if parent != nil {
+		opts = parent.RouteOpts
+	}
 
 	if cr.SendTo != "" {
 		opts.SendTo = cr.SendTo
@@ -95,16 +96,18 @@ func NewRoute(cr *config.Route, parent *RouteOpts) *Route {
 	}
 
 	route := &Route{
+		parent:    parent,
 		RouteOpts: opts,
 		Matchers:  matchers,
 		Continue:  cr.Continue,
-		Routes:    NewRoutes(cr.Routes, &opts),
 	}
+
+	route.Routes = NewRoutes(cr.Routes, route)
 
 	return route
 }
 
-func NewRoutes(croutes []*config.Route, parent *RouteOpts) []*Route {
+func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 	res := []*Route{}
 	for _, cr := range croutes {
 		res = append(res, NewRoute(cr, parent))
@@ -131,11 +134,37 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 		}
 	}
 
+	// If no child nodes were matches, the current node itself is
+	// a match.
 	if len(all) == 0 {
 		all = append(all, &r.RouteOpts)
 	}
 
 	return all
+}
+
+func (r *Route) SquashMatchers() types.Matchers {
+	var res types.Matchers
+	res = append(res, r.Matchers...)
+
+	if r.parent == nil {
+		return res
+	}
+
+	pm := r.parent.SquashMatchers()
+	res = append(pm, res...)
+
+	return res
+}
+
+func (r *Route) Fingerprint() model.Fingerprint {
+	lset := make(model.LabelSet, len(r.RouteOpts.GroupBy))
+
+	for ln := range r.RouteOpts.GroupBy {
+		lset[ln] = ""
+	}
+
+	return r.SquashMatchers().Fingerprint() ^ lset.Fingerprint()
 }
 
 type RouteOpts struct {

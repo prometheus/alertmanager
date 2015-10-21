@@ -38,6 +38,7 @@ const (
 	keyRepeatInterval
 	keySendResolved
 	keyGroupLabels
+	keyGroupKey
 	keyNow
 )
 
@@ -51,6 +52,10 @@ func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 
 func WithSendResolved(ctx context.Context, b bool) context.Context {
 	return context.WithValue(ctx, keySendResolved, b)
+}
+
+func WithGroupKey(ctx context.Context, fp model.Fingerprint) context.Context {
+	return context.WithValue(ctx, keyGroupKey, fp)
 }
 
 func WithGroupLabels(ctx context.Context, lset model.LabelSet) context.Context {
@@ -73,6 +78,11 @@ func RepeatInterval(ctx context.Context) (time.Duration, bool) {
 
 func SendResolved(ctx context.Context) (bool, bool) {
 	v, ok := ctx.Value(keySendResolved).(bool)
+	return v, ok
+}
+
+func GroupKey(ctx context.Context) (model.Fingerprint, bool) {
+	v, ok := ctx.Value(keyGroupKey).(model.Fingerprint)
 	return v, ok
 }
 

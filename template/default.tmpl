@@ -20,6 +20,8 @@ my text
 my text
 {{ end }}
 
+{{ define "pagerduty.default.description" }}{{ .GroupLabels }} [{{ len .Alerts }} instance{{ if gt (len .Alerts) 1 }}s{{ end }}]{{ end }}
+
 {{ define "email.default.header" }}From: "Prometheus Alertmanager" <{{ .From }}>
 To: {{ .To }}
 Date: {{ .Date }}
@@ -47,7 +49,7 @@ table.outer {
   max-width: 700px;
   background: #fff;
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  color: #202020;
+  color: #202020 !important;
 }
 td {
   padding: 0;
@@ -91,7 +93,7 @@ ul {
 }
 .labels.column {
   max-width: 295px;
-  color: #fff;
+  color: #fff !important;
   background: #4f4f4f;
 }
 .annotations.column {

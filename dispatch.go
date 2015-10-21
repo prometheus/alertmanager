@@ -150,9 +150,10 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 // common set of routing options applies.
 // It emits notifications in the specified intervals.
 type aggrGroup struct {
-	labels model.LabelSet
-	opts   *RouteOpts
-	log    log.Logger
+	labels  model.LabelSet
+	opts    *RouteOpts
+	routeFP model.Fingerprint
+	log     log.Logger
 
 	ctx    context.Context
 	cancel func()
@@ -210,6 +211,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithNow(ctx, now)
 
 			// Populate context with information needed along the pipeline.
+			ctx = notify.WithGroupKey(ctx, ag.labels.Fingerprint()^ag.routeFP)
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithDestination(ctx, ag.opts.SendTo)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)

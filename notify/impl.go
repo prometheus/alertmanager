@@ -231,13 +231,13 @@ type pagerDutyMessage struct {
 	ServiceKey  string            `json:"service_key"`
 	EventType   string            `json:"event_type"`
 	Description string            `json:"description"`
-	IncidentKey uint64            `json:"incident_key"`
+	IncidentKey model.Fingerprint `json:"incident_key"`
 	Client      string            `json:"client,omitempty"`
 	ClientURL   string            `json:"client_url,omitempty"`
 	Details     map[string]string `json:"details"`
 }
 
-func (pd *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	// http://developer.pagerduty.com/documentation/integration/events/trigger
 	alerts := types.Alerts(as...)
 
@@ -246,16 +246,48 @@ func (pd *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 		eventType = pagerDutyEventResolve
 	}
 
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return fmt.Errorf("group key missing")
+	}
+
+	log.With("incident", key).With("eventType", eventType).Debugln("notifying PagerDuty")
+
+	groupLabels, ok := GroupLabels(ctx)
+	if !ok {
+		log.Error("missing group labels")
+	}
+
+	data := struct {
+		Alerts      model.Alerts
+		GroupLabels model.LabelSet
+	}{
+		Alerts:      alerts,
+		GroupLabels: groupLabels,
+	}
+
+	var err error
+	tmpl := func(name string) (s string) {
+		if err != nil {
+			return
+		}
+		s, err = n.tmpl.ExecuteTextString(name, &data)
+		return s
+	}
+
 	msg := &pagerDutyMessage{
-		ServiceKey:  pd.conf.ServiceKey,
+		ServiceKey:  n.conf.ServiceKey,
 		EventType:   eventType,
-		IncidentKey: 123,
-		Description: "",
+		IncidentKey: key,
+		Description: tmpl(n.conf.Templates.Description),
 		Details:     nil,
 	}
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = "Prometheus Alertmanager"
 		msg.ClientURL = ""
+	}
+	if err != nil {
+		return err
 	}
 
 	var buf bytes.Buffer
@@ -263,7 +295,7 @@ func (pd *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 		return err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, pd.conf.URL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
 	if err != nil {
 		return err
 	}

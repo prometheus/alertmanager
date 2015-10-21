@@ -74,7 +74,7 @@ routes:
 	}
 	var (
 		def  = DefaultRouteOpts
-		tree = NewRoute(&ctree, &def)
+		tree = NewRoute(&ctree, nil)
 	)
 	lset := func(labels ...string) map[model.LabelName]struct{} {
 		s := map[model.LabelName]struct{}{}
