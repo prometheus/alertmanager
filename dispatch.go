@@ -54,6 +54,41 @@ func (d *Dispatcher) Run() {
 	close(d.done)
 }
 
+type UIRoute struct {
+	RouteOpts *RouteOpts
+	Matchers  types.Matchers
+	Groups    []*UIGroup
+	Routes    []*UIRoute
+}
+
+type UIGroup struct {
+	Labels model.LabelSet
+	Alerts model.Alerts
+}
+
+func (d *Dispatcher) Populate(r *UIRoute) {
+	for _, sr := range r.Routes {
+		d.Populate(sr)
+	}
+
+	groups, ok := d.aggrGroups[r.RouteOpts]
+	if !ok {
+		return
+	}
+
+	for _, ag := range groups {
+		var as []*types.Alert
+		for _, a := range ag.alerts {
+			as = append(as, a)
+		}
+		g := &UIGroup{
+			Labels: ag.labels,
+			Alerts: types.Alerts(as...),
+		}
+		r.Groups = append(r.Groups, g)
+	}
+}
+
 func (d *Dispatcher) run(it provider.AlertIterator) {
 	cleanup := time.NewTicker(30 * time.Second)
 	defer cleanup.Stop()

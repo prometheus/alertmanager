@@ -32,15 +32,19 @@ import (
 type API struct {
 	alerts   provider.Alerts
 	silences provider.Silences
+
+	route func() *UIRoute
+
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
 }
 
-func RegisterAPI(r *route.Router, alerts provider.Alerts, silences provider.Silences) *API {
+func RegisterAPI(r *route.Router, alerts provider.Alerts, silences provider.Silences, rf func() *UIRoute) *API {
 	api := &API{
 		context:  route.Context,
 		alerts:   alerts,
 		silences: silences,
+		route:    rf,
 	}
 
 	// Register legacy forwarder for alert pushing.
@@ -48,6 +52,8 @@ func RegisterAPI(r *route.Router, alerts provider.Alerts, silences provider.Sile
 
 	// Register actual API.
 	r = r.WithPrefix("/v1")
+
+	r.Get("/routes", api.routes)
 
 	r.Get("/alerts", api.listAlerts)
 	r.Post("/alerts", api.addAlerts)
@@ -78,6 +84,33 @@ type apiError struct {
 
 func (e *apiError) Error() string {
 	return fmt.Sprintf("%s: %s", e.typ, e.err)
+}
+
+func pruneUIRoute(r *UIRoute) {
+	for _, sr := range r.Routes {
+		pruneUIRoute(sr)
+	}
+
+	var nr []*UIRoute
+
+	for _, sr := range r.Routes {
+		if len(sr.Groups) == 0 && len(sr.Routes) == 0 {
+			continue
+		}
+		nr = append(nr, sr)
+	}
+
+	r.Routes = nr
+}
+
+func (api *API) routes(w http.ResponseWriter, req *http.Request) {
+	r := api.route()
+
+	if req.FormValue("pruneEmpty") == "true" {
+		pruneUIRoute(r)
+	}
+
+	respond(w, r)
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {

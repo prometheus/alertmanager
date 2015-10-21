@@ -128,7 +128,12 @@ func main() {
 	router := route.New()
 
 	RegisterWeb(router)
-	RegisterAPI(router.WithPrefix("/api"), alerts, silences)
+	RegisterAPI(router.WithPrefix("/api"), alerts, silences, func() *UIRoute {
+		uir := disp.route.UIRoute()
+		disp.Populate(uir)
+
+		return uir
+	})
 
 	go http.ListenAndServe(*listenAddress, router)
 
