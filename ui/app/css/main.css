@@ -146,10 +146,10 @@ input.collapse[type=checkbox] {
     border: none;
 }
 input.collapse[type=checkbox]:after {
-content: '▹';
+	content: '▹';
 }
 input.collapse.open[type=checkbox]:after {
-content: '▿';
+	content: '▿';
 }
 
 .label.alertname {
