@@ -125,7 +125,7 @@ route:
       send_to: team-Y-pager
 
   # This route handles all alerts coming from a database service. If there's
-  # not team to handle it, it defaults to the DB team.
+  # no team to handle it, it defaults to the DB team.
   - match:
       service: database
 
