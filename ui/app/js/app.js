@@ -164,6 +164,10 @@ angular.module('am.controllers').controller('NavCtrl',
   }
 );
 
+angular.module('am.controllers').controller('AlertCtrl',
+  function() {}
+);
+
 angular.module('am.controllers').controller('AlertsCtrl',
   function($scope, Route) {
     $scope.route = null;

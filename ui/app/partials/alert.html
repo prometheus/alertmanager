@@ -1,4 +1,4 @@
-<div class="alert-item list-item">
+<div class="alert-item list-item" ng-controller="AlertCtrl">
 	<div class="container-left">
 		<div class="active-interval">
 			<span class="date">{{ a.startsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.startsAt | date:'HH:mm' }}</span>
@@ -15,12 +15,15 @@
 		</span>
 	</div>
 	<div class="container-right group">
-		<div class="left">
+		<div>
+			Details: <input class="collapse" ng-class="{open:collapse}" type="checkbox" ng-model="collapse"></input>
+		</div>
+		<div class="left" ng-show="collapse">
 			<table class="table-flat">
 				<tbody>
 					<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
 						<td style="padding-right: 3em"><em>{{ name }}</em></td>
-						<td style="white-space: pre-wrap;">{{ val }}</td>
+						<td style="white-space: pre-line;">{{ val }}</td>
 					</tr>
 				</tbody>
 			</table>

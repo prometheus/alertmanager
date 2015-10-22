@@ -139,6 +139,18 @@ header #logo {
 	padding: .5em .6em;
 }
 
+input.collapse[type=checkbox] {
+	-webkit-appearance: none;
+    width: 1em;
+    height: 1em;
+    border: none;
+}
+input.collapse[type=checkbox]:after {
+content: '▹';
+}
+input.collapse.open[type=checkbox]:after {
+content: '▿';
+}
 
 /**/
 input[type="datetime-local"]  {
