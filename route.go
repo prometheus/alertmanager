@@ -14,6 +14,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -202,4 +203,26 @@ func (ro *RouteOpts) String() string {
 		labels = append(labels, ln)
 	}
 	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q timers:%q|%q>", ro.SendTo, labels, ro.GroupWait, ro.GroupInterval)
+}
+
+func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
+	v := struct {
+		SendTo         string           `json:"sendTo"`
+		SendResolved   bool             `json:"sendResolved"`
+		GroupBy        model.LabelNames `json:"groupBy"`
+		GroupWait      time.Duration    `json:"groupWait"`
+		GroupInterval  time.Duration    `json:"groupInterval"`
+		RepeatInterval time.Duration    `json:"repeatInterval"`
+	}{
+		SendTo:         ro.SendTo,
+		SendResolved:   ro.SendResolved,
+		GroupWait:      ro.GroupWait,
+		GroupInterval:  ro.GroupInterval,
+		RepeatInterval: ro.RepeatInterval,
+	}
+	for ln := range ro.GroupBy {
+		v.GroupBy = append(v.GroupBy, ln)
+	}
+
+	return json.Marshal(&v)
 }

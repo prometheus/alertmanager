@@ -1,22 +1,28 @@
 <div class="route">
-	<div class="route-opts">
-		{{ route.RouteOpts.GroupBy }}
+	<div class="route-header group">
+		<div class="grouping-labels right">
+			<span ng-repeat="l in route.routeOpts.groupBy" class="lbl right badge badge-primary" outline>{{ l }}</span>
+		</div>
+		<div class="route-matchers left">
+			<span ng-repeat="m in route.matchers" class="lbl left badge badge-primary">
+				{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
+			</span>
+		</div>
 	</div>
-	<div class="route-matchers">
-		{{ route.Matchers }}
-	</div>
-	<div ng-show="route.Groups" class="alert-groups">
-		<div class="alert-group" ng-repeat="group in route.Groups">
-			<div class="group-instance">
-				{{ group.Labels }}
+	<div class="alert-groups">
+		<div class="alert-group" ng-repeat="group in route.groups">
+			<div class="alert-group-header group">
+				<span ng-repeat="(ln, lv) in group.labels" class="lbl left badge badge-white">
+					{{ ln }} = '{{ lv }}'
+				</span>
 			</div>
-			<div ng-repeat="a in group.Alerts">
+			<div ng-repeat="a in group.alerts">
 			 	<alert class="list-item" a="a"></alert>
 			</div>
 		</div>
 	</div>
 
-	<div class="route" ng-repeat="r in route.Routes">
+	<div ng-repeat="r in route.routes">
 		<route route="r"></route>
 	</div>
 </div>

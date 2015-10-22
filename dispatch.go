@@ -55,15 +55,15 @@ func (d *Dispatcher) Run() {
 }
 
 type UIRoute struct {
-	RouteOpts *RouteOpts
-	Matchers  types.Matchers
-	Groups    []*UIGroup
-	Routes    []*UIRoute
+	RouteOpts *RouteOpts     `json:"routeOpts"`
+	Matchers  types.Matchers `json:"matchers"`
+	Groups    []*UIGroup     `json:"groups"`
+	Routes    []*UIRoute     `json:"routes"`
 }
 
 type UIGroup struct {
-	Labels model.LabelSet
-	Alerts model.Alerts
+	Labels model.LabelSet `json:"labels"`
+	Alerts model.Alerts   `json:"alerts"`
 }
 
 func (d *Dispatcher) Populate(r *UIRoute) {

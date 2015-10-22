@@ -14,6 +14,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -34,6 +35,19 @@ func (m *Matcher) String() string {
 		return fmt.Sprintf("<RegexMatcher %s:%q>", m.Name, m.regex)
 	}
 	return fmt.Sprintf("<Matcher %s:%q>", m.Name, m.Value)
+}
+
+func (m *Matcher) MarshalJSON() ([]byte, error) {
+	v := struct {
+		Name    model.LabelName `json:"name"`
+		Value   string          `json:"value"`
+		IsRegex bool            `json:"isRegex"`
+	}{
+		Name:    m.Name,
+		Value:   m.Value,
+		IsRegex: m.isRegex,
+	}
+	return json.Marshal(&v)
 }
 
 // IsRegex returns true of the matcher compares against a regular expression.

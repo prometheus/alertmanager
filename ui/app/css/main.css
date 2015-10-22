@@ -57,8 +57,7 @@ header #logo {
 .list-item {
 	background: #fff;
 	min-height: 50px;
-	margin-bottom: 4px;
-	border: 1px dotted #eee;
+	margin-bottom: 1px;
 }
 
 .list-item .container-left {
@@ -69,10 +68,25 @@ header #logo {
 	color: #eee;
 }
 
-.label-matcher {
-	text-transform: none;
-	margin-right: 10px;
-	font-size: .8em;
+.lbl {
+	text-transform: none !important;
+	font-size: 0.7em;
+	padding: 6px !important;
+	border-radius: 3px !important;
+	margin: 2px 0 2px 0 !important;
+	font-family: Menlo, Monaco, Consolas, Courier, monospace;
+}
+.lbl.left {
+	display: block;
+	margin-right: 5px !important;
+}
+.lbl.right {
+	display: block;
+	margin-left: 5px !important;
+}
+.lbl.small {
+	font-size: 0.65em;
+	padding: 3px !important;
 }
 
 .list-item .container-right {
@@ -85,8 +99,7 @@ header #logo {
 	font-size: .75em;
 	color: #fff;
 	padding-bottom: 3px;
-	margin-bottom: 4px;
-	border-bottom: 1px dotted #888;
+	margin-bottom: 4px;	
 }
 
 .active-interval .time {
@@ -107,8 +120,23 @@ header #logo {
 }
 
 .route {
-	border: 1px dotted #c0c0c0;
+	border-left: 1px dotted #c0c0c0;
 	background: #fff;
+}
+.route .route {
+	margin: 0 0 0 1.5em;
+}
+
+.route-header {
+	border-bottom: 1px solid #fff;
+	padding: .5em .6em;
+	background: #f0f0f0;
+}
+
+.alert-group-header {
+	border-bottom: 1px solid #fff;
+	background: rgba(47, 119, 209, .4);
+	padding: .5em .6em;
 }
 
 

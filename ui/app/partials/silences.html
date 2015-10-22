@@ -79,7 +79,7 @@
 				– 
 				<span class="date">{{ sil.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ sil.endsAt | date:'HH:mm' }}</span>
 			</div>
-			<span class="label-matcher label label-white" outline ng-repeat="m in sil.matchers | orderBy:name">
+			<span class="lbl label label-white" outline ng-repeat="m in sil.matchers | orderBy:name">
 				{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
 			</span>
 		</div>

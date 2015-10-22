@@ -1,4 +1,4 @@
-<div class="alert">
+<div class="alert-item list-item">
 	<div class="container-left">
 		<div class="active-interval">
 			<span class="date">{{ a.startsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.startsAt | date:'HH:mm' }}</span>
@@ -10,7 +10,7 @@
 				<span class="time">now</span>
 			</span>
 		</div>
-		<span class="label-matcher label label-white" outline ng-repeat="(name, value) in a.labels | orderBy:name">
+		<span class="lbl small left label label-white" outline ng-repeat="(name, value) in a.labels | orderBy:name">
 			{{ name }} = '{{ value }}'
 		</span>
 	</div>
@@ -20,7 +20,7 @@
 				<tbody>
 					<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
 						<td style="padding-right: 3em"><em>{{ name }}</em></td>
-						<td style="whitespace: pre-wrap;">{{ val }}</td>
+						<td style="white-space: pre-wrap;">{{ val }}</td>
 					</tr>
 				</tbody>
 			</table>
