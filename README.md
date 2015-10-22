@@ -56,7 +56,7 @@ This will happen based on priority and demand. Feel free to ping fabxc about it
 
 This is an example configuration that should cover most relevant aspects of the new YAML configuration format. Authoritative source for now is the [code](https://github.com/prometheus/alertmanager/tree/dev/config).
 
-```
+```yaml
 global:
   # The smarthost and SMTP sender used for mail notifications.
   smarthost: 'localhost:25'
