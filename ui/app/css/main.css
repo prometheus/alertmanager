@@ -152,6 +152,9 @@ input.collapse.open[type=checkbox]:after {
 content: '▿';
 }
 
+.label.alertname {
+	background: #fff !important;
+}
 /**/
 input[type="datetime-local"]  {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;

@@ -10,8 +10,10 @@
 				<span class="time">now</span>
 			</span>
 		</div>
-		<span class="lbl small left label label-white" outline ng-repeat="(name, value) in a.labels | orderBy:name">
-			{{ name }} = '{{ value }}'
+		<span ng-repeat="(name, value) in a.labels | orderBy:name">
+			<span class="lbl small left label {{name=='alertname' ? 'label-error alertname' : 'label-white'}}" outline>
+				{{ name }} = '{{ value }}'
+			</span>
 		</span>
 	</div>
 	<div class="container-right group">
