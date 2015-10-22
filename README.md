@@ -181,4 +181,21 @@ notification_configs:
   - service_key: <team-DB-key>
 ```
 
+## Testing
+
+If you want to test the new Alertmanager while running the current version, you can mirror traffic to the new one with a simple nginx configuration similar to this:
+
+```
+server {
+  server_name <your_current_alertmanager>;
+  location / {
+    proxy_pass  http://localhost:9093;
+    post_action @forward;
+  }
+  location @forward {
+    proxy_pass http://<your_new_alertmanager>:9093; 
+  }
+}
+```
+
 
