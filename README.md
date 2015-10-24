@@ -57,7 +57,7 @@ Alertmanager.
 
 ## Running tests
 
-[![Build Status](https://travis-ci.org/prometheus/alertmanager.svg)](https://travis-ci.org/prometheus/alertmanager)
+[![Build Status](https://travis-ci.org/prometheus/alertmanager.svg?branch=master)](https://travis-ci.org/prometheus/alertmanager)
 
     make test
 
