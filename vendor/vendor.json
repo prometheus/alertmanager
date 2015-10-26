@@ -109,8 +109,8 @@
 		},
 		{
 			"path": "github.com/prometheus/common/log",
-			"revision": "210d6543ee217ec38b676a40549af1df9431d80d",
-			"revisionTime": "2015-09-28T11:56:39+02:00"
+			"revision": "4fdc91a58c9d3696b982e8a680f4997403132d44",
+			"revisionTime": "2015-10-26T12:04:34+01:00"
 		},
 		{
 			"path": "github.com/prometheus/common/model",
