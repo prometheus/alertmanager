@@ -198,4 +198,7 @@ server {
 }
 ```
 
+## Architecture
+
+![](https://raw.githubusercontent.com/prometheus/alertmanager/4e6695682acd2580773a904e4aa2e3b927ee27b7/doc/arch.jpg)
 
