@@ -1,4 +1,4 @@
-./data
-./alertmanager
+data/
+alertmanager
 *.yml
 *.yaml
