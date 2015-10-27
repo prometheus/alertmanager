@@ -32,7 +32,8 @@
 		</div>
 
 		<div class="right">
-			<button type="secondary" ng-click="silence(a)" small>Silence</button>
+			<button type="secondary" ng-click="toggleSilenceForm()" small>Silence</button>
+			<silence-form ng-show="showSilenceForm" silence="silence"></silence-form>
 		</div>
 	</div>
 </div>

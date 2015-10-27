@@ -31,6 +31,18 @@ angular.module('am.directives').directive('alert',
   }
 );
 
+angular.module('am.directives').directive('silenceForm',
+  function() {
+    return {
+      restrict: 'E',
+      scope: {
+        silence: '='
+      },
+      templateUrl: '/app/partials/silence-form.html'
+    };
+  }
+);
+
 angular.module('am.services', ['ngResource']);
 
 angular.module('am.services').factory('RecursionHelper',
@@ -165,7 +177,25 @@ angular.module('am.controllers').controller('NavCtrl',
 );
 
 angular.module('am.controllers').controller('AlertCtrl',
-  function() {}
+  function($scope) {
+    $scope.showSilenceForm = false;
+
+    $scope.toggleSilenceForm = function() {
+      $scope.showSilenceForm = !$scope.showSilenceForm
+    }
+
+    $scope.silence = {
+      matchers: []
+    }
+    angular.forEach($scope.a.labels, function(value, key) {
+      this.push({
+        name: key,
+        value: value,
+        isRegex: false,
+      });
+    }, $scope.silence.matchers);
+
+  }
 );
 
 angular.module('am.controllers').controller('AlertsCtrl',
@@ -189,27 +219,6 @@ angular.module('am.controllers').controller('AlertsCtrl',
     $scope.refresh();
   }
 );
-
-// angular.module('am.controllers').controller('AlertsCtrl',
-//   function($scope, Alert) {
-//     $scope.alerts = [];
-//     $scope.order = "startsAt";
-
-//     $scope.refresh = function() {
-//       Alert.query({},
-//         function(data) {
-//           $scope.alerts = data.data || [];
-//           console.log($scope.alerts)
-//         },
-//         function(data) {
-
-//         }
-//       );
-//     }
-
-//     $scope.refresh();
-//   }
-// );
 
 angular.module('am.controllers').controller('SilencesCtrl',
   function($scope, Silence) {
@@ -261,8 +270,10 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
       $scope.silence.matchers.splice(i, 1);
     }
     $scope.reset = function() {
-      var now = new Date(),
-        end = new Date();
+      var now = new Date();
+      var end = new Date();
+
+      $scope.silence = $scope.silence || {};
 
       now.setMilliseconds(0);
       end.setMilliseconds(0);
@@ -271,12 +282,11 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
 
       end.setHours(end.getHours() + 2)
 
-      $scope.silence = {
-        startsAt: now,
-        endsAt: end,
-        matchers: [{}],
-        comment: "",
-        createdBy: ""
+      $scope.silence.startsAt = now;
+      $scope.silence.endsAt = end;
+
+      if (!$scope.silence.matchers) {
+        $scope.silence.matchers = [{}];
       }
     }
 
