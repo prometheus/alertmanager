@@ -167,8 +167,6 @@ func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
 		ag = newAggrGroup(d.ctx, group, opts)
 		groups[fp] = ag
 
-		ag.log = log.With("aggrGroup", ag)
-
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			err := d.notifier.Notify(ctx, alerts...)
 			if err != nil {
@@ -209,6 +207,8 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts) *
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
+	ag.log = log.With("aggrGroup", ag)
+
 	// Set an initial one-time wait before flushing
 	// the first batch of notifications.
 	ag.next = time.NewTimer(ag.opts.GroupWait)
@@ -231,6 +231,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 	if timeout < notify.MinTimeout {
 		timeout = notify.MinTimeout
 	}
+	fmt.Println("starting at", time.Now())
 
 	for {
 		select {
@@ -255,6 +256,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// Wait the configured interval before calling flush again.
 			ag.next.Reset(ag.opts.GroupInterval)
 
+			fmt.Println("flushing at", now)
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
 			})
@@ -288,7 +290,8 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
-	if !ag.hasSent && alert.UpdatedAt.Add(ag.opts.GroupWait).Before(time.Now()) {
+	if !ag.hasSent && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
+		fmt.Println("early")
 		ag.next.Reset(0)
 	}
 }
