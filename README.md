@@ -1,6 +1,6 @@
 # Alertmanager
 
-Prometheus Alertmanager
+Alertmanager by Prometheus
 
 **WARNING: The Alertmanager is still very experimental and early in its
 development and design. More than any other Prometheus component, it will still
