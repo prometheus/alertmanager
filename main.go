@@ -40,6 +40,10 @@ var (
 func main() {
 	flag.Parse()
 
+	err := os.MkdirAll(*dataDir, 0777)
+	if err != nil {
+		log.Fatal(err)
+	}
 	db, err := sql.Open("ql", filepath.Join(*dataDir, "am.db"))
 	if err != nil {
 		log.Fatal(err)
