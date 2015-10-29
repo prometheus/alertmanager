@@ -84,7 +84,7 @@ are going to be addressed in the future:
 ## Using Docker
 
 You can deploy the Alertmanager using the [prom/alertmanager](https://registry.hub.docker.com/u/prom/alertmanager/) Docker image.
-
+Do contribute on this project.
 For example:
 
 ```bash
