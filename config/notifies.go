@@ -15,60 +15,48 @@ package config
 
 import (
 	"fmt"
+	"strings"
 )
 
 var (
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
 	DefaultHipchatConfig = HipchatConfig{
-		ColorFiring:   "purple",
-		ColorResolved: "green",
+		Color:         `{{ if eq .Status "firing" }}purple{{ else }}green{{ end }}`,
 		MessageFormat: HipchatFormatHTML,
 	}
 
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
-		ColorFiring:   "warning",
-		ColorResolved: "good",
-
-		Templates: SlackTemplates{
-			Title:     "slack.default.title",
-			TitleLink: "slack.default.title_link",
-			Pretext:   "slack.default.pretext",
-			Text:      "slack.default.text",
-			Fallback:  "slack.default.fallback",
-		},
+		Color:     `{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}`,
+		Title:     `{{template "slack.default.title" . }}`,
+		TitleLink: `{{template "slack.default.title_link" . }}`,
+		Pretext:   `{{template "slack.default.pretext" . }}`,
+		Text:      `{{template "slack.default.text" . }}`,
+		Fallback:  `{{template "slack.default.fallback" . }}`,
 	}
 
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
-		Templates: EmailTemplates{
-			Header: "email.default.header",
-			HTML:   "email.default.html",
-		},
+		HTML: `{{template "email.default.html" .}}`,
 	}
+	DefaultEmailSubject = `{{template "email.default.subject" .}}`
 
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
 	DefaultPagerdutyConfig = PagerdutyConfig{
-		Templates: PagerdutyTemplates{
-			Description: "pagerduty.default.description",
-		},
+		Description: `{{template "pagerduty.default.description" .}}`,
+		// TODO: Add a details field with all the alerts.
 	}
 )
 
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
-	ServiceKey string `yaml:"service_key"`
-	URL        string `yaml:"url"`
-
-	Templates PagerdutyTemplates `yaml:"templates"`
+	ServiceKey  string            `yaml:"service_key"`
+	URL         string            `yaml:"url"`
+	Description string            `yaml:"description"`
+	Details     map[string]string `yaml:"details"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// PagerdutyTemplates references template names used for PagerDuty.
-type PagerdutyTemplates struct {
-	Description string
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -87,20 +75,14 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 // EmailConfig configures notifications via mail.
 type EmailConfig struct {
 	// Email address to notify.
-	Email     string `yaml:"email"`
-	Smarthost string `yaml:"smarthost,omitempty"`
-	Sender    string `yaml:"sender"`
-
-	Templates EmailTemplates `yaml:"templates"`
+	To        string            `yaml:"to"`
+	From      string            `yaml:"from"`
+	Smarthost string            `yaml:"smarthost,omitempty"`
+	Headers   map[string]string `yaml:"headers"`
+	HTML      string            `yaml:"html"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// EmailTemplates references template names used for email.
-type EmailTemplates struct {
-	Header string `yaml:"header"`
-	HTML   string `yaml:"html"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -110,9 +92,30 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.Email == "" {
-		return fmt.Errorf("missing email address in email config")
+	if c.To == "" {
+		return fmt.Errorf("missing to address in email config")
 	}
+
+	// Header names are case-insensitive, check for collisions.
+	normalisedHeaders := map[string]string{}
+	for h, v := range c.Headers {
+		normalised := strings.ToTitle(h)
+		if _, ok := normalisedHeaders[normalised]; ok {
+			return fmt.Errorf("duplicate header %q in email config", normalised)
+		}
+		normalisedHeaders[normalised] = v
+	}
+	c.Headers = normalisedHeaders
+	if _, ok := c.Headers["Subject"]; !ok {
+		c.Headers["Subject"] = DefaultEmailSubject
+	}
+	if _, ok := c.Headers["To"]; !ok {
+		c.Headers["To"] = c.To
+	}
+	if _, ok := c.Headers["From"]; !ok {
+		c.Headers["From"] = c.From
+	}
+
 	return checkOverflow(c.XXX, "email config")
 }
 
@@ -160,9 +163,8 @@ type HipchatConfig struct {
 	// HipChat room id, (https://www.hipchat.com/rooms/ids).
 	RoomID int `yaml:"room_id"`
 
-	// The message colors.
-	ColorFiring   string `yaml:"color_firing"`
-	ColorResolved string `yaml:"color_resolved"`
+	// The message color.
+	Color string `yaml:"color"`
 
 	// Should this message notify or not.
 	Notify bool `yaml:"notify"`
@@ -200,23 +202,17 @@ type SlackConfig struct {
 	// Slack channel override, (like #other-channel or @username).
 	Channel string `yaml:"channel"`
 
-	// The message colors.
-	ColorFiring   string `yaml:"color_firing"`
-	ColorResolved string `yaml:"color_resolved"`
+	// The message color.
+	Color string `yaml:"color"`
 
-	Templates SlackTemplates `yaml:"templates"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// SlackTemplates references template names used for Slack.
-type SlackTemplates struct {
 	Title     string `yaml:"title"`
 	TitleLink string `yaml:"title_link"`
 	Pretext   string `yaml:"pretext"`
 	Text      string `yaml:"text"`
 	Fallback  string `yaml:"fallback"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

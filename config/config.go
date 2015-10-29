@@ -127,16 +127,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 		for _, ec := range rcv.EmailConfigs {
 			if ec.Smarthost == "" {
-				if c.Global.Smarthost == "" {
-					return fmt.Errorf("no global mail smarthost set")
+				if c.Global.SMTPSmarthost == "" {
+					return fmt.Errorf("no global SMTP smarthost set")
 				}
-				ec.Smarthost = c.Global.Smarthost
+				ec.Smarthost = c.Global.SMTPSmarthost
 			}
-			if ec.Sender == "" {
-				if c.Global.SMTPSender == "" {
+			if ec.From == "" {
+				if c.Global.SMTPFrom == "" {
 					return fmt.Errorf("no global SMTP sender set")
 				}
-				ec.Sender = c.Global.SMTPSender
+				ec.From = c.Global.SMTPFrom
 			}
 		}
 		for _, sc := range rcv.SlackConfigs {
@@ -168,10 +168,10 @@ var DefaultGlobalConfig = GlobalConfig{
 // GlobalConfig defines configuration parameters that are valid globally
 // unless overwritten.
 type GlobalConfig struct {
-	SMTPSender   string `yaml:"smtp_sender"`
-	Smarthost    string `yaml:"smarthost"`
-	SlackURL     string `yaml:"slack_url"`
-	PagerdutyURL string `yaml:"pagerduty_url"`
+	SMTPFrom      string `yaml:"smtp_from"`
+	SMTPSmarthost string `yaml:"smtp_smarthost"`
+	SlackURL      string `yaml:"slack_url"`
+	PagerdutyURL  string `yaml:"pagerduty_url"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

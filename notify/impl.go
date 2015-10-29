@@ -18,10 +18,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/smtp"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -61,6 +65,85 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 }
 
 const contentTypeJSON = "application/json"
+
+// TemplateData is the data passed to notification templates.
+// End-users should not be exposed to Go's type system,
+// as this will confuse them and prevent simple things like
+// simple equality checks to fail. Map everything to float64/string.
+type TemplateData struct {
+	Status            string
+	Alerts            []TemplateAlert
+	AlertCommonLabels map[string]string
+
+	// AlertCommonLabelnames is sorted.
+	AlertCommonLabelnames []string
+	GroupLabels           map[string]string
+
+	// GroupLabelnames is sorted.
+	GroupLabelnames []string
+}
+
+// TemplateAlert holds one alert for notification templates.
+type TemplateAlert struct {
+	Labels      map[string]string
+	Annotations map[string]string
+}
+
+func generateTemplateData(ctx context.Context, as ...*types.Alert) *TemplateData {
+	alerts := types.Alerts(as...)
+
+	groupLabels, ok := GroupLabels(ctx)
+	if !ok {
+		log.Error("missing group labels")
+	}
+
+	data := &TemplateData{
+		Status:                string(alerts.Status()),
+		Alerts:                make([]TemplateAlert, 0, len(alerts)),
+		AlertCommonLabels:     map[string]string{},
+		AlertCommonLabelnames: []string{},
+		GroupLabels:           map[string]string{},
+		GroupLabelnames:       make([]string, 0, len(groupLabels)),
+	}
+
+	for _, a := range alerts {
+		alert := TemplateAlert{
+			Labels:      make(map[string]string, len(a.Labels)),
+			Annotations: make(map[string]string, len(a.Annotations)),
+		}
+		for k, v := range a.Labels {
+			alert.Labels[string(k)] = string(v)
+		}
+		for k, v := range a.Annotations {
+			alert.Annotations[string(k)] = string(v)
+		}
+		data.Alerts = append(data.Alerts, alert)
+	}
+
+	for k, v := range groupLabels {
+		data.GroupLabels[string(k)] = string(v)
+		data.GroupLabelnames = append(data.GroupLabelnames, string(k))
+	}
+	sort.Strings(data.GroupLabelnames)
+
+	if len(alerts) >= 1 {
+		common := alerts[0].Labels.Clone()
+		for _, a := range alerts[1:] {
+			for ln, lv := range common {
+				if a.Labels[ln] != lv {
+					delete(common, ln)
+				}
+			}
+		}
+		for k, v := range common {
+			data.AlertCommonLabels[string(k)] = string(v)
+			data.AlertCommonLabelnames = append(data.AlertCommonLabelnames, string(k))
+		}
+	}
+	sort.Strings(data.AlertCommonLabelnames)
+
+	return data
+}
 
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
@@ -159,6 +242,8 @@ func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 
 // Notify implements the Notifier interface.
 func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
+	data := generateTemplateData(ctx, as...)
+
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(n.conf.Smarthost)
 	if err != nil {
@@ -183,11 +268,32 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		}
 	}
 
-	if err := c.Mail(n.conf.Sender); err != nil {
-		return err
+	from, err := n.tmpl.ExecuteTextString(n.conf.From, data)
+	if err != nil {
+		return fmt.Errorf("executing from template: %s", err)
 	}
-	if err := c.Rcpt(n.conf.Email); err != nil {
-		return err
+	addrs, err := mail.ParseAddressList(from)
+	if err != nil {
+		return fmt.Errorf("parsing from addresses: %s", err)
+	}
+	if len(addrs) != 1 {
+		return fmt.Errorf("must be exactly one from address")
+	}
+	if err := c.Mail(addrs[0].Address); err != nil {
+		return fmt.Errorf("sending mail from: %s", err)
+	}
+	to, err := n.tmpl.ExecuteTextString(n.conf.To, data)
+	if err != nil {
+		return fmt.Errorf("executing to template: %s", err)
+	}
+	addrs, err = mail.ParseAddressList(to)
+	if err != nil {
+		return fmt.Errorf("parsing to addresses: %s", err)
+	}
+	for _, addr := range addrs {
+		if err := c.Rcpt(addr.Address); err != nil {
+			return fmt.Errorf("sending rcpt to: %s", err)
+		}
 	}
 
 	// Send the email body.
@@ -197,32 +303,26 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	defer wc.Close()
 
-	groupLabels, ok := GroupLabels(ctx)
-	if !ok {
-		log.Error("missing group labels")
+	for header, tmpl := range n.conf.Headers {
+		value, err := n.tmpl.ExecuteTextString(tmpl, data)
+		if err != nil {
+			return fmt.Errorf("executing %q header template: %s", header, err)
+		}
+		fmt.Fprintf(wc, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
-
-	data := struct {
-		Alerts      model.Alerts
-		GroupLabels model.LabelSet
-		From        string
-		To          string
-		Date        string
-	}{
-		Alerts:      types.Alerts(as...),
-		GroupLabels: groupLabels,
-		From:        n.conf.Sender,
-		To:          n.conf.Email,
-		Date:        time.Now().Format(time.RFC1123Z),
-	}
-
-	// Expand the mail header first without HTML escaping
-	if err := n.tmpl.ExecuteText(wc, n.conf.Templates.Header, &data); err != nil {
-		return err
-	}
+	fmt.Fprintf(wc, "Content-Type: text/html; charset=UTF-8\r\n")
+	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+	// TODO: Add some useful headers here, such as URL of the alertmanager
+	// and active/resolved.
+	fmt.Fprintf(wc, "\r\n")
 
 	// TODO(fabxc): do a multipart write that considers the plain template.
-	return n.tmpl.ExecuteHTML(wc, n.conf.Templates.HTML, &data)
+	body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
+	if err != nil {
+		return fmt.Errorf("executing email html template: %s", err)
+	}
+	_, err = io.WriteString(wc, body)
+	return err
 }
 
 // PagerDuty implements a Notifier for PagerDuty notifications.
@@ -255,6 +355,7 @@ type pagerDutyMessage struct {
 func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	// http://developer.pagerduty.com/documentation/integration/events/trigger
 	alerts := types.Alerts(as...)
+	data := generateTemplateData(ctx, as...)
 
 	eventType := pagerDutyEventTrigger
 	if alerts.Status() == model.AlertResolved {
@@ -268,34 +369,25 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 
 	log.With("incident", key).With("eventType", eventType).Debugln("notifying PagerDuty")
 
-	groupLabels, ok := GroupLabels(ctx)
-	if !ok {
-		log.Error("missing group labels")
-	}
-
-	data := struct {
-		Alerts      model.Alerts
-		GroupLabels model.LabelSet
-	}{
-		Alerts:      alerts,
-		GroupLabels: groupLabels,
-	}
-
 	var err error
 	tmpl := func(name string) (s string) {
 		if err != nil {
 			return
 		}
-		s, err = n.tmpl.ExecuteTextString(name, &data)
+		s, err = n.tmpl.ExecuteTextString(name, data)
 		return s
+	}
+	details := make(map[string]string, len(n.conf.Details))
+	for k, v := range n.conf.Details {
+		details[k] = tmpl(v)
 	}
 
 	msg := &pagerDutyMessage{
-		ServiceKey:  n.conf.ServiceKey,
+		ServiceKey:  tmpl(n.conf.ServiceKey),
 		EventType:   eventType,
 		IncidentKey: key,
-		Description: tmpl(n.conf.Templates.Description),
-		Details:     nil,
+		Description: tmpl(n.conf.Description),
+		Details:     details,
 	}
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = "Prometheus Alertmanager"
@@ -356,50 +448,46 @@ type slackAttachmentField struct {
 
 // Notify implements the Notifier interface.
 func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
+	data := generateTemplateData(ctx, as...)
 	alerts := types.Alerts(as...)
-	var (
-		color  = n.conf.ColorResolved
-		status = string(alerts.Status())
-	)
-	if alerts.HasFiring() {
-		color = n.conf.ColorFiring
-	}
 
 	var err error
-	tmpl := func(name string) (s string) {
+	tmplText := func(name string) (s string) {
 		if err != nil {
 			return
 		}
-		s, err = n.tmpl.ExecuteHTMLString(name, struct {
-			Alerts model.Alerts
-		}{
-			Alerts: alerts,
-		})
+		s, err = n.tmpl.ExecuteTextString(name, data)
+		return s
+	}
+	tmplHTML := func(name string) (s string) {
+		if err != nil {
+			return
+		}
+		s, err = n.tmpl.ExecuteHTMLString(name, data)
 		return s
 	}
 
 	attachment := &slackAttachment{
-		Title:     tmpl(n.conf.Templates.Title),
-		TitleLink: tmpl(n.conf.Templates.TitleLink),
-		Pretext:   tmpl(n.conf.Templates.Pretext),
-		Text:      tmpl(n.conf.Templates.Text),
-		Fallback:  tmpl(n.conf.Templates.Fallback),
+		Title:     tmplText(n.conf.Title),
+		TitleLink: tmplText(n.conf.TitleLink),
+		Pretext:   tmplText(n.conf.Pretext),
+		Text:      tmplHTML(n.conf.Text),
+		Fallback:  tmplText(n.conf.Fallback),
 
 		Fields: []slackAttachmentField{{
 			Title: "Status",
-			Value: status,
+			Value: string(alerts.Status()),
 			Short: true,
 		}},
-		Color:    color,
+		Color:    tmplText(n.conf.Color),
 		MrkdwnIn: []string{"fallback", "pretext"},
+	}
+	req := &slackReq{
+		Channel:     tmplText(n.conf.Channel),
+		Attachments: []slackAttachment{*attachment},
 	}
 	if err != nil {
 		return err
-	}
-
-	req := &slackReq{
-		Channel:     n.conf.Channel,
-		Attachments: []slackAttachment{*attachment},
 	}
 
 	var buf bytes.Buffer
