@@ -17,23 +17,24 @@
 		</span>
 	</div>
 	<div class="container-right group">
-		<div>
-			Details: <input class="collapse" ng-class="{open:collapse}" type="checkbox" ng-model="collapse"></input>
-		</div>
-		<div class="left" ng-show="collapse">
-			<table class="table-flat">
-				<tbody>
-					<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
-						<td style="padding-right: 3em"><em>{{ name }}</em></td>
-						<td style="white-space: pre-line;">{{ val }}</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
-
 		<div class="right">
 			<button type="secondary" ng-click="toggleSilenceForm()" small>Silence</button>
+		</div>
+		
+		<div class="left">
 			<silence-form ng-show="showSilenceForm" silence="silence"></silence-form>
+
+			Details: <input class="collapse" ng-class="{open:collapse}" type="checkbox" ng-model="collapse"></input>
+			<div class="left" ng-show="collapse">
+				<table class="table-flat">
+					<tbody>
+						<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
+							<td style="padding-right: 3em"><em>{{ name }}</em></td>
+							<td style="white-space: pre-line;">{{ val }}</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 		</div>
 	</div>
 </div>

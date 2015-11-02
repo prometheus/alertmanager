@@ -206,9 +206,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
     $scope.refresh = function() {
       Route.query({},
         function(data) {
-          console.log(data);
           $scope.route = data.data;
-          console.log($scope.route)
         },
         function(data) {
 
@@ -231,17 +229,17 @@ angular.module('am.controllers').controller('SilencesCtrl',
           $scope.silences = data.data || [];
         },
         function(data) {
-
+          $scope.error = data.data;
         }
       );
-    }
+    };
 
     $scope.delete = function(sil) {
       Silence.delete({
         id: sil.id
       })
       $scope.refresh()
-    }
+    };
 
     $scope.refresh();
   }
@@ -263,12 +261,12 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
 
     $scope.error = null;
 
-    $scope.newMatcher = function() {
+    $scope.addMatcher = function() {
       $scope.silence.matchers.push({});
-    }
+    };
     $scope.delMatcher = function(i) {
       $scope.silence.matchers.splice(i, 1);
-    }
+    };
     $scope.reset = function() {
       var now = new Date();
       var end = new Date();
@@ -285,10 +283,13 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
       $scope.silence.startsAt = now;
       $scope.silence.endsAt = end;
 
+      $scope.silence.comment = "";
+      $scope.silence.createdBy = "";
+
       if (!$scope.silence.matchers) {
-        $scope.silence.matchers = [{}];
+        $scope.silence.matchers = [{}, {}];
       }
-    }
+    };
 
     $scope.reset();
   }

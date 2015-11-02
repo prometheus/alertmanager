@@ -40,6 +40,8 @@ header #logo {
 
 #silence-create {
 	background: #fff;
+	width: 100%;
+	min-width: 400px;
 }
 
 .silence-matchers {
