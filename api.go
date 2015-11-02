@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/log"
@@ -27,32 +28,38 @@ import (
 
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/version"
 )
 
 type API struct {
 	alerts   provider.Alerts
 	silences provider.Silences
+	config   string
 
 	route func() *UIRoute
 
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
+	mtx     sync.RWMutex
 }
 
-func RegisterAPI(r *route.Router, alerts provider.Alerts, silences provider.Silences, rf func() *UIRoute) *API {
-	api := &API{
+func NewAPI(alerts provider.Alerts, silences provider.Silences, rf func() *UIRoute) *API {
+	return &API{
 		context:  route.Context,
 		alerts:   alerts,
 		silences: silences,
 		route:    rf,
 	}
+}
 
+func (api *API) Register(r *route.Router) {
 	// Register legacy forwarder for alert pushing.
 	r.Post("/alerts", api.legacyAddAlerts)
 
 	// Register actual API.
 	r = r.WithPrefix("/v1")
 
+	r.Get("/status", api.status)
 	r.Get("/routes", api.routes)
 
 	r.Get("/alerts", api.listAlerts)
@@ -64,8 +71,13 @@ func RegisterAPI(r *route.Router, alerts provider.Alerts, silences provider.Sile
 	r.Get("/silence/:sid", api.getSilence)
 	r.Put("/silence/:sid", api.setSilence)
 	r.Del("/silence/:sid", api.delSilence)
+}
 
-	return api
+func (api *API) Update(config string) {
+	api.mtx.Lock()
+	defer api.mtx.Unlock()
+
+	api.config = config
 }
 
 type errorType string
@@ -84,6 +96,22 @@ type apiError struct {
 
 func (e *apiError) Error() string {
 	return fmt.Sprintf("%s: %s", e.typ, e.err)
+}
+
+func (api *API) status(w http.ResponseWriter, req *http.Request) {
+	api.mtx.RLock()
+
+	var status = struct {
+		Config      string            `json:"config"`
+		VersionInfo map[string]string `json:"versionInfo"`
+	}{
+		Config:      api.config,
+		VersionInfo: version.Map,
+	}
+
+	api.mtx.RUnlock()
+
+	respond(w, status)
 }
 
 func pruneUIRoute(r *UIRoute) {

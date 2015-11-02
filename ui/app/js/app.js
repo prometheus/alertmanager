@@ -295,6 +295,23 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
   }
 );
 
+angular.module('am.services').factory('Status',
+  function($resource) {
+    return $resource('', {}, {
+      'get': {
+        method: 'GET',
+        url: '/api/v1/status'
+      }
+    });
+  }
+);
+
+angular.module('am.controllers').controller('StatusCtrl',
+  function($scope, Status) {
+
+  }
+);
+
 angular.module('am', [
   'ngRoute',
 

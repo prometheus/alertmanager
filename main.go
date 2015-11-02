@@ -66,6 +66,13 @@ func main() {
 	)
 	defer disp.Stop()
 
+	api := NewAPI(alerts, silences, func() *UIRoute {
+		uir := disp.route.UIRoute()
+		disp.Populate(uir)
+
+		return uir
+	})
+
 	build := func(nconf []*config.NotificationConfig) notify.Notifier {
 		var (
 			router  = notify.Router{}
@@ -106,6 +113,8 @@ func main() {
 			return err
 		}
 
+		api.Update(conf.String())
+
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
 			return err
@@ -128,12 +137,7 @@ func main() {
 	router := route.New()
 
 	RegisterWeb(router)
-	RegisterAPI(router.WithPrefix("/api"), alerts, silences, func() *UIRoute {
-		uir := disp.route.UIRoute()
-		disp.Populate(uir)
-
-		return uir
-	})
+	api.Register(router.WithPrefix("/api"))
 
 	go http.ListenAndServe(*listenAddress, router)
 
