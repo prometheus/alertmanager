@@ -308,7 +308,14 @@ angular.module('am.services').factory('Status',
 
 angular.module('am.controllers').controller('StatusCtrl',
   function($scope, Status) {
-
+    Status.get({},
+      function(data) {
+        $scope.config = data.data.config;
+        $scope.versionInfo = data.data.versionInfo;
+      },
+      function(data) {
+        console.log(data.data); 
+      })
   }
 );
 
@@ -330,6 +337,10 @@ angular.module('am').config(
     when('/silences', {
       templateUrl: '/app/partials/silences.html',
       controller: 'SilencesCtrl'
+    }).
+    when('/status', {
+      templateUrl: '/app/partials/status.html',
+      controller: 'StatusCtrl'
     }).
     otherwise({
       redirectTo: '/silences'
