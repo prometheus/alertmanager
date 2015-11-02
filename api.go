@@ -35,6 +35,7 @@ type API struct {
 	alerts   provider.Alerts
 	silences provider.Silences
 	config   string
+	uptime   time.Time
 
 	route func() *UIRoute
 
@@ -49,6 +50,7 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, rf func() *UIRou
 		alerts:   alerts,
 		silences: silences,
 		route:    rf,
+		uptime:   time.Now(),
 	}
 }
 
@@ -104,9 +106,11 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	var status = struct {
 		Config      string            `json:"config"`
 		VersionInfo map[string]string `json:"versionInfo"`
+		Uptime      time.Time         `json:"uptime"`
 	}{
 		Config:      api.config,
 		VersionInfo: version.Map,
+		Uptime:      api.uptime,
 	}
 
 	api.mtx.RUnlock()

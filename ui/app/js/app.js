@@ -312,6 +312,7 @@ angular.module('am.controllers').controller('StatusCtrl',
       function(data) {
         $scope.config = data.data.config;
         $scope.versionInfo = data.data.versionInfo;
+        $scope.uptime = data.data.uptime;
       },
       function(data) {
         console.log(data.data); 
