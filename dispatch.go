@@ -291,7 +291,6 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
 	if !ag.hasSent && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
-		fmt.Println("early")
 		ag.next.Reset(0)
 	}
 }
@@ -332,8 +331,8 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				delete(ag.alerts, fp)
 			}
 		}
+
+		ag.hasSent = true
 		ag.mtx.Unlock()
 	}
-
-	ag.hasSent = true
 }

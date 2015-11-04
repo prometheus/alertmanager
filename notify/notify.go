@@ -249,7 +249,7 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 					}
 				}
 			}
-		} else if a.Resolved() && !sendResolved {
+		} else if a.Resolved() {
 			continue
 		}
 
