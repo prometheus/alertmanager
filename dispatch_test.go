@@ -90,7 +90,7 @@ func TestAggrGroup(t *testing.T) {
 			t.Errorf("wrong repeat interval: %q", ri)
 		}
 		if sr, ok := notify.SendResolved(ctx); !ok || sr != opts.SendResolved {
-			t.Errorf("wrong send_resolved: %q", sr)
+			t.Errorf("wrong send_resolved: %v", sr)
 		}
 
 		last = current

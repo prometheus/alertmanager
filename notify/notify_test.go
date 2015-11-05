@@ -155,7 +155,7 @@ func TestDedupingNotifier(t *testing.T) {
 	// After a failing notify the notifies data must be unchanged.
 	nsCur, err := notifies.Get("name", fps...)
 	if err != nil {
-		t.Fatalf("Error getting notifies", err)
+		t.Fatalf("Error getting notifies: %s", err)
 	}
 	if !reflect.DeepEqual(nsBefore, nsCur) {
 		t.Fatalf("Notifies data has changed unexpectedly")
@@ -220,7 +220,7 @@ func TestDedupingNotifier(t *testing.T) {
 	}
 	nsCur, err = notifies.Get("name", fps...)
 	if err != nil {
-		t.Fatalf("Error getting notifies", err)
+		t.Fatalf("Error getting notifies: %s", err)
 	}
 
 	// Hack correct timestamps back in if they are sane.

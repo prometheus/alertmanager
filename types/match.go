@@ -110,7 +110,7 @@ func (ms Matchers) Fingerprint() model.Fingerprint {
 	lset := make(model.LabelSet, 3*len(ms))
 
 	for _, m := range ms {
-		lset[model.LabelName(fmt.Sprintf("%s-%s-%s", m.Name, m.Value, m.isRegex))] = ""
+		lset[model.LabelName(fmt.Sprintf("%s-%s-%v", m.Name, m.Value, m.isRegex))] = ""
 	}
 
 	return lset.Fingerprint()

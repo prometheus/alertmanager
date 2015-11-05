@@ -167,8 +167,6 @@ func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) erro
 			return ctx.Err()
 		}
 	}
-
-	return nil
 }
 
 type DedupingNotifier struct {

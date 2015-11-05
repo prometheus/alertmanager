@@ -314,7 +314,7 @@ func (c *NotificationConfig) UnmarshalYAML(unmarshal func(interface{}) error) er
 
 // Regexp encapsulates a regexp.Regexp and makes it YAML marshallable.
 type Regexp struct {
-	regexp.Regexp
+	*regexp.Regexp
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -327,7 +327,7 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err != nil {
 		return err
 	}
-	re.Regexp = *regex
+	re.Regexp = regex
 	return nil
 }
 
