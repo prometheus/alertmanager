@@ -14,6 +14,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// ResolveTimeout is the time after which an alert is declared resolved
+// if it has not been updated.
 const ResolveTimeout = 5 * time.Minute
 
 // Dispatcher sorts incoming alerts into aggregation groups and
@@ -54,6 +56,8 @@ func (d *Dispatcher) Run() {
 	close(d.done)
 }
 
+// UIRoute is the data representation of the routing tree as provided
+// by the API.
 type UIRoute struct {
 	RouteOpts *RouteOpts     `json:"routeOpts"`
 	Matchers  types.Matchers `json:"matchers"`
@@ -61,11 +65,14 @@ type UIRoute struct {
 	Routes    []*UIRoute     `json:"routes"`
 }
 
+// UIGroup is the representation of a group of alerts as provided by
+// the API.
 type UIGroup struct {
 	Labels model.LabelSet `json:"labels"`
 	Alerts model.Alerts   `json:"alerts"`
 }
 
+// Populate writes the dispatcher's internal state into the given UIRoute.
 func (d *Dispatcher) Populate(r *UIRoute) {
 	for _, sr := range r.Routes {
 		d.Populate(sr)

@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/alertmanager/version"
 )
 
+// API provides registration of handlers for API routes.
 type API struct {
 	alerts   provider.Alerts
 	silences provider.Silences
@@ -44,6 +45,7 @@ type API struct {
 	mtx     sync.RWMutex
 }
 
+// NewAPI returns a new API.
 func NewAPI(alerts provider.Alerts, silences provider.Silences, rf func() *UIRoute) *API {
 	return &API{
 		context:  route.Context,
@@ -54,6 +56,8 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, rf func() *UIRou
 	}
 }
 
+// Register regieters the API handlers under their correct routes
+// in the given router.
 func (api *API) Register(r *route.Router) {
 	// Register legacy forwarder for alert pushing.
 	r.Post("/alerts", api.legacyAddAlerts)
@@ -75,6 +79,7 @@ func (api *API) Register(r *route.Router) {
 	r.Del("/silence/:sid", api.delSilence)
 }
 
+// Update sets the configuration string to a new value.
 func (api *API) Update(config string) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()

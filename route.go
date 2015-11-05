@@ -24,6 +24,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// DefaultRouteOpts are the defaulting routing options which apply
+// to the root route of a routing tree.
 var DefaultRouteOpts = RouteOpts{
 	GroupWait:      30 * time.Second,
 	GroupInterval:  5 * time.Minute,
@@ -52,6 +54,7 @@ type Route struct {
 	Routes []*Route
 }
 
+// NewRoute returns a new route.
 func NewRoute(cr *config.Route, parent *Route) *Route {
 	// Create default and overwrite with configured settings.
 	opts := DefaultRouteOpts
@@ -108,6 +111,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	return route
 }
 
+// NewRoutes returns a slice of routes.
 func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 	res := []*Route{}
 	for _, cr := range croutes {
@@ -116,6 +120,7 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 	return res
 }
 
+// UIRoute returns the API data representation of a the route.
 func (r *Route) UIRoute() *UIRoute {
 	var subs []*UIRoute
 	for _, sr := range r.Routes {
@@ -158,6 +163,8 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 	return all
 }
 
+// SquashMatchers returns the total set of matchers on the path of the tree
+// that have to apply to reach the route.
 func (r *Route) SquashMatchers() types.Matchers {
 	var res types.Matchers
 	res = append(res, r.Matchers...)
@@ -172,6 +179,8 @@ func (r *Route) SquashMatchers() types.Matchers {
 	return res
 }
 
+// Fingerprint returns a hash of the Route based on its grouping labels,
+// routing options and the total set of matchers necessary to reach this route.
 func (r *Route) Fingerprint() model.Fingerprint {
 	lset := make(model.LabelSet, len(r.RouteOpts.GroupBy))
 
@@ -182,6 +191,8 @@ func (r *Route) Fingerprint() model.Fingerprint {
 	return r.SquashMatchers().Fingerprint() ^ lset.Fingerprint()
 }
 
+// RouteOpts holds various routing options necessary for processing alerts
+// that match a given route.
 type RouteOpts struct {
 	// The identifier of the associated notification configuration
 	SendTo       string
@@ -205,6 +216,7 @@ func (ro *RouteOpts) String() string {
 	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q timers:%q|%q>", ro.SendTo, labels, ro.GroupWait, ro.GroupInterval)
 }
 
+// MarshalJSON returns a JSON representation of the routing options.
 func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
 	v := struct {
 		SendTo         string           `json:"sendTo"`

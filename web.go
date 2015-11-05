@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/common/route"
 )
 
+// RegisterWeb registers handlers to serve files for the web interface.
 func RegisterWeb(r *route.Router) {
 
 	r.Get("/app/*filepath", route.FileServe("ui/app/"))

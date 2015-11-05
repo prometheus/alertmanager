@@ -24,6 +24,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// An Inhibitor determines whether a given label set is muted
+// based on the currently active alerts and a set of inhibition rules.
 type Inhibitor struct {
 	alerts provider.Alerts
 	rules  []*InhibitRule
@@ -31,6 +33,7 @@ type Inhibitor struct {
 	mtx sync.RWMutex
 }
 
+// NewInhibitor returns a new Inhibitor.
 func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule) *Inhibitor {
 	ih := &Inhibitor{
 		alerts: ap,
@@ -41,6 +44,7 @@ func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule) *Inhibitor {
 	return ih
 }
 
+// Mutes returns true iff the given label set is muted.
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	alerts := ih.alerts.GetPending()
 	defer alerts.Close()
@@ -82,6 +86,7 @@ type InhibitRule struct {
 	Equal map[model.LabelName]struct{}
 }
 
+// NewInhibitRule returns a new InihibtRule based on a configuration definition.
 func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	var (
 		sourcem types.Matchers
@@ -124,6 +129,8 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	}
 }
 
+// Mutes returns true iff the Inhibition rule applies for the given
+// source and target label set.
 func (r *InhibitRule) Mutes(source, target model.LabelSet) bool {
 	if !r.TargetMatchers.Match(target) || !r.SourceMatchers.Match(source) {
 		return false
