@@ -209,7 +209,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
           $scope.route = data.data;
         },
         function(data) {
-
+          $scope.error = data.data;
         }
       );
     }
@@ -235,23 +235,31 @@ angular.module('am.controllers').controller('SilencesCtrl',
     };
 
     $scope.delete = function(sil) {
-      Silence.delete({
-        id: sil.id
-      })
-      $scope.refresh()
+      Silence.delete({id: sil.id},
+        function(data) {
+          $scope.refresh();
+        },
+        function(data) {
+          $scope.error = data.data;
+        });
     };
+
+    $scope.$on('silence-created', function(evt) {
+      $scope.refresh();
+    });
 
     $scope.refresh();
   }
 );
 
 angular.module('am.controllers').controller('SilenceCreateCtrl',
-  function($scope, Silence) {
+  function($scope, $rootScope, Silence) {
 
     $scope.create = function() {
       Silence.create($scope.silence,
         function(data) {
-          $scope.refresh();
+          $rootScope.$broadcast('silence-created');
+          $scope.reset();
         },
         function(data) {
           $scope.error = data.data;
@@ -264,9 +272,11 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
     $scope.addMatcher = function() {
       $scope.silence.matchers.push({});
     };
+
     $scope.delMatcher = function(i) {
       $scope.silence.matchers.splice(i, 1);
     };
+
     $scope.reset = function() {
       var now = new Date();
       var end = new Date();
@@ -278,17 +288,15 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
       now.setSeconds(0);
       end.setSeconds(0);
 
-      end.setHours(end.getHours() + 2)
+      end.setHours(end.getHours() + 4)
 
-      $scope.silence.startsAt = now;
-      $scope.silence.endsAt = end;
-
-      $scope.silence.comment = "";
-      $scope.silence.createdBy = "";
-
-      if (!$scope.silence.matchers) {
-        $scope.silence.matchers = [{}, {}];
-      }
+      $scope.silence = {
+        startsAt: now,
+        endsAt: end,
+        comment: "",
+        createdBy: "",
+        matchers: [{}, {}]
+      };
     };
 
     $scope.reset();

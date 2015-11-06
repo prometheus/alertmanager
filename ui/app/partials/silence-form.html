@@ -21,12 +21,10 @@
 			<column cols="2">
 				<input class="input-small" type="text" placeholder="value" ng-model="m.value">
 			</column>
-			<column>
-				<label class="checkbox is-regex"><input type="checkbox" ng-model="m.isRegex"> /re/</label>
-			</column>
 
 			<column>
 				<div class="btn-group">
+					<button type="primary" small><label class="checkbox is-regex"><input type="checkbox" ng-model="m.isRegex"> regex</label></button>
 					<button type="secondary" ng-hide="silence.matchers.length <= 1" ng-click="delMatcher($index)" small>-</button>
 					<button type="secondary" ng-click="addMatcher()" small>+</button>
 				</div>
@@ -36,7 +34,7 @@
 		<row>
 			<column cols="2">
 				<label>Creator</label>
-				<input ng-model="silence.createdBy" type="email">
+				<input ng-model="silence.createdBy" type="email" required>
 			</column>
 			<column cols="4">
 				<label>Comment</label>
@@ -49,7 +47,7 @@
 	<div ng-show="error != null"><span class="error">{{ error }}</span></div>
 
 	<div class="btn-group">
-		<button type="primary" ng-disabled="silence.matchers.length == 0" ng-click="create()" small>Create</button>
-		<button type="seconday" ng-click="reset()" small>Reset</button>
+		<button type="primary" ng-disabled="silence.matchers.length == 0" ng-click="create()" upper>Create</button>
+		<button type="seconday" ng-click="reset()" upper>Reset</button>
 	</div>
 </form>
