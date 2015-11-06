@@ -1,22 +1,54 @@
-<div class="alert-item list-item" ng-controller="AlertCtrl">
-	<div class="container-left">
-		<div class="active-interval">
-			<span class="date">{{ a.startsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.startsAt | date:'HH:mm' }}</span>
-			–
-			<span ng-hide="a.endsAt == '0001-01-01T00:00:00Z'">
-				<span class="date">{{ a.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.endsAt | date:'HH:mm' }}</span>
-			</span>
-			<span ng-show="a.endsAt == '0001-01-01T00:00:00Z'">
-				<span class="time">now</span>
-			</span>
-		</div>
+<div class="alert-item" ng-controller="AlertCtrl">
+	<div class="labels">
 		<span ng-repeat="(name, value) in a.labels | orderBy:name">
 			<span class="lbl {{ name == 'alertname' ? 'lbl-highlight' : '' }}" outline>
 				{{ name }} = '{{ value }}'
 			</span>
 		</span>
+
+		<div class="right">
+			<button type="secondary" ng-click="toggleSilenceForm()" small>Silence</button>
+		</div>
 	</div>
-	<div class="container-right group">
+
+	<div>
+		<silence-form ng-show="showSilenceForm" silence="silence"></silence-form>
+	</div>
+
+	<div class="detail group">
+		<table class="table-flat">
+			<tbody>
+				<tr>
+					<td>active</td>
+					<td>
+						<span>{{ a.startsAt | date:'yyyy-MM-dd HH:mm' }}</span>
+						– 
+						<span ng-hide="a.endsAt == '0001-01-01T00:00:00Z'">
+							<span class="date">{{ a.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.endsAt | date:'HH:mm' }}</span>
+						</span>
+						<span ng-show="a.endsAt == '0001-01-01T00:00:00Z'">
+							<span class="time">now</span>
+						</span>
+					</td>
+				</tr>
+				<tr>
+					<td>annotations</td>
+					<td>
+						<table class="table-flat">
+							<tbody>
+								<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
+									<td style="padding-right: 3em"><em>{{ name }}</em></td>
+									<td style="white-space: pre-line;">{{ val }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<!-- <div class="container-right group">
 		<div class="right">
 			<button type="secondary" ng-click="toggleSilenceForm()" small>Silence</button>
 		</div>
@@ -36,5 +68,5 @@
 				</table>
 			</div>
 		</div>
-	</div>
+	</div> -->
 </div>

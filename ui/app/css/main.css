@@ -51,16 +51,16 @@ header #logo {
 	opacity: 1.0;
 }
 
-.silence .labels {
+.silence .labels, .alert-item .labels {
 	background: #bfbfbf;
 	padding: .8em;
 }
-.silence .detail {
+.silence .detail, .alert-item .detail {
 	background: #fff;
 	padding: .8em;
 	display: none;
 }
-.silence:hover .detail {
+.silence:hover .detail, .alert-item:hover .detail {
 	display: block;
 }
 
@@ -78,7 +78,6 @@ header #logo {
 
 .list-item {
 	background: #fff;
-	min-height: 50px;
 	margin-bottom: 1px;
 }
 
@@ -115,15 +114,6 @@ header #logo {
 	font-style: italic;
 }
 
-.list-item .silence-created {
-	font-size: .9em;
-	border-left: none;
-	padding: 0;
-}
-
-.list-item .silence-comment {
-
-}
 
 .route {
 	border-left: 1px dotted #c0c0c0;
