@@ -230,15 +230,36 @@ angular.module('am.controllers').controller('AlertsCtrl',
   }
 );
 
+angular.module('am.controllers').controller('SilenceCtrl',
+  function($scope, $rootScope, Silence) {
+
+    $scope.delete = function(sil) {
+      Silence.delete({id: sil.id},
+        function(data) {
+          $rootScope.$broadcast('silence-deleted');
+        },
+        function(data) {
+          $scope.error = data.data;
+        });
+    };
+  }
+);
+
 angular.module('am.controllers').controller('SilencesCtrl',
   function($scope, Silence) {
     $scope.silences = [];
-    $scope.order = "startsAt";
+    $scope.order = "endsAt";
 
     $scope.refresh = function() {
       Silence.query({},
-        function(data) {
+        function(data) { 
           $scope.silences = data.data || [];
+
+          angular.forEach($scope.silences, function(value) {
+            value.endsAt = new Date(value.endsAt);
+            value.startsAt = new Date(value.startsAt);
+            value.createdAt = new Date(value.createdAt);
+          });
         },
         function(data) {
           $scope.error = data.data;
@@ -246,17 +267,10 @@ angular.module('am.controllers').controller('SilencesCtrl',
       );
     };
 
-    $scope.delete = function(sil) {
-      Silence.delete({id: sil.id},
-        function(data) {
-          $scope.refresh();
-        },
-        function(data) {
-          $scope.error = data.data;
-        });
-    };
-
     $scope.$on('silence-created', function(evt) {
+      $scope.refresh();
+    });
+    $scope.$on('silence-deleted', function(evt) {
       $scope.refresh();
     });
 
@@ -344,6 +358,7 @@ angular.module('am.controllers').controller('StatusCtrl',
 
 angular.module('am', [
   'ngRoute',
+  'angularMoment',
 
   'am.controllers',
   'am.services',

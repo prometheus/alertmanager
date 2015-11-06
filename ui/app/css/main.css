@@ -58,6 +58,10 @@ header #logo {
 .silence .detail {
 	background: #fff;
 	padding: .8em;
+	display: none;
+}
+.silence:hover .detail {
+	display: block;
 }
 
 .silence-matchers {
@@ -106,19 +110,9 @@ header #logo {
 	padding: 1em;
 }
 
-.list-item .active-interval {
-	font-family: Menlo, Monaco, Consolas, Courier, monospace;
-	font-size: .75em;
-	color: #fff;
-	padding-bottom: 3px;
-	margin-bottom: 4px;	
-}
-
-.active-interval .time {
-	color: #f9f9f9;
-}
-.active-interval .date {
-	color: #c9c9c9;
+.active-interval {
+	color: #aaa;
+	font-style: italic;
 }
 
 .list-item .silence-created {

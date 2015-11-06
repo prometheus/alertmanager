@@ -21,7 +21,7 @@
 
 <div ng-hide="silences.length == 0" id="silences-list">
 
-	<div class="list-item group" ng-repeat="sil in silences | filter:query | orderBy:order">
+	<div class="list-item group" ng-repeat="sil in silences | filter:query | orderBy:order:reverse">
 		<silence sil="sil"></silence>
 	</div>
 

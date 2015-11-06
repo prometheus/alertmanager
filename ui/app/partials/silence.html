@@ -1,0 +1,37 @@
+<div class="silence" ng-controller="SilenceCtrl">
+	<div class="labels">
+		<span ng-repeat="m in sil.matchers | orderBy:name">
+			<span class="lbl {{ m.name == 'alertname' ? 'lbl-highlight' : '' }}">
+				{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
+			</span>
+		</span>
+
+		<div class="right">
+			<button type="black" disabled small>Until {{ sil.endsAt | amCalendar }}</button>
+			<button class="delete-button" type="secondary" ng-click="delete(sil)" small upper>Delete</button>
+		</div>
+	</div>
+
+	<div class="detail group">
+		<table class="table-flat">
+			<tbody>
+				<tr ng-show="sil.createdBy">
+					<td>creator</td>
+					<td>{{ sil.createdBy }}</td>
+				</tr>
+				<tr ng-show="sil.comment">
+					<td>comment</td>
+					<td>{{ sil.comment }}</td>
+				</tr>
+				<tr>
+					<td>active</td>
+					<td>
+						<span>{{ sil.startsAt | date:'yyyy-MM-dd HH:mm' }}</span>
+						– 
+						<span>{{ sil.endsAt | date:'yyyy-MM-dd HH:mm' }}</span>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+</div>
