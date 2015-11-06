@@ -1,17 +1,17 @@
 body {
 	overflow-y: scroll;
-	background: #fcfcfc;
+	background: #fafafa;
 }
 
 header {
-	padding: 1em 2em;
+	padding: 1em 2.5em 1.4em 2.5em;
 	background: #404040;
 }
 
 header #logo {
 	color: #fff;
 	float: left;
-	margin-right: 24px;
+	margin: 0 80px 0 0;
 }
 
 #top-nav a {
@@ -26,7 +26,7 @@ header #logo {
 #top-nav ul {
 	float: left;
 	list-style: none;
-	margin-top: .5em;
+	margin: 8px 0 0 0 ;
 }
 
 #top-nav li {
@@ -35,13 +35,29 @@ header #logo {
 }
 
 #content {
-	padding: 2em;
+	padding: 2.5em;
 }
 
 #silence-create {
 	background: #fff;
 	width: 100%;
 	min-width: 400px;
+}
+
+.silence .delete-button {
+	opacity: 0.2;
+}
+.silence:hover .delete-button {
+	opacity: 1.0;
+}
+
+.silence .labels {
+	background: #bfbfbf;
+	padding: .8em;
+}
+.silence .detail {
+	background: #fff;
+	padding: .8em;
 }
 
 .silence-matchers {
@@ -63,36 +79,30 @@ header #logo {
 }
 
 .list-item .container-left {
-	width: 450px;
+	width: 650px;
 	padding: 1em;
 	float: left;
-	background: #555;
+	background: #777;
 	color: #eee;
 }
 
 .lbl {
-	text-transform: none !important;
+	display: inline-block;
 	font-size: 0.7em;
-	padding: 6px !important;
-	border-radius: 3px !important;
-	margin: 2px 0 2px 0 !important;
+	padding: 0 6px;
+	margin: 0 2px 2px 0;
 	font-family: Menlo, Monaco, Consolas, Courier, monospace;
+	border: 1px solid #ccc;
+	border-radius: 3px;
+	background: #555;
+	color: #fff;
 }
-.lbl.left {
-	display: block;
-	margin-right: 5px !important;
-}
-.lbl.right {
-	display: block;
-	margin-left: 5px !important;
-}
-.lbl.small {
-	font-size: 0.65em;
-	padding: 3px !important;
+.lbl-highlight {
+	background: #e6522c;
 }
 
 .list-item .container-right {
-	border-left: 450px solid #555;
+	border-left: 650px solid #777;
 	padding: 1em;
 }
 

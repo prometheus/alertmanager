@@ -1,10 +1,10 @@
 <div class="route">
 	<div class="route-header group">
 		<div class="grouping-labels right">
-			<span ng-repeat="l in route.routeOpts.groupBy" class="lbl right badge badge-primary" outline>{{ l }}</span>
+			<span ng-repeat="l in route.routeOpts.groupBy" class="lbl">{{ l }}</span>
 		</div>
 		<div class="route-matchers left">
-			<span ng-repeat="m in route.matchers" class="lbl left badge badge-primary">
+			<span ng-repeat="m in route.matchers" class="lbl">
 				{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
 			</span>
 		</div>
@@ -12,7 +12,7 @@
 	<div class="alert-groups">
 		<div class="alert-group" ng-repeat="group in route.groups">
 			<div class="alert-group-header group">
-				<span ng-repeat="(ln, lv) in group.labels" class="lbl left badge badge-white">
+				<span ng-repeat="(ln, lv) in group.labels" class="lbl">
 					{{ ln }} = '{{ lv }}'
 				</span>
 			</div>

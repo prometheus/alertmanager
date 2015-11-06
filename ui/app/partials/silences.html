@@ -22,26 +22,7 @@
 <div ng-hide="silences.length == 0" id="silences-list">
 
 	<div class="list-item group" ng-repeat="sil in silences | filter:query | orderBy:order">
-		<div class="container-left">
-			<div class="active-interval">
-				<span class="date">{{ sil.startsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ sil.startsAt | date:'HH:mm' }}</span>
-				– 
-				<span class="date">{{ sil.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ sil.endsAt | date:'HH:mm' }}</span>
-			</div>
-			<span class="lbl label label-white" outline ng-repeat="m in sil.matchers | orderBy:name">
-				{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
-			</span>
-		</div>
-		<div class="container-right group">
-			<blockquote class="left silence-created">
-				<div ng-show="sil.comment">{{ sil.comment }}</div>
-				<cite>created <span ng-show="sil.createdBy">by <strong>{{ sil.createdBy }}</strong></span> at {{ sil.createdAt | date:'medium' }}</cite>
-			</blockquote>
-
-			<div class="right">
-				<button type="secondary" ng-click="delete(sil)" small>Delete</button>
-			</div>
-		</div>
+		<silence sil="sil"></silence>
 	</div>
 
 </div>

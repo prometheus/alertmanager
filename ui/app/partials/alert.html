@@ -11,7 +11,7 @@
 			</span>
 		</div>
 		<span ng-repeat="(name, value) in a.labels | orderBy:name">
-			<span class="lbl small left label {{name=='alertname' ? 'label-error alertname' : 'label-white'}}" outline>
+			<span class="lbl {{ name == 'alertname' ? 'lbl-highlight' : '' }}" outline>
 				{{ name }} = '{{ value }}'
 			</span>
 		</span>

@@ -11,27 +11,23 @@
 
 	<link rel="stylesheet" href="/static/kube.min.css">
 	<link rel="stylesheet" href="/app/css/main.css">
-
-	<style>
-
-	</style>
 </head>
 <body>
-<header class="group">
-	<h1 id="logo" class="thin hide-for-small">Alertmanager.</h1>
+	<header class="group">
+		<h1 id="logo" class="thin hide-for-small">Alert<span style="font-style: italic; color: #d3d3d3">manager</span></h1>
 
-	<nav id="top-nav" ng-controller="NavCtrl">
-		<ul>
-			<li ng-repeat="item in items" ng-class="{'selected': selected(item)}">
-				<a ng-href="/#{{ item.url }}" class="upper">{{ item.name }}</a>
-			</li>
-		</ul>
-	</nav>
-</header>
+		<nav id="top-nav" ng-controller="NavCtrl">
+			<ul>
+				<li ng-repeat="item in items" ng-class="{'selected': selected(item)}">
+					<a ng-href="/#{{ item.url }}" class="upper">{{ item.name }}</a>
+				</li>
+			</ul>
+		</nav>
+	</header>
 
-<main id="content">
-	<div ng-view></div>
-</main>
+	<main id="content">
+		<div ng-view></div>
+	</main>
 
 </body>
 </html>

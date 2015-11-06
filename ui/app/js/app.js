@@ -31,6 +31,18 @@ angular.module('am.directives').directive('alert',
   }
 );
 
+angular.module('am.directives').directive('silence',
+  function() {
+    return {
+      restrict: 'E',
+      scope: {
+        sil: '='
+      },
+      templateUrl: '/app/partials/silence.html'
+    };
+  }
+);
+
 angular.module('am.directives').directive('silenceForm',
   function() {
     return {
@@ -255,6 +267,42 @@ angular.module('am.controllers').controller('SilencesCtrl',
 angular.module('am.controllers').controller('SilenceCreateCtrl',
   function($scope, $rootScope, Silence) {
 
+    $scope.error = null;
+    $scope.silence = $scope.silence || {};
+
+    if (!$scope.silence.matchers) {
+      $scope.silence.matchers = [{}, {}];
+    }
+
+    var origSilence = angular.copy($scope.silence);
+
+    $scope.reset = function() {
+      var now = new Date();
+      var end = new Date();
+
+      now.setMilliseconds(0);
+      end.setMilliseconds(0);
+      now.setSeconds(0);
+      end.setSeconds(0);
+
+      end.setHours(end.getHours() + 4)
+
+      $scope.silence = angular.copy(origSilence);
+
+      $scope.silence.startsAt = now;
+      $scope.silence.endsAt = end;
+    };
+
+    $scope.reset();
+
+    $scope.addMatcher = function() {
+      $scope.silence.matchers.push({});
+    };
+
+    $scope.delMatcher = function(i) {
+      $scope.silence.matchers.splice(i, 1);
+    };    
+
     $scope.create = function() {
       Silence.create($scope.silence,
         function(data) {
@@ -265,41 +313,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
           $scope.error = data.data;
         }
       );
-    }
-
-    $scope.error = null;
-
-    $scope.addMatcher = function() {
-      $scope.silence.matchers.push({});
     };
-
-    $scope.delMatcher = function(i) {
-      $scope.silence.matchers.splice(i, 1);
-    };
-
-    $scope.reset = function() {
-      var now = new Date();
-      var end = new Date();
-
-      $scope.silence = $scope.silence || {};
-
-      now.setMilliseconds(0);
-      end.setMilliseconds(0);
-      now.setSeconds(0);
-      end.setSeconds(0);
-
-      end.setHours(end.getHours() + 4)
-
-      $scope.silence = {
-        startsAt: now,
-        endsAt: end,
-        comment: "",
-        createdBy: "",
-        matchers: [{}, {}]
-      };
-    };
-
-    $scope.reset();
   }
 );
 
