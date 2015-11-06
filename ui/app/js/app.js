@@ -207,6 +207,9 @@ angular.module('am.controllers').controller('AlertCtrl',
       });
     }, $scope.silence.matchers);
 
+    $scope.$on('silence-created', function(evt) {
+      $scope.toggleSilenceForm();
+    });
   }
 );
 
@@ -231,12 +234,12 @@ angular.module('am.controllers').controller('AlertsCtrl',
 );
 
 angular.module('am.controllers').controller('SilenceCtrl',
-  function($scope, $rootScope, Silence) {
+  function($scope, Silence) {
 
     $scope.delete = function(sil) {
       Silence.delete({id: sil.id},
         function(data) {
-          $rootScope.$broadcast('silence-deleted');
+          $scope.$emit('silence-deleted');
         },
         function(data) {
           $scope.error = data.data;
@@ -279,7 +282,7 @@ angular.module('am.controllers').controller('SilencesCtrl',
 );
 
 angular.module('am.controllers').controller('SilenceCreateCtrl',
-  function($scope, $rootScope, Silence) {
+  function($scope, Silence) {
 
     $scope.error = null;
     $scope.silence = $scope.silence || {};
@@ -320,7 +323,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
     $scope.create = function() {
       Silence.create($scope.silence,
         function(data) {
-          $rootScope.$broadcast('silence-created');
+          $scope.$emit('silence-created');
           $scope.reset();
         },
         function(data) {

@@ -7,12 +7,12 @@
 		</span>
 
 		<div class="right">
-			<button type="secondary" ng-click="toggleSilenceForm()" small>Silence</button>
+			<button class="silence-button" type="secondary" ng-click="toggleSilenceForm()" small upper>Silence</button>
 		</div>
 	</div>
 
-	<div>
-		<silence-form ng-show="showSilenceForm" silence="silence"></silence-form>
+	<div class="silence-alert" ng-show="showSilenceForm">
+		<silence-form silence="silence"></silence-form>
 	</div>
 
 	<div class="detail group">

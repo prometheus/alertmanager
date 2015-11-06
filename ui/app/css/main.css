@@ -44,10 +44,10 @@ header #logo {
 	min-width: 400px;
 }
 
-.silence .delete-button {
+.silence .delete-button, .alert-item .silence-button {
 	opacity: 0.2;
 }
-.silence:hover .delete-button {
+.silence:hover .delete-button, .alert-item:hover .silence-button {
 	opacity: 1.0;
 }
 
@@ -74,6 +74,10 @@ header #logo {
 
 #silences-query {
 	margin-bottom: 24px;
+}
+
+.alert-item .silence-alert {
+	padding: 1em 2em;
 }
 
 .list-item {
