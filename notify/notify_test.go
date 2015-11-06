@@ -60,30 +60,30 @@ func TestDedupingNotifier(t *testing.T) {
 	alerts := []*types.Alert{
 		{
 			Alert: model.Alert{
+				Labels: model.LabelSet{"alertname": "0"},
+			},
+		}, {
+			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "1"},
+				EndsAt: now.Add(-5 * time.Minute),
 			},
 		}, {
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "2"},
+				EndsAt: now.Add(-9 * time.Minute),
 			},
 		}, {
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "3"},
-				EndsAt: now.Add(-20 * time.Minute),
+				EndsAt: now.Add(-10 * time.Minute),
 			},
 		}, {
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "4"},
-				EndsAt: now.Add(-10 * time.Minute),
 			},
 		}, {
 			Alert: model.Alert{
 				Labels: model.LabelSet{"alertname": "5"},
-				EndsAt: now.Add(-10 * time.Minute),
-			},
-		}, {
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "6"},
 			},
 		},
 	}
@@ -93,54 +93,42 @@ func TestDedupingNotifier(t *testing.T) {
 		fps = append(fps, a.Fingerprint())
 	}
 
-	nsBefore := []*types.Notify{
-		// The first alert is another attempt to send a previously
-		// failing and firing notification.
-		{
-			Alert:     fps[0],
-			SendTo:    "name",
-			Resolved:  false,
-			Delivered: false,
-			Timestamp: now.Add(-20 * time.Minute),
-		},
-		// The second alert comes through for the first time and
-		// is omitted here.
+	nsBefore := []*types.NotifyInfo{
+		// The first a new alert starting now.
 		nil,
-		// The third alert is another attempt to send a previously
-		// failing and resolved notification.
+		// The second alert was not previously notified about and
+		// is already resolved.
+		nil,
+		// The third alert is an attempt to resolve a previously
+		// firing alert.
 		{
 			Alert:     fps[2],
 			SendTo:    "name",
-			Resolved:  true,
-			Delivered: false,
+			Resolved:  false,
 			Timestamp: now.Add(-10 * time.Minute),
 		},
-		// The fourth alert is an attempt to resolve a previously
-		// firing and delivered alert.
+		// The fourth alert is an attempt to resolve an alert again
+		// even though the previous notification succeeded.
 		{
 			Alert:     fps[3],
 			SendTo:    "name",
-			Resolved:  false,
-			Delivered: true,
+			Resolved:  true,
 			Timestamp: now.Add(-10 * time.Minute),
 		},
-		// The fifth alert is an attempt to resolve an alert again
-		// even though the previous notification succeeded.
+		// The fifth alert resends a previously successful notification
+		// that was longer than ago than the repeat interval.
 		{
 			Alert:     fps[4],
 			SendTo:    "name",
-			Resolved:  true,
-			Delivered: true,
-			Timestamp: now.Add(-10 * time.Minute),
+			Resolved:  false,
+			Timestamp: now.Add(-110 * time.Minute),
 		},
-		// The sixth alert resends a previously successful notification
-		// that was longer than ago than the repeat interval.
+		// The sixth alert is a firing again after being resolved before.
 		{
 			Alert:     fps[5],
 			SendTo:    "name",
-			Resolved:  false,
-			Delivered: true,
-			Timestamp: now.Add(-110 * time.Minute),
+			Resolved:  true,
+			Timestamp: now.Add(3 * time.Minute),
 		},
 	}
 
@@ -155,10 +143,10 @@ func TestDedupingNotifier(t *testing.T) {
 	// After a failing notify the notifies data must be unchanged.
 	nsCur, err := notifies.Get("name", fps...)
 	if err != nil {
-		t.Fatalf("Error getting notifies: %s", err)
+		t.Fatalf("Error getting notify info: %s", err)
 	}
 	if !reflect.DeepEqual(nsBefore, nsCur) {
-		t.Fatalf("Notifies data has changed unexpectedly")
+		t.Fatalf("Notify info data has changed unexpectedly")
 	}
 
 	deduper.notifier = record
@@ -168,50 +156,33 @@ func TestDedupingNotifier(t *testing.T) {
 
 	alertsExp := []*types.Alert{
 		alerts[0],
-		alerts[1],
 		alerts[2],
-		alerts[3],
+		alerts[4],
 		alerts[5],
 	}
 
-	nsAfter := []*types.Notify{
+	nsAfter := []*types.NotifyInfo{
 		{
-			Alert:     fps[0],
-			SendTo:    "name",
-			Resolved:  false,
-			Delivered: true,
+			Alert:    fps[0],
+			SendTo:   "name",
+			Resolved: false,
+		},
+		nil,
+		{
+			Alert:    fps[2],
+			SendTo:   "name",
+			Resolved: true,
+		},
+		nsBefore[3],
+		{
+			Alert:    fps[4],
+			SendTo:   "name",
+			Resolved: false,
 		},
 		{
-			Alert:     fps[1],
-			SendTo:    "name",
-			Resolved:  false,
-			Delivered: true,
-		},
-		{
-			Alert:     fps[2],
-			SendTo:    "name",
-			Resolved:  true,
-			Delivered: true,
-		},
-		{
-			Alert:     fps[3],
-			SendTo:    "name",
-			Resolved:  true,
-			Delivered: true,
-		},
-		// Unmodified.
-		{
-			Alert:     fps[4],
-			SendTo:    "name",
-			Resolved:  true,
-			Delivered: true,
-			Timestamp: now.Add(-10 * time.Minute),
-		},
-		{
-			Alert:     fps[5],
-			SendTo:    "name",
-			Resolved:  false,
-			Delivered: true,
+			Alert:    fps[5],
+			SendTo:   "name",
+			Resolved: false,
 		},
 	}
 
@@ -223,15 +194,17 @@ func TestDedupingNotifier(t *testing.T) {
 		t.Fatalf("Error getting notifies: %s", err)
 	}
 
-	// Hack correct timestamps back in if they are sane.
 	for i, after := range nsAfter {
 		cur := nsCur[i]
-		if after.Timestamp.IsZero() {
+
+		// Hack correct timestamps back in if they are sane.
+		if cur != nil && after.Timestamp.IsZero() {
 			if cur.Timestamp.Before(now) {
 				t.Fatalf("Wrong timestamp for notify %v", cur)
 			}
 			after.Timestamp = cur.Timestamp
 		}
+
 		if !reflect.DeepEqual(after, cur) {
 			t.Errorf("Unexpected notifies, expected: %v, got: %v", after, cur)
 		}

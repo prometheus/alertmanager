@@ -114,8 +114,7 @@ type Silence struct {
 	timeFunc func() time.Time
 }
 
-// NewSilence creates a new internal Silence from a public silence
-// object.
+// NewSilence creates a new internal Silence from a public silence object.
 func NewSilence(s *model.Silence) *Silence {
 	sil := &Silence{
 		Silence:  *s,
@@ -148,21 +147,20 @@ func (sil *Silence) Mutes(lset model.LabelSet) bool {
 	return b
 }
 
-// Notify holds information about the last notification state
-// of an Alert.
-type Notify struct {
+// NotifyInfo holds information about the last successful notification
+// of an alert to a destination.
+type NotifyInfo struct {
 	Alert     model.Fingerprint
 	SendTo    string
 	Resolved  bool
-	Delivered bool
 	Timestamp time.Time
 }
 
-func (n *Notify) String() string {
-	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v deli=%v>", n.Alert, n.Timestamp, n.SendTo, n.Resolved, n.Delivered)
+func (n *NotifyInfo) String() string {
+	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v>", n.Alert, n.Timestamp, n.SendTo, n.Resolved)
 }
 
-func (n *Notify) Fingerprint() model.Fingerprint {
+func (n *NotifyInfo) Fingerprint() model.Fingerprint {
 	h := fnv.New64a()
 	h.Write([]byte(n.SendTo))
 

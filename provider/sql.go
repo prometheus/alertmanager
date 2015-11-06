@@ -58,8 +58,8 @@ func NewSQLNotifyInfo(db *sql.DB) (*SQLNotifyInfo, error) {
 	}
 	if count == 0 {
 		_, err := tx.Exec(`
-			INSERT INTO notify_info(alert, delivered, resolved)
-			VALUES (0, true, true)
+			INSERT INTO notify_info(alert, resolved)
+			VALUES (0, true)
 		`)
 		if err != nil {
 			tx.Rollback()
@@ -77,33 +77,31 @@ CREATE TABLE IF NOT EXISTS notify_info (
 	alert       int64,
 	destination string,
 	resolved    bool,
-	delivered   bool,
 	timestamp   time
 );
 CREATE UNIQUE INDEX IF NOT EXISTS notify_alert
 	ON notify_info (alert, destination);
 CREATE INDEX IF NOT EXISTS notify_done
-	ON notify_info (resolved, delivered);
+	ON notify_info (resolved);
 `
 
-func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Notify, error) {
-	var result []*types.Notify
+func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
+	var result []*types.NotifyInfo
 
 	for _, fp := range fps {
 		row := n.db.QueryRow(`
-			SELECT alert, destination, resolved, delivered, timestamp
+			SELECT alert, destination, resolved, timestamp
 			FROM notify_info
 			WHERE destination == $1 AND alert == $2
 		`, dest, int64(fp))
 
 		var alertFP int64
 
-		var ni types.Notify
+		var ni types.NotifyInfo
 		err := row.Scan(
 			&alertFP,
 			&ni.SendTo,
 			&ni.Resolved,
-			&ni.Delivered,
 			&ni.Timestamp,
 		)
 		if err == sql.ErrNoRows {
@@ -122,15 +120,15 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 	return result, nil
 }
 
-func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
+func (n *SQLNotifyInfo) Set(ns ...*types.NotifyInfo) error {
 	tx, err := n.db.Begin()
 	if err != nil {
 		return err
 	}
 
 	insert, err := tx.Prepare(`
-		INSERT INTO notify_info(alert, destination, resolved, delivered, timestamp)
-		VALUES ($1, $2, $3, $4, $5);
+		INSERT INTO notify_info(alert, destination, resolved, timestamp)
+		VALUES ($1, $2, $3, $4);
 	`)
 	if err != nil {
 		tx.Rollback()
@@ -157,7 +155,6 @@ func (n *SQLNotifyInfo) Set(ns ...*types.Notify) error {
 			int64(ni.Alert),
 			ni.SendTo,
 			ni.Resolved,
-			ni.Delivered,
 			ni.Timestamp,
 		); err != nil {
 			tx.Rollback()
@@ -282,7 +279,7 @@ func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
 		FROM alerts
 		WHERE
 			fingerprint NOT IN (
-				SELECT alert FROM notify_info WHERE delivered AND resolved
+				SELECT alert FROM notify_info WHERE resolved
 			)
 		ORDER BY starts_at
 	`)

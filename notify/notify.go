@@ -219,35 +219,27 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 
 		if last != nil {
 			if a.Resolved() {
-				if !sendResolved {
-					continue
-				}
-				// If the initial alert was not delivered successfully,
-				// there is no point in sending a resolved notification.
-				if !last.Resolved && !last.Delivered {
-					continue
-				}
-				if last.Resolved && last.Delivered {
+				if !sendResolved || last.Resolved {
 					continue
 				}
 			} else if !last.Resolved {
 				// Do not send again if last was delivered unless
 				// the repeat interval has already passed.
-				if last.Delivered {
-					if !now.After(last.Timestamp.Add(repeatInterval)) {
-						// To not repeat initial batch fragmentation after the repeat interval
-						// has passed, store them and send them anyway if on of the other
-						// alerts has already passed the repeat interval.
-						// This way we unify batches again.
-						resendQueue = append(resendQueue, a)
+				if !now.After(last.Timestamp.Add(repeatInterval)) {
+					// To not repeat initial batch fragmentation after the repeat interval
+					// has passed, store them and send them anyway if on of the other
+					// alerts has already passed the repeat interval.
+					// This way we unify batches again.
+					resendQueue = append(resendQueue, a)
 
-						continue
-					} else {
-						doResend = true
-					}
+					continue
+				} else {
+					doResend = true
 				}
 			}
 		} else if a.Resolved() {
+			// If the alert is resolved but we never notified about it firing,
+			// there is nothing to do.
 			continue
 		}
 
@@ -260,22 +252,21 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		filtered = append(filtered, resendQueue...)
 	}
 
-	var newNotifies []*types.Notify
-
-	for _, a := range filtered {
-		newNotifies = append(newNotifies, &types.Notify{
-			Alert:     a.Fingerprint(),
-			SendTo:    name,
-			Delivered: true,
-			Resolved:  a.Resolved(),
-			Timestamp: now,
-		})
-	}
-
 	// The deduping notifier is the last one before actually sending notifications.
 	// Thus, this is the place where we abort if after all filtering, nothing is left.
 	if len(filtered) == 0 {
 		return nil
+	}
+
+	var newNotifies []*types.NotifyInfo
+
+	for _, a := range filtered {
+		newNotifies = append(newNotifies, &types.NotifyInfo{
+			Alert:     a.Fingerprint(),
+			SendTo:    name,
+			Resolved:  a.Resolved(),
+			Timestamp: now,
+		})
 	}
 
 	if err := n.notifier.Notify(ctx, filtered...); err != nil {

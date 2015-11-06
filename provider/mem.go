@@ -29,13 +29,13 @@ var (
 type MemData struct {
 	mtx      sync.RWMutex
 	alerts   map[model.Fingerprint]*types.Alert
-	notifies map[string]map[model.Fingerprint]*types.Notify
+	notifies map[string]map[model.Fingerprint]*types.NotifyInfo
 }
 
 func NewMemData() *MemData {
 	return &MemData{
 		alerts:   map[model.Fingerprint]*types.Alert{},
-		notifies: map[string]map[model.Fingerprint]*types.Notify{},
+		notifies: map[string]map[model.Fingerprint]*types.NotifyInfo{},
 	}
 }
 
@@ -145,7 +145,7 @@ func (a *MemAlerts) getPending() []*types.Alert {
 	over := map[model.Fingerprint]struct{}{}
 	for _, ns := range a.data.notifies {
 		for fp, notify := range ns {
-			if notify.Resolved && notify.Delivered {
+			if notify.Resolved {
 				over[fp] = struct{}{}
 			}
 		}
@@ -205,7 +205,7 @@ func NewMemNotifies(data *MemData) *MemNotifies {
 	return &MemNotifies{data: data}
 }
 
-func (n *MemNotifies) Set(ns ...*types.Notify) error {
+func (n *MemNotifies) Set(ns ...*types.NotifyInfo) error {
 	n.data.mtx.Lock()
 	defer n.data.mtx.Unlock()
 
@@ -215,7 +215,7 @@ func (n *MemNotifies) Set(ns ...*types.Notify) error {
 		}
 		am, ok := n.data.notifies[notify.SendTo]
 		if !ok {
-			am = map[model.Fingerprint]*types.Notify{}
+			am = map[model.Fingerprint]*types.NotifyInfo{}
 			n.data.notifies[notify.SendTo] = am
 		}
 		am[notify.Alert] = notify
@@ -223,11 +223,11 @@ func (n *MemNotifies) Set(ns ...*types.Notify) error {
 	return nil
 }
 
-func (n *MemNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.Notify, error) {
+func (n *MemNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
 	n.data.mtx.RLock()
 	defer n.data.mtx.RUnlock()
 
-	res := make([]*types.Notify, len(fps))
+	res := make([]*types.NotifyInfo, len(fps))
 
 	ns, ok := n.data.notifies[dest]
 	if !ok {

@@ -64,7 +64,7 @@ type Silences interface {
 // Notifies provides information about pending and successful
 // notifications.
 type Notifies interface {
-	Get(dest string, fps ...model.Fingerprint) ([]*types.Notify, error)
+	Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error)
 	// Set several notifies at once. All or none must succeed.
-	Set(ns ...*types.Notify) error
+	Set(ns ...*types.NotifyInfo) error
 }
