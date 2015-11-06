@@ -44,6 +44,10 @@ header #logo {
 	min-width: 400px;
 }
 
+.silence .labels, .alert-item .labels {
+	cursor: pointer;
+}
+
 .silence .delete-button, .alert-item .silence-button {
 	opacity: 0.2;
 }
@@ -51,17 +55,13 @@ header #logo {
 	opacity: 1.0;
 }
 
-.silence .labels, .alert-item .labels {
+.silence .overview, .alert-item .overview {
 	background: #bfbfbf;
 	padding: .8em;
 }
 .silence .detail, .alert-item .detail {
 	background: #fff;
 	padding: .8em;
-	display: none;
-}
-.silence:hover .detail, .alert-item:hover .detail {
-	display: block;
 }
 
 .silence-matchers {
@@ -107,6 +107,11 @@ header #logo {
 .lbl-highlight {
 	background: #e6522c;
 }
+.lbl-outline {
+	color: #555 !important;
+	background: rgba(255, 255, 255, 0.5) !important;
+	border: 1px solid #555 !important;
+}
 
 .list-item .container-right {
 	border-left: 650px solid #777;
@@ -130,12 +135,13 @@ header #logo {
 .route-header {
 	border-bottom: 1px solid #fff;
 	padding: .5em .6em;
-	background: #f0f0f0;
+	background: rgba(47, 119, 209, .4);
 }
 
 .alert-group-header {
 	border-bottom: 1px solid #fff;
 	background: rgba(47, 119, 209, .4);
+	background: #f0f0f0;
 	padding: .5em .6em;
 }
 

@@ -1,10 +1,12 @@
 <div class="silence" ng-controller="SilenceCtrl">
-	<div class="labels">
-		<span ng-repeat="m in sil.matchers | orderBy:name">
-			<span class="lbl {{ m.name == 'alertname' ? 'lbl-highlight' : '' }}">
-				{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
+	<div class="overview group">
+		<div class="labels left" ng-click="toggleDetails()">
+			<span ng-repeat="m in sil.matchers | orderBy:name">
+				<span class="lbl {{ m.name == 'alertname' ? 'lbl-highlight' : '' }}">
+					{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
+				</span>
 			</span>
-		</span>
+		</div>
 
 		<div class="right">
 			<button type="black" disabled small>Until {{ sil.endsAt | amCalendar }}</button>
@@ -12,7 +14,7 @@
 		</div>
 	</div>
 
-	<div class="detail group">
+	<div class="detail group" ng-show="showDetails">
 		<table class="table-flat">
 			<tbody>
 				<tr ng-show="sil.createdBy">

@@ -190,6 +190,12 @@ angular.module('am.controllers').controller('NavCtrl',
 
 angular.module('am.controllers').controller('AlertCtrl',
   function($scope) {
+    $scope.showDetails = false;
+
+    $scope.toggleDetails = function() {
+      $scope.showDetails = !$scope.showDetails
+    }
+
     $scope.showSilenceForm = false;
 
     $scope.toggleSilenceForm = function() {
@@ -235,6 +241,12 @@ angular.module('am.controllers').controller('AlertsCtrl',
 
 angular.module('am.controllers').controller('SilenceCtrl',
   function($scope, Silence) {
+
+    $scope.showDetails = false;
+
+    $scope.toggleDetails = function() {
+      $scope.showDetails = !$scope.showDetails
+    }
 
     $scope.delete = function(sil) {
       Silence.delete({id: sil.id},
