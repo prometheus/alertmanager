@@ -120,29 +120,14 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 	return res
 }
 
-// UIRoute returns the API data representation of a the route.
-func (r *Route) UIRoute() *UIRoute {
-	var subs []*UIRoute
-	for _, sr := range r.Routes {
-		subs = append(subs, sr.UIRoute())
-	}
-
-	uir := &UIRoute{
-		RouteOpts: &r.RouteOpts,
-		Matchers:  r.Matchers,
-		Routes:    subs,
-	}
-	return uir
-}
-
 // Match does a depth-first left-to-right search through the route tree
-// and returns the flattened configuration for the reached node.
-func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
+// and returns the matching routing nodes.
+func (r *Route) Match(lset model.LabelSet) []*Route {
 	if !r.Matchers.Match(lset) {
 		return nil
 	}
 
-	var all []*RouteOpts
+	var all []*Route
 
 	for _, cr := range r.Routes {
 		matches := cr.Match(lset)
@@ -157,7 +142,7 @@ func (r *Route) Match(lset model.LabelSet) []*RouteOpts {
 	// If no child nodes were matches, the current node itself is
 	// a match.
 	if len(all) == 0 {
-		all = append(all, &r.RouteOpts)
+		all = append(all, r)
 	}
 
 	return all

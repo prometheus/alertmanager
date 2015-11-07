@@ -38,7 +38,7 @@ type API struct {
 	config   string
 	uptime   time.Time
 
-	route func() *UIRoute
+	groups func() []*UIGroup
 
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
@@ -46,12 +46,12 @@ type API struct {
 }
 
 // NewAPI returns a new API.
-func NewAPI(alerts provider.Alerts, silences provider.Silences, rf func() *UIRoute) *API {
+func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() []*UIGroup) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,
 		silences: silences,
-		route:    rf,
+		groups:   gf,
 		uptime:   time.Now(),
 	}
 }
@@ -66,7 +66,7 @@ func (api *API) Register(r *route.Router) {
 	r = r.WithPrefix("/v1")
 
 	r.Get("/status", api.status)
-	r.Get("/routes", api.routes)
+	r.Get("/alerts/groups", api.alertGroups)
 
 	r.Get("/alerts", api.listAlerts)
 	r.Post("/alerts", api.addAlerts)
@@ -123,31 +123,8 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	respond(w, status)
 }
 
-func pruneUIRoute(r *UIRoute) {
-	for _, sr := range r.Routes {
-		pruneUIRoute(sr)
-	}
-
-	var nr []*UIRoute
-
-	for _, sr := range r.Routes {
-		if len(sr.Groups) == 0 && len(sr.Routes) == 0 {
-			continue
-		}
-		nr = append(nr, sr)
-	}
-
-	r.Routes = nr
-}
-
-func (api *API) routes(w http.ResponseWriter, req *http.Request) {
-	r := api.route()
-
-	if req.FormValue("pruneEmpty") == "true" {
-		pruneUIRoute(r)
-	}
-
-	respond(w, r)
+func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
+	respond(w, api.groups())
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {

@@ -25,7 +25,7 @@ type Dispatcher struct {
 	alerts   provider.Alerts
 	notifier notify.Notifier
 
-	aggrGroups map[*RouteOpts]map[model.Fingerprint]*aggrGroup
+	aggrGroups map[*Route]map[model.Fingerprint]*aggrGroup
 
 	done   chan struct{}
 	ctx    context.Context
@@ -48,7 +48,7 @@ func NewDispatcher(ap provider.Alerts, r *Route, n notify.Notifier) *Dispatcher 
 // Run starts dispatching alerts incoming via the updates channel.
 func (d *Dispatcher) Run() {
 	d.done = make(chan struct{})
-	d.aggrGroups = map[*RouteOpts]map[model.Fingerprint]*aggrGroup{}
+	d.aggrGroups = map[*Route]map[model.Fingerprint]*aggrGroup{}
 
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 
@@ -56,44 +56,37 @@ func (d *Dispatcher) Run() {
 	close(d.done)
 }
 
-// UIRoute is the data representation of the routing tree as provided
-// by the API.
-type UIRoute struct {
-	RouteOpts *RouteOpts     `json:"routeOpts"`
-	Matchers  types.Matchers `json:"matchers"`
-	Groups    []*UIGroup     `json:"groups"`
-	Routes    []*UIRoute     `json:"routes"`
-}
-
 // UIGroup is the representation of a group of alerts as provided by
 // the API.
 type UIGroup struct {
-	Labels model.LabelSet `json:"labels"`
-	Alerts model.Alerts   `json:"alerts"`
+	Matchers  types.Matchers `json:"matchers"`
+	RouteOpts *RouteOpts     `json:"routeOpts"`
+	Labels    model.LabelSet `json:"labels"`
+	Alerts    model.Alerts   `json:"alerts"`
 }
 
-// Populate writes the dispatcher's internal state into the given UIRoute.
-func (d *Dispatcher) Populate(r *UIRoute) {
-	for _, sr := range r.Routes {
-		d.Populate(sr)
+func (d *Dispatcher) Groups() []*UIGroup {
+	var groups []*UIGroup
+
+	for route, ags := range d.aggrGroups {
+		for _, ag := range ags {
+			var alerts []*types.Alert
+			for _, a := range ag.alerts {
+				alerts = append(alerts, a)
+			}
+
+			uig := &UIGroup{
+				Matchers:  route.SquashMatchers(),
+				Labels:    ag.labels,
+				RouteOpts: &route.RouteOpts,
+				Alerts:    types.Alerts(alerts...),
+			}
+
+			groups = append(groups, uig)
+		}
 	}
 
-	groups, ok := d.aggrGroups[r.RouteOpts]
-	if !ok {
-		return
-	}
-
-	for _, ag := range groups {
-		var as []*types.Alert
-		for _, a := range ag.alerts {
-			as = append(as, a)
-		}
-		g := &UIGroup{
-			Labels: ag.labels,
-			Alerts: types.Alerts(as...),
-		}
-		r.Groups = append(r.Groups, g)
-	}
+	return groups
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
@@ -151,27 +144,27 @@ type notifyFunc func(context.Context, ...*types.Alert) bool
 
 // processAlert determins in which aggregation group the alert falls
 // and insert it.
-func (d *Dispatcher) processAlert(alert *types.Alert, opts *RouteOpts) {
+func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	group := model.LabelSet{}
 
 	for ln, lv := range alert.Labels {
-		if _, ok := opts.GroupBy[ln]; ok {
+		if _, ok := route.RouteOpts.GroupBy[ln]; ok {
 			group[ln] = lv
 		}
 	}
 
 	fp := group.Fingerprint()
 
-	groups, ok := d.aggrGroups[opts]
+	groups, ok := d.aggrGroups[route]
 	if !ok {
 		groups = map[model.Fingerprint]*aggrGroup{}
-		d.aggrGroups[opts] = groups
+		d.aggrGroups[route] = groups
 	}
 
 	// If the group does not exist, create it.
 	ag, ok := groups[fp]
 	if !ok {
-		ag = newAggrGroup(d.ctx, group, opts)
+		ag = newAggrGroup(d.ctx, group, &route.RouteOpts)
 		groups[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {

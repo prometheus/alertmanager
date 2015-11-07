@@ -177,7 +177,10 @@ routes:
 	}
 
 	for _, test := range tests {
-		matches := tree.Match(test.input)
+		var matches []*RouteOpts
+		for _, r := range tree.Match(test.input) {
+			matches = append(matches, &r.RouteOpts)
+		}
 
 		if !reflect.DeepEqual(matches, test.result) {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", test.result, matches)

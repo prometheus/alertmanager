@@ -66,11 +66,8 @@ func main() {
 	)
 	defer disp.Stop()
 
-	api := NewAPI(alerts, silences, func() *UIRoute {
-		uir := disp.route.UIRoute()
-		disp.Populate(uir)
-
-		return uir
+	api := NewAPI(alerts, silences, func() []*UIGroup {
+		return disp.Groups()
 	})
 
 	build := func(nconf []*config.NotificationConfig) notify.Notifier {
