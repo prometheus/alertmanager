@@ -143,15 +143,12 @@ angular.module('am.services').factory('Alert',
   }
 );
 
-angular.module('am.services').factory('Route',
+angular.module('am.services').factory('AlertGroups',
   function($resource) {
     return $resource('', {}, {
       'query': {
         method: 'GET',
-        url: '/api/v1/routes',
-        params: {
-          'pruneEmpty': 'true'
-        }
+        url: '/api/v1/alerts/groups'
       }
     });
   }
@@ -220,14 +217,13 @@ angular.module('am.controllers').controller('AlertCtrl',
 );
 
 angular.module('am.controllers').controller('AlertsCtrl',
-  function($scope, Route) {
-    $scope.route = null;
-    $scope.order = "startsAt";
+  function($scope, AlertGroups) {
+    $scope.groups = null;
 
     $scope.refresh = function() {
-      Route.query({},
+      AlertGroups.query({},
         function(data) {
-          $scope.route = data.data;
+          $scope.groups = data.data;
         },
         function(data) {
           $scope.error = data.data;
