@@ -201,8 +201,9 @@ angular.module('am.controllers').controller('AlertsCtrl',
 );
 
 angular.module('am.controllers').controller('SilenceCtrl',
-  function($scope, Silence) {
+  function($scope, $location, Silence) {
 
+    $scope.highlight = $location.search()['hl'] == $scope.sil.id;
     $scope.showDetails = false;
 
     $scope.toggleDetails = function() {

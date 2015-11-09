@@ -76,6 +76,9 @@ header #logo {
 	background: #bfbfbf;
 	padding: .8em;
 }
+.silence.highlight .overview {
+	background: #dfdfdf;
+}
 .silence .detail, .alert-item .detail {
 	background: #fff;
 	padding: .8em;

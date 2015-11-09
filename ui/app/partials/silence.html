@@ -1,4 +1,4 @@
-<div class="silence" ng-controller="SilenceCtrl">
+<div class="silence {{ highlight ? 'highlight' : ''}}" ng-controller="SilenceCtrl">
 	<div class="overview group">
 		<div class="labels left" ng-click="toggleDetails()">
 			<span ng-repeat="m in sil.matchers | orderBy:name">
