@@ -1,8 +1,8 @@
 <div class="alert-item" ng-controller="AlertCtrl">
 	<div class="overview group">
 		<div class="labels left" ng-click="toggleDetails()">
-			<span ng-repeat="(name, value) in a.labels | orderBy:name">
-				<span class="lbl {{ name == 'alertname' ? 'lbl-highlight' : '' }}" outline>
+			<span ng-repeat="(name, value) in alert.labels | orderBy:name">
+				<span ng-hide="hiddenLabels.indexOf(name) >= 0" class="lbl {{ name == 'alertname' ? 'lbl-highlight' : '' }}" outline>
 					{{ name }} = '{{ value }}'
 				</span>
 			</span>
@@ -23,12 +23,12 @@
 				<tr>
 					<td>active</td>
 					<td>
-						<span>{{ a.startsAt | date:'yyyy-MM-dd HH:mm' }}</span>
+						<span>{{ alert.startsAt | date:'yyyy-MM-dd HH:mm' }}</span>
 						– 
 						<span ng-hide="a.endsAt == '0001-01-01T00:00:00Z'">
-							<span class="date">{{ a.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ a.endsAt | date:'HH:mm' }}</span>
+							<span class="date">{{ alert.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ alert.endsAt | date:'HH:mm' }}</span>
 						</span>
-						<span ng-show="a.endsAt == '0001-01-01T00:00:00Z'">
+						<span ng-show="alert.endsAt == '0001-01-01T00:00:00Z'">
 							<span class="time">now</span>
 						</span>
 					</td>
@@ -38,7 +38,7 @@
 					<td>
 						<table class="table-flat">
 							<tbody>
-								<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
+								<tr ng-repeat="(name, val) in alert.annotations | orderBy:name">
 									<td style="padding-right: 3em"><em>{{ name }}</em></td>
 									<td style="white-space: pre-line;">{{ val }}</td>
 								</tr>

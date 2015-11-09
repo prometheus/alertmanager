@@ -24,7 +24,8 @@ angular.module('am.directives').directive('alert',
     return {
       restrict: 'E',
       scope: {
-        a: '='
+        alert: '=',
+        hiddenLabels: '='
       },
       templateUrl: '/app/partials/alert.html'
     };
@@ -202,11 +203,11 @@ angular.module('am.controllers').controller('AlertCtrl',
     $scope.silence = {
       matchers: []
     }
-    angular.forEach($scope.a.labels, function(value, key) {
+    angular.forEach($scope.alert.labels, function(value, key) {
       this.push({
         name: key,
         value: value,
-        isRegex: false,
+        isRegex: false
       });
     }, $scope.silence.matchers);
 
@@ -219,11 +220,25 @@ angular.module('am.controllers').controller('AlertCtrl',
 angular.module('am.controllers').controller('AlertsCtrl',
   function($scope, AlertGroups) {
     $scope.groups = null;
+    $scope.allDestinations = [];
 
     $scope.refresh = function() {
       AlertGroups.query({},
         function(data) {
           $scope.groups = data.data;
+
+          $scope.allDestinations = [];
+          angular.forEach($scope.groups, function(group) {
+            angular.forEach(group.groups, function(g) {
+              if ($scope.allDestinations.indexOf(g.routeOpts.sendTo) < 0) {
+                $scope.allDestinations.push(g.routeOpts.sendTo);
+              }
+            })
+          });
+
+          if (!$scope.destinations) {
+            $scope.destinations = angular.copy($scope.allDestinations);
+          }
         },
         function(data) {
           $scope.error = data.data;

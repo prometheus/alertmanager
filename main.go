@@ -66,7 +66,7 @@ func main() {
 	)
 	defer disp.Stop()
 
-	api := NewAPI(alerts, silences, func() []*UIGroup {
+	api := NewAPI(alerts, silences, func() []*UIGroups {
 		return disp.Groups()
 	})
 

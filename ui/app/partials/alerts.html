@@ -1,20 +1,22 @@
+<div>
+	<select class="select" ng-model="destinations" multiple>
+		<option ng-repeat="dest in allDestinations" value="{{ dest }}">{{ dest }}</option>
+	</select>
+</div>
+
 <div id="alert-groups" ng-controller="AlertsCtrl">
 	<div ng-repeat="group in groups">
-		<div class="alert-group" ng-show"group.alerts">
-			<div class="route-header group">
-				<div class="route-matchers left">
-					<span ng-repeat="m in group.matchers" class="lbl lbl-outline">
-						{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
-					</span>
+		<div class="alert-group-header group">
+			<span ng-repeat="(ln, lv) in group.labels" class="lbl lbl-outline">
+				{{ ln }} = '{{ lv }}'
+			</span>
+		</div>	
+	
+		<div ng-repeat="g in group.groups">
+			<div ng-show="destinations.indexOf(g.routeOpts.sendTo) >= 0" class="alert-group" ng-show"g.alerts">
+				<div ng-repeat="a in g.alerts">
+					<alert class="list-item" alert="a" hiddenLabels="Object.keys(group.labels)"></alert>
 				</div>
-			</div>
-			<div class="alert-group-header group">
-				<span ng-repeat="(ln, lv) in group.labels" class="lbl lbl-outline">
-					{{ ln }} = '{{ lv }}'
-				</span>
-			</div>
-			<div ng-repeat="a in group.alerts">
-				<alert class="list-item" a="a"></alert>
 			</div>
 		</div>
 	</div>

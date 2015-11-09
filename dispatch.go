@@ -59,14 +59,19 @@ func (d *Dispatcher) Run() {
 // UIGroup is the representation of a group of alerts as provided by
 // the API.
 type UIGroup struct {
-	Matchers  types.Matchers `json:"matchers"`
-	RouteOpts *RouteOpts     `json:"routeOpts"`
-	Labels    model.LabelSet `json:"labels"`
-	Alerts    model.Alerts   `json:"alerts"`
+	RouteOpts *RouteOpts   `json:"routeOpts"`
+	Alerts    model.Alerts `json:"alerts"`
 }
 
-func (d *Dispatcher) Groups() []*UIGroup {
-	var groups []*UIGroup
+type UIGroups struct {
+	Labels model.LabelSet `json:"labels"`
+	Groups []*UIGroup     `json:"groups"`
+}
+
+func (d *Dispatcher) Groups() []*UIGroups {
+	var groups []*UIGroups
+
+	seen := map[model.Fingerprint]*UIGroups{}
 
 	for route, ags := range d.aggrGroups {
 		for _, ag := range ags {
@@ -75,14 +80,18 @@ func (d *Dispatcher) Groups() []*UIGroup {
 				alerts = append(alerts, a)
 			}
 
-			uig := &UIGroup{
-				Matchers:  route.SquashMatchers(),
-				Labels:    ag.labels,
-				RouteOpts: &route.RouteOpts,
-				Alerts:    types.Alerts(alerts...),
+			uig, ok := seen[ag.labels.Fingerprint()]
+			if !ok {
+				uig = &UIGroups{Labels: ag.labels}
+
+				seen[ag.labels.Fingerprint()] = uig
+				groups = append(groups, uig)
 			}
 
-			groups = append(groups, uig)
+			uig.Groups = append(uig.Groups, &UIGroup{
+				RouteOpts: &route.RouteOpts,
+				Alerts:    types.Alerts(alerts...),
+			})
 		}
 	}
 
