@@ -75,7 +75,6 @@ func (api *API) Register(r *route.Router) {
 	r.Post("/silences", api.addSilence)
 
 	r.Get("/silence/:sid", api.getSilence)
-	r.Put("/silence/:sid", api.setSilence)
 	r.Del("/silence/:sid", api.delSilence)
 }
 
@@ -288,38 +287,6 @@ func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond(w, &sil)
-}
-
-func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
-	var sil types.Silence
-	if err := receive(r, &sil); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	sids := route.Param(api.context(r), "sid")
-	sid, err := strconv.ParseUint(sids, 10, 64)
-	if err != nil {
-		respondError(w, apiError{
-			typ: errorBadData,
-			err: err,
-		}, nil)
-	}
-	sil.ID = sid
-
-	sid, err = api.silences.Set(&sil)
-	if err != nil {
-		respondError(w, apiError{
-			typ: errorBadData,
-			err: err,
-		}, &sil)
-		return
-	}
-	respond(w, struct {
-		SilenceID uint64 `json:"silenceId"`
-	}{
-		SilenceID: sid,
-	})
 }
 
 func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
