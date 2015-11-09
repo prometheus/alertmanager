@@ -25,7 +25,7 @@ angular.module('am.directives').directive('alert',
       restrict: 'E',
       scope: {
         alert: '=',
-        hiddenLabels: '='
+        group: '='
       },
       templateUrl: '/app/partials/alert.html'
     };

@@ -131,24 +131,12 @@ header #logo {
 	font-style: italic;
 }
 
-
-.route {
-	border-left: 1px dotted #c0c0c0;
-	background: #fff;
-}
-.route .route {
-	margin: 0 0 0 1.5em;
-}
-
-.route-header {
-	border-bottom: 1px solid #fff;
-	padding: .5em .6em;
-	background: rgba(47, 119, 209, .4);
+.silence-alert {
+	background: #f0f0f0;
 }
 
 .alert-group-header {
 	border-bottom: 1px solid #fff;
-	background: rgba(47, 119, 209, .4);
 	background: #f0f0f0;
 	padding: .5em .6em;
 }

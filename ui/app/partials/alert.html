@@ -2,13 +2,14 @@
 	<div class="overview group">
 		<div class="labels left" ng-click="toggleDetails()">
 			<span ng-repeat="(name, value) in alert.labels | orderBy:name">
-				<span ng-hide="hiddenLabels.indexOf(name) >= 0" class="lbl {{ name == 'alertname' ? 'lbl-highlight' : '' }}" outline>
+				<span ng-hide="group[name]" class="lbl {{ name == 'alertname' ? 'lbl-highlight' : '' }}">
 					{{ name }} = '{{ value }}'
 				</span>
 			</span>
 		</div>
 
 		<div class="right">
+			<button type="black" disabled small>Since {{ alert.startsAt | amCalendar }}</button>
 			<button class="silence-button" type="secondary" ng-click="toggleSilenceForm()" small upper>Silence</button>
 		</div>
 	</div>
@@ -49,26 +50,4 @@
 			</tbody>
 		</table>
 	</div>
-
-	<!-- <div class="container-right group">
-		<div class="right">
-			<button type="secondary" ng-click="toggleSilenceForm()" small>Silence</button>
-		</div>
-		
-		<div class="left">
-			<silence-form ng-show="showSilenceForm" silence="silence"></silence-form>
-
-			Details: <input class="collapse" ng-class="{open:collapse}" type="checkbox" ng-model="collapse"></input>
-			<div class="left" ng-show="collapse">
-				<table class="table-flat">
-					<tbody>
-						<tr ng-repeat="(name, val) in a.annotations | orderBy:name">
-							<td style="padding-right: 3em"><em>{{ name }}</em></td>
-							<td style="white-space: pre-line;">{{ val }}</td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
-		</div>
-	</div> -->
 </div>
