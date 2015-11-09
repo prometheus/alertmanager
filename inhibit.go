@@ -29,14 +29,16 @@ import (
 type Inhibitor struct {
 	alerts provider.Alerts
 	rules  []*InhibitRule
+	marker types.Marker
 
 	mtx sync.RWMutex
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker) *Inhibitor {
 	ih := &Inhibitor{
 		alerts: ap,
+		marker: mk,
 	}
 	for _, cr := range rs {
 		ih.rules = append(ih.rules, NewInhibitRule(cr))
@@ -62,10 +64,14 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 		}
 		for _, rule := range ih.rules {
 			if rule.Mutes(alert.Labels, lset) {
+				ih.marker.SetInhibited(lset.Fingerprint(), true)
 				return true
 			}
 		}
 	}
+
+	ih.marker.SetInhibited(lset.Fingerprint(), false)
+
 	return false
 }
 

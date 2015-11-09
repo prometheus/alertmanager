@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
 )
 
 var (
@@ -46,6 +47,8 @@ func main() {
 	}
 	defer db.Close()
 
+	marker := types.NewMarker()
+
 	alerts, err := provider.NewSQLAlerts(db)
 	if err != nil {
 		log.Fatal(err)
@@ -54,7 +57,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	silences, err := provider.NewSQLSilences(db)
+	silences, err := provider.NewSQLSilences(db, marker)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -119,8 +122,8 @@ func main() {
 
 		disp.Stop()
 
-		inhibitor = NewInhibitor(alerts, conf.InhibitRules)
-		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.NotificationConfigs))
+		inhibitor = NewInhibitor(alerts, conf.InhibitRules, marker)
+		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.NotificationConfigs), marker)
 
 		go disp.Run()
 

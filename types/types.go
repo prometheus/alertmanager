@@ -17,10 +17,71 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/model"
 )
+
+type Marker interface {
+	SetInhibited(alert model.Fingerprint, b bool)
+	SetSilenced(alert model.Fingerprint, sil ...uint64)
+
+	Silenced(alert model.Fingerprint) (uint64, bool)
+	Inhibited(alert model.Fingerprint) bool
+}
+
+func NewMarker() Marker {
+	return &memMarker{
+		inhibited: map[model.Fingerprint]struct{}{},
+		silenced:  map[model.Fingerprint]uint64{},
+	}
+}
+
+type memMarker struct {
+	inhibited map[model.Fingerprint]struct{}
+	silenced  map[model.Fingerprint]uint64
+
+	mtx sync.RWMutex
+}
+
+func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	_, ok := m.inhibited[alert]
+	return ok
+}
+
+func (m *memMarker) Silenced(alert model.Fingerprint) (uint64, bool) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	sid, ok := m.silenced[alert]
+	return sid, ok
+}
+
+func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if !b {
+		delete(m.inhibited, alert)
+	} else {
+		m.inhibited[alert] = struct{}{}
+	}
+}
+
+func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...uint64) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if len(sil) == 0 {
+		delete(m.silenced, alert)
+	} else {
+		m.silenced[alert] = sil[0]
+	}
+}
 
 type MultiError []error
 

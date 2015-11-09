@@ -472,10 +472,11 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 }
 
 type SQLSilences struct {
-	db *sql.DB
+	db     *sql.DB
+	marker types.Marker
 }
 
-func NewSQLSilences(db *sql.DB) (*SQLSilences, error) {
+func NewSQLSilences(db *sql.DB, mk types.Marker) (*SQLSilences, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -486,7 +487,7 @@ func NewSQLSilences(db *sql.DB) (*SQLSilences, error) {
 	}
 	tx.Commit()
 
-	return &SQLSilences{db: db}, nil
+	return &SQLSilences{db: db, marker: mk}, nil
 }
 
 const createSilencesTable = `
@@ -513,9 +514,12 @@ func (s *SQLSilences) Mutes(lset model.LabelSet) bool {
 
 	for _, sil := range sils {
 		if sil.Mutes(lset) {
+			s.marker.SetSilenced(lset.Fingerprint(), sil.ID)
 			return true
 		}
 	}
+
+	s.marker.SetSilenced(lset.Fingerprint())
 	return false
 }
 

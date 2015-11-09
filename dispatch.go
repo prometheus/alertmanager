@@ -25,6 +25,8 @@ type Dispatcher struct {
 	alerts   provider.Alerts
 	notifier notify.Notifier
 
+	marker types.Marker
+
 	aggrGroups map[*Route]map[model.Fingerprint]*aggrGroup
 
 	done   chan struct{}
@@ -35,11 +37,12 @@ type Dispatcher struct {
 }
 
 // NewDispatcher returns a new Dispatcher.
-func NewDispatcher(ap provider.Alerts, r *Route, n notify.Notifier) *Dispatcher {
+func NewDispatcher(ap provider.Alerts, r *Route, n notify.Notifier, mk types.Marker) *Dispatcher {
 	disp := &Dispatcher{
 		alerts:   ap,
 		notifier: n,
 		route:    r,
+		marker:   mk,
 		log:      log.With("component", "dispatcher"),
 	}
 	return disp
@@ -59,13 +62,20 @@ func (d *Dispatcher) Run() {
 // UIGroup is the representation of a group of alerts as provided by
 // the API.
 type UIGroup struct {
-	RouteOpts *RouteOpts   `json:"routeOpts"`
-	Alerts    model.Alerts `json:"alerts"`
+	RouteOpts *RouteOpts `json:"routeOpts"`
+	Alerts    []*UIAlert `json:"alerts"`
 }
 
 type UIGroups struct {
 	Labels model.LabelSet `json:"labels"`
 	Groups []*UIGroup     `json:"groups"`
+}
+
+type UIAlert struct {
+	*model.Alert
+
+	Inhibited bool   `json:"inhibited"`
+	Silenced  uint64 `json:"silenced,omitempty"`
 }
 
 func (d *Dispatcher) Groups() []*UIGroups {
@@ -88,9 +98,20 @@ func (d *Dispatcher) Groups() []*UIGroups {
 				groups = append(groups, uig)
 			}
 
+			var uiAlerts []*UIAlert
+			for _, a := range types.Alerts(alerts...) {
+				sid, _ := d.marker.Silenced(a.Fingerprint())
+
+				uiAlerts = append(uiAlerts, &UIAlert{
+					Alert:     a,
+					Inhibited: d.marker.Inhibited(a.Fingerprint()),
+					Silenced:  sid,
+				})
+			}
+
 			uig.Groups = append(uig.Groups, &UIGroup{
 				RouteOpts: &route.RouteOpts,
-				Alerts:    types.Alerts(alerts...),
+				Alerts:    uiAlerts,
 			})
 		}
 	}
