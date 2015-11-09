@@ -2,7 +2,7 @@
 	<div class="overview group">
 		<div class="labels left" ng-click="toggleDetails()">
 			<span ng-repeat="(name, value) in alert.labels | orderBy:name">
-				<span ng-hide="group[name]" class="lbl {{ name == 'alertname' ? 'lbl-highlight' : '' }}">
+				<span ng-hide="group[name]" class="lbl {{ name == 'alertname' ? 'lbl-highlight' : 'lbl-outline' }}">
 					{{ name }} = '{{ value }}'
 				</span>
 			</span>

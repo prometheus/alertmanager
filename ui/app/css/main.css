@@ -38,14 +38,14 @@ header #logo {
 	padding: 2.5em;
 }
 
-.alert-group {
-	margin-bottom: 24px;
-}
-
 #silence-create {
 	background: #fff;
 	width: 100%;
 	min-width: 400px;
+}
+
+.alert-group {
+	margin-bottom: 5px;
 }
 
 .silence .labels, .alert-item .labels {
@@ -55,6 +55,11 @@ header #logo {
 	width: 75%;
 }
 
+.alert-group-header {
+	border-bottom: 1px solid #fff;
+	background: #bfbfbf;
+	padding: .8em;
+}
 
 .silence .delete-button, .alert-item .silence-button {
 	opacity: 0.2;
@@ -63,7 +68,11 @@ header #logo {
 	opacity: 1.0;
 }
 
-.silence .overview, .alert-item .overview {
+.alert-item .overview {
+	background: #f0f0f0;
+	padding: .8em;
+}
+.silence .overview {
 	background: #bfbfbf;
 	padding: .8em;
 }
@@ -133,12 +142,8 @@ header #logo {
 
 .silence-alert {
 	background: #f0f0f0;
-}
-
-.alert-group-header {
+	border-top: 1px solid #fff;
 	border-bottom: 1px solid #fff;
-	background: #f0f0f0;
-	padding: .5em .6em;
 }
 
 input.collapse[type=checkbox] {
