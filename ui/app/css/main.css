@@ -52,7 +52,7 @@ header #logo {
 	cursor: pointer;
 }
 .silence .labels, .alert-item .labels {
-	width: 75%;
+	width: 65%;
 }
 
 .alert-group-header {
@@ -117,7 +117,7 @@ header #logo {
 	margin: 0 2px 2px 0;
 	font-family: Menlo, Monaco, Consolas, Courier, monospace;
 	border: 1px solid #ccc;
-	border-radius: 3px;
+	border-radius: 2px;
 	background: #555;
 	color: #fff;
 }
@@ -128,6 +128,11 @@ header #logo {
 	color: #555 !important;
 	background: rgba(255, 255, 255, 0.5) !important;
 	border: 1px solid #555 !important;
+}
+
+.muted-lbl {
+	background:  #FFCC00;
+	color: #555;
 }
 
 .annotations {
