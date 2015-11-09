@@ -226,6 +226,13 @@ angular.module('am.controllers').controller('SilencesCtrl',
     $scope.silences = [];
     $scope.order = "endsAt";
 
+    $scope.showForm = false;
+
+    $scope.toggleForm = function() {
+      $scope.showForm = !$scope.showForm
+    }
+
+
     $scope.refresh = function() {
       Silence.query({},
         function(data) { 

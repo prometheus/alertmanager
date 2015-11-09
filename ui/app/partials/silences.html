@@ -1,6 +1,12 @@
-<silence-form sil="silence"></silence-form>
-
-<hr> 
+<div class="group">
+	<div class="right">
+		<button ng-hide="showForm" type="primary" ng-click="toggleForm()" small>New Silence</button>
+		<button ng-show="showForm" type="primary" ng-click="toggleForm()" small>Hide Form</button>
+	</div>
+	<div ng-show="showForm">
+		<silence-form sil="silence"></silence-form>
+	</div>
+</div>
 
 <div id="silences-query" class="forms">
 	<row>
