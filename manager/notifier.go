@@ -87,7 +87,7 @@ var (
 	notificationBufferSize = flag.Int("notification.buffer-size", 1000, "Size of buffer for pending notifications.")
 	pagerdutyAPIURL        = flag.String("notification.pagerduty.url", "https://events.pagerduty.com/generic/2010-04-15/create_event.json", "PagerDuty API URL.")
 	opsgenieAPIURL         = flag.String("notification.opsgenie.url", "https://api.opsgenie.com/v1/json/alert", "OpsGenie API URL.")
-	smtpSmartHost          = flag.String("notification.smtp.smarthost", "", "Address of the smarthost to send all email notifications to.")
+	smtpSmartHost          = flag.String("notification.smtp.smarthost", "", "Hostname and port of the smarthost to send all email notifications to. Example: smtp.example.com:25")
 	smtpSender             = flag.String("notification.smtp.sender", "alertmanager@example.org", "Sender email address to use in email notifications.")
 	hipchatURL             = flag.String("notification.hipchat.url", "https://api.hipchat.com/v2", "HipChat API V2 URL.")
 	flowdockURL            = flag.String("notification.flowdock.url", "https://api.flowdock.com/v1/messages/team_inbox", "Flowdock API V1 URL.")
