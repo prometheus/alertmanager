@@ -1,11 +1,12 @@
-<div>
+<fieldset id="silence-create">
+	<legend>Filter</legend>
 	<select class="select" ng-model="destinations" multiple>
 		<option ng-repeat="dest in allDestinations" value="{{ dest }}">{{ dest }}</option>
 	</select>
-</div>
+</fieldset>
 
 <div id="alert-groups" ng-controller="AlertsCtrl">
-	<div class="alert-group" ng-repeat="group in groups">
+	<div class="alert-group" ng-repeat="group in groups | filter:notEmpty">
 		<div class="alert-group-header group">
 			<span ng-repeat="(ln, lv) in group.labels" class="lbl {{ ln == 'alertname' ? 'lbl-highlight' : '' }}">
 				{{ ln }} = '{{ lv }}'

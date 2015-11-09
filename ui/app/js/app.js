@@ -172,6 +172,17 @@ angular.module('am.controllers').controller('AlertsCtrl',
     $scope.groups = null;
     $scope.allDestinations = [];
 
+    $scope.notEmpty = function(group) {
+      var l = 0;
+      angular.forEach(group.groups, function(g) {
+        if ($scope.destinations.indexOf(g.routeOpts.sendTo) >= 0) {
+          l += g.alerts.length;
+        }
+      });
+
+      return l > 0;
+    };
+
     $scope.refresh = function() {
       AlertGroups.query({},
         function(data) {
@@ -366,7 +377,7 @@ angular.module('am').config(
       controller: 'StatusCtrl'
     }).
     otherwise({
-      redirectTo: '/silences'
+      redirectTo: '/alerts'
     });
   }
 );
