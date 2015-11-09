@@ -130,6 +130,14 @@ header #logo {
 	border: 1px solid #555 !important;
 }
 
+.annotations {
+	white-space: pre-wrap !important;
+}
+.table-normal.annotations td {
+	padding: .4em !important;
+	text-overflow: clip;
+}
+
 .list-item .container-right {
 	border-left: 650px solid #777;
 	padding: 1em;

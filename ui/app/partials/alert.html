@@ -19,33 +19,11 @@
 	</div>
 
 	<div class="detail group" ng-show="showDetails">
-		<table class="table-flat">
+		<table class="table-normal annotations">
 			<tbody>
-				<tr>
-					<td>active</td>
-					<td>
-						<span>{{ alert.startsAt | date:'yyyy-MM-dd HH:mm' }}</span>
-						– 
-						<span ng-hide="a.endsAt == '0001-01-01T00:00:00Z'">
-							<span class="date">{{ alert.endsAt | date:'yyyy-MM-dd' }},</span> <span class="time">{{ alert.endsAt | date:'HH:mm' }}</span>
-						</span>
-						<span ng-show="alert.endsAt == '0001-01-01T00:00:00Z'">
-							<span class="time">now</span>
-						</span>
-					</td>
-				</tr>
-				<tr>
-					<td>annotations</td>
-					<td>
-						<table class="table-flat">
-							<tbody>
-								<tr ng-repeat="(name, val) in alert.annotations | orderBy:name">
-									<td style="padding-right: 3em"><em>{{ name }}</em></td>
-									<td style="white-space: pre-line;">{{ val }}</td>
-								</tr>
-							</tbody>
-						</table>
-					</td>
+				<tr ng-repeat="(name, val) in alert.annotations | orderBy:name">
+					<td><strong>{{ name }}</strong></td>
+					<td><span ng-bind-html="val | linky:'_blank'"></span></td>
 				</tr>
 			</tbody>
 		</table>

@@ -334,6 +334,7 @@ angular.module('am.controllers').controller('StatusCtrl',
 
 angular.module('am', [
   'ngRoute',
+  'ngSanitize',
   'angularMoment',
 
   'am.controllers',
