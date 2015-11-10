@@ -68,6 +68,10 @@ header #logo {
 	opacity: 1.0;
 }
 
+.active-silences, .elapsed-silences {
+	margin-bottom: 12px;
+}
+
 .alert-item .overview {
 	background: #f0f0f0;
 	padding: .8em;

@@ -269,6 +269,15 @@ angular.module('am.controllers').controller('SilencesCtrl',
       $scope.refresh();
     });
 
+    $scope.elapsed = function(elapsed) {
+      return function(sil) {
+        if (elapsed) {
+          return sil.endsAt <= new Date;
+        }
+        return sil.endsAt > new Date;
+      }
+    };
+
     $scope.refresh();
   }
 );
