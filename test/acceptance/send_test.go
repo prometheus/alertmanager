@@ -31,13 +31,13 @@ func TestMergeAlerts(t *testing.T) {
 
 	conf := `
 route:
-  send_to: "default"
+  receiver: "default"
   group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s
 
-notification_configs:
+receivers:
 - name: "default"
   webhook_configs:
   - url: 'http://%s'
@@ -103,13 +103,13 @@ func TestRepeat(t *testing.T) {
 
 	conf := `
 route:
-  send_to: "default"
+  receiver: "default"
   group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s
 
-notification_configs:
+receivers:
 - name: "default"
   webhook_configs:
   - url: 'http://%s'
@@ -161,13 +161,13 @@ func TestRetry(t *testing.T) {
 	// notifications. Sending to the succeeding one must eventually succeed.
 	conf := `
 route:
-  send_to: "default"
+  receiver: "default"
   group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 3s
 
-notification_configs:
+receivers:
 - name: "default"
   webhook_configs:
   - url: 'http://%s'
@@ -205,14 +205,14 @@ func TestBatching(t *testing.T) {
 
 	conf := `
 route:
-  send_to: "default"
+  receiver: "default"
   group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 5s
 
-notification_configs:
-- name:            "default"
+receivers:
+- name: "default"
   webhook_configs:
   - url: 'http://%s'
 `

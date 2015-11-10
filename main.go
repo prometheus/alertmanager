@@ -73,10 +73,10 @@ func main() {
 		return disp.Groups()
 	})
 
-	build := func(nconf []*config.NotificationConfig) notify.Notifier {
+	build := func(rcvs []*config.Receiver) notify.Notifier {
 		var (
 			router  = notify.Router{}
-			fanouts = notify.Build(nconf, tmpl)
+			fanouts = notify.Build(rcvs, tmpl)
 		)
 		for name, fo := range fanouts {
 			for i, n := range fo {
@@ -123,7 +123,7 @@ func main() {
 		disp.Stop()
 
 		inhibitor = NewInhibitor(alerts, conf.InhibitRules, marker)
-		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.NotificationConfigs), marker)
+		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.Receivers), marker)
 
 		go disp.Run()
 

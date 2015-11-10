@@ -26,25 +26,25 @@ import (
 
 func TestRouteMatch(t *testing.T) {
 	in := `
-send_to: 'notify-def'
+receiver: 'notify-def'
 
 routes:
 - match:
     owner: 'team-A'
 
-  send_to: 'notify-A'
+  receiver: 'notify-A'
 
   routes:
   - match:
       env: 'testing'
 
-    send_to: 'notify-testing'
+    receiver: 'notify-testing'
     group_by: []
 
   - match:
       env: "production"
 
-    send_to: 'notify-productionA'
+    receiver: 'notify-productionA'
     group_wait: 1m
 
     continue: true
@@ -52,7 +52,7 @@ routes:
   - match_re:
       env: "^produ.*$"
 
-    send_to: 'notify-productionB'
+    receiver: 'notify-productionB'
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 1h
@@ -65,7 +65,7 @@ routes:
   group_by: ['foo', 'bar']
   group_wait: 2m
   send_resolved: false
-  send_to: 'notify-BC'
+  receiver: 'notify-BC'
 `
 
 	var ctree config.Route

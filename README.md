@@ -100,7 +100,7 @@ route:
   # catch alerts that are related to a list of services.
   - match_re:
       service: ^(foo1|foo2|baz)$
-    send_to: team-X-mails
+    receiver: team-X-mails
 
     # The service has a sub-route for critical alerts, any alerts
     # that do not match, i.e. severity != critical, fall-back to the
@@ -108,23 +108,23 @@ route:
     routes:
     - match:
         severity: critical
-      send_to: team-X-pager
+      receiver: team-X-pager
 
   - match:
       service: files
-    send_to: team-Y-mails
+    receiver: team-Y-mails
 
     routes:
     - match:
         severity: critical
-      send_to: team-Y-pager
+      receiver: team-Y-pager
 
   # This route handles all alerts coming from a database service. If there's
   # no team to handle it, it defaults to the DB team.
   - match:
       service: database
 
-    send_to: team-DB-pager
+    receiver: team-DB-pager
     # Also group alerts by affected database.
     group_by: [alertname, cluster, database]
     continue: false
@@ -132,12 +132,12 @@ route:
     routes:
     - match:
         owner: team-X
-      send_to: team-X-pager
+      receiver: team-X-pager
 
     - match:
         owner: team-Y
-      send_to: team-Y-pager
-        
+      receiver: team-Y-pager
+
 
 # Inhibition rules allow to mute a set of alerts given that another alert is
 # firing.
@@ -152,7 +152,7 @@ inhibit_rules:
   equal: ['alertname']
 
 
-notification_configs:
+receivers:
 - name: 'team-X-mails'
   email_configs:
   - email: 'team-X+alerts@example.org'

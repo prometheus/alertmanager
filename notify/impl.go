@@ -35,8 +35,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// Build creates a fanout notifier for each notification configuration.
-func Build(confs []*config.NotificationConfig, tmpl *template.Template) map[string]Fanout {
+// Build creates a fanout notifier for each receiver.
+func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout {
 	res := map[string]Fanout{}
 
 	for _, nc := range confs {

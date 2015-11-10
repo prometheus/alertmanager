@@ -68,11 +68,11 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global              *GlobalConfig         `yaml:"global,omitempty"`
-	Route               *Route                `yaml:"route,omitempty"`
-	InhibitRules        []*InhibitRule        `yaml:"inhibit_rules,omitempty"`
-	NotificationConfigs []*NotificationConfig `yaml:"notification_configs,omitempty"`
-	Templates           []string              `yaml:"templates"`
+	Global       *GlobalConfig  `yaml:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty"`
+	Templates    []string       `yaml:"templates"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -122,11 +122,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	names := map[string]struct{}{}
 
-	for _, nc := range c.NotificationConfigs {
-		if _, ok := names[nc.Name]; ok {
-			return fmt.Errorf("notification config name %q is not unique", nc.Name)
+	for _, rcv := range c.Receivers {
+		if _, ok := names[rcv.Name]; ok {
+			return fmt.Errorf("notification config name %q is not unique", rcv.Name)
 		}
-		for _, ec := range nc.EmailConfigs {
+		for _, ec := range rcv.EmailConfigs {
 			if ec.Smarthost == "" {
 				if c.Global.Smarthost == "" {
 					return fmt.Errorf("no global mail smarthost set")
@@ -140,7 +140,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.Sender = c.Global.SMTPSender
 			}
 		}
-		for _, sc := range nc.SlackConfigs {
+		for _, sc := range rcv.SlackConfigs {
 			if sc.URL == "" {
 				if c.Global.SlackURL == "" {
 					return fmt.Errorf("no global Slack URL set")
@@ -148,7 +148,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sc.URL = c.Global.SlackURL
 			}
 		}
-		for _, pdc := range nc.PagerdutyConfigs {
+		for _, pdc := range rcv.PagerdutyConfigs {
 			if pdc.URL == "" {
 				if c.Global.PagerdutyURL == "" {
 					return fmt.Errorf("no global PagerDuty URL set")
@@ -156,7 +156,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				pdc.URL = c.Global.PagerdutyURL
 			}
 		}
-		names[nc.Name] = struct{}{}
+		names[rcv.Name] = struct{}{}
 	}
 	return checkOverflow(c.XXX, "config")
 }
@@ -283,9 +283,9 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(r.XXX, "inhibit rule")
 }
 
-// Notification configuration definition.
-type NotificationConfig struct {
-	// Name of this NotificationConfig. Referenced from AggregationRule.
+// Receiver configuration provides configuration on how to contact
+// a receiver.
+type Receiver struct {
 	Name string `yaml:"name"`
 
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs"`
@@ -301,15 +301,15 @@ type NotificationConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *NotificationConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain NotificationConfig
+func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Receiver
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
 	if c.Name == "" {
-		return fmt.Errorf("missing name in notification config")
+		return fmt.Errorf("missing name in receiver")
 	}
-	return checkOverflow(c.XXX, "notification config")
+	return checkOverflow(c.XXX, "receiver config")
 }
 
 // Regexp encapsulates a regexp.Regexp and makes it YAML marshallable.

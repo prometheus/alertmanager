@@ -26,13 +26,13 @@ func TestInhibiting(t *testing.T) {
 
 	conf := `
 route:
-  send_to: "default"
+  receiver: "default"
   group_by: []
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 1s
 
-notification_configs:
+receivers:
 - name: "default"
   webhook_configs:
   - url: 'http://%s'
