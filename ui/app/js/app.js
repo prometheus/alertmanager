@@ -170,12 +170,12 @@ angular.module('am.controllers').controller('AlertCtrl',
 angular.module('am.controllers').controller('AlertsCtrl',
   function($scope, AlertGroups) {
     $scope.groups = null;
-    $scope.allDestinations = [];
+    $scope.allReceivers = [];
 
     $scope.notEmpty = function(group) {
       var l = 0;
       angular.forEach(group.groups, function(g) {
-        if ($scope.destinations.indexOf(g.routeOpts.sendTo) >= 0) {
+        if ($scope.receiver.indexOf(g.routeOpts.receiver) >= 0) {
           l += g.alerts.length;
         }
       });
@@ -188,17 +188,17 @@ angular.module('am.controllers').controller('AlertsCtrl',
         function(data) {
           $scope.groups = data.data;
 
-          $scope.allDestinations = [];
+          $scope.allReceivers = [];
           angular.forEach($scope.groups, function(group) {
             angular.forEach(group.groups, function(g) {
-              if ($scope.allDestinations.indexOf(g.routeOpts.sendTo) < 0) {
-                $scope.allDestinations.push(g.routeOpts.sendTo);
+              if ($scope.allReceivers.indexOf(g.routeOpts.receiver) < 0) {
+                $scope.allReceivers.push(g.routeOpts.receiver);
               }
             })
           });
 
-          if (!$scope.destinations) {
-            $scope.destinations = angular.copy($scope.allDestinations);
+          if (!$scope.receivers) {
+            $scope.receivers = angular.copy($scope.allReceivers);
           }
         },
         function(data) {

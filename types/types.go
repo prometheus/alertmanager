@@ -209,21 +209,21 @@ func (sil *Silence) Mutes(lset model.LabelSet) bool {
 }
 
 // NotifyInfo holds information about the last successful notification
-// of an alert to a destination.
+// of an alert to a receiver.
 type NotifyInfo struct {
 	Alert     model.Fingerprint
-	SendTo    string
+	Receiver  string
 	Resolved  bool
 	Timestamp time.Time
 }
 
 func (n *NotifyInfo) String() string {
-	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v>", n.Alert, n.Timestamp, n.SendTo, n.Resolved)
+	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v>", n.Alert, n.Timestamp, n.Receiver, n.Resolved)
 }
 
 func (n *NotifyInfo) Fingerprint() model.Fingerprint {
 	h := fnv.New64a()
-	h.Write([]byte(n.SendTo))
+	h.Write([]byte(n.Receiver))
 
 	fp := model.Fingerprint(h.Sum64())
 

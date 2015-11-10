@@ -34,7 +34,7 @@ const MinTimeout = 10 * time.Second
 type notifyKey int
 
 const (
-	keyDestination notifyKey = iota
+	keyReceiver notifyKey = iota
 	keyRepeatInterval
 	keySendResolved
 	keyGroupLabels
@@ -42,8 +42,8 @@ const (
 	keyNow
 )
 
-func WithDestination(ctx context.Context, dest string) context.Context {
-	return context.WithValue(ctx, keyDestination, dest)
+func WithReceiver(ctx context.Context, rcv string) context.Context {
+	return context.WithValue(ctx, keyReceiver, rcv)
 }
 
 func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
@@ -66,8 +66,8 @@ func WithNow(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, keyNow, t)
 }
 
-func Destination(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(keyDestination).(string)
+func Receiver(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyReceiver).(string)
 	return v, ok
 }
 
@@ -111,14 +111,14 @@ func (ns Fanout) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	)
 	wg.Add(len(ns))
 
-	dest, ok := Destination(ctx)
+	receiver, ok := Receiver(ctx)
 	if !ok {
-		return fmt.Errorf("destination missing")
+		return fmt.Errorf("receiver missing")
 	}
 
 	for suffix, n := range ns {
-		// Suffix the destination with the unique key for the fanout.
-		foCtx := WithDestination(ctx, fmt.Sprintf("%s/%s", dest, suffix))
+		// Suffix the receiver with the unique key for the fanout.
+		foCtx := WithReceiver(ctx, fmt.Sprintf("%s/%s", receiver, suffix))
 
 		go func(n Notifier) {
 			if err := n.Notify(foCtx, alerts...); err != nil {
@@ -179,7 +179,7 @@ func Dedup(notifies provider.Notifies, n Notifier) *DedupingNotifier {
 }
 
 func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	name, ok := Destination(ctx)
+	name, ok := Receiver(ctx)
 	if !ok {
 		return fmt.Errorf("notifier name missing")
 	}
@@ -263,7 +263,7 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 	for _, a := range filtered {
 		newNotifies = append(newNotifies, &types.NotifyInfo{
 			Alert:     a.Fingerprint(),
-			SendTo:    name,
+			Receiver:  name,
 			Resolved:  a.Resolved(),
 			Timestamp: now,
 		})
@@ -281,14 +281,14 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 type Router map[string]Notifier
 
 func (rs Router) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	dest, ok := Destination(ctx)
+	receiver, ok := Receiver(ctx)
 	if !ok {
 		return fmt.Errorf("notifier name missing")
 	}
 
-	notifier, ok := rs[dest]
+	notifier, ok := rs[receiver]
 	if !ok {
-		return fmt.Errorf("notifier %q does not exist", dest)
+		return fmt.Errorf("notifier %q does not exist", receiver)
 	}
 
 	return notifier.Notify(ctx, alerts...)

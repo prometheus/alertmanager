@@ -213,10 +213,10 @@ func (n *MemNotifies) Set(ns ...*types.NotifyInfo) error {
 		if notify == nil {
 			continue
 		}
-		am, ok := n.data.notifies[notify.SendTo]
+		am, ok := n.data.notifies[notify.Receiver]
 		if !ok {
 			am = map[model.Fingerprint]*types.NotifyInfo{}
-			n.data.notifies[notify.SendTo] = am
+			n.data.notifies[notify.Receiver] = am
 		}
 		am[notify.Alert] = notify
 	}

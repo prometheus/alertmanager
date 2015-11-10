@@ -19,7 +19,7 @@ func TestAggrGroup(t *testing.T) {
 		"b": "v2",
 	}
 	opts := &RouteOpts{
-		SendTo:         "n1",
+		Receiver:       "n1",
 		SendResolved:   true,
 		GroupBy:        map[model.LabelName]struct{}{},
 		GroupWait:      1 * time.Second,
@@ -83,8 +83,8 @@ func TestAggrGroup(t *testing.T) {
 		if lbls, ok := notify.GroupLabels(ctx); !ok || !reflect.DeepEqual(lbls, lset) {
 			t.Errorf("wrong group labels: %q", lbls)
 		}
-		if dest, ok := notify.Destination(ctx); !ok || dest != opts.SendTo {
-			t.Errorf("wrong destination: %q", dest)
+		if rcv, ok := notify.Receiver(ctx); !ok || rcv != opts.Receiver {
+			t.Errorf("wrong receiver: %q", rcv)
 		}
 		if ri, ok := notify.RepeatInterval(ctx); !ok || ri != opts.RepeatInterval {
 			t.Errorf("wrong repeat interval: %q", ri)

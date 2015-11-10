@@ -74,13 +74,13 @@ func NewSQLNotifyInfo(db *sql.DB) (*SQLNotifyInfo, error) {
 
 const createNotifyInfoTable = `
 CREATE TABLE IF NOT EXISTS notify_info (
-	alert       int64,
-	destination string,
-	resolved    bool,
-	timestamp   time
+	alert     int64,
+	receiver  string,
+	resolved  bool,
+	timestamp time
 );
 CREATE UNIQUE INDEX IF NOT EXISTS notify_alert
-	ON notify_info (alert, destination);
+	ON notify_info (alert, receiver);
 CREATE INDEX IF NOT EXISTS notify_done
 	ON notify_info (resolved);
 `
@@ -90,9 +90,9 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 
 	for _, fp := range fps {
 		row := n.db.QueryRow(`
-			SELECT alert, destination, resolved, timestamp
+			SELECT alert, receiver, resolved, timestamp
 			FROM notify_info
-			WHERE destination == $1 AND alert == $2
+			WHERE receiver == $1 AND alert == $2
 		`, dest, int64(fp))
 
 		var alertFP int64
@@ -100,7 +100,7 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 		var ni types.NotifyInfo
 		err := row.Scan(
 			&alertFP,
-			&ni.SendTo,
+			&ni.Receiver,
 			&ni.Resolved,
 			&ni.Timestamp,
 		)
@@ -127,7 +127,7 @@ func (n *SQLNotifyInfo) Set(ns ...*types.NotifyInfo) error {
 	}
 
 	insert, err := tx.Prepare(`
-		INSERT INTO notify_info(alert, destination, resolved, timestamp)
+		INSERT INTO notify_info(alert, receiver, resolved, timestamp)
 		VALUES ($1, $2, $3, $4);
 	`)
 	if err != nil {
@@ -138,7 +138,7 @@ func (n *SQLNotifyInfo) Set(ns ...*types.NotifyInfo) error {
 
 	del, err := tx.Prepare(`
 		DELETE FROM notify_info
-		WHERE alert == $1 AND destination == $2
+		WHERE alert == $1 AND receiver == $2
 	`)
 	if err != nil {
 		tx.Rollback()
@@ -147,13 +147,13 @@ func (n *SQLNotifyInfo) Set(ns ...*types.NotifyInfo) error {
 	defer del.Close()
 
 	for _, ni := range ns {
-		if _, err := del.Exec(int64(ni.Alert), ni.SendTo); err != nil {
+		if _, err := del.Exec(int64(ni.Alert), ni.Receiver); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("deleting old notify failed: %s", err)
 		}
 		if _, err := insert.Exec(
 			int64(ni.Alert),
-			ni.SendTo,
+			ni.Receiver,
 			ni.Resolved,
 			ni.Timestamp,
 		); err != nil {

@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-// Collector gathers alerts received by a notification destination
+// Collector gathers alerts received by a notification receiver
 // and verifies whether all arrived and within the correct time boundaries.
 type Collector struct {
 	t    *testing.T

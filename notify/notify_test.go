@@ -52,7 +52,7 @@ func TestDedupingNotifier(t *testing.T) {
 	)
 	now := time.Now()
 
-	ctx = WithDestination(ctx, "name")
+	ctx = WithReceiver(ctx, "name")
 	ctx = WithRepeatInterval(ctx, time.Duration(100*time.Minute))
 	ctx = WithSendResolved(ctx, true)
 	ctx = WithNow(ctx, now)
@@ -103,7 +103,7 @@ func TestDedupingNotifier(t *testing.T) {
 		// firing alert.
 		{
 			Alert:     fps[2],
-			SendTo:    "name",
+			Receiver:  "name",
 			Resolved:  false,
 			Timestamp: now.Add(-10 * time.Minute),
 		},
@@ -111,7 +111,7 @@ func TestDedupingNotifier(t *testing.T) {
 		// even though the previous notification succeeded.
 		{
 			Alert:     fps[3],
-			SendTo:    "name",
+			Receiver:  "name",
 			Resolved:  true,
 			Timestamp: now.Add(-10 * time.Minute),
 		},
@@ -119,14 +119,14 @@ func TestDedupingNotifier(t *testing.T) {
 		// that was longer than ago than the repeat interval.
 		{
 			Alert:     fps[4],
-			SendTo:    "name",
+			Receiver:  "name",
 			Resolved:  false,
 			Timestamp: now.Add(-110 * time.Minute),
 		},
 		// The sixth alert is a firing again after being resolved before.
 		{
 			Alert:     fps[5],
-			SendTo:    "name",
+			Receiver:  "name",
 			Resolved:  true,
 			Timestamp: now.Add(3 * time.Minute),
 		},
@@ -164,24 +164,24 @@ func TestDedupingNotifier(t *testing.T) {
 	nsAfter := []*types.NotifyInfo{
 		{
 			Alert:    fps[0],
-			SendTo:   "name",
+			Receiver: "name",
 			Resolved: false,
 		},
 		nil,
 		{
 			Alert:    fps[2],
-			SendTo:   "name",
+			Receiver: "name",
 			Resolved: true,
 		},
 		nsBefore[3],
 		{
 			Alert:    fps[4],
-			SendTo:   "name",
+			Receiver: "name",
 			Resolved: false,
 		},
 		{
 			Alert:    fps[5],
-			SendTo:   "name",
+			Receiver: "name",
 			Resolved: false,
 		},
 	}
@@ -220,7 +220,7 @@ func TestRoutedNotifier(t *testing.T) {
 
 	for _, route := range []string{"3", "2", "1"} {
 		var (
-			ctx   = WithDestination(context.Background(), route)
+			ctx   = WithReceiver(context.Background(), route)
 			alert = &types.Alert{
 				Alert: model.Alert{
 					Labels: model.LabelSet{"route": model.LabelValue(route)},

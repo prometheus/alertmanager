@@ -1,7 +1,7 @@
 <fieldset id="silence-create">
 	<legend>Filter</legend>
-	<select class="select" ng-model="destinations" multiple>
-		<option ng-repeat="dest in allDestinations" value="{{ dest }}">{{ dest }}</option>
+	<select class="select" ng-model="receivers" multiple>
+		<option ng-repeat="dest in allReceivers" value="{{ dest }}">{{ dest }}</option>
 	</select>
 </fieldset>
 
@@ -14,7 +14,7 @@
 		</div>	
 	
 		<div ng-repeat="g in group.groups">
-			<div ng-show="destinations.indexOf(g.routeOpts.sendTo) >= 0" ng-show"g.alerts">
+			<div ng-show="receivers.indexOf(g.routeOpts.receiver) >= 0" ng-show"g.alerts">
 				<div ng-repeat="a in g.alerts">
 					<alert class="list-item" alert="a" group="group.labels"></alert>
 				</div>

@@ -62,8 +62,8 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		opts = parent.RouteOpts
 	}
 
-	if cr.SendTo != "" {
-		opts.SendTo = cr.SendTo
+	if cr.Receiver != "" {
+		opts.Receiver = cr.Receiver
 	}
 	if cr.GroupBy != nil {
 		opts.GroupBy = map[model.LabelName]struct{}{}
@@ -180,7 +180,7 @@ func (r *Route) Fingerprint() model.Fingerprint {
 // that match a given route.
 type RouteOpts struct {
 	// The identifier of the associated notification configuration
-	SendTo       string
+	Receiver     string
 	SendResolved bool
 
 	// What labels to group alerts by for notifications.
@@ -198,20 +198,20 @@ func (ro *RouteOpts) String() string {
 	for ln := range ro.GroupBy {
 		labels = append(labels, ln)
 	}
-	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q timers:%q|%q>", ro.SendTo, labels, ro.GroupWait, ro.GroupInterval)
+	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q timers:%q|%q>", ro.Receiver, labels, ro.GroupWait, ro.GroupInterval)
 }
 
 // MarshalJSON returns a JSON representation of the routing options.
 func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
 	v := struct {
-		SendTo         string           `json:"sendTo"`
+		Receiver       string           `json:"receiver"`
 		SendResolved   bool             `json:"sendResolved"`
 		GroupBy        model.LabelNames `json:"groupBy"`
 		GroupWait      time.Duration    `json:"groupWait"`
 		GroupInterval  time.Duration    `json:"groupInterval"`
 		RepeatInterval time.Duration    `json:"repeatInterval"`
 	}{
-		SendTo:         ro.SendTo,
+		Receiver:       ro.Receiver,
 		SendResolved:   ro.SendResolved,
 		GroupWait:      ro.GroupWait,
 		GroupInterval:  ro.GroupInterval,

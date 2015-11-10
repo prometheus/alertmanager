@@ -153,7 +153,7 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 }
 
 // Run starts all Alertmanagers and runs queries against them. It then checks
-// whether all expected notifications have arrived at the expected destination.
+// whether all expected notifications have arrived at the expected receiver.
 func (t *AcceptanceTest) Run() {
 	errc := make(chan error)
 

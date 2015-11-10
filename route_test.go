@@ -94,7 +94,7 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:         "notify-A",
+					Receiver:       "notify-A",
 					GroupBy:        def.GroupBy,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
@@ -110,7 +110,7 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:         "notify-A",
+					Receiver:       "notify-A",
 					GroupBy:        def.GroupBy,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
@@ -125,7 +125,7 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:         "notify-BC",
+					Receiver:       "notify-BC",
 					GroupBy:        lset("foo", "bar"),
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
@@ -141,7 +141,7 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:         "notify-testing",
+					Receiver:       "notify-testing",
 					GroupBy:        lset(),
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
@@ -157,7 +157,7 @@ routes:
 			},
 			result: []*RouteOpts{
 				{
-					SendTo:         "notify-productionA",
+					Receiver:       "notify-productionA",
 					GroupBy:        def.GroupBy,
 					GroupWait:      1 * time.Minute,
 					GroupInterval:  def.GroupInterval,
@@ -165,7 +165,7 @@ routes:
 					SendResolved:   def.SendResolved,
 				},
 				{
-					SendTo:         "notify-productionB",
+					Receiver:       "notify-productionB",
 					GroupBy:        lset("job"),
 					GroupWait:      30 * time.Second,
 					GroupInterval:  5 * time.Minute,
