@@ -174,9 +174,9 @@ angular.module('am.controllers').controller('AlertsCtrl',
 
     $scope.notEmpty = function(group) {
       var l = 0;
-      angular.forEach(group.groups, function(g) {
-        if ($scope.receiver.indexOf(g.routeOpts.receiver) >= 0) {
-          l += g.alerts.length;
+      angular.forEach(group.blocks, function(blk) {
+        if ($scope.receivers.indexOf(blk.routeOpts.receiver) >= 0) {
+          l += blk.alerts.length || 0;
         }
       });
 
@@ -190,9 +190,9 @@ angular.module('am.controllers').controller('AlertsCtrl',
 
           $scope.allReceivers = [];
           angular.forEach($scope.groups, function(group) {
-            angular.forEach(group.groups, function(g) {
-              if ($scope.allReceivers.indexOf(g.routeOpts.receiver) < 0) {
-                $scope.allReceivers.push(g.routeOpts.receiver);
+            angular.forEach(group.blocks, function(blk) {
+              if ($scope.allReceivers.indexOf(blk.routeOpts.receiver) < 0) {
+                $scope.allReceivers.push(blk.routeOpts.receiver);
               }
             })
           });

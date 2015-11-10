@@ -13,9 +13,9 @@
 			</span>
 		</div>	
 	
-		<div ng-repeat="g in group.groups">
-			<div ng-show="receivers.indexOf(g.routeOpts.receiver) >= 0" ng-show"g.alerts">
-				<div ng-repeat="a in g.alerts">
+		<div ng-repeat="blk in group.blocks">
+			<div ng-show="receivers.indexOf(blk.routeOpts.receiver) >= 0" ng-show"blk.alerts">
+				<div ng-repeat="a in blk.alerts">
 					<alert class="list-item" alert="a" group="group.labels"></alert>
 				</div>
 			</div>

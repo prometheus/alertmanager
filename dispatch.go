@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -59,29 +60,40 @@ func (d *Dispatcher) Run() {
 	close(d.done)
 }
 
-// UIGroup is the representation of a group of alerts as provided by
-// the API.
-type UIGroup struct {
-	RouteOpts *RouteOpts `json:"routeOpts"`
-	Alerts    []*UIAlert `json:"alerts"`
+// AlertBlock contains a list of alerts associated with a set of
+// routing options.
+type AlertBlock struct {
+	RouteOpts *RouteOpts  `json:"routeOpts"`
+	Alerts    []*APIAlert `json:"alerts"`
 }
 
-type UIGroups struct {
-	Labels model.LabelSet `json:"labels"`
-	Groups []*UIGroup     `json:"groups"`
-}
-
-type UIAlert struct {
+// APIAlert is the API representation of an alert, which is a regular alert
+// annotated with silencing and inhibition info.
+type APIAlert struct {
 	*model.Alert
 
 	Inhibited bool   `json:"inhibited"`
 	Silenced  uint64 `json:"silenced,omitempty"`
 }
 
-func (d *Dispatcher) Groups() []*UIGroups {
-	var groups []*UIGroups
+// AlertGroup is a list of alert blocks grouped by the same label set.
+type AlertGroup struct {
+	Labels model.LabelSet `json:"labels"`
+	Blocks []*AlertBlock  `json:"blocks"`
+}
 
-	seen := map[model.Fingerprint]*UIGroups{}
+// AlertOverview is a representation of all active alerts in the system.
+type AlertOverview []*AlertGroup
+
+func (ao AlertOverview) Swap(i, j int)      { ao[i], ao[j] = ao[j], ao[i] }
+func (ao AlertOverview) Less(i, j int) bool { return ao[i].Labels.Before(ao[j].Labels) }
+func (ao AlertOverview) Len() int           { return len(ao) }
+
+// Groups populates an AlertOverview from the dispatcher's internal state.
+func (d *Dispatcher) Groups() AlertOverview {
+	var overview AlertOverview
+
+	seen := map[model.Fingerprint]*AlertGroup{}
 
 	for route, ags := range d.aggrGroups {
 		for _, ag := range ags {
@@ -90,39 +102,41 @@ func (d *Dispatcher) Groups() []*UIGroups {
 				alerts = append(alerts, a)
 			}
 
-			uig, ok := seen[ag.labels.Fingerprint()]
+			alertGroup, ok := seen[ag.labels.Fingerprint()]
 			if !ok {
-				uig = &UIGroups{Labels: ag.labels}
+				alertGroup = &AlertGroup{Labels: ag.labels}
 
-				seen[ag.labels.Fingerprint()] = uig
-				groups = append(groups, uig)
+				seen[ag.labels.Fingerprint()] = alertGroup
+				overview = append(overview, alertGroup)
 			}
 
 			now := time.Now()
 
-			var uiAlerts []*UIAlert
+			var apiAlerts []*APIAlert
 			for _, a := range types.Alerts(alerts...) {
-				if a.EndsAt.Before(now) {
+				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 					continue
 				}
 
 				sid, _ := d.marker.Silenced(a.Fingerprint())
 
-				uiAlerts = append(uiAlerts, &UIAlert{
+				apiAlerts = append(apiAlerts, &APIAlert{
 					Alert:     a,
 					Inhibited: d.marker.Inhibited(a.Fingerprint()),
 					Silenced:  sid,
 				})
 			}
 
-			uig.Groups = append(uig.Groups, &UIGroup{
+			alertGroup.Blocks = append(alertGroup.Blocks, &AlertBlock{
 				RouteOpts: &route.RouteOpts,
-				Alerts:    uiAlerts,
+				Alerts:    apiAlerts,
 			})
 		}
 	}
 
-	return groups
+	sort.Sort(overview)
+
+	return overview
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {

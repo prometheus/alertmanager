@@ -38,7 +38,7 @@ type API struct {
 	config   string
 	uptime   time.Time
 
-	groups func() []*UIGroups
+	groups func() AlertOverview
 
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
@@ -46,7 +46,7 @@ type API struct {
 }
 
 // NewAPI returns a new API.
-func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() []*UIGroups) *API {
+func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertOverview) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,
