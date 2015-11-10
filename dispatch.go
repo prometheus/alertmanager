@@ -98,8 +98,14 @@ func (d *Dispatcher) Groups() []*UIGroups {
 				groups = append(groups, uig)
 			}
 
+			now := time.Now()
+
 			var uiAlerts []*UIAlert
 			for _, a := range types.Alerts(alerts...) {
+				if a.EndsAt.Before(now) {
+					continue
+				}
+
 				sid, _ := d.marker.Silenced(a.Fingerprint())
 
 				uiAlerts = append(uiAlerts, &UIAlert{
