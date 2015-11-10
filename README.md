@@ -41,16 +41,11 @@ This development version still has an extensive list of improvements and changes
 This will happen based on priority and demand. Feel free to ping fabxc about it
 
 * On deleting silences it may take up to one `group_wait` cycle for a notification of a previously silenced alert to be sent.
-* Limiting inhibition rules to routing subtrees to avoid accidental interference.
-* Show silencing inhibition of alerts in the UI
-* Better overview for alert groups in UI
-* Status page in UI
-* `Silence` button next to alerts in UI being usable
+* Limiting inhibition rules to routing subtrees to avoid accidental interference
 * Definition of a minimum data set provided to notification templates
 * Best practices around notification templating
 * Various common command line flags like `path-prefix`
 * Compiling templates and UI assets into the binary
-* Allow constraining displayed alerts in UI
 
 ## Example
 
