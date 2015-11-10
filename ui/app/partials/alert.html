@@ -1,6 +1,9 @@
 <div class="alert-item" ng-controller="AlertCtrl">
 	<div class="overview group">
-		<div class="labels left" ng-click="toggleDetails()">
+		<div class="expand" ng-show="showDetails" ng-click="toggleDetails()">–</div>
+		<div class="expand" ng-hide="showDetails" ng-click="toggleDetails()">+</div>
+
+		<div class="labels left">
 			<span ng-repeat="(name, value) in alert.labels | orderBy:name">
 				<span ng-hide="group[name]" class="lbl {{ name == 'alertname' ? 'lbl-highlight' : 'lbl-outline' }}">
 					{{ name }} = '{{ value }}'

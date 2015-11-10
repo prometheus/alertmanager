@@ -48,10 +48,19 @@ header #logo {
 	margin-bottom: 5px;
 }
 
-.silence .labels, .alert-item .labels {
+.alert-item .expand, .silence-item .expand {
+	float: left;
+	font-size: 160%;
 	cursor: pointer;
+	width: 30px;
+	font-weight: 100;
+	padding-right: 12px;
+	padding-left: 4px;
 }
-.silence .labels, .alert-item .labels {
+
+.silence-item .labels, .alert-item .labels {
+}
+.silence-item .labels, .alert-item .labels {
 	width: 65%;
 }
 
@@ -61,10 +70,10 @@ header #logo {
 	padding: .8em;
 }
 
-.silence .delete-button, .alert-item .silence-button {
+.silence-item .delete-button, .alert-item .silence-button {
 	opacity: 0.2;
 }
-.silence:hover .delete-button, .alert-item:hover .silence-button {
+.silence-item:hover .delete-button, .alert-item:hover .silence-button {
 	opacity: 1.0;
 }
 
@@ -76,14 +85,14 @@ header #logo {
 	background: #f0f0f0;
 	padding: .8em;
 }
-.silence .overview {
+.silence-item .overview {
 	background: #bfbfbf;
 	padding: .8em;
 }
-.silence.highlight .overview {
+.silence-item.highlight .overview {
 	background: #dfdfdf;
 }
-.silence .detail, .alert-item .detail {
+.silence-item .detail, .alert-item .detail {
 	background: #fff;
 	padding: .8em;
 }
@@ -138,8 +147,11 @@ header #logo {
 }
 
 .muted-lbl {
-	background:  #FFCC00;
-	color: #555;
+	background: #ffe47a;
+	color: #555 !important;
+}
+.muted-lbl a {
+	color: #555 !important;
 }
 
 .annotations {
