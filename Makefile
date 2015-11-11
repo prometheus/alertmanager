@@ -18,7 +18,8 @@ ifdef DEBUG
 	bindata_flags = -debug
 endif
 
-all: format build test
+
+all: assets format build test
 
 test:
 	@echo ">> running tests"
@@ -32,7 +33,7 @@ vet:
 	@echo ">> vetting code"
 	@$(GO) vet $(pkgs)
 
-build: assets
+build:
 	@echo ">> building binaries"
 	@./scripts/build.sh
 
@@ -41,4 +42,5 @@ assets:
 	@$(GO) get -u github.com/jteeuwen/go-bindata/...
 	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/...
 
-.PHONY: all format build test vet docker
+
+.PHONY: all format build test vet assets
