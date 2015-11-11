@@ -14,13 +14,17 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
+	template_text "text/template"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
@@ -30,16 +34,23 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/version"
 )
 
 var (
 	configFile    = flag.String("config.file", "config.yml", "The configuration file")
 	dataDir       = flag.String("data.dir", "data/", "The data directory")
+	showVersion   = flag.Bool("version", false, "Print version information.")
 	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 )
 
 func main() {
 	flag.Parse()
+
+	printVersion()
+	if *showVersion {
+		os.Exit(0)
+	}
 
 	db, err := sql.Open("ql", filepath.Join(*dataDir, "am.db"))
 	if err != nil {
@@ -157,4 +168,21 @@ func main() {
 	<-term
 
 	log.Infoln("Received SIGTERM, exiting gracefully...")
+}
+
+var versionInfoTmpl = `
+alertmanager, version {{.version}} (branch: {{.branch}}, revision: {{.revision}})
+  build user:       {{.buildUser}}
+  build date:       {{.buildDate}}
+  go version:       {{.goVersion}}
+`
+
+func printVersion() {
+	t := template_text.Must(template_text.New("version").Parse(versionInfoTmpl))
+
+	var buf bytes.Buffer
+	if err := t.ExecuteTemplate(&buf, "version", version.Map); err != nil {
+		panic(err)
+	}
+	fmt.Fprintln(os.Stdout, strings.TrimSpace(buf.String()))
 }
