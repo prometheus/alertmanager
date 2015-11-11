@@ -284,7 +284,6 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 	if timeout < notify.MinTimeout {
 		timeout = notify.MinTimeout
 	}
-	fmt.Println("starting at", time.Now())
 
 	for {
 		select {
@@ -309,7 +308,6 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// Wait the configured interval before calling flush again.
 			ag.next.Reset(ag.opts.GroupInterval)
 
-			fmt.Println("flushing at", now)
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
 			})

@@ -154,8 +154,11 @@ header #logo {
 	color: #555 !important;
 }
 
-.annotations {
+.annotations td {
+	min-width: 200px;
 	white-space: pre-wrap !important;
+	word-break: break-all;
+	word-wrap: break-word;
 }
 .table-normal.annotations td {
 	padding: .4em !important;
