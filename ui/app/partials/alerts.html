@@ -1,9 +1,13 @@
-<fieldset id="silence-create">
-	<legend>Filter</legend>
-	<select class="select" ng-model="receivers" multiple>
-		<option ng-repeat="dest in allReceivers" value="{{ dest }}">{{ dest }}</option>
-	</select>
-</fieldset>
+<form id="filter-alerts" method="post" action="" class="forms">
+	<fieldset>
+		<legend>Filter</legend>
+
+		<label>Receivers</label>
+		<select name="select-multi" class="width-2" ng-model="receivers" multiple="multiple">
+			<option ng-repeat="dest in allReceivers" value="{{ dest }}">{{ dest }}</option>
+		</select>
+	</fieldset>
+</form>
 
 <div id="alert-groups" ng-controller="AlertsCtrl">
 	<div class="alert-group" ng-repeat="group in groups | filter:notEmpty">

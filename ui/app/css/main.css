@@ -38,7 +38,7 @@ header #logo {
 	padding: 2.5em;
 }
 
-#silence-create {
+#silence-create, #filter-alerts {
 	background: #fff;
 	width: 100%;
 	min-width: 400px;
