@@ -126,6 +126,9 @@ func (d *Dispatcher) Groups() AlertOverview {
 					Silenced:  sid,
 				})
 			}
+			if len(apiAlerts) == 0 {
+				continue
+			}
 
 			alertGroup.Blocks = append(alertGroup.Blocks, &AlertBlock{
 				RouteOpts: &route.RouteOpts,

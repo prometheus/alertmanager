@@ -38,9 +38,12 @@ import (
 )
 
 var (
-	configFile    = flag.String("config.file", "config.yml", "The configuration file")
-	dataDir       = flag.String("data.dir", "data/", "The data directory")
-	showVersion   = flag.Bool("version", false, "Print version information.")
+	showVersion = flag.Bool("version", false, "Print version information.")
+
+	configFile = flag.String("config.file", "config.yml", "The configuration file")
+	dataDir    = flag.String("data.dir", "data/", "The data directory")
+
+	externalURL   = flag.String("web.external-url", "", "The URL under which Prometheus is externally reachable (for example, if Prometheus is served via a reverse proxy). Used for generating relative and absolute links back to Prometheus itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Prometheus. If omitted, relevant URL components will be derived automatically.")
 	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 )
 
