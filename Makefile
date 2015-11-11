@@ -14,6 +14,10 @@
 GO   := GO15VENDOREXPERIMENT=1 go
 pkgs  = $(shell $(GO) list ./... | grep -v /vendor/)
 
+ifdef DEBUG
+	bindata_flags = -debug
+endif
+
 all: format build test
 
 test:
@@ -28,9 +32,13 @@ vet:
 	@echo ">> vetting code"
 	@$(GO) vet $(pkgs)
 
-build:
+build: assets
 	@echo ">> building binaries"
 	@./scripts/build.sh
 
+assets:
+	@echo ">> writing assets"
+	@$(GO) get -u github.com/jteeuwen/go-bindata/...
+	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/...
 
 .PHONY: all format build test vet docker

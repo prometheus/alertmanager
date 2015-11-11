@@ -14,30 +14,47 @@
 package main
 
 import (
-	"io/ioutil"
+	"bytes"
+	"io"
 	"net/http"
-	"os"
+	"path/filepath"
 
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
+
+	"github.com/prometheus/alertmanager/ui"
 )
+
+func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
+	info, err := ui.AssetInfo(fp)
+	if err != nil {
+		log.Warn("Could not get file: ", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	file, err := ui.Asset(fp)
+	if err != nil {
+		if err != io.EOF {
+			log.With("file", fp).Warn("Could not get file: ", err)
+		}
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	http.ServeContent(w, req, info.Name(), info.ModTime(), bytes.NewReader(file))
+}
 
 // RegisterWeb registers handlers to serve files for the web interface.
 func RegisterWeb(r *route.Router) {
-
-	r.Get("/app/*filepath", route.FileServe("ui/app/"))
-	r.Get("/static/*filepath", route.FileServe("ui/lib/"))
-
+	r.Get("/app/*filepath", func(w http.ResponseWriter, req *http.Request) {
+		fp := route.Param(route.Context(req), "filepath")
+		serveAsset(w, req, filepath.Join("ui/app", fp))
+	})
+	r.Get("/lib/*filepath", func(w http.ResponseWriter, req *http.Request) {
+		fp := route.Param(route.Context(req), "filepath")
+		serveAsset(w, req, filepath.Join("ui/lib", fp))
+	})
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
-		f, err := os.Open("ui/app/index.html")
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-
-		b, err := ioutil.ReadAll(f)
-		if err != nil {
-			panic(err)
-		}
-		w.Write(b)
+		serveAsset(w, req, "ui/app/index.html")
 	})
 }
