@@ -161,27 +161,21 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "config")
 }
 
+// DefaultGlobalConfig provides global default values.
 var DefaultGlobalConfig = GlobalConfig{
-	GroupWait:      model.Duration(30 * time.Second),
-	GroupInterval:  model.Duration(5 * time.Minute),
-	RepeatInterval: model.Duration(1 * time.Hour),
-	SendResolved:   true,
-
 	PagerdutyURL: "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
 }
 
+// GlobalConfig defines configuration parameters that are valid globally
+// unless overwritten.
 type GlobalConfig struct {
-	GroupWait      model.Duration `yaml:"group_wait"`
-	GroupInterval  model.Duration `yaml:"group_interval"`
-	RepeatInterval model.Duration `yaml:"repeat_interval"`
-	SendResolved   bool           `yaml:"send_resolved"`
-
 	SMTPSender   string `yaml:"smtp_sender"`
 	Smarthost    string `yaml:"smarthost"`
 	SlackURL     string `yaml:"slack_url"`
 	PagerdutyURL string `yaml:"pagerduty_url"`
 }
 
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultGlobalConfig
 	type plain GlobalConfig
@@ -238,12 +232,25 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(r.XXX, "route")
 }
 
+// InhibitRule defines an inhibition rule that mutes alerts that match the
+// target labels if an alert matching the source labels exists.
+// Both alerts have to have a set of labels being equal.
 type InhibitRule struct {
-	SourceMatch   map[string]string `yaml:"source_match"`
+	// SourceMatch defines a set of labels that have to equal the given
+	// value for source alerts.
+	SourceMatch map[string]string `yaml:"source_match"`
+	// SourceMatchRE defines pairs like SourceMatch but does regular expression
+	// matching.
 	SourceMatchRE map[string]Regexp `yaml:"source_match_re"`
-	TargetMatch   map[string]string `yaml:"target_match"`
+	// TargetMatch defines a set of labels that have to equal the given
+	// value for target alerts.
+	TargetMatch map[string]string `yaml:"target_match"`
+	// TargetMatchRE defines pairs like TargetMatch but does regular expression
+	// matching.
 	TargetMatchRE map[string]Regexp `yaml:"target_match_re"`
-	Equal         model.LabelNames  `yaml:"equal"`
+	// A set of labels that must be equal between the source and target alert
+	// for them to be a match.
+	Equal model.LabelNames `yaml:"equal"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -283,9 +290,9 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(r.XXX, "inhibit rule")
 }
 
-// Receiver configuration provides configuration on how to contact
-// a receiver.
+// Receiver configuration provides configuration on how to contact a receiver.
 type Receiver struct {
+	// A unique identifier for this receiver.
 	Name string `yaml:"name"`
 
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs"`

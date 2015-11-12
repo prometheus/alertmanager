@@ -18,12 +18,14 @@ import (
 )
 
 var (
+	// DefaultHipchatConfig defines default values for Hipchat configurations.
 	DefaultHipchatConfig = HipchatConfig{
 		ColorFiring:   "purple",
 		ColorResolved: "green",
 		MessageFormat: HipchatFormatHTML,
 	}
 
+	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
 		ColorFiring:   "warning",
 		ColorResolved: "good",
@@ -37,6 +39,7 @@ var (
 		},
 	}
 
+	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		Templates: EmailTemplates{
 			Header: "email.default.header",
@@ -44,6 +47,7 @@ var (
 		},
 	}
 
+	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
 	DefaultPagerdutyConfig = PagerdutyConfig{
 		Templates: PagerdutyTemplates{
 			Description: "pagerduty.default.description",
@@ -51,7 +55,7 @@ var (
 	}
 )
 
-// Configuration for notification via PagerDuty.
+// PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
 	ServiceKey string `yaml:"service_key"`
 	URL        string `yaml:"url"`
@@ -62,6 +66,7 @@ type PagerdutyConfig struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+// PagerdutyTemplates references template names used for PagerDuty.
 type PagerdutyTemplates struct {
 	Description string
 }
@@ -79,7 +84,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return checkOverflow(c.XXX, "pagerduty config")
 }
 
-// Configuration for notification via mail.
+// EmailConfig configures notifications via mail.
 type EmailConfig struct {
 	// Email address to notify.
 	Email     string `yaml:"email"`
@@ -92,6 +97,7 @@ type EmailConfig struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+// EmailTemplates references template names used for email.
 type EmailTemplates struct {
 	Header string `yaml:"header"`
 	HTML   string `yaml:"html"`
@@ -110,7 +116,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "email config")
 }
 
-// Configuration for notification via pushover.net.
+// PushoverConfig configures notifications via PushOver.
 type PushoverConfig struct {
 	// Pushover token.
 	Token string `yaml:"token"`
@@ -137,6 +143,7 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return checkOverflow(c.XXX, "pushover config")
 }
 
+// HipchatFormat defines text formats for Hipchat.
 type HipchatFormat string
 
 const (
@@ -144,7 +151,7 @@ const (
 	HipchatFormatText HipchatFormat = "text"
 )
 
-// Configuration for notification via HipChat.
+// HipchatConfig configures notifications via Hipchat.
 // https://www.hipchat.com/docs/apiv2/method/send_room_notification
 type HipchatConfig struct {
 	// HipChat auth token, (https://www.hipchat.com/docs/api/auth).
@@ -186,7 +193,7 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "hipchat config")
 }
 
-// Configuration for notification via Slack.
+// SlackConfig configures notifications via Slack.
 type SlackConfig struct {
 	URL string `yaml:"url"`
 
@@ -203,6 +210,7 @@ type SlackConfig struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+// SlackTemplates references template names used for Slack.
 type SlackTemplates struct {
 	Title     string `yaml:"title"`
 	TitleLink string `yaml:"title_link"`
@@ -224,7 +232,7 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "slack config")
 }
 
-// Configuration for notification via Flowdock.
+// FlowdockConfig configures notifications via Flowdock.
 type FlowdockConfig struct {
 	// Flowdock flow API token.
 	APIToken string `yaml:"api_token"`
@@ -254,7 +262,7 @@ func (c *FlowdockConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return checkOverflow(c.XXX, "flowdock config")
 }
 
-// Configuration for notification via generic webhook.
+// WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
 	// URL to send POST request to.
 	URL string `yaml:"url"`
