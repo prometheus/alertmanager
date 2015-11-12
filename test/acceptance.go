@@ -237,7 +237,7 @@ func (am *Alertmanager) Start() {
 		"-config.file", am.confFile.Name(),
 		"-log.level", "debug",
 		"-web.listen-address", am.addr,
-		"-data.dir", am.dir,
+		"-storage.path", am.dir,
 	)
 
 	if am.cmd == nil {

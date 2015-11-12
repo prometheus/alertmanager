@@ -37,6 +37,9 @@ build:
 	@echo ">> building binaries"
 	@./scripts/build.sh
 
+docker:
+	@docker build -t alertmanager:$(shell git rev-parse --short HEAD) .
+
 assets:
 	@echo ">> writing assets"
 	@$(GO) get -u github.com/jteeuwen/go-bindata/...
