@@ -19,7 +19,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
