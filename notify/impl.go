@@ -62,20 +62,28 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 
 const contentTypeJSON = "application/json"
 
+// Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
+	// The URL to which notifications are sent.
 	URL string
 }
 
+// NewWebhook returns a new Webhook.
 func NewWebhook(conf *config.WebhookConfig) *Webhook {
 	return &Webhook{URL: conf.URL}
 }
 
+// WebhookMessage defines the JSON object send to webhook endpoints.
 type WebhookMessage struct {
-	Version string            `json:"version"`
-	Status  model.AlertStatus `json:"status"`
-	Alerts  model.Alerts      `json:"alert"`
+	// The protocol version.
+	Version string `json:"version"`
+	// The alert status. It is firing iff any of the alerts is not resolved.
+	Status model.AlertStatus `json:"status"`
+	// A batch of alerts.
+	Alerts model.Alerts `json:"alert"`
 }
 
+// Notify implements the Notifier interface.
 func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	as := types.Alerts(alerts...)
 
@@ -103,15 +111,18 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	return nil
 }
 
+// Email implements a Notifier for email notifications.
 type Email struct {
 	conf *config.EmailConfig
 	tmpl *template.Template
 }
 
+// NewEmail returns a new Email notifier.
 func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
 	return &Email{conf: c, tmpl: t}
 }
 
+// auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 	username := os.Getenv("SMTP_AUTH_USERNAME")
 
@@ -146,6 +157,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 	return nil, nil, nil
 }
 
+// Notify implements the Notifier interface.
 func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(n.conf.Smarthost)
@@ -213,11 +225,13 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	return n.tmpl.ExecuteHTML(wc, n.conf.Templates.HTML, &data)
 }
 
+// PagerDuty implements a Notifier for PagerDuty notifications.
 type PagerDuty struct {
 	conf *config.PagerdutyConfig
 	tmpl *template.Template
 }
 
+// NewPagerDuty returns a new PagerDuty notifier.
 func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template) *PagerDuty {
 	return &PagerDuty{conf: c, tmpl: t}
 }
@@ -237,6 +251,7 @@ type pagerDutyMessage struct {
 	Details     map[string]string `json:"details"`
 }
 
+// Notify implements the Notifier interface.
 func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	// http://developer.pagerduty.com/documentation/integration/events/trigger
 	alerts := types.Alerts(as...)
@@ -307,6 +322,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	return nil
 }
 
+// Slack implements a Notifier for Slack notifications.
 type Slack struct {
 	conf *config.SlackConfig
 	tmpl *template.Template
@@ -338,6 +354,7 @@ type slackAttachmentField struct {
 	Short bool   `json:"short,omitempty"`
 }
 
+// Notify implements the Notifier interface.
 func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	alerts := types.Alerts(as...)
 	var (
