@@ -13,8 +13,13 @@
 
 		<div class="right">
 			<button type="black" disabled small>Until {{ sil.endsAt | amCalendar }}</button>
-			<button class="delete-button" type="black" ng-click="delete(sil)" small upper>Delete</button>
+			<button class="delete-button" type="black" ng-click="delete(sil.id)" small upper>Delete</button>
+			<button class="edit-button" type="black" ng-click="toggleSilenceForm()" small upper>Edit</button>
 		</div>
+	</div>
+
+	<div class="edit-silence" ng-show="showSilenceForm">
+		<silence-form silence="sil"></silence-form>
 	</div>
 
 	<div class="detail group" ng-show="showDetails">

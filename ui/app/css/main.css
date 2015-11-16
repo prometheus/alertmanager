@@ -73,10 +73,14 @@ header #logo a {
 	padding: .8em;
 }
 
-.silence-item .delete-button, .alert-item .silence-button {
-	opacity: 0.2;
+.silence-item .delete-button,
+.silence-item .edit-button,
+.alert-item .silence-button {
+	opacity: 0.25;
 }
-.silence-item:hover .delete-button, .alert-item:hover .silence-button {
+.silence-item:hover .delete-button,
+.silence-item:hover .edit-button,
+.alert-item:hover .silence-button {
 	opacity: 1.0;
 }
 
@@ -112,7 +116,7 @@ header #logo a {
 	margin-bottom: 24px;
 }
 
-.alert-item .silence-alert {
+.alert-item .silence-alert, .silence-item .edit-silence {
 	padding: 1em 2em;
 }
 

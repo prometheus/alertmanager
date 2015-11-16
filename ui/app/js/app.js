@@ -215,14 +215,21 @@ angular.module('am.controllers').controller('SilenceCtrl',
   function($scope, $location, Silence) {
 
     $scope.highlight = $location.search()['hl'] == $scope.sil.id;
-    $scope.showDetails = false;
 
+    $scope.showDetails = false;
+    $scope.showSilenceForm = false;
+
+    $scope.toggleSilenceForm = function() {
+      $scope.showSilenceForm = !$scope.showSilenceForm
+    }
     $scope.toggleDetails = function() {
       $scope.showDetails = !$scope.showDetails
     }
 
-    $scope.delete = function(sil) {
-      Silence.delete({id: sil.id},
+    var silCopy = angular.copy($scope.sil);
+
+    $scope.delete = function(id) {
+      Silence.delete({id: id},
         function(data) {
           $scope.$emit('silence-deleted');
         },
@@ -230,6 +237,10 @@ angular.module('am.controllers').controller('SilenceCtrl',
           $scope.error = data.data;
         });
     };
+
+    $scope.$on('silence-created', function(evt) {
+      $scope.delete(silCopy.id);
+    });
   }
 );
 
