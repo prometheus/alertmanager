@@ -1,7 +1,7 @@
 <div class="alert-item" ng-controller="AlertCtrl">
 	<div class="overview group">
-		<div class="expand" ng-show="showDetails" ng-click="toggleDetails()">–</div>
-		<div class="expand" ng-hide="showDetails" ng-click="toggleDetails()">+</div>
+		<button class="expand" ng-show="showDetails" ng-click="toggleDetails()" type="primary" small>–</button>
+		<button class="expand" ng-hide="showDetails" ng-click="toggleDetails()" type="primary" small>+</button>
 
 		<div class="labels left">
 			<span ng-repeat="(name, value) in alert.labels | orderBy:name">
@@ -16,7 +16,7 @@
 			<div ng-show="alert.silenced" class="left lbl muted-lbl"><a ng-href="/#/silences?hl={{ alert.silenced }}">silenced</a></div>
 				
 			<button type="black" disabled small>Since {{ alert.startsAt | amCalendar }}</button>
-			<button class="silence-button" type="secondary" ng-click="toggleSilenceForm()" small upper>Silence</button>
+			<button class="silence-button" type="black" ng-click="toggleSilenceForm()" small upper>Silence</button>
 		</div>
 	</div>
 

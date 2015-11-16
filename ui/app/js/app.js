@@ -289,7 +289,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
     $scope.silence = $scope.silence || {};
 
     if (!$scope.silence.matchers) {
-      $scope.silence.matchers = [{}, {}];
+      $scope.silence.matchers = [{}];
     }
 
     var origSilence = angular.copy($scope.silence);

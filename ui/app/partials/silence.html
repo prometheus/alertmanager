@@ -1,7 +1,7 @@
 <div class="silence-item {{ highlight ? 'highlight' : ''}}" ng-controller="SilenceCtrl">
 	<div class="overview group">
-		<div class="expand" ng-show="showDetails" ng-click="toggleDetails()">–</div>
-		<div class="expand" ng-hide="showDetails" ng-click="toggleDetails()">+</div>
+		<button type="primary" class="expand" ng-show="showDetails" ng-click="toggleDetails()" small>–</button>
+		<button type="primary" class="expand" ng-hide="showDetails" ng-click="toggleDetails()" small>+</button>
 
 		<div class="labels left">
 			<span ng-repeat="m in sil.matchers | orderBy:name">
@@ -13,7 +13,7 @@
 
 		<div class="right">
 			<button type="black" disabled small>Until {{ sil.endsAt | amCalendar }}</button>
-			<button class="delete-button" type="secondary" ng-click="delete(sil)" small upper>Delete</button>
+			<button class="delete-button" type="black" ng-click="delete(sil)" small upper>Delete</button>
 		</div>
 	</div>
 
