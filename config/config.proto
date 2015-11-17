@@ -76,6 +76,10 @@ message SlackConfig {
   optional string color_resolved = 4 [default = "good"];
   // Notify when resolved.
   optional bool send_resolved = 5 [default = false];
+  // IconEmoji when triggered, (like :fire:).
+  optional string icon_emoji = 6;
+  // IconEmoji when resolved, (like :+1:).
+  optional string icon_emoji_resolved = 7;
 }
 
 // Configuration for notification via Flowdock.

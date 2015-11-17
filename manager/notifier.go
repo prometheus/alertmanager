@@ -290,6 +290,7 @@ type slackAttachment struct {
 	TitleLink string                 `json:"title_link,omitempty"`
 	Text      string                 `json:"text"`
 	Color     string                 `json:"color,omitempty"`
+	IconEmoji string                 `json:"icon_emoji,omitempty"`
 	MrkdwnIn  []string               `json:"mrkdwn_in,omitempty"`
 	Fields    []slackAttachmentField `json:"fields,omitempty"`
 }
@@ -305,13 +306,16 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 	// https://api.slack.com/incoming-webhooks
 	incidentKey := a.Fingerprint()
 	color := ""
+	iconEmoji := ""
 	status := ""
 	switch op {
 	case notificationOpTrigger:
 		color = config.GetColor()
+		iconEmoji = config.GetIconEmoji()
 		status = "firing"
 	case notificationOpResolve:
 		color = config.GetColorResolved()
+		iconEmoji = config.GetIconEmojiResolved()
 		status = "resolved"
 	}
 
@@ -328,6 +332,7 @@ func (n *notifier) sendSlackNotification(op notificationOp, config *pb.SlackConf
 		TitleLink: a.Payload["generatorURL"],
 		Text:      html.EscapeString(a.Description),
 		Color:     color,
+		IconEmoji: iconEmoji,
 		MrkdwnIn:  []string{"fallback", "pretext"},
 		Fields: []slackAttachmentField{
 			*statusField,
