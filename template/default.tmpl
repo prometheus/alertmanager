@@ -1,33 +1,21 @@
+{{ define "__subject" }}{{$dot := .}}[{{ .Status }}] {{ range $k := .GroupLabelnames }}{{ index $dot.GroupLabels $k }} {{ end }}{{if gt (len .AlertCommonLabels) (len .GroupLabels) }}({{ range $k := .AlertCommonLabelnames }}{{ if eq "" (index $dot.GroupLabels $k) }}{{ index $dot.AlertCommonLabels $k }}{{ end }}){{ end }}{{ end }}{{ end }}
+
 {{ define "slack.default.fallback" }}
-fallback
+{{ template "__subject" . }}
 {{ end }}
 
-{{ define "slack.default.pretext" }}
-pre text
-{{ end }}
+{{ define "slack.default.pretext" }}{{ end }}
 
-{{ define "slack.default.title" }}
-Title
-{{ end }}
+{{ define "slack.default.title" }}{{ end }}
 
-{{ define "slack.default.titlelink" }}
-http://localhost:9090
-{{ end }}
+{{ define "slack.default.titlelink" }}http://localhost:9090{{ end }}
 
-{{ define "slack.default.text" }}
-my text
-my text
-my text
-{{ end }}
+{{ define "slack.default.text" }}{{ template "__subject" . }}{{ end }}
 
-{{ define "pagerduty.default.description" }}{{ .GroupLabels }} [{{ len .Alerts }} instance{{ if gt (len .Alerts) 1 }}s{{ end }}]{{ end }}
 
-{{ define "email.default.header" }}From: "Prometheus Alertmanager" <{{ .From }}>
-To: {{ .To }}
-Date: {{ .Date }}
-Subject: [{{ .Alerts.Status }}] {{ .GroupLabels }}
-Content-Type: text/html; charset=UTF-8
-{{ end }}
+{{ define "pagerduty.default.description" }}{{ template "__subject" . }}{{ end }}
+
+{{ define "email.default.subject" }}{{ template "__subject" . }}{{ end }}
 
 {{ define "email.default.html" }}
 {{/*
