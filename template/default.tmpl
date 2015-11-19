@@ -1,4 +1,4 @@
-{{ define "__subject" }}{{$dot := .}}[{{ .Status }}] {{ range $k := .GroupLabelnames }}{{ index $dot.GroupLabels $k }} {{ end }}{{if gt (len .AlertCommonLabels) (len .GroupLabels) }}({{ range $k := .AlertCommonLabelnames }}{{ if eq "" (index $dot.GroupLabels $k) }}{{ index $dot.AlertCommonLabels $k }}{{ end }}){{ end }}{{ end }}{{ end }}
+{{ define "__subject" }}{{$dot := .}}[{{ .Status }}:{{ .Alerts | len }}] {{ range $k := .GroupLabelnames }}{{ index $dot.GroupLabels $k }} {{ end }}{{if gt (len .AlertCommonLabels) (len .GroupLabels) }}({{ range $k := .AlertCommonLabelnames }}{{ if eq "" (index $dot.GroupLabels $k) }}{{ index $dot.AlertCommonLabels $k }}{{ end }}{{ end }}){{ end }}{{ end }}
 
 {{ define "slack.default.fallback" }}
 {{ template "__subject" . }}
