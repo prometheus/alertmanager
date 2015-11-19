@@ -29,6 +29,7 @@ type Dispatcher struct {
 	marker types.Marker
 
 	aggrGroups map[*Route]map[model.Fingerprint]*aggrGroup
+	mtx        sync.RWMutex
 
 	done   chan struct{}
 	ctx    context.Context
@@ -52,7 +53,10 @@ func NewDispatcher(ap provider.Alerts, r *Route, n notify.Notifier, mk types.Mar
 // Run starts dispatching alerts incoming via the updates channel.
 func (d *Dispatcher) Run() {
 	d.done = make(chan struct{})
+
+	d.mtx.Lock()
 	d.aggrGroups = map[*Route]map[model.Fingerprint]*aggrGroup{}
+	d.mtx.Unlock()
 
 	d.ctx, d.cancel = context.WithCancel(context.Background())
 
@@ -93,27 +97,25 @@ func (ao AlertOverview) Len() int           { return len(ao) }
 func (d *Dispatcher) Groups() AlertOverview {
 	var overview AlertOverview
 
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
 	seen := map[model.Fingerprint]*AlertGroup{}
 
 	for route, ags := range d.aggrGroups {
 		for _, ag := range ags {
-			var alerts []*types.Alert
-			for _, a := range ag.alerts {
-				alerts = append(alerts, a)
-			}
-
-			alertGroup, ok := seen[ag.labels.Fingerprint()]
+			alertGroup, ok := seen[ag.fingerprint()]
 			if !ok {
 				alertGroup = &AlertGroup{Labels: ag.labels}
 
-				seen[ag.labels.Fingerprint()] = alertGroup
+				seen[ag.fingerprint()] = alertGroup
 				overview = append(overview, alertGroup)
 			}
 
 			now := time.Now()
 
 			var apiAlerts []*APIAlert
-			for _, a := range types.Alerts(alerts...) {
+			for _, a := range types.Alerts(ag.alertSlice()...) {
 				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 					continue
 				}
@@ -164,6 +166,8 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			}
 
 		case <-cleanup.C:
+			d.mtx.RLock()
+
 			for _, groups := range d.aggrGroups {
 				for _, ag := range groups {
 					if ag.empty() {
@@ -172,6 +176,8 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 					}
 				}
 			}
+
+			d.mtx.RUnlock()
 
 		case <-d.ctx.Done():
 			return
@@ -208,11 +214,13 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 
 	fp := group.Fingerprint()
 
+	d.mtx.Lock()
 	groups, ok := d.aggrGroups[route]
 	if !ok {
 		groups = map[model.Fingerprint]*aggrGroup{}
 		d.aggrGroups[route] = groups
 	}
+	d.mtx.Unlock()
 
 	// If the group does not exist, create it.
 	ag, ok := groups[fp]
@@ -273,6 +281,17 @@ func (ag *aggrGroup) String() string {
 	return fmt.Sprintf("%v", ag.fingerprint())
 }
 
+func (ag *aggrGroup) alertSlice() []*types.Alert {
+	ag.mtx.RLock()
+	defer ag.mtx.RUnlock()
+
+	var alerts []*types.Alert
+	for _, a := range ag.alerts {
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
 func (ag *aggrGroup) run(nf notifyFunc) {
 	ag.done = make(chan struct{})
 
@@ -306,7 +325,9 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithSendResolved(ctx, ag.opts.SendResolved)
 
 			// Wait the configured interval before calling flush again.
+			ag.mtx.Lock()
 			ag.next.Reset(ag.opts.GroupInterval)
+			ag.mtx.Unlock()
 
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
