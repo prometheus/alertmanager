@@ -329,7 +329,7 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&s); err != nil {
 		return err
 	}
-	regex, err := regexp.Compile(s)
+	regex, err := regexp.Compile("^(?:" + s + ")$")
 	if err != nil {
 		return err
 	}
