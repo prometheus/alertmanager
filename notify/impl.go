@@ -120,11 +120,19 @@ func generateTemplateData(ctx context.Context, as ...*types.Alert) *TemplateData
 		data.Alerts = append(data.Alerts, alert)
 	}
 
+	sortStart := 0
 	for k, v := range groupLabels {
 		data.GroupLabels[string(k)] = string(v)
-		data.GroupLabelnames = append(data.GroupLabelnames, string(k))
+
+		// Always have the alertname label at the first position.
+		if k == model.AlertNameLabel {
+			data.GroupLabelnames = append([]string{string(k)}, data.GroupLabelnames...)
+			sortStart = 1
+		} else {
+			data.GroupLabelnames = append(data.GroupLabelnames, string(k))
+		}
 	}
-	sort.Strings(data.GroupLabelnames)
+	sort.Strings(data.GroupLabelnames[sortStart:])
 
 	if len(alerts) >= 1 {
 		common := alerts[0].Labels.Clone()
