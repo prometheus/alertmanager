@@ -16,6 +16,7 @@ package types
 import (
 	"fmt"
 	"hash/fnv"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,8 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+// Marker helps to mark alerts as silenced and/or inhibited.
+// All methods are goroutine-safe.
 type Marker interface {
 	SetInhibited(alert model.Fingerprint, b bool)
 	SetSilenced(alert model.Fingerprint, sil ...uint64)
@@ -31,6 +34,7 @@ type Marker interface {
 	Inhibited(alert model.Fingerprint) bool
 }
 
+// NewMarker returns an instance of a Marker implementation.
 func NewMarker() Marker {
 	return &memMarker{
 		inhibited: map[model.Fingerprint]struct{}{},
@@ -83,11 +87,44 @@ func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...uint64) {
 	}
 }
 
-type MultiError []error
+// MultiError contains multiple errors and implements the error interface. Its
+// zero value is ready to use. All its methods are goroutine safe.
+type MultiError struct {
+	mtx    sync.Mutex
+	errors []error
+}
 
-func (e MultiError) Error() string {
-	var es []string
-	for _, err := range e {
+// Add adds an error to the MultiError.
+func (e *MultiError) Add(err error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	e.errors = append(e.errors, err)
+}
+
+// Len returns the number of errors added to the MultiError.
+func (e *MultiError) Len() int {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	return len(e.errors)
+}
+
+// Errors returns the errors added to the MuliError. The returned slice is a
+// copy of the internal slice of errors.
+func (e *MultiError) Errors() []error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	return append(make([]error, 0, len(e.errors)), e.errors...)
+}
+
+func (e *MultiError) Error() string {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	es := make([]string, 0, len(e.errors))
+	for _, err := range e.errors {
 		es = append(es, err.Error())
 	}
 	return strings.Join(es, "; ")
@@ -105,6 +142,7 @@ type Alert struct {
 	Timeout   bool      `json:"-"`
 }
 
+// AlertSlice is a sortable slice of Alerts.
 type AlertSlice []*Alert
 
 func (as AlertSlice) Less(i, j int) bool { return as[i].UpdatedAt.Before(as[j].UpdatedAt) }
@@ -114,7 +152,7 @@ func (as AlertSlice) Len() int           { return len(as) }
 // Alerts turns a sequence of internal alerts into a list of
 // exposable model.Alert structures.
 func Alerts(alerts ...*Alert) model.Alerts {
-	var res model.Alerts
+	res := make(model.Alerts, 0, len(alerts))
 	for _, a := range alerts {
 		v := a.Alert
 		// If the end timestamp was set as the expected value in case
@@ -127,9 +165,9 @@ func Alerts(alerts ...*Alert) model.Alerts {
 	return res
 }
 
-// Merges the timespan of two alerts based and overwrites annotations
-// based on the authoritative timestamp.
-// A new alert is returned, the labels are assumed to be equal.
+// Merge merges the timespan of two alerts based and overwrites annotations
+// based on the authoritative timestamp.  A new alert is returned, the labels
+// are assumed to be equal.
 func (a *Alert) Merge(o *Alert) *Alert {
 	// Let o always be the younger alert.
 	if o.UpdatedAt.Before(a.UpdatedAt) {
@@ -152,13 +190,15 @@ func (a *Alert) Merge(o *Alert) *Alert {
 	return &res
 }
 
-// A Silencer determines whether a given label set is muted.
+// A Muter determines whether a given label set is muted.
 type Muter interface {
 	Mutes(model.LabelSet) bool
 }
 
+// A MuteFunc is a function that implements the Muter interface.
 type MuteFunc func(model.LabelSet) bool
 
+// Mutes implements the Muter interface.
 func (f MuteFunc) Mutes(lset model.LabelSet) bool { return f(lset) }
 
 // A Silence determines whether a given label set is muted
@@ -186,16 +226,13 @@ func NewSilence(s *model.Silence) *Silence {
 			sil.Matchers = append(sil.Matchers, NewMatcher(m.Name, m.Value))
 			continue
 		}
-		rem, err := NewRegexMatcher(m.Name, m.Value)
-		if err != nil {
-			// Must have been sanitized beforehand.
-			panic(err)
-		}
+		rem := NewRegexMatcher(m.Name, regexp.MustCompile("^(?:"+m.Value+")$"))
 		sil.Matchers = append(sil.Matchers, rem)
 	}
 	return sil
 }
 
+// Mutes implements the Muter interface.
 func (sil *Silence) Mutes(lset model.LabelSet) bool {
 	t := sil.timeFunc()
 
@@ -221,6 +258,7 @@ func (n *NotifyInfo) String() string {
 	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v>", n.Alert, n.Timestamp, n.Receiver, n.Resolved)
 }
 
+// Fingerprint returns a quasi-unique fingerprint for the NotifyInfo.
 func (n *NotifyInfo) Fingerprint() model.Fingerprint {
 	h := fnv.New64a()
 	h.Write([]byte(n.Receiver))

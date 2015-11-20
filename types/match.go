@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/prometheus/common/model"
 )
@@ -32,11 +33,12 @@ type Matcher struct {
 
 func (m *Matcher) String() string {
 	if m.isRegex {
-		return fmt.Sprintf("<RegexMatcher %s:%q>", m.Name, m.regex)
+		return fmt.Sprintf("<RegexMatcher %s:%q>", m.Name, m.Value)
 	}
 	return fmt.Sprintf("<Matcher %s:%q>", m.Name, m.Value)
 }
 
+// MarshalJSON implements json.Marshaler.
 func (m *Matcher) MarshalJSON() ([]byte, error) {
 	v := struct {
 		Name    model.LabelName `json:"name"`
@@ -80,20 +82,21 @@ func NewMatcher(name model.LabelName, value string) *Matcher {
 
 // NewRegexMatcher returns a new matcher that treats value as a regular
 // expression which is used for matching.
-func NewRegexMatcher(name model.LabelName, value string) (*Matcher, error) {
-	re, err := regexp.Compile(value)
-	if err != nil {
-		return nil, err
+func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
+	value := strings.TrimSuffix(strings.TrimPrefix(re.String(), "^(?:"), ")$")
+	if len(re.String())-len(value) != 6 {
+		// Any non-anchored regexp is a bug.
+		panic(fmt.Errorf("regexp %q not properly anchored", re))
 	}
-	m := &Matcher{
+	return &Matcher{
 		Name:    name,
 		Value:   value,
 		isRegex: true,
 		regex:   re,
 	}
-	return m, nil
 }
 
+// Matchers provides the Match and Fingerprint methods for a slice of Matchers.
 type Matchers []*Matcher
 
 // Match checks whether all matchers are fulfilled against the given label set.
@@ -106,6 +109,7 @@ func (ms Matchers) Match(lset model.LabelSet) bool {
 	return true
 }
 
+// Fingerprint returns a quasi-unique fingerprint for the matchers.
 func (ms Matchers) Fingerprint() model.Fingerprint {
 	lset := make(model.LabelSet, 3*len(ms))
 

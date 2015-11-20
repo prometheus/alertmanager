@@ -263,7 +263,8 @@ func (am *Alertmanager) Start() {
 	time.Sleep(50 * time.Millisecond)
 }
 
-// kill the underlying Alertmanager process and remove intermediate data.
+// Terminate kills the underlying Alertmanager process and remove intermediate
+// data.
 func (am *Alertmanager) Terminate() {
 	syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM)
 }

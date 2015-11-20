@@ -84,28 +84,28 @@ func (s *TestSilence) MatchRE(v ...string) *TestSilence {
 
 // nativeSilence converts the declared test silence into a regular
 // silence with resolved times.
-func (sil *TestSilence) nativeSilence(opts *AcceptanceOpts) *model.Silence {
+func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *model.Silence {
 	nsil := &model.Silence{}
 
-	for i := 0; i < len(sil.match); i += 2 {
+	for i := 0; i < len(s.match); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &model.Matcher{
-			Name:  model.LabelName(sil.match[i]),
-			Value: sil.match[i+1],
+			Name:  model.LabelName(s.match[i]),
+			Value: s.match[i+1],
 		})
 	}
-	for i := 0; i < len(sil.matchRE); i += 2 {
+	for i := 0; i < len(s.matchRE); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &model.Matcher{
-			Name:    model.LabelName(sil.matchRE[i]),
-			Value:   sil.matchRE[i+1],
+			Name:    model.LabelName(s.matchRE[i]),
+			Value:   s.matchRE[i+1],
 			IsRegex: true,
 		})
 	}
 
-	if sil.startsAt > 0 {
-		nsil.StartsAt = opts.expandTime(sil.startsAt)
+	if s.startsAt > 0 {
+		nsil.StartsAt = opts.expandTime(s.startsAt)
 	}
-	if sil.endsAt > 0 {
-		nsil.EndsAt = opts.expandTime(sil.endsAt)
+	if s.endsAt > 0 {
+		nsil.EndsAt = opts.expandTime(s.endsAt)
 	}
 	return nsil
 }
@@ -117,7 +117,7 @@ type TestAlert struct {
 	startsAt, endsAt float64
 }
 
-// alert creates a new alert declaration with the given key/value pairs
+// Alert creates a new alert declaration with the given key/value pairs
 // as identifying labels.
 func Alert(keyval ...interface{}) *TestAlert {
 	if len(keyval)%2 == 1 {

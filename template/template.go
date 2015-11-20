@@ -16,19 +16,22 @@ package template
 import (
 	"bytes"
 
-	html_tmpl "html/template"
-	text_tmpl "text/template"
+	tmplhtml "html/template"
+	tmpltext "text/template"
 )
 
+// Template bundles a text and a html template instance.
 type Template struct {
-	text *text_tmpl.Template
-	html *html_tmpl.Template
+	text *tmpltext.Template
+	html *tmplhtml.Template
 }
 
+// FromGlobs calls ParseGlob on all path globs provided and returns the
+// resulting Template.
 func FromGlobs(paths ...string) (*Template, error) {
 	t := &Template{
-		text: text_tmpl.New("").Option("missingkey=zero"),
-		html: html_tmpl.New("").Option("missingkey=zero"),
+		text: tmpltext.New("").Option("missingkey=zero"),
+		html: tmplhtml.New("").Option("missingkey=zero"),
 	}
 	var err error
 
@@ -44,6 +47,7 @@ func FromGlobs(paths ...string) (*Template, error) {
 	return t, nil
 }
 
+// ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
 func (t *Template) ExecuteTextString(text string, data interface{}) (string, error) {
 	tmpl, err := t.text.Clone()
 	if err != nil {
@@ -58,6 +62,7 @@ func (t *Template) ExecuteTextString(text string, data interface{}) (string, err
 	return buf.String(), err
 }
 
+// ExecuteHTMLString needs a meaningful doc comment (TODO(fabxc)).
 func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, error) {
 	tmpl, err := t.html.Clone()
 	if err != nil {

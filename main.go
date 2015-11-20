@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	template_text "text/template"
+	tmpltext "text/template"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
@@ -40,10 +40,10 @@ import (
 var (
 	showVersion = flag.Bool("version", false, "Print version information.")
 
-	configFile = flag.String("config.file", "alertmanager.yml", "The configuration file")
-	dataDir    = flag.String("storage.path", "data/", "The data directory")
+	configFile = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
+	dataDir    = flag.String("storage.path", "data/", "Base path for data storage.")
 
-	externalURL   = flag.String("web.external-url", "", "The URL under which Prometheus is externally reachable (for example, if Prometheus is served via a reverse proxy). Used for generating relative and absolute links back to Prometheus itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Prometheus. If omitted, relevant URL components will be derived automatically.")
+	externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 )
 
@@ -71,7 +71,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	notifies, err := provider.NewSQLNotifyInfo(db)
+	notifies, err := provider.NewSQLNotifies(db)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func main() {
 			}
 			router[name] = fo
 		}
-		var n notify.Notifier = router
+		n := notify.Notifier(router)
 
 		n = notify.Log(n, log.With("step", "route"))
 		n = notify.Mute(silences, n)
@@ -185,7 +185,7 @@ alertmanager, version {{.version}} (branch: {{.branch}}, revision: {{.revision}}
 `
 
 func printVersion() {
-	t := template_text.Must(template_text.New("version").Parse(versionInfoTmpl))
+	t := tmpltext.Must(tmpltext.New("version").Parse(versionInfoTmpl))
 
 	var buf bytes.Buffer
 	if err := t.ExecuteTemplate(&buf, "version", version.Map); err != nil {
