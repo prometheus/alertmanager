@@ -216,7 +216,9 @@ func (a *SQLAlerts) Subscribe() AlertIterator {
 	i := a.next
 	a.next++
 
+	a.mtx.Lock()
 	a.listeners[i] = ch
+	a.mtx.Unlock()
 
 	go func() {
 		defer func() {
