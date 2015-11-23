@@ -54,8 +54,8 @@ This is an example configuration that should cover most relevant aspects of the 
 ```yaml
 global:
   # The smarthost and SMTP sender used for mail notifications.
-  smarthost: 'localhost:25'
-  smtp_sender: 'alertmanager@example.org'
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@example.org'
 
 # The directory from which notification templates are read.
 templates: 
@@ -155,17 +155,17 @@ inhibit_rules:
 receivers:
 - name: 'team-X-mails'
   email_configs:
-  - email: 'team-X+alerts@example.org'
+  - to: 'team-X+alerts@example.org'
 
 - name: 'team-X-pager'
   email_configs:
-  - email: 'team-X+alerts-critical@example.org'
+  - to: 'team-X+alerts-critical@example.org'
   pagerduty_configs:
   - service_key: <team-X-key>
 
 - name: 'team-Y-mails'
   email_configs:
-  - email: 'team-Y+alerts@example.org'
+  - to: 'team-Y+alerts@example.org'
 
 - name: 'team-Y-pager'
   pagerduty_configs:

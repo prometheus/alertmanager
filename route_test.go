@@ -50,7 +50,7 @@ routes:
     continue: true
 
   - match_re:
-      env: "^produ.*$"
+      env: "produ.*"
 
     receiver: 'notify-productionB'
     group_wait: 30s
@@ -60,7 +60,7 @@ routes:
 
 
 - match_re:
-    owner: '^team-(B|C)$'
+    owner: 'team-(B|C)'
 
   group_by: ['foo', 'bar']
   group_wait: 2m

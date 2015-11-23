@@ -14,6 +14,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -31,6 +32,13 @@ func Load(s string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Check if we have a root route. We cannot check for it in the
+	// UnmarshalYAML method because it won't be called if the input is empty
+	// (e.g. the config file is empty or only contains whitespace).
+	if cfg.Route == nil {
+		return nil, errors.New("no route provided in config")
+	}
+
 	cfg.original = s
 	return cfg, nil
 }
@@ -134,7 +142,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if ec.From == "" {
 				if c.Global.SMTPFrom == "" {
-					return fmt.Errorf("no global SMTP sender set")
+					return fmt.Errorf("no global SMTP from set")
 				}
 				ec.From = c.Global.SMTPFrom
 			}
@@ -294,12 +302,12 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name"`
 
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs"`
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs"`
 	FlowdockConfigs  []*FlowdockConfig  `yaml:"flowdock_configs"`
+	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs"`
+	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs"`
+	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs"`
+	SlackConfigs     []*SlackConfig     `yaml:"slack_configs"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs"`
 
 	// Catches all undefined fields and must be empty after parsing.

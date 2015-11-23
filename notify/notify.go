@@ -145,7 +145,7 @@ func (ns Fanout) Notify(ctx context.Context, alerts ...*types.Alert) error {
 
 		go func(n Notifier) {
 			if err := n.Notify(foCtx, alerts...); err != nil {
-				me = append(me, err)
+				me.Add(err)
 				log.Errorf("Error on notify: %s", err)
 			}
 			wg.Done()
@@ -154,8 +154,8 @@ func (ns Fanout) Notify(ctx context.Context, alerts ...*types.Alert) error {
 
 	wg.Wait()
 
-	if len(me) > 0 {
-		return me
+	if me.Len() > 0 {
+		return &me
 	}
 	return nil
 }
@@ -340,6 +340,7 @@ func Mute(m types.Muter, n Notifier) *MutingNotifier {
 	return &MutingNotifier{Muter: m, notifier: n}
 }
 
+// Notify implements Notifier.
 func (n *MutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	var filtered []*types.Alert
 	for _, a := range alerts {

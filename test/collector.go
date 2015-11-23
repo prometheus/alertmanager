@@ -68,7 +68,7 @@ func (c *Collector) latest() float64 {
 	return latest
 }
 
-// want declares that the Collector expects to receive the given alerts
+// Want declares that the Collector expects to receive the given alerts
 // within the given time boundaries.
 func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
 	var nas model.Alerts

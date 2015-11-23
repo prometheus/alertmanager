@@ -14,7 +14,6 @@
 package provider
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/prometheus/common/model"
@@ -22,35 +21,20 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	ErrNotFound = fmt.Errorf("item not found")
-)
-
+// MemData contains the data backing MemAlerts and MemNotifies.
 type MemData struct {
 	mtx      sync.RWMutex
 	alerts   map[model.Fingerprint]*types.Alert
 	notifies map[string]map[model.Fingerprint]*types.NotifyInfo
 }
 
+// NewMemData contains an empty but initialized MemData instance.
 func NewMemData() *MemData {
 	return &MemData{
 		alerts:   map[model.Fingerprint]*types.Alert{},
 		notifies: map[string]map[model.Fingerprint]*types.NotifyInfo{},
 	}
 }
-
-type memAlertIterator struct {
-	ch   <-chan *types.Alert
-	done chan struct{}
-	err  error
-}
-
-func (ai memAlertIterator) Next() <-chan *types.Alert {
-	return ai.ch
-}
-
-func (ai memAlertIterator) Err() error { return ai.err }
-func (ai memAlertIterator) Close()     { close(ai.done) }
 
 // MemAlerts implements an Alerts provider based on in-memory data.
 type MemAlerts struct {
@@ -61,6 +45,7 @@ type MemAlerts struct {
 	next      int
 }
 
+// NewMemAlerts returns a new MemAlerts based on the provided data.
 func NewMemAlerts(data *MemData) *MemAlerts {
 	return &MemAlerts{
 		data:      data,
@@ -68,6 +53,7 @@ func NewMemAlerts(data *MemData) *MemAlerts {
 	}
 }
 
+// Subscribe implements the Alerts interface.
 func (a *MemAlerts) Subscribe() AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
@@ -104,12 +90,13 @@ func (a *MemAlerts) Subscribe() AlertIterator {
 		<-done
 	}()
 
-	return memAlertIterator{
+	return alertIterator{
 		ch:   ch,
 		done: done,
 	}
 }
 
+// GetPending implements the Alerts interface.
 func (a *MemAlerts) GetPending() AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
@@ -134,7 +121,7 @@ func (a *MemAlerts) GetPending() AlertIterator {
 		}
 	}()
 
-	return memAlertIterator{
+	return alertIterator{
 		ch:   ch,
 		done: done,
 	}
@@ -163,6 +150,7 @@ func (a *MemAlerts) getPending() []*types.Alert {
 	return alerts
 }
 
+// Put implements the Alerts interface.
 func (a *MemAlerts) Put(alerts ...*types.Alert) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
@@ -187,6 +175,7 @@ func (a *MemAlerts) Put(alerts ...*types.Alert) error {
 	return nil
 }
 
+// Get implements the Alerts interface.
 func (a *MemAlerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	a.data.mtx.RLock()
 	defer a.data.mtx.RUnlock()
@@ -197,14 +186,17 @@ func (a *MemAlerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	return nil, ErrNotFound
 }
 
+// MemNotifies implements a Notifies provider based on in-memory data.
 type MemNotifies struct {
 	data *MemData
 }
 
+// NewMemNotifies returns a new MemNotifies based on the provided data.
 func NewMemNotifies(data *MemData) *MemNotifies {
 	return &MemNotifies{data: data}
 }
 
+// Set implements the Notifies interface.
 func (n *MemNotifies) Set(ns ...*types.NotifyInfo) error {
 	n.data.mtx.Lock()
 	defer n.data.mtx.Unlock()
@@ -223,6 +215,7 @@ func (n *MemNotifies) Set(ns ...*types.NotifyInfo) error {
 	return nil
 }
 
+// Get implements the Notifies interface.
 func (n *MemNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
 	n.data.mtx.RLock()
 	defer n.data.mtx.RUnlock()
@@ -241,17 +234,20 @@ func (n *MemNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.Notif
 	return res, nil
 }
 
+// MemSilences implements a Silences provider based on in-memory data.
 type MemSilences struct {
 	mtx      sync.RWMutex
 	silences map[uint64]*model.Silence
 }
 
+// NewMemSilences returns a new MemSilences.
 func NewMemSilences() *MemSilences {
 	return &MemSilences{
 		silences: map[uint64]*model.Silence{},
 	}
 }
 
+// Mutes implements the Muter interface.
 func (s *MemSilences) Mutes(lset model.LabelSet) bool {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -264,6 +260,7 @@ func (s *MemSilences) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
+// All implements the Silences interface.
 func (s *MemSilences) All() ([]*types.Silence, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -275,6 +272,7 @@ func (s *MemSilences) All() ([]*types.Silence, error) {
 	return sils, nil
 }
 
+// Set impelements the Silences interface.
 func (s *MemSilences) Set(sil *types.Silence) (uint64, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -291,6 +289,7 @@ func (s *MemSilences) Set(sil *types.Silence) (uint64, error) {
 	return sil.ID, nil
 }
 
+// Del implements the Silences interface.
 func (s *MemSilences) Del(id uint64) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -299,6 +298,7 @@ func (s *MemSilences) Del(id uint64) error {
 	return nil
 }
 
+// Get implements the Silences interface.
 func (s *MemSilences) Get(id uint64) (*types.Silence, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()

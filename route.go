@@ -91,12 +91,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		matchers = append(matchers, types.NewMatcher(model.LabelName(ln), lv))
 	}
 	for ln, lv := range cr.MatchRE {
-		m, err := types.NewRegexMatcher(model.LabelName(ln), lv.String())
-		if err != nil {
-			// Must have been sanitized during config validation.
-			panic(err)
-		}
-		matchers = append(matchers, m)
+		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
 
 	route := &Route{

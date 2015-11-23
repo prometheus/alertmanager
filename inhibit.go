@@ -69,6 +69,9 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 			}
 		}
 	}
+	if err := alerts.Err(); err != nil {
+		log.Errorf("Error after iterating alerts: %s", err)
+	}
 
 	ih.marker.SetInhibited(lset.Fingerprint(), false)
 
@@ -103,24 +106,14 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		sourcem = append(sourcem, types.NewMatcher(model.LabelName(ln), lv))
 	}
 	for ln, lv := range cr.SourceMatchRE {
-		m, err := types.NewRegexMatcher(model.LabelName(ln), lv.String())
-		if err != nil {
-			// Must have been sanitized during config validation.
-			panic(err)
-		}
-		sourcem = append(sourcem, m)
+		sourcem = append(sourcem, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
 
 	for ln, lv := range cr.TargetMatch {
 		targetm = append(targetm, types.NewMatcher(model.LabelName(ln), lv))
 	}
 	for ln, lv := range cr.TargetMatchRE {
-		m, err := types.NewRegexMatcher(model.LabelName(ln), lv.String())
-		if err != nil {
-			// Must have been sanitized during config validation.
-			panic(err)
-		}
-		targetm = append(targetm, m)
+		targetm = append(targetm, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
 
 	equal := map[model.LabelName]struct{}{}

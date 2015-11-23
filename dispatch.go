@@ -17,6 +17,7 @@ import (
 
 // ResolveTimeout is the time after which an alert is declared resolved
 // if it has not been updated.
+// TODO(fabxc): Make it configurable.
 const ResolveTimeout = 5 * time.Minute
 
 // Dispatcher sorts incoming alerts into aggregation groups and
@@ -152,7 +153,15 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 	for {
 		select {
-		case alert := <-it.Next():
+		case alert, ok := <-it.Next():
+			if !ok {
+				// Iterator exhausted for some reason.
+				if err := it.Err(); err != nil {
+					log.Errorf("Error on alert update: %s", err)
+				}
+				return
+			}
+
 			d.log.With("alert", alert).Debug("Received alert")
 
 			// Log errors but keep trying.
@@ -278,7 +287,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts) *
 }
 
 func (ag *aggrGroup) String() string {
-	return fmt.Sprintf("%v", ag.fingerprint())
+	return fmt.Sprint(ag.fingerprint())
 }
 
 func (ag *aggrGroup) alertSlice() []*types.Alert {
@@ -352,8 +361,8 @@ func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
 }
 
-// insert the alert into the aggregation group. If the aggregation group
-// is empty afterwards, true is returned.
+// insert inserts the alert into the aggregation group. If the aggregation group
+// is empty afterwards, it returns true.
 func (ag *aggrGroup) insert(alert *types.Alert) {
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()

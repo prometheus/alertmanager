@@ -19,10 +19,23 @@ import (
 )
 
 var (
+	// DefaultEmailConfig defines default values for Email configurations.
+	DefaultEmailConfig = EmailConfig{
+		HTML: `{{template "email.default.html" .}}`,
+	}
+	// DefaultEmailSubject is a template used if no email subject has been provided.
+	DefaultEmailSubject = `{{template "email.default.subject" .}}`
+
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
 	DefaultHipchatConfig = HipchatConfig{
 		Color:         `{{ if eq .Status "firing" }}purple{{ else }}green{{ end }}`,
 		MessageFormat: HipchatFormatHTML,
+	}
+
+	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
+	DefaultPagerdutyConfig = PagerdutyConfig{
+		Description: `{{template "pagerduty.default.description" .}}`,
+		// TODO: Add a details field with all the alerts.
 	}
 
 	// DefaultSlackConfig defines default values for Slack configurations.
@@ -34,42 +47,36 @@ var (
 		Text:      `{{template "slack.default.text" . }}`,
 		Fallback:  `{{template "slack.default.fallback" . }}`,
 	}
-
-	// DefaultEmailConfig defines default values for Email configurations.
-	DefaultEmailConfig = EmailConfig{
-		HTML: `{{template "email.default.html" .}}`,
-	}
-	DefaultEmailSubject = `{{template "email.default.subject" .}}`
-
-	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
-	DefaultPagerdutyConfig = PagerdutyConfig{
-		Description: `{{template "pagerduty.default.description" .}}`,
-		// TODO: Add a details field with all the alerts.
-	}
 )
 
-// PagerdutyConfig configures notifications via PagerDuty.
-type PagerdutyConfig struct {
-	ServiceKey  string            `yaml:"service_key"`
-	URL         string            `yaml:"url"`
-	Description string            `yaml:"description"`
-	Details     map[string]string `yaml:"details"`
+// FlowdockConfig configures notifications via Flowdock.
+type FlowdockConfig struct {
+	// Flowdock flow API token.
+	APIToken string `yaml:"api_token"`
+
+	// Flowdock from_address.
+	FromAddress string `yaml:"from_address"`
+
+	// Flowdock flow tags.
+	Tags []string `yaml:"tags"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultPagerdutyConfig
-	type plain PagerdutyConfig
+func (c *FlowdockConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain FlowdockConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.ServiceKey == "" {
-		return fmt.Errorf("missing service key in PagerDuty config")
+	if c.APIToken == "" {
+		return fmt.Errorf("missing API token in Flowdock config")
 	}
-	return checkOverflow(c.XXX, "pagerduty config")
+	if c.FromAddress == "" {
+		return fmt.Errorf("missing from address in Flowdock config")
+	}
+	return checkOverflow(c.XXX, "flowdock config")
 }
 
 // EmailConfig configures notifications via mail.
@@ -97,15 +104,15 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// Header names are case-insensitive, check for collisions.
-	normalisedHeaders := map[string]string{}
+	normalizedHeaders := map[string]string{}
 	for h, v := range c.Headers {
-		normalised := strings.ToTitle(h)
-		if _, ok := normalisedHeaders[normalised]; ok {
-			return fmt.Errorf("duplicate header %q in email config", normalised)
+		normalized := strings.ToTitle(h)
+		if _, ok := normalizedHeaders[normalized]; ok {
+			return fmt.Errorf("duplicate header %q in email config", normalized)
 		}
-		normalisedHeaders[normalised] = v
+		normalizedHeaders[normalized] = v
 	}
-	c.Headers = normalisedHeaders
+	c.Headers = normalizedHeaders
 	if _, ok := c.Headers["Subject"]; !ok {
 		c.Headers["Subject"] = DefaultEmailSubject
 	}
@@ -119,36 +126,10 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "email config")
 }
 
-// PushoverConfig configures notifications via PushOver.
-type PushoverConfig struct {
-	// Pushover token.
-	Token string `yaml:"token"`
-
-	// Pushover user_key.
-	UserKey string `yaml:"user_key"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain PushoverConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.Token == "" {
-		return fmt.Errorf("missing token in Pushover config")
-	}
-	if c.UserKey == "" {
-		return fmt.Errorf("missing user key in Pushover config")
-	}
-	return checkOverflow(c.XXX, "pushover config")
-}
-
 // HipchatFormat defines text formats for Hipchat.
 type HipchatFormat string
 
+// Possible values of HipchatFormat.
 const (
 	HipchatFormatHTML HipchatFormat = "html"
 	HipchatFormatText HipchatFormat = "text"
@@ -195,6 +176,57 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "hipchat config")
 }
 
+// PagerdutyConfig configures notifications via PagerDuty.
+type PagerdutyConfig struct {
+	ServiceKey  string            `yaml:"service_key"`
+	URL         string            `yaml:"url"`
+	Description string            `yaml:"description"`
+	Details     map[string]string `yaml:"details"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultPagerdutyConfig
+	type plain PagerdutyConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.ServiceKey == "" {
+		return fmt.Errorf("missing service key in PagerDuty config")
+	}
+	return checkOverflow(c.XXX, "pagerduty config")
+}
+
+// PushoverConfig configures notifications via PushOver.
+type PushoverConfig struct {
+	// Pushover token.
+	Token string `yaml:"token"`
+
+	// Pushover user_key.
+	UserKey string `yaml:"user_key"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain PushoverConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Token == "" {
+		return fmt.Errorf("missing token in Pushover config")
+	}
+	if c.UserKey == "" {
+		return fmt.Errorf("missing user key in Pushover config")
+	}
+	return checkOverflow(c.XXX, "pushover config")
+}
+
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
 	URL string `yaml:"url"`
@@ -226,36 +258,6 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing channel in Slack config")
 	}
 	return checkOverflow(c.XXX, "slack config")
-}
-
-// FlowdockConfig configures notifications via Flowdock.
-type FlowdockConfig struct {
-	// Flowdock flow API token.
-	APIToken string `yaml:"api_token"`
-
-	// Flowdock from_address.
-	FromAddress string `yaml:"from_address"`
-
-	// Flowdock flow tags.
-	Tags []string `yaml:"tags"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *FlowdockConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain FlowdockConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.APIToken == "" {
-		return fmt.Errorf("missing API token in Flowdock config")
-	}
-	if c.FromAddress == "" {
-		return fmt.Errorf("missing from address in Flowdock config")
-	}
-	return checkOverflow(c.XXX, "flowdock config")
 }
 
 // WebhookConfig configures notifications via a generic webhook.

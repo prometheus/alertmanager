@@ -30,11 +30,13 @@ func init() {
 	ql.RegisterDriver()
 }
 
-type SQLNotifyInfo struct {
+// SQLNotifies implements a Notifies provider based on a SQL DB.
+type SQLNotifies struct {
 	db *sql.DB
 }
 
-func NewSQLNotifyInfo(db *sql.DB) (*SQLNotifyInfo, error) {
+// NewSQLNotifies returns a new SQLNotifies based on the provided SQL DB.
+func NewSQLNotifies(db *sql.DB) (*SQLNotifies, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -69,7 +71,7 @@ func NewSQLNotifyInfo(db *sql.DB) (*SQLNotifyInfo, error) {
 
 	tx.Commit()
 
-	return &SQLNotifyInfo{db: db}, nil
+	return &SQLNotifies{db: db}, nil
 }
 
 const createNotifyInfoTable = `
@@ -85,7 +87,8 @@ CREATE INDEX IF NOT EXISTS notify_done
 	ON notify_info (resolved);
 `
 
-func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
+// Get implements the Notifies interface.
+func (n *SQLNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
 	var result []*types.NotifyInfo
 
 	for _, fp := range fps {
@@ -120,7 +123,8 @@ func (n *SQLNotifyInfo) Get(dest string, fps ...model.Fingerprint) ([]*types.Not
 	return result, nil
 }
 
-func (n *SQLNotifyInfo) Set(ns ...*types.NotifyInfo) error {
+// Set implements the Notifies interface.
+func (n *SQLNotifies) Set(ns ...*types.NotifyInfo) error {
 	tx, err := n.db.Begin()
 	if err != nil {
 		return err
@@ -167,6 +171,7 @@ func (n *SQLNotifyInfo) Set(ns ...*types.NotifyInfo) error {
 	return nil
 }
 
+// SQLAlerts implements an Alerts provider based on a SQL DB.
 type SQLAlerts struct {
 	db *sql.DB
 
@@ -175,6 +180,7 @@ type SQLAlerts struct {
 	next      int
 }
 
+// NewSQLAlerts returns a new SQLAlerts based on the provided SQL DB.
 func NewSQLAlerts(db *sql.DB) (*SQLAlerts, error) {
 	tx, err := db.Begin()
 	if err != nil {
@@ -206,6 +212,7 @@ CREATE INDEX IF NOT EXISTS alerts_start ON alerts (starts_at);
 CREATE INDEX IF NOT EXISTS alerts_end   ON alerts (ends_at);
 `
 
+// Subscribe implements the Alerts interface.
 func (a *SQLAlerts) Subscribe() AlertIterator {
 	var (
 		ch   = make(chan *types.Alert, 200)
@@ -239,13 +246,14 @@ func (a *SQLAlerts) Subscribe() AlertIterator {
 		<-done
 	}()
 
-	return memAlertIterator{
+	return alertIterator{
 		ch:   ch,
 		done: done,
 		err:  err,
 	}
 }
 
+// GetPending implements the Alerts interface.
 func (a *SQLAlerts) GetPending() AlertIterator {
 	var (
 		ch   = make(chan *types.Alert, 200)
@@ -266,7 +274,7 @@ func (a *SQLAlerts) GetPending() AlertIterator {
 		}
 	}()
 
-	return memAlertIterator{
+	return alertIterator{
 		ch:   ch,
 		done: done,
 		err:  err,
@@ -323,10 +331,12 @@ func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
 	return alerts, nil
 }
 
+// Get implements the Alerts interface.
 func (a *SQLAlerts) Get(model.Fingerprint) (*types.Alert, error) {
 	return nil, nil
 }
 
+// Put implements the Alerts interface.
 func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	tx, err := a.db.Begin()
 	if err != nil {
@@ -473,11 +483,13 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	return nil
 }
 
+// SQLSilences implements a Silences provider based on a SQL DB.
 type SQLSilences struct {
 	db     *sql.DB
 	marker types.Marker
 }
 
+// NewSQLSilences returns a new SQLSilences based on the provided SQL DB.
 func NewSQLSilences(db *sql.DB, mk types.Marker) (*SQLSilences, error) {
 	tx, err := db.Begin()
 	if err != nil {
@@ -506,6 +518,7 @@ CREATE INDEX IF NOT EXISTS silences_end   ON silences (ends_at);
 CREATE INDEX IF NOT EXISTS silences_id    ON silences (id());
 `
 
+// Mutes implements the Muter interface.
 func (s *SQLSilences) Mutes(lset model.LabelSet) bool {
 	sils, err := s.All()
 	if err != nil {
@@ -525,6 +538,7 @@ func (s *SQLSilences) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
+// All implements the Silences interface.
 func (s *SQLSilences) All() ([]*types.Silence, error) {
 	rows, err := s.db.Query(`
 		SELECT id(), matchers, starts_at, ends_at, created_at, created_by, comment
@@ -569,6 +583,7 @@ func (s *SQLSilences) All() ([]*types.Silence, error) {
 	return silences, nil
 }
 
+// Set impelements the Silences interface.
 func (s *SQLSilences) Set(sil *types.Silence) (uint64, error) {
 	mb, err := json.Marshal(sil.Silence.Matchers)
 	if err != nil {
@@ -607,6 +622,7 @@ func (s *SQLSilences) Set(sil *types.Silence) (uint64, error) {
 	return uint64(sid), nil
 }
 
+// Del implements the Silences interface.
 func (s *SQLSilences) Del(sid uint64) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -622,6 +638,7 @@ func (s *SQLSilences) Del(sid uint64) error {
 	return nil
 }
 
+// Get implements the Silences interface.
 func (s *SQLSilences) Get(sid uint64) (*types.Silence, error) {
 	row := s.db.QueryRow(`
 		SELECT id(), matchers, starts_at, ends_at, created_at, created_by, comment
