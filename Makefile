@@ -19,7 +19,7 @@ ifdef DEBUG
 endif
 
 
-all: assets format build test
+all: format build test
 
 test:
 	@echo ">> running tests"
