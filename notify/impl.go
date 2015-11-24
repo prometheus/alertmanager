@@ -58,6 +58,9 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		for i, c := range nc.PagerdutyConfigs {
 			add(i, NewPagerDuty(c, tmpl))
 		}
+		for i, c := range nc.OpsGenieConfigs {
+			add(i, NewOpsGenie(c, tmpl))
+		}
 
 		res[nc.Name] = fo
 	}
@@ -514,5 +517,95 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	}
 
+	return nil
+}
+
+// OpsGenie implements a Notifier for OpsGenie notifications.
+type OpsGenie struct {
+	conf *config.OpsGenieConfig
+	tmpl *template.Template
+}
+
+// NewOpsGenieDuty returns a new OpsGenie notifier.
+func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template) *OpsGenie {
+	return &OpsGenie{conf: c, tmpl: t}
+}
+
+type opsGenieMessage struct {
+	APIKey string            `json:"apiKey"`
+	Alias  model.Fingerprint `json:"alias"`
+}
+
+type opsGenieCreateMessage struct {
+	*opsGenieMessage `json:,inline`
+	Message          string            `json:"message"`
+	Details          map[string]string `json:"details"`
+}
+
+type opsGenieCloseMessage struct {
+	*opsGenieMessage `json:,inline`
+}
+
+// Notify implements the Notifier interface.
+func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
+	data := generateTemplateData(ctx, as...)
+
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return fmt.Errorf("group key missing")
+	}
+
+	log.With("incident", key).Debugln("notifying OpsGenie")
+
+	var err error
+	tmpl := func(name string) (s string) {
+		if err != nil {
+			return
+		}
+		s, err = n.tmpl.ExecuteTextString(name, data)
+		return s
+	}
+	details := make(map[string]string, len(n.conf.Details))
+	for k, v := range n.conf.Details {
+		details[k] = tmpl(v)
+	}
+
+	var (
+		msg    interface{}
+		apiURL string
+	)
+
+	apiMsg := opsGenieMessage{
+		APIKey: n.conf.APIKey,
+		Alias:  key,
+	}
+	alerts := types.Alerts(as...)
+	switch alerts.Status() {
+	case model.AlertResolved:
+		apiURL = n.conf.APIHost + "v1/json/alert/close"
+		msg = &opsGenieCloseMessage{&apiMsg}
+	default:
+		apiURL = n.conf.APIHost + "v1/json/alert"
+		msg = &opsGenieCreateMessage{
+			opsGenieMessage: &apiMsg,
+			Message:         tmpl(n.conf.Description),
+			Details:         details,
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
 	return nil
 }

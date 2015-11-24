@@ -47,6 +47,12 @@ var (
 		Text:      `{{template "slack.default.text" . }}`,
 		Fallback:  `{{template "slack.default.fallback" . }}`,
 	}
+
+	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
+	DefaultOpsGenieConfig = OpsGenieConfig{
+		Description: `{{template "opsgenie.default.description" .}}`,
+		// TODO: Add a details field with all the alerts.
+	}
 )
 
 // FlowdockConfig configures notifications via Flowdock.
@@ -279,4 +285,28 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing URL in webhook config")
 	}
 	return checkOverflow(c.XXX, "slack config")
+}
+
+// OpsGenieConfig configures notifications via OpsGenie.
+type OpsGenieConfig struct {
+	APIKey      string            `yaml:"api_key"`
+	APIHost     string            `yaml:"api_host"`
+	Description string            `yaml:"description"`
+	Details     map[string]string `yaml:"details"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultOpsGenieConfig
+	type plain OpsGenieConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.APIKey == "" {
+		return fmt.Errorf("missing service key in OpsGenie config")
+	}
+	return checkOverflow(c.XXX, "opsgenie config")
 }
