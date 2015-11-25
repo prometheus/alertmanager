@@ -102,6 +102,14 @@ func GroupKey(ctx context.Context) (model.Fingerprint, bool) {
 	return v, ok
 }
 
+func groupLabels(ctx context.Context) model.LabelSet {
+	groupLabels, ok := GroupLabels(ctx)
+	if !ok {
+		log.Error("missing group labels")
+	}
+	return groupLabels
+}
+
 // GroupLabels extracts grouping label set from the context. Iff none exists, the
 // second argument is false.
 func GroupLabels(ctx context.Context) (model.LabelSet, bool) {
