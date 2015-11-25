@@ -168,17 +168,28 @@ angular.module('am.controllers').controller('AlertCtrl',
 );
 
 angular.module('am.controllers').controller('AlertsCtrl',
-  function($scope, AlertGroups) {
+  function($scope, $location, AlertGroups) {
     $scope.groups = null;
     $scope.allReceivers = [];
+
+    $scope.$watch('receivers', function(recvs) {
+      if (recvs === undefined || angular.equals(recvs, $scope.allReceivers)) {
+        return;
+      }
+      if (recvs) {
+        $location.search('receiver', recvs); 
+      } else {
+        $location.search('receiver', null);
+      }
+    });
 
     $scope.notEmpty = function(group) {
       var l = 0;
       angular.forEach(group.blocks, function(blk) {
-        if ($scope.receivers.indexOf(blk.routeOpts.receiver) >= 0) {
+        if (this.indexOf(blk.routeOpts.receiver) >= 0) {
           l += blk.alerts.length || 0;
         }
-      });
+      }, $scope.receivers);
 
       return l > 0;
     };
@@ -191,21 +202,29 @@ angular.module('am.controllers').controller('AlertsCtrl',
           $scope.allReceivers = [];
           angular.forEach($scope.groups, function(group) {
             angular.forEach(group.blocks, function(blk) {
-              if ($scope.allReceivers.indexOf(blk.routeOpts.receiver) < 0) {
-                $scope.allReceivers.push(blk.routeOpts.receiver);
+              if (this.indexOf(blk.routeOpts.receiver) < 0) {
+                this.push(blk.routeOpts.receiver);
               }
-            })
-          });
+            }, this);
+          }, $scope.allReceivers);
 
           if (!$scope.receivers) {
-            $scope.receivers = angular.copy($scope.allReceivers);
+            var recvs = angular.copy($scope.allReceivers);
+            if ($location.search()['receiver']) {
+              recvs = angular.copy($location.search()['receiver']);
+              // The selected items must always be an array for multi-option selects.
+              if (!angular.isArray(recvs)) {
+                recvs = [recvs];
+              }
+            } 
+            $scope.receivers = recvs;
           }
         },
         function(data) {
           $scope.error = data.data;
         }
       );
-    }
+    };
 
     $scope.refresh();
   }
@@ -386,11 +405,13 @@ angular.module('am').config(
     $routeProvider.
     when('/alerts', {
       templateUrl: '/app/partials/alerts.html',
-      controller: 'AlertsCtrl'
+      controller: 'AlertsCtrl',
+      reloadOnSearch: false
     }).
     when('/silences', {
       templateUrl: '/app/partials/silences.html',
-      controller: 'SilencesCtrl'
+      controller: 'SilencesCtrl',
+      reloadOnSearch: false
     }).
     when('/status', {
       templateUrl: '/app/partials/status.html',
