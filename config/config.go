@@ -163,6 +163,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				pdc.URL = c.Global.PagerdutyURL
 			}
 		}
+		for _, ogc := range rcv.OpsGenieConfigs {
+			if ogc.APIHost == "" {
+				if c.Global.OpsGenieAPIHost == "" {
+					return fmt.Errorf("no global OpsGenie URL set")
+				}
+				ogc.APIHost = c.Global.OpsGenieAPIHost
+			}
+			if !strings.HasSuffix(ogc.APIHost, "/") {
+				ogc.APIHost += "/"
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 	return checkOverflow(c.XXX, "config")
@@ -170,16 +181,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // DefaultGlobalConfig provides global default values.
 var DefaultGlobalConfig = GlobalConfig{
-	PagerdutyURL: "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+	OpsGenieAPIHost: "https://api.opsgenie.com/",
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
 // unless overwritten.
 type GlobalConfig struct {
-	SMTPFrom      string `yaml:"smtp_from"`
-	SMTPSmarthost string `yaml:"smtp_smarthost"`
-	SlackURL      string `yaml:"slack_url"`
-	PagerdutyURL  string `yaml:"pagerduty_url"`
+	SMTPFrom        string `yaml:"smtp_from"`
+	SMTPSmarthost   string `yaml:"smtp_smarthost"`
+	SlackURL        string `yaml:"slack_url"`
+	PagerdutyURL    string `yaml:"pagerduty_url"`
+	OpsGenieAPIHost string `yaml:"opsgenie_api_host"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -309,6 +322,7 @@ type Receiver struct {
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs"`
+	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
