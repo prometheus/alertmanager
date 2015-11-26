@@ -21,10 +21,11 @@ import (
 var (
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
-		HTML: `{{template "email.default.html" .}}`,
+		HTML: `{{ template "email.default.html" . }}`,
 	}
-	// DefaultEmailSubject is a template used if no email subject has been provided.
-	DefaultEmailSubject = `{{template "email.default.subject" .}}`
+
+	// DefaultEmailSubject defines the default Subject header of an Email.
+	DefaultEmailSubject = `{{ template "email.default.subject" . }}`
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
 	DefaultHipchatConfig = HipchatConfig{
@@ -34,23 +35,31 @@ var (
 
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
 	DefaultPagerdutyConfig = PagerdutyConfig{
-		Description: `{{template "pagerduty.default.description" .}}`,
-		// TODO: Add a details field with all the alerts.
+		Description: `{{ template "pagerduty.default.description" .}}`,
+		Client:      `{{ template "pagerduty.default.client" . }}`,
+		ClientURL:   `{{ template "pagerduty.default.clientURL" . }}`,
+		Details: map[string]string{
+			"firing":       `{{ template "pagerduty.default.instances" (.Alerts | firing) }}`,
+			"resolved":     `{{ template "pagerduty.default.instances" (.Alerts | resolved) }}`,
+			"num_firing":   `{{ .Alerts | firing | len }}`,
+			"num_resolved": `{{ .Alerts | resolved | len }}`,
+		},
 	}
 
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
 		Color:     `{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}`,
-		Title:     `{{template "slack.default.title" . }}`,
-		TitleLink: `{{template "slack.default.title_link" . }}`,
-		Pretext:   `{{template "slack.default.pretext" . }}`,
-		Text:      `{{template "slack.default.text" . }}`,
-		Fallback:  `{{template "slack.default.fallback" . }}`,
+		Title:     `{{ template "slack.default.title" . }}`,
+		TitleLink: `{{ template "slack.default.title_link" . }}`,
+		Pretext:   `{{ template "slack.default.pretext" . }}`,
+		Text:      `{{ template "slack.default.text" . }}`,
+		Fallback:  `{{ template "slack.default.fallback" . }}`,
 	}
 
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
-		Description: `{{template "opsgenie.default.description" .}}`,
+		Description: `{{ template "opsgenie.default.description" . }}`,
+		Source:      `{{ template "opsgenie.default.source" }}`,
 		// TODO: Add a details field with all the alerts.
 	}
 )
@@ -186,6 +195,8 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type PagerdutyConfig struct {
 	ServiceKey  string            `yaml:"service_key"`
 	URL         string            `yaml:"url"`
+	Client      string            `yaml:"client"`
+	ClientURL   string            `yaml:"client_url"`
 	Description string            `yaml:"description"`
 	Details     map[string]string `yaml:"details"`
 
@@ -292,6 +303,7 @@ type OpsGenieConfig struct {
 	APIKey      string            `yaml:"api_key"`
 	APIHost     string            `yaml:"api_host"`
 	Description string            `yaml:"description"`
+	Source      string            `yaml:"source"`
 	Details     map[string]string `yaml:"details"`
 
 	// Catches all undefined fields and must be empty after parsing.

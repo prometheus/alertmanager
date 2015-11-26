@@ -74,6 +74,14 @@ func WithNow(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, keyNow, t)
 }
 
+func receiver(ctx context.Context) string {
+	recv, ok := Receiver(ctx)
+	if !ok {
+		log.Error("missing receiver")
+	}
+	return recv
+}
+
 // Receiver extracts a receiver from the context. Iff none exists, the
 // second argument is false.
 func Receiver(ctx context.Context) (string, bool) {

@@ -340,7 +340,7 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "receiver config")
 }
 
-// Regexp encapsulates a regexp.Regexp and makes it YAML marshallable.
+// Regexp encapsulates a regexp.Regexp and makes it YAML marshalable.
 type Regexp struct {
 	*regexp.Regexp
 }

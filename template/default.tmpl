@@ -1,22 +1,36 @@
 {{ define "__alertmanager" }}AlertManager{{ end }}
-{{ define "__alertmanagerURL" }}{{ .ExternalURL }}{{ end }}
-{{ define "__subject" }}{{$dot := .}}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts | firing | len }}{{ end }}] {{ range $i, $p := .GroupLabels | sortedPairs }}{{ $p.Value }} {{ end }}{{if gt (len .CommonLabels) (len .GroupLabels) }}({{ range $i, $p := .CommonLabels | sortedPairs }}{{ if eq "" (index $dot.GroupLabels $p.Name) }}{{ $p.Value }} {{ end }}{{ end }}){{ end }}{{ end }}
-{{ define "__description" }}TODO{{ end }}
+{{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
+
+
+{{ define "__subject" }}{{$dot := .}}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts | firing | len }}{{ end }}] {{ range .GroupLabels | sortedPairs }}{{ .Value }} {{ end }}{{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ range .CommonLabels | sortedPairs }}{{ if eq "" (index $dot.GroupLabels .Name) }}{{ .Value }} {{ end }}{{ end }}){{ end }}{{ end }}
+{{ define "__description" }}{{ end }}
+
+{{ define "__text_alert_list" }}{{ range . }}Labels: 
+{{ range .Labels | sortedPairs }} - {{ .Name }} = {{ .Value }}
+{{ end }}Annotations: 
+{{ range .Annotations | sortedPairs }} - {{ .Name }} = {{ .Value }}
+{{ end}}
+{{ end }}{{ end }}
+
 
 {{ define "slack.default.title" }}{{ template "__subject" . }}{{ end }}
 {{ define "slack.default.fallback" }}{{ template "__subject" . }}{{ end }}
 {{ define "slack.default.pretext" }}{{ end }}
-{{ define "slack.default.titlelink" }}{{ template "__alertmanagerURL" }}/something{{ end }}
+{{ define "slack.default.titlelink" }}{{ template "__alertmanagerURL" . }}{{ end }}
 {{ define "slack.default.text" }}{{ template "__subject" . }}{{ end }}
+
 
 {{ define "pagerduty.default.description" }}{{ template "__subject" . }}{{ end }}
 {{ define "pagerduty.default.client" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "pagerduty.default.clientURL" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "pagerduty.default.instances" }}{{ template "__text_alert_list" . }}{{ end }}
 
-{{ define "email.default.subject" }}{{ template "__subject" . }}{{ end }}
 
 {{ define "opsgenie.default.description" }}{{ template "__subject" . }}{{ end }}
+{{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
 
+
+{{ define "email.default.subject" }}{{ template "__subject" . }}{{ end }}
 {{ define "email.default.html" }}
 {{/*
 

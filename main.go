@@ -18,7 +18,9 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -137,6 +139,9 @@ func main() {
 		if err != nil {
 			return err
 		}
+		if tmpl.ExternalURL, err = extURL(*externalURL); err != nil {
+			return err
+		}
 
 		disp.Stop()
 
@@ -192,4 +197,32 @@ func printVersion() {
 		panic(err)
 	}
 	fmt.Fprintln(os.Stdout, strings.TrimSpace(buf.String()))
+}
+
+func extURL(s string) (*url.URL, error) {
+	if s == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			return nil, err
+		}
+		_, port, err := net.SplitHostPort(*listenAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		s = fmt.Sprintf("http://%s:%s/", hostname, port)
+	}
+
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, err
+	}
+
+	ppref := strings.TrimRight(u.Path, "/")
+	if ppref != "" && !strings.HasPrefix(ppref, "/") {
+		ppref = "/" + ppref
+	}
+	u.Path = ppref
+
+	return u, nil
 }
