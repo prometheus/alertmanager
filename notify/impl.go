@@ -25,7 +25,6 @@ import (
 	"net/mail"
 	"net/smtp"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -68,93 +67,6 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 }
 
 const contentTypeJSON = "application/json"
-
-// TemplateData is the data passed to notification templates.
-// End-users should not be exposed to Go's type system,
-// as this will confuse them and prevent simple things like
-// simple equality checks to fail. Map everything to float64/string.
-type TemplateData struct {
-	Status            string
-	Alerts            []TemplateAlert
-	AlertCommonLabels map[string]string
-
-	// AlertCommonLabelnames is sorted.
-	AlertCommonLabelnames []string
-	GroupLabels           map[string]string
-
-	// GroupLabelnames is sorted.
-	GroupLabelnames []string
-}
-
-// TemplateAlert holds one alert for notification templates.
-type TemplateAlert struct {
-	Labels      map[string]string
-	Annotations map[string]string
-}
-
-func generateTemplateData(ctx context.Context, as ...*types.Alert) *TemplateData {
-	alerts := types.Alerts(as...)
-
-	groupLabels, ok := GroupLabels(ctx)
-	if !ok {
-		log.Error("missing group labels")
-	}
-
-	data := &TemplateData{
-		Status:                string(alerts.Status()),
-		Alerts:                make([]TemplateAlert, 0, len(alerts)),
-		AlertCommonLabels:     map[string]string{},
-		AlertCommonLabelnames: []string{},
-		GroupLabels:           map[string]string{},
-		GroupLabelnames:       make([]string, 0, len(groupLabels)),
-	}
-
-	for _, a := range alerts {
-		alert := TemplateAlert{
-			Labels:      make(map[string]string, len(a.Labels)),
-			Annotations: make(map[string]string, len(a.Annotations)),
-		}
-		for k, v := range a.Labels {
-			alert.Labels[string(k)] = string(v)
-		}
-		for k, v := range a.Annotations {
-			alert.Annotations[string(k)] = string(v)
-		}
-		data.Alerts = append(data.Alerts, alert)
-	}
-
-	sortStart := 0
-	for k, v := range groupLabels {
-		data.GroupLabels[string(k)] = string(v)
-
-		// Always have the alertname label at the first position.
-		if k == model.AlertNameLabel {
-			data.GroupLabelnames = append([]string{string(k)}, data.GroupLabelnames...)
-			sortStart = 1
-		} else {
-			data.GroupLabelnames = append(data.GroupLabelnames, string(k))
-		}
-	}
-	sort.Strings(data.GroupLabelnames[sortStart:])
-
-	if len(alerts) >= 1 {
-		common := alerts[0].Labels.Clone()
-		for _, a := range alerts[1:] {
-			for ln, lv := range common {
-				if a.Labels[ln] != lv {
-					delete(common, ln)
-				}
-			}
-		}
-		for k, v := range common {
-			data.AlertCommonLabels[string(k)] = string(v)
-			data.AlertCommonLabelnames = append(data.AlertCommonLabelnames, string(k))
-		}
-	}
-	sort.Strings(data.AlertCommonLabelnames)
-
-	return data
-}
 
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
@@ -253,8 +165,6 @@ func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 
 // Notify implements the Notifier interface.
 func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
-	data := generateTemplateData(ctx, as...)
-
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(n.conf.Smarthost)
 	if err != nil {
@@ -279,10 +189,16 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		}
 	}
 
-	from, err := n.tmpl.ExecuteTextString(n.conf.From, data)
+	var (
+		data = template.NewData(groupLabels(ctx), as...)
+		tmpl = tmplText(n.tmpl, data, &err)
+		from = tmpl(n.conf.From)
+		to   = tmpl(n.conf.To)
+	)
 	if err != nil {
-		return fmt.Errorf("executing from template: %s", err)
+		return err
 	}
+
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
 		return fmt.Errorf("parsing from addresses: %s", err)
@@ -292,10 +208,6 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	if err := c.Mail(addrs[0].Address); err != nil {
 		return fmt.Errorf("sending mail from: %s", err)
-	}
-	to, err := n.tmpl.ExecuteTextString(n.conf.To, data)
-	if err != nil {
-		return fmt.Errorf("executing to template: %s", err)
 	}
 	addrs, err = mail.ParseAddressList(to)
 	if err != nil {
@@ -314,15 +226,17 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	defer wc.Close()
 
-	for header, tmpl := range n.conf.Headers {
-		value, err := n.tmpl.ExecuteTextString(tmpl, data)
+	for header, name := range n.conf.Headers {
+		value, err := n.tmpl.ExecuteTextString(name, data)
 		if err != nil {
 			return fmt.Errorf("executing %q header template: %s", header, err)
 		}
 		fmt.Fprintf(wc, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
+
 	fmt.Fprintf(wc, "Content-Type: text/html; charset=UTF-8\r\n")
 	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+
 	// TODO: Add some useful headers here, such as URL of the alertmanager
 	// and active/resolved.
 	fmt.Fprintf(wc, "\r\n")
@@ -333,6 +247,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		return fmt.Errorf("executing email html template: %s", err)
 	}
 	_, err = io.WriteString(wc, body)
+
 	return err
 }
 
@@ -354,40 +269,36 @@ const (
 
 type pagerDutyMessage struct {
 	ServiceKey  string            `json:"service_key"`
+	IncidentKey model.Fingerprint `json:"incident_key"`
 	EventType   string            `json:"event_type"`
 	Description string            `json:"description"`
-	IncidentKey model.Fingerprint `json:"incident_key"`
 	Client      string            `json:"client,omitempty"`
 	ClientURL   string            `json:"client_url,omitempty"`
 	Details     map[string]string `json:"details"`
 }
 
 // Notify implements the Notifier interface.
+//
+// http://developer.pagerduty.com/documentation/integration/events/trigger
 func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
-	// http://developer.pagerduty.com/documentation/integration/events/trigger
-	alerts := types.Alerts(as...)
-	data := generateTemplateData(ctx, as...)
-
-	eventType := pagerDutyEventTrigger
-	if alerts.Status() == model.AlertResolved {
-		eventType = pagerDutyEventResolve
-	}
-
 	key, ok := GroupKey(ctx)
 	if !ok {
 		return fmt.Errorf("group key missing")
 	}
 
+	var err error
+	var (
+		alerts    = types.Alerts(as...)
+		data      = template.NewData(groupLabels(ctx), as...)
+		tmpl      = tmplText(n.tmpl, data, &err)
+		eventType = pagerDutyEventTrigger
+	)
+	if alerts.Status() == model.AlertResolved {
+		eventType = pagerDutyEventResolve
+	}
+
 	log.With("incident", key).With("eventType", eventType).Debugln("notifying PagerDuty")
 
-	var err error
-	tmpl := func(name string) (s string) {
-		if err != nil {
-			return
-		}
-		s, err = n.tmpl.ExecuteTextString(name, data)
-		return s
-	}
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {
 		details[k] = tmpl(v)
@@ -399,6 +310,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 		IncidentKey: key,
 		Description: tmpl(n.conf.Description),
 		Details:     details,
+		Client:      "AlertManager",
 	}
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = "Prometheus Alertmanager"
@@ -434,6 +346,7 @@ type Slack struct {
 // slackReq is the request for sending a slack notification.
 type slackReq struct {
 	Channel     string            `json:"channel,omitempty"`
+	Username    string            `json:"username,omitempty"`
 	Attachments []slackAttachment `json:"attachments"`
 }
 
@@ -459,24 +372,13 @@ type slackAttachmentField struct {
 
 // Notify implements the Notifier interface.
 func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
-	data := generateTemplateData(ctx, as...)
-	alerts := types.Alerts(as...)
-
 	var err error
-	tmplText := func(name string) (s string) {
-		if err != nil {
-			return
-		}
-		s, err = n.tmpl.ExecuteTextString(name, data)
-		return s
-	}
-	tmplHTML := func(name string) (s string) {
-		if err != nil {
-			return
-		}
-		s, err = n.tmpl.ExecuteHTMLString(name, data)
-		return s
-	}
+	var (
+		alerts   = types.Alerts(as...)
+		data     = template.NewData(groupLabels(ctx), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+		tmplHTML = tmplHTML(n.tmpl, data, &err)
+	)
 
 	attachment := &slackAttachment{
 		Title:     tmplText(n.conf.Title),
@@ -548,23 +450,17 @@ type opsGenieCloseMessage struct {
 
 // Notify implements the Notifier interface.
 func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
-	data := generateTemplateData(ctx, as...)
-
 	key, ok := GroupKey(ctx)
 	if !ok {
 		return fmt.Errorf("group key missing")
 	}
+	data := template.NewData(groupLabels(ctx), as...)
 
 	log.With("incident", key).Debugln("notifying OpsGenie")
 
 	var err error
-	tmpl := func(name string) (s string) {
-		if err != nil {
-			return
-		}
-		s, err = n.tmpl.ExecuteTextString(name, data)
-		return s
-	}
+	tmpl := tmplText(n.tmpl, data, &err)
+
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {
 		details[k] = tmpl(v)
@@ -573,13 +469,13 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 	var (
 		msg    interface{}
 		apiURL string
-	)
 
-	apiMsg := opsGenieMessage{
-		APIKey: n.conf.APIKey,
-		Alias:  key,
-	}
-	alerts := types.Alerts(as...)
+		apiMsg = opsGenieMessage{
+			APIKey: n.conf.APIKey,
+			Alias:  key,
+		}
+		alerts = types.Alerts(as...)
+	)
 	switch alerts.Status() {
 	case model.AlertResolved:
 		apiURL = n.conf.APIHost + "v1/json/alert/close"
@@ -591,6 +487,9 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 			Message:         tmpl(n.conf.Description),
 			Details:         details,
 		}
+	}
+	if err != nil {
+		return fmt.Errorf("templating error: %s", err)
 	}
 
 	var buf bytes.Buffer
@@ -608,4 +507,24 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	}
 	return nil
+}
+
+func tmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
+	return func(name string) (s string) {
+		if *err != nil {
+			return
+		}
+		s, *err = tmpl.ExecuteTextString(name, data)
+		return s
+	}
+}
+
+func tmplHTML(tmpl *template.Template, data *template.Data, err *error) func(string) string {
+	return func(name string) (s string) {
+		if *err != nil {
+			return
+		}
+		s, *err = tmpl.ExecuteHTMLString(name, data)
+		return s
+	}
 }
