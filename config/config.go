@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -181,6 +182,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // DefaultGlobalConfig provides global default values.
 var DefaultGlobalConfig = GlobalConfig{
+	ResolveTimeout: model.Duration(5 * time.Minute),
+
 	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
 }
@@ -188,6 +191,10 @@ var DefaultGlobalConfig = GlobalConfig{
 // GlobalConfig defines configuration parameters that are valid globally
 // unless overwritten.
 type GlobalConfig struct {
+	// ResolveTimeout is the time after which an alert is declared resolved
+	// if it has not been updated.
+	ResolveTimeout model.Duration `yaml:"resolve_timeout"`
+
 	SMTPFrom        string `yaml:"smtp_from"`
 	SMTPSmarthost   string `yaml:"smtp_smarthost"`
 	SlackURL        string `yaml:"slack_url"`

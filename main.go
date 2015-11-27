@@ -27,6 +27,7 @@ import (
 	"strings"
 	"syscall"
 	tmpltext "text/template"
+	"time"
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
@@ -133,7 +134,7 @@ func main() {
 			return err
 		}
 
-		api.Update(conf.String())
+		api.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
 
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
