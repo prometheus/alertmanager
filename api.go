@@ -33,10 +33,11 @@ import (
 
 // API provides registration of handlers for API routes.
 type API struct {
-	alerts   provider.Alerts
-	silences provider.Silences
-	config   string
-	uptime   time.Time
+	alerts         provider.Alerts
+	silences       provider.Silences
+	config         string
+	resolveTimeout time.Duration
+	uptime         time.Time
 
 	groups func() AlertOverview
 
@@ -79,11 +80,12 @@ func (api *API) Register(r *route.Router) {
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(config string) {
+func (api *API) Update(config string, resolveTimeout time.Duration) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.config = config
+	api.resolveTimeout = resolveTimeout
 }
 
 type errorType string
@@ -193,7 +195,7 @@ func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
-			alert.EndsAt = alert.StartsAt.Add(ResolveTimeout)
+			alert.EndsAt = alert.StartsAt.Add(api.resolveTimeout)
 		}
 	}
 
@@ -226,7 +228,7 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
-			alert.EndsAt = alert.StartsAt.Add(ResolveTimeout)
+			alert.EndsAt = alert.StartsAt.Add(api.resolveTimeout)
 		}
 	}
 

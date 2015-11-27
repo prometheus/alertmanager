@@ -15,11 +15,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// ResolveTimeout is the time after which an alert is declared resolved
-// if it has not been updated.
-// TODO(fabxc): Make it configurable.
-const ResolveTimeout = 5 * time.Minute
-
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {

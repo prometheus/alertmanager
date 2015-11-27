@@ -15,6 +15,7 @@ package template
 
 import (
 	"bytes"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -30,6 +31,8 @@ import (
 type Template struct {
 	text *tmpltext.Template
 	html *tmplhtml.Template
+
+	ExternalURL *url.URL
 }
 
 // FromGlobs calls ParseGlob on all path globs provided and returns the
@@ -143,8 +146,9 @@ type Pair struct {
 // as this will confuse them and prevent simple things like
 // simple equality checks to fail. Map everything to float64/string.
 type Data struct {
-	Status string
-	Alerts []Alert
+	Receiver string
+	Status   string
+	Alerts   []Alert
 
 	GroupLabels       map[string]string
 	CommonLabels      map[string]string
@@ -160,16 +164,18 @@ type Alert struct {
 	Annotations map[string]string
 }
 
-func NewData(groupLabels model.LabelSet, as ...*types.Alert) *Data {
+// Data assembles data for template expansion.
+func (t *Template) Data(recv string, groupLabels model.LabelSet, as ...*types.Alert) *Data {
 	alerts := types.Alerts(as...)
 
 	data := &Data{
+		Receiver:          strings.SplitN(recv, "/", 2)[0],
 		Status:            string(alerts.Status()),
 		Alerts:            make([]Alert, 0, len(alerts)),
 		GroupLabels:       map[string]string{},
 		CommonLabels:      map[string]string{},
 		CommonAnnotations: map[string]string{},
-		ExternalURL:       "something",
+		ExternalURL:       t.ExternalURL.String(),
 	}
 
 	for _, a := range alerts {

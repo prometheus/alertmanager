@@ -190,7 +190,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 
 	var (
-		data = template.NewData(groupLabels(ctx), as...)
+		data = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 		tmpl = tmplText(n.tmpl, data, &err)
 		from = tmpl(n.conf.From)
 		to   = tmpl(n.conf.To)
@@ -274,7 +274,7 @@ type pagerDutyMessage struct {
 	Description string            `json:"description"`
 	Client      string            `json:"client,omitempty"`
 	ClientURL   string            `json:"client_url,omitempty"`
-	Details     map[string]string `json:"details"`
+	Details     map[string]string `json:"details,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -289,7 +289,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	var err error
 	var (
 		alerts    = types.Alerts(as...)
-		data      = template.NewData(groupLabels(ctx), as...)
+		data      = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 		tmpl      = tmplText(n.tmpl, data, &err)
 		eventType = pagerDutyEventTrigger
 	)
@@ -310,11 +310,10 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 		IncidentKey: key,
 		Description: tmpl(n.conf.Description),
 		Details:     details,
-		Client:      "AlertManager",
 	}
 	if eventType == pagerDutyEventTrigger {
-		msg.Client = "Prometheus Alertmanager"
-		msg.ClientURL = ""
+		msg.Client = tmpl(n.conf.Client)
+		msg.ClientURL = tmpl(n.conf.ClientURL)
 	}
 	if err != nil {
 		return err
@@ -375,7 +374,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	var err error
 	var (
 		alerts   = types.Alerts(as...)
-		data     = template.NewData(groupLabels(ctx), as...)
+		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 	)
@@ -454,7 +453,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 	if !ok {
 		return fmt.Errorf("group key missing")
 	}
-	data := template.NewData(groupLabels(ctx), as...)
+	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 
 	log.With("incident", key).Debugln("notifying OpsGenie")
 
