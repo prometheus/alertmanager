@@ -93,7 +93,7 @@ type FuncMap map[string]interface{}
 var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
 	"toLower": strings.ToLower,
-	"toTitle": strings.ToTitle,
+	"title":   strings.Title,
 	// sortedPairs allows for in-order iteration of key/value pairs.
 	"sortedPairs": func(m map[string]string) []Pair {
 		var (
