@@ -59,7 +59,7 @@ var (
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		Description: `{{ template "opsgenie.default.description" . }}`,
-		Source:      `{{ template "opsgenie.default.source" }}`,
+		Source:      `{{ template "opsgenie.default.source" . }}`,
 		// TODO: Add a details field with all the alerts.
 	}
 )
