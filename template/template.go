@@ -94,51 +94,89 @@ var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
 	"toLower": strings.ToLower,
 	"title":   strings.Title,
-	// sortedPairs allows for in-order iteration of key/value pairs.
-	"sortedPairs": func(m map[string]string) []Pair {
-		var (
-			pairs     = make([]Pair, 0, len(m))
-			keys      = make([]string, 0, len(m))
-			sortStart = 0
-		)
-		for k := range m {
-			if k == string(model.AlertNameLabel) {
-				keys = append([]string{k}, keys...)
-				sortStart = 1
-			} else {
-				keys = append(keys, k)
-			}
-		}
-		sort.Strings(keys[sortStart:])
-
-		for _, k := range keys {
-			pairs = append(pairs, Pair{k, m[k]})
-		}
-		return pairs
-	},
-	"firing": func(alerts []Alert) []Alert {
-		res := []Alert{}
-		for _, a := range alerts {
-			if a.Status == string(model.AlertFiring) {
-				res = append(res, a)
-			}
-		}
-		return res
-	},
-	"resolved": func(alerts []Alert) []Alert {
-		res := []Alert{}
-		for _, a := range alerts {
-			if a.Status == string(model.AlertResolved) {
-				res = append(res, a)
-			}
-		}
-		return res
+	// join is equal to strings.Join but inverts the argument order
+	// for easier pipelining in templates.
+	"join": func(sep string, s []string) string {
+		return strings.Join(s, sep)
 	},
 }
 
 // Pair is a key/value string pair.
 type Pair struct {
 	Name, Value string
+}
+
+// Pairs is a list of key/value string pairs.
+type Pairs []Pair
+
+// Names returns a list of names of the pairs.
+func (ps Pairs) Names() []string {
+	ns := make([]string, 0, len(ps))
+	for _, p := range ps {
+		ns = append(ns, p.Name)
+	}
+	return ns
+}
+
+// Values returns a list of values of the pairs.
+func (ps Pairs) Values() []string {
+	vs := make([]string, 0, len(ps))
+	for _, p := range ps {
+		vs = append(vs, p.Value)
+	}
+	return vs
+}
+
+// KV is a set of key/value string pairs.
+type KV map[string]string
+
+// SortedPairs returns a sorted list of key/value pairs.
+func (kv KV) SortedPairs() Pairs {
+	var (
+		pairs     = make([]Pair, 0, len(kv))
+		keys      = make([]string, 0, len(kv))
+		sortStart = 0
+	)
+	for k := range kv {
+		if k == string(model.AlertNameLabel) {
+			keys = append([]string{k}, keys...)
+			sortStart = 1
+		} else {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys[sortStart:])
+
+	for _, k := range keys {
+		pairs = append(pairs, Pair{k, kv[k]})
+	}
+	return pairs
+}
+
+// Remove returns a copy of the key/value set without the given keys.
+func (kv KV) Remove(keys []string) KV {
+	keySet := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		keySet[k] = struct{}{}
+	}
+
+	res := KV{}
+	for k, v := range kv {
+		if _, ok := keySet[k]; !ok {
+			res[k] = v
+		}
+	}
+	return res
+}
+
+// Names returns the names of the label names in the LabelSet.
+func (kv KV) Names() []string {
+	return kv.SortedPairs().Names()
+}
+
+// Values returns a list of the values in the LabelSet.
+func (kv KV) Values() []string {
+	return kv.SortedPairs().Values()
 }
 
 // Data is the data passed to notification templates.
@@ -148,11 +186,11 @@ type Pair struct {
 type Data struct {
 	Receiver string
 	Status   string
-	Alerts   []Alert
+	Alerts   Alerts
 
-	GroupLabels       map[string]string
-	CommonLabels      map[string]string
-	CommonAnnotations map[string]string
+	GroupLabels       KV
+	CommonLabels      KV
+	CommonAnnotations KV
 
 	ExternalURL string
 }
@@ -160,8 +198,33 @@ type Data struct {
 // Alert holds one alert for notification templates.
 type Alert struct {
 	Status      string
-	Labels      map[string]string
-	Annotations map[string]string
+	Labels      KV
+	Annotations KV
+}
+
+// Alerts is a list of Alert objects.
+type Alerts []Alert
+
+// Firing returns the subset of alerts that are firing.
+func (as Alerts) Firing() []Alert {
+	res := []Alert{}
+	for _, a := range as {
+		if a.Status == string(model.AlertFiring) {
+			res = append(res, a)
+		}
+	}
+	return res
+}
+
+// Resolved returns the subset of alerts that are resolved.
+func (as Alerts) Resolved() []Alert {
+	res := []Alert{}
+	for _, a := range as {
+		if a.Status == string(model.AlertResolved) {
+			res = append(res, a)
+		}
+	}
+	return res
 }
 
 // Data assembles data for template expansion.
@@ -171,18 +234,18 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, as ...*types.Al
 	data := &Data{
 		Receiver:          strings.SplitN(recv, "/", 2)[0],
 		Status:            string(alerts.Status()),
-		Alerts:            make([]Alert, 0, len(alerts)),
-		GroupLabels:       map[string]string{},
-		CommonLabels:      map[string]string{},
-		CommonAnnotations: map[string]string{},
+		Alerts:            make(Alerts, 0, len(alerts)),
+		GroupLabels:       KV{},
+		CommonLabels:      KV{},
+		CommonAnnotations: KV{},
 		ExternalURL:       t.ExternalURL.String(),
 	}
 
 	for _, a := range alerts {
 		alert := Alert{
 			Status:      string(a.Status()),
-			Labels:      make(map[string]string, len(a.Labels)),
-			Annotations: make(map[string]string, len(a.Annotations)),
+			Labels:      make(KV, len(a.Labels)),
+			Annotations: make(KV, len(a.Annotations)),
 		}
 		for k, v := range a.Labels {
 			alert.Labels[string(k)] = string(v)
