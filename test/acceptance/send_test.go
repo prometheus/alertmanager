@@ -15,6 +15,7 @@ package test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -260,4 +261,62 @@ receivers:
 	)
 
 	at.Run()
+}
+
+func TestResolved(t *testing.T) {
+	t.Parallel()
+
+	var wg sync.WaitGroup
+	wg.Add(10)
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			conf := `
+global:
+  resolve_timeout: 10s
+
+route:
+  receiver: "default"
+  group_by: [alertname]
+  group_wait: 1s 
+  group_interval: 5s
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+			at := NewAcceptanceTest(t, &AcceptanceOpts{
+				Tolerance: 150 * time.Millisecond,
+			})
+
+			co := at.Collector("webhook")
+			wh := NewWebhook(co)
+
+			am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+
+			am.Push(At(1),
+				Alert("alertname", "test", "lbl", "v1"),
+				Alert("alertname", "test", "lbl", "v2"),
+				Alert("alertname", "test", "lbl", "v3"),
+			)
+
+			co.Want(Between(2, 2.5),
+				Alert("alertname", "test", "lbl", "v1").Active(1),
+				Alert("alertname", "test", "lbl", "v2").Active(1),
+				Alert("alertname", "test", "lbl", "v3").Active(1),
+			)
+			co.Want(Between(12, 13),
+				Alert("alertname", "test", "lbl", "v1").Active(1, 11),
+				Alert("alertname", "test", "lbl", "v2").Active(1, 11),
+				Alert("alertname", "test", "lbl", "v3").Active(1, 11),
+			)
+
+			at.Run()
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
