@@ -14,10 +14,11 @@
 
 
 {{ define "slack.default.title" }}{{ template "__subject" . }}{{ end }}
-{{ define "slack.default.fallback" }}{{ template "__subject" . }}{{ end }}
+{{ define "slack.default.username" }}{{ template "__alertmanager" . }}{{ end }}
+{{ define "slack.default.fallback" }}{{ template "slack.default.title" . }} | {{ template "slack.default.titlelink" . }}{{ end }}
 {{ define "slack.default.pretext" }}{{ end }}
 {{ define "slack.default.titlelink" }}{{ template "__alertmanagerURL" . }}{{ end }}
-{{ define "slack.default.text" }}{{ template "__subject" . }}{{ end }}
+{{ define "slack.default.text" }}{{ end }}
 
 
 {{ define "pagerduty.default.description" }}{{ template "__subject" . }}{{ end }}

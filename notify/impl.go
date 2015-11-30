@@ -60,6 +60,9 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		for i, c := range nc.OpsGenieConfigs {
 			add(i, NewOpsGenie(c, tmpl))
 		}
+		for i, c := range nc.SlackConfigs {
+			add(i, NewSlack(c, tmpl))
+		}
 
 		res[nc.Name] = fo
 	}
@@ -342,6 +345,14 @@ type Slack struct {
 	tmpl *template.Template
 }
 
+// NewSlack returns a new Slack notification handler.
+func NewSlack(conf *config.SlackConfig, tmpl *template.Template) *Slack {
+	return &Slack{
+		conf: conf,
+		tmpl: tmpl,
+	}
+}
+
 // slackReq is the request for sending a slack notification.
 type slackReq struct {
 	Channel     string            `json:"channel,omitempty"`
@@ -357,9 +368,8 @@ type slackAttachment struct {
 	Text      string `json:"text"`
 	Fallback  string `json:"fallback"`
 
-	Color    string                 `json:"color,omitempty"`
-	MrkdwnIn []string               `json:"mrkdwn_in,omitempty"`
-	Fields   []slackAttachmentField `json:"fields,omitempty"`
+	Color    string   `json:"color,omitempty"`
+	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
 }
 
 // slackAttachmentField is displayed in a table inside the message attachment.
@@ -373,7 +383,6 @@ type slackAttachmentField struct {
 func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	var err error
 	var (
-		alerts   = types.Alerts(as...)
 		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
@@ -385,17 +394,12 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 		Pretext:   tmplText(n.conf.Pretext),
 		Text:      tmplHTML(n.conf.Text),
 		Fallback:  tmplText(n.conf.Fallback),
-
-		Fields: []slackAttachmentField{{
-			Title: "Status",
-			Value: string(alerts.Status()),
-			Short: true,
-		}},
-		Color:    tmplText(n.conf.Color),
-		MrkdwnIn: []string{"fallback", "pretext"},
+		Color:     tmplText(n.conf.Color),
+		MrkdwnIn:  []string{"fallback", "pretext"},
 	}
 	req := &slackReq{
 		Channel:     tmplText(n.conf.Channel),
+		Username:    tmplText(n.conf.Username),
 		Attachments: []slackAttachment{*attachment},
 	}
 	if err != nil {

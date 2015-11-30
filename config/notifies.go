@@ -48,9 +48,10 @@ var (
 
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
-		Color:     `{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}`,
+		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:  `{{ template "slack.default.username" . }}`,
 		Title:     `{{ template "slack.default.title" . }}`,
-		TitleLink: `{{ template "slack.default.title_link" . }}`,
+		TitleLink: `{{ template "slack.default.titlelink" . }}`,
 		Pretext:   `{{ template "slack.default.pretext" . }}`,
 		Text:      `{{ template "slack.default.text" . }}`,
 		Fallback:  `{{ template "slack.default.fallback" . }}`,
@@ -249,10 +250,9 @@ type SlackConfig struct {
 	URL string `yaml:"url"`
 
 	// Slack channel override, (like #other-channel or @username).
-	Channel string `yaml:"channel"`
-
-	// The message color.
-	Color string `yaml:"color"`
+	Channel  string `yaml:"channel"`
+	Username string `yaml:"username"`
+	Color    string `yaml:"color"`
 
 	Title     string `yaml:"title"`
 	TitleLink string `yaml:"title_link"`
