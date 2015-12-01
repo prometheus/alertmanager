@@ -516,9 +516,9 @@ func writeEmailBodyWithTime(w io.Writer, from, to, status string, a *Alert, mome
 	return nil
 }
 
-func getSMTPAuth(hasAuth bool, mechs string) (smtp.Auth, *tls.Config, error) {
+func getSMTPAuth(hasAuth bool, mechs string) (smtp.Auth, error) {
 	if !hasAuth {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	username := os.Getenv("SMTP_AUTH_USERNAME")
@@ -530,7 +530,7 @@ func getSMTPAuth(hasAuth bool, mechs string) (smtp.Auth, *tls.Config, error) {
 			if secret == "" {
 				continue
 			}
-			return smtp.CRAMMD5Auth(username, secret), nil, nil
+			return smtp.CRAMMD5Auth(username, secret), nil
 		case "PLAIN":
 			password := os.Getenv("SMTP_AUTH_PASSWORD")
 			if password == "" {
@@ -541,15 +541,14 @@ func getSMTPAuth(hasAuth bool, mechs string) (smtp.Auth, *tls.Config, error) {
 			// We need to know the hostname for both auth and TLS.
 			host, _, err := net.SplitHostPort(*smtpSmartHost)
 			if err != nil {
-				return nil, nil, fmt.Errorf("invalid address: %s", err)
+				return nil, fmt.Errorf("invalid address: %s", err)
 			}
 
 			auth := smtp.PlainAuth(identity, username, password, host)
-			cfg := &tls.Config{ServerName: host}
-			return auth, cfg, nil
+			return auth, nil
 		}
 	}
-	return nil, nil, nil
+	return nil, nil
 }
 
 func (n *notifier) sendEmailNotification(to string, op notificationOp, a *Alert) error {
@@ -567,16 +566,21 @@ func (n *notifier) sendEmailNotification(to string, op notificationOp, a *Alert)
 	}
 	defer c.Quit()
 
-	// Authenticate if we and the server are both configured for it.
-	auth, tlsConfig, err := getSMTPAuth(c.Extension("AUTH"))
+	// We need to know the hostname for both auth and TLS.
+	host, _, err := net.SplitHostPort(*smtpSmartHost)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid address: %s", err)
 	}
 
-	if tlsConfig != nil {
-		if err := c.StartTLS(tlsConfig); err != nil {
-			return fmt.Errorf("starttls failed: %s", err)
-		}
+	tlsConfig := &tls.Config{ServerName: host}
+	if err := c.StartTLS(tlsConfig); err != nil {
+		return fmt.Errorf("starttls failed: %s", err)
+	}
+
+	// Authenticate if we and the server are both configured for it.
+	auth, err := getSMTPAuth(c.Extension("AUTH"))
+	if err != nil {
+		return err
 	}
 
 	if auth != nil {

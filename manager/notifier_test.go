@@ -15,7 +15,6 @@ package manager
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -85,7 +84,7 @@ type authTestCase struct {
 }
 
 func (tc *authTestCase) test(t *testing.T) {
-	auth, cfg, err := getSMTPAuth(tc.hasAuth, tc.mechs)
+	auth, err := getSMTPAuth(tc.hasAuth, tc.mechs)
 	if err != nil {
 		tc.fail(t, "unexpected error: %s", err)
 		return
@@ -94,20 +93,9 @@ func (tc *authTestCase) test(t *testing.T) {
 		if auth != nil {
 			tc.fail(t, "expected auth to be nil, got %T", auth)
 		}
-		if cfg != nil {
-			tc.fail(t, "expected tls config to be nil, got %v", cfg)
-		}
 	} else {
 		if fmt.Sprintf("%T", auth) != tc.expAuthType {
 			tc.fail(t, "expected auth to be %s, got %T", tc.expAuthType, auth)
-		}
-		if tc.expAuthType == "*smtp.plainAuth" {
-			if cfg == nil {
-				tc.fail(t, "expected tls config")
-			} else if cfg.ServerName != "testSMTPHost" {
-				tc.fail(t, "expected tls config to be %v, got %v",
-					&tls.Config{ServerName: "testSMTPHost"}, cfg)
-			}
 		}
 	}
 }
@@ -179,8 +167,8 @@ func TestGetSMTPAuth(t *testing.T) {
 		{true, "PLAIN", ""},
 	})
 	os.Setenv("SMTP_AUTH_PASSWORD", "p")
-	if auth, cfg, err := getSMTPAuth(true, "PLAIN"); err == nil {
-		t.Errorf("PLAIN auth with bad host-port: expected error but got %T, %v", auth, cfg)
+	if auth, err := getSMTPAuth(true, "PLAIN"); err == nil {
+		t.Errorf("PLAIN auth with bad host-port: expected error but got %T", auth)
 	}
 }
 
