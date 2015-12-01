@@ -24,6 +24,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/template/internal/deftmpl"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -46,6 +47,17 @@ func FromGlobs(paths ...string) (*Template, error) {
 
 	t.text = t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
 	t.html = t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
+
+	b, err := deftmpl.Asset("template/default.tmpl")
+	if err != nil {
+		return nil, err
+	}
+	if t.text, err = t.text.Parse(string(b)); err != nil {
+		return nil, err
+	}
+	if t.html, err = t.html.Parse(string(b)); err != nil {
+		return nil, err
+	}
 
 	for _, tp := range paths {
 		if t.text, err = t.text.ParseGlob(tp); err != nil {

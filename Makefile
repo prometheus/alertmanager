@@ -44,6 +44,7 @@ assets:
 	@echo ">> writing assets"
 	-@$(GO) get -u github.com/jteeuwen/go-bindata/...
 	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/...
+	@go-bindata $(bindata_flags) -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
 
 
 .PHONY: all format build test vet assets
