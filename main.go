@@ -32,6 +32,7 @@ import (
 var (
 	configFile       = flag.String("config.file", "alertmanager.conf", "Alert Manager configuration file name.")
 	silencesFile     = flag.String("silences.file", "silences.json", "Silence storage file name.")
+	memoryManagerFile = flag.String("manager.memory.file", "aggregates.json", "Persistence file for memory alert manager")
 	minRefreshPeriod = flag.Duration("alerts.min-refresh-period", 5*time.Minute, "Minimum required alert refresh period before an alert is purged.")
 	listenAddress    = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 	pathPrefix       = flag.String("web.path-prefix", "/", "Prefix for all web paths.")
@@ -105,8 +106,10 @@ func main() {
 		Silencer:           silencer,
 		Notifier:           notifier,
 		MinRefreshInterval: *minRefreshPeriod,
+		PersistenceFile:	*memoryManagerFile,
 	}
 	alertManager := manager.NewMemoryAlertManager(options)
+	
 	alertManager.SetAggregationRules(conf.AggregationRules())
 	go alertManager.Run()
 
