@@ -10,7 +10,6 @@ RUN apk add --update -t build-deps tar openssl git make bash \
     && cp alertmanager /bin/ \
     && mkdir -p /etc/alertmanager/template \
     && mv ./doc/examples/simple.yml /etc/alertmanager/config.yml \
-    && cp ./template/*.tmpl /etc/alertmanager/template/ \
     && apk del --purge build-deps \
     && rm -rf /go /gopath /var/cache/apk/*
 
