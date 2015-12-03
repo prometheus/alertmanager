@@ -22,9 +22,9 @@ following aspects:
   * [Flowdock](https://www.flowdock.com/)
   * [HipChat](http://www.hipchat.com/)
   * [OpsGenie](https://www.opsgenie.com/)
-  * [PagerDuty](http://www.pagerduty.com/)
-  * [Pushover](https://www.pushover.net/)
-  * [Slack](http://www.slack.com/)
+  * [PagerDuty](https://www.pagerduty.com/)
+  * [Pushover](https://pushover.net/)
+  * [Slack](https://slack.com/)
 
 Note: Amazon SNS notifications depend on your Amazon credentials being configured as described [here](https://github.com/aws/aws-sdk-go).
 
@@ -83,7 +83,7 @@ are going to be addressed in the future:
 
 ## Using Docker
 
-You can deploy the Alertmanager using the [prom/alertmanager](https://registry.hub.docker.com/u/prom/alertmanager/) Docker image.
+You can deploy the Alertmanager using the [prom/alertmanager](https://hub.docker.com/r/prom/alertmanager/) Docker image.
 
 For example:
 
