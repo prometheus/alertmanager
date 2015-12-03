@@ -308,7 +308,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 
 	msg := &pagerDutyMessage{
-		ServiceKey:  tmpl(n.conf.ServiceKey),
+		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
 		EventType:   eventType,
 		IncidentKey: key,
 		Description: tmpl(n.conf.Description),
@@ -411,7 +411,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 		return err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, string(n.conf.APIURL), contentTypeJSON, &buf)
 	if err != nil {
 		return err
 	}
@@ -474,7 +474,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 		apiURL string
 
 		apiMsg = opsGenieMessage{
-			APIKey: n.conf.APIKey,
+			APIKey: string(n.conf.APIKey),
 			Alias:  key,
 		}
 		alerts = types.Alerts(as...)

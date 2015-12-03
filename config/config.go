@@ -26,6 +26,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var patAuthLine = regexp.MustCompile(`((?:api_token|api_key|service_key|api_url):\s+)(".+"|'.+'|[^\s]+)`)
+
+// Secret is a string that must not be revealed on marshaling.
+type Secret string
+
+// MarshalYAML implements the yaml.Marshaler interface.
+func (s Secret) MarshalYAML() (interface{}, error) {
+	return "<hidden>", nil
+}
+
 // Load parses the YAML input s into a Config.
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
@@ -101,14 +111,17 @@ func checkOverflow(m map[string]interface{}, ctx string) error {
 }
 
 func (c Config) String() string {
+	var s string
 	if c.original != "" {
-		return c.original
+		s = c.original
+	} else {
+		b, err := yaml.Marshal(c)
+		if err != nil {
+			return fmt.Sprintf("<error creating config string: %s>", err)
+		}
+		s = string(b)
 	}
-	b, err := yaml.Marshal(c)
-	if err != nil {
-		return fmt.Sprintf("<error creating config string: %s>", err)
-	}
-	return string(b)
+	return patAuthLine.ReplaceAllString(s, "${1}<hidden>")
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -149,11 +162,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, sc := range rcv.SlackConfigs {
-			if sc.URL == "" {
-				if c.Global.SlackURL == "" {
-					return fmt.Errorf("no global Slack URL set")
+			if sc.APIURL == "" {
+				if c.Global.SlackAPIURL == "" {
+					return fmt.Errorf("no global Slack API URL set")
 				}
-				sc.URL = c.Global.SlackURL
+				sc.APIURL = c.Global.SlackAPIURL
 			}
 		}
 		for _, pdc := range rcv.PagerdutyConfigs {
@@ -197,7 +210,7 @@ type GlobalConfig struct {
 
 	SMTPFrom        string `yaml:"smtp_from"`
 	SMTPSmarthost   string `yaml:"smtp_smarthost"`
-	SlackURL        string `yaml:"slack_url"`
+	SlackAPIURL     Secret `yaml:"slack_api_url"`
 	PagerdutyURL    string `yaml:"pagerduty_url"`
 	OpsGenieAPIHost string `yaml:"opsgenie_api_host"`
 }
@@ -221,8 +234,8 @@ type Route struct {
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty"`
-	RepeatInterval *model.Duration `yaml:"repeat_interval"`
-	SendResolved   *bool           `yaml:"send_resolved"`
+	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty"`
+	SendResolved   *bool           `yaml:"send_resolved,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -322,14 +335,14 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name"`
 
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs"`
-	FlowdockConfigs  []*FlowdockConfig  `yaml:"flowdock_configs"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs"`
+	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty"`
+	FlowdockConfigs  []*FlowdockConfig  `yaml:"flowdock_configs,omitempty"`
+	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty"`
+	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty"`
+	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
+	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty"`
+	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
+	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`

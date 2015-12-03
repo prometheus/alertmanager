@@ -39,10 +39,10 @@ var (
 		Client:      `{{ template "pagerduty.default.client" . }}`,
 		ClientURL:   `{{ template "pagerduty.default.clientURL" . }}`,
 		Details: map[string]string{
-			"firing":       `{{ template "pagerduty.default.instances" (.Alerts | firing) }}`,
-			"resolved":     `{{ template "pagerduty.default.instances" (.Alerts | resolved) }}`,
-			"num_firing":   `{{ .Alerts | firing | len }}`,
-			"num_resolved": `{{ .Alerts | resolved | len }}`,
+			"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
+			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+			"num_firing":   `{{ .Alerts.Firing | len }}`,
+			"num_resolved": `{{ .Alerts.Resolved | len }}`,
 		},
 	}
 
@@ -68,7 +68,7 @@ var (
 // FlowdockConfig configures notifications via Flowdock.
 type FlowdockConfig struct {
 	// Flowdock flow API token.
-	APIToken string `yaml:"api_token"`
+	APIToken Secret `yaml:"api_token"`
 
 	// Flowdock from_address.
 	FromAddress string `yaml:"from_address"`
@@ -155,7 +155,7 @@ const (
 // https://www.hipchat.com/docs/apiv2/method/send_room_notification
 type HipchatConfig struct {
 	// HipChat auth token, (https://www.hipchat.com/docs/api/auth).
-	AuthToken string `yaml:"auth_token"`
+	APIToken Secret `yaml:"api_token"`
 
 	// HipChat room id, (https://www.hipchat.com/rooms/ids).
 	RoomID int `yaml:"room_id"`
@@ -183,8 +183,8 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.AuthToken == "" {
-		return fmt.Errorf("missing auth token in HipChat config")
+	if c.APIToken == "" {
+		return fmt.Errorf("missing API token in HipChat config")
 	}
 	if c.MessageFormat != HipchatFormatHTML && c.MessageFormat != HipchatFormatText {
 		return fmt.Errorf("invalid message format %q", c.MessageFormat)
@@ -194,7 +194,7 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
-	ServiceKey  string            `yaml:"service_key"`
+	ServiceKey  Secret            `yaml:"service_key"`
 	URL         string            `yaml:"url"`
 	Client      string            `yaml:"client"`
 	ClientURL   string            `yaml:"client_url"`
@@ -247,7 +247,7 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
-	URL string `yaml:"url"`
+	APIURL Secret `yaml:"api_url"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel"`
@@ -300,7 +300,7 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // OpsGenieConfig configures notifications via OpsGenie.
 type OpsGenieConfig struct {
-	APIKey      string            `yaml:"api_key"`
+	APIKey      Secret            `yaml:"api_key"`
 	APIHost     string            `yaml:"api_host"`
 	Description string            `yaml:"description"`
 	Source      string            `yaml:"source"`
