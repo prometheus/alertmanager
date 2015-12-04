@@ -239,15 +239,16 @@ func TestRoutedNotifier(t *testing.T) {
 	}
 }
 
-func TestMutingNotifier(t *testing.T) {
+func TestSilenceNotifier(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
 	muter := types.MuteFunc(func(lset model.LabelSet) bool {
 		_, ok := lset["mute"]
 		return ok
 	})
 
+	marker := types.NewMarker()
 	record := &recordNotifier{}
-	muteNotifer := Mute(muter, record)
+	silenceNotifer := Silence(muter, record, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -273,13 +274,76 @@ func TestMutingNotifier(t *testing.T) {
 		})
 	}
 
-	if err := muteNotifer.Notify(nil, inAlerts...); err != nil {
+	// Set the second alert als previously silenced. It is expected to have
+	// the WasSilenced flag set to true afterwards.
+	marker.SetSilenced(inAlerts[1].Fingerprint(), 123)
+
+	if err := silenceNotifer.Notify(nil, inAlerts...); err != nil {
 		t.Fatalf("Notifying failed: %s", err)
 	}
 
 	var got []model.LabelSet
-	for _, a := range record.alerts {
+	for i, a := range record.alerts {
 		got = append(got, a.Labels)
+		if a.WasSilenced != (i == 1) {
+			t.Errorf("Expected WasSilenced to be %v for %d, was %v", i == 1, i, a.WasSilenced)
+		}
+	}
+
+	if !reflect.DeepEqual(got, out) {
+		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+}
+
+func TestInhibitNotifier(t *testing.T) {
+	// Mute all label sets that have a "mute" key.
+	muter := types.MuteFunc(func(lset model.LabelSet) bool {
+		_, ok := lset["mute"]
+		return ok
+	})
+
+	marker := types.NewMarker()
+	record := &recordNotifier{}
+	inhibitNotifer := Inhibit(muter, record, marker)
+
+	in := []model.LabelSet{
+		{},
+		{"test": "set"},
+		{"mute": "me"},
+		{"foo": "bar", "test": "set"},
+		{"foo": "bar", "mute": "me"},
+		{},
+		{"not": "muted"},
+	}
+	out := []model.LabelSet{
+		{},
+		{"test": "set"},
+		{"foo": "bar", "test": "set"},
+		{},
+		{"not": "muted"},
+	}
+
+	var inAlerts []*types.Alert
+	for _, lset := range in {
+		inAlerts = append(inAlerts, &types.Alert{
+			Alert: model.Alert{Labels: lset},
+		})
+	}
+
+	// Set the second alert as previously inhibited. It is expected to have
+	// the WasInhibited flag set to true afterwards.
+	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
+
+	if err := inhibitNotifer.Notify(nil, inAlerts...); err != nil {
+		t.Fatalf("Notifying failed: %s", err)
+	}
+
+	var got []model.LabelSet
+	for i, a := range record.alerts {
+		got = append(got, a.Labels)
+		if a.WasInhibited != (i == 1) {
+			t.Errorf("Expected WasInhibited to be %v for %d, was %v", i == 1, i, a.WasInhibited)
+		}
 	}
 
 	if !reflect.DeepEqual(got, out) {

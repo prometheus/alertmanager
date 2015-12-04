@@ -209,9 +209,11 @@ type Data struct {
 
 // Alert holds one alert for notification templates.
 type Alert struct {
-	Status      string
-	Labels      KV
-	Annotations KV
+	Status       string
+	Labels       KV
+	Annotations  KV
+	WasSilenced  bool
+	WasInhibited bool
 }
 
 // Alerts is a list of Alert objects.
@@ -240,12 +242,10 @@ func (as Alerts) Resolved() []Alert {
 }
 
 // Data assembles data for template expansion.
-func (t *Template) Data(recv string, groupLabels model.LabelSet, as ...*types.Alert) *Data {
-	alerts := types.Alerts(as...)
-
+func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*types.Alert) *Data {
 	data := &Data{
 		Receiver:          strings.SplitN(recv, "/", 2)[0],
-		Status:            string(alerts.Status()),
+		Status:            string(types.Alerts(alerts...).Status()),
 		Alerts:            make(Alerts, 0, len(alerts)),
 		GroupLabels:       KV{},
 		CommonLabels:      KV{},
@@ -255,9 +255,11 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, as ...*types.Al
 
 	for _, a := range alerts {
 		alert := Alert{
-			Status:      string(a.Status()),
-			Labels:      make(KV, len(a.Labels)),
-			Annotations: make(KV, len(a.Annotations)),
+			Status:       string(a.Status()),
+			Labels:       make(KV, len(a.Labels)),
+			Annotations:  make(KV, len(a.Annotations)),
+			WasSilenced:  a.WasSilenced,
+			WasInhibited: a.WasInhibited,
 		}
 		for k, v := range a.Labels {
 			alert.Labels[string(k)] = string(v)

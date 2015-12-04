@@ -344,27 +344,70 @@ func (rs Router) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	return notifier.Notify(ctx, alerts...)
 }
 
-// MutingNotifier wraps a notifier and applies a Silencer
-// before sending out an alert.
-type MutingNotifier struct {
-	types.Muter
+// SilenceNotifier filters alerts through a silence muter before
+// passing it on to the next Notifier
+type SilenceNotifier struct {
 	notifier Notifier
+	muter    types.Muter
+	marker   types.Marker
 }
 
-// Mute wraps a notifier in a MutingNotifier with the given Muter.
-func Mute(m types.Muter, n Notifier) *MutingNotifier {
-	return &MutingNotifier{Muter: m, notifier: n}
+// Silence returns a new SilenceNotifier.
+func Silence(m types.Muter, n Notifier, mk types.Marker) *SilenceNotifier {
+	return &SilenceNotifier{
+		notifier: n,
+		muter:    m,
+		marker:   mk,
+	}
 }
 
-// Notify implements Notifier.
-func (n *MutingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+// Notify implements the Notifier interface.
+func (n *SilenceNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	var filtered []*types.Alert
 	for _, a := range alerts {
+		_, ok := n.marker.Silenced(a.Fingerprint())
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if the silencer mutes it.
-		if !n.Mutes(a.Labels) {
+		if !n.muter.Mutes(a.Labels) {
 			// TODO(fabxc): increment muted alerts counter.
 			filtered = append(filtered, a)
+			// Store whether a previously silenced alert is firing again.
+			a.WasSilenced = ok
+		}
+	}
+
+	return n.notifier.Notify(ctx, filtered...)
+}
+
+// InhibitNotifier filters alerts through an inhibition muter before
+// passing it on to the next Notifier
+type InhibitNotifier struct {
+	notifier Notifier
+	muter    types.Muter
+	marker   types.Marker
+}
+
+// Inhibit return a new InhibitNotifier.
+func Inhibit(m types.Muter, n Notifier, mk types.Marker) *InhibitNotifier {
+	return &InhibitNotifier{
+		notifier: n,
+		muter:    m,
+		marker:   mk,
+	}
+}
+
+// Notify implements the Notifier interface.
+func (n *InhibitNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	var filtered []*types.Alert
+	for _, a := range alerts {
+		ok := n.marker.Inhibited(a.Fingerprint())
+		// TODO(fabxc): increment total alerts counter.
+		// Do not send the alert if the silencer mutes it.
+		if !n.muter.Mutes(a.Labels) {
+			// TODO(fabxc): increment muted alerts counter.
+			filtered = append(filtered, a)
+			// Store whether a previously inhibited alert is firing again.
+			a.WasInhibited = ok
 		}
 	}
 

@@ -113,9 +113,9 @@ func main() {
 		n := notify.Notifier(router)
 
 		n = notify.Log(n, log.With("step", "route"))
-		n = notify.Mute(silences, n)
+		n = notify.Silence(silences, n, marker)
 		n = notify.Log(n, log.With("step", "silence"))
-		n = notify.Mute(inhibitor, n)
+		n = notify.Inhibit(inhibitor, n, marker)
 		n = notify.Log(n, log.With("step", "inhibit"))
 
 		return n
