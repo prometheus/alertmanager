@@ -170,7 +170,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			}
 
 		case <-cleanup.C:
-			d.mtx.RLock()
+			d.mtx.Lock()
 
 			for _, groups := range d.aggrGroups {
 				for _, ag := range groups {
@@ -181,7 +181,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				}
 			}
 
-			d.mtx.RUnlock()
+			d.mtx.Unlock()
 
 		case <-d.ctx.Done():
 			return
