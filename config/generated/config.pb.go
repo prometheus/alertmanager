@@ -250,8 +250,12 @@ type SlackConfig struct {
 	// Color of message when resolved.
 	ColorResolved *string `protobuf:"bytes,4,opt,name=color_resolved,def=good" json:"color_resolved,omitempty"`
 	// Notify when resolved.
-	SendResolved     *bool  `protobuf:"varint,5,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
-	XXX_unrecognized []byte `json:"-"`
+	SendResolved *bool `protobuf:"varint,5,opt,name=send_resolved,def=0" json:"send_resolved,omitempty"`
+	// icon_emoji of message when triggered.
+	IconEmoji *string `protobuf:"bytes,6,opt,name=icon_emoji" json:"icon_emoji,omitempty"`
+	// icon_emoji of message when resolved.
+	IconEmojiResolved *string `protobuf:"bytes,7,opt,name=icon_emoji_resolved" json:"icon_emoji_resolved,omitempty"`
+	XXX_unrecognized  []byte  `json:"-"`
 }
 
 func (m *SlackConfig) Reset()         { *m = SlackConfig{} }
@@ -295,6 +299,20 @@ func (m *SlackConfig) GetSendResolved() bool {
 		return *m.SendResolved
 	}
 	return Default_SlackConfig_SendResolved
+}
+
+func (m *SlackConfig) GetIconEmoji() string {
+	if m != nil && m.IconEmoji != nil {
+		return *m.IconEmoji
+	}
+	return ""
+}
+
+func (m *SlackConfig) GetIconEmojiResolved() string {
+	if m != nil && m.IconEmojiResolved != nil {
+		return *m.IconEmojiResolved
+	}
+	return ""
 }
 
 // Configuration for notification via Flowdock.
