@@ -39,6 +39,6 @@ ldflags="
 export GO15VENDOREXPERIMENT="1"
 
 echo " >   alertmanager"
-go build -ldflags "${ldflags}" -o alertmanager${ext} ${repo_path}
+CGO_ENABLED=0 go build -tags purego -a -ldflags "${ldflags}" -o alertmanager${ext} ${repo_path}
 
 exit 0

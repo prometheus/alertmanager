@@ -63,6 +63,15 @@ func (ai alertIterator) Next() <-chan *types.Alert {
 func (ai alertIterator) Err() error { return ai.err }
 func (ai alertIterator) Close()     { close(ai.done) }
 
+// Returns a new AlertIterator based on the generic alertIterator type
+func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) AlertIterator {
+	return &alertIterator{
+		ch:   ch,
+		done: done,
+		err:  err,
+	}
+}
+
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts interface {
 	// Subscribe returns an iterator over active alerts that have not been

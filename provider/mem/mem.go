@@ -11,13 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package provider
+package mem
 
 import (
 	"sync"
 
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -54,7 +55,7 @@ func NewMemAlerts(data *MemData) *MemAlerts {
 }
 
 // Subscribe implements the Alerts interface.
-func (a *MemAlerts) Subscribe() AlertIterator {
+func (a *MemAlerts) Subscribe() provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.data.mtx.Lock()
@@ -90,14 +91,11 @@ func (a *MemAlerts) Subscribe() AlertIterator {
 		<-done
 	}()
 
-	return alertIterator{
-		ch:   ch,
-		done: done,
-	}
+	return provider.NewAlertIterator(ch, done, nil)
 }
 
 // GetPending implements the Alerts interface.
-func (a *MemAlerts) GetPending() AlertIterator {
+func (a *MemAlerts) GetPending() provider.AlertIterator {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.data.mtx.Lock()
@@ -121,10 +119,7 @@ func (a *MemAlerts) GetPending() AlertIterator {
 		}
 	}()
 
-	return alertIterator{
-		ch:   ch,
-		done: done,
-	}
+	return provider.NewAlertIterator(ch, done, nil)
 }
 
 func (a *MemAlerts) getPending() []*types.Alert {
@@ -183,7 +178,7 @@ func (a *MemAlerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	if a, ok := a.data.alerts[fp]; ok {
 		return a, nil
 	}
-	return nil, ErrNotFound
+	return nil, provider.ErrNotFound
 }
 
 // MemNotifies implements a Notifies provider based on in-memory data.
@@ -281,7 +276,7 @@ func (s *MemSilences) Set(sil *types.Silence) (uint64, error) {
 		sil.ID = uint64(len(s.silences) + 1)
 	} else {
 		if _, ok := s.silences[sil.ID]; !ok {
-			return 0, ErrNotFound
+			return 0, provider.ErrNotFound
 		}
 	}
 
@@ -305,7 +300,7 @@ func (s *MemSilences) Get(id uint64) (*types.Silence, error) {
 
 	sil, ok := s.silences[id]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, provider.ErrNotFound
 	}
 	return types.NewSilence(sil), nil
 }
