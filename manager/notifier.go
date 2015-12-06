@@ -715,11 +715,29 @@ func (n *notifier) sendPushoverNotification(token string, op notificationOp, use
 	}
 	alertname := html.EscapeString(a.Labels["alertname"])
 
+	var pushoverPriority int = 2;
+
+	if priority, ok := a.Labels["pushover_priority"]; ok {
+		switch priority {
+			case "lowest":
+				pushoverPriority = -2;
+			case "low":
+				pushoverPriority = -1;
+			case "normal":
+				pushoverPriority = 0;
+			case "high":
+				pushoverPriority = 1;
+			default:
+			case "emergency":
+				pushoverPriority = 2;
+		}
+	}
+
 	// Send pushover message
 	_, _, err = po.Push(&pushover.Message{
 		Title:    fmt.Sprintf("%s: %s", alertname, status),
 		Message:  a.Summary,
-		Priority: pushover.Emergency,
+		Priority: pushoverPriority,
 		Retry:    *pushoverRetryTimeout,
 		Expire:   *pushoverExpireTimeout,
 	})
