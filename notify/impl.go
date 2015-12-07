@@ -96,8 +96,16 @@ type WebhookMessage struct {
 func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	as := types.Alerts(alerts...)
 
+	// If there are no annotations, instantiate so
+	// {} is sent rather than null.
+	for _, a := range as {
+		if a.Annotations == nil {
+			a.Annotations = model.LabelSet{}
+		}
+	}
+
 	msg := &WebhookMessage{
-		Version: "1",
+		Version: "2",
 		Status:  as.Status(),
 		Alerts:  as,
 	}
