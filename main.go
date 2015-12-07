@@ -38,6 +38,10 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/version"
+
+	"github.com/prometheus/alertmanager/provider/mem"
+	"github.com/prometheus/alertmanager/provider/postgres"
+	"github.com/prometheus/alertmanager/provider/ql"
 )
 
 var (
@@ -45,6 +49,8 @@ var (
 
 	configFile = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
 	dataDir    = flag.String("storage.path", "data/", "Base path for data storage.")
+
+	storageProvider = flag.String("storage.provider", "ql", "Backend provider for alert management. Default 'ql'. Can 'ql','postgres','mem")
 
 	externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
@@ -58,29 +64,74 @@ func main() {
 		os.Exit(0)
 	}
 
-	err := os.MkdirAll(*dataDir, 0777)
-	if err != nil {
-		log.Fatal(err)
-	}
-	db, err := sql.Open("ql", filepath.Join(*dataDir, "am.db"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
 	marker := types.NewMarker()
 
-	alerts, err := provider.NewSQLAlerts(db)
-	if err != nil {
-		log.Fatal(err)
-	}
-	notifies, err := provider.NewSQLNotifies(db)
-	if err != nil {
-		log.Fatal(err)
-	}
-	silences, err := provider.NewSQLSilences(db, marker)
-	if err != nil {
-		log.Fatal(err)
+	var alerts provider.Alerts
+	var notifies provider.Notifies
+	var silences provider.Silences
+
+	switch *storageProvider {
+	case "ql":
+		err := os.MkdirAll(*dataDir, 0777)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		dsn := filepath.Join(*dataDir, "am.db")
+		db, err := sql.Open("ql", dsn)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		alerts, err = ql.NewQLAlerts(db)
+		if err != nil {
+			log.Fatal(err)
+		}
+		notifies, err = ql.NewQLNotifies(db)
+		if err != nil {
+			log.Fatal(err)
+		}
+		silences, err = ql.NewQLSilences(db, marker)
+		if err != nil {
+			log.Fatal(err)
+		}
+	case "postgres":
+		dsn := os.Getenv("SQL_DRIVER_DSN")
+		db, err := sql.Open("postgres", dsn)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		alerts, err = postgres.NewPostgresAlerts(db)
+		if err != nil {
+			log.Fatal(err)
+		}
+		notifies, err = postgres.NewPostgresNotifies(db)
+		if err != nil {
+			log.Fatal(err)
+		}
+		silences, err = postgres.NewPostgresSilences(db, marker)
+		if err != nil {
+			log.Fatal(err)
+		}
+	case "mem":
+		var err error
+		data := mem.NewMemData()
+
+		alerts = mem.NewMemAlerts(data)
+		if err != nil {
+			log.Fatal(err)
+		}
+		notifies = mem.NewMemNotifies(data)
+		if err != nil {
+			log.Fatal(err)
+		}
+		silences = mem.NewMemSilences()
+		if err != nil {
+			log.Fatal(err)
+		}
+	default:
+		log.Fatalln("Unsupported storage provider specified:", *storageProvider)
 	}
 
 	var (

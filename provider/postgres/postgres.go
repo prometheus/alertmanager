@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package provider
+package postgres
 
 import (
 	"database/sql"
@@ -19,16 +19,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cznic/ql"
+	_ "github.com/lib/pq"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
-
-func init() {
-	ql.RegisterDriver()
-}
 
 // SQLNotifies implements a Notifies provider based on a SQL DB.
 type SQLNotifies struct {
@@ -36,7 +33,7 @@ type SQLNotifies struct {
 }
 
 // NewSQLNotifies returns a new SQLNotifies based on the provided SQL DB.
-func NewSQLNotifies(db *sql.DB) (*SQLNotifies, error) {
+func NewPostgresNotifies(db *sql.DB) (*SQLNotifies, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -51,7 +48,7 @@ func NewSQLNotifies(db *sql.DB) (*SQLNotifies, error) {
 	// has no results at all.
 	// Thus, we insert a fake alert so there is always at least one result.
 	// The fingerprint must not be NULL as it doesn't work.
-	row := tx.QueryRow(`SELECT count() FROM notify_info WHERE alert == 0`)
+	row := tx.QueryRow(`SELECT count(*) FROM notify_info WHERE alert = 0`)
 
 	var count int
 	if err := row.Scan(&count); err != nil {
@@ -61,7 +58,7 @@ func NewSQLNotifies(db *sql.DB) (*SQLNotifies, error) {
 	if count == 0 {
 		_, err := tx.Exec(`
 			INSERT INTO notify_info(alert, resolved)
-			VALUES (0, true)
+			VALUES (0, TRUE)
 		`)
 		if err != nil {
 			tx.Rollback()
@@ -76,15 +73,15 @@ func NewSQLNotifies(db *sql.DB) (*SQLNotifies, error) {
 
 const createNotifyInfoTable = `
 CREATE TABLE IF NOT EXISTS notify_info (
-	alert     int64,
-	receiver  string,
+	id		  serial	PRIMARY KEY,
+	alert     bigint,
+	receiver  text,
 	resolved  bool,
-	timestamp time
+	timestamp timestamptz,
+	CONSTRAINT notify_alert UNIQUE (alert,receiver)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS notify_alert
-	ON notify_info (alert, receiver);
-CREATE INDEX IF NOT EXISTS notify_done
-	ON notify_info (resolved);
+-- CREATE INDEX IF NOT EXISTS notify_done
+--	ON notify_info (resolved);
 `
 
 // Get implements the Notifies interface.
@@ -95,7 +92,7 @@ func (n *SQLNotifies) Get(dest string, fps ...model.Fingerprint) ([]*types.Notif
 		row := n.db.QueryRow(`
 			SELECT alert, receiver, resolved, timestamp
 			FROM notify_info
-			WHERE receiver == $1 AND alert == $2
+			WHERE receiver = $1 AND alert = $2
 		`, dest, int64(fp))
 
 		var alertFP int64
@@ -142,7 +139,7 @@ func (n *SQLNotifies) Set(ns ...*types.NotifyInfo) error {
 
 	del, err := tx.Prepare(`
 		DELETE FROM notify_info
-		WHERE alert == $1 AND receiver == $2
+		WHERE alert = $1 AND receiver = $2
 	`)
 	if err != nil {
 		tx.Rollback()
@@ -181,7 +178,7 @@ type SQLAlerts struct {
 }
 
 // NewSQLAlerts returns a new SQLAlerts based on the provided SQL DB.
-func NewSQLAlerts(db *sql.DB) (*SQLAlerts, error) {
+func NewPostgresAlerts(db *sql.DB) (*SQLAlerts, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -200,20 +197,21 @@ func NewSQLAlerts(db *sql.DB) (*SQLAlerts, error) {
 
 const createAlertsTable = `
 CREATE TABLE IF NOT EXISTS alerts (
-	fingerprint int64,
-	labels      string,
-	annotations string,
-	starts_at   time,
-	ends_at     time,
-	updated_at  time,
+	id			serial	PRIMARY KEY,
+	fingerprint bigint,
+	labels      text,
+	annotations text,
+	starts_at   timestamptz,
+	ends_at     timestamptz,
+	updated_at  timestamptz,
 	timeout     bool
 );
-CREATE INDEX IF NOT EXISTS alerts_start ON alerts (starts_at);
-CREATE INDEX IF NOT EXISTS alerts_end   ON alerts (ends_at);
+-- CREATE INDEX IF NOT EXISTS alerts_start ON alerts (starts_at);
+-- CREATE INDEX IF NOT EXISTS alerts_end   ON alerts (ends_at);
 `
 
 // Subscribe implements the Alerts interface.
-func (a *SQLAlerts) Subscribe() AlertIterator {
+func (a *SQLAlerts) Subscribe() provider.AlertIterator {
 	var (
 		ch   = make(chan *types.Alert, 200)
 		done = make(chan struct{})
@@ -246,15 +244,11 @@ func (a *SQLAlerts) Subscribe() AlertIterator {
 		<-done
 	}()
 
-	return alertIterator{
-		ch:   ch,
-		done: done,
-		err:  err,
-	}
+	return provider.NewAlertIterator(ch, done, err)
 }
 
 // GetPending implements the Alerts interface.
-func (a *SQLAlerts) GetPending() AlertIterator {
+func (a *SQLAlerts) GetPending() provider.AlertIterator {
 	var (
 		ch   = make(chan *types.Alert, 200)
 		done = make(chan struct{})
@@ -274,11 +268,7 @@ func (a *SQLAlerts) GetPending() AlertIterator {
 		}
 	}()
 
-	return alertIterator{
-		ch:   ch,
-		done: done,
-		err:  err,
-	}
+	return provider.NewAlertIterator(ch, done, err)
 }
 
 func (a *SQLAlerts) getPending() ([]*types.Alert, error) {
@@ -351,9 +341,9 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	// care about finding intersecting alerts for each new inserts, deleting them
 	// if existant, and insert the new alert we retrieved by merging.
 	overlap, err := tx.Prepare(`
-		SELECT id(), annotations, starts_at, ends_at, updated_at, timeout
+		SELECT id, annotations, starts_at, ends_at, updated_at, timeout
 		FROM alerts
-		WHERE fingerprint == $1 AND (
+		WHERE fingerprint = $1 AND (
 			(starts_at <= $2 AND ends_at >= $2) OR
 			(starts_at <= $3 AND ends_at >= $3)
 		)
@@ -365,9 +355,9 @@ func (a *SQLAlerts) Put(alerts ...*types.Alert) error {
 	defer overlap.Close()
 
 	delOverlap, err := tx.Prepare(`
-		DELETE FROM alerts WHERE id() IN (
-			SELECT id() FROM alerts
-			WHERE fingerprint == $1 AND (
+		DELETE FROM alerts WHERE id IN (
+			SELECT id FROM alerts
+			WHERE fingerprint = $1 AND (
 				(starts_at <= $2 AND ends_at >= $2) OR
 				(starts_at <= $3 AND ends_at >= $3)
 			)
@@ -490,7 +480,7 @@ type SQLSilences struct {
 }
 
 // NewSQLSilences returns a new SQLSilences based on the provided SQL DB.
-func NewSQLSilences(db *sql.DB, mk types.Marker) (*SQLSilences, error) {
+func NewPostgresSilences(db *sql.DB, mk types.Marker) (*SQLSilences, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
@@ -506,16 +496,17 @@ func NewSQLSilences(db *sql.DB, mk types.Marker) (*SQLSilences, error) {
 
 const createSilencesTable = `
 CREATE TABLE IF NOT EXISTS silences (
-	matchers   string,
-	starts_at  time,
-	ends_at    time,
-	created_at time,
-	created_by string,
-	comment    string
+	id		   serial PRIMARY KEY,
+	matchers   text,
+	starts_at  timestamptz,
+	ends_at    timestamptz,
+	created_at timestamptz,
+	created_by text,
+	comment    text
 );
-CREATE INDEX IF NOT EXISTS silences_start ON silences (starts_at);
-CREATE INDEX IF NOT EXISTS silences_end   ON silences (ends_at);
-CREATE INDEX IF NOT EXISTS silences_id    ON silences (id());
+-- CREATE INDEX IF NOT EXISTS silences_start ON silences (starts_at);
+-- CREATE INDEX IF NOT EXISTS silences_end   ON silences (ends_at);
+-- CREATE INDEX IF NOT EXISTS silences_id    ON silences (id());
 `
 
 // Mutes implements the Muter interface.
@@ -541,7 +532,7 @@ func (s *SQLSilences) Mutes(lset model.LabelSet) bool {
 // All implements the Silences interface.
 func (s *SQLSilences) All() ([]*types.Silence, error) {
 	rows, err := s.db.Query(`
-		SELECT id(), matchers, starts_at, ends_at, created_at, created_by, comment
+		SELECT id, matchers, starts_at, ends_at, created_at, created_by, comment
 		FROM silences 
 		ORDER BY starts_at DESC
 	`)
@@ -595,9 +586,9 @@ func (s *SQLSilences) Set(sil *types.Silence) (uint64, error) {
 		return 0, err
 	}
 
-	res, err := tx.Exec(`
+	res := tx.QueryRow(`
 		INSERT INTO silences(matchers, starts_at, ends_at, created_at, created_by, comment)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
 	`,
 		string(mb),
 		sil.StartsAt,
@@ -606,12 +597,9 @@ func (s *SQLSilences) Set(sil *types.Silence) (uint64, error) {
 		sil.CreatedBy,
 		sil.Comment,
 	)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
 
-	sid, err := res.LastInsertId()
+	var sid int64
+	err = res.Scan(&sid)
 	if err != nil {
 		tx.Rollback()
 		return 0, err
@@ -629,7 +617,7 @@ func (s *SQLSilences) Del(sid uint64) error {
 		return err
 	}
 
-	if _, err := tx.Exec(`DELETE FROM silences WHERE id() == $1`, sid); err != nil {
+	if _, err := tx.Exec(`DELETE FROM silences WHERE id = $1`, sid); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -641,9 +629,9 @@ func (s *SQLSilences) Del(sid uint64) error {
 // Get implements the Silences interface.
 func (s *SQLSilences) Get(sid uint64) (*types.Silence, error) {
 	row := s.db.QueryRow(`
-		SELECT id(), matchers, starts_at, ends_at, created_at, created_by, comment
+		SELECT id, matchers, starts_at, ends_at, created_at, created_by, comment
 		FROM silences
-		WHERE id() == $1
+		WHERE id = $1
 	`, sid)
 
 	var (
@@ -660,7 +648,7 @@ func (s *SQLSilences) Get(sid uint64) (*types.Silence, error) {
 		&sil.Comment,
 	)
 	if err == sql.ErrNoRows {
-		return nil, ErrNotFound
+		return nil, provider.ErrNotFound
 	}
 	if err != nil {
 		return nil, err

@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -46,7 +46,7 @@ func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
 func TestDedupingNotifier(t *testing.T) {
 	var (
 		record   = &recordNotifier{}
-		notifies = provider.NewMemNotifies(provider.NewMemData())
+		notifies = mem.NewMemNotifies(mem.NewMemData())
 		deduper  = Dedup(notifies, record)
 		ctx      = context.Background()
 	)

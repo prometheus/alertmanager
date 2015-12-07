@@ -83,6 +83,16 @@
 			"revisionTime": "2015-09-05T19:25:33+02:00"
 		},
 		{
+			"path": "github.com/lib/pq",
+			"revision": "b269bd035a727d6c1081f76e7a239a1b00674c40",
+			"revisionTime": "2015-08-05T11:05:26+02:00"
+		},
+		{
+			"path": "github.com/lib/pq/oid",
+			"revision": "b269bd035a727d6c1081f76e7a239a1b00674c40",
+			"revisionTime": "2015-08-05T11:05:26+02:00"
+		},
+		{
 			"path": "github.com/matttproud/golang_protobuf_extensions/pbutil",
 			"revision": "fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a",
 			"revisionTime": "2015-04-06T19:39:34+02:00"
