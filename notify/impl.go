@@ -128,6 +128,15 @@ type Email struct {
 
 // NewEmail returns a new Email notifier.
 func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
+	if _, ok := c.Headers["Subject"]; !ok {
+		c.Headers["Subject"] = config.DefaultEmailSubject
+	}
+	if _, ok := c.Headers["To"]; !ok {
+		c.Headers["To"] = c.To
+	}
+	if _, ok := c.Headers["From"]; !ok {
+		c.Headers["From"] = c.From
+	}
 	return &Email{conf: c, tmpl: t}
 }
 
@@ -229,8 +238,8 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	defer wc.Close()
 
-	for header, name := range n.conf.Headers {
-		value, err := n.tmpl.ExecuteTextString(name, data)
+	for header, t := range n.conf.Headers {
+		value, err := n.tmpl.ExecuteTextString(t, data)
 		if err != nil {
 			return fmt.Errorf("executing %q header template: %s", header, err)
 		}
