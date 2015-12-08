@@ -290,7 +290,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 
 	am.t.Do(at, func() {
 		if err := alertAPI.Push(context.Background(), nas...); err != nil {
-			am.t.Fatal(err)
+			am.t.Errorf("Error pushing %v: %s", nas, err)
 		}
 	})
 }
@@ -302,7 +302,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
 		sid, err := silences.Set(context.Background(), sil.nativeSilence(am.opts))
 		if err != nil {
-			am.t.Fatal(err)
+			am.t.Errorf("Error setting silence %v: %s", sil, err)
 			return
 		}
 		sil.ID = sid
@@ -315,7 +315,7 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 
 	am.t.Do(at, func() {
 		if err := silences.Del(context.Background(), sil.ID); err != nil {
-			am.t.Fatal(err)
+			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 		}
 	})
 }
