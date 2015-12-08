@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
 	"sync"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 
