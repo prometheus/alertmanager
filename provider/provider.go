@@ -26,15 +26,6 @@ var (
 	ErrNotFound = fmt.Errorf("item not found")
 )
 
-// NewAlertIterator returns a new AlertIterator based on the generic alertIterator type
-func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) AlertIterator {
-	return &alertIterator{
-		ch:   ch,
-		done: done,
-		err:  err,
-	}
-}
-
 // Iterator provides the functions common to all iterators. To be useful, a
 // specific iterator interface (e.g. AlertIterator) has to be implemented that
 // provides a Next method.
@@ -56,6 +47,15 @@ type AlertIterator interface {
 	// be called in any case to release resources used by the iterator (even
 	// if the iterator is exhausted).
 	Next() <-chan *types.Alert
+}
+
+// NewAlertIterator returns a new AlertIterator based on the generic alertIterator type
+func NewAlertIterator(ch <-chan *types.Alert, done chan struct{}, err error) AlertIterator {
+	return &alertIterator{
+		ch:   ch,
+		done: done,
+		err:  err,
+	}
 }
 
 // alertIterator implements AlertIterator. So far, this one fits all providers.

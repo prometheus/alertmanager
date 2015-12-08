@@ -34,7 +34,6 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
-	// "github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/provider/sqlite"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -64,7 +63,6 @@ func main() {
 		log.Fatal(err)
 	}
 	db, err := sql.Open("sqlite3", filepath.Join(*dataDir, "am.db"))
-	// db, err := sql.Open("ql", filepath.Join(*dataDir, "am.db"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,18 +70,6 @@ func main() {
 
 	marker := types.NewMarker()
 
-	// alerts, err := provider.NewSQLAlerts(db)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// notifies, err := provider.NewSQLNotifies(db)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// silences, err := provider.NewSQLSilences(db, marker)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
 	alerts, err := sqlite.NewAlerts(db)
 	if err != nil {
 		log.Fatal(err)
