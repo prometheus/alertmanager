@@ -92,8 +92,7 @@ type errorType string
 
 const (
 	errorNone     errorType = ""
-	errorTimeout            = "timeout"
-	errorCanceled           = "canceled"
+	errorInternal           = "server_error"
 	errorBadData            = "bad_data"
 )
 
@@ -146,7 +145,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
@@ -202,7 +201,7 @@ func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
 	// TODO(fabxc): validate input.
 	if err := api.alerts.Put(alerts...); err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
@@ -235,7 +234,7 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 	// TODO(fabxc): validate input.
 	if err := api.alerts.Put(alerts...); err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
@@ -259,7 +258,7 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 	sid, err := api.silences.Set(&sil)
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
@@ -303,7 +302,7 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 
 	if err := api.silences.Del(sid); err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
@@ -315,7 +314,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	sils, err := api.silences.All()
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
@@ -353,7 +352,15 @@ func respond(w http.ResponseWriter, data interface{}) {
 
 func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(422)
+
+	switch apiErr.typ {
+	case errorBadData:
+		w.WriteHeader(http.StatusBadRequest)
+	case errorInternal:
+		w.WriteHeader(http.StatusInternalServerError)
+	default:
+		panic(fmt.Sprintf("unknown error type", apiErr))
+	}
 
 	b, err := json.Marshal(&response{
 		Status:    statusError,
@@ -364,6 +371,8 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	if err != nil {
 		return
 	}
+	log.Errorf("api error: %v", apiErr)
+
 	w.Write(b)
 }
 

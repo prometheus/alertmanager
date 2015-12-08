@@ -118,7 +118,6 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.To == "" {
 		return fmt.Errorf("missing to address in email config")
 	}
-
 	// Header names are case-insensitive, check for collisions.
 	normalizedHeaders := map[string]string{}
 	for h, v := range c.Headers {
@@ -129,15 +128,6 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		normalizedHeaders[normalized] = v
 	}
 	c.Headers = normalizedHeaders
-	if _, ok := c.Headers["Subject"]; !ok {
-		c.Headers["Subject"] = DefaultEmailSubject
-	}
-	if _, ok := c.Headers["To"]; !ok {
-		c.Headers["To"] = c.To
-	}
-	if _, ok := c.Headers["From"]; !ok {
-		c.Headers["From"] = c.From
-	}
 
 	return checkOverflow(c.XXX, "email config")
 }
