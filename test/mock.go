@@ -107,6 +107,9 @@ func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *model.Silence {
 	if s.endsAt > 0 {
 		nsil.EndsAt = opts.expandTime(s.endsAt)
 	}
+	nsil.Comment = "some comment"
+	nsil.CreatedBy = "admin@example.com"
+
 	return nsil
 }
 

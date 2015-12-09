@@ -184,39 +184,23 @@ func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
 		alerts = append(alerts, a)
 	}
 
-	now := time.Now()
-
-	for _, alert := range alerts {
-		alert.UpdatedAt = now
-
-		if alert.StartsAt.IsZero() {
-			alert.StartsAt = now
-		}
-		if alert.EndsAt.IsZero() {
-			alert.Timeout = true
-			alert.EndsAt = alert.StartsAt.Add(api.resolveTimeout)
-		}
-	}
-
-	// TODO(fabxc): validate input.
-	if err := api.alerts.Put(alerts...); err != nil {
-		respondError(w, apiError{
-			typ: errorInternal,
-			err: err,
-		}, nil)
-		return
-	}
-
-	respond(w, nil)
+	api.insertAlerts(w, r, alerts...)
 }
 
 func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 	var alerts []*types.Alert
 	if err := receive(r, &alerts); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
 		return
 	}
 
+	api.insertAlerts(w, r, alerts...)
+}
+
+func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*types.Alert) {
 	now := time.Now()
 
 	for _, alert := range alerts {
@@ -231,7 +215,17 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// TODO(fabxc): validate input.
+	// Only validate after we've ensured that StartsAt is set.
+	for _, a := range alerts {
+		if err := a.Validate(); err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
 	if err := api.alerts.Put(alerts...); err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -254,7 +248,14 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		sil.CreatedAt = time.Now()
 	}
 
-	// TODO(fabxc): validate input.
+	if err := sil.Validate(); err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+
 	sid, err := api.silences.Set(&sil)
 	if err != nil {
 		respondError(w, apiError{
@@ -279,6 +280,7 @@ func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 			typ: errorBadData,
 			err: err,
 		}, nil)
+		return
 	}
 
 	sil, err := api.silences.Get(sid)
@@ -298,6 +300,7 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 			typ: errorBadData,
 			err: err,
 		}, nil)
+		return
 	}
 
 	if err := api.silences.Del(sid); err != nil {
