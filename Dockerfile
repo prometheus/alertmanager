@@ -6,7 +6,7 @@ COPY    . /gopath/src/github.com/prometheus/alertmanager
 
 RUN apk add --update -t build-deps tar openssl git make bash \
     && source ./scripts/goenv.sh /go /gopath \
-    && CGO_ENABLED=0 make build \
+    && make build \
     && cp alertmanager /bin/ \
     && mkdir -p /etc/alertmanager/template \
     && mv ./doc/examples/simple.yml /etc/alertmanager/config.yml \
