@@ -29,6 +29,7 @@ if [ "$(go env GOOS)" = "windows" ]; then
 fi
 
 ldflags="
+  -extldflags \"-static\"
   -X ${repo_path}/version.Version=${version}
   -X ${repo_path}/version.Revision=${revision}
   -X ${repo_path}/version.Branch=${branch}
