@@ -16,6 +16,7 @@ package template
 import (
 	"bytes"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -60,11 +61,19 @@ func FromGlobs(paths ...string) (*Template, error) {
 	}
 
 	for _, tp := range paths {
-		if t.text, err = t.text.ParseGlob(tp); err != nil {
+		// ParseGlob in the template packages errors if not at least one file is
+		// matched. We want to allow empty matches that may be populated later on.
+		p, err := filepath.Glob(tp)
+		if err != nil {
 			return nil, err
 		}
-		if t.html, err = t.html.ParseGlob(tp); err != nil {
-			return nil, err
+		if len(p) > 0 {
+			if t.text, err = t.text.ParseGlob(tp); err != nil {
+				return nil, err
+			}
+			if t.html, err = t.html.ParseGlob(tp); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return t, nil
