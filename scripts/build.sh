@@ -29,13 +29,16 @@ if [ "$(go env GOOS)" = "windows" ]; then
 fi
 
 ldflags="
-  -extldflags \"-static\"
   -X ${repo_path}/version.Version=${version}
   -X ${repo_path}/version.Revision=${revision}
   -X ${repo_path}/version.Branch=${branch}
   -X ${repo_path}/version.BuildUser=${USER}@${host}
   -X ${repo_path}/version.BuildDate=${build_date}
   -X ${repo_path}/version.GoVersion=${go_version}"
+
+if [ "$(go env GOOS)" != "darwin" ]; then
+	ldflags="${ldflags} -extldflags \"-static\""
+fi
 
 export GO15VENDOREXPERIMENT="1"
 
