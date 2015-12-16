@@ -274,7 +274,6 @@ angular.module('am.controllers').controller('SilencesCtrl',
       $scope.showForm = !$scope.showForm
     }
 
-
     $scope.refresh = function() {
       Silence.query({},
         function(data) { 
@@ -314,7 +313,6 @@ angular.module('am.controllers').controller('SilencesCtrl',
 
 angular.module('am.controllers').controller('SilenceCreateCtrl',
   function($scope, Silence) {
-
     $scope.error = null;
     $scope.silence = $scope.silence || {};
 
@@ -337,8 +335,12 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
 
       $scope.silence = angular.copy(origSilence);
 
-      $scope.silence.startsAt = now;
-      $scope.silence.endsAt = end;
+      if (!origSilence.startsAt) {
+        $scope.silence.startsAt = now;
+      }
+      if (!origSilence.endsAt) {
+        $scope.silence.endsAt = end;
+      }
     };
 
     $scope.reset();
