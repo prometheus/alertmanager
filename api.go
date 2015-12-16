@@ -240,7 +240,10 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 	var sil types.Silence
 	if err := receive(r, &sil); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
 		return
 	}
 
