@@ -1,25 +1,25 @@
-<form novalidate class="forms" ng-controller="SilenceCreateCtrl">
+<form novalidate name="form" class="forms" ng-controller="SilenceCreateCtrl">
 	<fieldset id="silence-create">
 		<legend>Create <span class="desc">Define a new silence.</span></legend>
 
 		<row>
 			<column>
 				<label>Start</label>
-				<input ng-model="silence.startsAt" type="datetime-local">
+				<input ng-model="silence.startsAt" type="datetime-local" name="start-time" required>
 			</column>
 			<column>
 				<label>End</label>
-				<input ng-model="silence.endsAt" type="datetime-local">
+				<input ng-model="silence.endsAt" type="datetime-local" name="end-time" required>
 			</column>
 		</row>
 				
 		<label>Matchers <span class="desc">Alerts affected by this silence.</span></label>
 		<row class="silence-matchers" ng-repeat="m in silence.matchers">
 			<column cols="2">
-				<input class="input-small" type="text" placeholder="name" ng-model="m.name">
+				<input class="input-small" type="text" placeholder="name" ng-model="m.name" required>
 			</column>
 			<column cols="2">
-				<input class="input-small" type="text" placeholder="value" ng-model="m.value">
+				<input class="input-small" type="text" placeholder="value" ng-model="m.value" required>
 			</column>
 
 			<column>
@@ -34,20 +34,22 @@
 		<row>
 			<column cols="2">
 				<label>Creator</label>
-				<input ng-model="silence.createdBy" type="email" ng-required>
+				<input ng-model="silence.createdBy" type="email" name="creator" placeholder="me@company.com" required>
 			</column>
 			<column cols="4">
 				<label>Comment</label>
-				<input ng-model="silence.comment" type="text">
+				<input ng-model="silence.comment" type="text" name="comment" placeholder="reason for silence..." required>
 			</column>
 		</row>
 
+		<div ng-show="error != null" class="alert alert-error">
+			<span class="error">{{ error }}</span>
+		</div>
+
 	</fieldset>
 
-	<div ng-show="error != null"><span class="error">{{ error }}</span></div>
-
 	<div class="btn-group">
-		<button type="primary" ng-disabled="silence.matchers.length == 0" ng-click="create()" upper>Create</button>
+		<button type="primary" ng-disabled="silence.matchers.length == 0 || form.$invalid" ng-click="create()" upper>Create</button>
 		<button type="seconday" ng-click="reset()" upper>Reset</button>
 	</div>
 </form>

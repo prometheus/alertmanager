@@ -360,7 +360,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
           $scope.reset();
         },
         function(data) {
-          $scope.error = data.data;
+          $scope.error = data.data.error;
         }
       );
     };
