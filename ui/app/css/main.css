@@ -98,6 +98,7 @@ header #logo a {
 }
 .silence-item.highlight .overview {
 	background: #dfdfdf;
+	border: 1px solid #2f77d1;
 }
 .silence-item .detail, .alert-item .detail {
 	background: #fff;
