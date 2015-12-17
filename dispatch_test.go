@@ -20,7 +20,6 @@ func TestAggrGroup(t *testing.T) {
 	}
 	opts := &RouteOpts{
 		Receiver:       "n1",
-		SendResolved:   true,
 		GroupBy:        map[model.LabelName]struct{}{},
 		GroupWait:      1 * time.Second,
 		GroupInterval:  300 * time.Millisecond,
@@ -88,9 +87,6 @@ func TestAggrGroup(t *testing.T) {
 		}
 		if ri, ok := notify.RepeatInterval(ctx); !ok || ri != opts.RepeatInterval {
 			t.Errorf("wrong repeat interval: %q", ri)
-		}
-		if sr, ok := notify.SendResolved(ctx); !ok || sr != opts.SendResolved {
-			t.Errorf("wrong send_resolved: %v", sr)
 		}
 
 		last = current

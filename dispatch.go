@@ -326,7 +326,6 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithReceiver(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
-			ctx = notify.WithSendResolved(ctx, ag.opts.SendResolved)
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()

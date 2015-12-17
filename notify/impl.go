@@ -38,9 +38,39 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+type notifierConfig interface {
+	SendResolved() bool
+}
+
+type NotifierFunc func(context.Context, ...*types.Alert) error
+
+func (f NotifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	return f(ctx, alerts...)
+}
+
 // Build creates a fanout notifier for each receiver.
 func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout {
 	res := map[string]Fanout{}
+
+	filter := func(n Notifier, c notifierConfig) Notifier {
+		return NotifierFunc(func(ctx context.Context, alerts ...*types.Alert) error {
+			var res []*types.Alert
+
+			if c.SendResolved() {
+				res = alerts
+			} else {
+				for _, a := range alerts {
+					if a.Status() != model.AlertResolved {
+						res = append(res, a)
+					}
+				}
+			}
+			if len(res) == 0 {
+				return nil
+			}
+			return n.Notify(ctx, res...)
+		})
+	}
 
 	for _, nc := range confs {
 		var (
@@ -49,19 +79,19 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		)
 
 		for i, c := range nc.WebhookConfigs {
-			add(i, NewWebhook(c))
+			add(i, filter(NewWebhook(c), c))
 		}
 		for i, c := range nc.EmailConfigs {
-			add(i, NewEmail(c, tmpl))
+			add(i, filter(NewEmail(c, tmpl), c))
 		}
 		for i, c := range nc.PagerdutyConfigs {
-			add(i, NewPagerDuty(c, tmpl))
+			add(i, filter(NewPagerDuty(c, tmpl), c))
 		}
 		for i, c := range nc.OpsGenieConfigs {
-			add(i, NewOpsGenie(c, tmpl))
+			add(i, filter(NewOpsGenie(c, tmpl), c))
 		}
 		for i, c := range nc.SlackConfigs {
-			add(i, NewSlack(c, tmpl))
+			add(i, filter(NewSlack(c, tmpl), c))
 		}
 
 		res[nc.Name] = fo

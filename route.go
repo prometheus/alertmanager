@@ -30,7 +30,6 @@ var DefaultRouteOpts = RouteOpts{
 	GroupWait:      30 * time.Second,
 	GroupInterval:  5 * time.Minute,
 	RepeatInterval: 4 * time.Hour,
-	SendResolved:   true,
 	GroupBy: map[model.LabelName]struct{}{
 		model.AlertNameLabel: struct{}{},
 	},
@@ -79,9 +78,6 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	}
 	if cr.RepeatInterval != nil {
 		opts.RepeatInterval = time.Duration(*cr.RepeatInterval)
-	}
-	if cr.SendResolved != nil {
-		opts.SendResolved = *cr.SendResolved
 	}
 
 	// Build matchers.
@@ -175,8 +171,7 @@ func (r *Route) Fingerprint() model.Fingerprint {
 // that match a given route.
 type RouteOpts struct {
 	// The identifier of the associated notification configuration
-	Receiver     string
-	SendResolved bool
+	Receiver string
 
 	// What labels to group alerts by for notifications.
 	GroupBy map[model.LabelName]struct{}
@@ -200,14 +195,12 @@ func (ro *RouteOpts) String() string {
 func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
 	v := struct {
 		Receiver       string           `json:"receiver"`
-		SendResolved   bool             `json:"sendResolved"`
 		GroupBy        model.LabelNames `json:"groupBy"`
 		GroupWait      time.Duration    `json:"groupWait"`
 		GroupInterval  time.Duration    `json:"groupInterval"`
 		RepeatInterval time.Duration    `json:"repeatInterval"`
 	}{
 		Receiver:       ro.Receiver,
-		SendResolved:   ro.SendResolved,
 		GroupWait:      ro.GroupWait,
 		GroupInterval:  ro.GroupInterval,
 		RepeatInterval: ro.RepeatInterval,

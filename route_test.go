@@ -64,7 +64,6 @@ routes:
 
   group_by: ['foo', 'bar']
   group_wait: 2m
-  send_resolved: false
   receiver: 'notify-BC'
 `
 
@@ -99,7 +98,6 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
-					SendResolved:   def.SendResolved,
 				},
 			},
 		},
@@ -115,7 +113,6 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
-					SendResolved:   def.SendResolved,
 				},
 			},
 		},
@@ -130,7 +127,6 @@ routes:
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
-					SendResolved:   false,
 				},
 			},
 		},
@@ -146,7 +142,6 @@ routes:
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
-					SendResolved:   def.SendResolved,
 				},
 			},
 		},
@@ -162,7 +157,6 @@ routes:
 					GroupWait:      1 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
-					SendResolved:   def.SendResolved,
 				},
 				{
 					Receiver:       "notify-productionB",
@@ -170,7 +164,6 @@ routes:
 					GroupWait:      30 * time.Second,
 					GroupInterval:  5 * time.Minute,
 					RepeatInterval: 1 * time.Hour,
-					SendResolved:   def.SendResolved,
 				},
 			},
 		},

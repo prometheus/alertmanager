@@ -19,22 +19,29 @@ import (
 )
 
 var (
+	// DefaultWebhookConfig defines default values for Webhook configurations.
+	DefaultWebhookConfig = WebhookConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
 		HTML: `{{ template "email.default.html" . }}`,
 	}
 
 	// DefaultEmailSubject defines the default Subject header of an Email.
 	DefaultEmailSubject = `{{ template "email.default.subject" . }}`
 
-	// DefaultHipchatConfig defines default values for Hipchat configurations.
-	DefaultHipchatConfig = HipchatConfig{
-		Color:         `{{ if eq .Status "firing" }}purple{{ else }}green{{ end }}`,
-		MessageFormat: HipchatFormatHTML,
-	}
-
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
 	DefaultPagerdutyConfig = PagerdutyConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
 		Description: `{{ template "pagerduty.default.description" .}}`,
 		Client:      `{{ template "pagerduty.default.client" . }}`,
 		ClientURL:   `{{ template "pagerduty.default.clientURL" . }}`,
@@ -48,6 +55,9 @@ var (
 
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
 		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
 		Username:  `{{ template "slack.default.username" . }}`,
 		Title:     `{{ template "slack.default.title" . }}`,
@@ -59,44 +69,28 @@ var (
 
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
 		Description: `{{ template "opsgenie.default.description" . }}`,
 		Source:      `{{ template "opsgenie.default.source" . }}`,
 		// TODO: Add a details field with all the alerts.
 	}
 )
 
-// FlowdockConfig configures notifications via Flowdock.
-type FlowdockConfig struct {
-	// Flowdock flow API token.
-	APIToken Secret `yaml:"api_token"`
-
-	// Flowdock from_address.
-	FromAddress string `yaml:"from_address"`
-
-	// Flowdock flow tags.
-	Tags []string `yaml:"tags"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+// NotifierConfig contains base options common across all notifier configurations.
+type NotifierConfig struct {
+	VSendResolved bool `yaml:"send_resolved"`
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *FlowdockConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain FlowdockConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.APIToken == "" {
-		return fmt.Errorf("missing API token in Flowdock config")
-	}
-	if c.FromAddress == "" {
-		return fmt.Errorf("missing from address in Flowdock config")
-	}
-	return checkOverflow(c.XXX, "flowdock config")
+func (nc *NotifierConfig) SendResolved() bool {
+	return nc.VSendResolved
 }
 
 // EmailConfig configures notifications via mail.
 type EmailConfig struct {
+	NotifierConfig
+
 	// Email address to notify.
 	To        string            `yaml:"to"`
 	From      string            `yaml:"from"`
@@ -132,58 +126,10 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "email config")
 }
 
-// HipchatFormat defines text formats for Hipchat.
-type HipchatFormat string
-
-// Possible values of HipchatFormat.
-const (
-	HipchatFormatHTML HipchatFormat = "html"
-	HipchatFormatText HipchatFormat = "text"
-)
-
-// HipchatConfig configures notifications via Hipchat.
-// https://www.hipchat.com/docs/apiv2/method/send_room_notification
-type HipchatConfig struct {
-	// HipChat auth token, (https://www.hipchat.com/docs/api/auth).
-	APIToken Secret `yaml:"api_token"`
-
-	// HipChat room id, (https://www.hipchat.com/rooms/ids).
-	RoomID int `yaml:"room_id"`
-
-	// The message color.
-	Color string `yaml:"color"`
-
-	// Should this message notify or not.
-	Notify bool `yaml:"notify"`
-
-	// Prefix to be put in front of the message (useful for @mentions, etc.).
-	Prefix string `yaml:"prefix"`
-
-	// Format the message as "html" or "text".
-	MessageFormat HipchatFormat `yaml:"message_format"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultHipchatConfig
-	type plain HipchatConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.APIToken == "" {
-		return fmt.Errorf("missing API token in HipChat config")
-	}
-	if c.MessageFormat != HipchatFormatHTML && c.MessageFormat != HipchatFormatText {
-		return fmt.Errorf("invalid message format %q", c.MessageFormat)
-	}
-	return checkOverflow(c.XXX, "hipchat config")
-}
-
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
+	NotifierConfig
+
 	ServiceKey  Secret            `yaml:"service_key"`
 	URL         string            `yaml:"url"`
 	Client      string            `yaml:"client"`
@@ -208,35 +154,10 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return checkOverflow(c.XXX, "pagerduty config")
 }
 
-// PushoverConfig configures notifications via PushOver.
-type PushoverConfig struct {
-	// Pushover token.
-	Token string `yaml:"token"`
-
-	// Pushover user_key.
-	UserKey string `yaml:"user_key"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain PushoverConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.Token == "" {
-		return fmt.Errorf("missing token in Pushover config")
-	}
-	if c.UserKey == "" {
-		return fmt.Errorf("missing user key in Pushover config")
-	}
-	return checkOverflow(c.XXX, "pushover config")
-}
-
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
+	NotifierConfig
+
 	APIURL Secret `yaml:"api_url"`
 
 	// Slack channel override, (like #other-channel or @username).
@@ -269,6 +190,8 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
+	NotifierConfig
+
 	// URL to send POST request to.
 	URL string `yaml:"url"`
 
@@ -278,6 +201,7 @@ type WebhookConfig struct {
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWebhookConfig
 	type plain WebhookConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -290,6 +214,8 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // OpsGenieConfig configures notifications via OpsGenie.
 type OpsGenieConfig struct {
+	NotifierConfig
+
 	APIKey      Secret            `yaml:"api_key"`
 	APIHost     string            `yaml:"api_host"`
 	Description string            `yaml:"description"`

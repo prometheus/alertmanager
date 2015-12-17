@@ -54,7 +54,6 @@ func TestDedupingNotifier(t *testing.T) {
 
 	ctx = WithReceiver(ctx, "name")
 	ctx = WithRepeatInterval(ctx, time.Duration(100*time.Minute))
-	ctx = WithSendResolved(ctx, true)
 	ctx = WithNow(ctx, now)
 
 	alerts := []*types.Alert{
