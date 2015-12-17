@@ -235,7 +235,6 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty"`
-	SendResolved   *bool           `yaml:"send_resolved,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -336,10 +335,7 @@ type Receiver struct {
 	Name string `yaml:"name"`
 
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty"`
-	FlowdockConfigs  []*FlowdockConfig  `yaml:"flowdock_configs,omitempty"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty"`
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`

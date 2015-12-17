@@ -38,7 +38,6 @@ type notifyKey int
 const (
 	keyReceiver notifyKey = iota
 	keyRepeatInterval
-	keySendResolved
 	keyGroupLabels
 	keyGroupKey
 	keyNow
@@ -52,11 +51,6 @@ func WithReceiver(ctx context.Context, rcv string) context.Context {
 // WithRepeatInterval populates a context with a repeat interval.
 func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 	return context.WithValue(ctx, keyRepeatInterval, t)
-}
-
-// WithSendResolved populates a context with a send resolved boolean.
-func WithSendResolved(ctx context.Context, b bool) context.Context {
-	return context.WithValue(ctx, keySendResolved, b)
 }
 
 // WithGroupKey populates a context with a group key.
@@ -93,13 +87,6 @@ func Receiver(ctx context.Context) (string, bool) {
 // second argument is false.
 func RepeatInterval(ctx context.Context) (time.Duration, bool) {
 	v, ok := ctx.Value(keyRepeatInterval).(time.Duration)
-	return v, ok
-}
-
-// SendResolved extracts a send resolved boolean from the context.
-// Iff none exists, the second argument is false.
-func SendResolved(ctx context.Context) (bool, bool) {
-	v, ok := ctx.Value(keySendResolved).(bool)
 	return v, ok
 }
 
@@ -238,11 +225,6 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		return fmt.Errorf("repeat interval missing")
 	}
 
-	sendResolved, ok := SendResolved(ctx)
-	if !ok {
-		return fmt.Errorf("send resolved missing")
-	}
-
 	now, ok := Now(ctx)
 	if !ok {
 		return fmt.Errorf("now time missing")
@@ -268,7 +250,7 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 
 		if last != nil {
 			if a.Resolved() {
-				if !sendResolved || last.Resolved {
+				if last.Resolved {
 					continue
 				}
 			} else if !last.Resolved {
@@ -299,12 +281,6 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 	// repeat interval has not yet passed.
 	if doResend {
 		filtered = append(filtered, resendQueue...)
-	}
-
-	// The deduping notifier is the last one before actually sending notifications.
-	// Thus, this is the place where we abort if after all filtering, nothing is left.
-	if len(filtered) == 0 {
-		return nil
 	}
 
 	var newNotifies []*types.NotifyInfo
