@@ -1,0 +1,24 @@
+<div ng-controller="StatusCtrl">
+	<h1>Status</h1>
+	<table>
+		<tbody>
+			<tr>
+				<td>Up since</td>
+				<td>{{ uptime | date:'yyyy-MM-dd HH:mm:ss' }}</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<h2>Build info</h2>
+	<table>
+		<tbody>
+			<tr ng-repeat="(key, val) in versionInfo">
+				<td>{{ key }}</td>
+				<td>{{ val }}</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<h2>Config</h2>
+	<pre>{{ config }}</pre>
+</div>

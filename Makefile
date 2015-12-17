@@ -11,28 +11,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-VERSION  := 0.0.4
-TARGET   := alertmanager
+GO   := GO15VENDOREXPERIMENT=1 go
+pkgs  = $(shell $(GO) list ./... | grep -v /vendor/)
 
-include Makefile.COMMON
+ifdef DEBUG
+	bindata_flags = -debug
+endif
 
-REV        := $(shell git rev-parse --short HEAD 2> /dev/null  || echo 'unknown')
-BRANCH     := $(shell git rev-parse --abbrev-ref HEAD 2> /dev/null  || echo 'unknown')
-HOSTNAME   := $(shell hostname -f)
-BUILD_DATE := $(shell date +%Y%m%d-%H:%M:%S)
-GOFLAGS    := -ldflags \
-	"-X main.buildVersion=$(VERSION)\
-	 -X main.buildRevision=$(REV)\
-	 -X main.buildBranch=$(BRANCH)\
-	 -X main.buildUser=$(USER)@$(HOSTNAME)\
-	 -X main.buildDate=$(BUILD_DATE)\
-	 -X main.goVersion=$(GO_VERSION)"
 
-web: web/blob/files.go
+all: format build test
 
-web/blob/files.go: $(shell find web/templates/ web/static/ -type f)
-	./web/blob/embed-static.sh web/static web/templates | $(GOFMT) > $@
+test:
+	@echo ">> running tests"
+	@$(GO) test -short $(pkgs)
 
-.PHONY: config
-config:
-	$(MAKE) -C config
+format:
+	@echo ">> formatting code"
+	@$(GO) fmt $(pkgs)
+
+vet:
+	@echo ">> vetting code"
+	@$(GO) vet $(pkgs)
+
+build:
+	@echo ">> building binaries"
+	@./scripts/build.sh
+
+docker:
+	@docker build -t alertmanager:$(shell git rev-parse --short HEAD) .
+
+assets:
+	@echo ">> writing assets"
+	-@$(GO) get -u github.com/jteeuwen/go-bindata/...
+	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/...
+	@go-bindata $(bindata_flags) -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
+
+
+.PHONY: all format build test vet assets

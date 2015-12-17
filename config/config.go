@@ -1,4 +1,4 @@
-// Copyright 2013 Prometheus Team
+// Copyright 2015 Prometheus Team
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -14,144 +14,371 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-
-	pb "github.com/prometheus/alertmanager/config/generated"
-
-	"github.com/prometheus/alertmanager/manager"
+	"github.com/prometheus/common/model"
+	"gopkg.in/yaml.v2"
 )
 
-const minimumRepeatRate = 1 * time.Minute
+var patAuthLine = regexp.MustCompile(`((?:api_token|api_key|service_key|api_url):\s+)(".+"|'.+'|[^\s]+)`)
 
-// Config encapsulates the configuration of an Alert Manager instance. It wraps
-// the raw configuration protocol buffer to be able to add custom methods to
-// it.
+// Secret is a string that must not be revealed on marshaling.
+type Secret string
+
+// MarshalYAML implements the yaml.Marshaler interface.
+func (s Secret) MarshalYAML() (interface{}, error) {
+	return "<hidden>", nil
+}
+
+// Load parses the YAML input s into a Config.
+func Load(s string) (*Config, error) {
+	cfg := &Config{}
+	err := yaml.Unmarshal([]byte(s), cfg)
+	if err != nil {
+		return nil, err
+	}
+	// Check if we have a root route. We cannot check for it in the
+	// UnmarshalYAML method because it won't be called if the input is empty
+	// (e.g. the config file is empty or only contains whitespace).
+	if cfg.Route == nil {
+		return nil, errors.New("no route provided in config")
+	}
+
+	cfg.original = s
+	return cfg, nil
+}
+
+// LoadFile parses the given YAML file into a Config.
+func LoadFile(filename string) (*Config, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := Load(string(content))
+	if err != nil {
+		return nil, err
+	}
+
+	resolveFilepaths(filepath.Dir(filename), cfg)
+	return cfg, nil
+}
+
+// resolveFilepaths joins all relative paths in a configuration
+// with a given base directory.
+func resolveFilepaths(baseDir string, cfg *Config) {
+	join := func(fp string) string {
+		if len(fp) > 0 && !filepath.IsAbs(fp) {
+			fp = filepath.Join(baseDir, fp)
+		}
+		return fp
+	}
+
+	for i, tf := range cfg.Templates {
+		cfg.Templates[i] = join(tf)
+	}
+}
+
+// Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	// The protobuf containing the actual configuration values.
-	pb.AlertManagerConfig
+	Global       *GlobalConfig  `yaml:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty"`
+	Templates    []string       `yaml:"templates"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+
+	// original is the input from which the config was parsed.
+	original string
 }
 
-// String returns an ASCII serialization of the loaded configuration protobuf.
-func (c Config) String() string {
-	return proto.MarshalTextString(&c.AlertManagerConfig)
-}
-
-// Validate checks an entire parsed Config for the validity of its fields.
-func (c Config) Validate() error {
-	ncNames := map[string]bool{}
-	for _, nc := range c.NotificationConfig {
-		if nc.Name == nil {
-			return fmt.Errorf("Missing name in notification config: %s", proto.MarshalTextString(nc))
+func checkOverflow(m map[string]interface{}, ctx string) error {
+	if len(m) > 0 {
+		var keys []string
+		for k := range m {
+			keys = append(keys, k)
 		}
-		for _, pdc := range nc.PagerdutyConfig {
-			if pdc.ServiceKey == nil {
-				return fmt.Errorf("Missing service key in PagerDuty notification config: %s", proto.MarshalTextString(pdc))
-			}
-		}
-		for _, ec := range nc.EmailConfig {
-			if ec.Email == nil {
-				return fmt.Errorf("Missing email address in email notification config: %s", proto.MarshalTextString(ec))
-			}
-		}
-		for _, ec := range nc.PushoverConfig {
-			if ec.Token == nil {
-				return fmt.Errorf("Missing token in Pushover notification config: %s", proto.MarshalTextString(ec))
-			}
-			if ec.UserKey == nil {
-				return fmt.Errorf("Missing user key in Pushover notification config: %s", proto.MarshalTextString(ec))
-			}
-		}
-		for _, hcc := range nc.HipchatConfig {
-			if hcc.AuthToken == nil {
-				return fmt.Errorf("Missing token in HipChat config: %s", proto.MarshalTextString(hcc))
-			}
-			if hcc.RoomId == nil {
-				return fmt.Errorf("Missing room in HipChat config: %s", proto.MarshalTextString(hcc))
-			}
-		}
-		for _, sc := range nc.SlackConfig {
-			if sc.WebhookUrl == nil {
-				return fmt.Errorf("Missing webhook URL in Slack config: %s", proto.MarshalTextString(sc))
-			}
-		}
-		for _, fc := range nc.FlowdockConfig {
-			if fc.ApiToken == nil {
-				return fmt.Errorf("Missing API token in Flowdock config: %s", proto.MarshalTextString(fc))
-			}
-			if fc.FromAddress == nil {
-				return fmt.Errorf("Missing from_address Flowdock config: %s", proto.MarshalTextString(fc))
-			}
-		}
-		for _, snsConfig := range nc.AmazonSnsConfig {
-			if snsConfig.TopicArn == nil {
-				return fmt.Errorf("Missing Topic ARN in Amazon SNS config: %s", proto.MarshalTextString(snsConfig))
-			}
-		}
-
-		if _, ok := ncNames[nc.GetName()]; ok {
-			return fmt.Errorf("Notification config name not unique: %s", nc.GetName())
-		}
-
-		ncNames[nc.GetName()] = true
+		return fmt.Errorf("unknown fields in %s: %s", ctx, strings.Join(keys, ", "))
 	}
-
-	for _, a := range c.AggregationRule {
-		for _, f := range a.Filter {
-			if f.NameRe == nil {
-				return fmt.Errorf("Missing name pattern (name_re) in filter definition: %s", proto.MarshalTextString(f))
-			}
-			if f.ValueRe == nil {
-				return fmt.Errorf("Missing value pattern (value_re) in filter definition: %s", proto.MarshalTextString(f))
-			}
-		}
-
-		if _, ok := ncNames[a.GetNotificationConfigName()]; !ok {
-			return fmt.Errorf("No such notification config: %s", a.GetNotificationConfigName())
-		}
-	}
-
 	return nil
 }
 
-func filtersFromPb(filters []*pb.Filter) manager.Filters {
-	fs := make(manager.Filters, 0, len(filters))
-	for _, f := range filters {
-		fs = append(fs, manager.NewFilter(f.GetNameRe(), f.GetValueRe()))
-	}
-	return fs
-}
-
-// AggregationRules returns all the AggregationRules in a Config object.
-func (c Config) AggregationRules() manager.AggregationRules {
-	rules := make(manager.AggregationRules, 0, len(c.AggregationRule))
-	for _, r := range c.AggregationRule {
-		rate := time.Duration(r.GetRepeatRateSeconds()) * time.Second
-		if rate < minimumRepeatRate {
-			rate = minimumRepeatRate
+func (c Config) String() string {
+	var s string
+	if c.original != "" {
+		s = c.original
+	} else {
+		b, err := yaml.Marshal(c)
+		if err != nil {
+			return fmt.Sprintf("<error creating config string: %s>", err)
 		}
-		rules = append(rules, &manager.AggregationRule{
-			Filters:                filtersFromPb(r.Filter),
-			RepeatRate:             rate,
-			NotificationConfigName: r.GetNotificationConfigName(),
-		})
+		s = string(b)
 	}
-	return rules
+	return patAuthLine.ReplaceAllString(s, "${1}<hidden>")
 }
 
-// InhibitRules returns all the InhibitRules in a Config object.
-func (c Config) InhibitRules() manager.InhibitRules {
-	rules := make(manager.InhibitRules, 0, len(c.InhibitRule))
-	for _, r := range c.InhibitRule {
-		sFilters := filtersFromPb(r.SourceFilter)
-		tFilters := filtersFromPb(r.TargetFilter)
-		rules = append(rules, &manager.InhibitRule{
-			SourceFilters: sFilters,
-			TargetFilters: tFilters,
-			MatchOn:       r.MatchOn,
-		})
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// We want to set c to the defaults and then overwrite it with the input.
+	// To make unmarshal fill the plain data struct rather than calling UnmarshalYAML
+	// again, we have to hide it using a type indirection.
+	type plain Config
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
 	}
-	return rules
+
+	// If a global block was open but empty the default global config is overwritten.
+	// We have to restore it here.
+	if c.Global == nil {
+		c.Global = &GlobalConfig{}
+		*c.Global = DefaultGlobalConfig
+	}
+
+	names := map[string]struct{}{}
+
+	for _, rcv := range c.Receivers {
+		if _, ok := names[rcv.Name]; ok {
+			return fmt.Errorf("notification config name %q is not unique", rcv.Name)
+		}
+		for _, ec := range rcv.EmailConfigs {
+			if ec.Smarthost == "" {
+				if c.Global.SMTPSmarthost == "" {
+					return fmt.Errorf("no global SMTP smarthost set")
+				}
+				ec.Smarthost = c.Global.SMTPSmarthost
+			}
+			if ec.From == "" {
+				if c.Global.SMTPFrom == "" {
+					return fmt.Errorf("no global SMTP from set")
+				}
+				ec.From = c.Global.SMTPFrom
+			}
+		}
+		for _, sc := range rcv.SlackConfigs {
+			if sc.APIURL == "" {
+				if c.Global.SlackAPIURL == "" {
+					return fmt.Errorf("no global Slack API URL set")
+				}
+				sc.APIURL = c.Global.SlackAPIURL
+			}
+		}
+		for _, pdc := range rcv.PagerdutyConfigs {
+			if pdc.URL == "" {
+				if c.Global.PagerdutyURL == "" {
+					return fmt.Errorf("no global PagerDuty URL set")
+				}
+				pdc.URL = c.Global.PagerdutyURL
+			}
+		}
+		for _, ogc := range rcv.OpsGenieConfigs {
+			if ogc.APIHost == "" {
+				if c.Global.OpsGenieAPIHost == "" {
+					return fmt.Errorf("no global OpsGenie URL set")
+				}
+				ogc.APIHost = c.Global.OpsGenieAPIHost
+			}
+			if !strings.HasSuffix(ogc.APIHost, "/") {
+				ogc.APIHost += "/"
+			}
+		}
+		names[rcv.Name] = struct{}{}
+	}
+	return checkOverflow(c.XXX, "config")
+}
+
+// DefaultGlobalConfig provides global default values.
+var DefaultGlobalConfig = GlobalConfig{
+	ResolveTimeout: model.Duration(5 * time.Minute),
+
+	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+	OpsGenieAPIHost: "https://api.opsgenie.com/",
+}
+
+// GlobalConfig defines configuration parameters that are valid globally
+// unless overwritten.
+type GlobalConfig struct {
+	// ResolveTimeout is the time after which an alert is declared resolved
+	// if it has not been updated.
+	ResolveTimeout model.Duration `yaml:"resolve_timeout"`
+
+	SMTPFrom        string `yaml:"smtp_from"`
+	SMTPSmarthost   string `yaml:"smtp_smarthost"`
+	SlackAPIURL     Secret `yaml:"slack_api_url"`
+	PagerdutyURL    string `yaml:"pagerduty_url"`
+	OpsGenieAPIHost string `yaml:"opsgenie_api_host"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultGlobalConfig
+	type plain GlobalConfig
+	return unmarshal((*plain)(c))
+}
+
+// A Route is a node that contains definitions of how to handle alerts.
+type Route struct {
+	Receiver string            `yaml:"receiver,omitempty"`
+	GroupBy  []model.LabelName `yaml:"group_by,omitempty"`
+
+	Match    map[string]string `yaml:"match,omitempty"`
+	MatchRE  map[string]Regexp `yaml:"match_re,omitempty"`
+	Continue bool              `yaml:"continue,omitempty"`
+	Routes   []*Route          `yaml:"routes,omitempty"`
+
+	GroupWait      *model.Duration `yaml:"group_wait,omitempty"`
+	GroupInterval  *model.Duration `yaml:"group_interval,omitempty"`
+	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Route
+	if err := unmarshal((*plain)(r)); err != nil {
+		return err
+	}
+
+	for k := range r.Match {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	for k := range r.MatchRE {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	groupBy := map[model.LabelName]struct{}{}
+
+	for _, ln := range r.GroupBy {
+		if _, ok := groupBy[ln]; ok {
+			return fmt.Errorf("duplicated label %q in group_by", ln)
+		}
+		groupBy[ln] = struct{}{}
+	}
+
+	return checkOverflow(r.XXX, "route")
+}
+
+// InhibitRule defines an inhibition rule that mutes alerts that match the
+// target labels if an alert matching the source labels exists.
+// Both alerts have to have a set of labels being equal.
+type InhibitRule struct {
+	// SourceMatch defines a set of labels that have to equal the given
+	// value for source alerts.
+	SourceMatch map[string]string `yaml:"source_match"`
+	// SourceMatchRE defines pairs like SourceMatch but does regular expression
+	// matching.
+	SourceMatchRE map[string]Regexp `yaml:"source_match_re"`
+	// TargetMatch defines a set of labels that have to equal the given
+	// value for target alerts.
+	TargetMatch map[string]string `yaml:"target_match"`
+	// TargetMatchRE defines pairs like TargetMatch but does regular expression
+	// matching.
+	TargetMatchRE map[string]Regexp `yaml:"target_match_re"`
+	// A set of labels that must be equal between the source and target alert
+	// for them to be a match.
+	Equal model.LabelNames `yaml:"equal"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain InhibitRule
+	if err := unmarshal((*plain)(r)); err != nil {
+		return err
+	}
+
+	for k := range r.SourceMatch {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	for k := range r.SourceMatchRE {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	for k := range r.TargetMatch {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	for k := range r.TargetMatchRE {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+	}
+
+	return checkOverflow(r.XXX, "inhibit rule")
+}
+
+// Receiver configuration provides configuration on how to contact a receiver.
+type Receiver struct {
+	// A unique identifier for this receiver.
+	Name string `yaml:"name"`
+
+	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty"`
+	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty"`
+	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty"`
+	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
+	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Receiver
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Name == "" {
+		return fmt.Errorf("missing name in receiver")
+	}
+	return checkOverflow(c.XXX, "receiver config")
+}
+
+// Regexp encapsulates a regexp.Regexp and makes it YAML marshalable.
+type Regexp struct {
+	*regexp.Regexp
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	regex, err := regexp.Compile("^(?:" + s + ")$")
+	if err != nil {
+		return err
+	}
+	re.Regexp = regex
+	return nil
+}
+
+// MarshalYAML implements the yaml.Marshaler interface.
+func (re *Regexp) MarshalYAML() (interface{}, error) {
+	if re != nil {
+		return re.String(), nil
+	}
+	return nil, nil
 }

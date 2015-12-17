@@ -1,0 +1,101 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"path": "bitbucket.org/ww/goautoneg",
+			"revision": "75cd24fc2f2c",
+			"revisionTime": "2012-07-07T21:04:53+10:00"
+		},
+		{
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "418b41d23a1bf978c06faea5313ba194650ac088",
+			"revisionTime": "2015-09-08T20:46:18Z"
+		},
+		{
+			"path": "github.com/beorn7/perks/quantile",
+			"revision": "b965b613227fddccbfffe13eae360ed3fa822f8d",
+			"revisionTime": "2015-02-23T14:51:52+01:00"
+		},
+		{
+			"path": "github.com/cenkalti/backoff",
+			"revision": "4dc77674aceaabba2c7e3da25d4c823edfb73f99",
+			"revisionTime": "2015-08-14T12:43:33+03:00"
+		},
+		{
+			"path": "github.com/golang/protobuf/proto",
+			"revision": "8df8a93c670173cd1d8737a507a253b94f2d0b5a",
+			"revisionTime": "2015-09-17T07:27:00+10:00"
+		},
+		{
+			"path": "github.com/julienschmidt/httprouter",
+			"revision": "109e267447e95ad1bb48b758e40dd7453eb7b039",
+			"revisionTime": "2015-09-05T19:25:33+02:00"
+		},
+		{
+			"path": "github.com/mattn/go-sqlite3",
+			"revision": "3b3f1d01b2696af5501697c35629048c227586ab",
+			"revisionTime": "2015-09-05T23:49:54+09:00"
+		},
+		{
+			"path": "github.com/matttproud/golang_protobuf_extensions/pbutil",
+			"revision": "fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a",
+			"revisionTime": "2015-04-06T19:39:34+02:00"
+		},
+		{
+			"path": "github.com/prometheus/client_golang/api/alertmanager",
+			"revision": "9e9bce47953966ea391ddefea0c640be17335487",
+			"revisionTime": "2015-10-01T20:12:39+02:00"
+		},
+		{
+			"path": "github.com/prometheus/client_golang/prometheus",
+			"revision": "3b78d7a77f51ccbc364d4bc170920153022cfd08",
+			"revisionTime": "2015-09-18T15:37:02+02:00"
+		},
+		{
+			"path": "github.com/prometheus/client_model/go",
+			"revision": "fa8ad6fec33561be4280a8f0514318c79d7f6cb6",
+			"revisionTime": "2015-02-12T10:17:44Z"
+		},
+		{
+			"path": "github.com/prometheus/common/expfmt",
+			"revision": "210d6543ee217ec38b676a40549af1df9431d80d",
+			"revisionTime": "2015-09-28T11:56:39+02:00"
+		},
+		{
+			"path": "github.com/prometheus/common/log",
+			"revision": "4fdc91a58c9d3696b982e8a680f4997403132d44",
+			"revisionTime": "2015-10-26T12:04:34+01:00"
+		},
+		{
+			"path": "github.com/prometheus/common/model",
+			"revision": "56b90312e937d43b930f06a59bf0d6a4ae1944bc",
+			"revisionTime": "2015-12-09T21:44:25+01:00"
+		},
+		{
+			"path": "github.com/prometheus/common/route",
+			"revision": "210d6543ee217ec38b676a40549af1df9431d80d",
+			"revisionTime": "2015-09-28T11:56:39+02:00"
+		},
+		{
+			"path": "github.com/prometheus/procfs",
+			"revision": "3b231703e7dd0ca93302b5242ad6aeb4b5c603a2",
+			"revisionTime": "2015-09-15T15:36:53-04:00"
+		},
+		{
+			"path": "golang.org/x/net/context",
+			"revision": "db8e4de5b2d6653f66aea53094624468caad15d2",
+			"revisionTime": "2015-08-24T18:07:02+02:00"
+		},
+		{
+			"path": "golang.org/x/net/context/ctxhttp",
+			"revision": "db8e4de5b2d6653f66aea53094624468caad15d2",
+			"revisionTime": "2015-08-24T18:07:02+02:00"
+		},
+		{
+			"path": "gopkg.in/yaml.v2",
+			"revision": "7ad95dd0798a40da1ccdff6dff35fd177b5edf40",
+			"revisionTime": "2015-06-24T11:29:02+01:00"
+		}
+	]
+}

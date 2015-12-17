@@ -3,7 +3,7 @@ Julius Volz in 2012.
 
 Maintainers of this repository:
 
-* Julius Volz <julius.volz@gmail.com>
+* Fabian Reinartz <fabian@soundcloud.com>
 
 The following individuals have contributed code to this repository
 (listed in alphabetical order):
@@ -13,6 +13,7 @@ The following individuals have contributed code to this repository
 * Björn Rabenstein <beorn@soundcloud.com>
 * Cameron Davison <cameron@novilabs.com>
 * Ceesjan Luiten <ceesjan@ytec.nl>
+* Fabian Reinartz <fabian@soundcloud.com>
 * Johannes 'fish' Ziemke <fish@freigeist.org>
 * Julius Volz <julius.volz@gmail.com>
 * Logan Hanks <logan.hanks@gmail.com>

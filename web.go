@@ -1,0 +1,60 @@
+// Copyright 2015 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package main
+
+import (
+	"bytes"
+	"io"
+	"net/http"
+	"path/filepath"
+
+	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/route"
+
+	"github.com/prometheus/alertmanager/ui"
+)
+
+func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
+	info, err := ui.AssetInfo(fp)
+	if err != nil {
+		log.Warn("Could not get file: ", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	file, err := ui.Asset(fp)
+	if err != nil {
+		if err != io.EOF {
+			log.With("file", fp).Warn("Could not get file: ", err)
+		}
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	http.ServeContent(w, req, info.Name(), info.ModTime(), bytes.NewReader(file))
+}
+
+// RegisterWeb registers handlers to serve files for the web interface.
+func RegisterWeb(r *route.Router) {
+	r.Get("/app/*filepath", func(w http.ResponseWriter, req *http.Request) {
+		fp := route.Param(route.Context(req), "filepath")
+		serveAsset(w, req, filepath.Join("ui/app", fp))
+	})
+	r.Get("/lib/*filepath", func(w http.ResponseWriter, req *http.Request) {
+		fp := route.Param(route.Context(req), "filepath")
+		serveAsset(w, req, filepath.Join("ui/lib", fp))
+	})
+	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+		serveAsset(w, req, "ui/app/index.html")
+	})
+}
