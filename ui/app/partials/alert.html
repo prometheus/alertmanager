@@ -6,7 +6,7 @@
 		<div class="labels left">
 			<span ng-repeat="(name, value) in alert.labels | orderBy:name">
 				<span ng-hide="group[name]" class="lbl {{ name == 'alertname' ? 'lbl-highlight' : 'lbl-outline' }}">
-					{{ name }} = '{{ value }}'
+					{{ name }} = "{{ value }}"
 				</span>
 			</span>
 		</div>

@@ -6,7 +6,7 @@
 		<div class="labels left">
 			<span ng-repeat="m in sil.matchers | orderBy:name">
 				<span class="lbl {{ m.name == 'alertname' ? 'lbl-highlight' : '' }}">
-					{{ m.name }} =<span ng-show="m.isRegex">~</span> '{{ m.value }}'
+					{{ m.name }} =<span ng-show="m.isRegex">~</span> "{{ m.value }}"
 				</span>
 			</span>
 		</div>
