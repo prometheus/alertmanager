@@ -75,23 +75,28 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 	for _, nc := range confs {
 		var (
 			fo  = Fanout{}
-			add = func(i int, n Notifier) { fo[fmt.Sprintf("%T/%d", n, i)] = n }
+			add = func(i int, on, n Notifier) { fo[fmt.Sprintf("%T/%d", on, i)] = n }
 		)
 
 		for i, c := range nc.WebhookConfigs {
-			add(i, filter(NewWebhook(c), c))
+			n := NewWebhook(c)
+			add(i, n, filter(n, c))
 		}
 		for i, c := range nc.EmailConfigs {
-			add(i, filter(NewEmail(c, tmpl), c))
+			n := NewEmail(c, tmpl)
+			add(i, n, filter(n, c))
 		}
 		for i, c := range nc.PagerdutyConfigs {
-			add(i, filter(NewPagerDuty(c, tmpl), c))
+			n := NewPagerDuty(c, tmpl)
+			add(i, n, filter(n, c))
 		}
 		for i, c := range nc.OpsGenieConfigs {
-			add(i, filter(NewOpsGenie(c, tmpl), c))
+			n := NewOpsGenie(c, tmpl)
+			add(i, n, filter(n, c))
 		}
 		for i, c := range nc.SlackConfigs {
-			add(i, filter(NewSlack(c, tmpl), c))
+			n := NewSlack(c, tmpl)
+			add(i, n, filter(n, c))
 		}
 
 		res[nc.Name] = fo
