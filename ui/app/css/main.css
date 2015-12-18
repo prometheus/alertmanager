@@ -19,12 +19,14 @@ header #logo a {
 }
 
 #top-nav a {
-	color: #fff;
+	color: #bbb;
 	text-decoration: none
 }
-
 #top-nav .selected a {
-	color: #aaa;
+	color: #fff;
+}
+#top-nav a:hover {
+	color: #fff;
 }
 
 #top-nav ul {
