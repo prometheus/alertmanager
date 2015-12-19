@@ -1,15 +1,8 @@
-FROM        golang:1.5.3
+FROM        prom/busybox:latest
 MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
 
-WORKDIR /go/src/github.com/prometheus/alertmanager
-COPY    . /go/src/github.com/prometheus/alertmanager
-
-RUN apt-get install make \
-    && make build \
-    && cp alertmanager /bin/ \
-    && mkdir -p /etc/alertmanager/template \
-    && mv ./doc/examples/simple.yml /etc/alertmanager/config.yml \
-    && rm -rf /go
+COPY alertmanager               /bin/alertmanager
+COPY doc/examples/simple.yml    /etc/alertmanager/config.yml
 
 EXPOSE     9093
 VOLUME     [ "/alertmanager" ]
