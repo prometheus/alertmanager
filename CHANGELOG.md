@@ -1,3 +1,7 @@
+## 0.1.0-beta0 / 2015-12-23
+This version is a full rewrite of the Alertmanager with a very different
+feature set. Thus, there is no meaningful changelog.
+
 ## 0.0.4 / 2015-09-09
 * [BUGFIX] Fix version info string in startup message.
 * [BUGFIX] Fix Pushover notifications by setting the right priority level, as
