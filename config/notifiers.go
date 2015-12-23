@@ -89,7 +89,7 @@ func (nc *NotifierConfig) SendResolved() bool {
 
 // EmailConfig configures notifications via mail.
 type EmailConfig struct {
-	NotifierConfig
+	NotifierConfig `yaml:",inline"`
 
 	// Email address to notify.
 	To        string            `yaml:"to"`
@@ -128,7 +128,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
-	NotifierConfig
+	NotifierConfig `yaml:",inline"`
 
 	ServiceKey  Secret            `yaml:"service_key"`
 	URL         string            `yaml:"url"`
@@ -156,7 +156,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
-	NotifierConfig
+	NotifierConfig `yaml:",inline"`
 
 	APIURL Secret `yaml:"api_url"`
 
@@ -190,7 +190,7 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
-	NotifierConfig
+	NotifierConfig `yaml:",inline"`
 
 	// URL to send POST request to.
 	URL string `yaml:"url"`
@@ -214,7 +214,7 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // OpsGenieConfig configures notifications via OpsGenie.
 type OpsGenieConfig struct {
-	NotifierConfig
+	NotifierConfig `yaml:",inline"`
 
 	APIKey      Secret            `yaml:"api_key"`
 	APIHost     string            `yaml:"api_host"`
