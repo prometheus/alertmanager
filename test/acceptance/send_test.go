@@ -42,6 +42,7 @@ receivers:
 - name: "default"
   webhook_configs:
   - url: 'http://%s'
+    send_resolved: true
 `
 
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
