@@ -26,7 +26,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var patAuthLine = regexp.MustCompile(`((?:api_token|api_key|service_key|api_url):\s+)(".+"|'.+'|[^\s]+)`)
+var patAuthLine = regexp.MustCompile(`((?:api_token|api_key|service_key|api_url|auth_token):\s+)(".+"|'.+'|[^\s]+)`)
 
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
@@ -169,6 +169,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sc.APIURL = c.Global.SlackAPIURL
 			}
 		}
+		for _, hc := range rcv.HipchatConfigs {
+			if hc.APIURL == "" {
+				if c.Global.HipchatURL == "" {
+					return fmt.Errorf("no global Hipchat API URL set")
+				}
+				hc.APIURL = c.Global.HipchatURL
+			}
+			if !strings.HasSuffix(hc.APIURL, "/") {
+				hc.APIURL += "/"
+			}
+			if hc.AuthToken == "" {
+				if c.Global.HipchatAuthToken == "" {
+					return fmt.Errorf("no global Hipchat Auth Token set")
+				}
+				hc.AuthToken = c.Global.HipchatAuthToken
+			}
+		}
 		for _, pdc := range rcv.PagerdutyConfigs {
 			if pdc.URL == "" {
 				if c.Global.PagerdutyURL == "" {
@@ -198,6 +215,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	ResolveTimeout: model.Duration(5 * time.Minute),
 
 	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+	HipchatURL:      "https://api.hipchat.com/",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
 }
 
@@ -208,11 +226,13 @@ type GlobalConfig struct {
 	// if it has not been updated.
 	ResolveTimeout model.Duration `yaml:"resolve_timeout"`
 
-	SMTPFrom        string `yaml:"smtp_from"`
-	SMTPSmarthost   string `yaml:"smtp_smarthost"`
-	SlackAPIURL     Secret `yaml:"slack_api_url"`
-	PagerdutyURL    string `yaml:"pagerduty_url"`
-	OpsGenieAPIHost string `yaml:"opsgenie_api_host"`
+	SMTPFrom         string `yaml:"smtp_from"`
+	SMTPSmarthost    string `yaml:"smtp_smarthost"`
+	SlackAPIURL      Secret `yaml:"slack_api_url"`
+	PagerdutyURL     string `yaml:"pagerduty_url"`
+	HipchatURL       string `yaml:"hipchat_url"`
+	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
+	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -336,6 +356,7 @@ type Receiver struct {
 
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty"`
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty"`
+	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
