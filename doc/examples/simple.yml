@@ -2,6 +2,10 @@ global:
   # The smarthost and SMTP sender used for mail notifications.
   smtp_smarthost: 'localhost:25'
   smtp_from: 'alertmanager@example.org'
+  # The auth token for Hipchat.
+  hipchat_auth_token: '1234556789'
+  # Alternative host for Hipchat.
+  hipchat_url: 'https://hipchat.foobar.org/'
 
 # The directory from which notification templates are read.
 templates: 
@@ -115,3 +119,9 @@ receivers:
 - name: 'team-DB-pager'
   pagerduty_configs:
   - service_key: <team-DB-key>
+- name: 'team-X-hipchat'
+  hipchat_configs:
+  - auth_token: <auth_token>
+    room_id: 85
+    message_format: html
+    notify: true
