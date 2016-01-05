@@ -9,7 +9,7 @@ angular.module('am.directives').directive('route',
       scope: {
         route: '='
       },
-      templateUrl: '/app/partials/route.html',
+      templateUrl: 'app/partials/route.html',
       compile: function(element) {
         // Use the compile function from the RecursionHelper,
         // And return the linking function(s) which it returns
@@ -27,7 +27,7 @@ angular.module('am.directives').directive('alert',
         alert: '=',
         group: '='
       },
-      templateUrl: '/app/partials/alert.html'
+      templateUrl: 'app/partials/alert.html'
     };
   }
 );
@@ -39,7 +39,7 @@ angular.module('am.directives').directive('silence',
       scope: {
         sil: '='
       },
-      templateUrl: '/app/partials/silence.html'
+      templateUrl: 'app/partials/silence.html'
     };
   }
 );
@@ -51,7 +51,7 @@ angular.module('am.directives').directive('silenceForm',
       scope: {
         silence: '='
       },
-      templateUrl: '/app/partials/silence-form.html'
+      templateUrl: 'app/partials/silence-form.html'
     };
   }
 );
@@ -65,19 +65,19 @@ angular.module('am.services').factory('Silence',
     }, {
       'query': {
         method: 'GET',
-        url: '/api/v1/silences'
+        url: 'api/v1/silences'
       },
       'create': {
         method: 'POST',
-        url: '/api/v1/silences'
+        url: 'api/v1/silences'
       },
       'get': {
         method: 'GET',
-        url: '/api/v1/silence/:id'
+        url: 'api/v1/silence/:id'
       },
       'delete': {
         method: 'DELETE',
-        url: '/api/v1/silence/:id'
+        url: 'api/v1/silence/:id'
       }
     });
   }
@@ -88,7 +88,7 @@ angular.module('am.services').factory('Alert',
     return $resource('', {}, {
       'query': {
         method: 'GET',
-        url: '/api/v1/alerts'
+        url: 'api/v1/alerts'
       }
     });
   }
@@ -99,7 +99,7 @@ angular.module('am.services').factory('AlertGroups',
     return $resource('', {}, {
       'query': {
         method: 'GET',
-        url: '/api/v1/alerts/groups'
+        url: 'api/v1/alerts/groups'
       }
     });
   }
@@ -110,7 +110,7 @@ angular.module('am.services').factory('Alert',
     return $resource('', {}, {
       'query': {
         method: 'GET',
-        url: '/api/v1/alerts'
+        url: 'api/v1/alerts'
       }
     });
   }
@@ -177,7 +177,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
         return;
       }
       if (recvs) {
-        $location.search('receiver', recvs); 
+        $location.search('receiver', recvs);
       } else {
         $location.search('receiver', null);
       }
@@ -216,7 +216,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
               if (!angular.isArray(recvs)) {
                 recvs = [recvs];
               }
-            } 
+            }
             $scope.receivers = recvs;
           }
         },
@@ -276,7 +276,7 @@ angular.module('am.controllers').controller('SilencesCtrl',
 
     $scope.refresh = function() {
       Silence.query({},
-        function(data) { 
+        function(data) {
           $scope.silences = data.data || [];
 
           angular.forEach($scope.silences, function(value) {
@@ -351,7 +351,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
 
     $scope.delMatcher = function(i) {
       $scope.silence.matchers.splice(i, 1);
-    };    
+    };
 
     $scope.create = function() {
       Silence.create($scope.silence,
@@ -372,7 +372,7 @@ angular.module('am.services').factory('Status',
     return $resource('', {}, {
       'get': {
         method: 'GET',
-        url: '/api/v1/status'
+        url: 'api/v1/status'
       }
     });
   }
@@ -387,7 +387,7 @@ angular.module('am.controllers').controller('StatusCtrl',
         $scope.uptime = data.data.uptime;
       },
       function(data) {
-        console.log(data.data); 
+        console.log(data.data);
       })
   }
 );
@@ -406,17 +406,17 @@ angular.module('am').config(
   function($routeProvider) {
     $routeProvider.
     when('/alerts', {
-      templateUrl: '/app/partials/alerts.html',
+      templateUrl: 'app/partials/alerts.html',
       controller: 'AlertsCtrl',
       reloadOnSearch: false
     }).
     when('/silences', {
-      templateUrl: '/app/partials/silences.html',
+      templateUrl: 'app/partials/silences.html',
       controller: 'SilencesCtrl',
       reloadOnSearch: false
     }).
     when('/status', {
-      templateUrl: '/app/partials/status.html',
+      templateUrl: 'app/partials/status.html',
       controller: 'StatusCtrl'
     }).
     otherwise({
