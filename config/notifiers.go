@@ -67,6 +67,18 @@ var (
 		Fallback:  `{{ template "slack.default.fallback" . }}`,
 	}
 
+	// DefaultHipchatConfig defines default values for Hipchat configurations.
+	DefaultHipchatConfig = HipchatConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Color:         `{{ if eq .Status "firing" }}red{{ else }}green{{ end }}`,
+		From:          `{{ template "hipchat.default.from" . }}`,
+		Notify:        false,
+		Message:       `{{ template "hipchat.default.message" . }}`,
+		MessageFormat: `text`,
+	}
+
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		NotifierConfig: NotifierConfig{
@@ -186,6 +198,41 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing channel in Slack config")
 	}
 	return checkOverflow(c.XXX, "slack config")
+}
+
+// HipchatConfig configures notifications via Hipchat.
+type HipchatConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	APIURL        string `yaml:"api_url"`
+	AuthToken     Secret `yaml:"auth_token"`
+	RoomID        string `yaml:"room_id"`
+	From          string `yaml:"from"`
+	Notify        bool   `yaml:"notify"`
+	Message       string `yaml:"message"`
+	MessageFormat string `yaml:"message_format"`
+	Color         string `yaml:"color"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultHipchatConfig
+	type plain HipchatConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.RoomID == "" {
+		return fmt.Errorf("missing room id in Hipchat config")
+	}
+
+	if c.AuthToken == "" {
+		return fmt.Errorf("missing auth token in Hipchat config")
+	}
+
+	return checkOverflow(c.XXX, "hipchat config")
 }
 
 // WebhookConfig configures notifications via a generic webhook.

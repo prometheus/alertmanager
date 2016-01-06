@@ -98,6 +98,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 			n := NewSlack(c, tmpl)
 			add(i, n, filter(n, c))
 		}
+		for i, c := range nc.HipchatConfigs {
+			n := NewHipchat(c, tmpl)
+			add(i, n, filter(n, c))
+		}
 
 		res[nc.Name] = fo
 	}
@@ -469,6 +473,75 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	// TODO(fabxc): is 2xx status code really indicator for success for Slack API?
 	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// Hipchat implements a Notifier for Hipchat notifications.
+type Hipchat struct {
+	conf *config.HipchatConfig
+	tmpl *template.Template
+}
+
+// NewHipchat returns a new Hipchat notification handler.
+func NewHipchat(conf *config.HipchatConfig, tmpl *template.Template) *Hipchat {
+	return &Hipchat{
+		conf: conf,
+		tmpl: tmpl,
+	}
+}
+
+type hipchatReq struct {
+	From          string `json:"from"`
+	Notify        bool   `json:"notify"`
+	Message       string `json:"message"`
+	MessageFormat string `json:"message_format"`
+	Color         string `json:"color"`
+}
+
+// Notify implements the Notifier interface.
+func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) error {
+	var err error
+	var msg string
+	var (
+		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+		tmplHTML = tmplHTML(n.tmpl, data, &err)
+		url      = fmt.Sprintf("%sv2/room/%s/notification?auth_token=%s", n.conf.APIURL, n.conf.RoomID, n.conf.AuthToken)
+	)
+
+	if n.conf.MessageFormat == "html" {
+		msg = tmplHTML(n.conf.Message)
+	} else {
+		msg = tmplText(n.conf.Message)
+	}
+
+	req := &hipchatReq{
+		From:          tmplText(n.conf.From),
+		Notify:        n.conf.Notify,
+		Message:       msg,
+		MessageFormat: n.conf.MessageFormat,
+		Color:         tmplText(n.conf.Color),
+	}
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, url, contentTypeJSON, &buf)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)

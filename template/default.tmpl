@@ -4,9 +4,9 @@
 {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
 {{ define "__description" }}{{ end }}
 
-{{ define "__text_alert_list" }}{{ range . }}Labels: 
+{{ define "__text_alert_list" }}{{ range . }}Labels:
 {{ range .Labels.SortedPairs }} - {{ .Name }} = {{ .Value }}
-{{ end }}Annotations: 
+{{ end }}Annotations:
 {{ range .Annotations.SortedPairs }} - {{ .Name }} = {{ .Value }}
 {{ end}}
 {{ end }}{{ end }}
@@ -18,6 +18,10 @@
 {{ define "slack.default.pretext" }}{{ end }}
 {{ define "slack.default.titlelink" }}{{ template "__alertmanagerURL" . }}{{ end }}
 {{ define "slack.default.text" }}{{ end }}
+
+
+{{ define "hipchat.default.from" }}{{ template "__alertmanager" . }}{{ end }}
+{{ define "hipchat.default.message" }}{{ template "__subject" . }}{{ end }}
 
 
 {{ define "pagerduty.default.description" }}{{ template "__subject" . }}{{ end }}
@@ -52,7 +56,7 @@
           <tr style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
             <td style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; font-size: 16px; vertical-align: top; color: #fff; font-weight: 500; text-align: center; border-radius: 3px 3px 0 0; background-color: #E6522C; margin: 0; padding: 20px;" align="center" bgcolor="#E6522C" valign="top">
               {{ .Alerts | len }} alert{{ if gt (len .Alerts) 1 }}s{{ end }} for {{ range .GroupLabels.SortedPairs }}
-                {{ .Name }}={{ .Value }} 
+                {{ .Name }}={{ .Value }}
               {{ end }}
             </td>
           </tr>
