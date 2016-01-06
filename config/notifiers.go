@@ -228,10 +228,6 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing room id in Hipchat config")
 	}
 
-	if c.AuthToken == "" {
-		return fmt.Errorf("missing auth token in Hipchat config")
-	}
-
 	return checkOverflow(c.XXX, "hipchat config")
 }
 
