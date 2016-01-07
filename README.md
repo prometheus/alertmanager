@@ -5,6 +5,18 @@ is incompatible to the present version 0.0.4. The only backport was the API endp
 
 ## Installation
 
+### Dependencies
+
+Debian family:
+
+    sudo apt-get install build-essential libc6-dev
+
+Red Hat family:
+
+    yum install glibc-static
+
+### Compiling the binary
+
 The current version has to be run from the repository folder as UI assets and notification templates are not yet statically compiled into the binary.
 
 You can either `go get` it:
