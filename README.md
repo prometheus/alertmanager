@@ -69,10 +69,6 @@ global:
   smtp_smarthost: 'localhost:25'
   smtp_from: 'alertmanager@example.org'
 
-# The directory from which notification templates are read.
-templates: 
-- 'template/*.tmpl'
-
 # The root route on which each incoming alert enters.
 route:
   # The labels by which incoming alerts are grouped together. For example,
