@@ -43,6 +43,129 @@ func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
 	return fmt.Errorf("some error")
 }
 
+func TestDedupingNotifierHasUpdate(t *testing.T) {
+	var (
+		n        = &DedupingNotifier{}
+		now      = time.Now()
+		interval = 100 * time.Minute
+	)
+	cases := []struct {
+		inAlert      *types.Alert
+		inNotifyInfo *types.NotifyInfo
+		result       bool
+	}{
+		// A new alert about which there's no previous notification information.
+		{
+			inAlert: &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"alertname": "a"},
+					StartsAt: now.Add(-10 * time.Minute),
+				},
+			},
+			inNotifyInfo: nil,
+			result:       true,
+		},
+		// A new alert about which there's no previous notification information.
+		// It is already resolved, so there's no use in sending a notification.
+		{
+			inAlert: &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"alertname": "a"},
+					StartsAt: now.Add(-10 * time.Minute),
+					EndsAt:   now,
+				},
+			},
+			inNotifyInfo: nil,
+			result:       false,
+		},
+		// An alert that has been firing is now resolved for the first time.
+		{
+			inAlert: &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"alertname": "a"},
+					StartsAt: now.Add(-10 * time.Minute),
+					EndsAt:   now,
+				},
+			},
+			inNotifyInfo: &types.NotifyInfo{
+				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
+				Resolved:  false,
+				Timestamp: now.Add(-time.Minute),
+			},
+			result: true,
+		},
+		// A resolved alert for which we have already sent a resolved notification.
+		{
+			inAlert: &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"alertname": "a"},
+					StartsAt: now.Add(-10 * time.Minute),
+					EndsAt:   now,
+				},
+			},
+			inNotifyInfo: &types.NotifyInfo{
+				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
+				Resolved:  true,
+				Timestamp: now.Add(-time.Minute),
+			},
+			result: false,
+		},
+		// An alert that was resolved last time but is now firing again.
+		{
+			inAlert: &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"alertname": "a"},
+					StartsAt: now.Add(-3 * time.Minute),
+				},
+			},
+			inNotifyInfo: &types.NotifyInfo{
+				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
+				Resolved:  true,
+				Timestamp: now.Add(-4 * time.Minute),
+			},
+			result: true,
+		},
+		// A firing alert about which we already notified. The last notification
+		// is less than the repeat interval ago.
+		{
+			inAlert: &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"alertname": "a"},
+					StartsAt: now.Add(-10 * time.Minute),
+				},
+			},
+			inNotifyInfo: &types.NotifyInfo{
+				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
+				Resolved:  false,
+				Timestamp: now.Add(-15 * time.Minute),
+			},
+			result: false,
+		},
+		// A firing alert about which we already notified. The last notification
+		// is more than the repeat interval ago.
+		{
+			inAlert: &types.Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"alertname": "a"},
+					StartsAt: now.Add(-10 * time.Minute),
+				},
+			},
+			inNotifyInfo: &types.NotifyInfo{
+				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
+				Resolved:  false,
+				Timestamp: now.Add(-115 * time.Minute),
+			},
+			result: true,
+		},
+	}
+
+	for i, c := range cases {
+		if n.hasUpdate(c.inAlert, c.inNotifyInfo, now, interval) != c.result {
+			t.Errorf("unexpected hasUpdates result for case %d", i)
+		}
+	}
+}
+
 func TestDedupingNotifier(t *testing.T) {
 	var (
 		record   = &recordNotifier{}
@@ -66,68 +189,18 @@ func TestDedupingNotifier(t *testing.T) {
 				Labels: model.LabelSet{"alertname": "1"},
 				EndsAt: now.Add(-5 * time.Minute),
 			},
-		}, {
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "2"},
-				EndsAt: now.Add(-9 * time.Minute),
-			},
-		}, {
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "3"},
-				EndsAt: now.Add(-10 * time.Minute),
-			},
-		}, {
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "4"},
-			},
-		}, {
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "5"},
-			},
 		},
 	}
 
-	var fps []model.Fingerprint
-	for _, a := range alerts {
-		fps = append(fps, a.Fingerprint())
-	}
-
+	// Set an initial NotifyInfo to ensure that on notification failure
+	// nothing changes.
 	nsBefore := []*types.NotifyInfo{
-		// The first a new alert starting now.
 		nil,
-		// The second alert was not previously notified about and
-		// is already resolved.
-		nil,
-		// The third alert is an attempt to resolve a previously
-		// firing alert.
 		{
-			Alert:     fps[2],
+			Alert:     alerts[1].Fingerprint(),
 			Receiver:  "name",
 			Resolved:  false,
 			Timestamp: now.Add(-10 * time.Minute),
-		},
-		// The fourth alert is an attempt to resolve an alert again
-		// even though the previous notification succeeded.
-		{
-			Alert:     fps[3],
-			Receiver:  "name",
-			Resolved:  true,
-			Timestamp: now.Add(-10 * time.Minute),
-		},
-		// The fifth alert resends a previously successful notification
-		// that was longer than ago than the repeat interval.
-		{
-			Alert:     fps[4],
-			Receiver:  "name",
-			Resolved:  false,
-			Timestamp: now.Add(-110 * time.Minute),
-		},
-		// The sixth alert is a firing again after being resolved before.
-		{
-			Alert:     fps[5],
-			Receiver:  "name",
-			Resolved:  true,
-			Timestamp: now.Add(3 * time.Minute),
 		},
 	}
 
@@ -140,7 +213,7 @@ func TestDedupingNotifier(t *testing.T) {
 		t.Fatalf("Fail notifier did not fail")
 	}
 	// After a failing notify the notifies data must be unchanged.
-	nsCur, err := notifies.Get("name", fps...)
+	nsCur, err := notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
 	if err != nil {
 		t.Fatalf("Error getting notify info: %s", err)
 	}
@@ -153,44 +226,27 @@ func TestDedupingNotifier(t *testing.T) {
 		t.Fatalf("Notify failed: %s", err)
 	}
 
-	alertsExp := []*types.Alert{
-		alerts[0],
-		alerts[2],
-		alerts[4],
-		alerts[5],
+	if !reflect.DeepEqual(record.alerts, alerts) {
+		t.Fatalf("Expected alerts %v, got %v", alerts, record.alerts)
+	}
+	nsCur, err = notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
+	if err != nil {
+		t.Fatalf("Error getting notifies: %s", err)
 	}
 
 	nsAfter := []*types.NotifyInfo{
 		{
-			Alert:    fps[0],
-			Receiver: "name",
-			Resolved: false,
-		},
-		nil,
-		{
-			Alert:    fps[2],
-			Receiver: "name",
-			Resolved: true,
-		},
-		nsBefore[3],
-		{
-			Alert:    fps[4],
-			Receiver: "name",
-			Resolved: false,
+			Alert:     alerts[0].Fingerprint(),
+			Receiver:  "name",
+			Resolved:  false,
+			Timestamp: now,
 		},
 		{
-			Alert:    fps[5],
-			Receiver: "name",
-			Resolved: false,
+			Alert:     alerts[1].Fingerprint(),
+			Receiver:  "name",
+			Resolved:  true,
+			Timestamp: now,
 		},
-	}
-
-	if !reflect.DeepEqual(record.alerts, alertsExp) {
-		t.Fatalf("Expected alerts %v, got %v", alertsExp, record.alerts)
-	}
-	nsCur, err = notifies.Get("name", fps...)
-	if err != nil {
-		t.Fatalf("Error getting notifies: %s", err)
 	}
 
 	for i, after := range nsAfter {
