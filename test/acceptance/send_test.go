@@ -229,19 +229,22 @@ receivers:
 	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
 
 	am.Push(At(1.1), Alert("alertname", "test1").Active(1))
-	am.Push(At(1.9), Alert("alertname", "test5").Active(1))
-	am.Push(At(2.3),
-		Alert("alertname", "test2").Active(1.5),
-		Alert("alertname", "test3").Active(1.5),
-		Alert("alertname", "test4").Active(1.6),
-	)
+	am.Push(At(1.7), Alert("alertname", "test5").Active(1))
 
 	co.Want(Between(2.0, 2.5),
 		Alert("alertname", "test1").Active(1),
 		Alert("alertname", "test5").Active(1),
 	)
-	// Only expect the new ones with the next group interval.
-	co.Want(Between(3, 3.5),
+
+	am.Push(At(3.3),
+		Alert("alertname", "test2").Active(1.5),
+		Alert("alertname", "test3").Active(1.5),
+		Alert("alertname", "test4").Active(1.6),
+	)
+
+	co.Want(Between(4.1, 4.5),
+		Alert("alertname", "test1").Active(1),
+		Alert("alertname", "test5").Active(1),
 		Alert("alertname", "test2").Active(1.5),
 		Alert("alertname", "test3").Active(1.5),
 		Alert("alertname", "test4").Active(1.6),
@@ -250,10 +253,7 @@ receivers:
 	// While no changes happen expect no additional notifications
 	// until the 5s repeat interval has ended.
 
-	// The last three notifications should sent with the first two even
-	// though their repeat interval has not yet passed. This way fragmented
-	// batches are unified and notification noise reduced.
-	co.Want(Between(7, 7.5),
+	co.Want(Between(9.1, 9.5),
 		Alert("alertname", "test1").Active(1),
 		Alert("alertname", "test5").Active(1),
 		Alert("alertname", "test2").Active(1.5),

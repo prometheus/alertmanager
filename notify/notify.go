@@ -213,6 +213,29 @@ func Dedup(notifies provider.Notifies, n Notifier) *DedupingNotifier {
 	return &DedupingNotifier{notifies: notifies, notifier: n}
 }
 
+// hasUpdates checks an alert against the last notification that was made
+// about it.
+func (n *DedupingNotifier) hasUpdate(alert *types.Alert, last *types.NotifyInfo, now time.Time, interval time.Duration) bool {
+	if last != nil {
+		if alert.Resolved() {
+			if last.Resolved {
+				return false
+			}
+		} else if !last.Resolved {
+			// Do not send again if last was delivered unless
+			// the repeat interval has already passed.
+			if !now.After(last.Timestamp.Add(interval)) {
+				return false
+			}
+		}
+	} else if alert.Resolved() {
+		// If the alert is resolved but we never notified about it firing,
+		// there is nothing to do.
+		return false
+	}
+	return true
+}
+
 // Notify implements the Notifier interface.
 func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	name, ok := Receiver(ctx)
@@ -235,57 +258,27 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		fps = append(fps, a.Fingerprint())
 	}
 
-	notifies, err := n.notifies.Get(name, fps...)
+	notifyInfo, err := n.notifies.Get(name, fps...)
 	if err != nil {
 		return err
 	}
 
-	var (
-		doResend    bool
-		resendQueue []*types.Alert
-		filtered    []*types.Alert
-	)
-	for i, a := range alerts {
-		last := notifies[i]
-
-		if last != nil {
-			if a.Resolved() {
-				if last.Resolved {
-					continue
-				}
-			} else if !last.Resolved {
-				// Do not send again if last was delivered unless
-				// the repeat interval has already passed.
-				if !now.After(last.Timestamp.Add(repeatInterval)) {
-					// To not repeat initial batch fragmentation after the repeat interval
-					// has passed, store them and send them anyway if on of the other
-					// alerts has already passed the repeat interval.
-					// This way we unify batches again.
-					resendQueue = append(resendQueue, a)
-
-					continue
-				} else {
-					doResend = true
-				}
-			}
-		} else if a.Resolved() {
-			// If the alert is resolved but we never notified about it firing,
-			// there is nothing to do.
-			continue
+	// If we have to notify about any of the alerts, we send a notification
+	// for the entire batch.
+	var send bool
+	for i, alert := range alerts {
+		if n.hasUpdate(alert, notifyInfo[i], now, repeatInterval) {
+			send = true
+			break
 		}
-
-		filtered = append(filtered, a)
 	}
-
-	// As we are resending an alert anyway, resend all of them even if their
-	// repeat interval has not yet passed.
-	if doResend {
-		filtered = append(filtered, resendQueue...)
+	if !send {
+		return nil
 	}
 
 	var newNotifies []*types.NotifyInfo
 
-	for _, a := range filtered {
+	for _, a := range alerts {
 		newNotifies = append(newNotifies, &types.NotifyInfo{
 			Alert:     a.Fingerprint(),
 			Receiver:  name,
@@ -294,7 +287,7 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		})
 	}
 
-	if err := n.notifier.Notify(ctx, filtered...); err != nil {
+	if err := n.notifier.Notify(ctx, alerts...); err != nil {
 		return err
 	}
 
