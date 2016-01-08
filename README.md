@@ -13,7 +13,7 @@ Debian family:
 
 Red Hat family:
 
-    yum install glibc-static
+    sudo yum install glibc-static
 
 ### Compiling the binary
 
