@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
@@ -37,6 +38,25 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+var (
+	numNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "notifications_total",
+		Help:      "The total number of attempted notifications.",
+	}, []string{"integration"})
+
+	numFailedNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "notifications_failed_total",
+		Help:      "The total number of failed notifications.",
+	}, []string{"integration"})
+)
+
+func init() {
+	prometheus.Register(numNotifications)
+	prometheus.Register(numFailedNotifications)
+}
 
 type notifierConfig interface {
 	SendResolved() bool
@@ -48,11 +68,16 @@ func (f NotifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) error 
 	return f(ctx, alerts...)
 }
 
+type integration interface {
+	Notifier
+	name() string
+}
+
 // Build creates a fanout notifier for each receiver.
 func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout {
 	res := map[string]Fanout{}
 
-	filter := func(n Notifier, c notifierConfig) Notifier {
+	filter := func(n integration, c notifierConfig) Notifier {
 		return NotifierFunc(func(ctx context.Context, alerts ...*types.Alert) error {
 			var res []*types.Alert
 
@@ -68,14 +93,21 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 			if len(res) == 0 {
 				return nil
 			}
-			return n.Notify(ctx, res...)
+
+			err := n.Notify(ctx, res...)
+			if err != nil {
+				numFailedNotifications.WithLabelValues(n.name()).Inc()
+			}
+			numNotifications.WithLabelValues(n.name()).Inc()
+
+			return err
 		})
 	}
 
 	for _, nc := range confs {
 		var (
 			fo  = Fanout{}
-			add = func(i int, on, n Notifier) { fo[fmt.Sprintf("%T/%d", on, i)] = n }
+			add = func(i int, on integration, n Notifier) { fo[fmt.Sprintf("%s/%d", on.name(), i)] = n }
 		)
 
 		for i, c := range nc.WebhookConfigs {
@@ -120,6 +152,8 @@ type Webhook struct {
 func NewWebhook(conf *config.WebhookConfig) *Webhook {
 	return &Webhook{URL: conf.URL}
 }
+
+func (*Webhook) name() string { return "webhook" }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
 type WebhookMessage struct {
@@ -186,6 +220,8 @@ func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
 	}
 	return &Email{conf: c, tmpl: t}
 }
+
+func (*Email) name() string { return "email" }
 
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
@@ -321,6 +357,8 @@ func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template) *PagerDuty {
 	return &PagerDuty{conf: c, tmpl: t}
 }
 
+func (*PagerDuty) name() string { return "pagerduty" }
+
 const (
 	pagerDutyEventTrigger = "trigger"
 	pagerDutyEventResolve = "resolve"
@@ -409,6 +447,8 @@ func NewSlack(conf *config.SlackConfig, tmpl *template.Template) *Slack {
 	}
 }
 
+func (*Slack) name() string { return "slack" }
+
 // slackReq is the request for sending a slack notification.
 type slackReq struct {
 	Channel     string            `json:"channel,omitempty"`
@@ -495,6 +535,8 @@ func NewHipchat(conf *config.HipchatConfig, tmpl *template.Template) *Hipchat {
 	}
 }
 
+func (*Hipchat) name() string { return "hipchat" }
+
 type hipchatReq struct {
 	From          string `json:"from"`
 	Notify        bool   `json:"notify"`
@@ -560,6 +602,8 @@ type OpsGenie struct {
 func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template) *OpsGenie {
 	return &OpsGenie{conf: c, tmpl: t}
 }
+
+func (*OpsGenie) name() string { return "opsgenie" }
 
 type opsGenieMessage struct {
 	APIKey string            `json:"apiKey"`
