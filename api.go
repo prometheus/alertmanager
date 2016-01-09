@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
@@ -30,6 +31,25 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/version"
 )
+
+var (
+	numReceivedAlerts = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "alerts_received_total",
+		Help:      "The total number of received alerts.",
+	}, []string{"status"})
+
+	numInvalidAlerts = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "invalid_alerts_total",
+		Help:      "The total number of received alerts that were invalid.",
+	})
+)
+
+func init() {
+	prometheus.Register(numReceivedAlerts)
+	prometheus.Register(numInvalidAlerts)
+}
 
 // API provides registration of handlers for API routes.
 type API struct {
@@ -60,23 +80,24 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 // Register regieters the API handlers under their correct routes
 // in the given router.
 func (api *API) Register(r *route.Router) {
+	ihf := prometheus.InstrumentHandlerFunc
+
 	// Register legacy forwarder for alert pushing.
-	r.Post("/alerts", api.legacyAddAlerts)
+	r.Post("/alerts", ihf("legacy_add_alerts", api.legacyAddAlerts))
 
 	// Register actual API.
 	r = r.WithPrefix("/v1")
 
-	r.Get("/status", api.status)
-	r.Get("/alerts/groups", api.alertGroups)
+	r.Get("/status", ihf("status", api.status))
+	r.Get("/alerts/groups", ihf("alert_groups", api.alertGroups))
 
-	r.Get("/alerts", api.listAlerts)
-	r.Post("/alerts", api.addAlerts)
+	r.Get("/alerts", ihf("list_alerts", api.listAlerts))
+	r.Post("/alerts", ihf("add_alerts", api.addAlerts))
 
-	r.Get("/silences", api.listSilences)
-	r.Post("/silences", api.addSilence)
-
-	r.Get("/silence/:sid", api.getSilence)
-	r.Del("/silence/:sid", api.delSilence)
+	r.Get("/silences", ihf("list_silences", api.listSilences))
+	r.Post("/silences", ihf("add_silence", api.addSilence))
+	r.Get("/silence/:sid", ihf("get_silence", api.getSilence))
+	r.Del("/silence/:sid", ihf("del_silence", api.delSilence))
 }
 
 // Update sets the configuration string to a new value.
@@ -206,30 +227,48 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	for _, alert := range alerts {
 		alert.UpdatedAt = now
 
+		// Ensure StartsAt is set.
 		if alert.StartsAt.IsZero() {
 			alert.StartsAt = now
 		}
+		// If no end time is defined, set a timeout after which an alert
+		// is marked resolved if it is not updated.
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
 			alert.EndsAt = alert.StartsAt.Add(api.resolveTimeout)
+
+			numReceivedAlerts.WithLabelValues("firing").Inc()
+		} else {
+			numReceivedAlerts.WithLabelValues("resolved").Inc()
 		}
 	}
 
-	// Only validate after we've ensured that StartsAt is set.
+	// Make a best effort to insert all alerts that are valid.
+	var (
+		validAlerts    = make([]*types.Alert, 0, len(alerts))
+		validationErrs = &types.MultiError{}
+	)
 	for _, a := range alerts {
 		if err := a.Validate(); err != nil {
-			respondError(w, apiError{
-				typ: errorBadData,
-				err: err,
-			}, nil)
-			return
+			validationErrs.Add(err)
+			numInvalidAlerts.Inc()
+			continue
 		}
+		validAlerts = append(validAlerts, a)
 	}
 
-	if err := api.alerts.Put(alerts...); err != nil {
+	if err := api.alerts.Put(validAlerts...); err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
 			err: err,
+		}, nil)
+		return
+	}
+
+	if validationErrs.Len() > 0 {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: validationErrs,
 		}, nil)
 		return
 	}
