@@ -32,6 +32,25 @@ import (
 	"github.com/prometheus/alertmanager/version"
 )
 
+var (
+	numReceivedAlerts = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "alerts_received_total",
+		Help:      "The total number of received alerts.",
+	}, []string{"status"})
+
+	numInvalidAlerts = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "invalid_alerts_total",
+		Help:      "The total number of received alerts that were invalid.",
+	})
+)
+
+func init() {
+	prometheus.Register(numReceivedAlerts)
+	prometheus.Register(numInvalidAlerts)
+}
+
 // API provides registration of handlers for API routes.
 type API struct {
 	alerts         provider.Alerts
@@ -208,30 +227,48 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	for _, alert := range alerts {
 		alert.UpdatedAt = now
 
+		// Ensure StartsAt is set.
 		if alert.StartsAt.IsZero() {
 			alert.StartsAt = now
 		}
+		// If no end time is defined, set a timeout after which an alert
+		// is marked resolved if it is not updated.
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
 			alert.EndsAt = alert.StartsAt.Add(api.resolveTimeout)
+
+			numReceivedAlerts.WithLabelValues("firing").Inc()
+		} else {
+			numReceivedAlerts.WithLabelValues("resolved").Inc()
 		}
 	}
 
-	// Only validate after we've ensured that StartsAt is set.
+	// Make a best effort to insert all alerts that are valid.
+	var (
+		validAlerts    = make([]*types.Alert, 0, len(alerts))
+		validationErrs = &types.MultiError{}
+	)
 	for _, a := range alerts {
 		if err := a.Validate(); err != nil {
-			respondError(w, apiError{
-				typ: errorBadData,
-				err: err,
-			}, nil)
-			return
+			validationErrs.Add(err)
+			numInvalidAlerts.Inc()
+			continue
 		}
+		validAlerts = append(validAlerts, a)
 	}
 
-	if err := api.alerts.Put(alerts...); err != nil {
+	if err := api.alerts.Put(validAlerts...); err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
 			err: err,
+		}, nil)
+		return
+	}
+
+	if validationErrs.Len() > 0 {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: validationErrs,
 		}, nil)
 		return
 	}
