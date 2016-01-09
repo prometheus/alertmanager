@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
@@ -60,23 +61,24 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 // Register regieters the API handlers under their correct routes
 // in the given router.
 func (api *API) Register(r *route.Router) {
+	ihf := prometheus.InstrumentHandlerFunc
+
 	// Register legacy forwarder for alert pushing.
-	r.Post("/alerts", api.legacyAddAlerts)
+	r.Post("/alerts", ihf("legacy_add_alerts", api.legacyAddAlerts))
 
 	// Register actual API.
 	r = r.WithPrefix("/v1")
 
-	r.Get("/status", api.status)
-	r.Get("/alerts/groups", api.alertGroups)
+	r.Get("/status", ihf("status", api.status))
+	r.Get("/alerts/groups", ihf("alert_groups", api.alertGroups))
 
-	r.Get("/alerts", api.listAlerts)
-	r.Post("/alerts", api.addAlerts)
+	r.Get("/alerts", ihf("list_alerts", api.listAlerts))
+	r.Post("/alerts", ihf("add_alerts", api.addAlerts))
 
-	r.Get("/silences", api.listSilences)
-	r.Post("/silences", api.addSilence)
-
-	r.Get("/silence/:sid", api.getSilence)
-	r.Del("/silence/:sid", api.delSilence)
+	r.Get("/silences", ihf("list_silences", api.listSilences))
+	r.Post("/silences", ihf("add_silence", api.addSilence))
+	r.Get("/silence/:sid", ihf("get_silence", api.getSilence))
+	r.Del("/silence/:sid", ihf("del_silence", api.delSilence))
 }
 
 // Update sets the configuration string to a new value.

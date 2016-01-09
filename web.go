@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
 
@@ -46,15 +47,24 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
 
 // RegisterWeb registers handlers to serve files for the web interface.
 func RegisterWeb(r *route.Router) {
-	r.Get("/app/*filepath", func(w http.ResponseWriter, req *http.Request) {
-		fp := route.Param(route.Context(req), "filepath")
-		serveAsset(w, req, filepath.Join("ui/app", fp))
-	})
-	r.Get("/lib/*filepath", func(w http.ResponseWriter, req *http.Request) {
-		fp := route.Param(route.Context(req), "filepath")
-		serveAsset(w, req, filepath.Join("ui/lib", fp))
-	})
-	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+	ihf := prometheus.InstrumentHandlerFunc
+
+	r.Get("/app/*filepath", ihf("app_files",
+		func(w http.ResponseWriter, req *http.Request) {
+			fp := route.Param(route.Context(req), "filepath")
+			serveAsset(w, req, filepath.Join("ui/app", fp))
+		},
+	))
+	r.Get("/lib/*filepath", ihf("lib_files",
+		func(w http.ResponseWriter, req *http.Request) {
+			fp := route.Param(route.Context(req), "filepath")
+			serveAsset(w, req, filepath.Join("ui/lib", fp))
+		},
+	))
+
+	r.Get("/metrics", prometheus.Handler().ServeHTTP)
+
+	r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/index.html")
-	})
+	}))
 }
