@@ -1,3 +1,8 @@
+## 0.1.0-beta1 / 2015-01-08
+* [BUGFIX] Send full alert group state on each update. Fixes erroneous resolved notifications.
+* [FEATURE] HipChat integration
+* [CHANGE] Slack integration no longer sends resolved notifications by default
+
 ## 0.1.0-beta0 / 2015-12-23
 This version is a full rewrite of the Alertmanager with a very different
 feature set. Thus, there is no meaningful changelog.
