@@ -41,7 +41,7 @@ var (
 
 	numInvalidAlerts = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "alertmanager",
-		Name:      "invalid_alerts_total",
+		Name:      "alerts_invalid_total",
 		Help:      "The total number of received alerts that were invalid.",
 	})
 )
