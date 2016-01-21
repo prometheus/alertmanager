@@ -57,7 +57,6 @@ This will happen based on priority and demand. Feel free to ping fabxc about it
 * Definition of a minimum data set provided to notification templates
 * Best practices around notification templating
 * Various common command line flags like `path-prefix`
-* Compiling templates and UI assets into the binary
 
 ## Example
 
