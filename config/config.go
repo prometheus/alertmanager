@@ -207,7 +207,36 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 		names[rcv.Name] = struct{}{}
 	}
+
+	// The root route must not have any matchers as it is the fallback node
+	// for all alerts.
+    if c.Route == nil {
+        return fmt.Errorf("No routes provided")
+    }
+	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
+		return fmt.Errorf("Root route must not have any matchers")
+	}
+
+	// Validate that all receivers used in the routing tree are defined.
+	if err := checkReceiver(c.Route, names); err != nil {
+		return err
+	}
+
 	return checkOverflow(c.XXX, "config")
+}
+
+// checkReceiver returns an error if a node in the routing tree
+// references a receiver not in the given map.
+func checkReceiver(r *Route, receivers map[string]struct{}) error {
+	if _, ok := receivers[r.Receiver]; !ok {
+		return fmt.Errorf("Undefined receiver %q used in route", r.Receiver)
+	}
+	for _, sr := range r.Routes {
+		if err := checkReceiver(sr, receivers); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DefaultGlobalConfig provides global default values.
