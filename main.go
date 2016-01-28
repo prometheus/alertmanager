@@ -163,7 +163,7 @@ func main() {
 	RegisterWeb(router)
 	api.Register(router.WithPrefix("/api"))
 
-	go http.ListenAndServe(*listenAddress, router)
+	go listen(router)
 
 	var (
 		hup  = make(chan os.Signal)
@@ -226,4 +226,10 @@ func extURL(s string) (*url.URL, error) {
 	u.Path = ppref
 
 	return u, nil
+}
+
+func listen(router *route.Router) {
+	if err := http.ListenAndServe(*listenAddress, router); err != nil {
+		log.Fatal(err)
+	}
 }
