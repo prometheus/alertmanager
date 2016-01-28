@@ -210,9 +210,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// The root route must not have any matchers as it is the fallback node
 	// for all alerts.
-    if c.Route == nil {
-        return fmt.Errorf("No routes provided")
-    }
+	if c.Route == nil {
+		return fmt.Errorf("No routes provided")
+	}
 	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
 		return fmt.Errorf("Root route must not have any matchers")
 	}
