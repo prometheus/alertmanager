@@ -34,7 +34,7 @@ $ mkdir -p $GOPATH/src/github.com/prometheus
 $ cd $GOPATH/src/github.com/prometheus
 $ git clone https://github.com/prometheus/alertmanager.git
 $ cd alertmanager
-$ make
+$ make build
 $ ./alertmanager -config.file=<your_file>
 ```
 
