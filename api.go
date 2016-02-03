@@ -235,7 +235,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		// is marked resolved if it is not updated.
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
-			alert.EndsAt = alert.StartsAt.Add(api.resolveTimeout)
+			alert.EndsAt = now.Add(api.resolveTimeout)
 
 			numReceivedAlerts.WithLabelValues("firing").Inc()
 		} else {
@@ -256,7 +256,6 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		}
 		validAlerts = append(validAlerts, a)
 	}
-
 	if err := api.alerts.Put(validAlerts...); err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
