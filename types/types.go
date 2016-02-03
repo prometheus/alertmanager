@@ -183,7 +183,7 @@ func (a *Alert) Merge(o *Alert) *Alert {
 		res.StartsAt = a.StartsAt
 	}
 
-	// An non-timeout resolved timestamp always rules.
+	// A non-timeout resolved timestamp always rules.
 	// The latest explicit resolved timestamp wins.
 	if a.EndsAt.After(o.EndsAt) && !a.Timeout {
 		res.EndsAt = a.EndsAt
