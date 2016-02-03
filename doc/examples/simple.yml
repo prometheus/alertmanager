@@ -33,13 +33,8 @@ route:
   # resend them.
   repeat_interval: 3h 
 
-  # If 'continue' is false, the first sub-route that matches this alert will
-  # terminate the search and the alert will be inserted at that routing node.
-  # If true, the alert is inserted to sibling nodes as well if there is a
-  # match.
-  # This allows to do first-match semantics (=false) in smaller scopes (e.g. team-level),
-  # while avoiding accidental shadowing (=true) at alerts at larger scopes (e.g. company-level)
-  continue: true
+  # A default receiver
+  receiver: team-X-mails
 
   # All the above attributes are inherited by all child routes and can 
   # overwritten on each.
@@ -74,7 +69,6 @@ route:
     receiver: team-DB-pager
     # Also group alerts by affected database.
     group_by: [alertname, cluster, database]
-    continue: false
     routes:
     - match:
         owner: team-X
