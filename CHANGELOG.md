@@ -1,3 +1,9 @@
+## 0.1.0-beta2 / 2015-02-03
+* [BUGFIX] Properly set timeout for incoming alerts with fixed start time
+* [ENHANCEMENT] Send source field in OpsGenie integration
+* [ENHANCEMENT] Improved routing configuration validation
+* [FEATURE] Basic instrumentation added
+
 ## 0.1.0-beta1 / 2015-01-08
 * [BUGFIX] Send full alert group state on each update. Fixes erroneous resolved notifications.
 * [FEATURE] HipChat integration
