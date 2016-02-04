@@ -491,7 +491,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 		Text:      tmplHTML(n.conf.Text),
 		Fallback:  tmplText(n.conf.Fallback),
 		Color:     tmplText(n.conf.Color),
-		MrkdwnIn:  []string{"fallback", "pretext"},
+		MrkdwnIn:  []string{"fallback", "pretext", "text"},
 	}
 	req := &slackReq{
 		Channel:     tmplText(n.conf.Channel),
