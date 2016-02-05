@@ -85,7 +85,7 @@ func (t *Template) ExecuteTextString(text string, data interface{}) (string, err
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Parse(text)
+	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(text)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +100,7 @@ func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, err
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Parse(html)
+	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(html)
 	if err != nil {
 		return "", err
 	}
