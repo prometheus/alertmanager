@@ -481,14 +481,13 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	var (
 		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
-		tmplHTML = tmplHTML(n.tmpl, data, &err)
 	)
 
 	attachment := &slackAttachment{
 		Title:     tmplText(n.conf.Title),
 		TitleLink: tmplText(n.conf.TitleLink),
 		Pretext:   tmplText(n.conf.Pretext),
-		Text:      tmplHTML(n.conf.Text),
+		Text:      tmplText(n.conf.Text),
 		Fallback:  tmplText(n.conf.Fallback),
 		Color:     tmplText(n.conf.Color),
 		MrkdwnIn:  []string{"fallback", "pretext", "text"},
