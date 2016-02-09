@@ -17,6 +17,9 @@ header #logo a {
 	color: inherit;
 	text-decoration: none;
 }
+a.gen-link button {
+	color: #fff !important;
+}
 
 #top-nav a {
 	color: #bbb;
@@ -53,10 +56,12 @@ header #logo a {
 .alert-group {
 	margin-bottom: 5px;
 }
-
-.alert-item .expand, .silence-item .expand {
+.alert-item .details {
 	float: left;
 	margin-right: 12px;
+}
+
+.alert-item .expand, .silence-item .expand {
 	opacity: .4;
 }
 .alert-item:hover .expand, .silence-item:hover .expand {
