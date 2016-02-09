@@ -161,6 +161,8 @@ type WebhookMessage struct {
 	Version string `json:"version"`
 	// The alert status. It is firing iff any of the alerts is not resolved.
 	Status model.AlertStatus `json:"status"`
+	// A key identifying the group of alerts irrespective of its members.
+	GroupKey uint64 `json:"groupKey"`
 	// A batch of alerts.
 	Alerts model.Alerts `json:"alert"`
 }
@@ -177,10 +179,16 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 		}
 	}
 
+	gkey, ok := GroupKey(ctx)
+	if !ok {
+		log.Errorf("group key missing")
+	}
+
 	msg := &WebhookMessage{
-		Version: "2",
-		Status:  as.Status(),
-		Alerts:  as,
+		Version:  "2",
+		Status:   as.Status(),
+		GroupKey: uint64(gkey),
+		Alerts:   as,
 	}
 
 	var buf bytes.Buffer
