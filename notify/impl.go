@@ -164,7 +164,7 @@ type WebhookMessage struct {
 	// A key identifying the group of alerts irrespective of its members.
 	GroupKey uint64 `json:"groupKey"`
 	// A batch of alerts.
-	Alerts model.Alerts `json:"alert"`
+	Alerts model.Alerts `json:"alerts"`
 }
 
 // Notify implements the Notifier interface.
