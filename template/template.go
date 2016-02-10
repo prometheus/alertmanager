@@ -200,29 +200,30 @@ func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
 }
 
-// Data is the data passed to notification templates.
-// End-users should not be exposed to Go's type system,
-// as this will confuse them and prevent simple things like
-// simple equality checks to fail. Map everything to float64/string.
+// Data is the data passed to notification templates and webhook pushes.
+//
+// End-users should not be exposed to Go's type system, as this will confuse them and prevent
+// simple things like simple equality checks to fail. Map everything to float64/string.
 type Data struct {
-	Receiver string
-	Status   string
-	Alerts   Alerts
+	Receiver string `json:"receiver"`
+	Status   string `json:"status"`
+	Alerts   Alerts `json:"alerts"`
 
-	GroupLabels       KV
-	CommonLabels      KV
-	CommonAnnotations KV
+	GroupLabels       KV `json:"groupLabels"`
+	CommonLabels      KV `json:"commonLabels"`
+	CommonAnnotations KV `json:"commonAnnotations"`
 
-	ExternalURL string
+	ExternalURL string `json:"externalURL"`
 }
 
 // Alert holds one alert for notification templates.
 type Alert struct {
-	Status       string
-	Labels       KV
-	Annotations  KV
-	WasSilenced  bool
-	WasInhibited bool
+	Status       string `json:"status"`
+	Labels       KV     `json:"labels"`
+	Annotations  KV     `json:"annotations"`
+	WasSilenced  bool   `json:"-"`
+	WasInhibited bool   `json:"-"`
+	GeneratorURL string `json:"generatorURL"`
 }
 
 // Alerts is a list of Alert objects.
@@ -269,6 +270,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 			Annotations:  make(KV, len(a.Annotations)),
 			WasSilenced:  a.WasSilenced,
 			WasInhibited: a.WasInhibited,
+			GeneratorURL: a.GeneratorURL,
 		}
 		for k, v := range a.Labels {
 			alert.Labels[string(k)] = string(v)
