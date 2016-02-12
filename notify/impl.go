@@ -111,7 +111,7 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		)
 
 		for i, c := range nc.WebhookConfigs {
-			n := NewWebhook(c)
+			n := NewWebhook(c, tmpl)
 			add(i, n, filter(n, c))
 		}
 		for i, c := range nc.EmailConfigs {
@@ -145,50 +145,39 @@ const contentTypeJSON = "application/json"
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
 	// The URL to which notifications are sent.
-	URL string
+	URL  string
+	tmpl *template.Template
 }
 
 // NewWebhook returns a new Webhook.
-func NewWebhook(conf *config.WebhookConfig) *Webhook {
-	return &Webhook{URL: conf.URL}
+func NewWebhook(conf *config.WebhookConfig, t *template.Template) *Webhook {
+	return &Webhook{URL: conf.URL, tmpl: t}
 }
 
 func (*Webhook) name() string { return "webhook" }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
 type WebhookMessage struct {
+	*template.Data
+
 	// The protocol version.
-	Version string `json:"version"`
-	// The alert status. It is firing iff any of the alerts is not resolved.
-	Status model.AlertStatus `json:"status"`
-	// A key identifying the group of alerts irrespective of its members.
+	Version  string `json:"version"`
 	GroupKey uint64 `json:"groupKey"`
-	// A batch of alerts.
-	Alerts model.Alerts `json:"alerts"`
 }
 
 // Notify implements the Notifier interface.
 func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	as := types.Alerts(alerts...)
+	data := w.tmpl.Data(receiver(ctx), groupLabels(ctx), alerts...)
 
-	// If there are no annotations, instantiate so
-	// {} is sent rather than null.
-	for _, a := range as {
-		if a.Annotations == nil {
-			a.Annotations = model.LabelSet{}
-		}
-	}
-
-	gkey, ok := GroupKey(ctx)
+	groupKey, ok := GroupKey(ctx)
 	if !ok {
 		log.Errorf("group key missing")
 	}
 
 	msg := &WebhookMessage{
-		Version:  "2",
-		Status:   as.Status(),
-		GroupKey: uint64(gkey),
-		Alerts:   as,
+		Version:  "3",
+		Data:     data,
+		GroupKey: uint64(groupKey),
 	}
 
 	var buf bytes.Buffer
