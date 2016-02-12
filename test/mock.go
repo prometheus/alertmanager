@@ -259,7 +259,30 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		panic(err)
 	}
 
-	ws.collector.add(v.Alerts...)
+	// Transform the webhook message alerts back into model.Alerts.
+	var alerts model.Alerts
+	for _, a := range v.Alerts {
+		var (
+			labels      = model.LabelSet{}
+			annotations = model.LabelSet{}
+		)
+		for k, v := range a.Labels {
+			labels[model.LabelName(k)] = model.LabelValue(v)
+		}
+		for k, v := range a.Annotations {
+			annotations[model.LabelName(k)] = model.LabelValue(v)
+		}
+
+		alerts = append(alerts, &model.Alert{
+			Labels:       labels,
+			Annotations:  annotations,
+			StartsAt:     a.StartsAt,
+			EndsAt:       a.EndsAt,
+			GeneratorURL: a.GeneratorURL,
+		})
+	}
+
+	ws.collector.add(alerts...)
 }
 
 func (ws *MockWebhook) Address() string {
