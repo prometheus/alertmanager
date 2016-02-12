@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	tmplhtml "html/template"
 	tmpltext "text/template"
@@ -218,12 +219,12 @@ type Data struct {
 
 // Alert holds one alert for notification templates.
 type Alert struct {
-	Status       string `json:"status"`
-	Labels       KV     `json:"labels"`
-	Annotations  KV     `json:"annotations"`
-	WasSilenced  bool   `json:"-"`
-	WasInhibited bool   `json:"-"`
-	GeneratorURL string `json:"generatorURL"`
+	Status       string    `json:"status"`
+	Labels       KV        `json:"labels"`
+	Annotations  KV        `json:"annotations"`
+	StartsAt     time.Time `json:"startsAt"`
+	EndsAt       time.Time `json:"endsAt"`
+	GeneratorURL string    `json:"generatorURL"`
 }
 
 // Alerts is a list of Alert objects.
@@ -263,13 +264,15 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		ExternalURL:       t.ExternalURL.String(),
 	}
 
-	for _, a := range alerts {
+	// The call to types.Alert is necessary to correctly resolve the internal
+	// representation to the user representation.
+	for _, a := range types.Alerts(alerts...) {
 		alert := Alert{
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),
 			Annotations:  make(KV, len(a.Annotations)),
-			WasSilenced:  a.WasSilenced,
-			WasInhibited: a.WasInhibited,
+			StartsAt:     a.StartsAt,
+			EndsAt:       a.EndsAt,
 			GeneratorURL: a.GeneratorURL,
 		}
 		for k, v := range a.Labels {
