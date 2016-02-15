@@ -403,7 +403,7 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	case errorInternal:
 		w.WriteHeader(http.StatusInternalServerError)
 	default:
-		panic(fmt.Sprintf("unknown error type", apiErr))
+		panic(fmt.Sprintf("unknown error type %q", apiErr))
 	}
 
 	b, err := json.Marshal(&response{

@@ -607,14 +607,15 @@ type opsGenieMessage struct {
 }
 
 type opsGenieCreateMessage struct {
-	*opsGenieMessage `json:,inline`
-	Message          string            `json:"message"`
-	Details          map[string]string `json:"details"`
-	Source           string            `json:"source"`
+	*opsGenieMessage `json:",inline"`
+
+	Message string            `json:"message"`
+	Details map[string]string `json:"details"`
+	Source  string            `json:"source"`
 }
 
 type opsGenieCloseMessage struct {
-	*opsGenieMessage `json:,inline`
+	*opsGenieMessage `json:",inline"`
 }
 
 // Notify implements the Notifier interface.
