@@ -62,6 +62,7 @@ var (
 		Username:  `{{ template "slack.default.username" . }}`,
 		Title:     `{{ template "slack.default.title" . }}`,
 		TitleLink: `{{ template "slack.default.titlelink" . }}`,
+		IconEmoji: `{{ template "slack.default.iconemoji" . }}`,
 		Pretext:   `{{ template "slack.default.pretext" . }}`,
 		Text:      `{{ template "slack.default.text" . }}`,
 		Fallback:  `{{ template "slack.default.fallback" . }}`,
@@ -182,6 +183,7 @@ type SlackConfig struct {
 	Pretext   string `yaml:"pretext"`
 	Text      string `yaml:"text"`
 	Fallback  string `yaml:"fallback"`
+	IconEmoji string `yaml:"icon_emoji"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
