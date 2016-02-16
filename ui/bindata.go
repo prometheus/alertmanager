@@ -301,7 +301,7 @@ func uiBindataGo() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "ui/bindata.go", size: 77824, mode: os.FileMode(420), modTime: time.Unix(1455622076, 0)}
+	info := bindataFileInfo{name: "ui/bindata.go", size: 77824, mode: os.FileMode(420), modTime: time.Unix(1455637339, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
