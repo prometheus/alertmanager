@@ -1,4 +1,4 @@
-FROM        golang:1.5.2
+FROM        golang:1.5.3
 MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
 
 WORKDIR /go/src/github.com/prometheus/alertmanager
