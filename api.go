@@ -77,7 +77,7 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 	}
 }
 
-// Register regieters the API handlers under their correct routes
+// Register registers the API handlers under their correct routes
 // in the given router.
 func (api *API) Register(r *route.Router) {
 	ihf := prometheus.InstrumentHandlerFunc
