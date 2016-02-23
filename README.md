@@ -1,7 +1,9 @@
 # Alertmanager
 
-This is the development version of the Alertmanager. It is a rewrite and
-is incompatible to the present version 0.0.4. The only backport was the API endpoint used by Prometheus to push new alerts.
+The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integration such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+
+* [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
+
 
 ## Installation
 
