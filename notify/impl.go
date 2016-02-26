@@ -19,11 +19,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime"
 	"net"
 	"net/http"
 	"net/mail"
 	"net/smtp"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -132,6 +134,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		}
 		for i, c := range nc.HipchatConfigs {
 			n := NewHipchat(c, tmpl)
+			add(i, n, filter(n, c))
+		}
+		for i, c := range nc.PushoverConfigs {
+			n := NewPushover(c, tmpl)
 			add(i, n, filter(n, c))
 		}
 
@@ -678,6 +684,76 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+	return nil
+}
+
+// Pushover implements a Notifier for Pushover notifications.
+type Pushover struct {
+	conf *config.PushoverConfig
+	tmpl *template.Template
+}
+
+// NewPushover returns a new Pushover notifier.
+func NewPushover(c *config.PushoverConfig, t *template.Template) *Pushover {
+	return &Pushover{conf: c, tmpl: t}
+}
+
+func (*Pushover) name() string { return "pushover" }
+
+// Notify implements the Notifier interface.
+func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return fmt.Errorf("group key missing")
+	}
+	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+
+	log.With("incident", key).Debugln("notifying Pushover")
+
+	var err error
+	tmpl := tmplText(n.tmpl, data, &err)
+
+	parameters := url.Values{}
+	parameters.Add("token", tmpl(string(n.conf.Token)))
+	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+	title := tmpl(n.conf.Title)
+	message := tmpl(n.conf.Message)
+	parameters.Add("title", title)
+	if len(title)+len(message) > 512 {
+		message = message[:512]
+		log.With("incident", key).Debugf("Truncated message to %q due to Pushover message limit", message)
+	}
+	if message == "" {
+		// Pushover rejects empty messages.
+		message = "(no details)"
+	}
+	parameters.Add("message", message)
+	parameters.Add("url", tmpl(n.conf.URL))
+	parameters.Add("priority", tmpl(n.conf.Priority))
+	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
+	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
+
+	apiURL := "https://api.pushover.net/1/messages.json"
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return err
+	}
+	u.RawQuery = parameters.Encode()
+	log.With("incident", key).Debugf("Pushover URL = %q", u.String())
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, u.String(), "text/plain", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
 	}
 	return nil
 }
