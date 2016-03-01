@@ -40,14 +40,6 @@ $ make build
 $ ./alertmanager -config.file=<your_file>
 ```
 
-## Status
-
-This version was written from scratch. Core features enabled by this is are more advanced alert routing configurations and grouping/batching of alerts. Thus, squashing expression results through aggregation in alerting rules is no longer required to avoid noisyness.
-
-The concepts of alert routing were outlined in [this document](https://docs.google.com/document/d/1-4jefGkFo71jlaLo4lHz40ZBoCv9ycBBBbjzbXifGyY/edit?usp=sharing).
-
-The version implements full persistence of alerts, silences, and notification state. On restart it picks up right where it left off.
-
 ## Example
 
 This is an example configuration that should cover most relevant aspects of the new YAML configuration format. Authoritative source for now is the [code](https://github.com/prometheus/alertmanager/tree/dev/config).
