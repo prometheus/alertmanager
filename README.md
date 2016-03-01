@@ -48,18 +48,6 @@ The concepts of alert routing were outlined in [this document](https://docs.goog
 
 The version implements full persistence of alerts, silences, and notification state. On restart it picks up right where it left off.
 
-### Known issues
-
-This development version still has an extensive list of improvements and changes. This is an incomplete list of things that are still missing or need to be improved.
-
-This will happen based on priority and demand. Feel free to ping fabxc about it
-
-* On deleting silences it may take up to one `group_wait` cycle for a notification of a previously silenced alert to be sent.
-* Limiting inhibition rules to routing subtrees to avoid accidental interference
-* Definition of a minimum data set provided to notification templates
-* Best practices around notification templating
-* Various common command line flags like `path-prefix`
-
 ## Example
 
 This is an example configuration that should cover most relevant aspects of the new YAML configuration format. Authoritative source for now is the [code](https://github.com/prometheus/alertmanager/tree/dev/config).
