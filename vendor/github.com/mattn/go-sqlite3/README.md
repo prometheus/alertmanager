@@ -1,8 +1,9 @@
 go-sqlite3
 ==========
 
-[![Build Status](https://travis-ci.org/mattn/go-sqlite3.png?branch=master)](https://travis-ci.org/mattn/go-sqlite3)
-[![Coverage Status](https://coveralls.io/repos/mattn/go-sqlite3/badge.png?branch=master)](https://coveralls.io/r/mattn/go-sqlite3?branch=master)
+[![Build Status](https://travis-ci.org/mattn/go-sqlite3.svg?branch=master)](https://travis-ci.org/mattn/go-sqlite3)
+[![Coverage Status](https://coveralls.io/repos/mattn/go-sqlite3/badge.svg?branch=master)](https://coveralls.io/r/mattn/go-sqlite3?branch=master)
+[![GoDoc](https://godoc.org/github.com/mattn/go-sqlite3?status.svg)](http://godoc.org/github.com/mattn/go-sqlite3)
 
 Description
 -----------
@@ -15,6 +16,10 @@ Installation
 This package can be installed with the go get command:
 
     go get github.com/mattn/go-sqlite3
+    
+_go-sqlite3_ is *cgo* package.
+If you want to build your app using go-sqlite3, you need gcc.
+However, if you install _go-sqlite3_ with `go install github.com/mattn/go-sqlite3`, you don't need gcc to build your app anymore.
     
 Documentation
 -------------
@@ -44,7 +49,7 @@ FAQ
     > You can pass some arguments into the connection string, for example, a URI.
     > See: https://github.com/mattn/go-sqlite3/issues/39
 
-* Do you want cross compiling? mingw on Linux or Mac?
+* Do you want to cross compile? mingw on Linux or Mac?
 
     > See: https://github.com/mattn/go-sqlite3/issues/106
     > See also: http://www.limitlessfx.com/cross-compile-golang-app-for-windows-from-linux.html
@@ -62,7 +67,7 @@ sqlite3-binding.c, sqlite3-binding.h, sqlite3ext.h
 
 The -binding suffix was added to avoid build failures under gccgo.
 
-In this repository, those files are amalgamation code that copied from SQLite3. The license of those codes are depend on the license of SQLite3.
+In this repository, those files are an amalgamation of code that was copied from SQLite3. The license of that code is the same as the license of SQLite3.
 
 Author
 ------
