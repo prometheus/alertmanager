@@ -29,6 +29,7 @@ import (
 	tmpltext "text/template"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
 
@@ -49,6 +50,24 @@ var (
 	externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 )
+
+var (
+	configSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "alertmanager",
+		Name:      "config_last_reload_successful",
+		Help:      "Whether the last configuration reload attempt was successful.",
+	})
+	configSuccessTime = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "alertmanager",
+		Name:      "config_last_reload_success_timestamp_seconds",
+		Help:      "Timestamp of the last successful configuration reload.",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(configSuccess)
+	prometheus.MustRegister(configSuccessTime)
+}
 
 func main() {
 	flag.Parse()
@@ -126,6 +145,10 @@ func main() {
 		defer func() {
 			if err != nil {
 				log.With("file", *configFile).Errorf("Loading configuration file failed: %s", err)
+				configSuccess.Set(0)
+			} else {
+				configSuccess.Set(1)
+				configSuccessTime.Set(float64(time.Now().Unix()))
 			}
 		}()
 
