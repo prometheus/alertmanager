@@ -32,7 +32,8 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		HTML: `{{ template "email.default.html" . }}`,
+		HTML:       `{{ template "email.default.html" . }}`,
+		RequireTLS: true,
 	}
 
 	// DefaultEmailSubject defines the default Subject header of an Email.
@@ -119,11 +120,12 @@ type EmailConfig struct {
 	NotifierConfig `yaml:",inline"`
 
 	// Email address to notify.
-	To        string            `yaml:"to"`
-	From      string            `yaml:"from"`
-	Smarthost string            `yaml:"smarthost,omitempty"`
-	Headers   map[string]string `yaml:"headers"`
-	HTML      string            `yaml:"html"`
+	To         string            `yaml:"to"`
+	From       string            `yaml:"from"`
+	Smarthost  string            `yaml:"smarthost,omitempty"`
+	Headers    map[string]string `yaml:"headers"`
+	HTML       string            `yaml:"html"`
+	RequireTLS bool              `yaml:"require_tls"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
