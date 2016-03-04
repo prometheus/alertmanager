@@ -162,3 +162,8 @@ SOFTWARE.
 </html>
 
 {{ end }}
+
+{{ define "pushover.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "pushover.default.message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
+{{ template "__text_alert_list" .Alerts.Firing }}{{ end }}
+{{ define "pushover.default.url" }}{{ template "__alertmanagerURL" . }}{{ end }}

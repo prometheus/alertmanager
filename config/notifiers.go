@@ -16,6 +16,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 var (
@@ -88,6 +89,19 @@ var (
 		Description: `{{ template "opsgenie.default.description" . }}`,
 		Source:      `{{ template "opsgenie.default.source" . }}`,
 		// TODO: Add a details field with all the alerts.
+	}
+
+	// DefaultPushoverConfig defines default values for Pushover configurations.
+	DefaultPushoverConfig = PushoverConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title:    `{{ template "pushover.default.title" . }}`,
+		Message:  `{{ template "pushover.default.message" . }}`,
+		URL:      `{{ template "pushover.default.url" . }}`,
+		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
+		Retry:    duration(1 * time.Minute),
+		Expire:   duration(1 * time.Hour),
 	}
 )
 
@@ -282,4 +296,50 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing API key in OpsGenie config")
 	}
 	return checkOverflow(c.XXX, "opsgenie config")
+}
+
+type duration time.Duration
+
+func (d *duration) UnmarshalText(text []byte) error {
+	parsed, err := time.ParseDuration(string(text))
+	if err == nil {
+		*d = duration(parsed)
+	}
+	return err
+}
+
+func (d duration) MarshalText() ([]byte, error) {
+	return []byte(time.Duration(d).String()), nil
+}
+
+type PushoverConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	UserKey  Secret   `yaml:"user_key"`
+	Token    Secret   `yaml:"token"`
+	Title    string   `yaml:"title"`
+	Message  string   `yaml:"message"`
+	URL      string   `yaml:"url"`
+	Priority string   `yaml:"priority"`
+	Retry    duration `yaml:"retry"`
+	Expire   duration `yaml:"expire"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultPushoverConfig
+	type plain PushoverConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.UserKey == "" {
+		return fmt.Errorf("missing user key in Pushover config")
+	}
+	if c.Token == "" {
+		return fmt.Errorf("missing token in Pushover config")
+	}
+	return checkOverflow(c.XXX, "pushover config")
 }
