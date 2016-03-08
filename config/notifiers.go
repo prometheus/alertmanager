@@ -57,7 +57,7 @@ var (
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
 		NotifierConfig: NotifierConfig{
-			VSendResolved: false,
+			VSendResolved: true,
 		},
 		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
 		Username:  `{{ template "slack.default.username" . }}`,
