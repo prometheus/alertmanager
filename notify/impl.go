@@ -683,6 +683,8 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 	resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.With("incident", key).Debugf("unexpected OpsGenie response %s: %s", resp.Status, body)
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	}
 	return nil
