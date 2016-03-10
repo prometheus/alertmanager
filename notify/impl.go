@@ -620,6 +620,8 @@ type opsGenieCreateMessage struct {
 	Message string            `json:"message"`
 	Details map[string]string `json:"details"`
 	Source  string            `json:"source"`
+	Teams   string            `json:"teams,omitempty"`
+	Tags    string            `json:"tags,omitempty"`
 }
 
 type opsGenieCloseMessage struct {
@@ -665,6 +667,8 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 			Message:         tmpl(n.conf.Description),
 			Details:         details,
 			Source:          tmpl(n.conf.Source),
+			Teams:           tmpl(n.conf.Teams),
+			Tags:            tmpl(n.conf.Tags),
 		}
 	}
 	if err != nil {

@@ -280,6 +280,8 @@ type OpsGenieConfig struct {
 	Description string            `yaml:"description"`
 	Source      string            `yaml:"source"`
 	Details     map[string]string `yaml:"details"`
+	Teams       string            `yaml:"teams"`
+	Tags        string            `yaml:"tags"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
