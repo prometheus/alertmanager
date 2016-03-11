@@ -198,7 +198,7 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+		return fmt.Errorf("unexpected status code %v from %s", resp.StatusCode, w.URL)
 	}
 
 	return nil
@@ -602,7 +602,7 @@ type OpsGenie struct {
 	tmpl *template.Template
 }
 
-// NewOpsGenieDuty returns a new OpsGenie notifier.
+// NewOpsGenie returns a new OpsGenie notifier.
 func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template) *OpsGenie {
 	return &OpsGenie{conf: c, tmpl: t}
 }
@@ -626,6 +626,11 @@ type opsGenieCreateMessage struct {
 
 type opsGenieCloseMessage struct {
 	*opsGenieMessage `json:",inline"`
+}
+
+type opsGenieErrorResponse struct {
+	Code  int    `json:"code"`
+	Error string `json:"error"`
 }
 
 // Notify implements the Notifier interface.
@@ -684,11 +689,25 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 
-	if resp.StatusCode/100 != 2 {
+	if resp.StatusCode == 400 && alerts.Status() == model.AlertResolved {
 		body, _ := ioutil.ReadAll(resp.Body)
-		log.With("incident", key).Debugf("unexpected OpsGenie response %s: %s", resp.Status, body)
+
+		var responseMessage opsGenieErrorResponse
+		if err := json.Unmarshal(body, &responseMessage); err != nil {
+			return fmt.Errorf("could not parse error response %q", body)
+		}
+		const alreadyClosedError = 5
+		if responseMessage.Code == alreadyClosedError {
+			return nil
+		}
+		return fmt.Errorf("error when closing alert: code %d, error %q",
+			responseMessage.Code, responseMessage.Error)
+	} else if resp.StatusCode/100 != 2 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.With("incident", key).Debugf("unexpected OpsGenie response from %s (POSTed %s), %s: %s",
+			apiURL, msg, resp.Status, body)
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	}
 	return nil
