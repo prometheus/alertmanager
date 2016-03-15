@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path/filepath"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -67,4 +68,7 @@ func RegisterWeb(r *route.Router) {
 	r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/index.html")
 	}))
+
+	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
+	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
 }
