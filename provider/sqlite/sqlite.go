@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 	updated_at  timestamp,
 	timeout     integer
 );
+CREATE INDEX IF NOT EXISTS fingerprint    ON alerts (fingerprint);
 CREATE INDEX IF NOT EXISTS alerts_start   ON alerts (starts_at);
 CREATE INDEX IF NOT EXISTS alerts_end     ON alerts (ends_at);
 CREATE INDEX IF NOT EXISTS alerts_updated ON alerts (updated_at);
@@ -600,6 +601,9 @@ func (s *Silences) Set(sil *types.Silence) (uint64, error) {
 
 // Del implements the Silences interface.
 func (s *Silences) Del(sid uint64) error {
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
