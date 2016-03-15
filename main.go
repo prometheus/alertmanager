@@ -62,23 +62,29 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", filepath.Join(*dataDir, "am.db"))
+	alertDB, err := sql.Open("sqlite3", filepath.Join(*dataDir, "alerts.db"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer alertDB.Close()
+
+	silenceDB, err := sql.Open("sqlite3", filepath.Join(*dataDir, "silence.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer alertDB.Close()
 
 	marker := types.NewMarker()
 
-	alerts, err := sqlite.NewAlerts(db)
+	alerts, err := sqlite.NewAlerts(alertDB)
 	if err != nil {
 		log.Fatal(err)
 	}
-	notifies, err := sqlite.NewNotifies(db)
+	notifies, err := sqlite.NewNotifies(alertDB)
 	if err != nil {
 		log.Fatal(err)
 	}
-	silences, err := sqlite.NewSilences(db, marker)
+	silences, err := sqlite.NewSilences(silenceDB, marker)
 	if err != nil {
 		log.Fatal(err)
 	}
