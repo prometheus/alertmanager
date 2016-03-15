@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS alerts_end     ON alerts (ends_at);
 CREATE INDEX IF NOT EXISTS alerts_updated ON alerts (updated_at);
 `
 
-var alertMtx, silenceMtx sync.Mutex
+var dbmtx sync.Mutex
 
 type Alerts struct {
 	db *sql.DB
@@ -43,8 +43,8 @@ type Alerts struct {
 }
 
 func NewAlerts(db *sql.DB) (*Alerts, error) {
-	alertMtx.Lock()
-	defer alertMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -126,8 +126,8 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 }
 
 func (a *Alerts) getPending() ([]*types.Alert, error) {
-	alertMtx.Lock()
-	defer alertMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	// Get the last instance for each alert.
 	rows, err := a.db.Query(`
@@ -182,8 +182,8 @@ func (a *Alerts) Get(model.Fingerprint) (*types.Alert, error) {
 
 // Put implements the Alerts interface.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
-	alertMtx.Lock()
-	defer alertMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	tx, err := a.db.Begin()
 	if err != nil {
@@ -346,8 +346,8 @@ type Notifies struct {
 }
 
 func NewNotifies(db *sql.DB) (*Notifies, error) {
-	alertMtx.Lock()
-	defer alertMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -364,8 +364,8 @@ func NewNotifies(db *sql.DB) (*Notifies, error) {
 
 // Get implements the Notifies interface.
 func (n *Notifies) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
-	alertMtx.Lock()
-	defer alertMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	var result []*types.NotifyInfo
 
@@ -403,8 +403,8 @@ func (n *Notifies) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyIn
 
 // Set implements the Notifies interface.
 func (n *Notifies) Set(ns ...*types.NotifyInfo) error {
-	alertMtx.Lock()
-	defer alertMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	tx, err := n.db.Begin()
 	if err != nil {
@@ -473,8 +473,8 @@ type Silences struct {
 
 // NewSilences returns a new Silences based on the provided SQL DB.
 func NewSilences(db *sql.DB, mk types.Marker) (*Silences, error) {
-	silenceMtx.Lock()
-	defer silenceMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -511,8 +511,8 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 
 // All implements the Silences interface.
 func (s *Silences) All() ([]*types.Silence, error) {
-	silenceMtx.Lock()
-	defer silenceMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	rows, err := s.db.Query(`
 		SELECT id, matchers, starts_at, ends_at, created_at, created_by, comment
@@ -559,8 +559,8 @@ func (s *Silences) All() ([]*types.Silence, error) {
 
 // Set impelements the Silences interface.
 func (s *Silences) Set(sil *types.Silence) (uint64, error) {
-	silenceMtx.Lock()
-	defer silenceMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	mb, err := json.Marshal(sil.Silence.Matchers)
 	if err != nil {
@@ -601,8 +601,8 @@ func (s *Silences) Set(sil *types.Silence) (uint64, error) {
 
 // Del implements the Silences interface.
 func (s *Silences) Del(sid uint64) error {
-	silenceMtx.Lock()
-	defer silenceMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -620,8 +620,8 @@ func (s *Silences) Del(sid uint64) error {
 
 // Get implements the Silences interface.
 func (s *Silences) Get(sid uint64) (*types.Silence, error) {
-	silenceMtx.Lock()
-	defer silenceMtx.Unlock()
+	dbmtx.Lock()
+	defer dbmtx.Unlock()
 
 	row := s.db.QueryRow(`
 		SELECT id, matchers, starts_at, ends_at, created_at, created_by, comment
