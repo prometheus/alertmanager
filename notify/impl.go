@@ -269,6 +269,18 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		return err
 	}
 	defer c.Quit()
+	
+	//if the server requires TLS, we have to StartTLS BEFORE we can query the
+	//extensions.
+	host, _, err := net.SplitHostPort(notifier.conf.Smarthost)
+	if err != nil {
+		return fmt.Errorf("invalid address: %s", err)
+	}
+	tlsConf := &tls.Config{ServerName: host}
+	if tlsConf != nil {
+		client.StartTLS(tlsConf)
+	}
+
 
 	if ok, mech := c.Extension("AUTH"); ok {
 		auth, tlsConf, err := n.auth(mech)
