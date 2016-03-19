@@ -19,11 +19,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime"
 	"net"
 	"net/http"
 	"net/mail"
 	"net/smtp"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -111,7 +113,7 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		)
 
 		for i, c := range nc.WebhookConfigs {
-			n := NewWebhook(c)
+			n := NewWebhook(c, tmpl)
 			add(i, n, filter(n, c))
 		}
 		for i, c := range nc.EmailConfigs {
@@ -134,6 +136,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 			n := NewHipchat(c, tmpl)
 			add(i, n, filter(n, c))
 		}
+		for i, c := range nc.PushoverConfigs {
+			n := NewPushover(c, tmpl)
+			add(i, n, filter(n, c))
+		}
 
 		res[nc.Name] = fo
 	}
@@ -145,42 +151,39 @@ const contentTypeJSON = "application/json"
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
 	// The URL to which notifications are sent.
-	URL string
+	URL  string
+	tmpl *template.Template
 }
 
 // NewWebhook returns a new Webhook.
-func NewWebhook(conf *config.WebhookConfig) *Webhook {
-	return &Webhook{URL: conf.URL}
+func NewWebhook(conf *config.WebhookConfig, t *template.Template) *Webhook {
+	return &Webhook{URL: conf.URL, tmpl: t}
 }
 
 func (*Webhook) name() string { return "webhook" }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
 type WebhookMessage struct {
+	*template.Data
+
 	// The protocol version.
-	Version string `json:"version"`
-	// The alert status. It is firing iff any of the alerts is not resolved.
-	Status model.AlertStatus `json:"status"`
-	// A batch of alerts.
-	Alerts model.Alerts `json:"alert"`
+	Version  string `json:"version"`
+	GroupKey uint64 `json:"groupKey"`
 }
 
 // Notify implements the Notifier interface.
 func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	as := types.Alerts(alerts...)
+	data := w.tmpl.Data(receiver(ctx), groupLabels(ctx), alerts...)
 
-	// If there are no annotations, instantiate so
-	// {} is sent rather than null.
-	for _, a := range as {
-		if a.Annotations == nil {
-			a.Annotations = model.LabelSet{}
-		}
+	groupKey, ok := GroupKey(ctx)
+	if !ok {
+		log.Errorf("group key missing")
 	}
 
 	msg := &WebhookMessage{
-		Version: "2",
-		Status:  as.Status(),
-		Alerts:  as,
+		Version:  "3",
+		Data:     data,
+		GroupKey: uint64(groupKey),
 	}
 
 	var buf bytes.Buffer
@@ -255,7 +258,6 @@ func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 		}
 	}
 	return nil, nil, nil
-
 }
 
 // Notify implements the Notifier interface.
@@ -460,6 +462,7 @@ func (*Slack) name() string { return "slack" }
 type slackReq struct {
 	Channel     string            `json:"channel,omitempty"`
 	Username    string            `json:"username,omitempty"`
+	IconEmoji   string            `json:"icon_emoji,omitempty"`
 	Attachments []slackAttachment `json:"attachments"`
 }
 
@@ -488,21 +491,21 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	var (
 		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
-		tmplHTML = tmplHTML(n.tmpl, data, &err)
 	)
 
 	attachment := &slackAttachment{
 		Title:     tmplText(n.conf.Title),
 		TitleLink: tmplText(n.conf.TitleLink),
 		Pretext:   tmplText(n.conf.Pretext),
-		Text:      tmplHTML(n.conf.Text),
+		Text:      tmplText(n.conf.Text),
 		Fallback:  tmplText(n.conf.Fallback),
 		Color:     tmplText(n.conf.Color),
-		MrkdwnIn:  []string{"fallback", "pretext"},
+		MrkdwnIn:  []string{"fallback", "pretext", "text"},
 	}
 	req := &slackReq{
 		Channel:     tmplText(n.conf.Channel),
 		Username:    tmplText(n.conf.Username),
+		IconEmoji:   tmplText(n.conf.IconEmoji),
 		Attachments: []slackAttachment{*attachment},
 	}
 	if err != nil {
@@ -618,13 +621,17 @@ type opsGenieMessage struct {
 }
 
 type opsGenieCreateMessage struct {
-	*opsGenieMessage `json:,inline`
-	Message          string            `json:"message"`
-	Details          map[string]string `json:"details"`
+	*opsGenieMessage `json:",inline"`
+
+	Message string            `json:"message"`
+	Details map[string]string `json:"details"`
+	Source  string            `json:"source"`
+	Teams   string            `json:"teams,omitempty"`
+	Tags    string            `json:"tags,omitempty"`
 }
 
 type opsGenieCloseMessage struct {
-	*opsGenieMessage `json:,inline`
+	*opsGenieMessage `json:",inline"`
 }
 
 // Notify implements the Notifier interface.
@@ -665,6 +672,9 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 			opsGenieMessage: &apiMsg,
 			Message:         tmpl(n.conf.Description),
 			Details:         details,
+			Source:          tmpl(n.conf.Source),
+			Teams:           tmpl(n.conf.Teams),
+			Tags:            tmpl(n.conf.Tags),
 		}
 	}
 	if err != nil {
@@ -683,7 +693,79 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 	resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.With("incident", key).Debugf("unexpected OpsGenie response %s: %s", resp.Status, body)
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+	return nil
+}
+
+// Pushover implements a Notifier for Pushover notifications.
+type Pushover struct {
+	conf *config.PushoverConfig
+	tmpl *template.Template
+}
+
+// NewPushover returns a new Pushover notifier.
+func NewPushover(c *config.PushoverConfig, t *template.Template) *Pushover {
+	return &Pushover{conf: c, tmpl: t}
+}
+
+func (*Pushover) name() string { return "pushover" }
+
+// Notify implements the Notifier interface.
+func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return fmt.Errorf("group key missing")
+	}
+	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+
+	log.With("incident", key).Debugln("notifying Pushover")
+
+	var err error
+	tmpl := tmplText(n.tmpl, data, &err)
+
+	parameters := url.Values{}
+	parameters.Add("token", tmpl(string(n.conf.Token)))
+	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+	title := tmpl(n.conf.Title)
+	message := tmpl(n.conf.Message)
+	parameters.Add("title", title)
+	if len(title)+len(message) > 512 {
+		message = message[:512]
+		log.With("incident", key).Debugf("Truncated message to %q due to Pushover message limit", message)
+	}
+	if message == "" {
+		// Pushover rejects empty messages.
+		message = "(no details)"
+	}
+	parameters.Add("message", message)
+	parameters.Add("url", tmpl(n.conf.URL))
+	parameters.Add("priority", tmpl(n.conf.Priority))
+	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
+	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
+
+	apiURL := "https://api.pushover.net/1/messages.json"
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return err
+	}
+	u.RawQuery = parameters.Encode()
+	log.With("incident", key).Debugf("Pushover URL = %q", u.String())
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, u.String(), "text/plain", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
 	}
 	return nil
 }

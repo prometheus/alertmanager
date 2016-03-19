@@ -1,4 +1,22 @@
-## 0.1.0-beta1 / 2015-01-08
+## 0.1.0 / 2016-02-23
+This version is a full rewrite of the Alertmanager with a very different
+feature set. Thus, there is no meaningful changelog.
+
+Changes with respect to 0.1.0-beta2:
+* [CHANGE] Expose same data structure to templates and webhook
+* [ENHANCEMENT] Show generator URL in default templates and web UI
+* [ENHANCEMENT] Support for Slack icon_emoji field
+* [ENHANCEMENT] Expose incident key to templates and webhook data
+* [ENHANCEMENT] Allow markdown in Slack 'text' field
+* [BUGFIX] Fixed database locking issue
+
+## 0.1.0-beta2 / 2016-02-03
+* [BUGFIX] Properly set timeout for incoming alerts with fixed start time
+* [ENHANCEMENT] Send source field in OpsGenie integration
+* [ENHANCEMENT] Improved routing configuration validation
+* [FEATURE] Basic instrumentation added
+
+## 0.1.0-beta1 / 2016-01-08
 * [BUGFIX] Send full alert group state on each update. Fixes erroneous resolved notifications.
 * [FEATURE] HipChat integration
 * [CHANGE] Slack integration no longer sends resolved notifications by default

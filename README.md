@@ -1,7 +1,9 @@
 # Alertmanager
 
-This is the development version of the Alertmanager. It is a rewrite and
-is incompatible to the present version 0.0.4. The only backport was the API endpoint used by Prometheus to push new alerts.
+The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integration such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+
+* [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
+
 
 ## Installation
 
@@ -34,29 +36,9 @@ $ mkdir -p $GOPATH/src/github.com/prometheus
 $ cd $GOPATH/src/github.com/prometheus
 $ git clone https://github.com/prometheus/alertmanager.git
 $ cd alertmanager
-$ make
+$ make build
 $ ./alertmanager -config.file=<your_file>
 ```
-
-## Status
-
-This version was written from scratch. Core features enabled by this is are more advanced alert routing configurations and grouping/batching of alerts. Thus, squashing expression results through aggregation in alerting rules is no longer required to avoid noisyness.
-
-The concepts of alert routing were outlined in [this document](https://docs.google.com/document/d/1-4jefGkFo71jlaLo4lHz40ZBoCv9ycBBBbjzbXifGyY/edit?usp=sharing).
-
-The version implements full persistence of alerts, silences, and notification state. On restart it picks up right where it left off.
-
-### Known issues
-
-This development version still has an extensive list of improvements and changes. This is an incomplete list of things that are still missing or need to be improved.
-
-This will happen based on priority and demand. Feel free to ping fabxc about it
-
-* On deleting silences it may take up to one `group_wait` cycle for a notification of a previously silenced alert to be sent.
-* Limiting inhibition rules to routing subtrees to avoid accidental interference
-* Definition of a minimum data set provided to notification templates
-* Best practices around notification templating
-* Various common command line flags like `path-prefix`
 
 ## Example
 

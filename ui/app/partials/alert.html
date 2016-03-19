@@ -1,7 +1,10 @@
 <div class="alert-item" ng-controller="AlertCtrl">
 	<div class="overview group">
-		<button class="expand" ng-show="showDetails" ng-click="toggleDetails()" type="primary" small>–</button>
-		<button class="expand" ng-hide="showDetails" ng-click="toggleDetails()" type="primary" small>+</button>
+		<div class="btn-group details expand">
+			<button ng-show="showDetails" ng-click="toggleDetails()" type="primary" small>–</button>
+			<button ng-hide="showDetails" ng-click="toggleDetails()" type="primary" small>+</button>
+			<a class=" gen-link" ng-href="{{ alert.generatorURL }}"><button type="primary" small>Source</button></a>
+		</div>
 
 		<div class="labels left">
 			<span ng-repeat="(name, value) in alert.labels | orderBy:name">

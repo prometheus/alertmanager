@@ -77,7 +77,7 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 	}
 }
 
-// Register regieters the API handlers under their correct routes
+// Register registers the API handlers under their correct routes
 // in the given router.
 func (api *API) Register(r *route.Router) {
 	ihf := prometheus.InstrumentHandlerFunc
@@ -235,7 +235,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		// is marked resolved if it is not updated.
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
-			alert.EndsAt = alert.StartsAt.Add(api.resolveTimeout)
+			alert.EndsAt = now.Add(api.resolveTimeout)
 
 			numReceivedAlerts.WithLabelValues("firing").Inc()
 		} else {
@@ -256,7 +256,6 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		}
 		validAlerts = append(validAlerts, a)
 	}
-
 	if err := api.alerts.Put(validAlerts...); err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -404,7 +403,7 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	case errorInternal:
 		w.WriteHeader(http.StatusInternalServerError)
 	default:
-		panic(fmt.Sprintf("unknown error type", apiErr))
+		panic(fmt.Sprintf("unknown error type %q", apiErr))
 	}
 
 	b, err := json.Marshal(&response{

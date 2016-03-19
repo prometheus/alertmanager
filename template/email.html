@@ -351,6 +351,7 @@ a {
                     {{ range .Labels.SortedPairs }}{{ .Name }} = {{ .Value }}<br />{{ end }}
                     {{ if gt (len .Annotations) 0 }}<strong>Annotations</strong><br />{{ end }}
                     {{ range .Annotations.SortedPairs }}{{ .Name }} = {{ .Value }}<br />{{ end }}
+                    <a href="{{ .GeneratorURL }}">Source</a><br />
                   </td>
                 </tr>
                 {{ end }}
@@ -378,6 +379,7 @@ a {
                     {{ range .Labels.SortedPairs }}{{ .Name }} = {{ .Value }}<br />{{ end }}
                     {{ if gt (len .Annotations) 0 }}<strong>Annotations</strong><br />{{ end }}
                     {{ range .Annotations.SortedPairs }}{{ .Name }} = {{ .Value }}<br />{{ end }}
+                    <a href="{{ .GeneratorURL }}">Source</a><br />
                   </td>
                 </tr>
                 {{ end }}
