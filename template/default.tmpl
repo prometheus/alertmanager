@@ -33,6 +33,8 @@
 
 {{ define "opsgenie.default.description" }}{{ template "__subject" . }}{{ end }}
 {{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "opsgenie.default.tags" }}{{ end }}
+{{ define "opsgenie.default.teams" }}{{ end }}
 
 
 {{ define "email.default.subject" }}{{ template "__subject" . }}{{ end }}
