@@ -1,32 +1,32 @@
 <!DOCTYPE html>
 <html lang="en" ng-app="am">
 <head>
-	<script src="/lib/jquery.min.js"></script>
-	<script src="/lib/moment.min.js"></script>
+	<script src="lib/jquery.min.js"></script>
+	<script src="lib/moment.min.js"></script>
 
-	<script src="/lib/angular.min.js"></script>
-	<script src="/lib/angular-sanitize.min.js"></script>
-	<script src="/lib/angular-route.min.js"></script>
-	<script src="/lib/angular-resource.min.js"></script>
-	<script src="/lib/angular-moment.min.js"></script>
+	<script src="lib/angular.min.js"></script>
+	<script src="lib/angular-sanitize.min.js"></script>
+	<script src="lib/angular-route.min.js"></script>
+	<script src="lib/angular-resource.min.js"></script>
+	<script src="lib/angular-moment.min.js"></script>
 
-	<script src="/app/js/app.js"></script>
+	<script src="app/js/app.js"></script>
 
-	<link rel="stylesheet" href="/lib/kube.min.css">
-	<link rel="stylesheet" href="/app/css/main.css">
+	<link rel="stylesheet" href="lib/kube.min.css">
+	<link rel="stylesheet" href="app/css/main.css">
 
 	<title>AlertManager – Prometheus</title>
 </head>
 <body>
 	<header class="group">
 		<h1 id="logo" class="thin hide-for-small">
-			<a href="/#/">Alert<span style="font-style: italic; color: #d3d3d3">manager</span></a>
+			<a href="#/">Alert<span style="font-style: italic; color: #d3d3d3">manager</span></a>
 		</h1>
 
 		<nav id="top-nav" ng-controller="NavCtrl">
 			<ul>
 				<li ng-repeat="item in items" ng-class="{'selected': selected(item)}">
-					<a ng-href="/#{{ item.url }}" class="upper">{{ item.name }}</a>
+					<a ng-href="#{{ item.url }}" class="upper">{{ item.name }}</a>
 				</li>
 			</ul>
 		</nav>
