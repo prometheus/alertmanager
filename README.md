@@ -7,7 +7,9 @@ The Alertmanager handles alerts sent by client applications such as the Promethe
 
 ## Installation
 
-### Dependencies
+### Build dependencies
+
+These dependencies are necessary for building Alertmanager. There are no runtime dependencies, as the resulting binary is statically linked.
 
 Debian family:
 
