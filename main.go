@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -140,6 +141,11 @@ func main() {
 		return n
 	}
 
+	amURL, err := extURL(*externalURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	reload := func() (err error) {
 		log.With("file", *configFile).Infof("Loading configuration file")
 		defer func() {
@@ -163,9 +169,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		if tmpl.ExternalURL, err = extURL(*externalURL); err != nil {
-			return err
-		}
+		tmpl.ExternalURL = amURL
 
 		disp.Stop()
 
@@ -183,8 +187,8 @@ func main() {
 
 	router := route.New()
 
-	RegisterWeb(router)
-	api.Register(router.WithPrefix("/api"))
+	RegisterWeb(router.WithPrefix(amURL.Path))
+	api.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
 	go listen(router)
 
