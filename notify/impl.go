@@ -227,7 +227,7 @@ func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
 func (*Email) name() string { return "email" }
 
 // auth resolves a string of authentication mechanisms.
-func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
+func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	username := os.Getenv("SMTP_AUTH_USERNAME")
 
 	for _, mech := range strings.Split(mechs, " ") {
@@ -237,7 +237,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 			if secret == "" {
 				continue
 			}
-			return smtp.CRAMMD5Auth(username, secret), nil, nil
+			return smtp.CRAMMD5Auth(username, secret), nil
 
 		case "PLAIN":
 			password := os.Getenv("SMTP_AUTH_PASSWORD")
@@ -249,16 +249,12 @@ func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 			// We need to know the hostname for both auth and TLS.
 			host, _, err := net.SplitHostPort(n.conf.Smarthost)
 			if err != nil {
-				return nil, nil, fmt.Errorf("invalid address: %s", err)
+				return nil, fmt.Errorf("invalid address: %s", err)
 			}
-			var (
-				auth = smtp.PlainAuth(identity, username, password, host)
-				cfg  = &tls.Config{ServerName: host}
-			)
-			return auth, cfg, nil
+			return smtp.PlainAuth(identity, username, password, host), nil
 		}
 	}
-	return nil, nil, nil
+	return nil, nil
 }
 
 // Notify implements the Notifier interface.
@@ -270,15 +266,26 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 	defer c.Quit()
 
+	// We need to know the hostname for both auth and TLS.
+	host, _, err := net.SplitHostPort(n.conf.Smarthost)
+	if err != nil {
+		return fmt.Errorf("invalid address: %s", err)
+	}
+
+	if n.conf.RequireTLS {
+		if ok, _ := c.Extension("STARTTLS"); !ok {
+			return fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
+		}
+		tlsConf := &tls.Config{ServerName: host}
+		if err := c.StartTLS(tlsConf); err != nil {
+			return fmt.Errorf("starttls failed: %s", err)
+		}
+	}
+
 	if ok, mech := c.Extension("AUTH"); ok {
-		auth, tlsConf, err := n.auth(mech)
+		auth, err := n.auth(mech)
 		if err != nil {
 			return err
-		}
-		if tlsConf != nil {
-			if err := c.StartTLS(tlsConf); err != nil {
-				return fmt.Errorf("starttls failed: %s", err)
-			}
 		}
 		if auth != nil {
 			if err := c.Auth(auth); err != nil {
