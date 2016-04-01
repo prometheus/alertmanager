@@ -82,6 +82,9 @@ func FromGlobs(paths ...string) (*Template, error) {
 
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
 func (t *Template) ExecuteTextString(text string, data interface{}) (string, error) {
+	if text == "" {
+		return "", nil
+	}
 	tmpl, err := t.text.Clone()
 	if err != nil {
 		return "", err
@@ -97,6 +100,9 @@ func (t *Template) ExecuteTextString(text string, data interface{}) (string, err
 
 // ExecuteHTMLString needs a meaningful doc comment (TODO(fabxc)).
 func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, error) {
+	if html == "" {
+		return "", nil
+	}
 	tmpl, err := t.html.Clone()
 	if err != nil {
 		return "", err
