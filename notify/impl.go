@@ -229,7 +229,6 @@ func (*Email) name() string { return "email" }
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 	username := os.Getenv("SMTP_AUTH_USERNAME")
-
 	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
@@ -262,36 +261,43 @@ func (n *Email) auth(mechs string) (smtp.Auth, *tls.Config, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
+func (notifier *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	// Connect to the SMTP smarthost.
-	c, err := smtp.Dial(n.conf.Smarthost)
+	client, err := smtp.Dial(notifier.conf.Smarthost)
 	if err != nil {
 		return err
 	}
-	defer c.Quit()
 
-	if ok, mech := c.Extension("AUTH"); ok {
-		auth, tlsConf, err := n.auth(mech)
+	//if the server requires TLS, we have to StartTLS BEFORE we can query the
+	//extensions.
+	host, _, err := net.SplitHostPort(notifier.conf.Smarthost)
+	if err != nil {
+		return fmt.Errorf("invalid address: %s", err)
+	}
+	tlsConf := &tls.Config{ServerName: host}
+	if tlsConf != nil {
+		client.StartTLS(tlsConf)
+	}
+
+	if ok, mech := client.Extension("AUTH"); ok {
+
+		auth, _, err := notifier.auth(mech)
 		if err != nil {
 			return err
 		}
-		if tlsConf != nil {
-			if err := c.StartTLS(tlsConf); err != nil {
-				return fmt.Errorf("starttls failed: %s", err)
-			}
-		}
+
 		if auth != nil {
-			if err := c.Auth(auth); err != nil {
+			if err := client.Auth(auth); err != nil {
 				return fmt.Errorf("%T failed: %s", auth, err)
 			}
 		}
 	}
-
+	defer client.Quit()
 	var (
-		data = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
-		tmpl = tmplText(n.tmpl, data, &err)
-		from = tmpl(n.conf.From)
-		to   = tmpl(n.conf.To)
+		data = notifier.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		tmpl = tmplText(notifier.tmpl, data, &err)
+		from = tmpl(notifier.conf.From)
+		to   = tmpl(notifier.conf.To)
 	)
 	if err != nil {
 		return err
@@ -304,7 +310,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	if len(addrs) != 1 {
 		return fmt.Errorf("must be exactly one from address")
 	}
-	if err := c.Mail(addrs[0].Address); err != nil {
+	if err := client.Mail(addrs[0].Address); err != nil {
 		return fmt.Errorf("sending mail from: %s", err)
 	}
 	addrs, err = mail.ParseAddressList(to)
@@ -312,20 +318,20 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 		return fmt.Errorf("parsing to addresses: %s", err)
 	}
 	for _, addr := range addrs {
-		if err := c.Rcpt(addr.Address); err != nil {
+		if err := client.Rcpt(addr.Address); err != nil {
 			return fmt.Errorf("sending rcpt to: %s", err)
 		}
 	}
 
 	// Send the email body.
-	wc, err := c.Data()
+	wc, err := client.Data()
 	if err != nil {
 		return err
 	}
 	defer wc.Close()
 
-	for header, t := range n.conf.Headers {
-		value, err := n.tmpl.ExecuteTextString(t, data)
+	for header, t := range notifier.conf.Headers {
+		value, err := notifier.tmpl.ExecuteTextString(t, data)
 		if err != nil {
 			return fmt.Errorf("executing %q header template: %s", header, err)
 		}
@@ -340,7 +346,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	fmt.Fprintf(wc, "\r\n")
 
 	// TODO(fabxc): do a multipart write that considers the plain template.
-	body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
+	body, err := notifier.tmpl.ExecuteHTMLString(notifier.conf.HTML, data)
 	if err != nil {
 		return fmt.Errorf("executing email html template: %s", err)
 	}
