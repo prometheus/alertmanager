@@ -1,3 +1,8 @@
+## 0.1.1 / 2016-03-15
+* [BUGFIX] Fix global database lock issue
+* [ENHANCEMENT] Improve SQLite alerts index
+* [ENHANCEMENT] Enable debug endpoint
+
 ## 0.1.0 / 2016-02-23
 This version is a full rewrite of the Alertmanager with a very different
 feature set. Thus, there is no meaningful changelog.
