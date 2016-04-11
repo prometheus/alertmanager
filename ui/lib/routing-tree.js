@@ -22,7 +22,6 @@ var tooltip = d3.select("body")
     .style("z-index", "10")
     .style("visibility", "hidden");
 
-// Global for now so we can play with it from the console
 function parseSearch(searchString) {
   var labels = searchString.replace(/{|}|\"|\s/g, "").split(",");
   var o = {};
@@ -61,7 +60,6 @@ d3.select(".js-find-match").on("click", function() {
   nodes.forEach(function(n) { n.matched = false });
   nodes[idx].matched = true;
   update(root);
-  // Animate path to node?
 });
 
 // Match does a depth-first left-to-right search through the route tree
