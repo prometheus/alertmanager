@@ -231,3 +231,45 @@ input[type="datetime-local"]  {
   margin-bottom: 0;
   color: rgba(0, 0, 0, 0.85);
 }
+
+/* Routing Tree */
+.sans-serif {
+  font: 12px sans-serif;
+}
+
+.node circle {
+  stroke: steelblue;
+  stroke-width: 1.5px;
+}
+
+.node text {
+  font: 10px sans-serif;
+}
+
+.link {
+  fill: none;
+  stroke: #ccc;
+  stroke-width: 1.5px;
+}
+
+.label-input {
+  padding: 2px 0;
+  width: 500px;
+}
+
+.config-yml {
+  border-color: #ddd;
+  height: 760px;
+  padding: 2px 0;
+  width: 450px;
+  font-family: monospace;
+}
+
+.block {
+  display: block;
+}
+
+.inline-block {
+  display: inline-block;
+}
+

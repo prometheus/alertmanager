@@ -177,7 +177,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
         return;
       }
       if (recvs) {
-        $location.search('receiver', recvs); 
+        $location.search('receiver', recvs);
       } else {
         $location.search('receiver', null);
       }
@@ -216,7 +216,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
               if (!angular.isArray(recvs)) {
                 recvs = [recvs];
               }
-            } 
+            }
             $scope.receivers = recvs;
           }
         },
@@ -276,7 +276,7 @@ angular.module('am.controllers').controller('SilencesCtrl',
 
     $scope.refresh = function() {
       Silence.query({},
-        function(data) { 
+        function(data) {
           $scope.silences = data.data || [];
 
           angular.forEach($scope.silences, function(value) {
@@ -351,7 +351,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
 
     $scope.delMatcher = function(i) {
       $scope.silence.matchers.splice(i, 1);
-    };    
+    };
 
     $scope.create = function() {
       Silence.create($scope.silence,
