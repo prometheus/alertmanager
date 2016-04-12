@@ -26,7 +26,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var patAuthLine = regexp.MustCompile(`((?:api_token|api_key|service_key|api_url|auth_token):\s+)(".+"|'.+'|[^\s]+)`)
+var patAuthLine = regexp.MustCompile(`((?:api_key|service_key|api_url|token|user_key):\s+)(".+"|'.+'|[^\s]+)`)
 
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
