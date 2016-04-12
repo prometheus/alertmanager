@@ -190,6 +190,7 @@ func main() {
 	RegisterWeb(router.WithPrefix(amURL.Path))
 	api.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
+	log.Infof("Listening on %s", *listenAddress)
 	go listen(router)
 
 	var (
