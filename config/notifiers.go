@@ -120,12 +120,16 @@ type EmailConfig struct {
 	NotifierConfig `yaml:",inline"`
 
 	// Email address to notify.
-	To         string            `yaml:"to"`
-	From       string            `yaml:"from"`
-	Smarthost  string            `yaml:"smarthost,omitempty"`
-	Headers    map[string]string `yaml:"headers"`
-	HTML       string            `yaml:"html"`
-	RequireTLS bool              `yaml:"require_tls"`
+	To           string            `yaml:"to"`
+	From         string            `yaml:"from"`
+	Smarthost    string            `yaml:"smarthost,omitempty"`
+	AuthUsername string            `yaml:"auth_username"`
+	AuthPassword Secret            `yaml:"auth_password"`
+	AuthSecret   Secret            `yaml:"auth_secret"`
+	AuthIdentity string            `yaml:"auth_identity"`
+	Headers      map[string]string `yaml:"headers"`
+	HTML         string            `yaml:"html"`
+	RequireTLS   bool              `yaml:"require_tls"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
