@@ -26,7 +26,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var patAuthLine = regexp.MustCompile(`((?:api_key|service_key|api_url|token|user_key):\s+)(".+"|'.+'|[^\s]+)`)
+var patAuthLine = regexp.MustCompile(`((?:api_key|service_key|api_url|token|user_key|password|secret):\s+)(".+"|'.+'|[^\s]+)`)
 
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
@@ -160,6 +160,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				ec.From = c.Global.SMTPFrom
 			}
+			if ec.AuthUsername == "" {
+				ec.AuthUsername = c.Global.SMTPAuthUsername
+			}
+			if ec.AuthPassword == "" {
+				ec.AuthPassword = c.Global.SMTPAuthPassword
+			}
+			if ec.AuthSecret == "" {
+				ec.AuthSecret = c.Global.SMTPAuthSecret
+			}
+			if ec.AuthIdentity == "" {
+				ec.AuthIdentity = c.Global.SMTPAuthIdentity
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.APIURL == "" {
@@ -257,6 +269,10 @@ type GlobalConfig struct {
 
 	SMTPFrom         string `yaml:"smtp_from"`
 	SMTPSmarthost    string `yaml:"smtp_smarthost"`
+	SMTPAuthUsername string `yaml:"smtp_auth_username"`
+	SMTPAuthPassword Secret `yaml:"smtp_auth_password"`
+	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret"`
+	SMTPAuthIdentity string `yaml:"smtp_auth_identity"`
 	SlackAPIURL      Secret `yaml:"slack_api_url"`
 	PagerdutyURL     string `yaml:"pagerduty_url"`
 	HipchatURL       string `yaml:"hipchat_url"`
