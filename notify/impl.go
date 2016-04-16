@@ -752,8 +752,12 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
 	title := tmpl(n.conf.Title)
 	message := tmpl(n.conf.Message)
 	parameters.Add("title", title)
+	if len(title) > 512 {
+		title = title[:512]
+		log.With("incident", key).Debugf("Truncated title to %q due to Pushover message limit", title)
+	}
 	if len(title)+len(message) > 512 {
-		message = message[:512]
+		message = message[:512-len(title)]
 		log.With("incident", key).Debugf("Truncated message to %q due to Pushover message limit", message)
 	}
 	if message == "" {
