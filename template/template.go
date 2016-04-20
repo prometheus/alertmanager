@@ -127,6 +127,9 @@ var DefaultFuncs = FuncMap{
 	"join": func(sep string, s []string) string {
 		return strings.Join(s, sep)
 	},
+	"safeHtml": func(text string) tmplhtml.HTML {
+		return tmplhtml.HTML(text)
+	},
 }
 
 // Pair is a key/value string pair.
