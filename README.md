@@ -1,4 +1,10 @@
-# Alertmanager
+# Alertmanager [![Build Status](https://travis-ci.org/prometheus/alertmanager.svg)][travis]
+
+[![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
+[![Docker Stars](https://img.shields.io/docker/stars/prom/alertmanager.svg)][hub]
+[![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg)][hub]
+[![Image Size](https://img.shields.io/imagelayers/image-size/prom/alertmanager/latest.svg)][imagelayers]
+[![Image Layers](https://img.shields.io/imagelayers/layers/prom/alertmanager/latest.svg)][imagelayers]
 
 The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integration such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
@@ -63,11 +69,11 @@ route:
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
   group_by: ['alertname', 'cluster']
-  
+
   # When a new group of alerts is created by an incoming alert, wait at
   # least 'group_wait' to send the initial notification.
   # This way ensures that you get multiple alerts for the same group that start
-  # firing shortly after another are batched together on the first 
+  # firing shortly after another are batched together on the first
   # notification.
   group_wait: 30s
 
@@ -77,7 +83,7 @@ route:
 
   # If an alert has successfully been sent, wait 'repeat_interval' to
   # resend them.
-  repeat_interval: 3h 
+  repeat_interval: 3h
 
   # All the above attributes are inherited by all child routes and can 
   # overwritten on each.
@@ -128,7 +134,7 @@ route:
 
 # Inhibition rules allow to mute a set of alerts given that another alert is
 # firing.
-# We use this to mute any warning-level notifications if the same alert is 
+# We use this to mute any warning-level notifications if the same alert is
 # already critical.
 inhibit_rules:
 - source_match:
@@ -175,7 +181,7 @@ server {
     post_action @forward;
   }
   location @forward {
-    proxy_pass http://<your_new_alertmanager>:9093; 
+    proxy_pass http://<your_new_alertmanager>:9093;
   }
 }
 ```
@@ -184,3 +190,8 @@ server {
 
 ![](https://raw.githubusercontent.com/prometheus/alertmanager/4e6695682acd2580773a904e4aa2e3b927ee27b7/doc/arch.jpg)
 
+
+[travis]: https://travis-ci.org/prometheus/alertmanager
+[hub]: https://hub.docker.com/r/prom/alertmanager/
+[circleci]: https://circleci.com/gh/prometheus/alertmanager
+[imagelayers]: https://imagelayers.io/?images=prom/alertmanager:latest
