@@ -2,6 +2,7 @@ package boltmem
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"path/filepath"
 	"sync"
 
@@ -49,14 +50,19 @@ func (a *Alerts) Put(...*types.Alert) error {
 // Silences gives access to silences. All methods are goroutine-safe.
 type Silences struct {
 	db *bolt.DB
+	mk types.Marker
 }
 
-func NewSilences(path string) (*Silences, error) {
+func NewSilences(path string, mk types.Marker) (*Silences, error) {
 	db, err := bolt.Open(filepath.Join(path, "silences.db"), 0666, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &Silences{db: db}, nil
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(bktSilences)
+		return err
+	})
+	return &Silences{db: db}, err
 }
 
 // The Silences provider must implement the Muter interface
@@ -72,8 +78,31 @@ func (s *Silences) All() ([]*types.Silence, error) {
 }
 
 // Set a new silence.
-func (s *Silences) Set(*types.Silence) (uint64, error) {
-	return 0, nil
+func (s *Silences) Set(sil *types.Silence) (uint64, error) {
+	var (
+		uid uint64
+		err error
+	)
+	err = s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bktSilences)
+
+		// Silences are immutable and we always create a new one.
+		uid, err = b.NextSequence()
+		if err != nil {
+			return err
+		}
+		sil.ID = uid
+
+		k := make([]byte, 8)
+		binary.BigEndian.PutUint64(k, uid)
+
+		msb, err := json.Marshal(sil.Silence)
+		if err != nil {
+			return err
+		}
+		return b.Put(k, msb)
+	})
+	return uid, err
 }
 
 // Del removes a silence.
@@ -82,8 +111,29 @@ func (s *Silences) Del(uint64) error {
 }
 
 // Get a silence associated with a fingerprint.
-func (s *Silences) Get(uint64) (*types.Silence, error) {
-	return nil, nil
+func (s *Silences) Get(uid uint64) (*types.Silence, error) {
+	var sil *types.Silence
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bktSilences)
+
+		k := make([]byte, 8)
+		binary.BigEndian.PutUint64(k, uid)
+
+		v := b.Get(k)
+		if v == nil {
+			return provider.ErrNotFound
+		}
+		var ms model.Silence
+
+		if err := json.Unmarshal(v, &ms); err != nil {
+			return err
+		}
+		sil = types.NewSilence(&ms)
+
+		return nil
+	})
+	return sil, err
 }
 
 // Notifies provides information about pending and successful
@@ -106,6 +156,7 @@ func NewNotifies(path string) (*Notifies, error) {
 
 var (
 	bktNotifies = []byte("notifies")
+	bktSilences = []byte("silences")
 )
 
 func (n *Notifies) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
@@ -115,9 +166,9 @@ func (n *Notifies) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyIn
 		b := tx.Bucket(bktNotifies)
 
 		for _, fp := range fps {
-			k := make([]byte, 16+len([]byte(recv)))
+			k := make([]byte, 8+len([]byte(recv)))
 			binary.BigEndian.PutUint64(k, uint64(fp))
-			copy(k[16:], []byte(recv))
+			copy(k[8:], []byte(recv))
 
 			v := b.Get(k)
 			if v == nil {
@@ -147,9 +198,9 @@ func (n *Notifies) Set(ns ...*types.NotifyInfo) error {
 		b := tx.Bucket(bktNotifies)
 
 		for _, n := range ns {
-			k := make([]byte, 16+len([]byte(n.Receiver)))
+			k := make([]byte, 8+len([]byte(n.Receiver)))
 			binary.BigEndian.PutUint64(k, uint64(n.Alert))
-			copy(k[16:], []byte(n.Receiver))
+			copy(k[8:], []byte(n.Receiver))
 
 			var v []byte
 			if n.Resolved {
