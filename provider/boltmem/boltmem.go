@@ -9,6 +9,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 )
 
@@ -69,12 +70,50 @@ func NewSilences(path string, mk types.Marker) (*Silences, error) {
 // for all its silences. The data provider may have access to an
 // optimized view of the data to perform this evaluation.
 func (s *Silences) Mutes(lset model.LabelSet) bool {
+	sils, err := s.All()
+	if err != nil {
+		log.Errorf("retrieving silences failed: %s", err)
+		// In doubt, do not silence anything.
+		return false
+	}
+
+	for _, sil := range sils {
+		if sil.Mutes(lset) {
+			s.mk.SetSilenced(lset.Fingerprint(), sil.ID)
+			return true
+		}
+	}
+
+	s.mk.SetSilenced(lset.Fingerprint())
 	return false
 }
 
 // All returns all existing silences.
 func (s *Silences) All() ([]*types.Silence, error) {
-	return nil, nil
+	var res []*types.Silence
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bktSilences)
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var ms model.Silence
+			if err := json.Unmarshal(v, &ms); err != nil {
+				return err
+			}
+			ms.ID = binary.BigEndian.Uint64(k)
+
+			if err := json.Unmarshal(v, &ms); err != nil {
+				return err
+			}
+
+			res = append(res, types.NewSilence(&ms))
+		}
+
+		return nil
+	})
+
+	return res, err
 }
 
 // Set a new silence.
