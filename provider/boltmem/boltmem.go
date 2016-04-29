@@ -106,8 +106,16 @@ func (s *Silences) Set(sil *types.Silence) (uint64, error) {
 }
 
 // Del removes a silence.
-func (s *Silences) Del(uint64) error {
-	return nil
+func (s *Silences) Del(uid uint64) error {
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bktSilences)
+
+		k := make([]byte, 8)
+		binary.BigEndian.PutUint64(k, uid)
+
+		return b.Delete(k)
+	})
+	return err
 }
 
 // Get a silence associated with a fingerprint.

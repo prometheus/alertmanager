@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
@@ -159,5 +160,38 @@ func TestSilencesSet(t *testing.T) {
 			t.Errorf("Unexpected silence")
 			t.Fatalf(pretty.Compare(sil, c.insert))
 		}
+	}
+}
+
+func TestSilencesDelete(t *testing.T) {
+	dir, err := ioutil.TempDir("", "silences_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	silences, err := NewSilences(dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uid, err := silences.Set(&types.Silence{
+		Matchers: []*types.Matcher{
+			{Name: "key", Value: "val"},
+		},
+		Silence: model.Silence{
+			CreatedBy: "user",
+			Comment:   "test comment",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Insert failed: %s", err)
+	}
+	if err := silences.Del(uid); err != nil {
+		t.Fatalf("Delete failed: %s", err)
+	}
+
+	if s, err := silences.Get(uid); err != provider.ErrNotFound {
+		t.Fatalf("Expected 'not found' error but got: %v, %s", s, err)
 	}
 }
