@@ -39,6 +39,18 @@
 			"revisionTime": "2015-09-05T19:25:33+02:00"
 		},
 		{
+			"checksumSHA1": "0utJAePiKZZzPG3SxPA+xWQ3JAw=",
+			"path": "github.com/kylelemons/godebug/diff",
+			"revision": "eadb3ce320cbab8393bea5ca17bebac3f78a021b",
+			"revisionTime": "2016-04-06T21:19:39Z"
+		},
+		{
+			"checksumSHA1": "f1Cya7f83KJIkWcYWxT3ZZxDeZc=",
+			"path": "github.com/kylelemons/godebug/pretty",
+			"revision": "eadb3ce320cbab8393bea5ca17bebac3f78a021b",
+			"revisionTime": "2016-04-06T21:19:39Z"
+		},
+		{
 			"path": "github.com/mattn/go-sqlite3",
 			"revision": "45f056ca8f5ef4ee3f68796167a0a0e6a6214813",
 			"revisionTime": "2016-03-03T00:32:50+09:00"
