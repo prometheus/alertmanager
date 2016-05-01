@@ -266,3 +266,124 @@ func TestSilencesAll(t *testing.T) {
 		t.Fatalf(pretty.Compare(res, insert))
 	}
 }
+
+func TestSilencesMutes(t *testing.T) {
+	var (
+		t0 = time.Now()
+		t1 = t0.Add(10 * time.Minute)
+		t2 = t0.Add(20 * time.Minute)
+		t3 = t0.Add(30 * time.Minute)
+	)
+
+	// All silences are active for the time of the test. Time restriction
+	// testing is covered for the Mutes() method of the Silence type.
+	insert := []*types.Silence{
+		types.NewSilence(&model.Silence{
+			Matchers: []*model.Matcher{
+				{Name: "key", Value: "val"},
+			},
+			StartsAt:  t0,
+			EndsAt:    t2,
+			CreatedAt: t1,
+			CreatedBy: "user",
+			Comment:   "test comment",
+		}),
+		types.NewSilence(&model.Silence{
+			Matchers: []*model.Matcher{
+				{Name: "key2", Value: "val2.*", IsRegex: true},
+			},
+			StartsAt:  t0,
+			EndsAt:    t2,
+			CreatedAt: t1,
+			CreatedBy: "user2",
+			Comment:   "test comment",
+		}),
+		types.NewSilence(&model.Silence{
+			Matchers: []*model.Matcher{
+				{Name: "key", Value: "val2"},
+			},
+			StartsAt:  t0,
+			EndsAt:    t3,
+			CreatedAt: t3,
+			CreatedBy: "user",
+			Comment:   "another test comment",
+		}),
+	}
+
+	dir, err := ioutil.TempDir("", "silences_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	silences, err := NewSilences(dir, types.NewMarker())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, sil := range insert {
+		uid, err := silences.Set(sil)
+		if err != nil {
+			t.Fatalf("Insert failed: %s", err)
+		}
+		sil.ID = uid
+	}
+
+	tests := []struct {
+		lset  model.LabelSet
+		match bool
+	}{
+		{
+			lset: model.LabelSet{
+				"foo": "bar",
+				"bar": "foo",
+			},
+			match: false,
+		},
+		{
+			lset: model.LabelSet{
+				"key": "val",
+				"bar": "foo",
+			},
+			match: true,
+		},
+		{
+			lset: model.LabelSet{
+				"foo": "bar",
+				"key": "val2",
+			},
+			match: true,
+		},
+		{
+			lset: model.LabelSet{
+				"key2": "bar",
+				"bar":  "foo",
+			},
+			match: false,
+		},
+		{
+			lset: model.LabelSet{
+				"key2": "val2",
+				"bar":  "foo",
+			},
+			match: true,
+		},
+		{
+			lset: model.LabelSet{
+				"key2": "val2 foo",
+				"bar":  "foo",
+			},
+			match: true,
+		},
+	}
+
+	for i, test := range tests {
+		if b := silences.Mutes(test.lset); b != test.match {
+			t.Errorf("Unexpected mute result: %d", i)
+			t.Fatalf("Expected %v, got %v", test.match, b)
+		} else {
+			if _, wasSilenced := silences.mk.Silenced(test.lset.Fingerprint()); wasSilenced != b {
+				t.Fatalf("Marker was not set correctly: %d", i)
+			}
+		}
+	}
+}

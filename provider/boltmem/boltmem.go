@@ -63,7 +63,7 @@ func NewSilences(path string, mk types.Marker) (*Silences, error) {
 		_, err := tx.CreateBucketIfNotExists(bktSilences)
 		return err
 	})
-	return &Silences{db: db}, err
+	return &Silences{db: db, mk: mk}, err
 }
 
 // The Silences provider must implement the Muter interface
