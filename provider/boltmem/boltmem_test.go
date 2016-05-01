@@ -356,7 +356,7 @@ func TestSilencesMutes(t *testing.T) {
 		{
 			lset: model.LabelSet{
 				"key2": "bar",
-				"bar":  "foo",
+				"bar":  ":$foo",
 			},
 			match: false,
 		},
@@ -384,6 +384,72 @@ func TestSilencesMutes(t *testing.T) {
 			if _, wasSilenced := silences.mk.Silenced(test.lset.Fingerprint()); wasSilenced != b {
 				t.Fatalf("Marker was not set correctly: %d", i)
 			}
+		}
+	}
+}
+
+func TestAlertsPut(t *testing.T) {
+	dir, err := ioutil.TempDir("", "alerts_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	alerts, err := NewAlerts(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var (
+		t0 = time.Now()
+		t1 = t0.Add(10 * time.Minute)
+	)
+
+	insert := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"bar": "foo"},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		}, {
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"bar": "foo2"},
+				Annotations:  model.LabelSet{"foo": "bar2"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		}, {
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"bar": "foo3"},
+				Annotations:  model.LabelSet{"foo": "bar3"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		},
+	}
+
+	if err := alerts.Put(insert...); err != nil {
+		t.Fatalf("Insert failed: %s", err)
+	}
+
+	for i, a := range insert {
+		res, err := alerts.Get(a.Fingerprint())
+		if err != nil {
+			t.Fatalf("retrieval error: %s", err)
+		}
+		if !reflect.DeepEqual(res, a) {
+			t.Errorf("Unexpected alert: %d", i)
+			t.Fatalf(pretty.Compare(res, a))
 		}
 	}
 }
