@@ -581,28 +581,28 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"ui/app/css/main.css": uiAppCssMainCss,
-	"ui/app/index.html": uiAppIndexHtml,
-	"ui/app/js/app.js": uiAppJsAppJs,
-	"ui/app/partials/alert.html": uiAppPartialsAlertHtml,
-	"ui/app/partials/alerts.html": uiAppPartialsAlertsHtml,
-	"ui/app/partials/route.html": uiAppPartialsRouteHtml,
+	"ui/app/css/main.css":               uiAppCssMainCss,
+	"ui/app/index.html":                 uiAppIndexHtml,
+	"ui/app/js/app.js":                  uiAppJsAppJs,
+	"ui/app/partials/alert.html":        uiAppPartialsAlertHtml,
+	"ui/app/partials/alerts.html":       uiAppPartialsAlertsHtml,
+	"ui/app/partials/route.html":        uiAppPartialsRouteHtml,
 	"ui/app/partials/silence-form.html": uiAppPartialsSilenceFormHtml,
-	"ui/app/partials/silence.html": uiAppPartialsSilenceHtml,
-	"ui/app/partials/silences.html": uiAppPartialsSilencesHtml,
-	"ui/app/partials/status.html": uiAppPartialsStatusHtml,
-	"ui/bindata.go": uiBindataGo,
-	"ui/lib/angular-moment.min.js": uiLibAngularMomentMinJs,
-	"ui/lib/angular-resource.min.js": uiLibAngularResourceMinJs,
-	"ui/lib/angular-route.min.js": uiLibAngularRouteMinJs,
-	"ui/lib/angular-sanitize.min.js": uiLibAngularSanitizeMinJs,
-	"ui/lib/angular.min.js": uiLibAngularMinJs,
-	"ui/lib/d3.v3.min.js": uiLibD3V3MinJs,
-	"ui/lib/jquery.min.js": uiLibJqueryMinJs,
-	"ui/lib/js-yaml.min.js": uiLibJsYamlMinJs,
-	"ui/lib/kube.min.css": uiLibKubeMinCss,
-	"ui/lib/moment.min.js": uiLibMomentMinJs,
-	"ui/lib/routing-tree.js": uiLibRoutingTreeJs,
+	"ui/app/partials/silence.html":      uiAppPartialsSilenceHtml,
+	"ui/app/partials/silences.html":     uiAppPartialsSilencesHtml,
+	"ui/app/partials/status.html":       uiAppPartialsStatusHtml,
+	"ui/bindata.go":                     uiBindataGo,
+	"ui/lib/angular-moment.min.js":      uiLibAngularMomentMinJs,
+	"ui/lib/angular-resource.min.js":    uiLibAngularResourceMinJs,
+	"ui/lib/angular-route.min.js":       uiLibAngularRouteMinJs,
+	"ui/lib/angular-sanitize.min.js":    uiLibAngularSanitizeMinJs,
+	"ui/lib/angular.min.js":             uiLibAngularMinJs,
+	"ui/lib/d3.v3.min.js":               uiLibD3V3MinJs,
+	"ui/lib/jquery.min.js":              uiLibJqueryMinJs,
+	"ui/lib/js-yaml.min.js":             uiLibJsYamlMinJs,
+	"ui/lib/kube.min.css":               uiLibKubeMinCss,
+	"ui/lib/moment.min.js":              uiLibMomentMinJs,
+	"ui/lib/routing-tree.js":            uiLibRoutingTreeJs,
 }
 
 // AssetDir returns the file names below a certain
@@ -644,6 +644,7 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
 	"ui": &bintree{nil, map[string]*bintree{
 		"app": &bintree{nil, map[string]*bintree{
@@ -655,28 +656,28 @@ var _bintree = &bintree{nil, map[string]*bintree{
 				"app.js": &bintree{uiAppJsAppJs, map[string]*bintree{}},
 			}},
 			"partials": &bintree{nil, map[string]*bintree{
-				"alert.html": &bintree{uiAppPartialsAlertHtml, map[string]*bintree{}},
-				"alerts.html": &bintree{uiAppPartialsAlertsHtml, map[string]*bintree{}},
-				"route.html": &bintree{uiAppPartialsRouteHtml, map[string]*bintree{}},
+				"alert.html":        &bintree{uiAppPartialsAlertHtml, map[string]*bintree{}},
+				"alerts.html":       &bintree{uiAppPartialsAlertsHtml, map[string]*bintree{}},
+				"route.html":        &bintree{uiAppPartialsRouteHtml, map[string]*bintree{}},
 				"silence-form.html": &bintree{uiAppPartialsSilenceFormHtml, map[string]*bintree{}},
-				"silence.html": &bintree{uiAppPartialsSilenceHtml, map[string]*bintree{}},
-				"silences.html": &bintree{uiAppPartialsSilencesHtml, map[string]*bintree{}},
-				"status.html": &bintree{uiAppPartialsStatusHtml, map[string]*bintree{}},
+				"silence.html":      &bintree{uiAppPartialsSilenceHtml, map[string]*bintree{}},
+				"silences.html":     &bintree{uiAppPartialsSilencesHtml, map[string]*bintree{}},
+				"status.html":       &bintree{uiAppPartialsStatusHtml, map[string]*bintree{}},
 			}},
 		}},
 		"bindata.go": &bintree{uiBindataGo, map[string]*bintree{}},
 		"lib": &bintree{nil, map[string]*bintree{
-			"angular-moment.min.js": &bintree{uiLibAngularMomentMinJs, map[string]*bintree{}},
+			"angular-moment.min.js":   &bintree{uiLibAngularMomentMinJs, map[string]*bintree{}},
 			"angular-resource.min.js": &bintree{uiLibAngularResourceMinJs, map[string]*bintree{}},
-			"angular-route.min.js": &bintree{uiLibAngularRouteMinJs, map[string]*bintree{}},
+			"angular-route.min.js":    &bintree{uiLibAngularRouteMinJs, map[string]*bintree{}},
 			"angular-sanitize.min.js": &bintree{uiLibAngularSanitizeMinJs, map[string]*bintree{}},
-			"angular.min.js": &bintree{uiLibAngularMinJs, map[string]*bintree{}},
-			"d3.v3.min.js": &bintree{uiLibD3V3MinJs, map[string]*bintree{}},
-			"jquery.min.js": &bintree{uiLibJqueryMinJs, map[string]*bintree{}},
-			"js-yaml.min.js": &bintree{uiLibJsYamlMinJs, map[string]*bintree{}},
-			"kube.min.css": &bintree{uiLibKubeMinCss, map[string]*bintree{}},
-			"moment.min.js": &bintree{uiLibMomentMinJs, map[string]*bintree{}},
-			"routing-tree.js": &bintree{uiLibRoutingTreeJs, map[string]*bintree{}},
+			"angular.min.js":          &bintree{uiLibAngularMinJs, map[string]*bintree{}},
+			"d3.v3.min.js":            &bintree{uiLibD3V3MinJs, map[string]*bintree{}},
+			"jquery.min.js":           &bintree{uiLibJqueryMinJs, map[string]*bintree{}},
+			"js-yaml.min.js":          &bintree{uiLibJsYamlMinJs, map[string]*bintree{}},
+			"kube.min.css":            &bintree{uiLibKubeMinCss, map[string]*bintree{}},
+			"moment.min.js":           &bintree{uiLibMomentMinJs, map[string]*bintree{}},
+			"routing-tree.js":         &bintree{uiLibRoutingTreeJs, map[string]*bintree{}},
 		}},
 	}},
 }}
@@ -727,4 +728,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-

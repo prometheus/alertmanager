@@ -43,13 +43,83 @@ func NewAlerts(path string) (*Alerts, error) {
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
 func (a *Alerts) Subscribe() provider.AlertIterator {
-	return nil
+	var (
+		ch   = make(chan *types.Alert, 200)
+		done = make(chan struct{})
+	)
+	alerts, err := a.getPending()
+
+	a.mtx.Lock()
+	i := a.next
+	a.next++
+	a.listeners[i] = ch
+	a.mtx.Unlock()
+
+	go func() {
+		defer func() {
+			a.mtx.Lock()
+			delete(a.listeners, i)
+			close(ch)
+			a.mtx.Unlock()
+		}()
+
+		for _, a := range alerts {
+			select {
+			case ch <- a:
+			case <-done:
+				return
+			}
+		}
+
+		<-done
+	}()
+
+	return provider.NewAlertIterator(ch, done, err)
 }
 
 // GetPending returns an iterator over all alerts that have
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {
-	return nil
+	var (
+		ch   = make(chan *types.Alert, 200)
+		done = make(chan struct{})
+	)
+
+	alerts, err := a.getPending()
+
+	go func() {
+		defer close(ch)
+
+		for _, a := range alerts {
+			select {
+			case ch <- a:
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	return provider.NewAlertIterator(ch, done, err)
+}
+
+func (a *Alerts) getPending() ([]*types.Alert, error) {
+	var alerts []*types.Alert
+
+	err := a.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bktAlerts)
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var a types.Alert
+			if err := json.Unmarshal(v, &a); err != nil {
+				return err
+			}
+			alerts = append(alerts, &a)
+		}
+
+		return nil
+	})
+	return alerts, err
 }
 
 // Get returns the alert for a given fingerprint.
