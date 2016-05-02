@@ -14,6 +14,12 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+var (
+	bktNotifies = []byte("notifies")
+	bktSilences = []byte("silences")
+	bktAlerts   = []byte("alerts")
+)
+
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
 	db *bolt.DB
@@ -37,6 +43,10 @@ func NewAlerts(path string) (*Alerts, error) {
 		listeners: map[int]chan *types.Alert{},
 		next:      0,
 	}, err
+}
+
+func (a *Alerts) Close() error {
+	return a.db.Close()
 }
 
 // Subscribe returns an iterator over active alerts that have not been
@@ -206,6 +216,10 @@ func NewSilences(path string, mk types.Marker) (*Silences, error) {
 	return &Silences{db: db, mk: mk}, err
 }
 
+func (s *Silences) Close() error {
+	return s.db.Close()
+}
+
 // The Silences provider must implement the Muter interface
 // for all its silences. The data provider may have access to an
 // optimized view of the data to perform this evaluation.
@@ -341,11 +355,9 @@ func NewNotifies(path string) (*Notifies, error) {
 	return &Notifies{db: db}, err
 }
 
-var (
-	bktNotifies = []byte("notifies")
-	bktSilences = []byte("silences")
-	bktAlerts   = []byte("alerts")
-)
+func (n *Notifies) Close() error {
+	return n.db.Close()
+}
 
 func (n *Notifies) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
 	var res []*types.NotifyInfo
