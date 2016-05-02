@@ -99,7 +99,7 @@ func TestNotifiesSet(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Query failed: %s", err)
 			}
-			if !reflect.DeepEqual(res, q.expected) {
+			if !notifyInfoListEqual(res, q.expected) {
 				t.Errorf("Unexpected query result")
 				t.Fatalf(pretty.Compare(res, q.expected))
 			}
@@ -154,9 +154,7 @@ func TestSilencesSet(t *testing.T) {
 			t.Fatalf("Getting failed: %s", err)
 		}
 
-		// Use pretty.Compare instead of reflect.DeepEqual because it
-		// falsely evaluates to false.
-		if len(pretty.Compare(sil, c.insert)) > 0 {
+		if silencesEqual(sil, c.insert) {
 			t.Errorf("Unexpected silence")
 			t.Fatalf(pretty.Compare(sil, c.insert))
 		}
@@ -261,7 +259,7 @@ func TestSilencesAll(t *testing.T) {
 		t.Fatalf("Retrieval failed: %s", err)
 	}
 
-	if len(pretty.Compare(res, insert)) > 0 {
+	if silenceListEqual(res, insert) {
 		t.Errorf("Unexpected result")
 		t.Fatalf(pretty.Compare(res, insert))
 	}
@@ -447,9 +445,104 @@ func TestAlertsPut(t *testing.T) {
 		if err != nil {
 			t.Fatalf("retrieval error: %s", err)
 		}
-		if !reflect.DeepEqual(res, a) {
+		if !alertsEqual(res, a) {
 			t.Errorf("Unexpected alert: %d", i)
 			t.Fatalf(pretty.Compare(res, a))
 		}
 	}
+}
+
+func alertsEqual(a1, a2 *types.Alert) bool {
+	if !reflect.DeepEqual(a1.Labels, a2.Labels) {
+		return false
+	}
+	if !reflect.DeepEqual(a1.Annotations, a2.Annotations) {
+		return false
+	}
+	if a1.GeneratorURL != a2.GeneratorURL {
+		return false
+	}
+	if !a1.StartsAt.Equal(a2.StartsAt) {
+		return false
+	}
+	if !a1.EndsAt.Equal(a2.EndsAt) {
+		return false
+	}
+	if !a1.UpdatedAt.Equal(a2.UpdatedAt) {
+		return false
+	}
+	return a1.Timeout == a2.Timeout
+}
+
+func alertListEqual(a1, a2 []*types.Alert) bool {
+	if len(a1) != len(a2) {
+		return false
+	}
+	for i, a := range a1 {
+		if !alertsEqual(a, a2[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func silencesEqual(s1, s2 *types.Silence) bool {
+	if !reflect.DeepEqual(s1.Matchers, s2.Matchers) {
+		return false
+	}
+	if !reflect.DeepEqual(s1.Silence.Matchers, s2.Silence.Matchers) {
+		return false
+	}
+	if !s1.StartsAt.Equal(s2.EndsAt) {
+		return false
+	}
+	if !s1.EndsAt.Equal(s2.EndsAt) {
+		return false
+	}
+	if !s1.CreatedAt.Equal(s2.CreatedAt) {
+		return false
+	}
+	return s1.Comment == s2.Comment && s1.CreatedBy == s2.CreatedBy
+}
+
+func silenceListEqual(s1, s2 []*types.Silence) bool {
+	if len(s1) != len(s2) {
+		return false
+	}
+	for i, s := range s1 {
+		if !silencesEqual(s, s2[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func notifyInfoEqual(n1, n2 *types.NotifyInfo) bool {
+	// nil is a sentinel value and thus part of comparisons.
+	if n1 == nil || n2 == nil {
+		return n1 == nil && n2 == nil
+	}
+	if n1.Alert != n2.Alert {
+		return false
+	}
+	if n1.Receiver != n2.Receiver {
+		return false
+	}
+	if !n1.Timestamp.Equal(n2.Timestamp) {
+		return false
+	}
+	return n1.Resolved == n2.Resolved
+}
+
+func notifyInfoListEqual(n1, n2 []*types.NotifyInfo) bool {
+
+	if len(n1) != len(n2) {
+		return false
+	}
+	for i, n := range n1 {
+		if !notifyInfoEqual(n, n2[i]) {
+			return false
+		}
+	}
+	return true
 }
