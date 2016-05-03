@@ -138,10 +138,10 @@ type Alert struct {
 	model.Alert
 
 	// The authoritative timestamp.
-	UpdatedAt    time.Time `json:"-"`
-	Timeout      bool      `json:"-"`
-	WasSilenced  bool      `json:"-"`
-	WasInhibited bool      `json:"-"`
+	UpdatedAt    time.Time
+	Timeout      bool
+	WasSilenced  bool `json:"-"`
+	WasInhibited bool `json:"-"`
 }
 
 // AlertSlice is a sortable slice of Alerts.

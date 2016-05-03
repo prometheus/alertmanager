@@ -15,7 +15,6 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"flag"
 	"fmt"
 	"net"
@@ -24,7 +23,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	tmpltext "text/template"
@@ -36,7 +34,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
-	"github.com/prometheus/alertmanager/provider/sqlite"
+	"github.com/prometheus/alertmanager/provider/boltmem"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/version"
@@ -82,26 +80,26 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", filepath.Join(*dataDir, "am.db"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
 
 	marker := types.NewMarker()
 
-	alerts, err := sqlite.NewAlerts(db)
+	alerts, err := boltmem.NewAlerts(*dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	notifies, err := sqlite.NewNotifies(db)
+	defer alerts.Close()
+
+	notifies, err := boltmem.NewNotificationInfo(*dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	silences, err := sqlite.NewSilences(db, marker)
+	defer notifies.Close()
+
+	silences, err := boltmem.NewSilences(*dataDir, marker)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer silences.Close()
 
 	var (
 		inhibitor *Inhibitor
