@@ -84,7 +84,7 @@ func TestNotifiesSet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	n, err := NewNotifies(dir)
+	n, err := NewNotificationInfo(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

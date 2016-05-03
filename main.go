@@ -89,7 +89,7 @@ func main() {
 	}
 	defer alerts.Close()
 
-	notifies, err := boltmem.NewNotifies(*dataDir)
+	notifies, err := boltmem.NewNotificationInfo(*dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}

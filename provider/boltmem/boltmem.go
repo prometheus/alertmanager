@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	bktNotifies = []byte("notifies")
-	bktSilences = []byte("silences")
-	bktAlerts   = []byte("alerts")
+	bktNotificationInfo = []byte("notification_info")
+	bktSilences         = []byte("silences")
+	bktAlerts           = []byte("alerts")
 )
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
@@ -29,6 +29,7 @@ type Alerts struct {
 	next      int
 }
 
+// NewAlerts returns a new alert provider.
 func NewAlerts(path string) (*Alerts, error) {
 	db, err := bolt.Open(filepath.Join(path, "alerts.db"), 0666, nil)
 	if err != nil {
@@ -45,6 +46,7 @@ func NewAlerts(path string) (*Alerts, error) {
 	}, err
 }
 
+// Close the alert provider.
 func (a *Alerts) Close() error {
 	return a.db.Close()
 }
@@ -180,7 +182,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 			ab, err := json.Marshal(alert)
 			if err != nil {
-				return fmt.Errorf("encoding alert failed :%s", err)
+				return fmt.Errorf("encoding alert failed: %s", err)
 			}
 
 			if err := b.Put(fp, ab); err != nil {
@@ -204,6 +206,7 @@ type Silences struct {
 	mk types.Marker
 }
 
+// NewSilences creates a new Silences provider.
 func NewSilences(path string, mk types.Marker) (*Silences, error) {
 	db, err := bolt.Open(filepath.Join(path, "silences.db"), 0666, nil)
 	if err != nil {
@@ -216,6 +219,7 @@ func NewSilences(path string, mk types.Marker) (*Silences, error) {
 	return &Silences{db: db, mk: mk}, err
 }
 
+// Close the silences provider.
 func (s *Silences) Close() error {
 	return s.db.Close()
 }
@@ -337,33 +341,36 @@ func (s *Silences) Get(uid uint64) (*types.Silence, error) {
 	return sil, err
 }
 
-// Notifies provides information about pending and successful
+// NotificationInfo provides information about pending and successful
 // notifications. All methods are goroutine-safe.
-type Notifies struct {
+type NotificationInfo struct {
 	db *bolt.DB
 }
 
-func NewNotifies(path string) (*Notifies, error) {
-	db, err := bolt.Open(filepath.Join(path, "notifies.db"), 0666, nil)
+// NewNotification creates a new notification info provider.
+func NewNotificationInfo(path string) (*NotificationInfo, error) {
+	db, err := bolt.Open(filepath.Join(path, "notification_info.db"), 0666, nil)
 	if err != nil {
 		return nil, err
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(bktNotifies)
+		_, err := tx.CreateBucketIfNotExists(bktNotificationInfo)
 		return err
 	})
-	return &Notifies{db: db}, err
+	return &NotificationInfo{db: db}, err
 }
 
-func (n *Notifies) Close() error {
+// Close the notification information provider.
+func (n *NotificationInfo) Close() error {
 	return n.db.Close()
 }
 
-func (n *Notifies) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
+// Get notification information for alerts and the given receiver.
+func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
 	var res []*types.NotifyInfo
 
 	err := n.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bktNotifies)
+		b := tx.Bucket(bktNotificationInfo)
 
 		for _, fp := range fps {
 			k := make([]byte, 8+len([]byte(recv)))
@@ -393,9 +400,9 @@ func (n *Notifies) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyIn
 }
 
 // Set several notifies at once. All or none must succeed.
-func (n *Notifies) Set(ns ...*types.NotifyInfo) error {
+func (n *NotificationInfo) Set(ns ...*types.NotifyInfo) error {
 	err := n.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bktNotifies)
+		b := tx.Bucket(bktNotificationInfo)
 
 		for _, n := range ns {
 			k := make([]byte, 8+len([]byte(n.Receiver)))
