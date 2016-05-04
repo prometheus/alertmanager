@@ -18,6 +18,12 @@
 			"revisionTime": "2015-02-23T14:51:52+01:00"
 		},
 		{
+			"checksumSHA1": "H57oqpzRpxtzb0xoPbhWYEy9KSA=",
+			"path": "github.com/boltdb/bolt",
+			"revision": "144418e1475d8bf7abbdc48583500f1a20c62ea7",
+			"revisionTime": "2016-04-07T14:34:38Z"
+		},
+		{
 			"path": "github.com/cenkalti/backoff",
 			"revision": "4dc77674aceaabba2c7e3da25d4c823edfb73f99",
 			"revisionTime": "2015-08-14T12:43:33+03:00"
@@ -31,6 +37,18 @@
 			"path": "github.com/julienschmidt/httprouter",
 			"revision": "109e267447e95ad1bb48b758e40dd7453eb7b039",
 			"revisionTime": "2015-09-05T19:25:33+02:00"
+		},
+		{
+			"checksumSHA1": "0utJAePiKZZzPG3SxPA+xWQ3JAw=",
+			"path": "github.com/kylelemons/godebug/diff",
+			"revision": "eadb3ce320cbab8393bea5ca17bebac3f78a021b",
+			"revisionTime": "2016-04-06T21:19:39Z"
+		},
+		{
+			"checksumSHA1": "f1Cya7f83KJIkWcYWxT3ZZxDeZc=",
+			"path": "github.com/kylelemons/godebug/pretty",
+			"revision": "eadb3ce320cbab8393bea5ca17bebac3f78a021b",
+			"revisionTime": "2016-04-06T21:19:39Z"
 		},
 		{
 			"path": "github.com/mattn/go-sqlite3",
@@ -97,5 +115,6 @@
 			"revision": "7ad95dd0798a40da1ccdff6dff35fd177b5edf40",
 			"revisionTime": "2015-06-24T11:29:02+01:00"
 		}
-	]
+	],
+	"rootPath": "github.com/prometheus/alertmanager"
 }
