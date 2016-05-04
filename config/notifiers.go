@@ -217,35 +217,17 @@ type SlackConfig struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
-// SMSConfig configures notifications via SMS using exotel.
-type SMSConfig struct {
-	NotifierConfig `yaml:",inline"`
-	// Exotel sid and token
-	AccountSID   string `yaml:"account_sid"`
-	AccountToken Secret `yaml:"account_token"`
-	// number to which sms has to be sent
-	To   string `yaml:"to"`
-	From string `yml:"from"`
-	Text string `yaml:"text"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
-}
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *SMSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultSMSConfig
-	type plain SMSConfig
+func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSlackConfig
+	type plain SlackConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.From == "" {
-		return fmt.Errorf("missing from number in sms config")
+	if c.Channel == "" {
+		return fmt.Errorf("missing channel in Slack config")
 	}
-	if c.To == "" {
-		return fmt.Errorf("missing to number in sms config")
-	}
-	return checkOverflow(c.XXX, "sms config")
+	return checkOverflow(c.XXX, "slack config")
 }
 
 // SMSConfig configures notifications via SMS using exotel.
