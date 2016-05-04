@@ -127,6 +127,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 			n := NewOpsGenie(c, tmpl)
 			add(i, n, filter(n, c))
 		}
+		for i, c := range nc.SMSConfigs {
+			n := NewSMS(c, tmpl)
+			add(i, n, filter(n, c))
+		}
 		for i, c := range nc.SlackConfigs {
 			n := NewSlack(c, tmpl)
 			add(i, n, filter(n, c))
@@ -146,6 +150,7 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 }
 
 const contentTypeJSON = "application/json"
+const contentTypeFormData = "application/x-www-form-urlencoded"
 
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
@@ -438,6 +443,59 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+	return nil
+}
+
+// SMS implements a Notifier for SMS notifications.
+type SMS struct {
+	conf *config.SMSConfig
+	tmpl *template.Template
+}
+
+// NewSMS returns a new SMS notification handler.
+func NewSMS(conf *config.SMSConfig, tmpl *template.Template) *SMS {
+	return &SMS{
+		conf: conf,
+		tmpl: tmpl,
+	}
+}
+
+func (*SMS) name() string { return "SMS" }
+
+// Notify implements the Notifier interface.
+func (n *SMS) Notify(ctx context.Context, as ...*types.Alert) error {
+	var err error
+	var (
+		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+	)
+	if err != nil {
+		return fmt.Errorf("unexpected errot creating tmplText %v ", err.Error())
+	}
+	req := make(url.Values)
+	req.Set("From", n.conf.From)
+	req.Set("To", n.conf.To)
+
+	req.Set("Body", tmplText(n.conf.Text))
+	if err != nil {
+		return fmt.Errorf("unexpected e0rror creating body from template %v ", err.Error())
+	}
+	smsURL := fmt.Sprintf(
+		"https://%s:%s@twilix.exotel.in/v1/Accounts/%s/Sms/send.json",
+		n.conf.AccountSID,
+		n.conf.AccountToken,
+		n.conf.AccountSID)
+	resp, err := ctxhttp.PostForm(ctx, http.DefaultClient, smsURL, req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	var response []byte
+	resp.Body.Read(response)
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("unexpected status code %v ,response %v", resp.StatusCode, string(response))
 	}
 	return nil
 }

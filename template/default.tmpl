@@ -175,3 +175,8 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 {{ define "pushover.default.url" }}{{ template "__alertmanagerURL" . }}{{ end }}
+
+{{ define "sms.default.text" }}{{ .Alerts | len }} alert {{ if gt (len .Alerts) 1 }}s{{ end }} for
+{{ range .GroupLabels.SortedPairs }}{{ if eq .Name "alertname" }}{{ .Value | toUpper}}{{ end }}{{ end }}
+{{ range .Alerts.Firing }}{{ range .Annotations.SortedPairs }}{{ if eq .Name "description" }}
+{{ .Value }}{{ end }}{{ end }}{{ end }}{{end}}
