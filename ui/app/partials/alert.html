@@ -1,4 +1,4 @@
-<div class="alert-item" ng-controller="AlertCtrl">
+<div class="alert-item" ng-controller="AlertCtrl" ng-class="{silenced: alert.silenced}">
 	<div class="overview group">
 		<div class="btn-group details expand">
 			<button ng-show="showDetails" ng-click="toggleDetails()" type="primary" small>–</button>

@@ -817,6 +817,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
 		message = message[:512-len(title)]
 		log.With("incident", key).Debugf("Truncated message to %q due to Pushover message limit", message)
 	}
+	message = strings.TrimSpace(message)
 	if message == "" {
 		// Pushover rejects empty messages.
 		message = "(no details)"

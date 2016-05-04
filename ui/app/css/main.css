@@ -52,7 +52,9 @@ a.gen-link button {
 	width: 100%;
 	min-width: 400px;
 }
-
+#alert-groups.hide-silenced .alert-item.silenced {
+	display: none;
+}
 .alert-group {
 	margin-bottom: 5px;
 }
