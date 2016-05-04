@@ -55,6 +55,14 @@ var (
 		},
 	}
 
+	// DefaultSMSConfig defines default values for SMS configurations.
+	DefaultSMSConfig = SMSConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Text: `{{ template "sms.default.text" . }}`,
+	}
+
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
 		NotifierConfig: NotifierConfig{
@@ -220,6 +228,37 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing channel in Slack config")
 	}
 	return checkOverflow(c.XXX, "slack config")
+}
+
+// SMSConfig configures notifications via SMS using exotel.
+type SMSConfig struct {
+	NotifierConfig `yaml:",inline"`
+	// Exotel sid and token
+	AccountSID   string `yaml:"account_sid"`
+	AccountToken Secret `yaml:"account_token"`
+	// number to which sms has to be sent
+	To   string `yaml:"to"`
+	From string `yml:"from"`
+	Text string `yaml:"text"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *SMSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSMSConfig
+	type plain SMSConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.From == "" {
+		return fmt.Errorf("missing from number in sms config")
+	}
+	if c.To == "" {
+		return fmt.Errorf("missing to number in sms config")
+	}
+	return checkOverflow(c.XXX, "sms config")
 }
 
 // HipchatConfig configures notifications via Hipchat.

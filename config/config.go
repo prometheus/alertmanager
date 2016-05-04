@@ -173,6 +173,21 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.AuthIdentity = c.Global.SMTPAuthIdentity
 			}
 		}
+		for _, sms := range rcv.SMSConfigs {
+			if sms.AccountSID == "" {
+				if c.Global.SMSAccountSID == "" {
+					return fmt.Errorf("no global SMS Account Sid set")
+				}
+				sms.AccountSID = c.Global.SMSAccountSID
+			}
+			if sms.AccountToken == "" {
+				if c.Global.SMSAccountToken == "" {
+					return fmt.Errorf("no global SMS Account Token set")
+				}
+				sms.AccountToken = c.Global.SMSAccountToken
+			}
+		}
+
 		for _, sc := range rcv.SlackConfigs {
 			if sc.APIURL == "" {
 				if c.Global.SlackAPIURL == "" {
@@ -276,6 +291,8 @@ type GlobalConfig struct {
 	SlackAPIURL      Secret `yaml:"slack_api_url"`
 	PagerdutyURL     string `yaml:"pagerduty_url"`
 	HipchatURL       string `yaml:"hipchat_url"`
+	SMSAccountSID    string `yaml:"sms_account_sid"`
+	SMSAccountToken  Secret `yaml:"sms_account_token"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
 }
@@ -400,6 +417,7 @@ type Receiver struct {
 	Name string `yaml:"name"`
 
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty"`
+	SMSConfigs       []*SMSConfig       `yaml:"sms_configs,omitempty"`
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty"`
 	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty"`
