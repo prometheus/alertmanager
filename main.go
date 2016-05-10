@@ -169,6 +169,36 @@ func main() {
 		}
 		tmpl.ExternalURL = amURL
 
+
+
+		for _, recv := range conf.Receivers {
+			for _, ec := range recv.EmailConfigs {
+				if ec.HTML != config.DefaultEmailConfig.HTML {
+					if err := tmpl.CheckTemplateExistence("html", ec.HTML); err != nil {
+						return err
+					}
+				}
+			}
+//			for pc := range recv.PagerdutyConfigs {
+//
+//			}
+//			for hc := range recv.HipchatConfigs {
+//
+//			}
+//			for sc := range recv.SlackConfigs {
+//
+//			}
+//			for wc := range recv.WebhookConfigs {
+//
+//			}
+//			for ogc := range recv.OpsGenieConfigs {
+//
+//			}
+//			for pc := range recv.PushoverConfigs {
+//
+//			}
+		}
+
 		disp.Stop()
 
 		inhibitor = NewInhibitor(alerts, conf.InhibitRules, marker)

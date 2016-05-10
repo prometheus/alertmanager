@@ -15,6 +15,7 @@ package template
 
 import (
 	"bytes"
+	"fmt"
 	"net/url"
 	"path/filepath"
 	"sort"
@@ -36,6 +37,28 @@ type Template struct {
 	html *tmplhtml.Template
 
 	ExternalURL *url.URL
+}
+
+// checkTemplateExistence checks if a given template name exists for a given
+// type in a prometheus-template-struct
+func (tmpl *Template) CheckTemplateExistence(tmplType string, name string) error {
+	switch tmplType {
+	case "html":
+		if t := tmpl.html.Lookup(name); t == nil {
+			return fmt.Errorf("Template '%s' not found", name)
+		} else {
+			return nil
+		}
+
+	case "text":
+		if t := tmpl.html.Lookup(name); t == nil {
+			return fmt.Errorf("Template '%s' not found", name)
+		} else {
+			return nil
+		}
+	default:
+		return fmt.Errorf("There are no Templates of type '%s'", tmplType)
+	}
 }
 
 // FromGlobs calls ParseGlob on all path globs provided and returns the
