@@ -1,10 +1,8 @@
 # Alertmanager [![Build Status](https://travis-ci.org/prometheus/alertmanager.svg)][travis]
 
 [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
-[![Docker Stars](https://img.shields.io/docker/stars/prom/alertmanager.svg)][hub]
-[![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg)][hub]
-[![Image Size](https://img.shields.io/imagelayers/image-size/prom/alertmanager/latest.svg)][imagelayers]
-[![Image Layers](https://img.shields.io/imagelayers/layers/prom/alertmanager/latest.svg)][imagelayers]
+[![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status)][quay]
+[![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
 
 The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integration such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
@@ -194,4 +192,4 @@ server {
 [travis]: https://travis-ci.org/prometheus/alertmanager
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager
-[imagelayers]: https://imagelayers.io/?images=prom/alertmanager:latest
+[quay]: https://quay.io/repository/prometheus/alertmanager
