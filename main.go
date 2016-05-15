@@ -14,7 +14,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"net"
@@ -25,19 +24,18 @@ import (
 	"path"
 	"strings"
 	"syscall"
-	tmpltext "text/template"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
+	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/boltmem"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/alertmanager/version"
 )
 
 var (
@@ -66,15 +64,19 @@ var (
 func init() {
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
+	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
 func main() {
 	flag.Parse()
 
-	printVersion()
 	if *showVersion {
+		fmt.Fprintln(os.Stdout, version.Print("alertmanager"))
 		os.Exit(0)
 	}
+
+	log.Infoln("Starting alertmanager", version.Info())
+	log.Infoln("Build context", version.BuildContext())
 
 	err := os.MkdirAll(*dataDir, 0777)
 	if err != nil {
@@ -188,7 +190,7 @@ func main() {
 	RegisterWeb(router.WithPrefix(amURL.Path))
 	api.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
-	log.Infof("Listening on %s", *listenAddress)
+	log.Infoln("Listening on", *listenAddress)
 	go listen(router)
 
 	var (
@@ -207,23 +209,6 @@ func main() {
 	<-term
 
 	log.Infoln("Received SIGTERM, exiting gracefully...")
-}
-
-var versionInfoTmpl = `
-alertmanager, version {{.version}} (branch: {{.branch}}, revision: {{.revision}})
-  build user:       {{.buildUser}}
-  build date:       {{.buildDate}}
-  go version:       {{.goVersion}}
-`
-
-func printVersion() {
-	t := tmpltext.Must(tmpltext.New("version").Parse(versionInfoTmpl))
-
-	var buf bytes.Buffer
-	if err := t.ExecuteTemplate(&buf, "version", version.Map); err != nil {
-		panic(err)
-	}
-	fmt.Fprintln(os.Stdout, strings.TrimSpace(buf.String()))
 }
 
 func extURL(s string) (*url.URL, error) {

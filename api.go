@@ -25,11 +25,11 @@ import (
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
+	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/alertmanager/version"
 )
 
 var (
@@ -134,9 +134,16 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 		VersionInfo map[string]string `json:"versionInfo"`
 		Uptime      time.Time         `json:"uptime"`
 	}{
-		Config:      api.config,
-		VersionInfo: version.Map,
-		Uptime:      api.uptime,
+		Config: api.config,
+		VersionInfo: map[string]string{
+			"version":   version.Version,
+			"revision":  version.Revision,
+			"branch":    version.Branch,
+			"buildUser": version.BuildUser,
+			"buildDate": version.BuildDate,
+			"goVersion": version.GoVersion,
+		},
+		Uptime: api.uptime,
 	}
 
 	api.mtx.RUnlock()
