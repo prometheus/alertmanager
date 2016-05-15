@@ -2,6 +2,7 @@ go: 1.6.2
 repository:
     path: github.com/prometheus/alertmanager
 build:
+    flags: -a -tags netgo
     ldflags: |
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Version={{.Version}}
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Revision={{.Revision}}
@@ -21,5 +22,17 @@ crossbuild:
         - darwin/386
         - windows/amd64
         - windows/386
+        - freebsd/amd64
+        - freebsd/386
+        - openbsd/amd64
+        - openbsd/386
+        - netbsd/amd64
+        - netbsd/386
+        - dragonfly/amd64
         - linux/arm
         - linux/arm64
+        - freebsd/arm
+        - openbsd/arm
+        - netbsd/arm
+        - linux/ppc64
+        - linux/ppc64le
