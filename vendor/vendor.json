@@ -81,6 +81,12 @@
 			"revisionTime": "2015-09-28T11:56:39+02:00"
 		},
 		{
+			"checksumSHA1": "GWlM3d2vPYyNATtTFgftS10/A9w=",
+			"path": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
+			"revision": "dd586c1c5abb0be59e60f942c22af711a2008cb4",
+			"revisionTime": "2016-05-03T22:05:32Z"
+		},
+		{
 			"path": "github.com/prometheus/common/log",
 			"revision": "0a3005bb37bc411040083a55372e77c405f6464c",
 			"revisionTime": "2016-01-04T14:47:38+01:00"
@@ -96,6 +102,12 @@
 			"revisionTime": "2016-01-25T23:57:51+01:00"
 		},
 		{
+			"checksumSHA1": "91KYK0SpvkaMJJA2+BcxbVnyRO0=",
+			"path": "github.com/prometheus/common/version",
+			"revision": "dd586c1c5abb0be59e60f942c22af711a2008cb4",
+			"revisionTime": "2016-05-03T22:05:32Z"
+		},
+		{
 			"path": "github.com/prometheus/procfs",
 			"revision": "3b231703e7dd0ca93302b5242ad6aeb4b5c603a2",
 			"revisionTime": "2015-09-15T15:36:53-04:00"
@@ -109,6 +121,12 @@
 			"path": "golang.org/x/net/context/ctxhttp",
 			"revision": "db8e4de5b2d6653f66aea53094624468caad15d2",
 			"revisionTime": "2015-08-24T18:07:02+02:00"
+		},
+		{
+			"checksumSHA1": "c8iMfP5+K3GEg26HJiO0OVVLiM4=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "f64b50fbea64174967a8882830d621a18ee1548e",
+			"revisionTime": "2016-04-14T13:31:22Z"
 		},
 		{
 			"path": "gopkg.in/yaml.v2",
