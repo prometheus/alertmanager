@@ -10,12 +10,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package notify
 
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -404,4 +404,54 @@ func TestInhibitNotifier(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+}
+
+type testInfos struct {
+	mtx sync.RWMutex
+	m   map[string]map[model.Fingerprint]*types.NotifyInfo
+}
+
+func newTestInfos() *testInfos {
+	return &testInfos{
+		m: map[string]map[model.Fingerprint]*types.NotifyInfo{},
+	}
+}
+
+// Set implements the Notifies interface.
+func (n *testInfos) Set(ns ...*types.NotifyInfo) error {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	for _, v := range ns {
+
+		if v == nil {
+			continue
+		}
+		am, ok := n.m[v.Receiver]
+		if !ok {
+			am = map[model.Fingerprint]*types.NotifyInfo{}
+			n.m[v.Receiver] = am
+		}
+		am[v.Alert] = v
+	}
+	return nil
+}
+
+// Get implements the Notifies interface.
+func (n *testInfos) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
+	n.mtx.RLock()
+	defer n.mtx.RUnlock()
+
+	res := make([]*types.NotifyInfo, len(fps))
+
+	ns, ok := n.m[dest]
+	if !ok {
+		return res, nil
+	}
+
+	for i, fp := range fps {
+		res[i] = ns[fp]
+	}
+
+	return res, nil
 }
