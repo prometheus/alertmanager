@@ -123,7 +123,7 @@ func TestNotifiesSet(t *testing.T) {
 func TestSilencesSet(t *testing.T) {
 	var (
 		t0 = time.Now()
-		t1 = t0.Add(10 * time.Minute)
+		// t1 = t0.Add(10 * time.Minute)
 		t2 = t0.Add(20 * time.Minute)
 		// t3 = t0.Add(30 * time.Minute)
 	)
@@ -132,16 +132,15 @@ func TestSilencesSet(t *testing.T) {
 		insert *types.Silence
 	}{
 		{
-			insert: types.NewSilence(&model.Silence{
-				Matchers: []*model.Matcher{
+			insert: &types.Silence{
+				Matchers: types.Matchers{
 					{Name: "key", Value: "val"},
 				},
 				StartsAt:  t0,
 				EndsAt:    t2,
-				CreatedAt: t1,
 				CreatedBy: "user",
 				Comment:   "test comment",
-			}),
+			},
 		},
 	}
 
@@ -186,13 +185,11 @@ func TestSilencesDelete(t *testing.T) {
 	}
 
 	uid, err := silences.Set(&types.Silence{
-		Matchers: []*types.Matcher{
+		Matchers: types.Matchers{
 			{Name: "key", Value: "val"},
 		},
-		Silence: model.Silence{
-			CreatedBy: "user",
-			Comment:   "test comment",
-		},
+		CreatedBy: "user",
+		Comment:   "test comment",
 	})
 
 	if err != nil {
@@ -216,37 +213,34 @@ func TestSilencesAll(t *testing.T) {
 	)
 
 	insert := []*types.Silence{
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
+		&types.Silence{
+			Matchers: types.Matchers{
 				{Name: "key", Value: "val"},
 			},
 			StartsAt:  t0,
 			EndsAt:    t2,
-			CreatedAt: t1,
 			CreatedBy: "user",
 			Comment:   "test comment",
-		}),
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
+		},
+		&types.Silence{
+			Matchers: types.Matchers{
 				{Name: "key", Value: "val"},
 				{Name: "key2", Value: "val2.*", IsRegex: true},
 			},
 			StartsAt:  t1,
 			EndsAt:    t2,
-			CreatedAt: t1,
 			CreatedBy: "user2",
 			Comment:   "test comment",
-		}),
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
+		},
+		&types.Silence{
+			Matchers: types.Matchers{
 				{Name: "key", Value: "val"},
 			},
 			StartsAt:  t2,
 			EndsAt:    t3,
-			CreatedAt: t3,
 			CreatedBy: "user",
 			Comment:   "another test comment",
-		}),
+		},
 	}
 
 	dir, err := ioutil.TempDir("", "silences_test")
@@ -281,7 +275,7 @@ func TestSilencesAll(t *testing.T) {
 func TestSilencesMutes(t *testing.T) {
 	var (
 		t0 = time.Now()
-		t1 = t0.Add(10 * time.Minute)
+		// t1 = t0.Add(10 * time.Minute)
 		t2 = t0.Add(20 * time.Minute)
 		t3 = t0.Add(30 * time.Minute)
 	)
@@ -289,36 +283,33 @@ func TestSilencesMutes(t *testing.T) {
 	// All silences are active for the time of the test. Time restriction
 	// testing is covered for the Mutes() method of the Silence type.
 	insert := []*types.Silence{
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
+		&types.Silence{
+			Matchers: types.Matchers{
 				{Name: "key", Value: "val"},
 			},
 			StartsAt:  t0,
 			EndsAt:    t2,
-			CreatedAt: t1,
 			CreatedBy: "user",
 			Comment:   "test comment",
-		}),
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
+		},
+		&types.Silence{
+			Matchers: types.Matchers{
 				{Name: "key2", Value: "val2.*", IsRegex: true},
 			},
 			StartsAt:  t0,
 			EndsAt:    t2,
-			CreatedAt: t1,
 			CreatedBy: "user2",
 			Comment:   "test comment",
-		}),
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
+		},
+		&types.Silence{
+			Matchers: types.Matchers{
 				{Name: "key", Value: "val2"},
 			},
 			StartsAt:  t0,
 			EndsAt:    t3,
-			CreatedAt: t3,
 			CreatedBy: "user",
 			Comment:   "another test comment",
-		}),
+		},
 	}
 
 	dir, err := ioutil.TempDir("", "silences_test")
@@ -503,16 +494,15 @@ func silencesEqual(s1, s2 *types.Silence) bool {
 	if !reflect.DeepEqual(s1.Matchers, s2.Matchers) {
 		return false
 	}
-	if !reflect.DeepEqual(s1.Silence.Matchers, s2.Silence.Matchers) {
+	// XXX: As the matchers contain regexes DeepEqual is not generally
+	// reliable. May be false negative.
+	if !reflect.DeepEqual(s1.Matchers, s2.Matchers) {
 		return false
 	}
 	if !s1.StartsAt.Equal(s2.EndsAt) {
 		return false
 	}
 	if !s1.EndsAt.Equal(s2.EndsAt) {
-		return false
-	}
-	if !s1.CreatedAt.Equal(s2.CreatedAt) {
 		return false
 	}
 	return s1.Comment == s2.Comment && s1.CreatedBy == s2.CreatedBy
