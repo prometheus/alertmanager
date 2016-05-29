@@ -22,8 +22,8 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/satori/go.uuid"
 )
 
 type recordNotifier struct {
@@ -169,7 +169,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 func TestDedupingNotifier(t *testing.T) {
 	var (
 		record   = &recordNotifier{}
-		notifies = provider.NewMemNotifies(provider.NewMemData())
+		notifies = newTestInfos()
 		deduper  = Dedup(notifies, record)
 		ctx      = context.Background()
 	)
@@ -331,7 +331,7 @@ func TestSilenceNotifier(t *testing.T) {
 
 	// Set the second alert als previously silenced. It is expected to have
 	// the WasSilenced flag set to true afterwards.
-	marker.SetSilenced(inAlerts[1].Fingerprint(), 123)
+	marker.SetSilenced(inAlerts[1].Fingerprint(), uuid.NewV4())
 
 	if err := silenceNotifer.Notify(nil, inAlerts...); err != nil {
 		t.Fatalf("Notifying failed: %s", err)

@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 )
 
 var (
@@ -268,19 +269,15 @@ func (s *Silences) All() ([]*types.Silence, error) {
 		c := b.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var ms model.Silence
-			if err := json.Unmarshal(v, &ms); err != nil {
+			var s types.Silence
+			if err := json.Unmarshal(v, &s); err != nil {
 				return err
 			}
-			ms.ID = binary.BigEndian.Uint64(k)
-
-			if err := json.Unmarshal(v, &ms); err != nil {
+			if err := s.Init(); err != nil {
 				return err
 			}
-
-			res = append(res, types.NewSilence(&ms))
+			res = append(res, &s)
 		}
-
 		return nil
 	})
 
@@ -288,70 +285,55 @@ func (s *Silences) All() ([]*types.Silence, error) {
 }
 
 // Set a new silence.
-func (s *Silences) Set(sil *types.Silence) (uint64, error) {
+func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 	var (
-		uid uint64
+		uid uuid.UUID
 		err error
 	)
 	err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktSilences)
-
 		// Silences are immutable and we always create a new one.
-		uid, err = b.NextSequence()
+		sil.ID = uuid.NewV4()
+
+		msb, err := json.Marshal(sil)
 		if err != nil {
 			return err
 		}
-		sil.ID = uid
-
-		k := make([]byte, 8)
-		binary.BigEndian.PutUint64(k, uid)
-
-		msb, err := json.Marshal(sil.Silence)
-		if err != nil {
-			return err
-		}
-		return b.Put(k, msb)
+		uid = sil.ID
+		return b.Put(sil.ID[:], msb)
 	})
 	return uid, err
 }
 
 // Del removes a silence.
-func (s *Silences) Del(uid uint64) error {
+func (s *Silences) Del(uid uuid.UUID) error {
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bktSilences)
-
-		k := make([]byte, 8)
-		binary.BigEndian.PutUint64(k, uid)
-
-		return b.Delete(k)
+		// TODO(fabxc): this does not yet comply with the semantics of
+		// deleting just setting EndsAt to now if it is in the future.
+		// As long as we are don't have strong semantics we might still
+		// keep supporting this.
+		return tx.Bucket(bktSilences).Delete(uid[:])
 	})
 	return err
 }
 
 // Get a silence associated with a fingerprint.
-func (s *Silences) Get(uid uint64) (*types.Silence, error) {
-	var sil *types.Silence
+func (s *Silences) Get(uid uuid.UUID) (*types.Silence, error) {
+	var sil types.Silence
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktSilences)
 
-		k := make([]byte, 8)
-		binary.BigEndian.PutUint64(k, uid)
-
-		v := b.Get(k)
+		v := b.Get(uid[:])
 		if v == nil {
 			return provider.ErrNotFound
 		}
-		var ms model.Silence
-
-		if err := json.Unmarshal(v, &ms); err != nil {
-			return err
-		}
-		sil = types.NewSilence(&ms)
-
-		return nil
+		return json.Unmarshal(v, &sil)
 	})
-	return sil, err
+	if err != nil {
+		return nil, err
+	}
+	return &sil, sil.Init()
 }
 
 // NotificationInfo provides information about pending and successful

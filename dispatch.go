@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -72,8 +73,8 @@ type AlertBlock struct {
 type APIAlert struct {
 	*model.Alert
 
-	Inhibited bool   `json:"inhibited"`
-	Silenced  uint64 `json:"silenced,omitempty"`
+	Inhibited bool      `json:"inhibited"`
+	Silenced  uuid.UUID `json:"silenced,omitempty"`
 }
 
 // AlertGroup is a list of alert blocks grouped by the same label set.

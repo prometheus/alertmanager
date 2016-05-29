@@ -24,6 +24,8 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/types"
+	"github.com/satori/go.uuid"
 )
 
 // At is a convenience method to allow for declarative syntax of Acceptance
@@ -52,7 +54,7 @@ func Between(start, end float64) Interval {
 
 // TestSilence models a model.Silence with relative times.
 type TestSilence struct {
-	ID               uint64
+	ID               uuid.UUID
 	match            []string
 	matchRE          []string
 	startsAt, endsAt float64
@@ -84,18 +86,18 @@ func (s *TestSilence) MatchRE(v ...string) *TestSilence {
 
 // nativeSilence converts the declared test silence into a regular
 // silence with resolved times.
-func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *model.Silence {
-	nsil := &model.Silence{}
+func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *types.Silence {
+	nsil := &types.Silence{}
 
 	for i := 0; i < len(s.match); i += 2 {
-		nsil.Matchers = append(nsil.Matchers, &model.Matcher{
-			Name:  model.LabelName(s.match[i]),
+		nsil.Matchers = append(nsil.Matchers, &types.Matcher{
+			Name:  s.match[i],
 			Value: s.match[i+1],
 		})
 	}
 	for i := 0; i < len(s.matchRE); i += 2 {
-		nsil.Matchers = append(nsil.Matchers, &model.Matcher{
-			Name:    model.LabelName(s.matchRE[i]),
+		nsil.Matchers = append(nsil.Matchers, &types.Matcher{
+			Name:    s.matchRE[i],
 			Value:   s.matchRE[i+1],
 			IsRegex: true,
 		})
