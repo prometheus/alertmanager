@@ -38,6 +38,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/nats-io/nats"
 )
 
 var (
@@ -76,9 +77,11 @@ type integration interface {
 
 // Build creates a fanout notifier for each receiver.
 func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout {
+	fmt.Printf("Building notifiers - receivers %v+\n", confs)
 	res := map[string]Fanout{}
 
 	filter := func(n integration, c notifierConfig) Notifier {
+		fmt.Printf("integration %s - config %v+\n", n, c)
 		return NotifierFunc(func(ctx context.Context, alerts ...*types.Alert) error {
 			var res []*types.Alert
 
@@ -137,6 +140,11 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		}
 		for i, c := range nc.PushoverConfigs {
 			n := NewPushover(c, tmpl)
+			add(i, n, filter(n, c))
+		}
+		for i, c := range nc.NatsConfigs {
+			fmt.Printf("Creating new NatsConfig...")
+			n := NewNats(c, tmpl)
 			add(i, n, filter(n, c))
 		}
 
@@ -791,6 +799,40 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
 		}
 		return fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
 	}
+	return nil
+}
+
+// Nats implements a Notifier for NATS notifications.
+type Nats struct {
+	conf *config.NatsConfig
+	tmpl *template.Template
+}
+
+// NewPushover returns a new Pushover notifier.
+func NewNats(c *config.NatsConfig, t *template.Template) *Nats {
+	fmt.Printf("NetNats - config %v+ - template %v+\n", c, t)
+	return &Nats{conf: c, tmpl: t}
+}
+
+func (*Nats) name() string { return "nats" }
+
+// Notify implements the Notifier interface.
+func (n *Nats) Notify(ctx context.Context, as ...*types.Alert) error {
+	fmt.Printf("Nats.Notify - ctx %v+ - alerts %v+\n", ctx, as)
+	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+	fmt.Printf("data %v+\n", data)
+	msg, marshalErr := json.Marshal(data)
+	if marshalErr != nil {
+		return marshalErr
+	}
+	fmt.Printf("msg %v+\n", string(msg))
+	nc, ncErr := nats.Connect(n.conf.URL)
+	defer nc.Close()
+	if ncErr != nil {
+		return ncErr
+	}
+	nc.Publish(n.conf.Topic, msg)
+
 	return nil
 }
 

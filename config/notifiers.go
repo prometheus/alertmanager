@@ -104,6 +104,13 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultNatsConfig defines default values for NATS configurations.
+	DefaultNatsConfig = NatsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -350,4 +357,32 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+type NatsConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	URL    	string   `yaml:"url"`
+	Topic	string   `yaml:"topic"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *NatsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	fmt.Printf("NatsConfig.UnmarshalYAML")
+	*c = DefaultNatsConfig
+	type plain NatsConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	fmt.Printf("config %v+\n", c)
+	if c.URL == "" {
+		return fmt.Errorf("missing url in NATS config")
+	}
+	if c.Topic == "" {
+		return fmt.Errorf("missing topic in NATS config")
+	}
+	return checkOverflow(c.XXX, "nats config")
 }
