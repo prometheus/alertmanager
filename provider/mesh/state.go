@@ -21,6 +21,18 @@ type notificationState struct {
 	set map[string]notificationEntry
 }
 
+func newNotificationState() *notificationState {
+	return &notificationState{
+		set: map[string]notificationEntry{},
+	}
+}
+
+func decodeNotificationSet(b []byte) (map[string]notificationEntry, error) {
+	var v map[string]notificationEntry
+	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&v)
+	return v, err
+}
+
 // copy returns a deep copy of the notification state.
 func (s *notificationState) copy() *notificationState {
 	s.mtx.RLock()
