@@ -406,6 +406,7 @@ type Receiver struct {
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
+	NatsConfigs   	 []*NatsConfig      `yaml:"nats_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
