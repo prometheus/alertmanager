@@ -105,6 +105,18 @@ type silenceState struct {
 	set map[uuid.UUID]*types.Silence
 }
 
+func newSilenceState() *silenceState {
+	return &silenceState{
+		set: map[uuid.UUID]*types.Silence{},
+	}
+}
+
+func decodeSilenceSet(b []byte) (map[uuid.UUID]*types.Silence, error) {
+	var v map[uuid.UUID]*types.Silence
+	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&v)
+	return v, err
+}
+
 func (st *silenceState) Encode() [][]byte {
 	st.mtx.RLock()
 	defer st.mtx.RUnlock()
