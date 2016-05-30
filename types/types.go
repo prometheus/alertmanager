@@ -223,6 +223,9 @@ type Silence struct {
 	StartsAt time.Time `json:"startsAt"`
 	EndsAt   time.Time `json:"endsAt"`
 
+	// The last time the silence was updated.
+	UpdatedAt time.Time `json:"updatedAt"`
+
 	// Information about who created the silence for which reason.
 	CreatedBy string `json:"createdBy"`
 	Comment   string `json:"comment,omitempty"`

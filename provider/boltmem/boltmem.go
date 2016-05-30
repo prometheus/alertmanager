@@ -302,6 +302,7 @@ func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 		b := tx.Bucket(bktSilences)
 		// Silences are immutable and we always create a new one.
 		sil.ID = uuid.NewV4()
+		sil.UpdatedAt = time.Now()
 
 		msb, err := json.Marshal(sil)
 		if err != nil {
