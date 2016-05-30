@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/alertmanager/types"
+	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
 )
 
@@ -84,4 +86,70 @@ func (st *notificationState) mergeDelta(set map[string]notificationEntry) *notif
 		}
 	}
 	return &notificationState{set: d}
+}
+
+type silenceState struct {
+	mtx sync.RWMutex
+	set map[uuid.UUID]*types.Silence
+}
+
+func (st *silenceState) Encode() [][]byte {
+	st.mtx.RLock()
+	defer st.mtx.RUnlock()
+
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(&st.set); err != nil {
+		panic(err)
+	}
+	return [][]byte{buf.Bytes()}
+
+}
+
+func (st *silenceState) Merge(other mesh.GossipData) mesh.GossipData {
+	o := other.(*silenceState)
+	o.mtx.RLock()
+	defer o.mtx.RUnlock()
+
+	return st.mergeComplete(o.set)
+}
+
+func (st *silenceState) mergeComplete(set map[uuid.UUID]*types.Silence) *silenceState {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
+
+	for k, v := range set {
+		if prev, ok := st.set[k]; !ok || prev.UpdatedAt.Before(v.UpdatedAt) {
+			st.set[k] = v
+		}
+	}
+	return st
+}
+
+func (st *silenceState) mergeDelta(set map[uuid.UUID]*types.Silence) *silenceState {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
+
+	d := map[uuid.UUID]*types.Silence{}
+
+	for k, v := range set {
+		if prev, ok := st.set[k]; !ok || prev.UpdatedAt.Before(v.UpdatedAt) {
+			st.set[k] = v
+			d[k] = v
+		}
+
+	}
+	return &silenceState{set: d}
+}
+
+func (s *silenceState) copy() *silenceState {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	res := &silenceState{
+		set: make(map[uuid.UUID]*types.Silence, len(s.set)),
+	}
+	for k, v := range s.set {
+		res.set[k] = v
+	}
+	return res
 }
