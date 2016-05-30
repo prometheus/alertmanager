@@ -2,10 +2,13 @@ package mesh
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
 )
 
@@ -89,4 +92,142 @@ func (ni *NotificationInfos) Get(dest string, fps ...model.Fingerprint) ([]*type
 		}
 	}
 	return res, nil
+}
+
+type Silences struct {
+	st     *silenceState
+	mk     types.Marker
+	send   mesh.Gossip
+	logger log.Logger
+}
+
+func NewSilences(mk types.Marker, logger log.Logger) *Silences {
+	return &Silences{
+		st:     newSilenceState(),
+		mk:     mk,
+		logger: logger,
+	}
+}
+
+func (s *Silences) Mutes(lset model.LabelSet) bool {
+	s.st.mtx.RLock()
+	defer s.st.mtx.RUnlock()
+
+	for _, sil := range s.st.set {
+		if sil.Mutes(lset) {
+			s.mk.SetSilenced(lset.Fingerprint(), sil.ID)
+			return true
+		}
+	}
+
+	s.mk.SetSilenced(lset.Fingerprint())
+	return false
+}
+
+func (s *Silences) All() ([]*types.Silence, error) {
+	s.st.mtx.RLock()
+	defer s.st.mtx.RUnlock()
+	res := make([]*types.Silence, 0, len(s.st.set))
+
+	for _, sil := range s.st.set {
+		res = append(res, sil)
+	}
+	return res, nil
+}
+
+func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
+	if sil.ID == uuid.Nil {
+		sil.ID = uuid.NewV4()
+	}
+	sil.UpdatedAt = time.Now()
+
+	update := &silenceState{
+		set: map[uuid.UUID]*model.Silence{
+			sil.ID: sil,
+		},
+	}
+
+	s.st.Merge(update)
+	s.send.GossipBroadcast(update)
+
+	return sil.ID, nil
+}
+
+func (s *Silences) Del(id uuid.UUID) error {
+	s.st.mtx.RLock()
+	sil, ok := s.st.set[id]
+	s.st.mtx.RUnlock()
+	if !ok {
+		return provider.ErrNotFound
+	}
+	now := time.Now()
+	if sil.EndsAt.Before(now) {
+		return fmt.Errorf("silence already ended")
+	}
+	// Silences are immutable by contract so we create a completely
+	// new object instead.
+	newSil := *sil
+	newSil.UpdatedAt = now
+	newSil.EndsAt = now
+
+	if err := newSil.Init(); err != nil {
+		return fmt.Errorf("silence init: %s", err)
+	}
+	update := &silenceState{
+		set: map[uuid.UUID]*types.Silence{
+			newSil.ID: &newSil,
+		},
+	}
+	s.st.Merge(update)
+	s.send.GossipBroadcast(update)
+
+	return nil
+}
+
+func (s *Silences) Get(id uuid.UUID) (*types.Silence, error) {
+	s.st.mtx.RLock()
+	defer s.st.mtx.RUnlock()
+
+	sil, ok := s.st.set[id]
+	if !ok {
+		return nil, provider.ErrNotFound
+	}
+	// TODO(fabxc): ensure that silence objects are never modified; just replaced.
+	return sil, nil
+}
+
+func (s *Silences) Gossip() mesh.GossipData {
+	return s.st.copy()
+}
+
+func (s *Silences) OnGossip(b []byte) (mesh.GossipData, error) {
+	set, err := decodeSilenceSet(b)
+	if err != nil {
+		return nil, err
+	}
+	d := s.st.mergeDelta(set)
+	// The delta is newly created and we are the only one holding it so far.
+	// Thus, we can access without locking.
+	if len(d.set) == 0 {
+		return nil, nil // per OnGossip contract
+	}
+	return d, nil
+}
+
+func (s *Silences) OnGossipBroadcast(_ mesh.PeerName, b []byte) (mesh.GossipData, error) {
+	set, err := decodeSilenceSet(b)
+	if err != nil {
+		return nil, err
+	}
+	d := s.st.mergeDelta(set)
+	return d, nil
+}
+
+func (s *Silences) OnGossipUnicast(_ mesh.PeerName, b []byte) error {
+	set, err := decodeSilenceSet(b)
+	if err != nil {
+		return err
+	}
+	s.st.mergeComplete(set)
+	return nil
 }
