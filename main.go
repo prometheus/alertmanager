@@ -141,7 +141,7 @@ func main() {
 		return n
 	}
 
-	amURL, err := extURL(*externalURL)
+	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func main() {
 	api.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
 	log.Infoln("Listening on", *listenAddress)
-	go listen(router)
+	go listen(*listenAddress, router)
 
 	var (
 		hup      = make(chan os.Signal)
@@ -223,21 +223,21 @@ func main() {
 	log.Infoln("Received SIGTERM, exiting gracefully...")
 }
 
-func extURL(s string) (*url.URL, error) {
-	if s == "" {
+func extURL(listen, external string) (*url.URL, error) {
+	if external == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
 			return nil, err
 		}
-		_, port, err := net.SplitHostPort(*listenAddress)
+		_, port, err := net.SplitHostPort(listen)
 		if err != nil {
 			return nil, err
 		}
 
-		s = fmt.Sprintf("http://%s:%s/", hostname, port)
+		external = fmt.Sprintf("http://%s:%s/", hostname, port)
 	}
 
-	u, err := url.Parse(s)
+	u, err := url.Parse(external)
 	if err != nil {
 		return nil, err
 	}
@@ -251,8 +251,8 @@ func extURL(s string) (*url.URL, error) {
 	return u, nil
 }
 
-func listen(router *route.Router) {
-	if err := http.ListenAndServe(*listenAddress, router); err != nil {
+func listen(listen string, router *route.Router) {
+	if err := http.ListenAndServe(listen, router); err != nil {
 		log.Fatal(err)
 	}
 }
