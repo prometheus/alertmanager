@@ -125,6 +125,9 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 	am.UpdateConfig(conf)
 
 	am.addr = freeAddress()
+	am.mesh = freeAddress()
+	am.hwaddr = "00:00:00:00:00:01"
+	am.nickname = "1"
 
 	t.Logf("AM on %s", am.addr)
 
@@ -225,11 +228,12 @@ type Alertmanager struct {
 	t    *AcceptanceTest
 	opts *AcceptanceOpts
 
-	addr     string
-	client   alertmanager.Client
-	cmd      *exec.Cmd
-	confFile *os.File
-	dir      string
+	addr                   string
+	mesh, hwaddr, nickname string
+	client                 alertmanager.Client
+	cmd                    *exec.Cmd
+	confFile               *os.File
+	dir                    string
 
 	errc chan<- error
 }
@@ -241,6 +245,9 @@ func (am *Alertmanager) Start() {
 		"-log.level", "debug",
 		"-web.listen-address", am.addr,
 		"-storage.path", am.dir,
+		"-mesh.listen-address", am.mesh,
+		"-mesh.hardware-address", am.hwaddr,
+		"-mesh.nickname", am.nickname,
 	)
 
 	if am.cmd == nil {

@@ -87,15 +87,18 @@ receivers:
 
 	// Test against a bug which ocurrec after a restart. The previous occurrence of
 	// the alert was sent rather than the most recent one.
-	at.Do(At(6.7), func() {
-		am.Terminate()
-		am.Start()
-	})
+	//
+	// XXX(fabxc) disabled as notification info won't be persisted. Thus, with a mesh
+	// notifier we lose the state in this single-node setup.
+	//at.Do(At(6.7), func() {
+	//	am.Terminate()
+	//	am.Start()
+	//})
 
 	// On restart the alert is flushed right away as the group_wait has already passed.
 	// However, it must be caught in the deduplication stage.
 	// The next attempt will be 1s later and won't be filtered in deduping.
-	co.Want(Between(7.7, 8), Alert("alertname", "test").Active(5.3))
+	//co.Want(Between(7.7, 8), Alert("alertname", "test").Active(5.3))
 
 	at.Run()
 }

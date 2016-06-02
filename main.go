@@ -16,12 +16,16 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
+	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"path"
+	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -30,22 +34,14 @@ import (
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/weaveworks/mesh"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/boltmem"
+	meshprov "github.com/prometheus/alertmanager/provider/mesh"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-)
-
-var (
-	showVersion = flag.Bool("version", false, "Print version information.")
-
-	configFile = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
-	dataDir    = flag.String("storage.path", "data/", "Base path for data storage.")
-
-	externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
-	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 )
 
 var (
@@ -68,6 +64,21 @@ func init() {
 }
 
 func main() {
+	peers := &stringset{}
+	var (
+		showVersion = flag.Bool("version", false, "Print version information.")
+
+		configFile = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
+		dataDir    = flag.String("storage.path", "data/", "Base path for data storage.")
+
+		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
+		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
+
+		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
+		hwaddr     = flag.String("mesh.hardware-address", mustHardwareAddr(), "MAC address, i.e. mesh peer ID")
+		nickname   = flag.String("mesh.nickname", mustHostname(), "peer nickname")
+	)
+	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
 	flag.Parse()
 
 	if *showVersion {
@@ -83,25 +94,26 @@ func main() {
 		log.Fatal(err)
 	}
 
+	mrouter := initMesh(*meshListen, *hwaddr, *nickname)
+
+	ni := meshprov.NewNotificationInfos(log.Base())
+	ni.Register(mrouter.NewGossip("notify_info", ni))
+
 	marker := types.NewMarker()
+
+	silences := meshprov.NewSilences(marker, log.Base())
+	silences.Register(mrouter.NewGossip("silences", silences))
+
+	mrouter.Start()
+	defer mrouter.Stop()
+
+	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
 	alerts, err := boltmem.NewAlerts(*dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer alerts.Close()
-
-	notifies, err := boltmem.NewNotificationInfo(*dataDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer notifies.Close()
-
-	silences, err := boltmem.NewSilences(*dataDir, marker)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer silences.Close()
 
 	var (
 		inhibitor *Inhibitor
@@ -123,7 +135,7 @@ func main() {
 			for i, n := range fo {
 				n = notify.Retry(n)
 				n = notify.Log(n, log.With("step", "retry"))
-				n = notify.Dedup(notifies, n)
+				n = notify.Dedup(ni, n)
 				n = notify.Log(n, log.With("step", "dedup"))
 
 				fo[i] = n
@@ -211,6 +223,34 @@ func main() {
 	log.Infoln("Received SIGTERM, exiting gracefully...")
 }
 
+func initMesh(addr, hwaddr, nickname string) *mesh.Router {
+	host, portStr, err := net.SplitHostPort(addr)
+
+	if err != nil {
+		log.Fatalf("mesh address: %s: %v", addr, err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		log.Fatalf("mesh address: %s: %v", addr, err)
+	}
+
+	name, err := mesh.PeerNameFromString(hwaddr)
+	if err != nil {
+		log.Fatalf("%s: %v", hwaddr, err)
+	}
+
+	return mesh.NewRouter(mesh.Config{
+		Host:               host,
+		Port:               port,
+		ProtocolMinVersion: mesh.ProtocolMinVersion,
+		Password:           []byte(""),
+		ConnLimit:          64,
+		PeerDiscovery:      true,
+		TrustedSubnets:     []*net.IPNet{},
+	}, name, nickname, mesh.NullOverlay{}, stdlog.New(ioutil.Discard, "", 0))
+
+}
+
 func extURL(listen, external string) (*url.URL, error) {
 	if external == "" {
 		hostname, err := os.Hostname()
@@ -243,4 +283,45 @@ func listen(listen string, router *route.Router) {
 	if err := http.ListenAndServe(listen, router); err != nil {
 		log.Fatal(err)
 	}
+}
+
+type stringset map[string]struct{}
+
+func (ss stringset) Set(value string) error {
+	ss[value] = struct{}{}
+	return nil
+}
+
+func (ss stringset) String() string {
+	return strings.Join(ss.slice(), ",")
+}
+
+func (ss stringset) slice() []string {
+	slice := make([]string, 0, len(ss))
+	for k := range ss {
+		slice = append(slice, k)
+	}
+	sort.Strings(slice)
+	return slice
+}
+
+func mustHardwareAddr() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		panic(err)
+	}
+	for _, iface := range ifaces {
+		if s := iface.HardwareAddr.String(); s != "" {
+			return s
+		}
+	}
+	panic("no valid network interfaces")
+}
+
+func mustHostname() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	return hostname
 }
