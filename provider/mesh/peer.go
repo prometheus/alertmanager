@@ -25,6 +25,10 @@ func NewNotificationInfos(logger log.Logger) *NotificationInfos {
 	}
 }
 
+func (ni *NotificationInfos) Register(g mesh.Gossip) {
+	ni.send = g
+}
+
 func (ni *NotificationInfos) Gossip() mesh.GossipData {
 	return ni.st.copy()
 }
@@ -109,6 +113,10 @@ func NewSilences(mk types.Marker, logger log.Logger) *Silences {
 	}
 }
 
+func (s *Silences) Register(g mesh.Gossip) {
+	s.send = g
+}
+
 func (s *Silences) Mutes(lset model.LabelSet) bool {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
@@ -142,7 +150,7 @@ func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 	sil.UpdatedAt = time.Now()
 
 	update := &silenceState{
-		set: map[uuid.UUID]*model.Silence{
+		set: map[uuid.UUID]*types.Silence{
 			sil.ID: sil,
 		},
 	}
