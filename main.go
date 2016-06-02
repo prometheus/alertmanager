@@ -137,6 +137,8 @@ func main() {
 				n = notify.Log(n, log.With("step", "retry"))
 				n = notify.Dedup(ni, n)
 				n = notify.Log(n, log.With("step", "dedup"))
+				n = notify.Wait(meshWait(mrouter, 5*time.Second), n)
+				n = notify.Log(n, log.With("step", "wait"))
 
 				fo[i] = n
 			}
@@ -233,6 +235,37 @@ func main() {
 	<-term
 
 	log.Infoln("Received SIGTERM, exiting gracefully...")
+}
+
+type peerDescSlice []mesh.PeerDescription
+
+func (s peerDescSlice) Len() int           { return len(s) }
+func (s peerDescSlice) Less(i, j int) bool { return s[i].UID < s[j].UID }
+func (s peerDescSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// meshWait returns a function that inspects the current peer state and returns
+// a duration of one base timeout for each  peer with a higher ID than ourselves.
+func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
+	return func() time.Duration {
+		self := r.Peers.Fetch(r.Ourself.Name)
+
+		var peers peerDescSlice
+		for _, desc := range r.Peers.Descriptions() {
+			peers = append(peers, desc)
+		}
+		sort.Sort(peers)
+
+		k := 0
+		for _, desc := range peers {
+			if desc.Name == self.Name {
+				break
+			}
+			k++
+		}
+		log.Warnf("timeout multiplier: %d", k)
+
+		return time.Duration(k) * timeout
+	}
 }
 
 func initMesh(addr, hwaddr, nickname string) *mesh.Router {
