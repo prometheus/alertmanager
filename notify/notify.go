@@ -294,6 +294,27 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 	return n.notifies.Set(newNotifies...)
 }
 
+type WaitNotifier struct {
+	wait     func() time.Duration
+	notifier Notifier
+}
+
+func Wait(f func() time.Duration, n Notifier) *WaitNotifier {
+	return &WaitNotifier{
+		wait:     f,
+		notifier: n,
+	}
+}
+
+func (n *WaitNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	select {
+	case <-time.After(n.wait()):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return n.notifier.Notify(ctx, alerts...)
+}
+
 // Router dispatches the alerts to one of a set of
 // named notifiers based on the name value provided in the context.
 type Router map[string]Notifier
