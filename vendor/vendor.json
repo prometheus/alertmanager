@@ -113,6 +113,48 @@
 			"revisionTime": "2015-09-15T15:36:53-04:00"
 		},
 		{
+			"checksumSHA1": "cKNzpMpci3WUAzXpe+tVnBv2cjE=",
+			"path": "github.com/satori/go.uuid",
+			"revision": "f9ab0dce87d815821e221626b772e3475a0d2749",
+			"revisionTime": "2016-03-24T11:22:44Z"
+		},
+		{
+			"checksumSHA1": "yDaVpVkVvG/i7L0K3WvCjhj3OUE=",
+			"path": "github.com/weaveworks/mesh",
+			"revision": "02ce71e4bf54aa0f82d2c89b3911de8047157f37",
+			"revisionTime": "2016-05-04T12:00:27Z"
+		},
+		{
+			"checksumSHA1": "h+pFYiRHBogczS8/F1NoN3Ata44=",
+			"path": "golang.org/x/crypto/curve25519",
+			"revision": "d68c3ecb62c850b645dc072a8d78006286bf81ca",
+			"revisionTime": "2016-04-06T20:15:54Z"
+		},
+		{
+			"checksumSHA1": "hl0ImqBoUBVNVmz5ImX6YVBV9JU=",
+			"path": "golang.org/x/crypto/nacl/box",
+			"revision": "d68c3ecb62c850b645dc072a8d78006286bf81ca",
+			"revisionTime": "2016-04-06T20:15:54Z"
+		},
+		{
+			"checksumSHA1": "UxdMiKUm6Ajczi6BRNkrPvoAPWQ=",
+			"path": "golang.org/x/crypto/nacl/secretbox",
+			"revision": "d68c3ecb62c850b645dc072a8d78006286bf81ca",
+			"revisionTime": "2016-04-06T20:15:54Z"
+		},
+		{
+			"checksumSHA1": "jzb3hLJ0q13oPRct3Zclhnaa94w=",
+			"path": "golang.org/x/crypto/poly1305",
+			"revision": "d68c3ecb62c850b645dc072a8d78006286bf81ca",
+			"revisionTime": "2016-04-06T20:15:54Z"
+		},
+		{
+			"checksumSHA1": "rpD48Mn9nOFgc5UnDjAHAodxHo4=",
+			"path": "golang.org/x/crypto/salsa20/salsa",
+			"revision": "d68c3ecb62c850b645dc072a8d78006286bf81ca",
+			"revisionTime": "2016-04-06T20:15:54Z"
+		},
+		{
 			"path": "golang.org/x/net/context",
 			"revision": "db8e4de5b2d6653f66aea53094624468caad15d2",
 			"revisionTime": "2015-08-24T18:07:02+02:00"
