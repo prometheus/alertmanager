@@ -227,7 +227,7 @@ type MockWebhook struct {
 }
 
 func NewWebhook(c *Collector) *MockWebhook {
-	l, err := net.Listen("tcp4", ":0")
+	l, err := net.Listen("tcp4", "localhost:0")
 	if err != nil {
 		// TODO(fabxc): if shutdown of mock destinations ever becomes a concern
 		// we want to shut them down after test completion. Then we might want to
