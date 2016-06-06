@@ -204,8 +204,8 @@ func main() {
 		}*/
 		for {
 			select {
-			case <- hup:
-			case <- api.Reload():
+			case <-hup:
+			case <-api.Reload():
 			}
 			reload()
 		}

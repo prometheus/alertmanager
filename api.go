@@ -75,6 +75,7 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 		silences: silences,
 		groups:   gf,
 		uptime:   time.Now(),
+		reloadCh:    make(chan struct{}),
 	}
 }
 
