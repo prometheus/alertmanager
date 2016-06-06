@@ -193,15 +193,15 @@ func main() {
 
 	var (
 		hup  = make(chan os.Signal)
+		hupReady = make(chan bool)
 		term = make(chan os.Signal)
 	)
+
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		/*for range hup {
-			reload()
-		}*/
+		<-hupReady
 		for {
 			select {
 			case <-hup:
@@ -210,6 +210,9 @@ func main() {
 			reload()
 		}
 	}()
+
+	// Wait for reload or termination signals.
+	close(hupReady) // Unblock SIGHUP handler.
 
 	<-term
 
