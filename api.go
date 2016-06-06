@@ -58,6 +58,7 @@ type API struct {
 	config         string
 	resolveTimeout time.Duration
 	uptime         time.Time
+	reloadCh       chan struct{}
 
 	groups func() AlertOverview
 
@@ -74,6 +75,7 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 		silences: silences,
 		groups:   gf,
 		uptime:   time.Now(),
+		reloadCh: make(chan struct{}),
 	}
 }
 
@@ -81,6 +83,9 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 // in the given router.
 func (api *API) Register(r *route.Router) {
 	ihf := prometheus.InstrumentHandlerFunc
+
+	// Register reload API for reload configuration.
+	r.Post("/-/reload", api.reload)
 
 	// Register legacy forwarder for alert pushing.
 	r.Post("/alerts", ihf("legacy_add_alerts", api.legacyAddAlerts))
@@ -107,6 +112,11 @@ func (api *API) Update(config string, resolveTimeout time.Duration) {
 
 	api.config = config
 	api.resolveTimeout = resolveTimeout
+}
+
+// Reload returns the receive-only channel that signals configuration reload requests.
+func (api *API) Reload() <-chan struct{} {
+	return api.reloadCh
 }
 
 type errorType string
@@ -371,6 +381,11 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, sils)
+}
+
+func (api *API) reload(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Reloading configuration file...")
+	api.reloadCh <- struct{}{}
 }
 
 type status string
