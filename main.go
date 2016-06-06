@@ -199,7 +199,14 @@ func main() {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		for range hup {
+		/*for range hup {
+			reload()
+		}*/
+		for {
+			select {
+			case <- hup:
+			case <- api.Reload():
+			}
 			reload()
 		}
 	}()

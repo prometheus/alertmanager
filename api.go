@@ -58,6 +58,7 @@ type API struct {
 	config         string
 	resolveTimeout time.Duration
 	uptime         time.Time
+	reloadCh     chan struct{}
 
 	groups func() AlertOverview
 
@@ -98,6 +99,8 @@ func (api *API) Register(r *route.Router) {
 	r.Post("/silences", ihf("add_silence", api.addSilence))
 	r.Get("/silence/:sid", ihf("get_silence", api.getSilence))
 	r.Del("/silence/:sid", ihf("del_silence", api.delSilence))
+
+	r.Post("/-/reload", api.reload)
 }
 
 // Update sets the configuration string to a new value.
@@ -107,6 +110,12 @@ func (api *API) Update(config string, resolveTimeout time.Duration) {
 
 	api.config = config
 	api.resolveTimeout = resolveTimeout
+}
+
+
+// Reload returns the receive-only channel that signals configuration reload requests.
+func (api *API) Reload() <-chan struct{} {
+	return api.reloadCh
 }
 
 type errorType string
@@ -364,6 +373,11 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, sils)
+}
+
+func (api *API) reload(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Reloading configuration file...")
+	api.reloadCh <- struct{}{}
 }
 
 type status string
