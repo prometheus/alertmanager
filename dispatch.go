@@ -205,7 +205,7 @@ func (d *Dispatcher) Stop() {
 // Returns false iff notifying failed.
 type notifyFunc func(context.Context, ...*types.Alert) bool
 
-// processAlert determins in which aggregation group the alert falls
+// processAlert determines in which aggregation group the alert falls
 // and insert it.
 func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	group := model.LabelSet{}
