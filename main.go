@@ -194,17 +194,27 @@ func main() {
 	go listen(router)
 
 	var (
-		hup  = make(chan os.Signal)
-		term = make(chan os.Signal)
+		hup      = make(chan os.Signal)
+		hupReady = make(chan bool)
+		term     = make(chan os.Signal)
 	)
+
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		for range hup {
+		<-hupReady
+		for {
+			select {
+			case <-hup:
+			case <-api.Reload():
+			}
 			reload()
 		}
 	}()
+
+	// Wait for reload or termination signals.
+	close(hupReady) // Unblock SIGHUP handler.
 
 	<-term
 
