@@ -247,8 +247,6 @@ func (s peerDescSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // a duration of one base timeout for each  peer with a higher ID than ourselves.
 func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	return func() time.Duration {
-		self := r.Peers.Fetch(r.Ourself.Name)
-
 		var peers peerDescSlice
 		for _, desc := range r.Peers.Descriptions() {
 			peers = append(peers, desc)
@@ -257,7 +255,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 
 		k := 0
 		for _, desc := range peers {
-			if desc.Name == self.Name {
+			if desc.Self {
 				break
 			}
 			k++
