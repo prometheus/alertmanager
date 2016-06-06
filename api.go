@@ -84,6 +84,9 @@ func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertO
 func (api *API) Register(r *route.Router) {
 	ihf := prometheus.InstrumentHandlerFunc
 
+	// Register reload API for reload configuration.
+	r.Post("/-/reload", api.reload)
+
 	// Register legacy forwarder for alert pushing.
 	r.Post("/alerts", ihf("legacy_add_alerts", api.legacyAddAlerts))
 
@@ -100,8 +103,6 @@ func (api *API) Register(r *route.Router) {
 	r.Post("/silences", ihf("add_silence", api.addSilence))
 	r.Get("/silence/:sid", ihf("get_silence", api.getSilence))
 	r.Del("/silence/:sid", ihf("del_silence", api.delSilence))
-
-	r.Post("/-/reload", api.reload)
 }
 
 // Update sets the configuration string to a new value.
