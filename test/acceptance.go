@@ -86,7 +86,7 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 func freeAddress() string {
 	// Let the OS allocate a free address, close it and hope
 	// it is still free when starting Alertmanager.
-	l, err := net.Listen("tcp4", ":0")
+	l, err := net.Listen("tcp4", "localhost:0")
 	if err != nil {
 		panic(err)
 	}
