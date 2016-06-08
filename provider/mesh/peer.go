@@ -67,7 +67,7 @@ func (ni *NotificationInfos) OnGossipUnicast(_ mesh.PeerName, b []byte) error {
 func (ni *NotificationInfos) Set(ns ...*types.NotifyInfo) error {
 	set := map[string]notificationEntry{}
 	for _, n := range ns {
-		k := fmt.Sprintf("%x:%s", n.Alert, n.Receiver)
+		k := fmt.Sprintf("%s:%s", n.Alert, n.Receiver)
 		set[k] = notificationEntry{
 			Resolved:  n.Resolved,
 			Timestamp: n.Timestamp,
