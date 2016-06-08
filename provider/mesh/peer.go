@@ -80,14 +80,14 @@ func (ni *NotificationInfos) Set(ns ...*types.NotifyInfo) error {
 	return nil
 }
 
-func (ni *NotificationInfos) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
+func (ni *NotificationInfos) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
 	res := make([]*types.NotifyInfo, 0, len(fps))
 	for _, fp := range fps {
-		k := fmt.Sprintf("%x:%s", fp, dest)
+		k := fmt.Sprintf("%s:%s", fp, recv)
 		if e, ok := ni.st.set[k]; ok {
 			res = append(res, &types.NotifyInfo{
 				Alert:     fp,
-				Receiver:  dest,
+				Receiver:  recv,
 				Resolved:  e.Resolved,
 				Timestamp: e.Timestamp,
 			})

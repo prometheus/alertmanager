@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/model"
 	"github.com/weaveworks/mesh"
 )
 
@@ -234,6 +235,66 @@ func TestNotificationInfosSet(t *testing.T) {
 		if have := tg.updates[0].(*notificationState).set; !reflect.DeepEqual(have, c.update) {
 			t.Errorf("Wrong gossip update %v, expected %v", have, c.update)
 			continue
+		}
+	}
+}
+
+func TestNotificationInfosGet(t *testing.T) {
+	var (
+		t0 = time.Now()
+		t1 = t0.Add(time.Minute)
+	)
+	type query struct {
+		recv string
+		fps  []model.Fingerprint
+		want []*types.NotifyInfo
+	}
+	cases := []struct {
+		state   map[string]notificationEntry
+		queries []query
+	}{
+		{
+			state: map[string]notificationEntry{
+				"0000000000000010:recv1": {true, t1},
+				"0000000000000030:recv1": {true, t1},
+				"0000000000000010:recv2": {false, t1},
+				"0000000000000020:recv2": {false, t0},
+			},
+			queries: []query{
+				{
+					recv: "recv1",
+					fps:  []model.Fingerprint{0x1000, 0x10, 0x20},
+					want: []*types.NotifyInfo{
+						nil,
+						{
+							Alert:     0x10,
+							Receiver:  "recv1",
+							Resolved:  true,
+							Timestamp: t1,
+						},
+						nil,
+					},
+				},
+				{
+					recv: "unknown",
+					fps:  []model.Fingerprint{0x10, 0x1000},
+					want: []*types.NotifyInfo{nil, nil},
+				},
+			},
+		},
+	}
+	for _, c := range cases {
+		ni := NewNotificationInfos(log.Base())
+		ni.st = &notificationState{set: c.state}
+
+		for _, q := range c.queries {
+			have, err := ni.Get(q.recv, q.fps...)
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
+			if !reflect.DeepEqual(have, q.want) {
+				t.Errorf("%v %v expected result %v, got %v", q.recv, q.fps, q.want, have)
+			}
 		}
 	}
 }
