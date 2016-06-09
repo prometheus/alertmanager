@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
 )
 
@@ -295,6 +297,85 @@ func TestNotificationInfosGet(t *testing.T) {
 			if !reflect.DeepEqual(have, q.want) {
 				t.Errorf("%v %v expected result %v, got %v", q.recv, q.fps, q.want, have)
 			}
+		}
+	}
+}
+
+func TestSilencesSet(t *testing.T) {
+	var (
+		t0  = time.Now()
+		t1  = t0.Add(10 * time.Minute)
+		now = time.Now()
+
+		id1 = uuid.NewV4()
+
+		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
+	)
+	cases := []struct {
+		input  *types.Silence
+		update map[uuid.UUID]*types.Silence
+		fail   bool
+	}{
+		{
+			// Set an invalid silence.
+			input: &types.Silence{},
+			fail:  true,
+		},
+		{
+			// Set a silence including ID.
+			input: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  t0,
+				EndsAt:    t1,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			update: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:        id1,
+					Matchers:  matchers,
+					StartsAt:  t0,
+					EndsAt:    t1,
+					UpdatedAt: now,
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+		},
+	}
+	for i, c := range cases {
+		t.Logf("Test case %d", i)
+
+		s := NewSilences(nil, log.Base())
+		tg := &testGossip{}
+		s.Register(tg)
+		s.st.now = func() time.Time { return now }
+
+		beforeID := c.input.ID
+
+		uid, err := s.Set(c.input)
+		if err != nil && c.fail {
+			if c.fail {
+				continue
+			}
+			t.Errorf("Unexpected error: %s", err)
+			continue
+		}
+		if c.fail {
+			t.Errorf("Expected error but got none")
+			continue
+		}
+
+		if beforeID != uuid.Nil && uid != c.input.ID {
+			t.Errorf("Silence ID unexpectedly changed")
+			continue
+		}
+
+		// Verify the update propagated.
+		if have := tg.updates[0].(*silenceState).m; !reflect.DeepEqual(have, c.update) {
+			t.Errorf("Update did not match")
+			t.Errorf("%s", pretty.Compare(have, c.update))
 		}
 	}
 }
