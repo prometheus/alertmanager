@@ -292,17 +292,6 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// if sil.CreatedAt.IsZero() {
-	//	sil.CreatedAt = time.Now()
-	// }
-
-	if err := sil.Validate(); err != nil {
-		respondError(w, apiError{
-			typ: errorBadData,
-			err: err,
-		}, nil)
-		return
-	}
 	if err := sil.Init(); err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
@@ -429,7 +418,7 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	if err != nil {
 		return
 	}
-	log.Errorf("api error: %v", apiErr)
+	log.Errorf("api error: %s", apiErr)
 
 	w.Write(b)
 }
