@@ -16,6 +16,7 @@ package types
 import (
 	"fmt"
 	"regexp"
+	"sort"
 
 	"github.com/prometheus/common/model"
 )
@@ -86,7 +87,47 @@ func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 }
 
 // Matchers provides the Match and Fingerprint methods for a slice of Matchers.
+// Matchers must always be sorted.
 type Matchers []*Matcher
+
+// NewMatchers returns the given Matchers sorted.
+func NewMatchers(ms ...*Matcher) Matchers {
+	m := Matchers(ms)
+	sort.Sort(m)
+	return m
+}
+
+func (ms Matchers) Len() int      { return len(ms) }
+func (ms Matchers) Swap(i, j int) { ms[i], ms[j] = ms[j], ms[i] }
+
+func (ms Matchers) Less(i, j int) bool {
+	if ms[i].Name > ms[j].Name {
+		return false
+	}
+	if ms[i].Name < ms[j].Name {
+		return true
+	}
+	if ms[i].Value > ms[j].Value {
+		return false
+	}
+	if ms[i].Value < ms[j].Value {
+		return true
+	}
+	return !ms[i].IsRegex && ms[j].IsRegex
+}
+
+// Equal returns whether both Matchers are equal.
+func (ms Matchers) Equal(o Matchers) bool {
+	if len(ms) != len(o) {
+		return false
+	}
+	for i, a := range ms {
+		if *a != *o[i] {
+			return false
+		}
+	}
+	return true
+}
 
 // Match checks whether all matchers are fulfilled against the given label set.
 func (ms Matchers) Match(lset model.LabelSet) bool {
