@@ -3,6 +3,7 @@ package mesh
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"sync"
 	"time"
 
@@ -102,12 +103,14 @@ func (st *notificationState) mergeDelta(set map[string]notificationEntry) *notif
 
 type silenceState struct {
 	mtx sync.RWMutex
-	set map[uuid.UUID]*types.Silence
+	m   map[uuid.UUID]*types.Silence
+	now func() time.Time // now function for test injection
 }
 
 func newSilenceState() *silenceState {
 	return &silenceState{
-		set: map[uuid.UUID]*types.Silence{},
+		m:   map[uuid.UUID]*types.Silence{},
+		now: time.Now,
 	}
 }
 
@@ -122,11 +125,51 @@ func (st *silenceState) Encode() [][]byte {
 	defer st.mtx.RUnlock()
 
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(&st.set); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(&st.m); err != nil {
 		panic(err)
 	}
 	return [][]byte{buf.Bytes()}
+}
 
+// silenceModAllowed checks whether silence a may be changed to silence b.
+// Returns an error stating the reason if not.
+func (st *silenceState) silenceModAllowed(a, b *types.Silence) error {
+	if !b.StartsAt.Equal(a.StartsAt) {
+		return fmt.Errorf("silence start time must not be modified")
+	}
+	now := st.now()
+	if a.EndsAt.Before(now) {
+		return fmt.Errorf("end time must not be modified for elapsed silence")
+	}
+	if b.EndsAt.Before(now) {
+		return fmt.Errorf("end time must not be in the past")
+	}
+	if !a.Matchers.Equal(b.Matchers) {
+		return fmt.Errorf("matchers must not be modified")
+	}
+	return nil
+}
+
+func (st *silenceState) set(s *types.Silence) error {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
+
+	s.UpdatedAt = st.now()
+
+	if err := s.Validate(); err != nil {
+		return err
+	}
+
+	prev, ok := st.m[s.ID]
+	if !ok {
+		st.m[s.ID] = s
+		return nil
+	}
+	if err := st.silenceModAllowed(prev, s); err != nil {
+		return err
+	}
+	st.m[s.ID] = s
+	return nil
 }
 
 func (st *silenceState) Merge(other mesh.GossipData) mesh.GossipData {
@@ -134,7 +177,7 @@ func (st *silenceState) Merge(other mesh.GossipData) mesh.GossipData {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
-	return st.mergeComplete(o.set)
+	return st.mergeComplete(o.m)
 }
 
 func (st *silenceState) mergeComplete(set map[uuid.UUID]*types.Silence) *silenceState {
@@ -142,8 +185,8 @@ func (st *silenceState) mergeComplete(set map[uuid.UUID]*types.Silence) *silence
 	defer st.mtx.Unlock()
 
 	for k, v := range set {
-		if prev, ok := st.set[k]; !ok || prev.UpdatedAt.Before(v.UpdatedAt) {
-			st.set[k] = v
+		if prev, ok := st.m[k]; !ok || prev.UpdatedAt.Before(v.UpdatedAt) {
+			st.m[k] = v
 		}
 	}
 	return st
@@ -156,13 +199,13 @@ func (st *silenceState) mergeDelta(set map[uuid.UUID]*types.Silence) *silenceSta
 	d := map[uuid.UUID]*types.Silence{}
 
 	for k, v := range set {
-		if prev, ok := st.set[k]; !ok || prev.UpdatedAt.Before(v.UpdatedAt) {
-			st.set[k] = v
+		if prev, ok := st.m[k]; !ok || prev.UpdatedAt.Before(v.UpdatedAt) {
+			st.m[k] = v
 			d[k] = v
 		}
 
 	}
-	return &silenceState{set: d}
+	return &silenceState{m: d}
 }
 
 func (s *silenceState) copy() *silenceState {
@@ -170,10 +213,10 @@ func (s *silenceState) copy() *silenceState {
 	defer s.mtx.RUnlock()
 
 	res := &silenceState{
-		set: make(map[uuid.UUID]*types.Silence, len(s.set)),
+		m: make(map[uuid.UUID]*types.Silence, len(s.m)),
 	}
-	for k, v := range s.set {
-		res.set[k] = v
+	for k, v := range s.m {
+		res.m[k] = v
 	}
 	return res
 }
