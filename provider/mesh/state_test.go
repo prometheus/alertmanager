@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/satori/go.uuid"
 )
@@ -145,6 +146,107 @@ func TestSilenceStateSet(t *testing.T) {
 			t.Errorf("Unexpected final state")
 			t.Errorf("%s", pretty.Compare(s.m, c.final))
 			continue
+		}
+	}
+}
+
+func TestSilenceStateDel(t *testing.T) {
+	var (
+		now      = time.Now()
+		id1      = uuid.NewV4()
+		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
+	)
+	cases := []struct {
+		initial map[uuid.UUID]*types.Silence
+		final   map[uuid.UUID]*types.Silence
+		input   uuid.UUID
+		err     string
+	}{
+		{
+			initial: map[uuid.UUID]*types.Silence{},
+			final:   map[uuid.UUID]*types.Silence{},
+			// Provide a non-existant ID.
+			input: id1,
+			err:   provider.ErrNotFound.Error(),
+		}, {
+			initial: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:        id1,
+					Matchers:  matchers,
+					StartsAt:  now.Add(-time.Minute),
+					EndsAt:    now.Add(time.Minute),
+					UpdatedAt: now.Add(-time.Minute),
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+			final: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:        id1,
+					Matchers:  matchers,
+					StartsAt:  now.Add(-time.Minute),
+					EndsAt:    now,
+					UpdatedAt: now,
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+			input: id1,
+		}, {
+			// Attempt deleting an elapsed silence.
+			initial: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:        id1,
+					Matchers:  matchers,
+					StartsAt:  now.Add(-10 * time.Minute),
+					EndsAt:    now.Add(-5 * time.Minute),
+					UpdatedAt: now.Add(-10 * time.Minute),
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+			final: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:        id1,
+					Matchers:  matchers,
+					StartsAt:  now.Add(-10 * time.Minute),
+					EndsAt:    now.Add(-5 * time.Minute),
+					UpdatedAt: now.Add(-10 * time.Minute),
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+			input: id1,
+			err:   "end time",
+		},
+	}
+
+	for i, c := range cases {
+		t.Logf("Test case %d", i)
+		s := newSilenceState()
+		s.m = c.initial
+		s.now = func() time.Time { return now }
+
+		sil, err := s.del(c.input)
+		if err != nil {
+			if len(c.err) > 0 {
+				if strings.Contains(err.Error(), c.err) {
+					continue
+				}
+				t.Errorf("Expected error containing %q, got %q", c.err, err)
+				continue
+			}
+			t.Errorf("Setting failed: %s", err)
+			continue
+		}
+
+		if !reflect.DeepEqual(s.m, c.final) {
+			t.Errorf("Unexpected final state")
+			t.Errorf("%s", pretty.Compare(s.m, c.final))
+			continue
+		}
+		if !reflect.DeepEqual(sil, s.m[c.input]) {
+			t.Errorf("Returned silence doesn't match stored silence")
 		}
 	}
 }
