@@ -121,7 +121,7 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
 
-	for _, sil := range s.st.set {
+	for _, sil := range s.st.m {
 		if sil.Mutes(lset) {
 			s.mk.SetSilenced(lset.Fingerprint(), sil.ID)
 			return true
@@ -135,9 +135,9 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 func (s *Silences) All() ([]*types.Silence, error) {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
-	res := make([]*types.Silence, 0, len(s.st.set))
+	res := make([]*types.Silence, 0, len(s.st.m))
 
-	for _, sil := range s.st.set {
+	for _, sil := range s.st.m {
 		res = append(res, sil)
 	}
 	return res, nil
@@ -147,23 +147,22 @@ func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 	if sil.ID == uuid.Nil {
 		sil.ID = uuid.NewV4()
 	}
-	sil.UpdatedAt = time.Now()
-
-	update := &silenceState{
-		set: map[uuid.UUID]*types.Silence{
-			sil.ID: sil,
-		},
+	if err := s.st.set(sil); err != nil {
+		return uuid.Nil, err
 	}
 
-	s.st.Merge(update)
-	s.send.GossipBroadcast(update)
+	s.send.GossipBroadcast(&silenceState{
+		m: map[uuid.UUID]*types.Silence{
+			sil.ID: sil,
+		},
+	})
 
 	return sil.ID, nil
 }
 
 func (s *Silences) Del(id uuid.UUID) error {
 	s.st.mtx.RLock()
-	sil, ok := s.st.set[id]
+	sil, ok := s.st.m[id]
 	s.st.mtx.RUnlock()
 	if !ok {
 		return provider.ErrNotFound
@@ -182,7 +181,7 @@ func (s *Silences) Del(id uuid.UUID) error {
 		return fmt.Errorf("silence init: %s", err)
 	}
 	update := &silenceState{
-		set: map[uuid.UUID]*types.Silence{
+		m: map[uuid.UUID]*types.Silence{
 			newSil.ID: &newSil,
 		},
 	}
@@ -196,7 +195,7 @@ func (s *Silences) Get(id uuid.UUID) (*types.Silence, error) {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
 
-	sil, ok := s.st.set[id]
+	sil, ok := s.st.m[id]
 	if !ok {
 		return nil, provider.ErrNotFound
 	}
@@ -216,7 +215,7 @@ func (s *Silences) OnGossip(b []byte) (mesh.GossipData, error) {
 	d := s.st.mergeDelta(set)
 	// The delta is newly created and we are the only one holding it so far.
 	// Thus, we can access without locking.
-	if len(d.set) == 0 {
+	if len(d.m) == 0 {
 		return nil, nil // per OnGossip contract
 	}
 	return d, nil
