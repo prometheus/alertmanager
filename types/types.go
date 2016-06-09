@@ -237,6 +237,9 @@ type Silence struct {
 
 // Validate returns true iff all fields of the silence have valid values.
 func (s *Silence) Validate() error {
+	if s.ID == uuid.Nil {
+		return fmt.Errorf("ID missing")
+	}
 	if len(s.Matchers) == 0 {
 		return fmt.Errorf("at least one matcher required")
 	}
