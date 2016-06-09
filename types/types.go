@@ -16,6 +16,7 @@ package types
 import (
 	"fmt"
 	"hash/fnv"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -276,6 +277,7 @@ func (s *Silence) Init() error {
 			return err
 		}
 	}
+	sort.Sort(s.Matchers)
 	return nil
 }
 
