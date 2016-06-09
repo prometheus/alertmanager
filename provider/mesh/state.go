@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
@@ -133,11 +134,10 @@ func (st *silenceState) Encode() [][]byte {
 
 // silenceModAllowed checks whether silence a may be changed to silence b.
 // Returns an error stating the reason if not.
-func (st *silenceState) silenceModAllowed(a, b *types.Silence) error {
+func silenceModAllowed(a, b *types.Silence, now time.Time) error {
 	if !b.StartsAt.Equal(a.StartsAt) {
 		return fmt.Errorf("silence start time must not be modified")
 	}
-	now := st.now()
 	if a.EndsAt.Before(now) {
 		return fmt.Errorf("end time must not be modified for elapsed silence")
 	}
@@ -154,7 +154,8 @@ func (st *silenceState) set(s *types.Silence) error {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
-	s.UpdatedAt = st.now()
+	now := st.now()
+	s.UpdatedAt = now
 
 	if err := s.Validate(); err != nil {
 		return err
@@ -165,11 +166,37 @@ func (st *silenceState) set(s *types.Silence) error {
 		st.m[s.ID] = s
 		return nil
 	}
-	if err := st.silenceModAllowed(prev, s); err != nil {
+	if err := silenceModAllowed(prev, s, now); err != nil {
 		return err
 	}
 	st.m[s.ID] = s
 	return nil
+}
+
+func (st *silenceState) del(id uuid.UUID) (*types.Silence, error) {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
+
+	prev, ok := st.m[id]
+	if !ok {
+		return nil, provider.ErrNotFound
+	}
+	// Silences are immutable by contract so we create a
+	// shallow copy.
+	sil := *prev
+	now := st.now()
+	sil.UpdatedAt = now
+	sil.EndsAt = now
+
+	if err := sil.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := silenceModAllowed(prev, &sil, now); err != nil {
+		return nil, err
+	}
+	st.m[sil.ID] = &sil
+	return &sil, nil
 }
 
 func (st *silenceState) Merge(other mesh.GossipData) mesh.GossipData {

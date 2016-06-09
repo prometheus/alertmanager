@@ -2,7 +2,6 @@ package mesh
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
@@ -161,31 +160,16 @@ func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 }
 
 func (s *Silences) Del(id uuid.UUID) error {
-	s.st.mtx.RLock()
-	sil, ok := s.st.m[id]
-	s.st.mtx.RUnlock()
-	if !ok {
-		return provider.ErrNotFound
+	sil, err := s.st.del(id)
+	if err != nil {
+		return err
 	}
-	now := time.Now()
-	if sil.EndsAt.Before(now) {
-		return fmt.Errorf("silence already ended")
-	}
-	// Silences are immutable by contract so we create a completely
-	// new object instead.
-	newSil := *sil
-	newSil.UpdatedAt = now
-	newSil.EndsAt = now
 
-	if err := newSil.Init(); err != nil {
-		return fmt.Errorf("silence init: %s", err)
-	}
 	update := &silenceState{
 		m: map[uuid.UUID]*types.Silence{
-			newSil.ID: &newSil,
+			sil.ID: sil,
 		},
 	}
-	s.st.Merge(update)
 	s.send.GossipBroadcast(update)
 
 	return nil
