@@ -134,9 +134,26 @@ func (st *silenceState) Encode() [][]byte {
 
 // silenceModAllowed checks whether silence a may be changed to silence b.
 // Returns an error stating the reason if not.
+// The silences are guaranteed to be valid. Silence a may be nil if b is a new.
 func silenceModAllowed(a, b *types.Silence, now time.Time) error {
+	if a == nil {
+		if b.StartsAt.Before(now) {
+			// From b being valid it follows that EndsAt will also be
+			// in the future.
+			return fmt.Errorf("new silence may not start in the past")
+		}
+		return nil
+	}
+	if a.ID != b.ID {
+		return fmt.Errorf("IDs do not match")
+	}
 	if !b.StartsAt.Equal(a.StartsAt) {
-		return fmt.Errorf("silence start time must not be modified")
+		if a.StartsAt.Before(now) {
+			return fmt.Errorf("start time of active silence must not be modified")
+		}
+		if b.StartsAt.Before(now) {
+			return fmt.Errorf("start time cannot be moved into the past")
+		}
 	}
 	if a.EndsAt.Before(now) {
 		return fmt.Errorf("end time must not be modified for elapsed silence")
@@ -157,14 +174,14 @@ func (st *silenceState) set(s *types.Silence) error {
 	now := st.now()
 	s.UpdatedAt = now
 
+	prev, ok := st.m[s.ID]
+	// Silence start for new silences must not be before now.
+	// Simplest solution is to reset it here if necessary.
+	if !ok && s.StartsAt.Before(now) {
+		s.StartsAt = now
+	}
 	if err := s.Validate(); err != nil {
 		return err
-	}
-
-	prev, ok := st.m[s.ID]
-	if !ok {
-		st.m[s.ID] = s
-		return nil
 	}
 	if err := silenceModAllowed(prev, s, now); err != nil {
 		return err
@@ -191,7 +208,6 @@ func (st *silenceState) del(id uuid.UUID) (*types.Silence, error) {
 	if err := sil.Validate(); err != nil {
 		return nil, err
 	}
-
 	if err := silenceModAllowed(prev, &sil, now); err != nil {
 		return nil, err
 	}

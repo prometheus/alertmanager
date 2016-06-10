@@ -303,12 +303,8 @@ func TestNotificationInfosGet(t *testing.T) {
 
 func TestSilencesSet(t *testing.T) {
 	var (
-		t0  = time.Now()
-		t1  = t0.Add(10 * time.Minute)
-		now = time.Now()
-
-		id1 = uuid.NewV4()
-
+		now      = time.Now()
+		id1      = uuid.NewV4()
 		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
 	)
 	cases := []struct {
@@ -326,8 +322,8 @@ func TestSilencesSet(t *testing.T) {
 			input: &types.Silence{
 				ID:        id1,
 				Matchers:  matchers,
-				StartsAt:  t0,
-				EndsAt:    t1,
+				StartsAt:  now.Add(time.Minute),
+				EndsAt:    now.Add(time.Hour),
 				CreatedBy: "x",
 				Comment:   "x",
 			},
@@ -335,8 +331,8 @@ func TestSilencesSet(t *testing.T) {
 				id1: &types.Silence{
 					ID:        id1,
 					Matchers:  matchers,
-					StartsAt:  t0,
-					EndsAt:    t1,
+					StartsAt:  now.Add(time.Minute),
+					EndsAt:    now.Add(time.Hour),
 					UpdatedAt: now,
 					CreatedBy: "x",
 					Comment:   "x",
@@ -355,7 +351,7 @@ func TestSilencesSet(t *testing.T) {
 		beforeID := c.input.ID
 
 		uid, err := s.Set(c.input)
-		if err != nil && c.fail {
+		if err != nil {
 			if c.fail {
 				continue
 			}
@@ -367,8 +363,8 @@ func TestSilencesSet(t *testing.T) {
 			continue
 		}
 
-		if beforeID != uuid.Nil && uid != c.input.ID {
-			t.Errorf("Silence ID unexpectedly changed")
+		if beforeID != uuid.Nil && uid != beforeID {
+			t.Errorf("Silence ID unexpectedly changed: before %q, after %q", beforeID, uid)
 			continue
 		}
 

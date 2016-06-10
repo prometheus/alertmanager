@@ -58,6 +58,29 @@ func TestSilenceStateSet(t *testing.T) {
 				Comment:   "x",
 			},
 		}, {
+			initial: map[uuid.UUID]*types.Silence{},
+			final: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:       id1,
+					Matchers: matchers,
+					// StartsAt should be reset to now if it's before
+					// now for a new silence.
+					StartsAt:  now,
+					EndsAt:    now.Add(time.Hour),
+					UpdatedAt: now,
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+			input: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-time.Second),
+				EndsAt:    now.Add(time.Hour),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+		}, {
 			initial: map[uuid.UUID]*types.Silence{
 				id1: &types.Silence{
 					ID:        id1,
@@ -247,6 +270,204 @@ func TestSilenceStateDel(t *testing.T) {
 		}
 		if !reflect.DeepEqual(sil, s.m[c.input]) {
 			t.Errorf("Returned silence doesn't match stored silence")
+		}
+	}
+}
+
+func TestSilenceModAllowed(t *testing.T) {
+	var (
+		now      = time.Now()
+		id1      = uuid.NewV4()
+		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
+	)
+	cases := []struct {
+		a, b *types.Silence
+		err  string
+	}{
+		{
+			a: nil,
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(1 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+		},
+		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(100 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "y",
+				Comment:   "y",
+			},
+		},
+		{
+			a: nil,
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			err: "start in the past",
+		},
+		{
+			a: &types.Silence{
+				ID:        uuid.NewV4(),
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(-5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        uuid.NewV4(),
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(-5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			err: "IDs do not match",
+		},
+		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(1 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			err: "start time of active silence",
+		},
+		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(1 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-1 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			err: "start time cannot be moved into the past",
+		},
+		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-5 * time.Minute),
+				EndsAt:    now.Add(-1 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-5 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			err: "end time must not be modified for elapsed silence",
+		},
+		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-5 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-5 * time.Minute),
+				EndsAt:    now.Add(-1 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			err: "end time must not be in the past",
+		},
+		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  types.NewMatchers(types.NewMatcher("a", "b")),
+				StartsAt:  now.Add(-5 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  types.NewMatchers(types.NewMatcher("a", "c")),
+				StartsAt:  now.Add(-5 * time.Minute),
+				EndsAt:    now.Add(5 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			err: "matchers must not be modified",
+		},
+	}
+	for _, c := range cases {
+		got := silenceModAllowed(c.a, c.b, now)
+		if got == nil {
+			if c.err != "" {
+				t.Errorf("Expected error containing %q but got none", c.err)
+			}
+			continue
+		}
+		if c.err == "" {
+			t.Errorf("Expected no error but got %q", got)
+		} else if !strings.Contains(got.Error(), c.err) {
+			t.Errorf("Expected error containing %q but got %q", c.err, got)
 		}
 	}
 }
