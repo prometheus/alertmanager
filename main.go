@@ -70,6 +70,7 @@ func main() {
 
 		configFile = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
 		dataDir    = flag.String("storage.path", "data/", "Base path for data storage.")
+		retention  = flag.Duration("data.retention", 5*24*time.Hour, "How long to keep data for.")
 
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
@@ -98,11 +99,15 @@ func main() {
 
 	ni := meshprov.NewNotificationInfos(log.Base())
 	ni.Register(mrouter.NewGossip("notify_info", ni))
+	go ni.Run(*retention)
+	defer ni.Stop()
 
 	marker := types.NewMarker()
 
 	silences := meshprov.NewSilences(marker, log.Base())
 	silences.Register(mrouter.NewGossip("silences", silences))
+	go silences.Run(*retention)
+	defer silences.Stop()
 
 	mrouter.Start()
 	defer mrouter.Stop()

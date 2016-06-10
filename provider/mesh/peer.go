@@ -2,6 +2,7 @@ package mesh
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
@@ -26,6 +27,14 @@ func NewNotificationInfos(logger log.Logger) *NotificationInfos {
 
 func (ni *NotificationInfos) Register(g mesh.Gossip) {
 	ni.send = g
+}
+
+func (ni *NotificationInfos) Run(retention time.Duration) {
+	ni.st.run(retention)
+}
+
+func (ni *NotificationInfos) Stop() {
+	ni.st.stop()
 }
 
 func (ni *NotificationInfos) Gossip() mesh.GossipData {
@@ -114,6 +123,14 @@ func NewSilences(mk types.Marker, logger log.Logger) *Silences {
 
 func (s *Silences) Register(g mesh.Gossip) {
 	s.send = g
+}
+
+func (s *Silences) Run(retention time.Duration) {
+	s.st.run(retention)
+}
+
+func (s *Silences) Stop() {
+	s.st.stop()
 }
 
 func (s *Silences) Mutes(lset model.LabelSet) bool {
