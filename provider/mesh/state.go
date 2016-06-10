@@ -25,7 +25,7 @@ type notificationState struct {
 	now   func() time.Time // test injection hook
 }
 
-const gcInterval = 10 * time.Minute
+const gcInterval = 1 * time.Hour
 
 func newNotificationState() *notificationState {
 	return &notificationState{
@@ -136,15 +136,44 @@ func (st *notificationState) mergeDelta(set map[string]notificationEntry) *notif
 }
 
 type silenceState struct {
-	mtx sync.RWMutex
-	m   map[uuid.UUID]*types.Silence
-	now func() time.Time // now function for test injection
+	mtx   sync.RWMutex
+	m     map[uuid.UUID]*types.Silence
+	stopc chan struct{}
+	now   func() time.Time // now function for test injection
 }
 
 func newSilenceState() *silenceState {
 	return &silenceState{
-		m:   map[uuid.UUID]*types.Silence{},
-		now: time.Now,
+		m:     map[uuid.UUID]*types.Silence{},
+		stopc: make(chan struct{}),
+		now:   time.Now,
+	}
+}
+
+func (s *silenceState) run(retention time.Duration) {
+	for {
+		select {
+		case <-s.stopc:
+			return
+		case <-time.After(gcInterval):
+			s.gc(retention)
+		}
+	}
+}
+
+func (s *silenceState) stop() {
+	close(s.stopc)
+}
+
+func (s *silenceState) gc(retention time.Duration) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	t := s.now().Add(-retention)
+	for k, v := range s.m {
+		if v.EndsAt.Before(t) {
+			delete(s.m, k)
+		}
 	}
 }
 
