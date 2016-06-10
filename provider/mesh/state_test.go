@@ -12,6 +12,35 @@ import (
 	"github.com/satori/go.uuid"
 )
 
+func TestNotificationStateGC(t *testing.T) {
+	now := time.Now()
+
+	initial := map[string]notificationEntry{
+		"1": {true, now},
+		"2": {true, now.Add(30 * time.Minute)},
+		"3": {true, now.Add(-30 * time.Minute)},
+		"4": {true, now.Add(-60 * time.Minute)},
+		"5": {true, now.Add(-61 * time.Minute)},
+		"6": {true, now.Add(-100 * time.Hour)},
+	}
+	final := map[string]notificationEntry{
+		"1": {true, now},
+		"2": {true, now.Add(30 * time.Minute)},
+		"3": {true, now.Add(-30 * time.Minute)},
+		"4": {true, now.Add(-60 * time.Minute)},
+	}
+
+	st := newNotificationState()
+	st.now = func() time.Time { return now }
+	st.set = initial
+	st.gc(time.Hour)
+
+	if !reflect.DeepEqual(st.set, final) {
+		t.Errorf("Unexpected state after GC")
+		t.Errorf("%s", pretty.Compare(st.set, final))
+	}
+}
+
 func TestSilenceStateSet(t *testing.T) {
 	var (
 		now      = time.Now()
