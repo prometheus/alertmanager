@@ -19,20 +19,53 @@ type notificationEntry struct {
 }
 
 type notificationState struct {
-	mtx sync.RWMutex
-	set map[string]notificationEntry
+	mtx   sync.RWMutex
+	set   map[string]notificationEntry
+	stopc chan struct{}
+	now   func() time.Time // test injection hook
 }
+
+const gcInterval = 10 * time.Minute
 
 func newNotificationState() *notificationState {
 	return &notificationState{
-		set: map[string]notificationEntry{},
+		set:   map[string]notificationEntry{},
+		stopc: make(chan struct{}),
+		now:   time.Now,
 	}
+}
+
+func (s *notificationState) run(retention time.Duration) {
+	for {
+		select {
+		case <-s.stopc:
+			return
+		case <-time.After(gcInterval):
+			s.gc(retention)
+		}
+	}
+}
+
+func (s *notificationState) stop() {
+	close(s.stopc)
 }
 
 func decodeNotificationSet(b []byte) (map[string]notificationEntry, error) {
 	var v map[string]notificationEntry
 	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&v)
 	return v, err
+}
+
+func (s *notificationState) gc(retention time.Duration) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	t := s.now().Add(-retention)
+	for k, v := range s.set {
+		if v.Timestamp.Before(t) {
+			delete(s.set, k)
+		}
+	}
 }
 
 // copy returns a deep copy of the notification state.
