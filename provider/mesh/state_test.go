@@ -41,6 +41,53 @@ func TestNotificationStateGC(t *testing.T) {
 	}
 }
 
+func TestSilenceStateGC(t *testing.T) {
+	var (
+		now = time.Now()
+
+		id1 = uuid.NewV4()
+		id2 = uuid.NewV4()
+		id3 = uuid.NewV4()
+		id4 = uuid.NewV4()
+		id5 = uuid.NewV4()
+	)
+	silence := func(id uuid.UUID, t time.Time) *types.Silence {
+		return &types.Silence{
+			ID:        id,
+			Matchers:  types.NewMatchers(types.NewMatcher("a", "c")),
+			StartsAt:  now.Add(-100 * time.Hour),
+			EndsAt:    t,
+			UpdatedAt: now,
+			CreatedBy: "x",
+			Comment:   "x",
+		}
+	}
+
+	initial := map[uuid.UUID]*types.Silence{
+		id1: silence(id1, now.Add(10*time.Minute)),
+		id2: silence(id2, now),
+		id3: silence(id3, now.Add(-10*time.Minute)),
+		id4: silence(id4, now.Add(-1*time.Hour)),
+		id5: silence(id5, now.Add(-2*time.Hour)),
+	}
+	final := map[uuid.UUID]*types.Silence{
+		id1: silence(id1, now.Add(10*time.Minute)),
+		id2: silence(id2, now),
+		id3: silence(id3, now.Add(-10*time.Minute)),
+		id4: silence(id4, now.Add(-1*time.Hour)),
+	}
+
+	st := newSilenceState()
+	st.now = func() time.Time { return now }
+	st.m = initial
+	st.gc(time.Hour)
+
+	if !reflect.DeepEqual(st.m, final) {
+		t.Errorf("Unexpected state after GC")
+		t.Errorf("%s", pretty.Compare(st.m, final))
+	}
+}
+
 func TestSilenceStateSet(t *testing.T) {
 	var (
 		now      = time.Now()
