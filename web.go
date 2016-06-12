@@ -47,7 +47,7 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
 }
 
 // RegisterWeb registers handlers to serve files for the web interface.
-func RegisterWeb(r *route.Router) {
+func RegisterWeb(r *route.Router, reloadCh chan<- struct{}) {
 	ihf := prometheus.InstrumentHandlerFunc
 
 	r.Get("/app/*filepath", ihf("app_files",
@@ -68,6 +68,11 @@ func RegisterWeb(r *route.Router) {
 	r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/index.html")
 	}))
+
+	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("Reloading configuration file..."))
+		reloadCh <- struct{}{}
+	})
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
 	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)

@@ -187,7 +187,8 @@ func main() {
 
 	router := route.New()
 
-	RegisterWeb(router.WithPrefix(amURL.Path))
+	webReload := make(chan struct{})
+	RegisterWeb(router.WithPrefix(amURL.Path), webReload)
 	api.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
 	log.Infoln("Listening on", *listenAddress)
@@ -206,7 +207,7 @@ func main() {
 		for {
 			select {
 			case <-hup:
-			case <-api.Reload():
+			case <-webReload:
 			}
 			reload()
 		}
