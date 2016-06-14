@@ -48,7 +48,7 @@ $ ./alertmanager -config.file=<your_file>
 
 ## Example
 
-This is an example configuration that should cover most relevant aspects of the new YAML configuration format. Authoritative source for now is the [code](https://github.com/prometheus/alertmanager/tree/dev/config).
+This is an example configuration that should cover most relevant aspects of the new YAML configuration format. The full documentation of the configuration can be found [here](https://prometheus.io/docs/alerting/configuration/).
 
 ```yaml
 global:
