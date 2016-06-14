@@ -171,12 +171,14 @@ func main() {
 		}
 		tmpl.ExternalURL = amURL
 
+		inhibitor.Stop()
 		disp.Stop()
 
 		inhibitor = NewInhibitor(alerts, conf.InhibitRules, marker)
 		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.Receivers), marker)
 
 		go disp.Run()
+		go inhibitor.Run()
 
 		return nil
 	}
