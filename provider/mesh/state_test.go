@@ -393,6 +393,27 @@ func TestSilenceModAllowed(t *testing.T) {
 			},
 		},
 		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(-5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(-5 * time.Minute),
+				UpdatedAt: now,
+				CreatedBy: "y",
+				Comment:   "y",
+			},
+		},
+
+		{
 			a: nil,
 			b: &types.Silence{
 				ID:        id1,
@@ -508,7 +529,7 @@ func TestSilenceModAllowed(t *testing.T) {
 				CreatedBy: "x",
 				Comment:   "x",
 			},
-			err: "end time must not be in the past",
+			err: "end time must not be set into the past",
 		},
 		{
 			a: &types.Silence{

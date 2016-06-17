@@ -217,11 +217,13 @@ func silenceModAllowed(a, b *types.Silence, now time.Time) error {
 			return fmt.Errorf("start time cannot be moved into the past")
 		}
 	}
-	if a.EndsAt.Before(now) {
-		return fmt.Errorf("end time must not be modified for elapsed silence")
-	}
-	if b.EndsAt.Before(now) {
-		return fmt.Errorf("end time must not be in the past")
+	if !b.EndsAt.Equal(a.EndsAt) {
+		if a.EndsAt.Before(now) {
+			return fmt.Errorf("end time must not be modified for elapsed silence")
+		}
+		if b.EndsAt.Before(now) {
+			return fmt.Errorf("end time must not be set into the past")
+		}
 	}
 	if !a.Matchers.Equal(b.Matchers) {
 		return fmt.Errorf("matchers must not be modified")
