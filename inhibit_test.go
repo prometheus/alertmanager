@@ -124,7 +124,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		}
 
 		if have := r.hasEqual(c.input); have != c.result {
-			t.Errorf("Unexpected result %q, expected %q", have, c.result)
+			t.Errorf("Unexpected result %t, expected %t", have, c.result)
 		}
 		if !reflect.DeepEqual(r.scache, c.initial) {
 			t.Errorf("Cache state unexpectedly changed")
