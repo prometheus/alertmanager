@@ -35,19 +35,19 @@ func newNotificationState() *notificationState {
 	}
 }
 
-func (s *notificationState) run(retention time.Duration) {
+func (st *notificationState) run(retention time.Duration) {
 	for {
 		select {
-		case <-s.stopc:
+		case <-st.stopc:
 			return
 		case <-time.After(gcInterval):
-			s.gc(retention)
+			st.gc(retention)
 		}
 	}
 }
 
-func (s *notificationState) stop() {
-	close(s.stopc)
+func (st *notificationState) stop() {
+	close(st.stopc)
 }
 
 func decodeNotificationSet(b []byte) (map[string]notificationEntry, error) {
@@ -56,27 +56,27 @@ func decodeNotificationSet(b []byte) (map[string]notificationEntry, error) {
 	return v, err
 }
 
-func (s *notificationState) gc(retention time.Duration) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+func (st *notificationState) gc(retention time.Duration) {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
 
-	t := s.now().Add(-retention)
-	for k, v := range s.set {
+	t := st.now().Add(-retention)
+	for k, v := range st.set {
 		if v.Timestamp.Before(t) {
-			delete(s.set, k)
+			delete(st.set, k)
 		}
 	}
 }
 
 // copy returns a deep copy of the notification state.
-func (s *notificationState) copy() *notificationState {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
+func (st *notificationState) copy() *notificationState {
+	st.mtx.RLock()
+	defer st.mtx.RUnlock()
 
 	res := &notificationState{
-		set: make(map[string]notificationEntry, len(s.set)),
+		set: make(map[string]notificationEntry, len(st.set)),
 	}
-	for k, v := range s.set {
+	for k, v := range st.set {
 		res.set[k] = v
 	}
 	return res
@@ -150,29 +150,29 @@ func newSilenceState() *silenceState {
 	}
 }
 
-func (s *silenceState) run(retention time.Duration) {
+func (st *silenceState) run(retention time.Duration) {
 	for {
 		select {
-		case <-s.stopc:
+		case <-st.stopc:
 			return
 		case <-time.After(gcInterval):
-			s.gc(retention)
+			st.gc(retention)
 		}
 	}
 }
 
-func (s *silenceState) stop() {
-	close(s.stopc)
+func (st *silenceState) stop() {
+	close(st.stopc)
 }
 
-func (s *silenceState) gc(retention time.Duration) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+func (st *silenceState) gc(retention time.Duration) {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
 
-	t := s.now().Add(-retention)
-	for k, v := range s.m {
+	t := st.now().Add(-retention)
+	for k, v := range st.m {
 		if v.EndsAt.Before(t) {
-			delete(s.m, k)
+			delete(st.m, k)
 		}
 	}
 }
@@ -315,14 +315,14 @@ func (st *silenceState) mergeDelta(set map[uuid.UUID]*types.Silence) *silenceSta
 	return &silenceState{m: d}
 }
 
-func (s *silenceState) copy() *silenceState {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
+func (st *silenceState) copy() *silenceState {
+	st.mtx.RLock()
+	defer st.mtx.RUnlock()
 
 	res := &silenceState{
-		m: make(map[uuid.UUID]*types.Silence, len(s.m)),
+		m: make(map[uuid.UUID]*types.Silence, len(st.m)),
 	}
-	for k, v := range s.m {
+	for k, v := range st.m {
 		res.m[k] = v
 	}
 	return res
