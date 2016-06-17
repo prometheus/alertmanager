@@ -563,7 +563,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) error {
 		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
-		url      = fmt.Sprintf("%sv2/room/%s/notification?auth_token=%s", n.conf.APIURL, n.conf.RoomID, n.conf.AuthToken)
+		url      = fmt.Sprintf("%sv2/room/%d/notification?auth_token=%s", n.conf.APIURL, n.conf.RoomID, n.conf.AuthToken)
 	)
 
 	if n.conf.MessageFormat == "html" {
