@@ -12,6 +12,8 @@ import (
 	"github.com/weaveworks/mesh"
 )
 
+// NotificationInfos provides gossiped information about which
+// receivers have been notified about which alerts.
 type NotificationInfos struct {
 	st     *notificationState
 	send   mesh.Gossip
@@ -25,22 +27,28 @@ func NewNotificationInfos(logger log.Logger) *NotificationInfos {
 	}
 }
 
+// Register the given gossip channel.
 func (ni *NotificationInfos) Register(g mesh.Gossip) {
 	ni.send = g
 }
 
+// Run starts blocking background processing of the NotificationInfos.
+// Cannot be run more than once.
 func (ni *NotificationInfos) Run(retention time.Duration) {
 	ni.st.run(retention)
 }
 
+// Stop signals the background processing to terminate.
 func (ni *NotificationInfos) Stop() {
 	ni.st.stop()
 }
 
+// Gossip implements the mesh.Gossiper interface.
 func (ni *NotificationInfos) Gossip() mesh.GossipData {
 	return ni.st.copy()
 }
 
+// OnGossip implements the mosh.Gossiper interface.
 func (ni *NotificationInfos) OnGossip(b []byte) (mesh.GossipData, error) {
 	set, err := decodeNotificationSet(b)
 	if err != nil {
@@ -55,6 +63,7 @@ func (ni *NotificationInfos) OnGossip(b []byte) (mesh.GossipData, error) {
 	return d, nil
 }
 
+// OnGossipBroadcast implements the mesh.Gossiper interface.
 func (ni *NotificationInfos) OnGossipBroadcast(_ mesh.PeerName, b []byte) (mesh.GossipData, error) {
 	set, err := decodeNotificationSet(b)
 	if err != nil {
@@ -63,6 +72,7 @@ func (ni *NotificationInfos) OnGossipBroadcast(_ mesh.PeerName, b []byte) (mesh.
 	return ni.st.mergeDelta(set), nil
 }
 
+// OnGossipUnicast implements the mesh.Gossiper interface.
 func (ni *NotificationInfos) OnGossipUnicast(_ mesh.PeerName, b []byte) error {
 	set, err := decodeNotificationSet(b)
 	if err != nil {
@@ -72,6 +82,7 @@ func (ni *NotificationInfos) OnGossipUnicast(_ mesh.PeerName, b []byte) error {
 	return nil
 }
 
+// Set the provided notification information.
 func (ni *NotificationInfos) Set(ns ...*types.NotifyInfo) error {
 	set := map[string]notificationEntry{}
 	for _, n := range ns {
@@ -88,6 +99,9 @@ func (ni *NotificationInfos) Set(ns ...*types.NotifyInfo) error {
 	return nil
 }
 
+// Get the notification information for the given receiver about alerts
+// with the given fingerprints. Returns a slice in order of the input fingerprints.
+// Result entries are nil if nothing was found.
 func (ni *NotificationInfos) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
 	res := make([]*types.NotifyInfo, 0, len(fps))
 	for _, fp := range fps {
@@ -106,6 +120,7 @@ func (ni *NotificationInfos) Get(recv string, fps ...model.Fingerprint) ([]*type
 	return res, nil
 }
 
+// Silences provides gossiped silences.
 type Silences struct {
 	st     *silenceState
 	mk     types.Marker
@@ -121,18 +136,22 @@ func NewSilences(mk types.Marker, logger log.Logger) *Silences {
 	}
 }
 
+// Register a gossip channel over which silences are shared.
 func (s *Silences) Register(g mesh.Gossip) {
 	s.send = g
 }
 
+// Run blocking background processing. Cannot be run more than once.
 func (s *Silences) Run(retention time.Duration) {
 	s.st.run(retention)
 }
 
+// Stop signals the background processing to be stopped.
 func (s *Silences) Stop() {
 	s.st.stop()
 }
 
+// Mutes returns true iff any of the known silences mutes the provided label set.
 func (s *Silences) Mutes(lset model.LabelSet) bool {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
@@ -148,6 +167,7 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
+// All returns a list of all known silences.
 func (s *Silences) All() ([]*types.Silence, error) {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
@@ -159,6 +179,8 @@ func (s *Silences) All() ([]*types.Silence, error) {
 	return res, nil
 }
 
+// Set overwrites the given silence or creates a new one if it doesn't exist yet.
+// The new information is spread via the registered gossip channel.
 func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 	if sil.ID == uuid.Nil {
 		sil.ID = uuid.NewV4()
@@ -176,6 +198,11 @@ func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 	return sil.ID, nil
 }
 
+// Del removes the silence with the given ID. The new information is spread via
+// the registered gossip channel.
+// Active silences are not deleted but their end time is set to now.
+//
+// TODO(fabxc): consider actually deleting silences that haven't started yet.
 func (s *Silences) Del(id uuid.UUID) error {
 	sil, err := s.st.del(id)
 	if err != nil {
@@ -192,6 +219,7 @@ func (s *Silences) Del(id uuid.UUID) error {
 	return nil
 }
 
+// Get the silence with the given ID.
 func (s *Silences) Get(id uuid.UUID) (*types.Silence, error) {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
@@ -204,10 +232,12 @@ func (s *Silences) Get(id uuid.UUID) (*types.Silence, error) {
 	return sil, nil
 }
 
+// Gossip implements the mesh.Gossiper interface.
 func (s *Silences) Gossip() mesh.GossipData {
 	return s.st.copy()
 }
 
+// OnGossip implements the mesh.Gossiper interface.
 func (s *Silences) OnGossip(b []byte) (mesh.GossipData, error) {
 	set, err := decodeSilenceSet(b)
 	if err != nil {
@@ -222,6 +252,7 @@ func (s *Silences) OnGossip(b []byte) (mesh.GossipData, error) {
 	return d, nil
 }
 
+// OnGossipBroadcast implements the mesh.Gossiper interface.
 func (s *Silences) OnGossipBroadcast(_ mesh.PeerName, b []byte) (mesh.GossipData, error) {
 	set, err := decodeSilenceSet(b)
 	if err != nil {
@@ -231,6 +262,7 @@ func (s *Silences) OnGossipBroadcast(_ mesh.PeerName, b []byte) (mesh.GossipData
 	return d, nil
 }
 
+// OnGossipUnicast implements the mesh.Gossiper interface.
 func (s *Silences) OnGossipUnicast(_ mesh.PeerName, b []byte) error {
 	set, err := decodeSilenceSet(b)
 	if err != nil {

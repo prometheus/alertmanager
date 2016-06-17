@@ -249,7 +249,7 @@ func (s peerDescSlice) Less(i, j int) bool { return s[i].UID < s[j].UID }
 func (s peerDescSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // meshWait returns a function that inspects the current peer state and returns
-// a duration of one base timeout for each  peer with a higher ID than ourselves.
+// a duration of one base timeout for each peer with a higher ID than ourselves.
 func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	return func() time.Duration {
 		var peers peerDescSlice
@@ -265,8 +265,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 			}
 			k++
 		}
-		log.Warnf("timeout multiplier: %d", k)
-
+		// TODO(fabxc): add metric exposing the "position" from AM's own view.
 		return time.Duration(k) * timeout
 	}
 }
@@ -284,7 +283,7 @@ func initMesh(addr, hwaddr, nickname string) *mesh.Router {
 
 	name, err := mesh.PeerNameFromString(hwaddr)
 	if err != nil {
-		log.Fatalf("%s: %v", hwaddr, err)
+		log.Fatalf("invalid hardware address %q: %v", hwaddr, err)
 	}
 
 	return mesh.NewRouter(mesh.Config{
@@ -354,6 +353,7 @@ func (ss stringset) slice() []string {
 }
 
 func mustHardwareAddr() string {
+	// TODO(fabxc): consider a safe-guard against colliding MAC addresses.
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
