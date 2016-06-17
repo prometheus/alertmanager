@@ -1,3 +1,18 @@
+## 0.2.0 / 2016-06-17
+
+This release uses a new storage backend based on BoltDB. You have to backup
+and wipe your former storage path to run it.
+
+* [CHANGE] Use BoltDB as data store.
+* [CHANGE] Move SMTP authentification to configuration file
+* [FEATURE] add /-/reload HTTP endpoint
+* [FEATURE] Filter silenced alerts in web UI
+* [ENHANCEMENT] reduce inhibition computation complexity
+* [ENHANCEMENT] Add support for teams and tags in OpsGenie integration
+* [BUGFIX] Handle OpsGenie responses correctly
+* [BUGFIX] Fix Pushover queue length issue
+* [BUGFIX] STARTTLS before querying auth mechanism in email integration
+
 ## 0.1.1 / 2016-03-15
 * [BUGFIX] Fix global database lock issue
 * [ENHANCEMENT] Improve SQLite alerts index
