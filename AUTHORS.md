@@ -13,6 +13,7 @@ The following individuals have contributed code to this repository
 * Björn Rabenstein <beorn@soundcloud.com>
 * Cameron Davison <cameron@novilabs.com>
 * Ceesjan Luiten <ceesjan@ytec.nl>
+* Eric Gerling <ericgerling@gmail.com>
 * Fabian Reinartz <fabian.reinartz@coreos.com>
 * Johannes 'fish' Ziemke <fish@freigeist.org>
 * Julius Volz <julius.volz@gmail.com>
