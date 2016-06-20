@@ -13,6 +13,8 @@ import (
 	"github.com/weaveworks/mesh"
 )
 
+func utcNow() time.Time { return time.Now().UTC() }
+
 type notificationEntry struct {
 	Resolved  bool
 	Timestamp time.Time
@@ -31,7 +33,7 @@ func newNotificationState() *notificationState {
 	return &notificationState{
 		set:   map[string]notificationEntry{},
 		stopc: make(chan struct{}),
-		now:   time.Now,
+		now:   utcNow,
 	}
 }
 
@@ -146,7 +148,7 @@ func newSilenceState() *silenceState {
 	return &silenceState{
 		m:     map[uuid.UUID]*types.Silence{},
 		stopc: make(chan struct{}),
-		now:   time.Now,
+		now:   utcNow,
 	}
 }
 
@@ -234,6 +236,9 @@ func silenceModAllowed(a, b *types.Silence, now time.Time) error {
 func (st *silenceState) set(s *types.Silence) error {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
+
+	s.StartsAt = s.StartsAt.UTC()
+	s.EndsAt = s.EndsAt.UTC()
 
 	now := st.now()
 	s.UpdatedAt = now
