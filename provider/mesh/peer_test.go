@@ -17,8 +17,7 @@ import (
 
 func TestNotificationInfosOnGossip(t *testing.T) {
 	var (
-		t0 = time.Now()
-		t1 = t0.Add(time.Minute)
+		now = utcNow()
 	)
 	cases := []struct {
 		initial map[string]notificationEntry
@@ -29,37 +28,37 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 		{
 			initial: map[string]notificationEntry{},
 			msg: map[string]notificationEntry{
-				"123:recv1": {true, t0},
+				"123:recv1": {true, now},
 			},
 			delta: map[string]notificationEntry{
-				"123:recv1": {true, t0},
+				"123:recv1": {true, now},
 			},
 			final: map[string]notificationEntry{
-				"123:recv1": {true, t0},
+				"123:recv1": {true, now},
 			},
 		}, {
 			initial: map[string]notificationEntry{
-				"123:recv1": {true, t0},
+				"123:recv1": {true, now},
 			},
 			msg: map[string]notificationEntry{
-				"123:recv1": {false, t1},
+				"123:recv1": {false, now.Add(time.Minute)},
 			},
 			delta: map[string]notificationEntry{
-				"123:recv1": {false, t1},
+				"123:recv1": {false, now.Add(time.Minute)},
 			},
 			final: map[string]notificationEntry{
-				"123:recv1": {false, t1},
+				"123:recv1": {false, now.Add(time.Minute)},
 			},
 		}, {
 			initial: map[string]notificationEntry{
-				"123:recv1": {true, t1},
+				"123:recv1": {true, now.Add(time.Minute)},
 			},
 			msg: map[string]notificationEntry{
-				"123:recv1": {false, t0},
+				"123:recv1": {false, now},
 			},
 			delta: map[string]notificationEntry{},
 			final: map[string]notificationEntry{
-				"123:recv1": {true, t1},
+				"123:recv1": {true, now.Add(time.Minute)},
 			},
 		},
 	}
@@ -146,10 +145,7 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 
 func TestNotificationInfosSet(t *testing.T) {
 	var (
-		t0 = time.Now()
-		t1 = t0.Add(10 * time.Minute)
-		// t2 = t0.Add(20 * time.Minute)
-		// t3 = t0.Add(30 * time.Minute)
+		now = utcNow()
 	)
 	cases := []struct {
 		initial map[string]notificationEntry
@@ -164,14 +160,14 @@ func TestNotificationInfosSet(t *testing.T) {
 					Alert:     0x10,
 					Receiver:  "recv1",
 					Resolved:  false,
-					Timestamp: t0,
+					Timestamp: now,
 				},
 			},
 			update: map[string]notificationEntry{
-				"0000000000000010:recv1": {false, t0},
+				"0000000000000010:recv1": {false, now},
 			},
 			final: map[string]notificationEntry{
-				"0000000000000010:recv1": {false, t0},
+				"0000000000000010:recv1": {false, now},
 			},
 		},
 		{
@@ -181,38 +177,38 @@ func TestNotificationInfosSet(t *testing.T) {
 			// The update is okay to propagate but the final state must correctly
 			// drop it.
 			initial: map[string]notificationEntry{
-				"0000000000000010:recv1": {false, t0},
-				"0000000000000010:recv2": {false, t1},
+				"0000000000000010:recv1": {false, now},
+				"0000000000000010:recv2": {false, now.Add(10 * time.Minute)},
 			},
 			input: []*types.NotifyInfo{
 				{
 					Alert:     0x10,
 					Receiver:  "recv1",
 					Resolved:  true,
-					Timestamp: t1,
+					Timestamp: now.Add(10 * time.Minute),
 				},
 				{
 					Alert:     0x10,
 					Receiver:  "recv2",
 					Resolved:  true,
-					Timestamp: t0,
+					Timestamp: now,
 				},
 				{
 					Alert:     0x20,
 					Receiver:  "recv2",
 					Resolved:  false,
-					Timestamp: t0,
+					Timestamp: now,
 				},
 			},
 			update: map[string]notificationEntry{
-				"0000000000000010:recv1": {true, t1},
-				"0000000000000010:recv2": {true, t0},
-				"0000000000000020:recv2": {false, t0},
+				"0000000000000010:recv1": {true, now.Add(10 * time.Minute)},
+				"0000000000000010:recv2": {true, now},
+				"0000000000000020:recv2": {false, now},
 			},
 			final: map[string]notificationEntry{
-				"0000000000000010:recv1": {true, t1},
-				"0000000000000010:recv2": {false, t1},
-				"0000000000000020:recv2": {false, t0},
+				"0000000000000010:recv1": {true, now.Add(10 * time.Minute)},
+				"0000000000000010:recv2": {false, now.Add(10 * time.Minute)},
+				"0000000000000020:recv2": {false, now},
 			},
 		},
 	}
@@ -243,8 +239,7 @@ func TestNotificationInfosSet(t *testing.T) {
 
 func TestNotificationInfosGet(t *testing.T) {
 	var (
-		t0 = time.Now()
-		t1 = t0.Add(time.Minute)
+		now = utcNow()
 	)
 	type query struct {
 		recv string
@@ -257,10 +252,10 @@ func TestNotificationInfosGet(t *testing.T) {
 	}{
 		{
 			state: map[string]notificationEntry{
-				"0000000000000010:recv1": {true, t1},
-				"0000000000000030:recv1": {true, t1},
-				"0000000000000010:recv2": {false, t1},
-				"0000000000000020:recv2": {false, t0},
+				"0000000000000010:recv1": {true, now.Add(time.Minute)},
+				"0000000000000030:recv1": {true, now.Add(time.Minute)},
+				"0000000000000010:recv2": {false, now.Add(time.Minute)},
+				"0000000000000020:recv2": {false, now},
 			},
 			queries: []query{
 				{
@@ -272,7 +267,7 @@ func TestNotificationInfosGet(t *testing.T) {
 							Alert:     0x10,
 							Receiver:  "recv1",
 							Resolved:  true,
-							Timestamp: t1,
+							Timestamp: now.Add(time.Minute),
 						},
 						nil,
 					},
@@ -303,7 +298,7 @@ func TestNotificationInfosGet(t *testing.T) {
 
 func TestSilencesSet(t *testing.T) {
 	var (
-		now      = time.Now()
+		now      = utcNow()
 		id1      = uuid.NewV4()
 		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
 	)

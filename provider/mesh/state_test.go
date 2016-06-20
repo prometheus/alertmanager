@@ -13,7 +13,7 @@ import (
 )
 
 func TestNotificationStateGC(t *testing.T) {
-	now := time.Now()
+	now := utcNow()
 
 	initial := map[string]notificationEntry{
 		"1": {true, now},
@@ -43,7 +43,7 @@ func TestNotificationStateGC(t *testing.T) {
 
 func TestSilenceStateGC(t *testing.T) {
 	var (
-		now = time.Now()
+		now = utcNow()
 
 		id1 = uuid.NewV4()
 		id2 = uuid.NewV4()
@@ -90,7 +90,7 @@ func TestSilenceStateGC(t *testing.T) {
 
 func TestSilenceStateSet(t *testing.T) {
 	var (
-		now      = time.Now()
+		now      = utcNow()
 		id1      = uuid.NewV4()
 		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
 	)
@@ -126,10 +126,11 @@ func TestSilenceStateSet(t *testing.T) {
 				},
 			},
 			input: &types.Silence{
-				ID:        id1,
-				Matchers:  matchers,
-				StartsAt:  now.Add(time.Minute),
-				EndsAt:    now.Add(time.Hour),
+				ID:       id1,
+				Matchers: matchers,
+				// Different input timezones must be normalized to UTC.
+				StartsAt:  now.Add(time.Minute).In(time.FixedZone("test", 100000)),
+				EndsAt:    now.Add(time.Hour).In(time.FixedZone("test", 10000000)),
 				CreatedBy: "x",
 				Comment:   "x",
 			},
@@ -251,7 +252,7 @@ func TestSilenceStateSet(t *testing.T) {
 
 func TestSilenceStateDel(t *testing.T) {
 	var (
-		now      = time.Now()
+		now      = utcNow()
 		id1      = uuid.NewV4()
 		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
 	)
@@ -352,7 +353,7 @@ func TestSilenceStateDel(t *testing.T) {
 
 func TestSilenceModAllowed(t *testing.T) {
 	var (
-		now      = time.Now()
+		now      = utcNow()
 		id1      = uuid.NewV4()
 		matchers = types.NewMatchers(types.NewMatcher("a", "b"))
 	)
