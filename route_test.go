@@ -65,6 +65,19 @@ routes:
   group_by: ['foo', 'bar']
   group_wait: 2m
   receiver: 'notify-BC'
+
+- match:
+    group_by: 'role'
+  group_by: ['role']
+
+  routes:
+  - match:
+      env: 'testing'
+    receiver: 'notify-testing'
+    routes:
+    - match:
+        wait: 'long'
+      group_wait: 2m
 `
 
 	var ctree config.Route
@@ -164,6 +177,51 @@ routes:
 					GroupWait:      30 * time.Second,
 					GroupInterval:  5 * time.Minute,
 					RepeatInterval: 1 * time.Hour,
+				},
+			},
+		},
+		{
+			input: model.LabelSet{
+				"group_by": "role",
+			},
+			result: []*RouteOpts{
+				{
+					Receiver:       "notify-def",
+					GroupBy:        lset("role"),
+					GroupWait:      def.GroupWait,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
+				},
+			},
+		},
+		{
+			input: model.LabelSet{
+				"env":      "testing",
+				"group_by": "role",
+			},
+			result: []*RouteOpts{
+				{
+					Receiver:       "notify-testing",
+					GroupBy:        lset("role"),
+					GroupWait:      def.GroupWait,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
+				},
+			},
+		},
+		{
+			input: model.LabelSet{
+				"env":      "testing",
+				"group_by": "role",
+				"wait":     "long",
+			},
+			result: []*RouteOpts{
+				{
+					Receiver:       "notify-testing",
+					GroupBy:        lset("role"),
+					GroupWait:      2 * time.Minute,
+					GroupInterval:  def.GroupInterval,
+					RepeatInterval: def.RepeatInterval,
 				},
 			},
 		},
