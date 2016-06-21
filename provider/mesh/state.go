@@ -196,6 +196,8 @@ func (st *silenceState) Encode() [][]byte {
 	return [][]byte{buf.Bytes()}
 }
 
+const timestampTolerance = time.Second
+
 // silenceModAllowed checks whether silence a may be changed to silence b.
 // Returns an error stating the reason if not.
 // The silences are guaranteed to be valid. Silence a may be nil if b is a new.
@@ -211,7 +213,16 @@ func silenceModAllowed(a, b *types.Silence, now time.Time) error {
 	if a.ID != b.ID {
 		return fmt.Errorf("IDs do not match")
 	}
-	if !b.StartsAt.Equal(a.StartsAt) {
+
+	almostEqual := func(s, t time.Time) bool {
+		d := s.Sub(t)
+		return d <= timestampTolerance && d >= -timestampTolerance
+	}
+	if almostEqual(a.StartsAt, b.StartsAt) {
+		// Always pick original timestamp so we cannot drift the time
+		// by spamming edits.
+		b.StartsAt = a.StartsAt
+	} else {
 		if a.StartsAt.Before(now) {
 			return fmt.Errorf("start time of active silence must not be modified")
 		}
@@ -219,7 +230,11 @@ func silenceModAllowed(a, b *types.Silence, now time.Time) error {
 			return fmt.Errorf("start time cannot be moved into the past")
 		}
 	}
-	if !b.EndsAt.Equal(a.EndsAt) {
+	if almostEqual(a.EndsAt, b.EndsAt) {
+		// Always pick original timestamp so we cannot drift the time
+		// by spamming edits.
+		b.EndsAt = a.EndsAt
+	} else {
 		if a.EndsAt.Before(now) {
 			return fmt.Errorf("end time must not be modified for elapsed silence")
 		}
@@ -227,6 +242,7 @@ func silenceModAllowed(a, b *types.Silence, now time.Time) error {
 			return fmt.Errorf("end time must not be set into the past")
 		}
 	}
+
 	if !a.Matchers.Equal(b.Matchers) {
 		return fmt.Errorf("matchers must not be modified")
 	}
