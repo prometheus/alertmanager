@@ -260,10 +260,6 @@ angular.module('am.controllers').controller('SilenceCtrl',
           $scope.error = data.data;
         });
     };
-
-    $scope.$on('silence-created', function(evt) {
-      $scope.delete(silCopy.id);
-    });
   }
 );
 
