@@ -374,6 +374,8 @@ func TestSilenceModAllowed(t *testing.T) {
 			},
 		},
 		{
+			// Modify silence comment and creator and set not-yet started
+			// end time into future.
 			a: &types.Silence{
 				ID:        id1,
 				Matchers:  matchers,
@@ -413,7 +415,27 @@ func TestSilenceModAllowed(t *testing.T) {
 				Comment:   "y",
 			},
 		},
-
+		{
+			a: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10 * time.Minute),
+				EndsAt:    now.Add(-5 * time.Minute),
+				UpdatedAt: now.Add(-10 * time.Minute),
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+			// Timestamp tolerance must be respected.
+			b: &types.Silence{
+				ID:        id1,
+				Matchers:  matchers,
+				StartsAt:  now.Add(-10*time.Minute + timestampTolerance),
+				EndsAt:    now.Add(-5*time.Minute - timestampTolerance),
+				UpdatedAt: now,
+				CreatedBy: "x",
+				Comment:   "x",
+			},
+		},
 		{
 			a: nil,
 			b: &types.Silence{
