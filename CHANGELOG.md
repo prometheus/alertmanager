@@ -1,3 +1,9 @@
+## 0.2.1 / 2016-06-23
+
+* [ENHANCEMENT] Allow inheritance of route receiver
+* [ENHANCEMENT] Add silence cache to silence provider
+* [BUGFIX] Fix HipChat room number in integration URL
+
 ## 0.2.0 / 2016-06-17
 
 This release uses a new storage backend based on BoltDB. You have to backup
