@@ -217,6 +217,9 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 type Silences struct {
 	db *bolt.DB
 	mk types.Marker
+
+	mtx   sync.RWMutex
+	cache map[uint64]*types.Silence
 }
 
 // NewSilences creates a new Silences provider.
@@ -229,7 +232,15 @@ func NewSilences(path string, mk types.Marker) (*Silences, error) {
 		_, err := tx.CreateBucketIfNotExists(bktSilences)
 		return err
 	})
-	return &Silences{db: db, mk: mk}, err
+	if err != nil {
+		return nil, err
+	}
+	s := &Silences{
+		db:    db,
+		mk:    mk,
+		cache: map[uint64]*types.Silence{},
+	}
+	return s, s.initCache()
 }
 
 // Close the silences provider.
@@ -261,7 +272,19 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 
 // All returns all existing silences.
 func (s *Silences) All() ([]*types.Silence, error) {
-	var res []*types.Silence
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	res := make([]*types.Silence, 0, len(s.cache))
+	for _, s := range s.cache {
+		res = append(res, s)
+	}
+	return res, nil
+}
+
+func (s *Silences) initCache() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktSilences)
@@ -272,23 +295,21 @@ func (s *Silences) All() ([]*types.Silence, error) {
 			if err := json.Unmarshal(v, &ms); err != nil {
 				return err
 			}
-			ms.ID = binary.BigEndian.Uint64(k)
-
-			if err := json.Unmarshal(v, &ms); err != nil {
-				return err
-			}
-
-			res = append(res, types.NewSilence(&ms))
+			// The ID is duplicated in the value and always equal
+			// to the stored key.
+			s.cache[ms.ID] = types.NewSilence(&ms)
 		}
 
 		return nil
 	})
-
-	return res, err
+	return err
 }
 
 // Set a new silence.
 func (s *Silences) Set(sil *types.Silence) (uint64, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	var (
 		uid uint64
 		err error
@@ -312,11 +333,18 @@ func (s *Silences) Set(sil *types.Silence) (uint64, error) {
 		}
 		return b.Put(k, msb)
 	})
-	return uid, err
+	if err != nil {
+		return 0, err
+	}
+	s.cache[uid] = sil
+	return uid, nil
 }
 
 // Del removes a silence.
 func (s *Silences) Del(uid uint64) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktSilences)
 
@@ -325,33 +353,23 @@ func (s *Silences) Del(uid uint64) error {
 
 		return b.Delete(k)
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	delete(s.cache, uid)
+	return nil
 }
 
 // Get a silence associated with a fingerprint.
 func (s *Silences) Get(uid uint64) (*types.Silence, error) {
-	var sil *types.Silence
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
 
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bktSilences)
-
-		k := make([]byte, 8)
-		binary.BigEndian.PutUint64(k, uid)
-
-		v := b.Get(k)
-		if v == nil {
-			return provider.ErrNotFound
-		}
-		var ms model.Silence
-
-		if err := json.Unmarshal(v, &ms); err != nil {
-			return err
-		}
-		sil = types.NewSilence(&ms)
-
-		return nil
-	})
-	return sil, err
+	sil, ok := s.cache[uid]
+	if !ok {
+		return nil, provider.ErrNotFound
+	}
+	return sil, nil
 }
 
 // NotificationInfo provides information about pending and successful

@@ -225,6 +225,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Route == nil {
 		return fmt.Errorf("No routes provided")
 	}
+	if len(c.Route.Receiver) == 0 {
+		return fmt.Errorf("Root route must specify a default receiver")
+	}
 	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
 		return fmt.Errorf("Root route must not have any matchers")
 	}
@@ -240,6 +243,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // checkReceiver returns an error if a node in the routing tree
 // references a receiver not in the given map.
 func checkReceiver(r *Route, receivers map[string]struct{}) error {
+	if r.Receiver == "" {
+		return nil
+	}
 	if _, ok := receivers[r.Receiver]; !ok {
 		return fmt.Errorf("Undefined receiver %q used in route", r.Receiver)
 	}
