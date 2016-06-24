@@ -274,11 +274,16 @@ angular.module('am.controllers').controller('SilencesCtrl',
       Silence.query({},
         function(data) {
           $scope.silences = data.data || [];
+	  var now = new Date;
 
           angular.forEach($scope.silences, function(value) {
             value.endsAt = new Date(value.endsAt);
             value.startsAt = new Date(value.startsAt);
-            value.createdAt = new Date(value.createdAt);
+            value.updatedAt = new Date(value.updatedAt);
+
+	    value.elapsed = value.endsAt < now;
+	    value.pending = value.startsAt > now;
+	    value.active = value.startsAt <= now && value.endsAt > now;
           });
         },
         function(data) {
@@ -293,22 +298,6 @@ angular.module('am.controllers').controller('SilencesCtrl',
     $scope.$on('silence-deleted', function(evt) {
       $scope.refresh();
     });
-
-    $scope.elapsed = function() {
-      return function(sil) {
-        return sil.endsAt < new Date;
-      };
-    };
-    $scope.pending = function() {
-      return function(sil) {
-        return sil.startsAt > new Date;
-      };
-    };
-    $scope.active = function() {
-      return function(sil) {
-        return sil.startsAt <= new Date;
-      };
-    };
 
     $scope.refresh();
   }
@@ -338,10 +327,10 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
 
       $scope.silence = angular.copy(origSilence);
 
-      if (!origSilence.startsAt) {
+      if (!origSilence.startsAt || origSilence.elapsed) {
         $scope.silence.startsAt = now;
       }
-      if (!origSilence.endsAt) {
+      if (!origSilence.endsAt || origSilence.elapsed) {
         $scope.silence.endsAt = end;
       }
     };
@@ -357,10 +346,34 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
     };
 
     $scope.create = function() {
+      var now = new Date;
+      // Go through conditions that go against immutability of historic silences.
+      var createNew = !angular.equals(origSilence.matchers, $scope.silence.matchers);
+      console.log(origSilence, $scope.silence);
+      createNew = createNew || $scope.silence.elapsed;
+      createNew = createNew || ($scope.silence.active && (origSilence.startsAt == $scope.silence.startsAt || origSilence.endsAt == $scope.silence.endsAt));
+
+      if (createNew) {
+        $scope.silence.id = undefined;
+      }
+
       Silence.create($scope.silence,
         function(data) {
-          $scope.$emit('silence-created');
-          $scope.reset();
+	  // If the modifications require creating a new silence,
+	  // we expire/delete the old one.
+          if (createNew && origSilence.id && !$scope.silence.elapsed) {
+	    Silence.delete({id: origSilence.id},
+	      function(data) {
+		// Only trigger reload after after old silence was deleted.
+                $scope.$emit('silence-created');
+	      },
+	      function(data) {
+	        console.warn("deleting silence failed", data);
+                $scope.$emit('silence-created');
+	      });
+          } else {
+	    $scope.$emit('silence-created');
+	  }
         },
         function(data) {
           $scope.error = data.data.error;
