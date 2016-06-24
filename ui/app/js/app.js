@@ -294,13 +294,20 @@ angular.module('am.controllers').controller('SilencesCtrl',
       $scope.refresh();
     });
 
-    $scope.elapsed = function(elapsed) {
+    $scope.elapsed = function() {
       return function(sil) {
-        if (elapsed) {
-          return sil.endsAt <= new Date;
-        }
-        return sil.endsAt > new Date;
-      }
+        return sil.endsAt < new Date;
+      };
+    };
+    $scope.pending = function() {
+      return function(sil) {
+        return sil.startsAt > new Date;
+      };
+    };
+    $scope.active = function() {
+      return function(sil) {
+        return sil.startsAt <= new Date;
+      };
     };
 
     $scope.refresh();
