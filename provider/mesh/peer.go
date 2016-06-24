@@ -174,7 +174,9 @@ func (s *Silences) All() ([]*types.Silence, error) {
 	res := make([]*types.Silence, 0, len(s.st.m))
 
 	for _, sil := range s.st.m {
-		res = append(res, sil)
+		if !sil.Deleted() {
+			res = append(res, sil)
+		}
 	}
 	return res, nil
 }
@@ -225,7 +227,7 @@ func (s *Silences) Get(id uuid.UUID) (*types.Silence, error) {
 	defer s.st.mtx.RUnlock()
 
 	sil, ok := s.st.m[id]
-	if !ok {
+	if !ok || sil.Deleted() {
 		return nil, provider.ErrNotFound
 	}
 	// TODO(fabxc): ensure that silence objects are never modified; just replaced.
