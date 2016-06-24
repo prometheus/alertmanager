@@ -283,12 +283,20 @@ func (st *silenceState) del(id uuid.UUID) (*types.Silence, error) {
 	if !ok {
 		return nil, provider.ErrNotFound
 	}
+	now := st.now()
+
 	// Silences are immutable by contract so we create a
 	// shallow copy.
 	sil := *prev
-	now := st.now()
 	sil.UpdatedAt = now
-	sil.EndsAt = now
+
+	// If silence hasn't started yet, terminate it at
+	// its starting time.
+	if sil.StartsAt.After(now) {
+		sil.EndsAt = sil.StartsAt
+	} else {
+		sil.EndsAt = now
+	}
 
 	if err := sil.Validate(); err != nil {
 		return nil, err
