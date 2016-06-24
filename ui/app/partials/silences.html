@@ -29,14 +29,21 @@
 
 	<div class="active-silences">
 		<h4 class="thin">Active</h4>
-		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:elapsed(false) | orderBy:order">
+		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:active() | orderBy:order">
+			<silence sil="sil"></silence>
+		</div>
+	</div>
+
+	<div class="pending-silences">
+		<h4 class="thin">Pending</h4>
+		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:pending() | orderBy:order">
 			<silence sil="sil"></silence>
 		</div>
 	</div>
 
 	<div class="elapsed-silences">
 		<h4 class="thin">Elapsed</h4>
-		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:elapsed(true) | orderBy:order">
+		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:elapsed() | orderBy:order">
 			<silence sil="sil"></silence>
 		</div>
 	</div>
