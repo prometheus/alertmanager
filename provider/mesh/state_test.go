@@ -273,6 +273,32 @@ func TestSilenceStateDel(t *testing.T) {
 				id1: &types.Silence{
 					ID:        id1,
 					Matchers:  matchers,
+					StartsAt:  now.Add(time.Minute),
+					EndsAt:    now.Add(2 * time.Minute),
+					UpdatedAt: now.Add(-time.Minute),
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+			// Deleting unstarted silence sets end timestamp to start time.
+			final: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:        id1,
+					Matchers:  matchers,
+					StartsAt:  now.Add(time.Minute),
+					EndsAt:    now.Add(time.Minute),
+					UpdatedAt: now,
+					CreatedBy: "x",
+					Comment:   "x",
+				},
+			},
+			input: id1,
+		},
+		{
+			initial: map[uuid.UUID]*types.Silence{
+				id1: &types.Silence{
+					ID:        id1,
+					Matchers:  matchers,
 					StartsAt:  now.Add(-time.Minute),
 					EndsAt:    now.Add(time.Minute),
 					UpdatedAt: now.Add(-time.Minute),
