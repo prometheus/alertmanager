@@ -93,7 +93,7 @@ a.gen-link button {
 	opacity: 1.0;
 }
 
-.active-silences, .elapsed-silences {
+.active-silences, .pending-silences, .elapsed-silences {
 	margin-bottom: 12px;
 }
 
