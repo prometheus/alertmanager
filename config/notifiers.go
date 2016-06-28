@@ -274,7 +274,7 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.URL == "" {
 		return fmt.Errorf("missing URL in webhook config")
 	}
-	return checkOverflow(c.XXX, "slack config")
+	return checkOverflow(c.XXX, "webhook config")
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
