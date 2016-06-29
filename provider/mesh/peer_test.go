@@ -3,6 +3,9 @@ package mesh
 import (
 	"bytes"
 	"encoding/gob"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -14,6 +17,49 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
 )
+
+func TestReplaceFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "replace_file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	origFilename := filepath.Join(dir, "testfile")
+
+	of, err := os.Create(origFilename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nf, err := openReplace(filepath.Join(dir, "testfile"))
+	if err != nil {
+		t.Fatalf("Creating test file failed: %s", err)
+	}
+	if _, err := nf.Write([]byte("test")); err != nil {
+		t.Fatalf("Writing replace file failed: %s", err)
+	}
+
+	if nf.Name() == of.Name() {
+		t.Fatalf("Replacement file must not have same name as original")
+	}
+	if err := nf.Close(); err != nil {
+		t.Fatalf("Closing replace file failed: %s", err)
+	}
+	of.Close()
+
+	ofr, err := os.Open(origFilename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ofr.Close()
+
+	res, err := ioutil.ReadAll(ofr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(res) != "test" {
+		t.Fatalf("File contents do not match; got %q, expected %q", string(res), "test")
+	}
+}
 
 func TestNotificationInfosOnGossip(t *testing.T) {
 	var (
@@ -64,7 +110,10 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		ni := NewNotificationInfos(log.Base())
+		ni, err := NewNotificationInfos(log.Base(), time.Hour, "")
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		ni.st.mergeComplete(c.initial)
 		var buf bytes.Buffer
@@ -96,7 +145,10 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		ni := NewNotificationInfos(log.Base())
+		ni, err := NewNotificationInfos(log.Base(), time.Hour, "")
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		ni.st.mergeComplete(c.initial)
 		var buf bytes.Buffer
@@ -122,7 +174,10 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		ni := NewNotificationInfos(log.Base())
+		ni, err := NewNotificationInfos(log.Base(), time.Hour, "")
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		ni.st.mergeComplete(c.initial)
 		var buf bytes.Buffer
@@ -130,7 +185,7 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 			t.Fatal(err)
 		}
 		// OnGossipUnicast always expects the full state back.
-		err := ni.OnGossipUnicast(mesh.UnknownPeerName, buf.Bytes())
+		err = ni.OnGossipUnicast(mesh.UnknownPeerName, buf.Bytes())
 		if err != nil {
 			t.Errorf("%v OnGossip %v: %s", c.initial, c.msg, err)
 			continue
@@ -214,7 +269,10 @@ func TestNotificationInfosSet(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		ni := NewNotificationInfos(log.Base())
+		ni, err := NewNotificationInfos(log.Base(), time.Hour, "")
+		if err != nil {
+			t.Fatal(err)
+		}
 		tg := &testGossip{}
 		ni.Register(tg)
 		ni.st = &notificationState{set: c.initial}
@@ -281,7 +339,10 @@ func TestNotificationInfosGet(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		ni := NewNotificationInfos(log.Base())
+		ni, err := NewNotificationInfos(log.Base(), time.Hour, "")
+		if err != nil {
+			t.Fatal(err)
+		}
 		ni.st = &notificationState{set: c.state}
 
 		for _, q := range c.queries {
@@ -338,7 +399,10 @@ func TestSilencesSet(t *testing.T) {
 	for i, c := range cases {
 		t.Logf("Test case %d", i)
 
-		s := NewSilences(nil, log.Base())
+		s, err := NewSilences(nil, log.Base(), time.Hour, "")
+		if err != nil {
+			t.Fatal(err)
+		}
 		tg := &testGossip{}
 		s.Register(tg)
 		s.st.now = func() time.Time { return now }
