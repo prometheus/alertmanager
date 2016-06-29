@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -21,35 +22,16 @@ type notificationEntry struct {
 }
 
 type notificationState struct {
-	mtx   sync.RWMutex
-	set   map[string]notificationEntry
-	stopc chan struct{}
-	now   func() time.Time // test injection hook
+	mtx sync.RWMutex
+	set map[string]notificationEntry
+	now func() time.Time // test injection hook
 }
-
-const gcInterval = 1 * time.Hour
 
 func newNotificationState() *notificationState {
 	return &notificationState{
-		set:   map[string]notificationEntry{},
-		stopc: make(chan struct{}),
-		now:   utcNow,
+		set: map[string]notificationEntry{},
+		now: utcNow,
 	}
-}
-
-func (st *notificationState) run(retention time.Duration) {
-	for {
-		select {
-		case <-st.stopc:
-			return
-		case <-time.After(gcInterval):
-			st.gc(retention)
-		}
-	}
-}
-
-func (st *notificationState) stop() {
-	close(st.stopc)
 }
 
 func decodeNotificationSet(b []byte) (map[string]notificationEntry, error) {
@@ -68,6 +50,47 @@ func (st *notificationState) gc(retention time.Duration) {
 			delete(st.set, k)
 		}
 	}
+}
+
+func (st *notificationState) snapshot(w io.Writer) error {
+	st.mtx.RLock()
+	defer st.mtx.RUnlock()
+
+	enc := gob.NewEncoder(w)
+	for k, n := range st.set {
+		if err := enc.Encode(k); err != nil {
+			return err
+		}
+		if err := enc.Encode(n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (st *notificationState) loadSnapshot(r io.Reader) error {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
+
+	dec := gob.NewDecoder(r)
+	for {
+		var n notificationEntry
+		var k string
+		if err := dec.Decode(&k); err != nil {
+			// Only EOF at the start of new pair is correct.
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		if err := dec.Decode(&n); err != nil {
+			return err
+		}
+		// TODO(fabxc): remove serialization of alert/receiver into
+		// string key.
+		st.set[k] = n
+	}
+	return nil
 }
 
 // copy returns a deep copy of the notification state.
@@ -138,33 +161,16 @@ func (st *notificationState) mergeDelta(set map[string]notificationEntry) *notif
 }
 
 type silenceState struct {
-	mtx   sync.RWMutex
-	m     map[uuid.UUID]*types.Silence
-	stopc chan struct{}
-	now   func() time.Time // now function for test injection
+	mtx sync.RWMutex
+	m   map[uuid.UUID]*types.Silence
+	now func() time.Time // now function for test injection
 }
 
 func newSilenceState() *silenceState {
 	return &silenceState{
-		m:     map[uuid.UUID]*types.Silence{},
-		stopc: make(chan struct{}),
-		now:   utcNow,
+		m:   map[uuid.UUID]*types.Silence{},
+		now: utcNow,
 	}
-}
-
-func (st *silenceState) run(retention time.Duration) {
-	for {
-		select {
-		case <-st.stopc:
-			return
-		case <-time.After(gcInterval):
-			st.gc(retention)
-		}
-	}
-}
-
-func (st *silenceState) stop() {
-	close(st.stopc)
 }
 
 func (st *silenceState) gc(retention time.Duration) {
@@ -177,6 +183,40 @@ func (st *silenceState) gc(retention time.Duration) {
 			delete(st.m, k)
 		}
 	}
+}
+
+func (st *silenceState) snapshot(w io.Writer) error {
+	st.mtx.RLock()
+	defer st.mtx.RUnlock()
+
+	enc := gob.NewEncoder(w)
+	for _, s := range st.m {
+		if err := enc.Encode(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (st *silenceState) loadSnapshot(r io.Reader) error {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
+
+	dec := gob.NewDecoder(r)
+	for {
+		var s types.Silence
+		if err := dec.Decode(&s); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		if err := s.Init(); err != nil {
+			return fmt.Errorf("iniializing silence failed: %s", err)
+		}
+		st.m[s.ID] = &s
+	}
+	return nil
 }
 
 func decodeSilenceSet(b []byte) (map[uuid.UUID]*types.Silence, error) {

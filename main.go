@@ -24,9 +24,11 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -97,20 +99,41 @@ func main() {
 
 	mrouter := initMesh(*meshListen, *hwaddr, *nickname)
 
-	ni := meshprov.NewNotificationInfos(log.Base())
+	ni, err := meshprov.NewNotificationInfos(log.Base(), *retention, filepath.Join(*dataDir, "notification_infos"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	ni.Register(mrouter.NewGossip("notify_info", ni))
-	go ni.Run(*retention)
-	defer ni.Stop()
 
 	marker := types.NewMarker()
 
-	silences := meshprov.NewSilences(marker, log.Base())
+	silences, err := meshprov.NewSilences(marker, log.Base(), *retention, filepath.Join(*dataDir, "silences"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	silences.Register(mrouter.NewGossip("silences", silences))
-	go silences.Run(*retention)
-	defer silences.Stop()
 
+	// Start providers before router potentially sends updates.
+	go ni.Run()
+	go silences.Run()
 	mrouter.Start()
-	defer mrouter.Stop()
+
+	defer func() {
+		// Stop receiving updates from router before shutting down.
+		mrouter.Stop()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			silences.Stop()
+			wg.Done()
+		}()
+		go func() {
+			ni.Stop()
+			wg.Done()
+		}()
+		wg.Wait()
+	}()
 
 	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
