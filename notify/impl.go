@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -251,6 +252,12 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 				return nil, fmt.Errorf("invalid address: %s", err)
 			}
 			return smtp.PlainAuth(identity, username, password, host), nil
+		case "LOGIN":
+			password := string(n.conf.AuthPassword)
+			if password == "" {
+				continue
+			}
+			return LoginAuth(username, password), nil
 		}
 	}
 	return nil, nil
@@ -812,4 +819,31 @@ func tmplHTML(tmpl *template.Template, data *template.Data, err *error) func(str
 		s, *err = tmpl.ExecuteHTMLString(name, data)
 		return s
 	}
+}
+
+type loginAuth struct {
+	username, password string
+}
+
+func LoginAuth(username, password string) smtp.Auth {
+	return &loginAuth{username, password}
+}
+
+func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	return "LOGIN", []byte{}, nil
+}
+
+// Used for AUTH LOGIN. (Maybe password should be encrypted)
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if more {
+		switch string(fromServer) {
+		case "Username:":
+			return []byte(a.username), nil
+		case "Password:":
+			return []byte(a.password), nil
+		default:
+			return nil, errors.New("unexpected server challenge")
+		}
+	}
+	return nil, nil
 }
