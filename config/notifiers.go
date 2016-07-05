@@ -127,6 +127,7 @@ type EmailConfig struct {
 	AuthPassword Secret            `yaml:"auth_password"`
 	AuthSecret   Secret            `yaml:"auth_secret"`
 	AuthIdentity string            `yaml:"auth_identity"`
+	AuthPemFile  string            `yaml:"auth_pem_file"`
 	Headers      map[string]string `yaml:"headers"`
 	HTML         string            `yaml:"html"`
 	RequireTLS   bool              `yaml:"require_tls"`
