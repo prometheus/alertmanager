@@ -2,6 +2,7 @@ package mesh
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/prometheus/alertmanager/provider"
@@ -12,19 +13,68 @@ import (
 	"github.com/weaveworks/mesh"
 )
 
+// replaceFile wraps a file that is moved to another filename on closing.
+type replaceFile struct {
+	*os.File
+	filename string
+}
+
+func (f *replaceFile) Close() error {
+	if err := f.File.Sync(); err != nil {
+		return err
+	}
+	if err := f.File.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.File.Name(), f.filename)
+}
+
+// openReplace opens a new temporary file that is moved to filename on closing.
+func openReplace(filename string) (*replaceFile, error) {
+	tmpFilename := fmt.Sprintf("%s.%s", filename, utcNow().Format(time.RFC3339Nano))
+
+	f, err := os.Create(tmpFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	rf := &replaceFile{
+		File:     f,
+		filename: filename,
+	}
+	return rf, nil
+}
+
 // NotificationInfos provides gossiped information about which
 // receivers have been notified about which alerts.
 type NotificationInfos struct {
-	st     *notificationState
-	send   mesh.Gossip
-	logger log.Logger
+	st        *notificationState
+	send      mesh.Gossip
+	retention time.Duration
+	snapfile  string
+	logger    log.Logger
+	stopc     chan struct{}
 }
 
-func NewNotificationInfos(logger log.Logger) *NotificationInfos {
-	return &NotificationInfos{
-		logger: logger,
-		st:     newNotificationState(),
+// NewNotificationInfos returns a new NotificationInfos object.
+func NewNotificationInfos(logger log.Logger, retention time.Duration, snapfile string) (*NotificationInfos, error) {
+	ni := &NotificationInfos{
+		logger:    logger,
+		stopc:     make(chan struct{}),
+		st:        newNotificationState(),
+		retention: retention,
+		snapfile:  snapfile,
 	}
+	f, err := os.Open(snapfile)
+	if os.IsNotExist(err) {
+		return ni, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return ni, ni.st.loadSnapshot(f)
 }
 
 // Register the given gossip channel.
@@ -32,15 +82,42 @@ func (ni *NotificationInfos) Register(g mesh.Gossip) {
 	ni.send = g
 }
 
+// TODO(fabxc): consider making this a flag.
+const maintenanceInterval = 15 * time.Minute
+
 // Run starts blocking background processing of the NotificationInfos.
 // Cannot be run more than once.
-func (ni *NotificationInfos) Run(retention time.Duration) {
-	ni.st.run(retention)
+func (ni *NotificationInfos) Run() {
+	for {
+		select {
+		case <-ni.stopc:
+			return
+		case <-time.After(maintenanceInterval):
+			ni.st.gc(ni.retention)
+			if err := ni.snapshot(); err != nil {
+				ni.logger.With("err", err).Errorf("Snapshotting failed")
+			}
+		}
+	}
+}
+
+func (ni *NotificationInfos) snapshot() error {
+	f, err := openReplace(ni.snapfile)
+	if err != nil {
+		return err
+	}
+	if err := ni.st.snapshot(f); err != nil {
+		return err
+	}
+	return f.Close()
 }
 
 // Stop signals the background processing to terminate.
 func (ni *NotificationInfos) Stop() {
-	ni.st.stop()
+	close(ni.stopc)
+	if err := ni.snapshot(); err != nil {
+		ni.logger.With("err", err).Errorf("Snapshotting failed")
+	}
 }
 
 // Gossip implements the mesh.Gossiper interface.
@@ -122,18 +199,35 @@ func (ni *NotificationInfos) Get(recv string, fps ...model.Fingerprint) ([]*type
 
 // Silences provides gossiped silences.
 type Silences struct {
-	st     *silenceState
-	mk     types.Marker
-	send   mesh.Gossip
-	logger log.Logger
+	st        *silenceState
+	mk        types.Marker
+	send      mesh.Gossip
+	stopc     chan struct{}
+	logger    log.Logger
+	retention time.Duration
+	snapfile  string
 }
 
-func NewSilences(mk types.Marker, logger log.Logger) *Silences {
-	return &Silences{
-		st:     newSilenceState(),
-		mk:     mk,
-		logger: logger,
+// NewSilences creates a new Silences object.
+func NewSilences(mk types.Marker, logger log.Logger, retention time.Duration, snapfile string) (*Silences, error) {
+	s := &Silences{
+		st:        newSilenceState(),
+		mk:        mk,
+		stopc:     make(chan struct{}),
+		logger:    logger,
+		retention: retention,
+		snapfile:  snapfile,
 	}
+	f, err := os.Open(snapfile)
+	if os.IsNotExist(err) {
+		return s, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return s, s.st.loadSnapshot(f)
 }
 
 // Register a gossip channel over which silences are shared.
@@ -142,13 +236,40 @@ func (s *Silences) Register(g mesh.Gossip) {
 }
 
 // Run blocking background processing. Cannot be run more than once.
-func (s *Silences) Run(retention time.Duration) {
-	s.st.run(retention)
+func (s *Silences) Run() {
+	for {
+		select {
+		case <-s.stopc:
+			return
+		case <-time.After(maintenanceInterval):
+			s.st.gc(s.retention)
+			if err := s.snapshot(); err != nil {
+				s.logger.With("err", err).Errorf("Snapshotting failed")
+			}
+		}
+	}
+}
+
+func (s *Silences) snapshot() error {
+	s.logger.Warnf("creating snapshot")
+	f, err := openReplace(s.snapfile)
+	if err != nil {
+		return err
+	}
+	if err := s.st.snapshot(f); err != nil {
+		return err
+	}
+	s.logger.Warnf("snapshot created")
+	return f.Close()
 }
 
 // Stop signals the background processing to be stopped.
 func (s *Silences) Stop() {
-	s.st.stop()
+	log.Errorf("stopping silences")
+	close(s.stopc)
+	if err := s.snapshot(); err != nil {
+		s.logger.With("err", err).Errorf("Snapshotting failed")
+	}
 }
 
 // Mutes returns true iff any of the known silences mutes the provided label set.

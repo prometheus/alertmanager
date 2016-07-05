@@ -1,7 +1,9 @@
 package mesh
 
 import (
+	"bytes"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +40,36 @@ func TestNotificationStateGC(t *testing.T) {
 	if !reflect.DeepEqual(st.set, final) {
 		t.Errorf("Unexpected state after GC")
 		t.Errorf("%s", pretty.Compare(st.set, final))
+	}
+}
+
+func TestNotificationStateSnapshot(t *testing.T) {
+	now := utcNow()
+
+	initial := map[string]notificationEntry{
+		"123:abc": {false, now.Add(30 * time.Minute)},
+		"789:xyz": {false, now},
+	}
+
+	st := newNotificationState()
+	st.now = func() time.Time { return now }
+	st.set = initial
+
+	var buf bytes.Buffer
+
+	if err := st.snapshot(&buf); err != nil {
+		t.Fatalf("Snapshotting failed: %s", err)
+	}
+
+	st = newNotificationState()
+
+	if err := st.loadSnapshot(&buf); err != nil {
+		t.Fatalf("Loading snapshot failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(st.set, initial) {
+		t.Errorf("Loaded snapshot did not match")
+		t.Errorf("%s", pretty.Compare(st.set, initial))
 	}
 }
 
@@ -85,6 +117,59 @@ func TestSilenceStateGC(t *testing.T) {
 	if !reflect.DeepEqual(st.m, final) {
 		t.Errorf("Unexpected state after GC")
 		t.Errorf("%s", pretty.Compare(st.m, final))
+	}
+}
+
+func TestSilenceStateSnapshot(t *testing.T) {
+	var (
+		now      = utcNow()
+		id1      = uuid.NewV4()
+		id2      = uuid.NewV4()
+		matchers = types.NewMatchers(
+			types.NewMatcher("a", "b"),
+			types.NewRegexMatcher("label", regexp.MustCompile("abc[^a].+")),
+		)
+	)
+	initial := map[uuid.UUID]*types.Silence{
+		id1: &types.Silence{
+			ID:        id1,
+			Matchers:  matchers,
+			StartsAt:  now.Add(time.Minute),
+			EndsAt:    now.Add(time.Hour),
+			UpdatedAt: now,
+			CreatedBy: "x",
+			Comment:   "x",
+		},
+		id2: &types.Silence{
+			ID:        id2,
+			Matchers:  matchers,
+			StartsAt:  now.Add(-time.Hour),
+			EndsAt:    now.Add(time.Minute),
+			UpdatedAt: now,
+			CreatedBy: "creator X",
+			Comment:   "comment comment comment",
+		},
+	}
+
+	st := newSilenceState()
+	st.now = func() time.Time { return now }
+	st.m = initial
+
+	var buf bytes.Buffer
+
+	if err := st.snapshot(&buf); err != nil {
+		t.Fatalf("Snapshotting failed: %s", err)
+	}
+
+	st = newSilenceState()
+
+	if err := st.loadSnapshot(&buf); err != nil {
+		t.Fatalf("Loading snapshot failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(st.m, initial) {
+		t.Errorf("Loaded snapshot did not match")
+		t.Errorf("%s", pretty.Compare(st.m, initial))
 	}
 }
 
