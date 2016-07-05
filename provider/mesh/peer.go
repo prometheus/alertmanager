@@ -13,6 +13,7 @@ import (
 	"github.com/weaveworks/mesh"
 )
 
+// replaceFile wraps a file that is moved to another filename on closing.
 type replaceFile struct {
 	*os.File
 	filename string
@@ -28,6 +29,7 @@ func (f *replaceFile) Close() error {
 	return os.Rename(f.File.Name(), f.filename)
 }
 
+// openReplace opens a new temporary file that is moved to filename on closing.
 func openReplace(filename string) (*replaceFile, error) {
 	tmpFilename := fmt.Sprintf("%s.%s", filename, utcNow().Format(time.RFC3339Nano))
 
@@ -54,6 +56,7 @@ type NotificationInfos struct {
 	stopc     chan struct{}
 }
 
+// NewNotificationInfos returns a new NotificationInfos object.
 func NewNotificationInfos(logger log.Logger, retention time.Duration, snapfile string) (*NotificationInfos, error) {
 	ni := &NotificationInfos{
 		logger:    logger,
@@ -79,6 +82,7 @@ func (ni *NotificationInfos) Register(g mesh.Gossip) {
 	ni.send = g
 }
 
+// TODO(fabxc): consider making this a flag.
 const maintenanceInterval = 15 * time.Minute
 
 // Run starts blocking background processing of the NotificationInfos.
@@ -204,6 +208,7 @@ type Silences struct {
 	snapfile  string
 }
 
+// NewSilences creates a new Silences object.
 func NewSilences(mk types.Marker, logger log.Logger, retention time.Duration, snapfile string) (*Silences, error) {
 	s := &Silences{
 		st:        newSilenceState(),
