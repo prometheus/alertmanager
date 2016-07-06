@@ -51,7 +51,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 	)
 	cases := []struct {
 		inAlert      *types.Alert
-		inNotifyInfo *types.NotifyInfo
+		inNotifyInfo *types.NotificationInfo
 		result       bool
 	}{
 		// A new alert about which there's no previous notification information.
@@ -87,7 +87,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					EndsAt:   now,
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  false,
 				Timestamp: now.Add(-time.Minute),
@@ -103,7 +103,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					EndsAt:   now,
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  true,
 				Timestamp: now.Add(-time.Minute),
@@ -118,7 +118,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					StartsAt: now.Add(-3 * time.Minute),
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  true,
 				Timestamp: now.Add(-4 * time.Minute),
@@ -134,7 +134,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					StartsAt: now.Add(-10 * time.Minute),
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  false,
 				Timestamp: now.Add(-15 * time.Minute),
@@ -150,7 +150,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					StartsAt: now.Add(-10 * time.Minute),
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  false,
 				Timestamp: now.Add(-115 * time.Minute),
@@ -194,7 +194,7 @@ func TestDedupingNotifier(t *testing.T) {
 
 	// Set an initial NotifyInfo to ensure that on notification failure
 	// nothing changes.
-	nsBefore := []*types.NotifyInfo{
+	nsBefore := []*types.NotificationInfo{
 		nil,
 		{
 			Alert:     alerts[1].Fingerprint(),
@@ -234,7 +234,7 @@ func TestDedupingNotifier(t *testing.T) {
 		t.Fatalf("Error getting notifies: %s", err)
 	}
 
-	nsAfter := []*types.NotifyInfo{
+	nsAfter := []*types.NotificationInfo{
 		{
 			Alert:     alerts[0].Fingerprint(),
 			Receiver:  "name",
@@ -408,17 +408,17 @@ func TestInhibitNotifier(t *testing.T) {
 
 type testInfos struct {
 	mtx sync.RWMutex
-	m   map[string]map[model.Fingerprint]*types.NotifyInfo
+	m   map[string]map[model.Fingerprint]*types.NotificationInfo
 }
 
 func newTestInfos() *testInfos {
 	return &testInfos{
-		m: map[string]map[model.Fingerprint]*types.NotifyInfo{},
+		m: map[string]map[model.Fingerprint]*types.NotificationInfo{},
 	}
 }
 
 // Set implements the Notifies interface.
-func (n *testInfos) Set(ns ...*types.NotifyInfo) error {
+func (n *testInfos) Set(ns ...*types.NotificationInfo) error {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
@@ -429,7 +429,7 @@ func (n *testInfos) Set(ns ...*types.NotifyInfo) error {
 		}
 		am, ok := n.m[v.Receiver]
 		if !ok {
-			am = map[model.Fingerprint]*types.NotifyInfo{}
+			am = map[model.Fingerprint]*types.NotificationInfo{}
 			n.m[v.Receiver] = am
 		}
 		am[v.Alert] = v
@@ -438,11 +438,11 @@ func (n *testInfos) Set(ns ...*types.NotifyInfo) error {
 }
 
 // Get implements the Notifies interface.
-func (n *testInfos) Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
+func (n *testInfos) Get(dest string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
 	n.mtx.RLock()
 	defer n.mtx.RUnlock()
 
-	res := make([]*types.NotifyInfo, len(fps))
+	res := make([]*types.NotificationInfo, len(fps))
 
 	ns, ok := n.m[dest]
 	if !ok {
