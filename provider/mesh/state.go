@@ -10,11 +10,17 @@ import (
 
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
 )
 
 func utcNow() time.Time { return time.Now().UTC() }
+
+type notificationKey struct {
+	Receiver string
+	Alert    model.Fingerprint
+}
 
 type notificationEntry struct {
 	Resolved  bool
@@ -23,19 +29,19 @@ type notificationEntry struct {
 
 type notificationState struct {
 	mtx sync.RWMutex
-	set map[string]notificationEntry
+	set map[notificationKey]notificationEntry
 	now func() time.Time // test injection hook
 }
 
 func newNotificationState() *notificationState {
 	return &notificationState{
-		set: map[string]notificationEntry{},
+		set: map[notificationKey]notificationEntry{},
 		now: utcNow,
 	}
 }
 
-func decodeNotificationSet(b []byte) (map[string]notificationEntry, error) {
-	var v map[string]notificationEntry
+func decodeNotificationSet(b []byte) (map[notificationKey]notificationEntry, error) {
+	var v map[notificationKey]notificationEntry
 	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&v)
 	return v, err
 }
@@ -74,8 +80,8 @@ func (st *notificationState) loadSnapshot(r io.Reader) error {
 
 	dec := gob.NewDecoder(r)
 	for {
+		var k notificationKey
 		var n notificationEntry
-		var k string
 		if err := dec.Decode(&k); err != nil {
 			// Only EOF at the start of new pair is correct.
 			if err == io.EOF {
@@ -99,7 +105,7 @@ func (st *notificationState) copy() *notificationState {
 	defer st.mtx.RUnlock()
 
 	res := &notificationState{
-		set: make(map[string]notificationEntry, len(st.set)),
+		set: make(map[notificationKey]notificationEntry, len(st.set)),
 	}
 	for k, v := range st.set {
 		res.set[k] = v
@@ -130,7 +136,7 @@ func (st *notificationState) Merge(other mesh.GossipData) mesh.GossipData {
 	return st.mergeComplete(o.set)
 }
 
-func (st *notificationState) mergeComplete(set map[string]notificationEntry) *notificationState {
+func (st *notificationState) mergeComplete(set map[notificationKey]notificationEntry) *notificationState {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
@@ -145,11 +151,11 @@ func (st *notificationState) mergeComplete(set map[string]notificationEntry) *no
 	return st
 }
 
-func (st *notificationState) mergeDelta(set map[string]notificationEntry) *notificationState {
+func (st *notificationState) mergeDelta(set map[notificationKey]notificationEntry) *notificationState {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
-	d := map[string]notificationEntry{}
+	d := map[notificationKey]notificationEntry{}
 
 	for k, v := range set {
 		if prev, ok := st.set[k]; !ok || prev.Timestamp.Before(v.Timestamp) {

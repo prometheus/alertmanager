@@ -161,9 +161,12 @@ func (ni *NotificationInfos) OnGossipUnicast(_ mesh.PeerName, b []byte) error {
 
 // Set the provided notification information.
 func (ni *NotificationInfos) Set(ns ...*types.NotificationInfo) error {
-	set := map[string]notificationEntry{}
+	set := map[notificationKey]notificationEntry{}
 	for _, n := range ns {
-		k := fmt.Sprintf("%s:%s", n.Alert, n.Receiver)
+		k := notificationKey{
+			Receiver: n.Receiver,
+			Alert:    n.Alert,
+		}
 		set[k] = notificationEntry{
 			Resolved:  n.Resolved,
 			Timestamp: n.Timestamp,
@@ -181,8 +184,11 @@ func (ni *NotificationInfos) Set(ns ...*types.NotificationInfo) error {
 // Result entries are nil if nothing was found.
 func (ni *NotificationInfos) Get(recv string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
 	res := make([]*types.NotificationInfo, 0, len(fps))
+	k := notificationKey{
+		Receiver: recv,
+	}
 	for _, fp := range fps {
-		k := fmt.Sprintf("%s:%s", fp, recv)
+		k.Alert = fp
 		if e, ok := ni.st.set[k]; ok {
 			res = append(res, &types.NotificationInfo{
 				Alert:     fp,

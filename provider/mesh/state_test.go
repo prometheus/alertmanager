@@ -17,19 +17,19 @@ import (
 func TestNotificationStateGC(t *testing.T) {
 	now := utcNow()
 
-	initial := map[string]notificationEntry{
-		"1": {true, now},
-		"2": {true, now.Add(30 * time.Minute)},
-		"3": {true, now.Add(-30 * time.Minute)},
-		"4": {true, now.Add(-60 * time.Minute)},
-		"5": {true, now.Add(-61 * time.Minute)},
-		"6": {true, now.Add(-100 * time.Hour)},
+	initial := map[notificationKey]notificationEntry{
+		{"", 1}: {true, now},
+		{"", 2}: {true, now.Add(30 * time.Minute)},
+		{"", 3}: {true, now.Add(-30 * time.Minute)},
+		{"", 4}: {true, now.Add(-60 * time.Minute)},
+		{"", 5}: {true, now.Add(-61 * time.Minute)},
+		{"", 6}: {true, now.Add(-100 * time.Hour)},
 	}
-	final := map[string]notificationEntry{
-		"1": {true, now},
-		"2": {true, now.Add(30 * time.Minute)},
-		"3": {true, now.Add(-30 * time.Minute)},
-		"4": {true, now.Add(-60 * time.Minute)},
+	final := map[notificationKey]notificationEntry{
+		{"", 1}: {true, now},
+		{"", 2}: {true, now.Add(30 * time.Minute)},
+		{"", 3}: {true, now.Add(-30 * time.Minute)},
+		{"", 4}: {true, now.Add(-60 * time.Minute)},
 	}
 
 	st := newNotificationState()
@@ -46,9 +46,10 @@ func TestNotificationStateGC(t *testing.T) {
 func TestNotificationStateSnapshot(t *testing.T) {
 	now := utcNow()
 
-	initial := map[string]notificationEntry{
-		"123:abc": {false, now.Add(30 * time.Minute)},
-		"789:xyz": {false, now},
+	initial := map[notificationKey]notificationEntry{
+		{"abc", 123}: {false, now.Add(30 * time.Minute)},
+
+		{"xyz", 789}: {false, now},
 	}
 
 	st := newNotificationState()
