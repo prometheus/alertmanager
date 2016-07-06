@@ -39,14 +39,14 @@ func TestNotifiesSet(t *testing.T) {
 	type query struct {
 		recv     string
 		fps      []model.Fingerprint
-		expected []*types.NotifyInfo
+		expected []*types.NotificationInfo
 	}
 	var steps = []struct {
-		insert  []*types.NotifyInfo
+		insert  []*types.NotificationInfo
 		queries []query
 	}{
 		{
-			insert: []*types.NotifyInfo{
+			insert: []*types.NotificationInfo{
 				{
 					Alert:     30000,
 					Receiver:  "receiver",
@@ -68,7 +68,7 @@ func TestNotifiesSet(t *testing.T) {
 				{
 					recv: "receiver",
 					fps:  []model.Fingerprint{30000, 30001, 20000, 10000},
-					expected: []*types.NotifyInfo{
+					expected: []*types.NotificationInfo{
 						{
 							Alert:     30000,
 							Receiver:  "receiver",
@@ -520,7 +520,7 @@ func silenceListEqual(s1, s2 []*types.Silence) bool {
 	return true
 }
 
-func notifyInfoEqual(n1, n2 *types.NotifyInfo) bool {
+func notifyInfoEqual(n1, n2 *types.NotificationInfo) bool {
 	// nil is a sentinel value and thus part of comparisons.
 	if n1 == nil || n2 == nil {
 		return n1 == nil && n2 == nil
@@ -537,7 +537,7 @@ func notifyInfoEqual(n1, n2 *types.NotifyInfo) bool {
 	return n1.Resolved == n2.Resolved
 }
 
-func notifyInfoListEqual(n1, n2 []*types.NotifyInfo) bool {
+func notifyInfoListEqual(n1, n2 []*types.NotificationInfo) bool {
 
 	if len(n1) != len(n2) {
 		return false

@@ -304,21 +304,21 @@ func (s *Silence) Deleted() bool {
 	return s.StartsAt.Equal(s.EndsAt)
 }
 
-// NotifyInfo holds information about the last successful notification
+// NotifcationInfo holds information about the last successful notification
 // of an alert to a receiver.
-type NotifyInfo struct {
+type NotificationInfo struct {
 	Alert     model.Fingerprint
 	Receiver  string
 	Resolved  bool
 	Timestamp time.Time
 }
 
-func (n *NotifyInfo) String() string {
+func (n *NotificationInfo) String() string {
 	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v>", n.Alert, n.Timestamp, n.Receiver, n.Resolved)
 }
 
 // Fingerprint returns a quasi-unique fingerprint for the NotifyInfo.
-func (n *NotifyInfo) Fingerprint() model.Fingerprint {
+func (n *NotificationInfo) Fingerprint() model.Fingerprint {
 	h := fnv.New64a()
 	h.Write([]byte(n.Receiver))
 

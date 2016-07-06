@@ -204,13 +204,13 @@ func TestNotificationInfosSet(t *testing.T) {
 	)
 	cases := []struct {
 		initial map[string]notificationEntry
-		input   []*types.NotifyInfo
+		input   []*types.NotificationInfo
 		update  map[string]notificationEntry
 		final   map[string]notificationEntry
 	}{
 		{
 			initial: map[string]notificationEntry{},
-			input: []*types.NotifyInfo{
+			input: []*types.NotificationInfo{
 				{
 					Alert:     0x10,
 					Receiver:  "recv1",
@@ -235,7 +235,7 @@ func TestNotificationInfosSet(t *testing.T) {
 				"0000000000000010:recv1": {false, now},
 				"0000000000000010:recv2": {false, now.Add(10 * time.Minute)},
 			},
-			input: []*types.NotifyInfo{
+			input: []*types.NotificationInfo{
 				{
 					Alert:     0x10,
 					Receiver:  "recv1",
@@ -302,7 +302,7 @@ func TestNotificationInfosGet(t *testing.T) {
 	type query struct {
 		recv string
 		fps  []model.Fingerprint
-		want []*types.NotifyInfo
+		want []*types.NotificationInfo
 	}
 	cases := []struct {
 		state   map[string]notificationEntry
@@ -319,7 +319,7 @@ func TestNotificationInfosGet(t *testing.T) {
 				{
 					recv: "recv1",
 					fps:  []model.Fingerprint{0x1000, 0x10, 0x20},
-					want: []*types.NotifyInfo{
+					want: []*types.NotificationInfo{
 						nil,
 						{
 							Alert:     0x10,
@@ -333,7 +333,7 @@ func TestNotificationInfosGet(t *testing.T) {
 				{
 					recv: "unknown",
 					fps:  []model.Fingerprint{0x10, 0x1000},
-					want: []*types.NotifyInfo{nil, nil},
+					want: []*types.NotificationInfo{nil, nil},
 				},
 			},
 		},

@@ -363,8 +363,8 @@ func (n *NotificationInfo) Close() error {
 }
 
 // Get notification information for alerts and the given receiver.
-func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
-	var res []*types.NotifyInfo
+func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
+	var res []*types.NotificationInfo
 
 	err := n.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktNotificationInfo)
@@ -380,7 +380,7 @@ func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.
 				continue
 			}
 
-			ni := &types.NotifyInfo{
+			ni := &types.NotificationInfo{
 				Alert:    fp,
 				Receiver: recv,
 				Resolved: v[0] == 1,
@@ -397,7 +397,7 @@ func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.
 }
 
 // Set several notifies at once. All or none must succeed.
-func (n *NotificationInfo) Set(ns ...*types.NotifyInfo) error {
+func (n *NotificationInfo) Set(ns ...*types.NotificationInfo) error {
 	err := n.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktNotificationInfo)
 

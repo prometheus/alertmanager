@@ -108,7 +108,7 @@ type Silences interface {
 // Notifies provides information about pending and successful
 // notifications. All methods are goroutine-safe.
 type Notifies interface {
-	Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error)
+	Get(dest string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error)
 	// Set several notifies at once. All or none must succeed.
-	Set(ns ...*types.NotifyInfo) error
+	Set(ns ...*types.NotificationInfo) error
 }

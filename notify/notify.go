@@ -215,7 +215,7 @@ func Dedup(notifies provider.Notifies, n Notifier) *DedupingNotifier {
 
 // hasUpdates checks an alert against the last notification that was made
 // about it.
-func (n *DedupingNotifier) hasUpdate(alert *types.Alert, last *types.NotifyInfo, now time.Time, interval time.Duration) bool {
+func (n *DedupingNotifier) hasUpdate(alert *types.Alert, last *types.NotificationInfo, now time.Time, interval time.Duration) bool {
 	if last != nil {
 		if alert.Resolved() {
 			if last.Resolved {
@@ -276,10 +276,10 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		return nil
 	}
 
-	var newNotifies []*types.NotifyInfo
+	var newNotifies []*types.NotificationInfo
 
 	for _, a := range alerts {
-		newNotifies = append(newNotifies, &types.NotifyInfo{
+		newNotifies = append(newNotifies, &types.NotificationInfo{
 			Alert:     a.Fingerprint(),
 			Receiver:  name,
 			Resolved:  a.Resolved(),
