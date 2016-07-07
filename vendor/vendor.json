@@ -29,9 +29,10 @@
 			"revisionTime": "2015-08-14T12:43:33+03:00"
 		},
 		{
+			"checksumSHA1": "M/1HiQFl2DyE+q3pFf8swvAQ3MY=",
 			"path": "github.com/golang/protobuf/proto",
-			"revision": "8df8a93c670173cd1d8737a507a253b94f2d0b5a",
-			"revisionTime": "2015-09-17T07:27:00+10:00"
+			"revision": "3852dcfda249c2097355a6aabb199a28d97b30df",
+			"revisionTime": "2016-06-29T21:10:53Z"
 		},
 		{
 			"path": "github.com/julienschmidt/httprouter",
