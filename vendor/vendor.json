@@ -52,11 +52,6 @@
 			"revisionTime": "2016-04-06T21:19:39Z"
 		},
 		{
-			"path": "github.com/mattn/go-sqlite3",
-			"revision": "45f056ca8f5ef4ee3f68796167a0a0e6a6214813",
-			"revisionTime": "2016-03-03T00:32:50+09:00"
-		},
-		{
 			"path": "github.com/matttproud/golang_protobuf_extensions/pbutil",
 			"revision": "fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a",
 			"revisionTime": "2015-04-06T19:39:34+02:00"
@@ -80,12 +75,6 @@
 			"path": "github.com/prometheus/common/expfmt",
 			"revision": "210d6543ee217ec38b676a40549af1df9431d80d",
 			"revisionTime": "2015-09-28T11:56:39+02:00"
-		},
-		{
-			"checksumSHA1": "GWlM3d2vPYyNATtTFgftS10/A9w=",
-			"path": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
-			"revision": "dd586c1c5abb0be59e60f942c22af711a2008cb4",
-			"revisionTime": "2016-05-03T22:05:32Z"
 		},
 		{
 			"path": "github.com/prometheus/common/log",
