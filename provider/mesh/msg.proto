@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package msg;
+
+message Timestamp {
+	int64 seconds = 1;
+	int32 nanoseconds = 2;
+}
+
+message NotificationInfo {
+	string receiver = 1;
+	uint64 alert = 2;
+	bool resolved = 3;
+	Timestamp timestamp = 4;
+}
+
+message NotificationInfoSet {
+	repeated NotificationInfo infos = 1;
+}
