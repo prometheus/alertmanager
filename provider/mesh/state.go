@@ -8,7 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/provider/mesh/msg"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/satori/go.uuid"
@@ -40,10 +42,24 @@ func newNotificationState() *notificationState {
 	}
 }
 
-func decodeNotificationSet(b []byte) (map[notificationKey]notificationEntry, error) {
-	var v map[notificationKey]notificationEntry
-	err := gob.NewDecoder(bytes.NewReader(b)).Decode(&v)
-	return v, err
+func decodeNotificationSet(b []byte) (v msg.NotificationInfoSet, err error) {
+	return v, proto.Unmarshal(b, &v)
+}
+
+func encodeNotificationSet(set map[notificationKey]notificationEntry) ([]byte, error) {
+	infos := make([]*msg.NotificationInfo, 0, len(set))
+	for k, v := range set {
+		infos = append(infos, &msg.NotificationInfo{
+			Receiver: k.Receiver,
+			Alert:    uint64(k.Alert),
+			Resolved: v.Resolved,
+			Timestamp: &msg.Timestamp{
+				Seconds:     v.Timestamp.Unix(),
+				Nanoseconds: int32(v.Timestamp.Nanosecond()),
+			},
+		})
+	}
+	return proto.Marshal(&msg.NotificationInfoSet{Infos: infos})
 }
 
 func (st *notificationState) gc(retention time.Duration) {
@@ -92,8 +108,6 @@ func (st *notificationState) loadSnapshot(r io.Reader) error {
 		if err := dec.Decode(&n); err != nil {
 			return err
 		}
-		// TODO(fabxc): remove serialization of alert/receiver into
-		// string key.
 		st.set[k] = n
 	}
 	return nil
@@ -118,11 +132,13 @@ func (st *notificationState) Encode() [][]byte {
 	st.mtx.RLock()
 	defer st.mtx.RUnlock()
 
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(&st.set); err != nil {
+	// TODO(fabxc): split this into chunks of multiple byte slices
+	// to handle transfer of large state (mesh has a 10MB hard message limit).
+	b, err := encodeNotificationSet(st.set)
+	if err != nil {
 		panic(err)
 	}
-	return [][]byte{buf.Bytes()}
+	return [][]byte{b}
 }
 
 // Merge the notification set with gossip data and return a new notification
@@ -132,17 +148,32 @@ func (st *notificationState) Merge(other mesh.GossipData) mesh.GossipData {
 	o := other.(*notificationState)
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
-
-	return st.mergeComplete(o.set)
-}
-
-func (st *notificationState) mergeComplete(set map[notificationKey]notificationEntry) *notificationState {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
-	for k, v := range set {
+	for k, v := range o.set {
 		if prev, ok := st.set[k]; !ok || prev.Timestamp.Before(v.Timestamp) {
 			st.set[k] = v
+		}
+	}
+	return st
+}
+
+func (st *notificationState) mergeComplete(set msg.NotificationInfoSet) *notificationState {
+	st.mtx.Lock()
+	defer st.mtx.Unlock()
+
+	for _, v := range set.Infos {
+		ts := time.Unix(v.Timestamp.Seconds, int64(v.Timestamp.Nanoseconds)).UTC()
+		k := notificationKey{
+			Receiver: v.Receiver,
+			Alert:    model.Fingerprint(v.Alert),
+		}
+		if prev, ok := st.set[k]; !ok || prev.Timestamp.Before(ts) {
+			st.set[k] = notificationEntry{
+				Resolved:  v.Resolved,
+				Timestamp: ts,
+			}
 		}
 	}
 	// XXX(fabxc): from what I understand we merge into the receiver and what
@@ -151,16 +182,25 @@ func (st *notificationState) mergeComplete(set map[notificationKey]notificationE
 	return st
 }
 
-func (st *notificationState) mergeDelta(set map[notificationKey]notificationEntry) *notificationState {
+func (st *notificationState) mergeDelta(set msg.NotificationInfoSet) *notificationState {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
 	d := map[notificationKey]notificationEntry{}
 
-	for k, v := range set {
-		if prev, ok := st.set[k]; !ok || prev.Timestamp.Before(v.Timestamp) {
-			st.set[k] = v
-			d[k] = v
+	for _, v := range set.Infos {
+		ts := time.Unix(v.Timestamp.Seconds, int64(v.Timestamp.Nanoseconds)).UTC()
+		k := notificationKey{
+			Receiver: v.Receiver,
+			Alert:    model.Fingerprint(v.Alert),
+		}
+		if prev, ok := st.set[k]; !ok || prev.Timestamp.Before(ts) {
+			e := notificationEntry{
+				Resolved:  v.Resolved,
+				Timestamp: ts,
+			}
+			st.set[k] = e
+			d[k] = e
 		}
 	}
 	return &notificationState{set: d}

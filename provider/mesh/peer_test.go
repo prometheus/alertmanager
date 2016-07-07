@@ -1,8 +1,6 @@
 package mesh
 
 import (
-	"bytes"
-	"encoding/gob"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -114,14 +112,16 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		for k, v := range c.initial {
+			ni.st.set[k] = v
+		}
 
-		ni.st.mergeComplete(c.initial)
-		var buf bytes.Buffer
-		if err := gob.NewEncoder(&buf).Encode(c.msg); err != nil {
+		b, err := encodeNotificationSet(c.msg)
+		if err != nil {
 			t.Fatal(err)
 		}
 		// OnGossip expects the delta but an empty set to be replaced with nil.
-		d, err := ni.OnGossip(buf.Bytes())
+		d, err := ni.OnGossip(b)
 		if err != nil {
 			t.Errorf("%v OnGossip %v: %s", c.initial, c.msg, err)
 			continue
@@ -149,15 +149,16 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		ni.st.mergeComplete(c.initial)
-		var buf bytes.Buffer
-		if err := gob.NewEncoder(&buf).Encode(c.msg); err != nil {
-			t.Fatal(err)
+		for k, v := range c.initial {
+			ni.st.set[k] = v
 		}
 
+		b, err := encodeNotificationSet(c.msg)
+		if err != nil {
+			t.Fatal(err)
+		}
 		// OnGossipBroadcast expects the provided delta as is.
-		d, err := ni.OnGossipBroadcast(mesh.UnknownPeerName, buf.Bytes())
+		d, err := ni.OnGossipBroadcast(mesh.UnknownPeerName, b)
 		if err != nil {
 			t.Errorf("%v OnGossipBroadcast %v: %s", c.initial, c.msg, err)
 			continue
@@ -178,14 +179,16 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		for k, v := range c.initial {
+			ni.st.set[k] = v
+		}
 
-		ni.st.mergeComplete(c.initial)
-		var buf bytes.Buffer
-		if err := gob.NewEncoder(&buf).Encode(c.msg); err != nil {
+		b, err := encodeNotificationSet(c.msg)
+		if err != nil {
 			t.Fatal(err)
 		}
 		// OnGossipUnicast always expects the full state back.
-		err = ni.OnGossipUnicast(mesh.UnknownPeerName, buf.Bytes())
+		err = ni.OnGossipUnicast(mesh.UnknownPeerName, b)
 		if err != nil {
 			t.Errorf("%v OnGossip %v: %s", c.initial, c.msg, err)
 			continue
