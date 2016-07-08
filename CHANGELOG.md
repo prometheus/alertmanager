@@ -1,3 +1,8 @@
+## 0.3.0 / 2016-07-07
+
+* [CHANGE] Alerts are purely in memory and no longer persistent across restarts
+* [FEATURE] Add SMTP LOGIN authentication mechanism
+
 ## 0.2.1 / 2016-06-23
 
 * [ENHANCEMENT] Allow inheritance of route receiver
