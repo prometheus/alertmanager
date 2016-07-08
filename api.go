@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -56,6 +57,7 @@ type API struct {
 	alerts         provider.Alerts
 	silences       provider.Silences
 	config         string
+	configJSON     config.Config
 	resolveTimeout time.Duration
 	uptime         time.Time
 
@@ -101,12 +103,18 @@ func (api *API) Register(r *route.Router) {
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(config string, resolveTimeout time.Duration) {
+func (api *API) Update(cfg string, resolveTimeout time.Duration) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
-	api.config = config
+	api.config = cfg
 	api.resolveTimeout = resolveTimeout
+
+	configJSON, err := config.Load(cfg)
+	if err != nil {
+		log.Errorf("error: %v", err)
+	}
+	api.configJSON = *configJSON
 }
 
 type errorType string
@@ -131,10 +139,12 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 
 	var status = struct {
 		Config      string            `json:"config"`
+		ConfigJSON  config.Config     `json:"configJSON"`
 		VersionInfo map[string]string `json:"versionInfo"`
 		Uptime      time.Time         `json:"uptime"`
 	}{
-		Config: api.config,
+		Config:     api.config,
+		ConfigJSON: api.configJSON,
 		VersionInfo: map[string]string{
 			"version":   version.Version,
 			"revision":  version.Revision,
@@ -397,6 +407,7 @@ func respond(w http.ResponseWriter, data interface{}) {
 		Data:   data,
 	})
 	if err != nil {
+		log.Errorf("errorr: %v", err)
 		return
 	}
 	w.Write(b)

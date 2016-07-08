@@ -108,7 +108,7 @@ var (
 
 // NotifierConfig contains base options common across all notifier configurations.
 type NotifierConfig struct {
-	VSendResolved bool `yaml:"send_resolved"`
+	VSendResolved bool `yaml:"send_resolved" json:"send_resolved"`
 }
 
 func (nc *NotifierConfig) SendResolved() bool {
@@ -117,22 +117,22 @@ func (nc *NotifierConfig) SendResolved() bool {
 
 // EmailConfig configures notifications via mail.
 type EmailConfig struct {
-	NotifierConfig `yaml:",inline"`
+	NotifierConfig `yaml:",inline" json:",inline"`
 
 	// Email address to notify.
-	To           string            `yaml:"to"`
-	From         string            `yaml:"from"`
-	Smarthost    string            `yaml:"smarthost,omitempty"`
-	AuthUsername string            `yaml:"auth_username"`
-	AuthPassword Secret            `yaml:"auth_password"`
-	AuthSecret   Secret            `yaml:"auth_secret"`
-	AuthIdentity string            `yaml:"auth_identity"`
-	Headers      map[string]string `yaml:"headers"`
-	HTML         string            `yaml:"html"`
-	RequireTLS   bool              `yaml:"require_tls"`
+	To           string            `yaml:"to" json:"to"`
+	From         string            `yaml:"from" json:"from"`
+	Smarthost    string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
+	AuthUsername string            `yaml:"auth_username" json:"auth_username"`
+	AuthPassword Secret            `yaml:"auth_password" json:"auth_password"`
+	AuthSecret   Secret            `yaml:"auth_secret" json:"auth_secret"`
+	AuthIdentity string            `yaml:"auth_identity" json:"auth_identity"`
+	Headers      map[string]string `yaml:"headers" json:"headers"`
+	HTML         string            `yaml:"html" json:"html"`
+	RequireTLS   bool              `yaml:"require_tls" json:"require_tls"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -161,17 +161,17 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
-	NotifierConfig `yaml:",inline"`
+	NotifierConfig `yaml:",inline" json:",inline"`
 
-	ServiceKey  Secret            `yaml:"service_key"`
-	URL         string            `yaml:"url"`
-	Client      string            `yaml:"client"`
-	ClientURL   string            `yaml:"client_url"`
-	Description string            `yaml:"description"`
-	Details     map[string]string `yaml:"details"`
+	ServiceKey  Secret            `yaml:"service_key" json:"service_key"`
+	URL         string            `yaml:"url" json:"url"`
+	Client      string            `yaml:"client" json:"client"`
+	ClientURL   string            `yaml:"client_url" json:"client_url"`
+	Description string            `yaml:"description" json:"description"`
+	Details     map[string]string `yaml:"details" json:"details"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -189,24 +189,24 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
-	NotifierConfig `yaml:",inline"`
+	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIURL Secret `yaml:"api_url"`
+	APIURL Secret `yaml:"api_url" json:"api_url"`
 
 	// Slack channel override, (like #other-channel or @username).
-	Channel  string `yaml:"channel"`
-	Username string `yaml:"username"`
-	Color    string `yaml:"color"`
+	Channel  string `yaml:"channel" json:"channel"`
+	Username string `yaml:"username" json:"username"`
+	Color    string `yaml:"color" json:"color"`
 
-	Title     string `yaml:"title"`
-	TitleLink string `yaml:"title_link"`
-	Pretext   string `yaml:"pretext"`
-	Text      string `yaml:"text"`
-	Fallback  string `yaml:"fallback"`
-	IconEmoji string `yaml:"icon_emoji"`
+	Title     string `yaml:"title" json:"title"`
+	TitleLink string `yaml:"title_link" json:"title_link"`
+	Pretext   string `yaml:"pretext" json:"pretext"`
+	Text      string `yaml:"text" json:"text"`
+	Fallback  string `yaml:"fallback" json:"fallback"`
+	IconEmoji string `yaml:"icon_emoji" json:"icon_emoji"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -224,19 +224,19 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // HipchatConfig configures notifications via Hipchat.
 type HipchatConfig struct {
-	NotifierConfig `yaml:",inline"`
+	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIURL        string `yaml:"api_url"`
-	AuthToken     Secret `yaml:"auth_token"`
-	RoomID        string `yaml:"room_id"`
-	From          string `yaml:"from"`
-	Notify        bool   `yaml:"notify"`
-	Message       string `yaml:"message"`
-	MessageFormat string `yaml:"message_format"`
-	Color         string `yaml:"color"`
+	APIURL        string `yaml:"api_url" json:"api_url"`
+	AuthToken     Secret `yaml:"auth_token" json:"auth_token"`
+	RoomID        string `yaml:"room_id" json:"room_id"`
+	From          string `yaml:"from" json:"from"`
+	Notify        bool   `yaml:"notify" json:"notify"`
+	Message       string `yaml:"message" json:"message"`
+	MessageFormat string `yaml:"message_format" json:"message_format"`
+	Color         string `yaml:"color" json:"color"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -255,13 +255,13 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
-	NotifierConfig `yaml:",inline"`
+	NotifierConfig `yaml:",inline" json:",inline"`
 
 	// URL to send POST request to.
-	URL string `yaml:"url"`
+	URL string `yaml:"url" json:"url"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -279,18 +279,18 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // OpsGenieConfig configures notifications via OpsGenie.
 type OpsGenieConfig struct {
-	NotifierConfig `yaml:",inline"`
+	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIKey      Secret            `yaml:"api_key"`
-	APIHost     string            `yaml:"api_host"`
-	Description string            `yaml:"description"`
-	Source      string            `yaml:"source"`
-	Details     map[string]string `yaml:"details"`
-	Teams       string            `yaml:"teams"`
-	Tags        string            `yaml:"tags"`
+	APIKey      Secret            `yaml:"api_key" json:"api_key"`
+	APIHost     string            `yaml:"api_host" json:"api_host"`
+	Description string            `yaml:"description" json:"description"`
+	Source      string            `yaml:"source" json:"source"`
+	Details     map[string]string `yaml:"details" json:"details"`
+	Teams       string            `yaml:"teams" json:"teams"`
+	Tags        string            `yaml:"tags" json:"tags"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -321,19 +321,19 @@ func (d duration) MarshalText() ([]byte, error) {
 }
 
 type PushoverConfig struct {
-	NotifierConfig `yaml:",inline"`
+	NotifierConfig `yaml:",inline" json:",inline"`
 
-	UserKey  Secret   `yaml:"user_key"`
-	Token    Secret   `yaml:"token"`
-	Title    string   `yaml:"title"`
-	Message  string   `yaml:"message"`
-	URL      string   `yaml:"url"`
-	Priority string   `yaml:"priority"`
-	Retry    duration `yaml:"retry"`
-	Expire   duration `yaml:"expire"`
+	UserKey  Secret   `yaml:"user_key" json:"user_key"`
+	Token    Secret   `yaml:"token" json:"token"`
+	Title    string   `yaml:"title" json:"title"`
+	Message  string   `yaml:"message" json:"message"`
+	URL      string   `yaml:"url" json:"url"`
+	Priority string   `yaml:"priority" json:"priority"`
+	Retry    duration `yaml:"retry" json:"retry"`
+	Expire   duration `yaml:"expire" json:"expire"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
