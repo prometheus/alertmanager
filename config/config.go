@@ -86,14 +86,14 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig  `yaml:"global,omitempty"`
-	Route        *Route         `yaml:"route,omitempty"`
-	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty"`
-	Receivers    []*Receiver    `yaml:"receivers,omitempty"`
-	Templates    []string       `yaml:"templates"`
+	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string       `yaml:"templates" json:"templates"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -288,24 +288,24 @@ var DefaultGlobalConfig = GlobalConfig{
 type GlobalConfig struct {
 	// ResolveTimeout is the time after which an alert is declared resolved
 	// if it has not been updated.
-	ResolveTimeout model.Duration `yaml:"resolve_timeout"`
+	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
 
-	SMTPFrom         string `yaml:"smtp_from"`
-	SMTPSmarthost    string `yaml:"smtp_smarthost"`
-	SMTPAuthUsername string `yaml:"smtp_auth_username"`
-	SMTPAuthPassword Secret `yaml:"smtp_auth_password"`
-	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret"`
-	SMTPAuthIdentity string `yaml:"smtp_auth_identity"`
-	SMTPRequireTLS   bool   `yaml:"smtp_require_tls"`
-	SlackAPIURL      Secret `yaml:"slack_api_url"`
-	PagerdutyURL     string `yaml:"pagerduty_url"`
-	HipchatURL       string `yaml:"hipchat_url"`
-	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
-	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
-	VictorOpsAPIURL  string `yaml:"victorops_api_url"`
+	SMTPFrom         string `yaml:"smtp_from" json:"smtp_from"`
+	SMTPSmarthost    string `yaml:"smtp_smarthost" json:"smtp_smarthost"`
+	SMTPAuthUsername string `yaml:"smtp_auth_username" json:"smtp_auth_username"`
+	SMTPAuthPassword Secret `yaml:"smtp_auth_password" json:"smtp_auth_password"`
+	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret" json:"smtp_auth_secret"`
+	SMTPAuthIdentity string `yaml:"smtp_auth_identity" json:"smtp_auth_identity"`
+	SMTPRequireTLS   bool   `yaml:"smtp_require_tls" json:"smtp_require_tls"`
+	SlackAPIURL      Secret `yaml:"slack_api_url" json:"slack_api_url"`
+	PagerdutyURL     string `yaml:"pagerduty_url" json:"pagerduty_url"`
+	HipchatURL       string `yaml:"hipchat_url" json:"hipchat_url"`
+	HipchatAuthToken Secret `yaml:"hipchat_auth_token" json:"hipchat_auth_token"`
+	OpsGenieAPIHost  string `yaml:"opsgenie_api_host" json:"opsgenie_api_host"`
+	VictorOpsAPIURL  string `yaml:"victorops_api_url" json:"victorops_api_url"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -320,20 +320,20 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
-	Receiver string            `yaml:"receiver,omitempty"`
-	GroupBy  []model.LabelName `yaml:"group_by,omitempty"`
+	Receiver string            `yaml:"receiver,omitempty" json:"receiver,omitempty"`
+	GroupBy  []model.LabelName `yaml:"group_by,omitempty" json:"group_by,omitempty"`
 
-	Match    map[string]string `yaml:"match,omitempty"`
-	MatchRE  map[string]Regexp `yaml:"match_re,omitempty"`
-	Continue bool              `yaml:"continue,omitempty"`
-	Routes   []*Route          `yaml:"routes,omitempty"`
+	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
+	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Continue bool              `yaml:"continue,omitempty" json:"continue,omitempty"`
+	Routes   []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
-	GroupWait      *model.Duration `yaml:"group_wait,omitempty"`
-	GroupInterval  *model.Duration `yaml:"group_interval,omitempty"`
-	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty"`
+	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
+	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
+	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -373,22 +373,22 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type InhibitRule struct {
 	// SourceMatch defines a set of labels that have to equal the given
 	// value for source alerts.
-	SourceMatch map[string]string `yaml:"source_match"`
+	SourceMatch map[string]string `yaml:"source_match" json:"source_match"`
 	// SourceMatchRE defines pairs like SourceMatch but does regular expression
 	// matching.
-	SourceMatchRE map[string]Regexp `yaml:"source_match_re"`
+	SourceMatchRE map[string]Regexp `yaml:"source_match_re" json:"source_match_re"`
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts.
-	TargetMatch map[string]string `yaml:"target_match"`
+	TargetMatch map[string]string `yaml:"target_match" json:"target_match"`
 	// TargetMatchRE defines pairs like TargetMatch but does regular expression
 	// matching.
-	TargetMatchRE map[string]Regexp `yaml:"target_match_re"`
+	TargetMatchRE map[string]Regexp `yaml:"target_match_re" json:"target_match_re"`
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
-	Equal model.LabelNames `yaml:"equal"`
+	Equal model.LabelNames `yaml:"equal" json:"equal"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -428,19 +428,19 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // Receiver configuration provides configuration on how to contact a receiver.
 type Receiver struct {
 	// A unique identifier for this receiver.
-	Name string `yaml:"name"`
+	Name string `yaml:"name" json:"name"`
 
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
-	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty"`
+	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
+	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline"`
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
