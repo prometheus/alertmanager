@@ -104,6 +104,15 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultAWSSNSConfig defines default values for AWS SNS configurations.
+	DefaultAWSSNSConfig = AWSSNSConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Subject: `{{ template "awssns.default.subject" . }}`,
+		Message: `{{ template "awssns.default.message" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -350,4 +359,29 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+type AWSSNSConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	AWSRegion string `yaml:"aws_region"`
+	TopicARN  string `yaml:"topic_arn"`
+	Subject   string `yaml:"subject"`
+	Message   string `yaml:"message"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *AWSSNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultAWSSNSConfig
+	type plain AWSSNSConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.TopicARN == "" {
+		return fmt.Errorf("missing Topic ARN for AWS SNS config")
+	}
+	return checkOverflow(c.XXX, "aws sns config")
 }

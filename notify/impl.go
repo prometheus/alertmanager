@@ -30,6 +30,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
@@ -138,6 +141,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 		}
 		for i, c := range nc.PushoverConfigs {
 			n := NewPushover(c, tmpl)
+			add(i, n, filter(n, c))
+		}
+		for i, c := range nc.AWSSNSConfigs {
+			n := NewAWSSNS(c, tmpl)
 			add(i, n, filter(n, c))
 		}
 
@@ -723,6 +730,49 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 			apiURL, msg, resp.Status, body)
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	}
+	return nil
+}
+
+// AWSSNS implements a Notifier for AWS SNS notifications.
+type AWSSNS struct {
+	conf *config.AWSSNSConfig
+	tmpl *template.Template
+}
+
+func NewAWSSNS(c *config.AWSSNSConfig, t *template.Template) *AWSSNS {
+	return &AWSSNS{conf: c, tmpl: t}
+}
+
+func (*AWSSNS) name() string { return "awssns" }
+
+func (n *AWSSNS) Notify(ctx context.Context, as ...*types.Alert) error {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return fmt.Errorf("group key missing")
+	}
+
+	log.With("incident", key).Debugln("notifying AWS SNS")
+
+	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+
+	var err error
+	tmpl := tmplText(n.tmpl, data, &err)
+
+	config := aws.NewConfig().WithRegion(n.conf.AWSRegion)
+	svc := sns.New(session.New(config))
+
+	subject := tmpl(n.conf.Subject)
+	params := &sns.PublishInput{
+		Message:  aws.String(tmpl(n.conf.Message)),
+		Subject:  aws.String(subject[:99]),
+		TopicArn: aws.String(tmpl(n.conf.TopicARN)),
+	}
+	_, err = svc.Publish(params)
+
+	if err != nil {
+		return fmt.Errorf("failed to publish SNS message: %v", err)
+	}
+
 	return nil
 }
 

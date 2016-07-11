@@ -217,6 +217,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIHost += "/"
 			}
 		}
+		for _, asc := range rcv.AWSSNSConfigs {
+			if asc.AWSRegion == "" {
+				asc.AWSRegion = c.Global.AWSRegion
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -284,6 +289,7 @@ type GlobalConfig struct {
 	HipchatURL       string `yaml:"hipchat_url"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
+	AWSRegion        string `yaml:"aws_region"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -412,6 +418,7 @@ type Receiver struct {
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
+	AWSSNSConfigs    []*AWSSNSConfig    `yaml:"aws_sns_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
