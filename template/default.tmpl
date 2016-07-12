@@ -31,7 +31,17 @@
 {{ define "pagerduty.default.instances" }}{{ template "__text_alert_list" . }}{{ end }}
 
 
-{{ define "opsgenie.default.description" }}{{ template "__subject" . }}{{ end }}
+{{ define "opsgenie.default.message" }}{{ template "__subject" . }}{{ end }}
+{{ define "opsgenie.default.description" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
+{{ if gt (len .Alerts.Firing) 0 -}}
+Alerts Firing:
+{{ template "__text_alert_list" .Alerts.Firing }}
+{{- end }}
+{{ if gt (len .Alerts.Resolved) 0 -}}
+Alerts Resolved:
+{{ template "__text_alert_list" .Alerts.Resolved }}
+{{- end }}
+{{- end }}
 {{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
 
 

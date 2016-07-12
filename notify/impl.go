@@ -630,11 +630,13 @@ type opsGenieMessage struct {
 type opsGenieCreateMessage struct {
 	*opsGenieMessage `json:",inline"`
 
-	Message string            `json:"message"`
-	Details map[string]string `json:"details"`
-	Source  string            `json:"source"`
-	Teams   string            `json:"teams,omitempty"`
-	Tags    string            `json:"tags,omitempty"`
+	Message     string            `json:"message"`
+	Description string            `json:"description,omitempty"`
+	Details     map[string]string `json:"details"`
+	Source      string            `json:"source"`
+	Teams       string            `json:"teams,omitempty"`
+	Tags        string            `json:"tags,omitempty"`
+	Note        string            `json:"note,omitempty"`
 }
 
 type opsGenieCloseMessage struct {
@@ -682,11 +684,13 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 		apiURL = n.conf.APIHost + "v1/json/alert"
 		msg = &opsGenieCreateMessage{
 			opsGenieMessage: &apiMsg,
-			Message:         tmpl(n.conf.Description),
+			Message:         tmpl(n.conf.Message),
+			Description:     tmpl(n.conf.Description),
 			Details:         details,
 			Source:          tmpl(n.conf.Source),
 			Teams:           tmpl(n.conf.Teams),
 			Tags:            tmpl(n.conf.Tags),
+			Note:            tmpl(n.conf.Note),
 		}
 	}
 	if err != nil {
