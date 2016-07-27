@@ -93,6 +93,16 @@ var (
 		// TODO: Add a details field with all the alerts.
 	}
 
+	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
+	DefaultVictorOpsConfig = VictorOpsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		MessageType:  `CRITICAL`,
+		StateMessage: `{{ template "victorops.default.message" . }}`,
+		From:         `{{ template "victorops.default.from" . }}`,
+	}
+
 	// DefaultPushoverConfig defines default values for Pushover configurations.
 	DefaultPushoverConfig = PushoverConfig{
 		NotifierConfig: NotifierConfig{
@@ -307,6 +317,36 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing API key in OpsGenie config")
 	}
 	return checkOverflow(c.XXX, "opsgenie config")
+}
+
+// VictorOpsConfig configures notifications via VictorOps.
+type VictorOpsConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	APIKey       Secret `yaml:"api_key"`
+	APIURL       string `yaml:"api_url"`
+	RoutingKey   string `yaml:"routing_key"`
+	MessageType  string `yaml:"message_type"`
+	StateMessage string `yaml:"message"`
+	From         string `yaml:"from"`
+
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultVictorOpsConfig
+	type plain VictorOpsConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.APIKey == "" {
+		return fmt.Errorf("missing API key in VictorOps config")
+	}
+	if c.RoutingKey == "" {
+		return fmt.Errorf("missing Routing key in VictorOps config")
+	}
+	return checkOverflow(c.XXX, "victorops config")
 }
 
 type duration time.Duration

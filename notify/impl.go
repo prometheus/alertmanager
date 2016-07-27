@@ -136,6 +136,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 			n := NewHipchat(c, tmpl)
 			add(i, n, filter(n, c))
 		}
+		for i, c := range nc.VictorOpsConfigs {
+			n := NewVictorOps(c, tmpl)
+			add(i, n, filter(n, c))
+		}
 		for i, c := range nc.PushoverConfigs {
 			n := NewPushover(c, tmpl)
 			add(i, n, filter(n, c))
@@ -726,6 +730,108 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 		log.With("incident", key).Debugf("unexpected OpsGenie response from %s (POSTed %s), %s: %s",
 			apiURL, msg, resp.Status, body)
 		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+	return nil
+}
+
+// VictorOps implements a Notifier for VictorOps notifications.
+type VictorOps struct {
+	conf *config.VictorOpsConfig
+	tmpl *template.Template
+}
+
+// NewVictorOps returns a new VictorOps notifier.
+func NewVictorOps(c *config.VictorOpsConfig, t *template.Template) *VictorOps {
+	return &VictorOps{
+		conf: c,
+		tmpl: t,
+	}
+}
+
+func (*VictorOps) name() string { return "victorops" }
+
+const (
+	victorOpsEventTrigger = "CRITICAL"
+	victorOpsEventResolve = "RECOVERY"
+)
+
+type victorOpsMessage struct {
+	MessageType  string            `json:"message_type"`
+	EntityID     model.Fingerprint `json:"entity_id"`
+	StateMessage string            `json:"state_message"`
+	From         string            `json:"monitoring_tool"`
+}
+
+type victorOpsErrorResponse struct {
+	Result  string `json:"result"`
+	Message string `json:"message"`
+}
+
+// Notify implements the Notifier interface.
+func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) error {
+	victorOpsAllowedEvents := map[string]bool{
+		"INFO":     true,
+		"WARNING":  true,
+		"CRITICAL": true,
+	}
+
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return fmt.Errorf("group key missing")
+	}
+
+	var err error
+	var (
+		alerts      = types.Alerts(as...)
+		data        = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		tmpl        = tmplText(n.tmpl, data, &err)
+		apiURL      = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
+		messageType = n.conf.MessageType
+	)
+
+	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
+		messageType = victorOpsEventTrigger
+	}
+
+	if alerts.Status() == model.AlertResolved {
+		messageType = victorOpsEventResolve
+	}
+
+	msg := &victorOpsMessage{
+		MessageType:  messageType,
+		EntityID:     key,
+		StateMessage: tmpl(n.conf.StateMessage),
+		From:         tmpl(n.conf.From),
+	}
+
+	if err != nil {
+		return fmt.Errorf("templating error: %s", err)
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		body, _ := ioutil.ReadAll(resp.Body)
+
+		var responseMessage victorOpsErrorResponse
+		if err := json.Unmarshal(body, &responseMessage); err != nil {
+			return fmt.Errorf("could not parse error response %q", body)
+		}
+
+		log.With("incident", key).Debugf("unexpected VictorOps response from %s (POSTed %s), %s: %s", apiURL, msg, resp.Status, body)
+
+		return fmt.Errorf("error when posting alert: result %q, message %q",
+			responseMessage.Result, responseMessage.Message)
 	}
 	return nil
 }

@@ -217,6 +217,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIHost += "/"
 			}
 		}
+		for _, voc := range rcv.VictorOpsConfigs {
+			if voc.APIURL == "" {
+				if c.Global.VictorOpsAPIURL == "" {
+					return fmt.Errorf("no global VictorOps URL set")
+				}
+				voc.APIURL = c.Global.VictorOpsAPIURL
+			}
+			if !strings.HasSuffix(voc.APIURL, "/") {
+				voc.APIURL += "/"
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -264,6 +275,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
 	HipchatURL:      "https://api.hipchat.com/",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
+	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -284,6 +296,7 @@ type GlobalConfig struct {
 	HipchatURL       string `yaml:"hipchat_url"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
+	VictorOpsAPIURL  string `yaml:"victorops_api_url"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -412,6 +425,7 @@ type Receiver struct {
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
+	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
