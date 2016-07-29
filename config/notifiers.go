@@ -115,6 +115,13 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultStatusPageConfig defines default values for StatusPage configurations.
+	DefaultStatusPageConfig = StatusPageConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -393,4 +400,46 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+// StatusPageConfig configures notifications via StatusPage.
+type StatusPageConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	APIURL      string `yaml:"api_url"`
+	APIKey      Secret `yaml:"api_key"`
+	PageId      string `yaml:"page_id"`
+	ComponentId string `yaml:"component_id"`
+	Status      string `yaml:"status"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *StatusPageConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultStatusPageConfig
+	type plain StatusPageConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.ComponentId == "" {
+		return fmt.Errorf("missing component_id in StatusPage config")
+	}
+
+	if c.Status == "" {
+		return fmt.Errorf("missing status in StatusPage config")
+	}
+
+	statusValid := false
+	for _, s := range []string{"degraded_performance", "partial_outage", "major_outage"} {
+		if c.Status == s {
+			statusValid = true
+		}
+	}
+	if !statusValid {
+		return fmt.Errorf("status in StatusPage config must be one of degraded_performance|partial_outage|major_outage")
+	}
+
+	return checkOverflow(c.XXX, "statuspage config")
 }
