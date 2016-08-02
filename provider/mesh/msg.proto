@@ -12,6 +12,7 @@ message NotificationInfo {
 	uint64 alert = 2;
 	bool resolved = 3;
 	Timestamp timestamp = 4;
+	Timestamp expiresAt = 5;
 }
 
 message NotificationInfoSet {

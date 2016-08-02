@@ -93,7 +93,7 @@ func (ni *NotificationInfos) Run() {
 		case <-ni.stopc:
 			return
 		case <-time.After(maintenanceInterval):
-			ni.st.gc(ni.retention)
+			ni.st.gc()
 			if err := ni.snapshot(); err != nil {
 				ni.logger.With("err", err).Errorf("Snapshotting failed")
 			}
@@ -160,6 +160,7 @@ func (ni *NotificationInfos) OnGossipUnicast(_ mesh.PeerName, b []byte) error {
 }
 
 // Set the provided notification information.
+// The expiration timestamp is set to the timestamp plus the configured retention time.
 func (ni *NotificationInfos) Set(ns ...*types.NotificationInfo) error {
 	set := map[notificationKey]notificationEntry{}
 	for _, n := range ns {
@@ -170,6 +171,9 @@ func (ni *NotificationInfos) Set(ns ...*types.NotificationInfo) error {
 		set[k] = notificationEntry{
 			Resolved:  n.Resolved,
 			Timestamp: n.Timestamp,
+			// The expiration timestamp is set at creation time
+			// to avoid synchronization artifacts in garbage collection.
+			ExpiresAt: n.Timestamp.Add(ni.retention),
 		}
 	}
 	update := &notificationState{set: set}
@@ -183,13 +187,14 @@ func (ni *NotificationInfos) Set(ns ...*types.NotificationInfo) error {
 // with the given fingerprints. Returns a slice in order of the input fingerprints.
 // Result entries are nil if nothing was found.
 func (ni *NotificationInfos) Get(recv string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
-	res := make([]*types.NotificationInfo, 0, len(fps))
-	k := notificationKey{
-		Receiver: recv,
-	}
+	var (
+		res = make([]*types.NotificationInfo, 0, len(fps))
+		k   = notificationKey{Receiver: recv}
+		now = ni.st.now()
+	)
 	for _, fp := range fps {
 		k.Alert = fp
-		if e, ok := ni.st.set[k]; ok {
+		if e, ok := ni.st.set[k]; ok && e.ExpiresAt.After(now) {
 			res = append(res, &types.NotificationInfo{
 				Alert:     fp,
 				Receiver:  recv,
