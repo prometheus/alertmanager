@@ -18,24 +18,20 @@ func TestNotificationStateGC(t *testing.T) {
 	now := utcNow()
 
 	initial := map[notificationKey]notificationEntry{
-		{"", 1}: {true, now},
-		{"", 2}: {true, now.Add(30 * time.Minute)},
-		{"", 3}: {true, now.Add(-30 * time.Minute)},
-		{"", 4}: {true, now.Add(-60 * time.Minute)},
-		{"", 5}: {true, now.Add(-61 * time.Minute)},
-		{"", 6}: {true, now.Add(-100 * time.Hour)},
+		{"", 1}: {true, now, now.Add(10 * time.Second)},
+		{"", 2}: {true, now.Add(30 * time.Minute), now.Add(time.Second)},
+		{"", 3}: {true, now.Add(-30 * time.Minute), now},
+		{"", 5}: {true, now.Add(-61 * time.Minute), now.Add(-time.Second)},
 	}
 	final := map[notificationKey]notificationEntry{
-		{"", 1}: {true, now},
-		{"", 2}: {true, now.Add(30 * time.Minute)},
-		{"", 3}: {true, now.Add(-30 * time.Minute)},
-		{"", 4}: {true, now.Add(-60 * time.Minute)},
+		{"", 1}: {true, now, now.Add(10 * time.Second)},
+		{"", 2}: {true, now.Add(30 * time.Minute), now.Add(time.Second)},
 	}
 
 	st := newNotificationState()
 	st.now = func() time.Time { return now }
 	st.set = initial
-	st.gc(time.Hour)
+	st.gc()
 
 	if !reflect.DeepEqual(st.set, final) {
 		t.Errorf("Unexpected state after GC")
@@ -47,9 +43,8 @@ func TestNotificationStateSnapshot(t *testing.T) {
 	now := utcNow()
 
 	initial := map[notificationKey]notificationEntry{
-		{"abc", 123}: {false, now.Add(30 * time.Minute)},
-
-		{"xyz", 789}: {false, now},
+		{"abc", 123}: {false, now.Add(30 * time.Minute), now.Add(time.Hour)},
+		{"xyz", 789}: {false, now, now.Add(time.Second)},
 	}
 
 	st := newNotificationState()

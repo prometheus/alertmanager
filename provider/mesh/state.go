@@ -27,6 +27,7 @@ type notificationKey struct {
 type notificationEntry struct {
 	Resolved  bool
 	Timestamp time.Time
+	ExpiresAt time.Time // Scheduled deletion time.
 }
 
 type notificationState struct {
@@ -57,18 +58,22 @@ func encodeNotificationSet(set map[notificationKey]notificationEntry) ([]byte, e
 				Seconds:     v.Timestamp.Unix(),
 				Nanoseconds: int32(v.Timestamp.Nanosecond()),
 			},
+			ExpiresAt: &msg.Timestamp{
+				Seconds:     v.ExpiresAt.Unix(),
+				Nanoseconds: int32(v.ExpiresAt.Nanosecond()),
+			},
 		})
 	}
 	return proto.Marshal(&msg.NotificationInfoSet{Infos: infos})
 }
 
-func (st *notificationState) gc(retention time.Duration) {
+func (st *notificationState) gc() {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
-	t := st.now().Add(-retention)
+	now := st.now()
 	for k, v := range st.set {
-		if v.Timestamp.Before(t) {
+		if !v.ExpiresAt.After(now) {
 			delete(st.set, k)
 		}
 	}

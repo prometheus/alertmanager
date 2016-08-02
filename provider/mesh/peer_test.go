@@ -72,37 +72,37 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 		{
 			initial: map[notificationKey]notificationEntry{},
 			msg: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {true, now},
+				{"recv1", 123}: {true, now, time.Time{}},
 			},
 			delta: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {true, now},
+				{"recv1", 123}: {true, now, time.Time{}},
 			},
 			final: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {true, now},
+				{"recv1", 123}: {true, now, time.Time{}},
 			},
 		}, {
 			initial: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {true, now},
+				{"recv1", 123}: {true, now, time.Time{}},
 			},
 			msg: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {false, now.Add(time.Minute)},
+				{"recv1", 123}: {false, now.Add(time.Minute), time.Time{}},
 			},
 			delta: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {false, now.Add(time.Minute)},
+				{"recv1", 123}: {false, now.Add(time.Minute), time.Time{}},
 			},
 			final: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {false, now.Add(time.Minute)},
+				{"recv1", 123}: {false, now.Add(time.Minute), time.Time{}},
 			},
 		}, {
 			initial: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {true, now.Add(time.Minute)},
+				{"recv1", 123}: {true, now.Add(time.Minute), time.Time{}},
 			},
 			msg: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {false, now},
+				{"recv1", 123}: {false, now, time.Time{}},
 			},
 			delta: map[notificationKey]notificationEntry{},
 			final: map[notificationKey]notificationEntry{
-				{"recv1", 123}: {true, now.Add(time.Minute)},
+				{"recv1", 123}: {true, now.Add(time.Minute), time.Time{}},
 			},
 		},
 	}
@@ -203,7 +203,8 @@ func TestNotificationInfosOnGossip(t *testing.T) {
 
 func TestNotificationInfosSet(t *testing.T) {
 	var (
-		now = utcNow()
+		now       = utcNow()
+		retention = time.Hour
 	)
 	cases := []struct {
 		initial map[notificationKey]notificationEntry
@@ -222,10 +223,10 @@ func TestNotificationInfosSet(t *testing.T) {
 				},
 			},
 			update: map[notificationKey]notificationEntry{
-				{"recv1", 0x10}: {false, now},
+				{"recv1", 0x10}: {false, now, now.Add(retention)},
 			},
 			final: map[notificationKey]notificationEntry{
-				{"recv1", 0x10}: {false, now},
+				{"recv1", 0x10}: {false, now, now.Add(retention)},
 			},
 		},
 		{
@@ -235,8 +236,8 @@ func TestNotificationInfosSet(t *testing.T) {
 			// The update is okay to propagate but the final state must correctly
 			// drop it.
 			initial: map[notificationKey]notificationEntry{
-				{"recv1", 0x10}: {false, now},
-				{"recv2", 0x10}: {false, now.Add(10 * time.Minute)},
+				{"recv1", 0x10}: {false, now, now.Add(retention)},
+				{"recv2", 0x10}: {false, now.Add(10 * time.Minute), now.Add(retention).Add(10 * time.Minute)},
 			},
 			input: []*types.NotificationInfo{
 				{
@@ -259,20 +260,20 @@ func TestNotificationInfosSet(t *testing.T) {
 				},
 			},
 			update: map[notificationKey]notificationEntry{
-				{"recv1", 0x10}: {true, now.Add(10 * time.Minute)},
-				{"recv2", 0x10}: {true, now},
-				{"recv2", 0x20}: {false, now},
+				{"recv1", 0x10}: {true, now.Add(10 * time.Minute), now.Add(retention).Add(10 * time.Minute)},
+				{"recv2", 0x10}: {true, now, now.Add(retention)},
+				{"recv2", 0x20}: {false, now, now.Add(retention)},
 			},
 			final: map[notificationKey]notificationEntry{
-				{"recv1", 0x10}: {true, now.Add(10 * time.Minute)},
-				{"recv2", 0x10}: {false, now.Add(10 * time.Minute)},
-				{"recv2", 0x20}: {false, now},
+				{"recv1", 0x10}: {true, now.Add(10 * time.Minute), now.Add(retention).Add(10 * time.Minute)},
+				{"recv2", 0x10}: {false, now.Add(10 * time.Minute), now.Add(retention).Add(10 * time.Minute)},
+				{"recv2", 0x20}: {false, now, now.Add(retention)},
 			},
 		},
 	}
 
 	for _, c := range cases {
-		ni, err := NewNotificationInfos(log.Base(), time.Hour, "")
+		ni, err := NewNotificationInfos(log.Base(), retention, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -300,7 +301,8 @@ func TestNotificationInfosSet(t *testing.T) {
 
 func TestNotificationInfosGet(t *testing.T) {
 	var (
-		now = utcNow()
+		now       = utcNow()
+		retention = time.Hour
 	)
 	type query struct {
 		recv string
@@ -313,15 +315,17 @@ func TestNotificationInfosGet(t *testing.T) {
 	}{
 		{
 			state: map[notificationKey]notificationEntry{
-				{"recv1", 0x10}: {true, now.Add(time.Minute)},
-				{"recv1", 0x30}: {true, now.Add(time.Minute)},
-				{"recv2", 0x10}: {false, now.Add(time.Minute)},
-				{"recv2", 0x20}: {false, now},
+				{"recv1", 0x10}: {true, now.Add(time.Minute), now.Add(retention)},
+				{"recv1", 0x30}: {true, now.Add(time.Minute), now.Add(retention)},
+				{"recv2", 0x10}: {false, now.Add(time.Minute), now.Add(retention)},
+				{"recv2", 0x20}: {false, now, now.Add(retention)},
+				// Expired results must be filtered.
+				{"recv1", 0x30}: {false, now.Add(2 * retention), now.Add(-retention)},
 			},
 			queries: []query{
 				{
 					recv: "recv1",
-					fps:  []model.Fingerprint{0x1000, 0x10, 0x20},
+					fps:  []model.Fingerprint{0x1000, 0x10, 0x20, 0x30},
 					want: []*types.NotificationInfo{
 						nil,
 						{
@@ -330,6 +334,7 @@ func TestNotificationInfosGet(t *testing.T) {
 							Resolved:  true,
 							Timestamp: now.Add(time.Minute),
 						},
+						nil,
 						nil,
 					},
 				},
@@ -342,12 +347,14 @@ func TestNotificationInfosGet(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		ni, err := NewNotificationInfos(log.Base(), time.Hour, "")
+		ni, err := NewNotificationInfos(log.Base(), retention, "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		ni.st = &notificationState{set: c.state}
-
+		ni.st = &notificationState{
+			set: c.state,
+			now: func() time.Time { return now },
+		}
 		for _, q := range c.queries {
 			have, err := ni.Get(q.recv, q.fps...)
 			if err != nil {
