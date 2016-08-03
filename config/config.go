@@ -90,6 +90,7 @@ type Config struct {
 	Route        *Route         `yaml:"route,omitempty"`
 	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty"`
 	Receivers    []*Receiver    `yaml:"receivers,omitempty"`
+	Heartbeats   []*Heartbeat   `yaml:"heartbeats,omitempty"`
 	Templates    []string       `yaml:"templates"`
 
 	// Catches all undefined fields and must be empty after parsing.
@@ -229,6 +230,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		names[rcv.Name] = struct{}{}
+	}
+
+	for _, hbts := range c.Heartbeats {
+		for _, ogc := range hbts.OpsGenieConfigs {
+			if ogc.APIHost == "" {
+				if c.Global.OpsGenieAPIHost == "" {
+					return fmt.Errorf("no global OpsGenie URL set")
+				}
+				ogc.APIHost = c.Global.OpsGenieAPIHost
+			}
+			if !strings.HasSuffix(ogc.APIHost, "/") {
+				ogc.APIHost += "/"
+			}
+		}
 	}
 
 	// The root route must not have any matchers as it is the fallback node
@@ -441,6 +456,29 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing name in receiver")
 	}
 	return checkOverflow(c.XXX, "receiver config")
+}
+
+// Heartbeat configuration provides configuration on how to ping a heartbeat.
+type Heartbeat struct {
+	// A unique identifier for this heartbeat.
+	Name string `yaml:"name"`
+
+	OpsGenieConfigs []*HeartbeatOpsGenieConfig `yaml:"opsgenie_configs,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Heartbeat) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Heartbeat
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Name == "" {
+		return fmt.Errorf("missing name in heartbeat")
+	}
+	return checkOverflow(c.XXX, "heartbeat config")
 }
 
 // Regexp encapsulates a regexp.Regexp and makes it YAML marshalable.

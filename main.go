@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/heartbeat"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/boltmem"
 	"github.com/prometheus/alertmanager/template"
@@ -104,9 +105,10 @@ func main() {
 	defer silences.Close()
 
 	var (
-		inhibitor *Inhibitor
-		tmpl      *template.Template
-		disp      *Dispatcher
+		inhibitor       *Inhibitor
+		tmpl            *template.Template
+		disp            *Dispatcher
+		heartbeatRunner *heartbeat.HeartbeatRunner
 	)
 	defer disp.Stop()
 
@@ -146,6 +148,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	heartbeat_builder := func(hrbts []*config.Heartbeat) *heartbeat.HeartbeatRunner {
+		return heartbeat.NewHeartbeatRunner(heartbeat.Build(hrbts))
+	}
+
 	reload := func() (err error) {
 		log.With("file", *configFile).Infof("Loading configuration file")
 		defer func() {
@@ -173,12 +179,15 @@ func main() {
 
 		inhibitor.Stop()
 		disp.Stop()
+		heartbeatRunner.Stop()
 
 		inhibitor = NewInhibitor(alerts, conf.InhibitRules, marker)
 		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.Receivers), marker)
+		heartbeatRunner = heartbeat_builder(conf.Heartbeats)
 
 		go disp.Run()
 		go inhibitor.Run()
+		heartbeatRunner.Run()
 
 		return nil
 	}
