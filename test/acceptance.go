@@ -159,12 +159,7 @@ func (t *AcceptanceTest) Run() {
 
 	for _, am := range t.ams {
 		am.errc = errc
-
 		am.Start()
-		defer func(am *Alertmanager) {
-			am.Terminate()
-			am.cleanup()
-		}(am)
 	}
 
 	go t.runActions()
@@ -191,8 +186,13 @@ func (t *AcceptanceTest) Run() {
 	}
 
 	for _, am := range t.ams {
+		am.Terminate()
+		am.cleanup()
+
+		am.mtx.Lock()
 		t.Logf("stdout:\n%v", am.cmd.Stdout)
 		t.Logf("stderr:\n%v", am.cmd.Stderr)
+		am.mtx.Unlock()
 	}
 }
 
@@ -229,6 +229,7 @@ type Alertmanager struct {
 	dir      string
 
 	errc chan<- error
+	mtx  sync.Mutex
 }
 
 // Start the alertmanager and wait until it is ready to receive.
@@ -250,6 +251,9 @@ func (am *Alertmanager) Start() {
 	}
 	am.cmd = cmd
 
+	// Protects the stdout and stderr buffers.
+	am.mtx.Lock()
+
 	if err := am.cmd.Start(); err != nil {
 		am.t.Fatalf("Starting alertmanager failed: %s", err)
 	}
@@ -258,6 +262,7 @@ func (am *Alertmanager) Start() {
 		if err := am.cmd.Wait(); err != nil {
 			am.errc <- err
 		}
+		am.mtx.Unlock()
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -305,7 +310,9 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 			am.t.Errorf("Error setting silence %v: %s", sil, err)
 			return
 		}
+		am.mtx.Lock()
 		sil.ID = sid
+		am.mtx.Unlock()
 	})
 }
 
@@ -314,7 +321,11 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	silences := alertmanager.NewSilenceAPI(am.client)
 
 	am.t.Do(at, func() {
-		if err := silences.Del(context.Background(), sil.ID); err != nil {
+		am.mtx.Lock()
+		sid := sil.ID
+		am.mtx.Unlock()
+
+		if err := silences.Del(context.Background(), sid); err != nil {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 		}
 	})

@@ -15,6 +15,7 @@ package test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,8 @@ type Collector struct {
 
 	collected map[float64][]model.Alerts
 	expected  map[Interval][]model.Alerts
+
+	mtx sync.Mutex
 }
 
 func (c *Collector) String() string {
@@ -81,12 +84,18 @@ func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
 
 // add the given alerts to the collected alerts.
 func (c *Collector) add(alerts ...*model.Alert) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	arrival := c.opts.relativeTime(time.Now())
 
 	c.collected[arrival] = append(c.collected[arrival], model.Alerts(alerts))
 }
 
 func (c *Collector) check() string {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	report := fmt.Sprintf("\ncollector %q:\n\n", c)
 
 	for iv, expected := range c.expected {
