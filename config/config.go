@@ -172,6 +172,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if ec.AuthIdentity == "" {
 				ec.AuthIdentity = c.Global.SMTPAuthIdentity
 			}
+			if ec.AuthPemFile == "" {
+				ec.AuthPemFile = c.Global.SMTPAuthPemFile
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.APIURL == "" {
@@ -291,6 +294,7 @@ type GlobalConfig struct {
 	SMTPAuthPassword Secret `yaml:"smtp_auth_password"`
 	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret"`
 	SMTPAuthIdentity string `yaml:"smtp_auth_identity"`
+	SMTPAuthPemFile  string `yaml:"smtp_auth_pem_file"`
 	SlackAPIURL      Secret `yaml:"slack_api_url"`
 	PagerdutyURL     string `yaml:"pagerduty_url"`
 	HipchatURL       string `yaml:"hipchat_url"`

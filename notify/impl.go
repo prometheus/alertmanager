@@ -15,10 +15,17 @@ package notify
 
 import (
 	"bytes"
+	"crypto/md5"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -261,7 +268,8 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 			if password == "" {
 				continue
 			}
-			return LoginAuth(username, password), nil
+			pemFile := string(n.conf.AuthPemFile)
+			return LoginAuth(username, password, pemFile), nil
 		}
 	}
 	return nil, nil
@@ -932,11 +940,11 @@ func tmplHTML(tmpl *template.Template, data *template.Data, err *error) func(str
 }
 
 type loginAuth struct {
-	username, password string
+	username, password, pemFile string
 }
 
-func LoginAuth(username, password string) smtp.Auth {
-	return &loginAuth{username, password}
+func LoginAuth(username, password, pemFile string) smtp.Auth {
+	return &loginAuth{username, password, pemFile}
 }
 
 func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
@@ -950,10 +958,50 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		case "Username:":
 			return []byte(a.username), nil
 		case "Password:":
-			return []byte(a.password), nil
+			if a.pemFile == "" {
+				return []byte(a.password), nil
+			}
+			return decrypt(a.password, a.pemFile), nil
 		default:
 			return nil, errors.New("unexpected server challenge")
 		}
 	}
 	return nil, nil
+}
+
+func decrypt(stringToDecrypt, pemFile string) (decrypted []byte) {
+
+	var err error
+	var block *pem.Block
+	var private_key *rsa.PrivateKey
+	var pem_data []byte
+
+	if pem_data, err = ioutil.ReadFile(pemFile); err != nil {
+		log.Fatalf("Error reading pem file: %s", err)
+	}
+
+	if block, _ = pem.Decode(pem_data); block == nil || block.Type != "RSA PRIVATE KEY" {
+		log.Fatal("No valid PEM data found")
+	}
+
+	if private_key, err = x509.ParsePKCS1PrivateKey(block.Bytes); err != nil {
+		log.Fatalf("Private key can't be decoded: %s", err)
+	}
+
+	encrypted, _ := base64.StdEncoding.DecodeString(stringToDecrypt)
+	decrypted = decrypt_oaep(private_key, encrypted)
+
+	return
+}
+
+func decrypt_oaep(private_key *rsa.PrivateKey, encrypted []byte) (decrypted []byte) {
+	var err error
+	var md5_hash hash.Hash
+	var label []byte
+
+	md5_hash = md5.New()
+	if decrypted, err = rsa.DecryptOAEP(md5_hash, rand.Reader, private_key, encrypted, label); err != nil {
+		log.Fatal(err)
+	}
+	return
 }
