@@ -186,22 +186,17 @@ func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) erro
 
 	for {
 		i++
-		// Always check the context first to not notify again.
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
 
 		select {
+		// Always check the context first to not notify again.
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-tick.C:
 			if err := n.notifier.Notify(ctx, alerts...); err != nil {
 				log.Warnf("Notify attempt %d failed: %s", i, err)
 			} else {
 				return nil
 			}
-		case <-ctx.Done():
-			return ctx.Err()
 		}
 	}
 }
