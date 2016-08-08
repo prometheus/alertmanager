@@ -228,6 +228,26 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIURL += "/"
 			}
 		}
+		for _, spc := range rcv.StatusPageConfigs {
+			if spc.APIURL == "" {
+				if c.Global.StatusPageAPIURL == "" {
+					return fmt.Errorf("no global StatusPage API URL set")
+				}
+				spc.APIURL = c.Global.StatusPageAPIURL
+			}
+			if spc.APIKey == "" {
+				if c.Global.StatusPageAPIKey == "" {
+					return fmt.Errorf("no global StatusPage API Key set")
+				}
+				spc.APIKey = c.Global.StatusPageAPIKey
+			}
+			if spc.PageId == "" {
+				if c.Global.StatusPagePageId == "" {
+					return fmt.Errorf("no global StatusPage Page Id set")
+				}
+				spc.PageId = c.Global.StatusPagePageId
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -272,10 +292,11 @@ func checkReceiver(r *Route, receivers map[string]struct{}) error {
 var DefaultGlobalConfig = GlobalConfig{
 	ResolveTimeout: model.Duration(5 * time.Minute),
 
-	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
-	HipchatURL:      "https://api.hipchat.com/",
-	OpsGenieAPIHost: "https://api.opsgenie.com/",
-	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
+	PagerdutyURL:     "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+	HipchatURL:       "https://api.hipchat.com/",
+	OpsGenieAPIHost:  "https://api.opsgenie.com/",
+	VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
+	StatusPageAPIURL: "https://api.statuspage.io/v1/",
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -297,6 +318,9 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url"`
+	StatusPageAPIURL string `yaml:"statuspage_api_url"`
+	StatusPageAPIKey Secret `yaml:"statuspage_api_key"`
+	StatusPagePageId string `yaml:"statuspage_page_id"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -418,14 +442,15 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name"`
 
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
-	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty"`
+	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty"`
+	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty"`
+	HipchatConfigs    []*HipchatConfig    `yaml:"hipchat_configs,omitempty"`
+	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty"`
+	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty"`
+	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty"`
+	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty"`
+	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty"`
+	StatusPageConfigs []*StatusPageConfig `yaml:"statuspage_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`

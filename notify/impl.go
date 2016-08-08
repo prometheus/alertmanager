@@ -144,6 +144,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 			n := NewPushover(c, tmpl)
 			add(i, n, filter(n, c))
 		}
+		for i, c := range nc.StatusPageConfigs {
+			n := NewStatusPage(c)
+			add(i, n, filter(n, c))
+		}
 
 		res[nc.Name] = fo
 	}
@@ -908,6 +912,57 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
 		}
 		return fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
 	}
+	return nil
+}
+
+// StatusPage implements a Notifier for StatusPage notifications.
+type StatusPage struct {
+	conf *config.StatusPageConfig
+}
+
+// NewStatusPage returns a new StatusPage notifier.
+func NewStatusPage(c *config.StatusPageConfig) *StatusPage {
+	return &StatusPage{conf: c}
+}
+
+func (*StatusPage) name() string { return "statuspage" }
+
+const (
+	statusPageStatusOperational = "operational"
+)
+
+// Notify implements the Notifier interface.
+//
+// https://doers.statuspage.io/api/v1/components/
+func (s *StatusPage) Notify(ctx context.Context, as ...*types.Alert) error {
+	alerts := types.Alerts(as...)
+	status := statusPageStatusOperational
+	if alerts.Status() != model.AlertResolved {
+		status = s.conf.Status
+	}
+
+	url := fmt.Sprintf("%s/pages/%s/components/%s.json", s.conf.APIURL, s.conf.PageId, s.conf.ComponentId)
+	body := fmt.Sprintf("component[status]=%s", status)
+
+	log.With("componentId", s.conf.ComponentId).With("pageId", s.conf.PageId).With("status", status).Debugln("Update StatusPage component")
+
+	req, err := http.NewRequest("PATCH", url, strings.NewReader(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", fmt.Sprintf("OAuth %s", s.conf.APIKey))
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("unexpected status code %v from %s", resp.StatusCode, url)
+	}
+
 	return nil
 }
 
