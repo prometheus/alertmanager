@@ -946,10 +946,10 @@ func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 // Used for AUTH LOGIN. (Maybe password should be encrypted)
 func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if more {
-		switch string(fromServer) {
-		case "Username:":
+		switch strings.ToLower(string(fromServer)) {
+		case "username:":
 			return []byte(a.username), nil
-		case "Password:":
+		case "password:":
 			return []byte(a.password), nil
 		default:
 			return nil, errors.New("unexpected server challenge")
