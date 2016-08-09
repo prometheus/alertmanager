@@ -40,7 +40,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
-	"github.com/prometheus/alertmanager/provider/boltmem"
+	"github.com/prometheus/alertmanager/provider/mem"
 	meshprov "github.com/prometheus/alertmanager/provider/mesh"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -137,7 +137,7 @@ func main() {
 
 	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
-	alerts, err := boltmem.NewAlerts(*dataDir)
+	alerts, err := mem.NewAlerts(*dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}

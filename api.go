@@ -283,15 +283,14 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 }
 
 func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
-	var msil model.Silence
-	if err := receive(r, &msil); err != nil {
+	var sil types.Silence
+	if err := receive(r, &sil); err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
 	}
-	sil := types.NewSilence(&msil)
 
 	if err := sil.Init(); err != nil {
 		respondError(w, apiError{
@@ -301,7 +300,7 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sid, err := api.silences.Set(sil)
+	sid, err := api.silences.Set(&sil)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
