@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/provider"
@@ -293,11 +293,7 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 	}
 	sil := types.NewSilence(&msil)
 
-	if sil.CreatedAt.IsZero() {
-		sil.CreatedAt = time.Now()
-	}
-
-	if err := sil.Validate(); err != nil {
+	if err := sil.Init(); err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
@@ -315,7 +311,7 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond(w, struct {
-		SilenceID uint64 `json:"silenceId"`
+		SilenceID uuid.UUID `json:"silenceId"`
 	}{
 		SilenceID: sid,
 	})
@@ -323,7 +319,7 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 	sids := route.Param(api.context(r), "sid")
-	sid, err := strconv.ParseUint(sids, 10, 64)
+	sid, err := uuid.FromString(sids)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
@@ -343,7 +339,7 @@ func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 	sids := route.Param(api.context(r), "sid")
-	sid, err := strconv.ParseUint(sids, 10, 64)
+	sid, err := uuid.FromString(sids)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
@@ -423,7 +419,7 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	if err != nil {
 		return
 	}
-	log.Errorf("api error: %v", apiErr)
+	log.Errorf("api error: %s", apiErr)
 
 	w.Write(b)
 }

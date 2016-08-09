@@ -15,9 +15,11 @@ package test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,6 +30,7 @@ import (
 
 	"github.com/prometheus/client_golang/api/alertmanager"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 )
 
@@ -122,6 +125,9 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 	am.UpdateConfig(conf)
 
 	am.addr = freeAddress()
+	am.mesh = freeAddress()
+	am.hwaddr = "00:00:00:00:00:01"
+	am.nickname = "1"
 
 	t.Logf("AM on %s", am.addr)
 
@@ -222,11 +228,12 @@ type Alertmanager struct {
 	t    *AcceptanceTest
 	opts *AcceptanceOpts
 
-	addr     string
-	client   alertmanager.Client
-	cmd      *exec.Cmd
-	confFile *os.File
-	dir      string
+	addr                   string
+	mesh, hwaddr, nickname string
+	client                 alertmanager.Client
+	cmd                    *exec.Cmd
+	confFile               *os.File
+	dir                    string
 
 	errc chan<- error
 }
@@ -238,6 +245,9 @@ func (am *Alertmanager) Start() {
 		"-log.level", "debug",
 		"-web.listen-address", am.addr,
 		"-storage.path", am.dir,
+		"-mesh.listen-address", am.mesh,
+		"-mesh.hardware-address", am.hwaddr,
+		"-mesh.nickname", am.nickname,
 	)
 
 	if am.cmd == nil {
@@ -297,25 +307,52 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 
 // SetSilence updates or creates the given Silence.
 func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
-	silences := alertmanager.NewSilenceAPI(am.client)
-
 	am.t.Do(at, func() {
-		sid, err := silences.Set(context.Background(), sil.nativeSilence(am.opts))
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(sil.nativeSilence(am.opts)); err != nil {
+			am.t.Errorf("Error setting silence %v: %s", sil, err)
+			return
+		}
+
+		resp, err := http.Post(fmt.Sprintf("http://%s/api/v1/silences", am.addr), "application/json", &buf)
 		if err != nil {
 			am.t.Errorf("Error setting silence %v: %s", sil, err)
 			return
 		}
-		sil.ID = sid
+		defer resp.Body.Close()
+
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		var v struct {
+			Status string `json:"status"`
+			Data   struct {
+				SilenceID uuid.UUID `json:"silenceId"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(b, &v); err != nil {
+			am.t.Errorf("error setting silence %v: %s", sil, err)
+			return
+		}
+		sil.ID = v.Data.SilenceID
 	})
 }
 
 // DelSilence deletes the silence with the sid at the given time.
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
-	silences := alertmanager.NewSilenceAPI(am.client)
-
 	am.t.Do(at, func() {
-		if err := silences.Del(context.Background(), sil.ID); err != nil {
+		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/v1/silence/%s", am.addr, sil.ID), nil)
+		if err != nil {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
+			return
+		}
+
+		_, err = http.DefaultClient.Do(req)
+		if err != nil {
+			am.t.Errorf("Error deleting silence %v: %s", sil, err)
+			return
 		}
 	})
 }

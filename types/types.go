@@ -16,21 +16,22 @@ package types
 import (
 	"fmt"
 	"hash/fnv"
-	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 )
 
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {
 	SetInhibited(alert model.Fingerprint, b bool)
-	SetSilenced(alert model.Fingerprint, sil ...uint64)
+	SetSilenced(alert model.Fingerprint, sil ...uuid.UUID)
 
-	Silenced(alert model.Fingerprint) (uint64, bool)
+	Silenced(alert model.Fingerprint) (uuid.UUID, bool)
 	Inhibited(alert model.Fingerprint) bool
 }
 
@@ -38,13 +39,13 @@ type Marker interface {
 func NewMarker() Marker {
 	return &memMarker{
 		inhibited: map[model.Fingerprint]struct{}{},
-		silenced:  map[model.Fingerprint]uint64{},
+		silenced:  map[model.Fingerprint]uuid.UUID{},
 	}
 }
 
 type memMarker struct {
 	inhibited map[model.Fingerprint]struct{}
-	silenced  map[model.Fingerprint]uint64
+	silenced  map[model.Fingerprint]uuid.UUID
 
 	mtx sync.RWMutex
 }
@@ -57,7 +58,7 @@ func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
 	return ok
 }
 
-func (m *memMarker) Silenced(alert model.Fingerprint) (uint64, bool) {
+func (m *memMarker) Silenced(alert model.Fingerprint) (uuid.UUID, bool) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -76,7 +77,7 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
 	}
 }
 
-func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...uint64) {
+func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...uuid.UUID) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -203,65 +204,121 @@ type MuteFunc func(model.LabelSet) bool
 // Mutes implements the Muter interface.
 func (f MuteFunc) Mutes(lset model.LabelSet) bool { return f(lset) }
 
-// A Silence determines whether a given label set is muted
-// at the current time.
+// A Silence determines whether a given label set is muted.
 type Silence struct {
-	model.Silence
-
-	// A set of matchers determining if an alert is affected
+	// A unique identifier across all connected instances.
+	ID uuid.UUID `json:"id"`
+	// A set of matchers determining if a label set is affect
 	// by the silence.
-	Matchers Matchers `json:"-"`
+	Matchers Matchers `json:"matchers"`
+
+	// Time range of the silence.
+	//
+	// * StartsAt must not be before creation time
+	// * EndsAt must be after StartsAt
+	// * Deleting a silence means to set EndsAt to now
+	// * Time range must not be modified in different ways
+	//
+	// TODO(fabxc): this may potentially be extended by
+	// creation and update timestamps.
+	StartsAt time.Time `json:"startsAt"`
+	EndsAt   time.Time `json:"endsAt"`
+
+	// The last time the silence was updated.
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// Information about who created the silence for which reason.
+	CreatedBy string `json:"createdBy"`
+	Comment   string `json:"comment,omitempty"`
 
 	// timeFunc provides the time against which to evaluate
-	// the silence.
-	timeFunc func() time.Time
+	// the silence. Used for test injection.
+	now func() time.Time
 }
 
-// NewSilence creates a new internal Silence from a public silence object.
-func NewSilence(s *model.Silence) *Silence {
-	sil := &Silence{
-		Silence:  *s,
-		timeFunc: time.Now,
+// Validate returns true iff all fields of the silence have valid values.
+func (s *Silence) Validate() error {
+	if s.ID == uuid.Nil {
+		return fmt.Errorf("ID missing")
+	}
+	if len(s.Matchers) == 0 {
+		return fmt.Errorf("at least one matcher required")
 	}
 	for _, m := range s.Matchers {
-		if !m.IsRegex {
-			sil.Matchers = append(sil.Matchers, NewMatcher(m.Name, m.Value))
-			continue
+		if err := m.Validate(); err != nil {
+			return fmt.Errorf("invalid matcher: %s", err)
 		}
-		rem := NewRegexMatcher(m.Name, regexp.MustCompile("^(?:"+m.Value+")$"))
-		sil.Matchers = append(sil.Matchers, rem)
 	}
-	return sil
+	if s.StartsAt.IsZero() {
+		return fmt.Errorf("start time missing")
+	}
+	if s.EndsAt.IsZero() {
+		return fmt.Errorf("end time missing")
+	}
+	if s.EndsAt.Before(s.StartsAt) {
+		return fmt.Errorf("start time must be before end time")
+	}
+	if s.CreatedBy == "" {
+		return fmt.Errorf("creator information missing")
+	}
+	if s.Comment == "" {
+		return fmt.Errorf("comment missing")
+	}
+	// if s.CreatedAt.IsZero() {
+	//	return fmt.Errorf("creation timestamp missing")
+	// }
+	return nil
+}
+
+// Init initializes a silence. Must be called before using Mutes.
+func (s *Silence) Init() error {
+	for _, m := range s.Matchers {
+		if err := m.Init(); err != nil {
+			return err
+		}
+	}
+	sort.Sort(s.Matchers)
+	return nil
 }
 
 // Mutes implements the Muter interface.
-func (sil *Silence) Mutes(lset model.LabelSet) bool {
-	t := sil.timeFunc()
-
-	if t.Before(sil.StartsAt) || t.After(sil.EndsAt) {
+//
+// TODO(fabxc): consider making this a function accepting a
+// timestamp and returning a Muter, i.e. s.Muter(ts).Mutes(lset).
+func (s *Silence) Mutes(lset model.LabelSet) bool {
+	var now time.Time
+	if s.now != nil {
+		now = s.now()
+	} else {
+		now = time.Now()
+	}
+	if now.Before(s.StartsAt) || now.After(s.EndsAt) {
 		return false
 	}
-
-	b := sil.Matchers.Match(lset)
-
-	return b
+	return s.Matchers.Match(lset)
 }
 
-// NotifyInfo holds information about the last successful notification
+// Returns whether a silence is deleted. Semantically this means it had no effect
+// on history at any point.
+func (s *Silence) Deleted() bool {
+	return s.StartsAt.Equal(s.EndsAt)
+}
+
+// NotifcationInfo holds information about the last successful notification
 // of an alert to a receiver.
-type NotifyInfo struct {
+type NotificationInfo struct {
 	Alert     model.Fingerprint
 	Receiver  string
 	Resolved  bool
 	Timestamp time.Time
 }
 
-func (n *NotifyInfo) String() string {
+func (n *NotificationInfo) String() string {
 	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v>", n.Alert, n.Timestamp, n.Receiver, n.Resolved)
 }
 
 // Fingerprint returns a quasi-unique fingerprint for the NotifyInfo.
-func (n *NotifyInfo) Fingerprint() model.Fingerprint {
+func (n *NotificationInfo) Fingerprint() model.Fingerprint {
 	h := fnv.New64a()
 	h.Write([]byte(n.Receiver))
 

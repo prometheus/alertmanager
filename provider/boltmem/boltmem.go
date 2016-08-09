@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 )
 
 var (
@@ -277,47 +278,38 @@ func (s *Silences) initCache() error {
 		c := b.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var ms model.Silence
-			if err := json.Unmarshal(v, &ms); err != nil {
+			var s types.Silence
+			if err := json.Unmarshal(v, &s); err != nil {
 				return err
 			}
-			// The ID is duplicated in the value and always equal
-			// to the stored key.
-			s.cache[ms.ID] = types.NewSilence(&ms)
+			if err := s.Init(); err != nil {
+				return err
+			}
+			res = append(res, &s)
 		}
-
 		return nil
 	})
 	return err
 }
 
 // Set a new silence.
-func (s *Silences) Set(sil *types.Silence) (uint64, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
+func (s *Silences) Set(sil *types.Silence) (uuid.UUID, error) {
 	var (
-		uid uint64
+		uid uuid.UUID
 		err error
 	)
 	err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktSilences)
-
 		// Silences are immutable and we always create a new one.
-		uid, err = b.NextSequence()
+		sil.ID = uuid.NewV4()
+		sil.UpdatedAt = time.Now()
+
+		msb, err := json.Marshal(sil)
 		if err != nil {
 			return err
 		}
-		sil.ID = uid
-
-		k := make([]byte, 8)
-		binary.BigEndian.PutUint64(k, uid)
-
-		msb, err := json.Marshal(sil.Silence)
-		if err != nil {
-			return err
-		}
-		return b.Put(k, msb)
+		uid = sil.ID
+		return b.Put(sil.ID[:], msb)
 	})
 	if err != nil {
 		return 0, err
@@ -327,17 +319,13 @@ func (s *Silences) Set(sil *types.Silence) (uint64, error) {
 }
 
 // Del removes a silence.
-func (s *Silences) Del(uid uint64) error {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
+func (s *Silences) Del(uid uuid.UUID) error {
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bktSilences)
-
-		k := make([]byte, 8)
-		binary.BigEndian.PutUint64(k, uid)
-
-		return b.Delete(k)
+		// TODO(fabxc): this does not yet comply with the semantics of
+		// deleting just setting EndsAt to now if it is in the future.
+		// As long as we are don't have strong semantics we might still
+		// keep supporting this.
+		return tx.Bucket(bktSilences).Delete(uid[:])
 	})
 	if err != nil {
 		return err
@@ -347,15 +335,22 @@ func (s *Silences) Del(uid uint64) error {
 }
 
 // Get a silence associated with a fingerprint.
-func (s *Silences) Get(uid uint64) (*types.Silence, error) {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
+func (s *Silences) Get(uid uuid.UUID) (*types.Silence, error) {
+	var sil types.Silence
 
-	sil, ok := s.cache[uid]
-	if !ok {
-		return nil, provider.ErrNotFound
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bktSilences)
+
+		v := b.Get(uid[:])
+		if v == nil {
+			return provider.ErrNotFound
+		}
+		return json.Unmarshal(v, &sil)
+	})
+	if err != nil {
+		return nil, err
 	}
-	return sil, nil
+	return &sil, sil.Init()
 }
 
 // NotificationInfo provides information about pending and successful
@@ -383,8 +378,8 @@ func (n *NotificationInfo) Close() error {
 }
 
 // Get notification information for alerts and the given receiver.
-func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error) {
-	var res []*types.NotifyInfo
+func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
+	var res []*types.NotificationInfo
 
 	err := n.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktNotificationInfo)
@@ -400,7 +395,7 @@ func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.
 				continue
 			}
 
-			ni := &types.NotifyInfo{
+			ni := &types.NotificationInfo{
 				Alert:    fp,
 				Receiver: recv,
 				Resolved: v[0] == 1,
@@ -417,7 +412,7 @@ func (n *NotificationInfo) Get(recv string, fps ...model.Fingerprint) ([]*types.
 }
 
 // Set several notifies at once. All or none must succeed.
-func (n *NotificationInfo) Set(ns ...*types.NotifyInfo) error {
+func (n *NotificationInfo) Set(ns ...*types.NotificationInfo) error {
 	err := n.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bktNotificationInfo)
 

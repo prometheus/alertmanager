@@ -10,20 +10,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package notify
 
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/satori/go.uuid"
 )
 
 type recordNotifier struct {
@@ -51,7 +51,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 	)
 	cases := []struct {
 		inAlert      *types.Alert
-		inNotifyInfo *types.NotifyInfo
+		inNotifyInfo *types.NotificationInfo
 		result       bool
 	}{
 		// A new alert about which there's no previous notification information.
@@ -87,7 +87,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					EndsAt:   now,
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  false,
 				Timestamp: now.Add(-time.Minute),
@@ -103,7 +103,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					EndsAt:   now,
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  true,
 				Timestamp: now.Add(-time.Minute),
@@ -118,7 +118,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					StartsAt: now.Add(-3 * time.Minute),
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  true,
 				Timestamp: now.Add(-4 * time.Minute),
@@ -134,7 +134,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					StartsAt: now.Add(-10 * time.Minute),
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  false,
 				Timestamp: now.Add(-15 * time.Minute),
@@ -150,7 +150,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 					StartsAt: now.Add(-10 * time.Minute),
 				},
 			},
-			inNotifyInfo: &types.NotifyInfo{
+			inNotifyInfo: &types.NotificationInfo{
 				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
 				Resolved:  false,
 				Timestamp: now.Add(-115 * time.Minute),
@@ -169,7 +169,7 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 func TestDedupingNotifier(t *testing.T) {
 	var (
 		record   = &recordNotifier{}
-		notifies = provider.NewMemNotifies(provider.NewMemData())
+		notifies = newTestInfos()
 		deduper  = Dedup(notifies, record)
 		ctx      = context.Background()
 	)
@@ -194,7 +194,7 @@ func TestDedupingNotifier(t *testing.T) {
 
 	// Set an initial NotifyInfo to ensure that on notification failure
 	// nothing changes.
-	nsBefore := []*types.NotifyInfo{
+	nsBefore := []*types.NotificationInfo{
 		nil,
 		{
 			Alert:     alerts[1].Fingerprint(),
@@ -234,7 +234,7 @@ func TestDedupingNotifier(t *testing.T) {
 		t.Fatalf("Error getting notifies: %s", err)
 	}
 
-	nsAfter := []*types.NotifyInfo{
+	nsAfter := []*types.NotificationInfo{
 		{
 			Alert:     alerts[0].Fingerprint(),
 			Receiver:  "name",
@@ -331,7 +331,7 @@ func TestSilenceNotifier(t *testing.T) {
 
 	// Set the second alert als previously silenced. It is expected to have
 	// the WasSilenced flag set to true afterwards.
-	marker.SetSilenced(inAlerts[1].Fingerprint(), 123)
+	marker.SetSilenced(inAlerts[1].Fingerprint(), uuid.NewV4())
 
 	if err := silenceNotifer.Notify(nil, inAlerts...); err != nil {
 		t.Fatalf("Notifying failed: %s", err)
@@ -404,4 +404,54 @@ func TestInhibitNotifier(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
+}
+
+type testInfos struct {
+	mtx sync.RWMutex
+	m   map[string]map[model.Fingerprint]*types.NotificationInfo
+}
+
+func newTestInfos() *testInfos {
+	return &testInfos{
+		m: map[string]map[model.Fingerprint]*types.NotificationInfo{},
+	}
+}
+
+// Set implements the Notifies interface.
+func (n *testInfos) Set(ns ...*types.NotificationInfo) error {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	for _, v := range ns {
+
+		if v == nil {
+			continue
+		}
+		am, ok := n.m[v.Receiver]
+		if !ok {
+			am = map[model.Fingerprint]*types.NotificationInfo{}
+			n.m[v.Receiver] = am
+		}
+		am[v.Alert] = v
+	}
+	return nil
+}
+
+// Get implements the Notifies interface.
+func (n *testInfos) Get(dest string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
+	n.mtx.RLock()
+	defer n.mtx.RUnlock()
+
+	res := make([]*types.NotificationInfo, len(fps))
+
+	ns, ok := n.m[dest]
+	if !ok {
+		return res, nil
+	}
+
+	for i, fp := range fps {
+		res[i] = ns[fp]
+	}
+
+	return res, nil
 }

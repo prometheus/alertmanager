@@ -17,6 +17,7 @@ import (
 	"fmt"
 
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 
 	"github.com/prometheus/alertmanager/types"
 )
@@ -97,17 +98,17 @@ type Silences interface {
 	// All returns all existing silences.
 	All() ([]*types.Silence, error)
 	// Set a new silence.
-	Set(*types.Silence) (uint64, error)
+	Set(*types.Silence) (uuid.UUID, error)
 	// Del removes a silence.
-	Del(uint64) error
+	Del(uuid.UUID) error
 	// Get a silence associated with a fingerprint.
-	Get(uint64) (*types.Silence, error)
+	Get(uuid.UUID) (*types.Silence, error)
 }
 
 // Notifies provides information about pending and successful
 // notifications. All methods are goroutine-safe.
 type Notifies interface {
-	Get(dest string, fps ...model.Fingerprint) ([]*types.NotifyInfo, error)
+	Get(dest string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error)
 	// Set several notifies at once. All or none must succeed.
-	Set(ns ...*types.NotifyInfo) error
+	Set(ns ...*types.NotificationInfo) error
 }
