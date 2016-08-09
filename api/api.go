@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package api
 
 import (
 	"encoding/json"
@@ -28,6 +28,7 @@ import (
 	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -59,15 +60,15 @@ type API struct {
 	resolveTimeout time.Duration
 	uptime         time.Time
 
-	groups func() AlertOverview
+	groups func() dispatch.AlertOverview
 
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
 	mtx     sync.RWMutex
 }
 
-// NewAPI returns a new API.
-func NewAPI(alerts provider.Alerts, silences provider.Silences, gf func() AlertOverview) *API {
+// New returns a new API.
+func New(alerts provider.Alerts, silences provider.Silences, gf func() dispatch.AlertOverview) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,

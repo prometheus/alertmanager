@@ -38,12 +38,16 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/mesh"
 
+	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 	meshprov "github.com/prometheus/alertmanager/provider/mesh"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/ui"
 )
 
 var (
@@ -144,13 +148,13 @@ func main() {
 	defer alerts.Close()
 
 	var (
-		inhibitor *Inhibitor
+		inhibitor *inhibit.Inhibitor
 		tmpl      *template.Template
-		disp      *Dispatcher
+		disp      *dispatch.Dispatcher
 	)
 	defer disp.Stop()
 
-	api := NewAPI(alerts, silences, func() AlertOverview {
+	apiv := api.New(alerts, silences, func() dispatch.AlertOverview {
 		return disp.Groups()
 	})
 
@@ -205,7 +209,7 @@ func main() {
 			return err
 		}
 
-		api.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
 
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
@@ -216,8 +220,8 @@ func main() {
 		inhibitor.Stop()
 		disp.Stop()
 
-		inhibitor = NewInhibitor(alerts, conf.InhibitRules, marker)
-		disp = NewDispatcher(alerts, NewRoute(conf.Route, nil), build(conf.Receivers), marker)
+		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker)
+		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), build(conf.Receivers), marker)
 
 		go disp.Run()
 		go inhibitor.Run()
@@ -232,8 +236,8 @@ func main() {
 	router := route.New()
 
 	webReload := make(chan struct{})
-	RegisterWeb(router.WithPrefix(amURL.Path), webReload)
-	api.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
+	ui.Register(router.WithPrefix(amURL.Path), webReload)
+	apiv.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
 	log.Infoln("Listening on", *listenAddress)
 	go listen(*listenAddress, router)
