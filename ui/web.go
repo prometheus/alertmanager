@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package ui
 
 import (
 	"bytes"
@@ -23,18 +23,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
-
-	"github.com/prometheus/alertmanager/ui"
 )
 
 func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
-	info, err := ui.AssetInfo(fp)
+	info, err := AssetInfo(fp)
 	if err != nil {
 		log.Warn("Could not get file: ", err)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	file, err := ui.Asset(fp)
+	file, err := Asset(fp)
 	if err != nil {
 		if err != io.EOF {
 			log.With("file", fp).Warn("Could not get file: ", err)
@@ -46,8 +44,8 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
 	http.ServeContent(w, req, info.Name(), info.ModTime(), bytes.NewReader(file))
 }
 
-// RegisterWeb registers handlers to serve files for the web interface.
-func RegisterWeb(r *route.Router, reloadCh chan<- struct{}) {
+// Register registers handlers to serve files for the web interface.
+func Register(r *route.Router, reloadCh chan<- struct{}) {
 	ihf := prometheus.InstrumentHandlerFunc
 
 	r.Get("/app/*filepath", ihf("app_files",
