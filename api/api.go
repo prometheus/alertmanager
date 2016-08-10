@@ -359,7 +359,22 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	sils, err := api.silences.All()
+	// sils, err := api.silences.All()
+	var (
+		num    = r.FormValue("n")
+		offset = r.FormValue("offset")
+	)
+
+	n, err := strconv.ParseUint(num, 10, 64)
+	if err != nil {
+		n = 50
+	}
+	o, err := strconv.ParseUint(offset, 10, 64)
+	if err != nil {
+		o = 0
+	}
+
+	sils, err := api.silences.Query(n, o)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
