@@ -261,7 +261,7 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 const defaultPageSize uint64 = 25
 
 // Query implements the Silences interface.
-func (s *Silences) Query(n uint64, o uint64) ([]*types.Silence, error) {
+func (s *Silences) Query(n, o, uid uint64) ([]*types.Silence, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
@@ -269,7 +269,20 @@ func (s *Silences) Query(n uint64, o uint64) ([]*types.Silence, error) {
 		n = uint64(len(s.keys))
 	}
 
-	pageStart := defaultPageSize * o
+	// TODO: This is the second time you're searching linearly through an
+	// array. Do a binary search.
+	var j int
+	for i, id := range s.keys {
+		if id == uid {
+			// Since uid is the last uid from the previous request,
+			// we want to move one index higher. This is the first
+			// silence in the response.
+			j = i + 1
+			break
+		}
+	}
+
+	pageStart := uint64(j) + (defaultPageSize * o)
 	if pageStart > uint64(len(s.keys)) {
 		return []*types.Silence{}, nil
 	}
@@ -292,7 +305,7 @@ func (s *Silences) Query(n uint64, o uint64) ([]*types.Silence, error) {
 
 // All returns all existing silences.
 func (s *Silences) All() ([]*types.Silence, error) {
-	return s.Query(uint64(len(s.cache)), 0)
+	return s.Query(uint64(len(s.cache)), 0, 1)
 }
 
 func (s *Silences) initCache() error {

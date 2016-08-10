@@ -25,7 +25,7 @@
 
 <div ng-show="silences.length == 0">No silences configured</div>
 
-<div ng-hide="silences.length == 0" id="silences-list">
+<div ng-hide="silences.length == 0" id="silences-list" infinite-scroll="refresh()" infinite-scroll-distance='1'>
 
 	<div class="active-silences">
 		<h4 class="thin">Active</h4>

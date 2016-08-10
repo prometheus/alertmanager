@@ -106,7 +106,7 @@ type Silences interface {
 	// Get at most n silences starting at o offset. Returns
 	// ErrorNoMoreSilences and silences if n exceeds number of silences
 	// found.
-	Query(n uint64, o uint64) ([]*types.Silence, error)
+	Query(n, o, id uint64) ([]*types.Silence, error)
 }
 
 // Notifies provides information about pending and successful

@@ -271,29 +271,42 @@ angular.module('am.controllers').controller('SilencesCtrl',
     $scope.showForm = false;
 
     $scope.toggleForm = function() {
-      $scope.showForm = !$scope.showForm
+      $scope.showForm = !$scope.showForm;
     }
 
+    var inflight = false;
     $scope.refresh = function() {
-      Silence.query($location.search(),
+      if (inflight) {
+        return;
+      }
+      inflight = true;
+      var params = $location.search();
+      var id;
+
+      if ($scope.silences.length) {
+        params['lastID'] = $scope.silences[$scope.silences.length-1]['id'];
+      }
+
+      Silence.query(params,
         function(data) {
-          $scope.silences = data.data || [];
-	  var now = new Date;
+          $scope.silences = $scope.silences.concat(data.data || []);
+          var now = new Date;
 
           angular.forEach($scope.silences, function(value) {
             value.endsAt = new Date(value.endsAt);
             value.startsAt = new Date(value.startsAt);
             value.updatedAt = new Date(value.updatedAt);
 
-	    value.elapsed = value.endsAt < now;
-	    value.pending = value.startsAt > now;
-	    value.active = value.startsAt <= now && value.endsAt > now;
+            value.elapsed = value.endsAt < now;
+            value.pending = value.startsAt > now;
+            value.active = value.startsAt <= now && value.endsAt > now;
           });
         },
         function(data) {
           $scope.error = data.data;
-        }
-      );
+        }).$promise.finally(function() {
+          inflight = false;
+        });
     };
 
     $scope.$on('silence-created', function(evt) {
@@ -303,7 +316,14 @@ angular.module('am.controllers').controller('SilencesCtrl',
       $scope.refresh();
     });
 
-    $scope.refresh();
+    $scope.elapsed = function(elapsed) {
+      return function(sil) {
+        if (elapsed) {
+          return sil.endsAt <= new Date;
+        }
+        return sil.endsAt > new Date;
+      }
+    };
   }
 );
 
@@ -416,11 +436,14 @@ angular.module('am', [
   'ngRoute',
   'ngSanitize',
   'angularMoment',
+  'infinite-scroll',
 
   'am.controllers',
   'am.services',
   'am.directives'
 ]);
+
+angular.module('infinite-scroll').value('THROTTLE_MILLISECONDS', 250)
 
 angular.module('am').config(
   function($routeProvider) {

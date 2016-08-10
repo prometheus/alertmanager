@@ -359,10 +359,10 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	// sils, err := api.silences.All()
 	var (
 		num    = r.FormValue("n")
 		offset = r.FormValue("offset")
+		lastID = r.FormValue("lastID")
 	)
 
 	n, err := strconv.ParseUint(num, 10, 64)
@@ -373,8 +373,12 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		o = 0
 	}
+	id, err := strconv.ParseUint(lastID, 10, 64)
+	if err != nil {
+		id = 0
+	}
 
-	sils, err := api.silences.Query(n, o)
+	sils, err := api.silences.Query(n, o, id)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,

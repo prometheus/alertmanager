@@ -513,7 +513,7 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 var ErrorNoMoreSilences = errors.New("fewer silences found than requested")
 
 // LimitGet implements the Silences interface.
-func (s *Silences) Query(n uint64, o uint64) ([]*types.Silence, error) {
+func (s *Silences) Query(n, o, id uint64) ([]*types.Silence, error) {
 	return nil, nil
 }
 
