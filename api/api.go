@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -373,12 +374,16 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		o = 0
 	}
-	id, err := strconv.ParseUint(lastID, 10, 64)
+
+	sid, err := uuid.FromString(lastID)
 	if err != nil {
-		id = 0
+		// TODO: Come up with a way to indicate that we want to start from the
+		// first silence. This way will loop through EVERY silence, and then
+		// have the index to start in the key cache slice == 0.
+		sid = uuid.NewV4()
 	}
 
-	sils, err := api.silences.Query(n, o, id)
+	sils, err := api.silences.Query(n, o, sid)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,

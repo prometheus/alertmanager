@@ -214,12 +214,14 @@ func (st *notificationState) mergeDelta(set msg.NotificationInfoSet) *notificati
 type silenceState struct {
 	mtx sync.RWMutex
 	m   map[uuid.UUID]*types.Silence
+	k   []uuid.UUID
 	now func() time.Time // now function for test injection
 }
 
 func newSilenceState() *silenceState {
 	return &silenceState{
 		m:   map[uuid.UUID]*types.Silence{},
+		k:   []uuid.UUID{},
 		now: utcNow,
 	}
 }
@@ -228,12 +230,17 @@ func (st *silenceState) gc(retention time.Duration) {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
+	keys := []uuid.UUID{}
 	t := st.now().Add(-retention)
 	for k, v := range st.m {
 		if v.EndsAt.Before(t) {
 			delete(st.m, k)
+		} else {
+			// create new key cache from existing silences
+			keys = append(keys, v.ID)
 		}
 	}
+	st.k = keys
 }
 
 func (st *silenceState) snapshot(w io.Writer) error {
@@ -266,6 +273,9 @@ func (st *silenceState) loadSnapshot(r io.Reader) error {
 			return fmt.Errorf("iniializing silence failed: %s", err)
 		}
 		st.m[s.ID] = &s
+		// does this need to be zeroed out at the beginning of this
+		// method? or do we rely on gc to clean out extra keys.
+		st.k = append(st.k, s.ID)
 	}
 	return nil
 }
