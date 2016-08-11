@@ -18,12 +18,6 @@
 			"revisionTime": "2015-02-23T14:51:52+01:00"
 		},
 		{
-			"checksumSHA1": "H57oqpzRpxtzb0xoPbhWYEy9KSA=",
-			"path": "github.com/boltdb/bolt",
-			"revision": "144418e1475d8bf7abbdc48583500f1a20c62ea7",
-			"revisionTime": "2016-04-07T14:34:38Z"
-		},
-		{
 			"path": "github.com/cenkalti/backoff",
 			"revision": "4dc77674aceaabba2c7e3da25d4c823edfb73f99",
 			"revisionTime": "2015-08-14T12:43:33+03:00"
@@ -153,12 +147,6 @@
 			"path": "golang.org/x/net/context/ctxhttp",
 			"revision": "db8e4de5b2d6653f66aea53094624468caad15d2",
 			"revisionTime": "2015-08-24T18:07:02+02:00"
-		},
-		{
-			"checksumSHA1": "c8iMfP5+K3GEg26HJiO0OVVLiM4=",
-			"path": "golang.org/x/sys/unix",
-			"revision": "f64b50fbea64174967a8882830d621a18ee1548e",
-			"revisionTime": "2016-04-14T13:31:22Z"
 		},
 		{
 			"path": "gopkg.in/yaml.v2",
