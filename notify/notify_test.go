@@ -45,7 +45,7 @@ func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
 
 func TestDedupingNotifierHasUpdate(t *testing.T) {
 	var (
-		n        = &DedupingNotifier{}
+		n        = &Deduplicator{}
 		now      = time.Now()
 		interval = 100 * time.Minute
 	)
@@ -166,11 +166,10 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 	}
 }
 
-func TestDedupingNotifier(t *testing.T) {
+func TestDedupingNewNotifiesExtraction(t *testing.T) {
 	var (
-		record   = &recordNotifier{}
 		notifies = newTestInfos()
-		deduper  = Dedup(notifies, record)
+		deduper  = Dedup(notifies)
 		ctx      = context.Background()
 	)
 	now := time.Now()
@@ -208,30 +207,9 @@ func TestDedupingNotifier(t *testing.T) {
 		t.Fatalf("Setting notifies failed: %s", err)
 	}
 
-	deduper.notifier = &failNotifier{}
-	if err := deduper.Notify(ctx, alerts...); err == nil {
-		t.Fatalf("Fail notifier did not fail")
-	}
-	// After a failing notify the notifies data must be unchanged.
-	nsCur, err := notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
+	newNotifies, err := deduper.ExtractNewNotifies(ctx, alerts...)
 	if err != nil {
-		t.Fatalf("Error getting notify info: %s", err)
-	}
-	if !reflect.DeepEqual(nsBefore, nsCur) {
-		t.Fatalf("Notify info data has changed unexpectedly")
-	}
-
-	deduper.notifier = record
-	if err := deduper.Notify(ctx, alerts...); err != nil {
 		t.Fatalf("Notify failed: %s", err)
-	}
-
-	if !reflect.DeepEqual(record.alerts, alerts) {
-		t.Fatalf("Expected alerts %v, got %v", alerts, record.alerts)
-	}
-	nsCur, err = notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
-	if err != nil {
-		t.Fatalf("Error getting notifies: %s", err)
 	}
 
 	nsAfter := []*types.NotificationInfo{
@@ -249,20 +227,8 @@ func TestDedupingNotifier(t *testing.T) {
 		},
 	}
 
-	for i, after := range nsAfter {
-		cur := nsCur[i]
-
-		// Hack correct timestamps back in if they are sane.
-		if cur != nil && after.Timestamp.IsZero() {
-			if cur.Timestamp.Before(now) {
-				t.Fatalf("Wrong timestamp for notify %v", cur)
-			}
-			after.Timestamp = cur.Timestamp
-		}
-
-		if !reflect.DeepEqual(after, cur) {
-			t.Errorf("Unexpected notifies, expected: %v, got: %v", after, cur)
-		}
+	if !reflect.DeepEqual(nsAfter, newNotifies) {
+		t.Errorf("Unexpected notifies, expected: %v, got: %v", nsAfter, newNotifies)
 	}
 }
 
@@ -302,8 +268,7 @@ func TestSilenceNotifier(t *testing.T) {
 	})
 
 	marker := types.NewMarker()
-	record := &recordNotifier{}
-	silenceNotifer := Silence(muter, record, marker)
+	silencer := Silence(muter, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -333,12 +298,13 @@ func TestSilenceNotifier(t *testing.T) {
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), uuid.NewV4())
 
-	if err := silenceNotifer.Notify(nil, inAlerts...); err != nil {
+	alerts, err := silencer.Filter(inAlerts...)
+	if err != nil {
 		t.Fatalf("Notifying failed: %s", err)
 	}
 
 	var got []model.LabelSet
-	for i, a := range record.alerts {
+	for i, a := range alerts {
 		got = append(got, a.Labels)
 		if a.WasSilenced != (i == 1) {
 			t.Errorf("Expected WasSilenced to be %v for %d, was %v", i == 1, i, a.WasSilenced)
@@ -358,8 +324,7 @@ func TestInhibitNotifier(t *testing.T) {
 	})
 
 	marker := types.NewMarker()
-	record := &recordNotifier{}
-	inhibitNotifer := Inhibit(muter, record, marker)
+	inhibitor := Inhibit(muter, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -389,12 +354,13 @@ func TestInhibitNotifier(t *testing.T) {
 	// the WasInhibited flag set to true afterwards.
 	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
 
-	if err := inhibitNotifer.Notify(nil, inAlerts...); err != nil {
+	alerts, err := inhibitor.Filter(inAlerts...)
+	if err != nil {
 		t.Fatalf("Notifying failed: %s", err)
 	}
 
 	var got []model.LabelSet
-	for i, a := range record.alerts {
+	for i, a := range alerts {
 		got = append(got, a.Labels)
 		if a.WasInhibited != (i == 1) {
 			t.Errorf("Expected WasInhibited to be %v for %d, was %v", i == 1, i, a.WasInhibited)

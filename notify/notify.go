@@ -23,7 +23,11 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/provider"
+	meshprov "github.com/prometheus/alertmanager/provider/mesh"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -125,6 +129,70 @@ type Notifier interface {
 	Notify(context.Context, ...*types.Alert) error
 }
 
+type NotificationFilter interface {
+	Filter(alerts ...*types.Alert) ([]*types.Alert, error)
+}
+
+func NewPipeline(rcvs []*config.Receiver, tmpl *template.Template, meshWait func() time.Duration, inhibitor *inhibit.Inhibitor, marker types.Marker, silences *meshprov.Silences, ni *meshprov.NotificationInfos) *Pipeline {
+	return &Pipeline{
+		inhibitor: inhibitor,
+		silences:  silences,
+		marker:    marker,
+		router:    BuildRouter(rcvs, tmpl, meshWait, ni),
+	}
+}
+
+type Pipeline struct {
+	inhibitor         *inhibit.Inhibitor
+	silences          *meshprov.Silences
+	notificationInfos *meshprov.NotificationInfos
+	marker            types.Marker
+	router            Router
+}
+
+func (p *Pipeline) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	var err error
+	alerts, err = Inhibit(p.inhibitor, p.marker).Filter(alerts...)
+	if err != nil {
+		return err
+	}
+
+	alerts, err = Silence(p.silences, p.marker).Filter(alerts...)
+	if err != nil {
+		return err
+	}
+
+	return p.router.Notify(ctx, alerts...)
+}
+
+type FanoutPipeline struct {
+	notificationInfos *meshprov.NotificationInfos
+	meshWait          func() time.Duration
+	notifier          Notifier
+}
+
+func (fp FanoutPipeline) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	var err error
+	err = Wait(ctx, fp.meshWait)
+	if err != nil {
+		return err
+	}
+
+	newNotifies, err := Dedup(fp.notificationInfos).ExtractNewNotifies(ctx, alerts...)
+	if err != nil {
+		return err
+	}
+
+	if newNotifies != nil {
+		err = Retry(fp.notifier, ctx, alerts...)
+		if err != nil {
+			return err
+		}
+	}
+
+	return fp.notificationInfos.Set(newNotifies...)
+}
+
 // Fanout sends notifications through all notifiers it holds at once.
 type Fanout map[string]Notifier
 
@@ -163,20 +231,9 @@ func (ns Fanout) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	return nil
 }
 
-// RetryNotifier accepts another notifier and retries notifying
-// on error with exponential backoff.
-type RetryNotifier struct {
-	notifier Notifier
-}
-
-// Retry wraps the given notifier in a RetryNotifier.
-func Retry(n Notifier) *RetryNotifier {
-	return &RetryNotifier{notifier: n}
-}
-
-// Notify calls the underlying notifier with exponential backoff until it succeeds.
+// Retry calls the passed notifier with exponential backoff until it succeeds.
 // It aborts if the context is canceled or timed out.
-func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+func Retry(n Notifier, ctx context.Context, alerts ...*types.Alert) error {
 	var (
 		i    = 0
 		b    = backoff.NewExponentialBackOff()
@@ -195,7 +252,7 @@ func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) erro
 
 		select {
 		case <-tick.C:
-			if err := n.notifier.Notify(ctx, alerts...); err != nil {
+			if err := n.Notify(ctx, alerts...); err != nil {
 				log.Warnf("Notify attempt %d failed: %s", i, err)
 			} else {
 				return nil
@@ -206,22 +263,20 @@ func (n *RetryNotifier) Notify(ctx context.Context, alerts ...*types.Alert) erro
 	}
 }
 
-// DedupingNotifier filters and forwards alerts to another notifier.
+// Deduplicator filters alerts.
 // Filtering happens based on a provider of NotifyInfos.
-// On successful notification new NotifyInfos are set.
-type DedupingNotifier struct {
+type Deduplicator struct {
 	notifies provider.Notifies
-	notifier Notifier
 }
 
-// Dedup wraps a Notifier in a DedupingNotifier that runs against the given NotifyInfo provider.
-func Dedup(notifies provider.Notifies, n Notifier) *DedupingNotifier {
-	return &DedupingNotifier{notifies: notifies, notifier: n}
+// Dedup wraps a Deduplicator that runs against the given NotifyInfo provider.
+func Dedup(notifies provider.Notifies) *Deduplicator {
+	return &Deduplicator{notifies: notifies}
 }
 
 // hasUpdates checks an alert against the last notification that was made
 // about it.
-func (n *DedupingNotifier) hasUpdate(alert *types.Alert, last *types.NotificationInfo, now time.Time, interval time.Duration) bool {
+func (n *Deduplicator) hasUpdate(alert *types.Alert, last *types.NotificationInfo, now time.Time, interval time.Duration) bool {
 	if last != nil {
 		if alert.Resolved() {
 			if last.Resolved {
@@ -242,21 +297,21 @@ func (n *DedupingNotifier) hasUpdate(alert *types.Alert, last *types.Notificatio
 	return true
 }
 
-// Notify implements the Notifier interface.
-func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+// ExtractNewNotifies filters out the notifications that shall be sent
+func (n *Deduplicator) ExtractNewNotifies(ctx context.Context, alerts ...*types.Alert) ([]*types.NotificationInfo, error) {
 	name, ok := Receiver(ctx)
 	if !ok {
-		return fmt.Errorf("notifier name missing")
+		return nil, fmt.Errorf("notifier name missing")
 	}
 
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
-		return fmt.Errorf("repeat interval missing")
+		return nil, fmt.Errorf("repeat interval missing")
 	}
 
 	now, ok := Now(ctx)
 	if !ok {
-		return fmt.Errorf("now time missing")
+		return nil, fmt.Errorf("now time missing")
 	}
 
 	var fps []model.Fingerprint
@@ -266,7 +321,7 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 
 	notifyInfo, err := n.notifies.Get(name, fps...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// If we have to notify about any of the alerts, we send a notification
@@ -279,7 +334,7 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		}
 	}
 	if !send {
-		return nil
+		return nil, nil
 	}
 
 	var newNotifies []*types.NotificationInfo
@@ -293,72 +348,53 @@ func (n *DedupingNotifier) Notify(ctx context.Context, alerts ...*types.Alert) e
 		})
 	}
 
-	if err := n.notifier.Notify(ctx, alerts...); err != nil {
-		return err
-	}
-
-	return n.notifies.Set(newNotifies...)
+	return newNotifies, nil
 }
 
-type WaitNotifier struct {
-	wait     func() time.Duration
-	notifier Notifier
-}
-
-func Wait(f func() time.Duration, n Notifier) *WaitNotifier {
-	return &WaitNotifier{
-		wait:     f,
-		notifier: n,
-	}
-}
-
-func (n *WaitNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+func Wait(ctx context.Context, wait func() time.Duration) error {
 	select {
-	case <-time.After(n.wait()):
+	case <-time.After(wait()):
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return n.notifier.Notify(ctx, alerts...)
+	return nil
 }
 
 // Router dispatches the alerts to one of a set of
-// named notifiers based on the name value provided in the context.
+// named fanouts based on the name value provided in the context.
 type Router map[string]Notifier
 
-// Notify implements the Notifier interface.
+// Notify dispatches the alerts to the fanout specified in the context.
 func (rs Router) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	receiver, ok := Receiver(ctx)
 	if !ok {
 		return fmt.Errorf("notifier name missing")
 	}
 
-	notifier, ok := rs[receiver]
+	n, ok := rs[receiver]
 	if !ok {
 		return fmt.Errorf("notifier %q does not exist", receiver)
 	}
 
-	return notifier.Notify(ctx, alerts...)
+	return n.Notify(ctx, alerts...)
 }
 
-// SilenceNotifier filters alerts through a silence muter before
-// passing it on to the next Notifier
+// SilenceNotifier filters alerts through a silence muter.
 type SilenceNotifier struct {
-	notifier Notifier
-	muter    types.Muter
-	marker   types.Marker
+	muter  types.Muter
+	marker types.Marker
 }
 
 // Silence returns a new SilenceNotifier.
-func Silence(m types.Muter, n Notifier, mk types.Marker) *SilenceNotifier {
+func Silence(m types.Muter, mk types.Marker) *SilenceNotifier {
 	return &SilenceNotifier{
-		notifier: n,
-		muter:    m,
-		marker:   mk,
+		muter:  m,
+		marker: mk,
 	}
 }
 
-// Notify implements the Notifier interface.
-func (n *SilenceNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+// Filter implements the NotificationFilter interface.
+func (n *SilenceNotifier) Filter(alerts ...*types.Alert) ([]*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		_, ok := n.marker.Silenced(a.Fingerprint())
@@ -372,28 +408,25 @@ func (n *SilenceNotifier) Notify(ctx context.Context, alerts ...*types.Alert) er
 		}
 	}
 
-	return n.notifier.Notify(ctx, filtered...)
+	return filtered, nil
 }
 
-// InhibitNotifier filters alerts through an inhibition muter before
-// passing it on to the next Notifier
+// InhibitNotifier filters alerts through an inhibition muter.
 type InhibitNotifier struct {
-	notifier Notifier
-	muter    types.Muter
-	marker   types.Marker
+	muter  types.Muter
+	marker types.Marker
 }
 
 // Inhibit return a new InhibitNotifier.
-func Inhibit(m types.Muter, n Notifier, mk types.Marker) *InhibitNotifier {
+func Inhibit(m types.Muter, mk types.Marker) *InhibitNotifier {
 	return &InhibitNotifier{
-		notifier: n,
-		muter:    m,
-		marker:   mk,
+		muter:  m,
+		marker: mk,
 	}
 }
 
-// Notify implements the Notifier interface.
-func (n *InhibitNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
+// Filter implements the NotificationFilter interface.
+func (n *InhibitNotifier) Filter(alerts ...*types.Alert) ([]*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		ok := n.marker.Inhibited(a.Fingerprint())
@@ -407,27 +440,5 @@ func (n *InhibitNotifier) Notify(ctx context.Context, alerts ...*types.Alert) er
 		}
 	}
 
-	return n.notifier.Notify(ctx, filtered...)
-}
-
-// LogNotifier logs the alerts to be notified about. It forwards to another Notifier
-// afterwards, if any is provided.
-type LogNotifier struct {
-	log      log.Logger
-	notifier Notifier
-}
-
-// Log wraps a Notifier in a LogNotifier with the given Logger.
-func Log(n Notifier, log log.Logger) *LogNotifier {
-	return &LogNotifier{log: log, notifier: n}
-}
-
-// Notify implements the Notifier interface.
-func (n *LogNotifier) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	n.log.Debugf("notify %v", alerts)
-
-	if n.notifier != nil {
-		return n.notifier.Notify(ctx, alerts...)
-	}
-	return nil
+	return filtered, nil
 }

@@ -37,6 +37,7 @@ import (
 	"golang.org/x/net/context/ctxhttp"
 
 	"github.com/prometheus/alertmanager/config"
+	meshprov "github.com/prometheus/alertmanager/provider/mesh"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -75,9 +76,9 @@ type integration interface {
 	name() string
 }
 
-// Build creates a fanout notifier for each receiver.
-func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout {
-	res := map[string]Fanout{}
+// BuildRouter builds fanouts and addts them to the router by receiver.
+func BuildRouter(confs []*config.Receiver, tmpl *template.Template, meshWait func() time.Duration, ni *meshprov.NotificationInfos) Router {
+	res := Router{}
 
 	filter := func(n integration, c notifierConfig) Notifier {
 		return NotifierFunc(func(ctx context.Context, alerts ...*types.Alert) error {
@@ -109,7 +110,13 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 	for _, nc := range confs {
 		var (
 			fo  = Fanout{}
-			add = func(i int, on integration, n Notifier) { fo[fmt.Sprintf("%s/%d", on.name(), i)] = n }
+			add = func(i int, on integration, n Notifier) {
+				fo[fmt.Sprintf("%s/%d", on.name(), i)] = FanoutPipeline{
+					notificationInfos: ni,
+					meshWait:          meshWait,
+					notifier:          n,
+				}
+			}
 		)
 
 		for i, c := range nc.WebhookConfigs {
