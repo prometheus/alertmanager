@@ -345,7 +345,7 @@ func (s *Silences) Query(n, o uint64, uid uuid.UUID) ([]*types.Silence, error) {
 	res := make([]*types.Silence, pageEnd-pageStart)
 
 	i := 0
-	for _, id := range s.st.k[pageStart : pageStart+n] {
+	for _, id := range s.st.k[pageStart:pageEnd] {
 		// We control the cache and the key so they shouldn't ever be
 		// out of sync, i.e. we don't need to worry about existence
 		// checks on the cache
