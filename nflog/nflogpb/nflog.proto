@@ -38,4 +38,3 @@ message MeshEntry {
   // the log entry from its state.
   google.protobuf.Timestamp expires_at = 2;
 }
-
