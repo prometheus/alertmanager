@@ -15,6 +15,7 @@ package ui
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
@@ -45,15 +46,30 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
 }
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- struct{}) {
+func Register(r *route.Router, reloadCh chan<- struct{}, devMode bool) {
 	ihf := prometheus.InstrumentHandlerFunc
 
-	r.Get("/app/*filepath", ihf("app_files",
-		func(w http.ResponseWriter, req *http.Request) {
+	if devMode {
+		r.Get("/app/*filepath", func(w http.ResponseWriter, req *http.Request) {
 			fp := route.Param(route.Context(req), "filepath")
-			serveAsset(w, req, filepath.Join("ui/app", fp))
-		},
-	))
+			http.ServeFile(w, req, fmt.Sprintf("ui/app/%s", fp))
+		})
+
+		r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+			http.ServeFile(w, req, "ui/app/index.html")
+		})
+	} else {
+		r.Get("/app/*filepath", ihf("app_files",
+			func(w http.ResponseWriter, req *http.Request) {
+				fp := route.Param(route.Context(req), "filepath")
+				serveAsset(w, req, filepath.Join("ui/app", fp))
+			},
+		))
+
+		r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
+			serveAsset(w, req, "ui/app/index.html")
+		}))
+	}
 	r.Get("/lib/*filepath", ihf("lib_files",
 		func(w http.ResponseWriter, req *http.Request) {
 			fp := route.Param(route.Context(req), "filepath")
@@ -62,10 +78,6 @@ func Register(r *route.Router, reloadCh chan<- struct{}) {
 	))
 
 	r.Get("/metrics", prometheus.Handler().ServeHTTP)
-
-	r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
-		serveAsset(w, req, "ui/app/index.html")
-	}))
 
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("Reloading configuration file..."))

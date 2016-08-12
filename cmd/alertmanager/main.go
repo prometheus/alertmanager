@@ -84,6 +84,8 @@ func main() {
 		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
 		hwaddr     = flag.String("mesh.hardware-address", mustHardwareAddr(), "MAC address, i.e. mesh peer ID")
 		nickname   = flag.String("mesh.nickname", mustHostname(), "peer nickname")
+
+		devMode = flag.Bool("dev", false, "serve live instead of embedded assets")
 	)
 	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
 	flag.Parse()
@@ -236,8 +238,12 @@ func main() {
 	router := route.New()
 
 	webReload := make(chan struct{})
-	ui.Register(router.WithPrefix(amURL.Path), webReload)
+	ui.Register(router.WithPrefix(amURL.Path), webReload, *devMode)
 	apiv.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
+
+	if *devMode {
+		log.Infoln("devmode: serving live assets")
+	}
 
 	log.Infoln("Listening on", *listenAddress)
 	go listen(*listenAddress, router)
