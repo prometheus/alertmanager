@@ -129,106 +129,133 @@ type Notifier interface {
 	Notify(context.Context, ...*types.Alert) error
 }
 
-type NotificationFilter interface {
-	Filter(alerts ...*types.Alert) ([]*types.Alert, error)
+type Stage interface {
+	Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error)
 }
 
-func NewPipeline(rcvs []*config.Receiver, tmpl *template.Template, meshWait func() time.Duration, inhibitor *inhibit.Inhibitor, marker types.Marker, silences *meshprov.Silences, ni *meshprov.NotificationInfos) *Pipeline {
-	return &Pipeline{
-		inhibitor: inhibitor,
-		silences:  silences,
-		marker:    marker,
-		router:    BuildRouter(rcvs, tmpl, meshWait, ni),
+type MultiStage []Stage
+
+func (ms MultiStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+	var err error
+	for _, s := range ms {
+		alerts, err = s.Exec(ctx, alerts...)
+		if err != nil {
+			return nil, err
+		}
 	}
+	return alerts, nil
+}
+
+type FanoutStage map[string]Stage
+
+func createStage(receiverNotifiers map[string]Notifier, receiverName string, meshWait func() time.Duration, inhibitor *inhibit.Inhibitor, silences *meshprov.Silences, ni *meshprov.NotificationInfos, marker types.Marker) Stage {
+	var ms MultiStage
+	ms = append(ms, NewLogStage(log.With("step", "inhibit")))
+	ms = append(ms, NewInhibitStage(inhibitor, marker))
+	ms = append(ms, NewLogStage(log.With("step", "silence")))
+	ms = append(ms, NewSilenceStage(silences, marker))
+
+	var fs = make(FanoutStage)
+	for integrationId, integration := range receiverNotifiers {
+		var s MultiStage
+		s = append(s, NewLogStage(log.With("step", "wait")))
+		s = append(s, NewWaitStage(meshWait))
+		s = append(s, NewLogStage(log.With("step", "integration")))
+		s = append(s, NewIntegrationStage(integration, ni))
+		fs[integrationId] = s
+	}
+
+	return append(ms, fs)
+}
+
+func NewPipeline(rcvs []*config.Receiver, tmpl *template.Template, meshWait func() time.Duration, inhibitor *inhibit.Inhibitor, silences *meshprov.Silences, ni *meshprov.NotificationInfos, marker types.Marker) *Pipeline {
+	receiverConfigs := BuildReceiverTree(rcvs, tmpl)
+	receiverPipelines := make(map[string]Stage)
+
+	for receiver, notifiers := range receiverConfigs {
+		receiverPipelines[receiver] = createStage(notifiers, receiver, meshWait, inhibitor, silences, ni, marker)
+	}
+
+	return &Pipeline{receiverPipelines: receiverPipelines}
 }
 
 type Pipeline struct {
-	inhibitor         *inhibit.Inhibitor
-	silences          *meshprov.Silences
-	notificationInfos *meshprov.NotificationInfos
-	marker            types.Marker
-	router            Router
+	receiverPipelines map[string]Stage
 }
 
 func (p *Pipeline) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	var err error
-	alerts, err = Inhibit(p.inhibitor, p.marker).Filter(alerts...)
-	if err != nil {
-		return err
-	}
-
-	alerts, err = Silence(p.silences, p.marker).Filter(alerts...)
-	if err != nil {
-		return err
-	}
-
-	return p.router.Notify(ctx, alerts...)
-}
-
-type FanoutPipeline struct {
-	notificationInfos *meshprov.NotificationInfos
-	meshWait          func() time.Duration
-	notifier          Notifier
-}
-
-func (fp FanoutPipeline) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	var err error
-	err = Wait(ctx, fp.meshWait)
-	if err != nil {
-		return err
-	}
-
-	newNotifies, err := Dedup(fp.notificationInfos).ExtractNewNotifies(ctx, alerts...)
-	if err != nil {
-		return err
-	}
-
-	if newNotifies != nil {
-		err = Retry(fp.notifier, ctx, alerts...)
-		if err != nil {
-			return err
-		}
-	}
-
-	return fp.notificationInfos.Set(newNotifies...)
-}
-
-// Fanout sends notifications through all notifiers it holds at once.
-type Fanout map[string]Notifier
-
-// Notify attempts to notify all Notifiers concurrently. It returns a types.MultiError
-// if any of them fails.
-func (ns Fanout) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	var (
-		wg sync.WaitGroup
-		me types.MultiError
-	)
-	wg.Add(len(ns))
-
-	receiver, ok := Receiver(ctx)
+	r, ok := Receiver(ctx)
 	if !ok {
 		return fmt.Errorf("receiver missing")
 	}
 
-	for suffix, n := range ns {
+	_, err := p.receiverPipelines[r].Exec(ctx, alerts...)
+	return err
+}
+
+type IntegrationStage struct {
+	notificationInfos *meshprov.NotificationInfos
+	notifier          Notifier
+}
+
+func NewIntegrationStage(n Notifier, ni *meshprov.NotificationInfos) *IntegrationStage {
+	return &IntegrationStage{
+		notificationInfos: ni,
+		notifier:          n,
+	}
+}
+
+func (i IntegrationStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+	newNotifies, err := Dedup(i.notificationInfos).ExtractNewNotifies(ctx, alerts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if newNotifies != nil {
+		err = Retry(i.notifier, ctx, alerts...)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, i.notificationInfos.Set(newNotifies...)
+}
+
+// Exec attempts to notify all Notifiers concurrently. It returns a types.MultiError
+// if any of them fails.
+func (fs FanoutStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+	var (
+		wg sync.WaitGroup
+		me types.MultiError
+	)
+	wg.Add(len(fs))
+
+	receiver, ok := Receiver(ctx)
+	if !ok {
+		return nil, fmt.Errorf("receiver missing")
+	}
+
+	for suffix, s := range fs {
 		// Suffix the receiver with the unique key for the fanout.
 		foCtx := WithReceiver(ctx, fmt.Sprintf("%s/%s", receiver, suffix))
 
-		go func(n Notifier) {
-			if err := n.Notify(foCtx, alerts...); err != nil {
+		go func(s Stage) {
+			_, err := s.Exec(foCtx, alerts...)
+			if err != nil {
 				me.Add(err)
 				log.Errorf("Error on notify: %s", err)
 			}
 			wg.Done()
-		}(n)
+		}(s)
 	}
 
 	wg.Wait()
 
 	if me.Len() > 0 {
-		return &me
+		return nil, &me
 	}
-	return nil
+
+	return nil, nil
 }
 
 // Retry calls the passed notifier with exponential backoff until it succeeds.
@@ -351,50 +378,45 @@ func (n *Deduplicator) ExtractNewNotifies(ctx context.Context, alerts ...*types.
 	return newNotifies, nil
 }
 
-func Wait(ctx context.Context, wait func() time.Duration) error {
+// WaitStage waits for a certain amount of time before continuing or until the
+// context is done.
+type WaitStage struct {
+	wait func() time.Duration
+}
+
+// NewWaitStage returns a new WaitStage.
+func NewWaitStage(wait func() time.Duration) *WaitStage {
+	return &WaitStage{
+		wait: wait,
+	}
+}
+
+// Exec implements the Stage interface.
+func (ws *WaitStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
 	select {
-	case <-time.After(wait()):
+	case <-time.After(ws.wait()):
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
-	return nil
+	return alerts, nil
 }
 
-// Router dispatches the alerts to one of a set of
-// named fanouts based on the name value provided in the context.
-type Router map[string]Notifier
-
-// Notify dispatches the alerts to the fanout specified in the context.
-func (rs Router) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	receiver, ok := Receiver(ctx)
-	if !ok {
-		return fmt.Errorf("notifier name missing")
-	}
-
-	n, ok := rs[receiver]
-	if !ok {
-		return fmt.Errorf("notifier %q does not exist", receiver)
-	}
-
-	return n.Notify(ctx, alerts...)
-}
-
-// SilenceNotifier filters alerts through a silence muter.
-type SilenceNotifier struct {
+// SilenceStage filters alerts through a silence muter.
+type SilenceStage struct {
 	muter  types.Muter
 	marker types.Marker
 }
 
-// Silence returns a new SilenceNotifier.
-func Silence(m types.Muter, mk types.Marker) *SilenceNotifier {
-	return &SilenceNotifier{
+// NewSilenceStage returns a new SilenceStage.
+func NewSilenceStage(m types.Muter, mk types.Marker) *SilenceStage {
+	return &SilenceStage{
 		muter:  m,
 		marker: mk,
 	}
 }
 
-// Filter implements the NotificationFilter interface.
-func (n *SilenceNotifier) Filter(alerts ...*types.Alert) ([]*types.Alert, error) {
+// Exec implements the Stage interface.
+func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		_, ok := n.marker.Silenced(a.Fingerprint())
@@ -411,22 +433,22 @@ func (n *SilenceNotifier) Filter(alerts ...*types.Alert) ([]*types.Alert, error)
 	return filtered, nil
 }
 
-// InhibitNotifier filters alerts through an inhibition muter.
-type InhibitNotifier struct {
+// InhibitStage filters alerts through an inhibition muter.
+type InhibitStage struct {
 	muter  types.Muter
 	marker types.Marker
 }
 
-// Inhibit return a new InhibitNotifier.
-func Inhibit(m types.Muter, mk types.Marker) *InhibitNotifier {
-	return &InhibitNotifier{
+// NewInhibitStage return a new InhibitStage.
+func NewInhibitStage(m types.Muter, mk types.Marker) *InhibitStage {
+	return &InhibitStage{
 		muter:  m,
 		marker: mk,
 	}
 }
 
-// Filter implements the NotificationFilter interface.
-func (n *InhibitNotifier) Filter(alerts ...*types.Alert) ([]*types.Alert, error) {
+// Exec implements the Stage interface.
+func (n *InhibitStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		ok := n.marker.Inhibited(a.Fingerprint())
@@ -441,4 +463,18 @@ func (n *InhibitNotifier) Filter(alerts ...*types.Alert) ([]*types.Alert, error)
 	}
 
 	return filtered, nil
+}
+
+type LogStage struct {
+	log log.Logger
+}
+
+func NewLogStage(log log.Logger) *LogStage {
+	return &LogStage{log: log}
+}
+
+func (l *LogStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+	l.log.Debugf("notify %v", alerts)
+
+	return alerts, nil
 }

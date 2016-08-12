@@ -37,7 +37,6 @@ import (
 	"golang.org/x/net/context/ctxhttp"
 
 	"github.com/prometheus/alertmanager/config"
-	meshprov "github.com/prometheus/alertmanager/provider/mesh"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -76,9 +75,9 @@ type integration interface {
 	name() string
 }
 
-// BuildRouter builds fanouts and addts them to the router by receiver.
-func BuildRouter(confs []*config.Receiver, tmpl *template.Template, meshWait func() time.Duration, ni *meshprov.NotificationInfos) Router {
-	res := Router{}
+// BuildReceiverTree builds a tree of receivers and a unique id of notification providers.
+func BuildReceiverTree(confs []*config.Receiver, tmpl *template.Template) map[string]map[string]Notifier {
+	res := make(map[string]map[string]Notifier)
 
 	filter := func(n integration, c notifierConfig) Notifier {
 		return NotifierFunc(func(ctx context.Context, alerts ...*types.Alert) error {
@@ -109,14 +108,8 @@ func BuildRouter(confs []*config.Receiver, tmpl *template.Template, meshWait fun
 
 	for _, nc := range confs {
 		var (
-			fo  = Fanout{}
-			add = func(i int, on integration, n Notifier) {
-				fo[fmt.Sprintf("%s/%d", on.name(), i)] = FanoutPipeline{
-					notificationInfos: ni,
-					meshWait:          meshWait,
-					notifier:          n,
-				}
-			}
+			integrations = make(map[string]Notifier)
+			add          = func(i int, on integration, n Notifier) { integrations[fmt.Sprintf("%s/%d", on.name(), i)] = n }
 		)
 
 		for i, c := range nc.WebhookConfigs {
@@ -152,7 +145,7 @@ func BuildRouter(confs []*config.Receiver, tmpl *template.Template, meshWait fun
 			add(i, n, filter(n, c))
 		}
 
-		res[nc.Name] = fo
+		res[nc.Name] = integrations
 	}
 	return res
 }

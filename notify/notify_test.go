@@ -232,35 +232,7 @@ func TestDedupingNewNotifiesExtraction(t *testing.T) {
 	}
 }
 
-func TestRoutedNotifier(t *testing.T) {
-	router := Router{
-		"1": &recordNotifier{},
-		"2": &recordNotifier{},
-		"3": &recordNotifier{},
-	}
-
-	for _, route := range []string{"3", "2", "1"} {
-		var (
-			ctx   = WithReceiver(context.Background(), route)
-			alert = &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{"route": model.LabelValue(route)},
-				},
-			}
-		)
-		err := router.Notify(ctx, alert)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		rn := router[route].(*recordNotifier)
-		if len(rn.alerts) != 1 && alert != rn.alerts[0] {
-			t.Fatalf("Expeceted alert %v, got %v", alert, rn.alerts)
-		}
-	}
-}
-
-func TestSilenceNotifier(t *testing.T) {
+func TestSilenceStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
 	muter := types.MuteFunc(func(lset model.LabelSet) bool {
 		_, ok := lset["mute"]
@@ -268,7 +240,7 @@ func TestSilenceNotifier(t *testing.T) {
 	})
 
 	marker := types.NewMarker()
-	silencer := Silence(muter, marker)
+	silencer := NewSilenceStage(muter, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -298,7 +270,7 @@ func TestSilenceNotifier(t *testing.T) {
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), uuid.NewV4())
 
-	alerts, err := silencer.Filter(inAlerts...)
+	alerts, err := silencer.Exec(nil, inAlerts...)
 	if err != nil {
 		t.Fatalf("Notifying failed: %s", err)
 	}
@@ -316,7 +288,7 @@ func TestSilenceNotifier(t *testing.T) {
 	}
 }
 
-func TestInhibitNotifier(t *testing.T) {
+func TestInhibitStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
 	muter := types.MuteFunc(func(lset model.LabelSet) bool {
 		_, ok := lset["mute"]
@@ -324,7 +296,7 @@ func TestInhibitNotifier(t *testing.T) {
 	})
 
 	marker := types.NewMarker()
-	inhibitor := Inhibit(muter, marker)
+	inhibitor := NewInhibitStage(muter, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -354,7 +326,7 @@ func TestInhibitNotifier(t *testing.T) {
 	// the WasInhibited flag set to true afterwards.
 	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
 
-	alerts, err := inhibitor.Filter(inAlerts...)
+	alerts, err := inhibitor.Exec(nil, inAlerts...)
 	if err != nil {
 		t.Fatalf("Notifying failed: %s", err)
 	}
