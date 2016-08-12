@@ -26,26 +26,15 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-type recordNotifier struct {
-	ctx    context.Context
-	alerts []*types.Alert
-}
+type failStage struct{}
 
-func (n *recordNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
-	n.ctx = ctx
-	n.alerts = append(n.alerts, as...)
-	return nil
-}
-
-type failNotifier struct{}
-
-func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
-	return fmt.Errorf("some error")
+func (s failStage) Exec(ctx context.Context, as ...*types.Alert) ([]*types.Alert, error) {
+	return nil, fmt.Errorf("some error")
 }
 
 func TestDedupingNotifierHasUpdate(t *testing.T) {
 	var (
-		n        = &Deduplicator{}
+		n        = &DedupStage{}
 		now      = time.Now()
 		interval = 100 * time.Minute
 	)
@@ -166,10 +155,83 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 	}
 }
 
-func TestDedupingNewNotifiesExtraction(t *testing.T) {
+func TestMultiStage(t *testing.T) {
+	var (
+		alerts1 = []*types.Alert{{}}
+		alerts2 = []*types.Alert{{}, {}}
+		alerts3 = []*types.Alert{{}, {}, {}}
+	)
+
+	stage := MultiStage{
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts1) {
+				t.Fatal("Input not equal to input of MultiStage")
+			}
+			return alerts2, nil
+		}),
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts2) {
+				t.Fatal("Input not equal to output of previous stage")
+			}
+			return alerts3, nil
+		}),
+	}
+
+	alerts, err := stage.Exec(context.Background(), alerts1...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(alerts, alerts3) {
+		t.Fatal("Output of MultiStage is not equal to the output of the last stage")
+	}
+}
+
+func TestMultiStageFailure(t *testing.T) {
+	var (
+		ctx   = context.Background()
+		s1    = failStage{}
+		stage = MultiStage{s1}
+	)
+
+	_, err := stage.Exec(ctx, nil)
+	if err.Error() != "some error" {
+		t.Fatal("Errors were not propagated correctly by MultiStage")
+	}
+}
+
+func TestRoutingStage(t *testing.T) {
+	var (
+		alerts1 = []*types.Alert{{}}
+		alerts2 = []*types.Alert{{}, {}}
+	)
+
+	stage := RoutingStage{
+		"name": StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts1) {
+				t.Fatal("Input not equal to input of RoutingStage")
+			}
+			return alerts2, nil
+		}),
+		"not": failStage{},
+	}
+
+	ctx := WithReceiver(context.Background(), "name")
+
+	alerts, err := stage.Exec(ctx, alerts1...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(alerts, alerts2) {
+		t.Fatal("Output of RoutingStage is not equal to the output of the inner stage")
+	}
+}
+
+func TestDedupStage(t *testing.T) {
 	var (
 		notifies = newTestInfos()
-		deduper  = Dedup(notifies)
+		stage    = NewSetNotifiesStage(notifies)
 		ctx      = context.Background()
 	)
 	now := time.Now()
@@ -207,9 +269,14 @@ func TestDedupingNewNotifiesExtraction(t *testing.T) {
 		t.Fatalf("Setting notifies failed: %s", err)
 	}
 
-	newNotifies, err := deduper.ExtractNewNotifies(ctx, alerts...)
+	_, err := stage.Exec(ctx, alerts...)
 	if err != nil {
-		t.Fatalf("Notify failed: %s", err)
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	nsCur, err := notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
+	if err != nil {
+		t.Fatalf("Error getting notifies: %s", err)
 	}
 
 	nsAfter := []*types.NotificationInfo{
@@ -227,8 +294,20 @@ func TestDedupingNewNotifiesExtraction(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(nsAfter, newNotifies) {
-		t.Errorf("Unexpected notifies, expected: %v, got: %v", nsAfter, newNotifies)
+	for i, after := range nsAfter {
+		cur := nsCur[i]
+
+		// Hack correct timestamps back in if they are sane.
+		if cur != nil && after.Timestamp.IsZero() {
+			if cur.Timestamp.Before(now) {
+				t.Fatalf("Wrong timestamp for notify %v", cur)
+			}
+			after.Timestamp = cur.Timestamp
+		}
+
+		if !reflect.DeepEqual(after, cur) {
+			t.Errorf("Unexpected notifies, expected: %v, got: %v", after, cur)
+		}
 	}
 }
 
@@ -272,7 +351,7 @@ func TestSilenceStage(t *testing.T) {
 
 	alerts, err := silencer.Exec(nil, inAlerts...)
 	if err != nil {
-		t.Fatalf("Notifying failed: %s", err)
+		t.Fatalf("Exec failed: %s", err)
 	}
 
 	var got []model.LabelSet
@@ -328,7 +407,7 @@ func TestInhibitStage(t *testing.T) {
 
 	alerts, err := inhibitor.Exec(nil, inAlerts...)
 	if err != nil {
-		t.Fatalf("Notifying failed: %s", err)
+		t.Fatalf("Exec failed: %s", err)
 	}
 
 	var got []model.LabelSet

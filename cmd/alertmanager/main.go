@@ -150,8 +150,8 @@ func main() {
 	var (
 		inhibitor *inhibit.Inhibitor
 		tmpl      *template.Template
+		pipeline  notify.Stage
 		disp      *dispatch.Dispatcher
-		pipeline  *notify.Pipeline
 	)
 	defer disp.Stop()
 
@@ -193,7 +193,7 @@ func main() {
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker)
-		pipeline = notify.NewPipeline(conf.Receivers, tmpl, meshWait(mrouter, 5*time.Second), inhibitor, silences, ni, marker)
+		pipeline = notify.BuildPipeline(conf.Receivers, tmpl, meshWait(mrouter, 5*time.Second), inhibitor, silences, ni, marker)
 		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker)
 
 		go disp.Run()

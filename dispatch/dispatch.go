@@ -19,9 +19,9 @@ import (
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	route    *Route
-	alerts   provider.Alerts
-	notifier notify.Notifier
+	route  *Route
+	alerts provider.Alerts
+	stage  notify.Stage
 
 	marker types.Marker
 
@@ -36,13 +36,13 @@ type Dispatcher struct {
 }
 
 // NewDispatcher returns a new Dispatcher.
-func NewDispatcher(ap provider.Alerts, r *Route, n notify.Notifier, mk types.Marker) *Dispatcher {
+func NewDispatcher(ap provider.Alerts, r *Route, s notify.Stage, mk types.Marker) *Dispatcher {
 	disp := &Dispatcher{
-		alerts:   ap,
-		notifier: n,
-		route:    r,
-		marker:   mk,
-		log:      log.With("component", "dispatcher"),
+		alerts: ap,
+		stage:  s,
+		route:  r,
+		marker: mk,
+		log:    log.With("component", "dispatcher"),
 	}
 	return disp
 }
@@ -234,7 +234,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		groups[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
-			err := d.notifier.Notify(ctx, alerts...)
+			_, err := d.stage.Exec(ctx, alerts...)
 			if err != nil {
 				log.Errorf("Notify for %d alerts failed: %s", len(alerts), err)
 			}
