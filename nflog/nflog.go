@@ -142,11 +142,15 @@ func WithMaintenance(sf string, d time.Duration, stopc chan struct{}, done func(
 	}
 }
 
+func utcNow() time.Time {
+	return time.Now().UTC()
+}
+
 // New creates a new notification log based on the provided options.
 // The snapshot is loaded into the Log if it is set.
 func New(opts ...Option) (Log, error) {
 	l := &nlog{
-		now: time.Now,
+		now: utcNow,
 		st:  map[string]*pb.MeshEntry{},
 	}
 	for _, o := range opts {
@@ -223,7 +227,7 @@ func (l *nlog) LogResolved(r *pb.Receiver, key, hash []byte) error {
 	return l.log(r, key, hash, true)
 }
 
-// stateKey returns a string key for a log entry consisting of entrie's group key
+// stateKey returns a string key for a log entry consisting of the group key
 // and receiver.
 func stateKey(k []byte, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, r)
@@ -282,7 +286,7 @@ func (l *nlog) GC() (int, error) {
 	for k, le := range l.st {
 		if ets, err := ptypes.Timestamp(le.ExpiresAt); err != nil {
 			return n, err
-		} else if ets.Before(now) {
+		} else if !ets.After(now) {
 			delete(l.st, k)
 			n++
 		}
@@ -444,6 +448,14 @@ func (gd gossipData) Encode() [][]byte {
 	}
 	if buf.Len() > 0 {
 		res = append(res, buf.Bytes())
+	}
+	return res
+}
+
+func (gd gossipData) clone() gossipData {
+	res := make(gossipData, len(gd))
+	for k, e := range gd {
+		res[k] = e
 	}
 	return res
 }
