@@ -373,6 +373,7 @@ func (st *silenceState) set(s *types.Silence) error {
 		return err
 	}
 	st.m[s.ID] = s
+	st.k = append(st.k, s.ID)
 	return nil
 }
 
