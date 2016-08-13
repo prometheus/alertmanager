@@ -23,9 +23,22 @@
 	</row>
 </div>
 
+<div uib-dropdown dropdown-append-to-body>
+  <button id="btn-append-to-body" type="button" class="btn btn-default btn-sm" uib-dropdown-toggle>
+    {{itemsPerPage}} <span class="caret"></span>
+  </button>
+  <ul class="dropdown-menu" uib-dropdown-menu role="menu" aria-labelledby="btn-append-to-body">
+    <li ng-click="setPerPage(l)" role="menuitem" ng-repeat="l in paginationLengths">
+      <a>{{l}}</a>
+    </li>
+  </ul>
+</div>
+
+<ul uib-pagination total-items="totalItems" items-per-page="itemsPerPage" ng-model="currentPage" ng-change="pageChanged()" max-size="maxSize" class="pagination-sm" boundary-link-numbers="true" rotate="false"></ul>
+
 <div ng-show="silences.length == 0">No silences configured</div>
 
-<div ng-hide="silences.length == 0" id="silences-list" infinite-scroll="refresh()" infinite-scroll-distance='1'>
+<div ng-hide="silences.length == 0" id="silences-list">
 
 	<div class="active-silences">
 		<h4 class="thin">Active</h4>

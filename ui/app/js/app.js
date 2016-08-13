@@ -273,21 +273,59 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
     $scope.showForm = !$scope.showForm;
   }
 
+  // Pagination
+  var params = $location.search()
+  var page = params['page'];
+  if (!page) {
+    $location.search('page', 1);
+  }
+  $scope.currentPage = page;
+  $scope.itemsPerPage = params['n'];
+  if (isNaN(parseInt($scope.itemsPerPage))) {
+    $scope.itemsPerPage = 25
+    $location.search('n', $scope.itemsPerPage);
+  }
+
+  $scope.setPerPage = function(n) {
+    $scope.itemsPerPage = n;
+    $location.search('n', $scope.itemsPerPage);
+  };
+
+  $scope.maxSize = 8;
+  // Get this from initial refresh.
+  var totalSilences = 1000;
+  $scope.totalItems = totalSilences;
+
+  $scope.pageChanged = function() {
+    $location.search('page', $scope.currentPage);
+  };
+
+  $scope.paginationLengths = [5,15,25,50];
+  // End Pagination
+
   var inflight = false;
+
   $scope.refresh = function() {
     if (inflight) {
       return;
     }
     inflight = true;
-    var params = $location.search();
     var id;
 
+    var search = $location.search();
+    var params = {};
+    params['offset'] = search['page']-1;
+    params['n'] = search['n'];
+
+    // Since silences are always changing, we have to rely on the last id to
+    // know where to start populating the next page.
+    // BUT: If a user skips several pages in one go, this doesn't work.
     if ($scope.silences.length) {
       params['lastID'] = $scope.silences[$scope.silences.length-1]['id'];
     }
 
     Silence.query(params, function(data) {
-      $scope.silences = $scope.silences.concat(data.data || []);
+      $scope.silences = data.data || [];
       var now = new Date;
 
       angular.forEach($scope.silences, function(value) {
@@ -322,7 +360,11 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
     }
   };
 
-  $scope.refresh();
+  $scope.$watch(function() {
+    return $location.search();
+  }, function() {
+    $scope.refresh();
+  }, true);
 });
 
 angular.module('am.controllers').controller('SilenceCreateCtrl', function($scope, Silence) {
@@ -429,14 +471,12 @@ angular.module('am', [
   'ngRoute',
   'ngSanitize',
   'angularMoment',
-  'infinite-scroll',
+  'ui.bootstrap',
 
   'am.controllers',
   'am.services',
   'am.directives'
 ]);
-
-angular.module('infinite-scroll').value('THROTTLE_MILLISECONDS', 250)
 
 angular.module('am').config(
   function($routeProvider) {
