@@ -232,6 +232,7 @@ input[type="datetime-local"]  {
   border-radius: 2px;
   margin-bottom: 0;
   color: rgba(0, 0, 0, 0.85);
+  width: 100%;
 }
 
 /* Routing Tree */

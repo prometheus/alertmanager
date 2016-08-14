@@ -49,7 +49,10 @@ angular.module('am.directives').directive('silenceForm',
     return {
       restrict: 'E',
       scope: {
-        silence: '='
+        silence: '=',
+        formTitle: '@',
+        formSubtitle: '@',
+        buttonText: '@'
       },
       templateUrl: 'app/partials/silence-form.html'
     };
