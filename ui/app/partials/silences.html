@@ -1,35 +1,37 @@
-<div class="group">
-	<div class="right">
-		<button ng-hide="showForm" type="primary" ng-click="toggleForm()" small>New Silence</button>
-		<button ng-show="showForm" type="primary" ng-click="toggleForm()" small>Hide Form</button>
-	</div>
-	<div ng-show="showForm">
-		<silence-form sil="silence"></silence-form>
-	</div>
+<div class="row">
+  <div class="col-lg-12">
+    <div class="pull-right">
+      <button ng-hide="showForm" type="primary" ng-click="toggleForm()" small>New Silence</button>
+      <button ng-show="showForm" type="primary" ng-click="toggleForm()" small>Hide Form</button>
+    </div>
+    <div ng-show="showForm">
+      <silence-form sil="silence"></silence-form>
+    </div>
+  </div>
 </div>
 
 <div id="silences-query" class="forms">
-	<row>
-		<column cols="5">
-			<input type="search" placeholder="search" ng-model="query">
-		</column>
-		<column cols="2">
-			<select class="select" ng-model="order">
-				<option value="startsAt">start</option>
-				<option value="endsAt">end</option>
-				<option value="createdAt">created</option>
-			</select>
-		</column>
-	</row>
+  <row>
+  <column cols="5">
+  <input type="search" placeholder="search" ng-model="query">
+  </column>
+  <column cols="2">
+  <select class="select" ng-model="order">
+    <option value="startsAt">start</option>
+    <option value="endsAt">end</option>
+    <option value="createdAt">created</option>
+  </select>
+  </column>
+  </row>
 </div>
 
 <div uib-dropdown dropdown-append-to-body>
-  <button id="btn-append-to-body" type="button" class="btn btn-default btn-sm" uib-dropdown-toggle>
+  <button type="button" class="btn btn-default btn-sm pagination-height" uib-dropdown-toggle>
     {{itemsPerPage}} <span class="caret"></span>
   </button>
   <ul class="dropdown-menu" uib-dropdown-menu role="menu" aria-labelledby="btn-append-to-body">
     <li ng-click="setPerPage(l)" role="menuitem" ng-repeat="l in paginationLengths">
-      <a>{{l}}</a>
+      <a class="pointer">{{l}}</a>
     </li>
   </ul>
 </div>

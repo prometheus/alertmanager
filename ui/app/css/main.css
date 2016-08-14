@@ -275,3 +275,10 @@ input[type="datetime-local"]  {
   display: inline-block;
 }
 
+.pointer {
+  cursor: pointer;
+}
+
+.pagination-height {
+  height: 30px;
+}
