@@ -363,27 +363,18 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	var (
 		num    = r.FormValue("n")
 		offset = r.FormValue("offset")
-		lastID = r.FormValue("lastID")
 	)
 
-	n, err := strconv.ParseUint(num, 10, 64)
+	n, err := strconv.Atoi(num)
 	if err != nil {
 		n = 50
 	}
-	o, err := strconv.ParseUint(offset, 10, 64)
+	o, err := strconv.Atoi(offset)
 	if err != nil {
 		o = 0
 	}
 
-	sid, err := uuid.FromString(lastID)
-	if err != nil {
-		// TODO: Come up with a way to indicate that we want to start from the
-		// first silence. This way will loop through EVERY silence, and then
-		// have the index to start in the key cache slice == 0.
-		sid = uuid.NewV4()
-	}
-
-	sils, err := api.silences.Query(n, o, sid)
+	sils, err := api.silences.Query(n, o)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -391,7 +382,11 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
-	respond(w, sils)
+
+	respond(w, map[string]interface{}{
+		"silences":      sils,
+		"totalSilences": api.silences.Count(),
+	})
 }
 
 type status string

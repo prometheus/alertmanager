@@ -292,14 +292,13 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   };
 
   $scope.maxSize = 8;
-  // Get this from initial refresh.
-  var totalSilences = 1000;
-  $scope.totalItems = totalSilences;
 
   $scope.pageChanged = function() {
     $location.search('page', $scope.currentPage);
   };
 
+  // Arbitrary suggested page lengths. The user can override this at any time
+  // by entering their own n value in the url.
   $scope.paginationLengths = [5,15,25,50];
   // End Pagination
 
@@ -317,15 +316,10 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
     params['offset'] = search['page']-1;
     params['n'] = search['n'];
 
-    // Since silences are always changing, we have to rely on the last id to
-    // know where to start populating the next page.
-    // BUT: If a user skips several pages in one go, this doesn't work.
-    if ($scope.silences.length) {
-      params['lastID'] = $scope.silences[$scope.silences.length-1]['id'];
-    }
-
-    Silence.query(params, function(data) {
-      $scope.silences = data.data || [];
+    Silence.query(params, function(resp) {
+      var data = resp.data;
+      $scope.silences = data.silences || [];
+      $scope.totalItems = data.totalSilences;
       var now = new Date;
 
       angular.forEach($scope.silences, function(value) {

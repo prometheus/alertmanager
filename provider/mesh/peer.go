@@ -301,37 +301,25 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 
 // All returns a list of all known silences.
 func (s *Silences) All() ([]*types.Silence, error) {
-	// TODO: Come up with a way to indicate that we want to start from the
-	// first silence. This way will loop through EVERY silence, and then
-	// have the index to start in the key cache slice == 0.
-	return s.Query(uint64(len(s.st.m)), 0, uuid.NewV4())
+	return s.Query(s.Count(), 0)
 }
 
-const defaultPageSize uint64 = 25
+func (s *Silences) Count() int {
+	return len(s.st.m)
+}
 
-func (s *Silences) Query(n, o uint64, uid uuid.UUID) ([]*types.Silence, error) {
+// Query returns n silences starting at offset o.
+func (s *Silences) Query(n, o int) ([]*types.Silence, error) {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
 
-	klen := uint64(len(s.st.k))
+	klen := len(s.st.k)
 
 	if klen < n {
 		n = klen
 	}
 
-	// TODO: Do a binary search.
-	var j int
-	for i, id := range s.st.k {
-		if uuid.Equal(id, uid) {
-			// Since uid is the last uid from the previous request,
-			// we want to move one index higher. This is the first
-			// silence in the response.
-			j = i + 1
-			break
-		}
-	}
-
-	pageStart := uint64(j) + (defaultPageSize * o)
+	pageStart := n * o
 	if pageStart > klen {
 		return []*types.Silence{}, nil
 	}
@@ -340,8 +328,6 @@ func (s *Silences) Query(n, o uint64, uid uuid.UUID) ([]*types.Silence, error) {
 		pageEnd = klen
 	}
 
-	// Could potentially only make space for pageEnd-pageStart since that's
-	// the number of responses we are sending.
 	res := make([]*types.Silence, pageEnd-pageStart)
 
 	i := 0
