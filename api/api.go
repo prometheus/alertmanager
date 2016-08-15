@@ -374,7 +374,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		o = 0
 	}
 
-	sils, err := api.silences.Query(n, o)
+	resp, err := api.silences.Query(n, o)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -383,10 +383,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respond(w, map[string]interface{}{
-		"silences":      sils,
-		"totalSilences": api.silences.Count(),
-	})
+	respond(w, resp)
 }
 
 type status string

@@ -14,6 +14,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -326,3 +327,17 @@ func (n *NotificationInfo) Fingerprint() model.Fingerprint {
 
 	return fp ^ n.Alert
 }
+
+// queryResponse is the data structure returned from the Query method.
+type QueryResponse struct {
+	// Silences returned by query.
+	Silences []*Silence `json:"silences"`
+	// Total silences.
+	TotalSilences int `json:"totalSilences"`
+	// Error in query.
+	Error error `json:"error"`
+}
+
+var (
+	ErrRequestExceedsAvailable = errors.New("requested offset surpasses total number of resource")
+)

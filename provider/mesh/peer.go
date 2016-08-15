@@ -300,16 +300,12 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 }
 
 // All returns a list of all known silences.
-func (s *Silences) All() ([]*types.Silence, error) {
-	return s.Query(s.Count(), 0)
-}
-
-func (s *Silences) Count() int {
-	return len(s.st.m)
+func (s *Silences) All() (*types.QueryResponse, error) {
+	return s.Query(len(s.st.k), 0)
 }
 
 // Query returns n silences starting at offset o.
-func (s *Silences) Query(n, o int) ([]*types.Silence, error) {
+func (s *Silences) Query(n, o int) (*types.QueryResponse, error) {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
 
@@ -321,14 +317,14 @@ func (s *Silences) Query(n, o int) ([]*types.Silence, error) {
 
 	pageStart := n * o
 	if pageStart > klen {
-		return []*types.Silence{}, nil
+		return &types.QueryResponse{}, types.ErrRequestExceedsAvailable
 	}
 	pageEnd := pageStart + n
 	if pageEnd > klen {
 		pageEnd = klen
 	}
 
-	res := make([]*types.Silence, pageEnd-pageStart)
+	silences := make([]*types.Silence, pageEnd-pageStart)
 
 	i := 0
 	for _, id := range s.st.k[pageStart:pageEnd] {
@@ -336,12 +332,15 @@ func (s *Silences) Query(n, o int) ([]*types.Silence, error) {
 		// out of sync, i.e. we don't need to worry about existence
 		// checks on the cache
 
-		// Make sure this res[i] business is kosher and won't index out
+		// Make sure this silences[i] business is kosher and won't index out
 		// of bounds. Like with a test.
-		res[i] = s.st.m[id]
+		silences[i] = s.st.m[id]
 		i++
 	}
-	return res, nil
+	return &types.QueryResponse{
+		Silences:      silences,
+		TotalSilences: klen,
+	}, nil
 }
 
 // Set overwrites the given silence or creates a new one if it doesn't exist yet.
