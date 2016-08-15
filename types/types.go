@@ -334,8 +334,6 @@ type QueryResponse struct {
 	Silences []*Silence `json:"silences"`
 	// Total silences.
 	TotalSilences int `json:"totalSilences"`
-	// Error in query.
-	Error error `json:"error"`
 }
 
 var (
