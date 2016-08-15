@@ -306,15 +306,7 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   $scope.paginationLengths = [5,15,25,50];
   // End Pagination
 
-  var inflight = false;
-
   $scope.refresh = function() {
-    if (inflight) {
-      return;
-    }
-    inflight = true;
-    var id;
-
     var search = $location.search();
     var params = {};
     params['offset'] = search['page']-1;
@@ -337,8 +329,6 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
       });
     }, function(data) {
       $scope.error = data.data;
-    }).$promise.finally(function() {
-      inflight = false;
     });
   };
 
