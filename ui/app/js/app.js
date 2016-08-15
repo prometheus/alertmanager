@@ -294,6 +294,7 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
     $location.search('n', $scope.itemsPerPage);
   };
 
+  // Controls the number of pages to display in the pagination list.
   $scope.maxSize = 8;
 
   $scope.pageChanged = function() {
