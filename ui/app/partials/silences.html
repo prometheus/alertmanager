@@ -44,7 +44,7 @@
   </ul>
 </div>
 
-<ul uib-pagination total-items="totalItems" items-per-page="itemsPerPage" ng-model="currentPage" ng-change="pageChanged()" max-size="maxSize" class="pagination-sm" boundary-link-numbers="true" rotate="false"></ul>
+<ul ng-if="totalItems" uib-pagination total-items="totalItems" items-per-page="itemsPerPage" ng-model="currentPage" ng-change="pageChanged()" max-size="maxSize" class="pagination-sm" boundary-link-numbers="true" rotate="false"></ul>
 
 <div ng-show="silences.length == 0">No silences configured</div>
 
