@@ -266,7 +266,10 @@ angular.module('am.controllers').controller('SilenceCtrl',
   }
 );
 
-angular.module('am.controllers').controller('SilencesCtrl', function($scope, $location, Silence) {
+angular.module('am.controllers').controller('SilencesCtrl', function($scope, $location, Silence, silences) {
+  $scope.totalItems = silences.data.totalSilences;
+  var DEFAULT_PER_PAGE = 25;
+  var DEFAULT_PAGE = 1;
   $scope.silences = [];
   $scope.order = "endsAt";
 
@@ -277,15 +280,20 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   }
 
   // Pagination
+  $scope.pageChanged = function() {
+    $location.search('page', $scope.currentPage);
+  };
+
   var params = $location.search()
   var page = params['page'];
   if (!page) {
-    $location.search('page', 1);
+    $location.search('page', DEFAULT_PAGE);
   }
-  $scope.currentPage = page;
+  $scope.currentPage = parseInt($location.search()['page']);
+
   $scope.itemsPerPage = params['n'];
   if (isNaN(parseInt($scope.itemsPerPage))) {
-    $scope.itemsPerPage = 25
+    $scope.itemsPerPage = DEFAULT_PER_PAGE;
     $location.search('n', $scope.itemsPerPage);
   }
 
@@ -297,10 +305,6 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   // Controls the number of pages to display in the pagination list.
   $scope.maxSize = 8;
 
-  $scope.pageChanged = function() {
-    $location.search('page', $scope.currentPage);
-  };
-
   // Arbitrary suggested page lengths. The user can override this at any time
   // by entering their own n value in the url.
   $scope.paginationLengths = [5,15,25,50];
@@ -309,8 +313,20 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   $scope.refresh = function() {
     var search = $location.search();
     var params = {};
-    params['offset'] = search['page']-1;
-    params['n'] = search['n'];
+    if (search['page']) {
+      params['offset'] = search['page']-1;
+    } else {
+      params['offset'] = DEFAULT_PAGE-1;
+    }
+    $scope.currentPage = params['offset']+1;
+
+    if (search['n']) {
+      params['n'] = search['n'];
+      $scope.itemsPerPage = params['n'];
+    } else {
+      params['n'] = $scope.itemsPerPage;
+      $scope.setPerPage(params['n']);
+    }
 
     Silence.query(params, function(resp) {
       var data = resp.data;
@@ -477,6 +493,14 @@ angular.module('am').config(
     when('/silences', {
       templateUrl: 'app/partials/silences.html',
       controller: 'SilencesCtrl',
+      resolve: {
+        silences: function(Silence) {
+          // Required to get the total number of silences before the controller
+          // loads. Without this, the user is forced to page 1 of the
+          // pagination.
+          return Silence.query({'n':0});
+        }
+      },
       reloadOnSearch: false
     }).
     when('/status', {
