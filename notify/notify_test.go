@@ -26,26 +26,15 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-type recordNotifier struct {
-	ctx    context.Context
-	alerts []*types.Alert
-}
+type failStage struct{}
 
-func (n *recordNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
-	n.ctx = ctx
-	n.alerts = append(n.alerts, as...)
-	return nil
-}
-
-type failNotifier struct{}
-
-func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
-	return fmt.Errorf("some error")
+func (s failStage) Exec(ctx context.Context, as ...*types.Alert) ([]*types.Alert, error) {
+	return nil, fmt.Errorf("some error")
 }
 
 func TestDedupingNotifierHasUpdate(t *testing.T) {
 	var (
-		n        = &DedupingNotifier{}
+		n        = &DedupStage{}
 		now      = time.Now()
 		interval = 100 * time.Minute
 	)
@@ -166,11 +155,83 @@ func TestDedupingNotifierHasUpdate(t *testing.T) {
 	}
 }
 
-func TestDedupingNotifier(t *testing.T) {
+func TestMultiStage(t *testing.T) {
 	var (
-		record   = &recordNotifier{}
+		alerts1 = []*types.Alert{{}}
+		alerts2 = []*types.Alert{{}, {}}
+		alerts3 = []*types.Alert{{}, {}, {}}
+	)
+
+	stage := MultiStage{
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts1) {
+				t.Fatal("Input not equal to input of MultiStage")
+			}
+			return alerts2, nil
+		}),
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts2) {
+				t.Fatal("Input not equal to output of previous stage")
+			}
+			return alerts3, nil
+		}),
+	}
+
+	alerts, err := stage.Exec(context.Background(), alerts1...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(alerts, alerts3) {
+		t.Fatal("Output of MultiStage is not equal to the output of the last stage")
+	}
+}
+
+func TestMultiStageFailure(t *testing.T) {
+	var (
+		ctx   = context.Background()
+		s1    = failStage{}
+		stage = MultiStage{s1}
+	)
+
+	_, err := stage.Exec(ctx, nil)
+	if err.Error() != "some error" {
+		t.Fatal("Errors were not propagated correctly by MultiStage")
+	}
+}
+
+func TestRoutingStage(t *testing.T) {
+	var (
+		alerts1 = []*types.Alert{{}}
+		alerts2 = []*types.Alert{{}, {}}
+	)
+
+	stage := RoutingStage{
+		"name": StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts1) {
+				t.Fatal("Input not equal to input of RoutingStage")
+			}
+			return alerts2, nil
+		}),
+		"not": failStage{},
+	}
+
+	ctx := WithReceiver(context.Background(), "name")
+
+	alerts, err := stage.Exec(ctx, alerts1...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(alerts, alerts2) {
+		t.Fatal("Output of RoutingStage is not equal to the output of the inner stage")
+	}
+}
+
+func TestDedupStage(t *testing.T) {
+	var (
 		notifies = newTestInfos()
-		deduper  = Dedup(notifies, record)
+		stage    = NewSetNotifiesStage(notifies)
 		ctx      = context.Background()
 	)
 	now := time.Now()
@@ -208,28 +269,12 @@ func TestDedupingNotifier(t *testing.T) {
 		t.Fatalf("Setting notifies failed: %s", err)
 	}
 
-	deduper.notifier = &failNotifier{}
-	if err := deduper.Notify(ctx, alerts...); err == nil {
-		t.Fatalf("Fail notifier did not fail")
-	}
-	// After a failing notify the notifies data must be unchanged.
-	nsCur, err := notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
+	_, err := stage.Exec(ctx, alerts...)
 	if err != nil {
-		t.Fatalf("Error getting notify info: %s", err)
-	}
-	if !reflect.DeepEqual(nsBefore, nsCur) {
-		t.Fatalf("Notify info data has changed unexpectedly")
+		t.Fatalf("Exec failed: %s", err)
 	}
 
-	deduper.notifier = record
-	if err := deduper.Notify(ctx, alerts...); err != nil {
-		t.Fatalf("Notify failed: %s", err)
-	}
-
-	if !reflect.DeepEqual(record.alerts, alerts) {
-		t.Fatalf("Expected alerts %v, got %v", alerts, record.alerts)
-	}
-	nsCur, err = notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
+	nsCur, err := notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
 	if err != nil {
 		t.Fatalf("Error getting notifies: %s", err)
 	}
@@ -266,35 +311,7 @@ func TestDedupingNotifier(t *testing.T) {
 	}
 }
 
-func TestRoutedNotifier(t *testing.T) {
-	router := Router{
-		"1": &recordNotifier{},
-		"2": &recordNotifier{},
-		"3": &recordNotifier{},
-	}
-
-	for _, route := range []string{"3", "2", "1"} {
-		var (
-			ctx   = WithReceiver(context.Background(), route)
-			alert = &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{"route": model.LabelValue(route)},
-				},
-			}
-		)
-		err := router.Notify(ctx, alert)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		rn := router[route].(*recordNotifier)
-		if len(rn.alerts) != 1 && alert != rn.alerts[0] {
-			t.Fatalf("Expeceted alert %v, got %v", alert, rn.alerts)
-		}
-	}
-}
-
-func TestSilenceNotifier(t *testing.T) {
+func TestSilenceStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
 	muter := types.MuteFunc(func(lset model.LabelSet) bool {
 		_, ok := lset["mute"]
@@ -302,8 +319,7 @@ func TestSilenceNotifier(t *testing.T) {
 	})
 
 	marker := types.NewMarker()
-	record := &recordNotifier{}
-	silenceNotifer := Silence(muter, record, marker)
+	silencer := NewSilenceStage(muter, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -333,12 +349,13 @@ func TestSilenceNotifier(t *testing.T) {
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), uuid.NewV4())
 
-	if err := silenceNotifer.Notify(nil, inAlerts...); err != nil {
-		t.Fatalf("Notifying failed: %s", err)
+	alerts, err := silencer.Exec(nil, inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
 	}
 
 	var got []model.LabelSet
-	for i, a := range record.alerts {
+	for i, a := range alerts {
 		got = append(got, a.Labels)
 		if a.WasSilenced != (i == 1) {
 			t.Errorf("Expected WasSilenced to be %v for %d, was %v", i == 1, i, a.WasSilenced)
@@ -350,7 +367,7 @@ func TestSilenceNotifier(t *testing.T) {
 	}
 }
 
-func TestInhibitNotifier(t *testing.T) {
+func TestInhibitStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
 	muter := types.MuteFunc(func(lset model.LabelSet) bool {
 		_, ok := lset["mute"]
@@ -358,8 +375,7 @@ func TestInhibitNotifier(t *testing.T) {
 	})
 
 	marker := types.NewMarker()
-	record := &recordNotifier{}
-	inhibitNotifer := Inhibit(muter, record, marker)
+	inhibitor := NewInhibitStage(muter, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -389,12 +405,13 @@ func TestInhibitNotifier(t *testing.T) {
 	// the WasInhibited flag set to true afterwards.
 	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
 
-	if err := inhibitNotifer.Notify(nil, inAlerts...); err != nil {
-		t.Fatalf("Notifying failed: %s", err)
+	alerts, err := inhibitor.Exec(nil, inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
 	}
 
 	var got []model.LabelSet
-	for i, a := range record.alerts {
+	for i, a := range alerts {
 		got = append(got, a.Labels)
 		if a.WasInhibited != (i == 1) {
 			t.Errorf("Expected WasInhibited to be %v for %d, was %v", i == 1, i, a.WasInhibited)

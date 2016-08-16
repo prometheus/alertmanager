@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
@@ -41,113 +40,77 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	numNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_total",
-		Help:      "The total number of attempted notifications.",
-	}, []string{"integration"})
-
-	numFailedNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_failed_total",
-		Help:      "The total number of failed notifications.",
-	}, []string{"integration"})
-)
-
-func init() {
-	prometheus.Register(numNotifications)
-	prometheus.Register(numFailedNotifications)
-}
-
 type notifierConfig interface {
 	SendResolved() bool
 }
 
-type NotifierFunc func(context.Context, ...*types.Alert) error
-
-func (f NotifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	return f(ctx, alerts...)
+// A Notifier notifies about alerts under constraints of the given context.
+type Notifier interface {
+	Notify(context.Context, ...*types.Alert) error
 }
 
-type integration interface {
-	Notifier
-	name() string
+// An Integration wraps a notifier and its config to be uniquely identified by
+// name and index from its origin in the configuration.
+type Integration struct {
+	notifier Notifier
+	conf     notifierConfig
+	name     string
+	idx      int
 }
 
-// Build creates a fanout notifier for each receiver.
-func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout {
-	res := map[string]Fanout{}
+// Notify implements the Notifier interface.
+func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) error {
+	return i.notifier.Notify(ctx, alerts...)
+}
 
-	filter := func(n integration, c notifierConfig) Notifier {
-		return NotifierFunc(func(ctx context.Context, alerts ...*types.Alert) error {
-			var res []*types.Alert
+// BuildReceiverIntegrations builds a list of integration notifiers off of a
+// receivers config.
+func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []Integration {
+	var (
+		integrations []Integration
+		add          = func(name string, i int, n Notifier, nc notifierConfig) {
+			integrations = append(integrations, Integration{
+				notifier: n,
+				conf:     nc,
+				name:     name,
+				idx:      i,
+			})
+		}
+	)
 
-			if c.SendResolved() {
-				res = alerts
-			} else {
-				for _, a := range alerts {
-					if a.Status() != model.AlertResolved {
-						res = append(res, a)
-					}
-				}
-			}
-			if len(res) == 0 {
-				return nil
-			}
-
-			err := n.Notify(ctx, res...)
-			if err != nil {
-				numFailedNotifications.WithLabelValues(n.name()).Inc()
-			}
-			numNotifications.WithLabelValues(n.name()).Inc()
-
-			return err
-		})
+	for i, c := range nc.WebhookConfigs {
+		n := NewWebhook(c, tmpl)
+		add("webhook", i, n, c)
 	}
-
-	for _, nc := range confs {
-		var (
-			fo  = Fanout{}
-			add = func(i int, on integration, n Notifier) { fo[fmt.Sprintf("%s/%d", on.name(), i)] = n }
-		)
-
-		for i, c := range nc.WebhookConfigs {
-			n := NewWebhook(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.EmailConfigs {
-			n := NewEmail(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.PagerdutyConfigs {
-			n := NewPagerDuty(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.OpsGenieConfigs {
-			n := NewOpsGenie(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.SlackConfigs {
-			n := NewSlack(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.HipchatConfigs {
-			n := NewHipchat(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.VictorOpsConfigs {
-			n := NewVictorOps(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.PushoverConfigs {
-			n := NewPushover(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-
-		res[nc.Name] = fo
+	for i, c := range nc.EmailConfigs {
+		n := NewEmail(c, tmpl)
+		add("email", i, n, c)
 	}
-	return res
+	for i, c := range nc.PagerdutyConfigs {
+		n := NewPagerDuty(c, tmpl)
+		add("pagerduty", i, n, c)
+	}
+	for i, c := range nc.OpsGenieConfigs {
+		n := NewOpsGenie(c, tmpl)
+		add("opsgenie", i, n, c)
+	}
+	for i, c := range nc.SlackConfigs {
+		n := NewSlack(c, tmpl)
+		add("slack", i, n, c)
+	}
+	for i, c := range nc.HipchatConfigs {
+		n := NewHipchat(c, tmpl)
+		add("hipchat", i, n, c)
+	}
+	for i, c := range nc.VictorOpsConfigs {
+		n := NewVictorOps(c, tmpl)
+		add("victorops", i, n, c)
+	}
+	for i, c := range nc.PushoverConfigs {
+		n := NewPushover(c, tmpl)
+		add("pushover", i, n, c)
+	}
+	return integrations
 }
 
 const contentTypeJSON = "application/json"
@@ -163,8 +126,6 @@ type Webhook struct {
 func NewWebhook(conf *config.WebhookConfig, t *template.Template) *Webhook {
 	return &Webhook{URL: conf.URL, tmpl: t}
 }
-
-func (*Webhook) name() string { return "webhook" }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
 type WebhookMessage struct {
@@ -227,8 +188,6 @@ func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
 	}
 	return &Email{conf: c, tmpl: t}
 }
-
-func (*Email) name() string { return "email" }
 
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
@@ -377,8 +336,6 @@ func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template) *PagerDuty {
 	return &PagerDuty{conf: c, tmpl: t}
 }
 
-func (*PagerDuty) name() string { return "pagerduty" }
-
 const (
 	pagerDutyEventTrigger = "trigger"
 	pagerDutyEventResolve = "resolve"
@@ -466,8 +423,6 @@ func NewSlack(conf *config.SlackConfig, tmpl *template.Template) *Slack {
 		tmpl: tmpl,
 	}
 }
-
-func (*Slack) name() string { return "slack" }
 
 // slackReq is the request for sending a slack notification.
 type slackReq struct {
@@ -558,8 +513,6 @@ func NewHipchat(conf *config.HipchatConfig, tmpl *template.Template) *Hipchat {
 	}
 }
 
-func (*Hipchat) name() string { return "hipchat" }
-
 type hipchatReq struct {
 	From          string `json:"from"`
 	Notify        bool   `json:"notify"`
@@ -625,8 +578,6 @@ type OpsGenie struct {
 func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template) *OpsGenie {
 	return &OpsGenie{conf: c, tmpl: t}
 }
-
-func (*OpsGenie) name() string { return "opsgenie" }
 
 type opsGenieMessage struct {
 	APIKey string            `json:"apiKey"`
@@ -750,8 +701,6 @@ func NewVictorOps(c *config.VictorOpsConfig, t *template.Template) *VictorOps {
 	}
 }
 
-func (*VictorOps) name() string { return "victorops" }
-
 const (
 	victorOpsEventTrigger = "CRITICAL"
 	victorOpsEventResolve = "RECOVERY"
@@ -848,8 +797,6 @@ type Pushover struct {
 func NewPushover(c *config.PushoverConfig, t *template.Template) *Pushover {
 	return &Pushover{conf: c, tmpl: t}
 }
-
-func (*Pushover) name() string { return "pushover" }
 
 // Notify implements the Notifier interface.
 func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {

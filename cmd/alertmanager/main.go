@@ -150,6 +150,7 @@ func main() {
 	var (
 		inhibitor *inhibit.Inhibitor
 		tmpl      *template.Template
+		pipeline  notify.Stage
 		disp      *dispatch.Dispatcher
 	)
 	defer disp.Stop()
@@ -157,35 +158,6 @@ func main() {
 	apiv := api.New(alerts, silences, func() dispatch.AlertOverview {
 		return disp.Groups()
 	})
-
-	build := func(rcvs []*config.Receiver) notify.Notifier {
-		var (
-			router  = notify.Router{}
-			fanouts = notify.Build(rcvs, tmpl)
-		)
-		for name, fo := range fanouts {
-			for i, n := range fo {
-				n = notify.Retry(n)
-				n = notify.Log(n, log.With("step", "retry"))
-				n = notify.Dedup(ni, n)
-				n = notify.Log(n, log.With("step", "dedup"))
-				n = notify.Wait(meshWait(mrouter, 5*time.Second), n)
-				n = notify.Log(n, log.With("step", "wait"))
-
-				fo[i] = n
-			}
-			router[name] = fo
-		}
-		n := notify.Notifier(router)
-
-		n = notify.Log(n, log.With("step", "route"))
-		n = notify.Silence(silences, n, marker)
-		n = notify.Log(n, log.With("step", "silence"))
-		n = notify.Inhibit(inhibitor, n, marker)
-		n = notify.Log(n, log.With("step", "inhibit"))
-
-		return n
-	}
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
@@ -221,7 +193,8 @@ func main() {
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker)
-		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), build(conf.Receivers), marker)
+		pipeline = notify.BuildPipeline(conf.Receivers, tmpl, meshWait(mrouter, 5*time.Second), inhibitor, silences, ni, marker)
+		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker)
 
 		go disp.Run()
 		go inhibitor.Run()
