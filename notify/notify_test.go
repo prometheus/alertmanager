@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/satori/go.uuid"
 )
@@ -32,7 +33,7 @@ func (s failStage) Exec(ctx context.Context, as ...*types.Alert) ([]*types.Alert
 	return nil, fmt.Errorf("some error")
 }
 
-func TestDedupingNotifierHasUpdate(t *testing.T) {
+func TestDedupStageHasUpdate(t *testing.T) {
 	var (
 		n        = &DedupStage{}
 		now      = time.Now()
@@ -228,15 +229,15 @@ func TestRoutingStage(t *testing.T) {
 	}
 }
 
-func TestDedupStage(t *testing.T) {
+func TestSetNotifiesStage(t *testing.T) {
 	var (
 		notifies = newTestInfos()
-		stage    = NewSetNotifiesStage(notifies)
+		recv     = &nflogpb.Receiver{GroupName: "name"}
+		stage    = NewSetNotifiesStage(notifies, recv)
 		ctx      = context.Background()
 	)
 	now := time.Now()
 
-	ctx = WithReceiverName(ctx, "name")
 	ctx = WithRepeatInterval(ctx, time.Duration(100*time.Minute))
 	ctx = WithNow(ctx, now)
 
@@ -259,7 +260,7 @@ func TestDedupStage(t *testing.T) {
 		nil,
 		{
 			Alert:     alerts[1].Fingerprint(),
-			Receiver:  "name",
+			Receiver:  recv.String(),
 			Resolved:  false,
 			Timestamp: now.Add(-10 * time.Minute),
 		},
@@ -274,7 +275,7 @@ func TestDedupStage(t *testing.T) {
 		t.Fatalf("Exec failed: %s", err)
 	}
 
-	nsCur, err := notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
+	nsCur, err := notifies.Get(recv.String(), alerts[0].Fingerprint(), alerts[1].Fingerprint())
 	if err != nil {
 		t.Fatalf("Error getting notifies: %s", err)
 	}
@@ -282,13 +283,13 @@ func TestDedupStage(t *testing.T) {
 	nsAfter := []*types.NotificationInfo{
 		{
 			Alert:     alerts[0].Fingerprint(),
-			Receiver:  "name",
+			Receiver:  recv.String(),
 			Resolved:  false,
 			Timestamp: now,
 		},
 		{
 			Alert:     alerts[1].Fingerprint(),
-			Receiver:  "name",
+			Receiver:  recv.String(),
 			Resolved:  true,
 			Timestamp: now,
 		},
