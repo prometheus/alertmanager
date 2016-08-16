@@ -14,11 +14,15 @@
 package notify
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
@@ -26,8 +30,8 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
-	"github.com/prometheus/alertmanager/provider"
 	meshprov "github.com/prometheus/alertmanager/provider/mesh"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -65,6 +69,7 @@ const (
 	keyRepeatInterval
 	keyGroupLabels
 	keyGroupKey
+	keyNotificationHash
 	keyNow
 )
 
@@ -73,14 +78,14 @@ func WithReceiverName(ctx context.Context, rcv string) context.Context {
 	return context.WithValue(ctx, keyReceiverName, rcv)
 }
 
-// WithRepeatInterval populates a context with a repeat interval.
-func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
-	return context.WithValue(ctx, keyRepeatInterval, t)
-}
-
 // WithGroupKey populates a context with a group key.
 func WithGroupKey(ctx context.Context, fp model.Fingerprint) context.Context {
 	return context.WithValue(ctx, keyGroupKey, fp)
+}
+
+// WithNotificationHash populates a context with a notification hash.
+func WithNotificationHash(ctx context.Context, hash []byte) context.Context {
+	return context.WithValue(ctx, keyNotificationHash, hash)
 }
 
 // WithGroupLabels populates a context with grouping labels.
@@ -91,6 +96,18 @@ func WithGroupLabels(ctx context.Context, lset model.LabelSet) context.Context {
 // WithNow populates a context with a now timestamp.
 func WithNow(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, keyNow, t)
+}
+
+// WithRepeatInterval populates a context with a repeat interval.
+func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
+	return context.WithValue(ctx, keyRepeatInterval, t)
+}
+
+// RepeatInterval extracts a repeat interval from the context. Iff none exists, the
+// second argument is false.
+func RepeatInterval(ctx context.Context) (time.Duration, bool) {
+	v, ok := ctx.Value(keyRepeatInterval).(time.Duration)
+	return v, ok
 }
 
 // ReceiverName extracts a receiver name from the context. Iff none exists, the
@@ -106,13 +123,6 @@ func receiverName(ctx context.Context) string {
 		log.Error("missing receiver")
 	}
 	return recv
-}
-
-// RepeatInterval extracts a repeat interval from the context. Iff none exists, the
-// second argument is false.
-func RepeatInterval(ctx context.Context) (time.Duration, bool) {
-	v, ok := ctx.Value(keyRepeatInterval).(time.Duration)
-	return v, ok
 }
 
 // GroupKey extracts a group key from the context. Iff none exists, the
@@ -144,6 +154,13 @@ func Now(ctx context.Context) (time.Time, bool) {
 	return v, ok
 }
 
+// NotificationHash extracts a notification hash from the context. Iff none exists,
+// the second argument is false.
+func NotificationHash(ctx context.Context) ([]byte, bool) {
+	v, ok := ctx.Value(keyNotificationHash).([]byte)
+	return v, ok
+}
+
 // A Stage processes alerts under the constraints of the given context.
 type Stage interface {
 	Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
@@ -164,7 +181,7 @@ func BuildPipeline(
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silences *meshprov.Silences,
-	ni *meshprov.NotificationInfos,
+	notificationLog nflog.Log,
 	marker types.Marker,
 ) RoutingStage {
 	rs := RoutingStage{}
@@ -173,13 +190,13 @@ func BuildPipeline(
 	ss := NewSilenceStage(silences, marker)
 
 	for _, rc := range confs {
-		rs[rc.Name] = MultiStage{is, ss, createStage(rc, tmpl, wait, ni)}
+		rs[rc.Name] = MultiStage{is, ss, createStage(rc, tmpl, wait, notificationLog)}
 	}
 	return rs
 }
 
 // createStage creates a pipeline of stages for a receiver.
-func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, ni *meshprov.NotificationInfos) Stage {
+func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, notificationLog nflog.Log) Stage {
 	var fs FanoutStage
 	for _, i := range BuildReceiverIntegrations(rc, tmpl) {
 		recv := &nflogpb.Receiver{
@@ -190,9 +207,9 @@ func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewFilterResolvedStage(i.conf))
-		s = append(s, NewDedupStage(ni, recv))
+		s = append(s, NewDedupStage(notificationLog, recv))
 		s = append(s, NewRetryStage(i))
-		s = append(s, NewSetNotifiesStage(ni, recv))
+		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
 	}
@@ -384,74 +401,127 @@ func (fr *FilterResolvedStage) Exec(ctx context.Context, alerts ...*types.Alert)
 }
 
 // DedupStage filters alerts.
-// Filtering happens based on a provider of NotifyInfos.
+// Filtering happens based on a notification log.
 type DedupStage struct {
-	notifies provider.Notifies
-	recv     *nflogpb.Receiver
+	nflog nflog.Log
+	recv  *nflogpb.Receiver
+
+	// TODO(fabxc): consider creating an AlertBatch type received
+	// by stages that implements these functions.
+	// This can then also handle caching so we can skip passing
+	// the hash around as a context.
+	hash     func([]*types.Alert) []byte
+	resolved func([]*types.Alert) bool
+	now      func() time.Time
 }
 
-// NewDedupStage wraps a DedupStage that runs against the given NotifyInfo provider.
-func NewDedupStage(notifies provider.Notifies, recv *nflogpb.Receiver) *DedupStage {
+// NewDedupStage wraps a DedupStage that runs against the given notification log.
+func NewDedupStage(l nflog.Log, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
-		notifies: notifies,
+		nflog:    l,
 		recv:     recv,
+		hash:     hashAlerts,
+		resolved: allAlertsResolved,
+		now:      utcNow,
 	}
 }
 
-// hasUpdates checks an alert against the last notification that was made
-// about it.
-func (n *DedupStage) hasUpdate(alert *types.Alert, last *types.NotificationInfo, now time.Time, interval time.Duration) bool {
-	if last != nil {
-		if alert.Resolved() {
-			if last.Resolved {
-				return false
-			}
-		} else if !last.Resolved {
-			// Do not send again if last was delivered unless
-			// the repeat interval has already passed.
-			if !now.After(last.Timestamp.Add(interval)) {
-				return false
-			}
+func utcNow() time.Time {
+	return time.Now().UTC()
+}
+
+// TODO(fabxc): this could get slow, but is fine for now. We may want to
+// have something mor sophisticated at some point.
+// Alternatives are FNV64a as in fingerprints or xxhash.
+func hashAlerts(alerts []*types.Alert) []byte {
+	// The xor'd sum so we don't have to sort the alerts.
+	// XXX(fabxc): this approach caused collision issues with FNV64a in
+	// the past. However, sha256 should not suffer from the bit cancelation
+	// in in small input changes.
+	xsum := [sha256.Size]byte{}
+
+	for _, a := range alerts {
+		b := make([]byte, 9)
+		binary.BigEndian.PutUint64(b, uint64(a.Fingerprint()))
+		// Resolved status is part of the identity.
+		if a.Resolved() {
+			b[8] = 1
 		}
-	} else if alert.Resolved() {
-		// If the alert is resolved but we never notified about it firing,
-		// there is nothing to do.
-		return false
+		for i, b := range sha256.Sum256(b) {
+			xsum[i] ^= b
+		}
+	}
+	return xsum[:]
+}
+
+func allAlertsResolved(alerts []*types.Alert) bool {
+	for _, a := range alerts {
+		if !a.Resolved() {
+			return false
+		}
 	}
 	return true
 }
 
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, hash []byte, resolved bool, repeat time.Duration) (bool, error) {
+	// If we haven't notified about the alert group before, notify right away
+	// unless we only have resolved alerts.
+	if entry == nil {
+		return !resolved, nil
+	}
+	// Check whether the contents have changed.
+	if !bytes.Equal(entry.GroupHash, hash) {
+		return true, nil
+	}
+
+	// Nothing changed, only notify if the repeat interval has passed.
+	ts, err := ptypes.Timestamp(entry.Timestamp)
+	if err != nil {
+		return false, err
+	}
+	return ts.Before(n.now().Add(-repeat)), nil
+}
+
 // Exec implements the Stage interface.
 func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	// TODO(fabxc): GroupKey will turn into []byte eventually.
+	gkey, ok := GroupKey(ctx)
+	if !ok {
+		return ctx, nil, fmt.Errorf("group key missing")
+	}
+	gkeyb := make([]byte, 8)
+	binary.BigEndian.PutUint64(gkeyb, uint64(gkey))
+
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
 		return ctx, nil, fmt.Errorf("repeat interval missing")
 	}
 
-	now, ok := Now(ctx)
-	if !ok {
-		return ctx, nil, fmt.Errorf("now time missing")
-	}
+	hash := n.hash(alerts)
+	resolved := n.resolved(alerts)
 
-	var fps []model.Fingerprint
-	for _, a := range alerts {
-		fps = append(fps, a.Fingerprint())
-	}
+	ctx = WithNotificationHash(ctx, hash)
 
-	notifyInfo, err := n.notifies.Get(n.recv.String(), fps...)
-	if err != nil {
+	entries, err := n.nflog.Query(nflog.QGroupKey(gkeyb), nflog.QReceiver(n.recv))
+
+	if err != nil && err != nflog.ErrNotFound {
 		return ctx, nil, err
 	}
-
-	// If we have to notify about any of the alerts, we send a notification
-	// for the entire batch.
-	for i, alert := range alerts {
-		if n.hasUpdate(alert, notifyInfo[i], now, repeatInterval) {
-			return ctx, alerts, nil
-		}
+	var entry *nflogpb.Entry
+	switch len(entries) {
+	case 0:
+	case 1:
+		entry = entries[0]
+	case 2:
+		return ctx, nil, fmt.Errorf("Unexpected entry result size %d", len(entries))
 	}
-
+	if ok, err := n.needsUpdate(entry, hash, resolved, repeatInterval); err != nil {
+		return ctx, nil, err
+	} else if ok {
+		return ctx, alerts, nil
+	}
 	return ctx, nil, nil
+
 }
 
 // RetryStage notifies via passed integration with exponential backoff until it
@@ -503,35 +573,36 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.C
 // SetNotifiesStage sets the notification information about passed alerts. The
 // passed alerts should have already been sent to the receivers.
 type SetNotifiesStage struct {
-	notifies provider.Notifies
-	recv     *nflogpb.Receiver
+	nflog nflog.Log
+	recv  *nflogpb.Receiver
+
+	resolved func([]*types.Alert) bool
 }
 
 // NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-func NewSetNotifiesStage(notifies provider.Notifies, recv *nflogpb.Receiver) *SetNotifiesStage {
+func NewSetNotifiesStage(l nflog.Log, recv *nflogpb.Receiver) *SetNotifiesStage {
 	return &SetNotifiesStage{
-		notifies: notifies,
+		nflog:    l,
 		recv:     recv,
+		resolved: allAlertsResolved,
 	}
 }
 
 // Exec implements the Stage interface.
 func (n SetNotifiesStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	now, ok := Now(ctx)
+	hash, ok := NotificationHash(ctx)
 	if !ok {
-		return ctx, nil, fmt.Errorf("now time missing")
+		return ctx, nil, fmt.Errorf("notification hash missing")
 	}
-
-	var newNotifies []*types.NotificationInfo
-
-	for _, a := range alerts {
-		newNotifies = append(newNotifies, &types.NotificationInfo{
-			Alert:     a.Fingerprint(),
-			Receiver:  n.recv.String(),
-			Resolved:  a.Resolved(),
-			Timestamp: now,
-		})
+	gkey, ok := GroupKey(ctx)
+	if !ok {
+		return ctx, nil, fmt.Errorf("group key missing")
 	}
+	gkeyb := make([]byte, 8)
+	binary.BigEndian.PutUint64(gkeyb, uint64(gkey))
 
-	return ctx, alerts, n.notifies.Set(newNotifies...)
+	if n.resolved(alerts) {
+		return ctx, alerts, n.nflog.LogResolved(n.recv, gkeyb, hash)
+	}
+	return ctx, alerts, n.nflog.LogActive(n.recv, gkeyb, hash)
 }

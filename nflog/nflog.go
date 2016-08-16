@@ -152,19 +152,27 @@ func WithLogger(logger log.Logger) Option {
 }
 
 // WithMaintenance configures the Log to run garbage collection
-// and snapshotting to the provided file at the given interval.
-// On startup the a snapshot is also loaded from the given file.
+// and snapshotting, if configured, at the given interval.
 //
 // The maintenance terminates on receiving from the provided channel.
 // The done function is called after the final snapshot was completed.
-//
-// Providing a 0 duration will not run background processing.
-// Providing an empty file name will skip snapshotting.
-func WithMaintenance(sf string, d time.Duration, stopc chan struct{}, done func()) Option {
+func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
 	return func(l *nlog) error {
+		if d == 0 {
+			return fmt.Errorf("maintenance interval must not be 0")
+		}
 		l.runInterval = d
 		l.stopc = stopc
 		l.done = done
+		return nil
+	}
+}
+
+// WithSnapshot configures the log to be initialized from a given snapshot file.
+// If maintenance is configured, a snapshot will be saved periodically and on
+// shutdown as well.
+func WithSnapshot(sf string) Option {
+	return func(l *nlog) error {
 		l.snapf = sf
 		return nil
 	}
@@ -188,14 +196,15 @@ func New(opts ...Option) (Log, error) {
 		}
 	}
 	if l.snapf != "" {
-		f, err := os.Open(l.snapf)
-		if err != nil {
-			return l, err
-		}
-		defer f.Close()
+		if f, err := os.Open(l.snapf); !os.IsNotExist(err) {
+			if err != nil {
+				return l, err
+			}
+			defer f.Close()
 
-		if err := l.loadSnapshot(f); err != nil {
-			return l, err
+			if err := l.loadSnapshot(f); err != nil {
+				return l, err
+			}
 		}
 	}
 	go l.run()

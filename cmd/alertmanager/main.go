@@ -42,6 +42,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
 	meshprov "github.com/prometheus/alertmanager/provider/mesh"
@@ -103,11 +104,21 @@ func main() {
 
 	mrouter := initMesh(*meshListen, *hwaddr, *nickname)
 
-	ni, err := meshprov.NewNotificationInfos(log.Base(), *retention, filepath.Join(*dataDir, "notification_infos"))
+	stopc := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	notificationLog, err := nflog.New(
+		nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
+			return mrouter.NewGossip("nflog", g)
+		}),
+		nflog.WithRetention(*retention),
+		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
+		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ni.Register(mrouter.NewGossip("notify_info", ni))
 
 	marker := types.NewMarker()
 
@@ -118,22 +129,18 @@ func main() {
 	silences.Register(mrouter.NewGossip("silences", silences))
 
 	// Start providers before router potentially sends updates.
-	go ni.Run()
 	go silences.Run()
+	wg.Add(1)
+
 	mrouter.Start()
 
 	defer func() {
+		close(stopc)
 		// Stop receiving updates from router before shutting down.
 		mrouter.Stop()
 
-		var wg sync.WaitGroup
-		wg.Add(2)
 		go func() {
 			silences.Stop()
-			wg.Done()
-		}()
-		go func() {
-			ni.Stop()
 			wg.Done()
 		}()
 		wg.Wait()
@@ -193,7 +200,15 @@ func main() {
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker)
-		pipeline = notify.BuildPipeline(conf.Receivers, tmpl, meshWait(mrouter, 5*time.Second), inhibitor, silences, ni, marker)
+		pipeline = notify.BuildPipeline(
+			conf.Receivers,
+			tmpl,
+			meshWait(mrouter, 5*time.Second),
+			inhibitor,
+			silences,
+			notificationLog,
+			marker,
+		)
 		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker)
 
 		go disp.Run()
