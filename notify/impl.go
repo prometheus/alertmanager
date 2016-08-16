@@ -138,7 +138,7 @@ type WebhookMessage struct {
 
 // Notify implements the Notifier interface.
 func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	data := w.tmpl.Data(receiver(ctx), groupLabels(ctx), alerts...)
+	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
 
 	groupKey, ok := GroupKey(ctx)
 	if !ok {
@@ -264,7 +264,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 
 	var (
-		data = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmpl = tmplText(n.tmpl, data, &err)
 		from = tmpl(n.conf.From)
 		to   = tmpl(n.conf.To)
@@ -363,7 +363,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	var err error
 	var (
 		alerts    = types.Alerts(as...)
-		data      = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data      = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmpl      = tmplText(n.tmpl, data, &err)
 		eventType = pagerDutyEventTrigger
 	)
@@ -456,7 +456,7 @@ type slackAttachmentField struct {
 func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 	var err error
 	var (
-		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 	)
 
@@ -526,7 +526,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) error {
 	var err error
 	var msg string
 	var (
-		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 		url      = fmt.Sprintf("%sv2/room/%s/notification?auth_token=%s", n.conf.APIURL, n.conf.RoomID, n.conf.AuthToken)
@@ -611,7 +611,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 	if !ok {
 		return fmt.Errorf("group key missing")
 	}
-	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 
 	log.With("incident", key).Debugln("notifying OpsGenie")
 
@@ -734,7 +734,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) error {
 	var err error
 	var (
 		alerts      = types.Alerts(as...)
-		data        = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data        = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmpl        = tmplText(n.tmpl, data, &err)
 		apiURL      = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
 		messageType = n.conf.MessageType
@@ -804,7 +804,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
 	if !ok {
 		return fmt.Errorf("group key missing")
 	}
-	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 
 	log.With("incident", key).Debugln("notifying Pushover")
 

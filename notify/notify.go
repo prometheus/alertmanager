@@ -60,16 +60,16 @@ const MinTimeout = 10 * time.Second
 type notifyKey int
 
 const (
-	keyReceiver notifyKey = iota
+	keyReceiverName notifyKey = iota
 	keyRepeatInterval
 	keyGroupLabels
 	keyGroupKey
 	keyNow
 )
 
-// WithReceiver populates a context with a receiver.
-func WithReceiver(ctx context.Context, rcv string) context.Context {
-	return context.WithValue(ctx, keyReceiver, rcv)
+// WithReceiverName populates a context with a receiver name.
+func WithReceiverName(ctx context.Context, rcv string) context.Context {
+	return context.WithValue(ctx, keyReceiverName, rcv)
 }
 
 // WithRepeatInterval populates a context with a repeat interval.
@@ -92,18 +92,18 @@ func WithNow(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, keyNow, t)
 }
 
-func receiver(ctx context.Context) string {
-	recv, ok := Receiver(ctx)
+func receiverName(ctx context.Context) string {
+	recv, ok := ReceiverName(ctx)
 	if !ok {
 		log.Error("missing receiver")
 	}
 	return recv
 }
 
-// Receiver extracts a receiver from the context. Iff none exists, the
+// ReceiverName extracts a receiver name from the context. Iff none exists, the
 // second argument is false.
-func Receiver(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(keyReceiver).(string)
+func ReceiverName(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyReceiverName).(string)
 	return v, ok
 }
 
@@ -215,7 +215,7 @@ type RoutingStage map[string]Stage
 
 // Exec implements the Stage interface.
 func (rs RoutingStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
-	receiver, ok := Receiver(ctx)
+	receiver, ok := ReceiverName(ctx)
 	if !ok {
 		return nil, fmt.Errorf("receiver missing")
 	}
@@ -259,14 +259,14 @@ func (fs FanoutStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*type
 	)
 	wg.Add(len(fs))
 
-	receiver, ok := Receiver(ctx)
+	receiver, ok := ReceiverName(ctx)
 	if !ok {
 		return nil, fmt.Errorf("receiver missing")
 	}
 
 	for suffix, s := range fs {
 		// Suffix the receiver with the unique key for the fanout.
-		foCtx := WithReceiver(ctx, fmt.Sprintf("%s/%s", receiver, suffix))
+		foCtx := WithReceiverName(ctx, fmt.Sprintf("%s/%s", receiver, suffix))
 
 		go func(s Stage) {
 			_, err := s.Exec(foCtx, alerts...)
@@ -456,7 +456,7 @@ func (n *DedupStage) hasUpdate(alert *types.Alert, last *types.NotificationInfo,
 
 // Exec implements the Stage interface.
 func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
-	name, ok := Receiver(ctx)
+	name, ok := ReceiverName(ctx)
 	if !ok {
 		return nil, fmt.Errorf("notifier name missing")
 	}
@@ -553,10 +553,11 @@ func NewSetNotifiesStage(notifies provider.Notifies) *SetNotifiesStage {
 
 // Exec implements the Stage interface.
 func (n SetNotifiesStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
-	name, ok := Receiver(ctx)
+	name, ok := ReceiverName(ctx)
 	if !ok {
 		return nil, fmt.Errorf("notifier name missing")
 	}
+	log.Errorln(name)
 
 	now, ok := Now(ctx)
 	if !ok {

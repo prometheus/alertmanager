@@ -216,7 +216,7 @@ func TestRoutingStage(t *testing.T) {
 		"not": failStage{},
 	}
 
-	ctx := WithReceiver(context.Background(), "name")
+	ctx := WithReceiverName(context.Background(), "name")
 
 	alerts, err := stage.Exec(ctx, alerts1...)
 	if err != nil {
@@ -236,7 +236,7 @@ func TestDedupStage(t *testing.T) {
 	)
 	now := time.Now()
 
-	ctx = WithReceiver(ctx, "name")
+	ctx = WithReceiverName(ctx, "name")
 	ctx = WithRepeatInterval(ctx, time.Duration(100*time.Minute))
 	ctx = WithNow(ctx, now)
 

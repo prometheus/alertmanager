@@ -325,7 +325,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// Populate context with information needed along the pipeline.
 			ctx = notify.WithGroupKey(ctx, ag.labels.Fingerprint()^ag.routeFP)
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
-			ctx = notify.WithReceiver(ctx, ag.opts.Receiver)
+			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 
 			// Wait the configured interval before calling flush again.
