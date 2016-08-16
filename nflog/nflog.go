@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -74,6 +75,7 @@ func QGroupKey(gk []byte) QueryParam {
 }
 
 type nlog struct {
+	logger    log.Logger
 	now       func() time.Time
 	retention time.Duration
 
@@ -123,6 +125,13 @@ func WithNow(f func() time.Time) Option {
 	}
 }
 
+func WithLogger(logger log.Logger) Option {
+	return func(l *nlog) error {
+		l.logger = logger
+		return nil
+	}
+}
+
 // WithMaintenance configures the Log to run garbage collection
 // and snapshotting to the provided file at the given interval.
 // On startup the a snapshot is also loaded from the given file.
@@ -150,8 +159,9 @@ func utcNow() time.Time {
 // The snapshot is loaded into the Log if it is set.
 func New(opts ...Option) (Log, error) {
 	l := &nlog{
-		now: utcNow,
-		st:  map[string]*pb.MeshEntry{},
+		logger: log.NewNopLogger(),
+		now:    utcNow,
+		st:     map[string]*pb.MeshEntry{},
 	}
 	for _, o := range opts {
 		if err := o(l); err != nil {
@@ -186,24 +196,22 @@ func (l *nlog) run() {
 		defer l.done()
 	}
 
-	f := func() {
+	f := func() error {
 		if _, err := l.GC(); err != nil {
-			// TODO(fabxc): log error instead
-			panic(err)
+			return err
 		}
 		if l.snapf == "" {
-			return
+			return nil
 		}
 		f, err := openReplace(l.snapf)
 		if err != nil {
-			panic(err)
+			return err
 		}
+		// TODO(fabxc): potentially expose snapshot size in log message.
 		if _, err := l.Snapshot(f); err != nil {
-			panic(err)
+			return err
 		}
-		if err := f.Close(); err != nil {
-			panic(err)
-		}
+		return f.Close()
 	}
 
 	for {
@@ -211,10 +219,18 @@ func (l *nlog) run() {
 		case <-l.stopc:
 			return
 		case <-t.C:
-			f()
+			if err := f(); err != nil {
+				l.logger.Log("msg", "running maintenance failed", "err", err)
+			}
 		}
 	}
-	f()
+	// No need to run final maintenance if we don't want to snapshot.
+	if l.snapf == "" {
+		return
+	}
+	if err := f(); err != nil {
+		l.logger.Log("msg", "creating shutdown snapshot failed", "err", err)
+	}
 }
 
 // LogActive implements the Log interface.
@@ -438,7 +454,7 @@ func (gd gossipData) Encode() [][]byte {
 		m, err := pbutil.WriteDelimited(&buf, e)
 		n += m
 		if err != nil {
-			// TODO(fabxc): log error and skip entry.
+			// TODO(fabxc): log error and skip entry. Or can this really not happen with a bytes.Buffer?
 			panic(err)
 		}
 		if n > maxSize {
@@ -473,7 +489,7 @@ func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
 		}
 		pts, err := ptypes.Timestamp(prev.Entry.Timestamp)
 		if err != nil {
-			// TODO(fabxc): log error and skip entry.
+			// TODO(fabxc): log error and skip entry. What can actually error here?
 			panic(err)
 		}
 		ets, err := ptypes.Timestamp(e.Entry.Timestamp)
@@ -501,7 +517,7 @@ func (gd gossipData) mergeDelta(od gossipData) gossipData {
 		}
 		pts, err := ptypes.Timestamp(prev.Entry.Timestamp)
 		if err != nil {
-			// TODO(fabxc): log error and skip entry.
+			// TODO(fabxc): log error and skip entry. What can actually error here?
 			panic(err)
 		}
 		ets, err := ptypes.Timestamp(e.Entry.Timestamp)
