@@ -13,15 +13,20 @@
 package notify
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/satori/go.uuid"
@@ -33,127 +38,170 @@ func (s failStage) Exec(ctx context.Context, as ...*types.Alert) (context.Contex
 	return ctx, nil, fmt.Errorf("some error")
 }
 
-func TestDedupStageHasUpdate(t *testing.T) {
-	var (
-		n        = &DedupStage{}
-		now      = time.Now()
-		interval = 100 * time.Minute
-	)
+type testNflog struct {
+	qres []*nflogpb.Entry
+	qerr error
+
+	logActiveFunc   func(r *nflogpb.Receiver, gkey, hash []byte) error
+	logResolvedFunc func(r *nflogpb.Receiver, gkey, hash []byte) error
+}
+
+func (l *testNflog) Query(p ...nflog.QueryParam) ([]*nflogpb.Entry, error) {
+	return l.qres, l.qerr
+}
+
+func (l *testNflog) LogActive(r *nflogpb.Receiver, gkey, hash []byte) error {
+	return l.logActiveFunc(r, gkey, hash)
+}
+
+func (l *testNflog) LogResolved(r *nflogpb.Receiver, gkey, hash []byte) error {
+	return l.logResolvedFunc(r, gkey, hash)
+}
+
+func (l *testNflog) GC() (int, error) {
+	return 0, nil
+}
+
+func (l *testNflog) Snapshot(w io.Writer) (int, error) {
+	return 0, nil
+}
+
+func mustTimestampProto(ts time.Time) *timestamp.Timestamp {
+	tspb, err := ptypes.TimestampProto(ts)
+	if err != nil {
+		panic(err)
+	}
+	return tspb
+}
+
+func TestDedupStageNeedsUpdate(t *testing.T) {
+	now := utcNow()
+
 	cases := []struct {
-		inAlert      *types.Alert
-		inNotifyInfo *types.NotificationInfo
-		result       bool
+		entry    *nflogpb.Entry
+		hash     []byte
+		resolved bool
+		repeat   time.Duration
+
+		res    bool
+		resErr bool
 	}{
-		// A new alert about which there's no previous notification information.
 		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-				},
+			entry: nil,
+			res:   true,
+		}, {
+			entry: &nflogpb.Entry{GroupHash: []byte{1, 2, 3}},
+			hash:  []byte{2, 3, 4},
+			res:   true,
+		}, {
+			entry: &nflogpb.Entry{
+				GroupHash: []byte{1, 2, 3},
+				Timestamp: nil, // parsing will error
 			},
-			inNotifyInfo: nil,
-			result:       true,
+			hash:   []byte{1, 2, 3},
+			resErr: true,
+		}, {
+			entry: &nflogpb.Entry{
+				GroupHash: []byte{1, 2, 3},
+				Timestamp: mustTimestampProto(now.Add(-9 * time.Minute)),
+			},
+			repeat: 10 * time.Minute,
+			hash:   []byte{1, 2, 3},
+			res:    false,
+		}, {
+			entry: &nflogpb.Entry{
+				GroupHash: []byte{1, 2, 3},
+				Timestamp: mustTimestampProto(now.Add(-11 * time.Minute)),
+			},
+			repeat: 10 * time.Minute,
+			hash:   []byte{1, 2, 3},
+			res:    true,
 		},
-		// A new alert about which there's no previous notification information.
-		// It is already resolved, so there's no use in sending a notification.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-					EndsAt:   now,
-				},
-			},
-			inNotifyInfo: nil,
-			result:       false,
-		},
-		// An alert that has been firing is now resolved for the first time.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-					EndsAt:   now,
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  false,
-				Timestamp: now.Add(-time.Minute),
-			},
-			result: true,
-		},
-		// A resolved alert for which we have already sent a resolved notification.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-					EndsAt:   now,
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  true,
-				Timestamp: now.Add(-time.Minute),
-			},
-			result: false,
-		},
-		// An alert that was resolved last time but is now firing again.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-3 * time.Minute),
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  true,
-				Timestamp: now.Add(-4 * time.Minute),
-			},
-			result: true,
-		},
-		// A firing alert about which we already notified. The last notification
-		// is less than the repeat interval ago.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  false,
-				Timestamp: now.Add(-15 * time.Minute),
-			},
-			result: false,
-		},
-		// A firing alert about which we already notified. The last notification
-		// is more than the repeat interval ago.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  false,
-				Timestamp: now.Add(-115 * time.Minute),
-			},
-			result: true,
-		},
+	}
+	for i, c := range cases {
+		t.Log("case", i)
+
+		s := &DedupStage{
+			now: func() time.Time { return now },
+		}
+		ok, err := s.needsUpdate(c.entry, c.hash, c.resolved, c.repeat)
+		if c.resErr {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+		require.Equal(t, c.res, ok)
+	}
+}
+
+func TestDedupStage(t *testing.T) {
+	s := &DedupStage{
+		hash:     func([]*types.Alert) []byte { return []byte{1, 2, 3} },
+		resolved: func([]*types.Alert) bool { return false },
 	}
 
-	for i, c := range cases {
-		if n.hasUpdate(c.inAlert, c.inNotifyInfo, now, interval) != c.result {
-			t.Errorf("unexpected hasUpdates result for case %d", i)
-		}
+	ctx := context.Background()
+
+	_, _, err := s.Exec(ctx)
+	require.EqualError(t, err, "group key missing")
+
+	ctx = WithGroupKey(ctx, 1)
+
+	_, _, err = s.Exec(ctx)
+	require.EqualError(t, err, "repeat interval missing")
+
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	alerts := []*types.Alert{{}, {}, {}}
+
+	// Must catch notification log query errors.
+	s.nflog = &testNflog{
+		qerr: errors.New("bad things"),
 	}
+	ctx, res, err := s.Exec(ctx, alerts...)
+	require.EqualError(t, err, "bad things")
+
+	// ... but skip ErrNotFound.
+	s.nflog = &testNflog{
+		qerr: nflog.ErrNotFound,
+	}
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.NoError(t, err, "unexpected error on not found log entry")
+	require.Equal(t, alerts, res, "input alerts differ from result alerts")
+	// The hash must be added to the context.
+	hash, ok := NotificationHash(ctx)
+	require.True(t, ok, "notification has missing in context")
+	require.Equal(t, []byte{1, 2, 3}, hash, "notification hash does not match")
+
+	s.nflog = &testNflog{
+		qerr: nil,
+		qres: []*nflogpb.Entry{
+			{GroupHash: []byte{1, 2, 3}},
+			{GroupHash: []byte{2, 3, 4}},
+		},
+	}
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.Contains(t, err.Error(), "result size")
+
+	// Must return no error and no alerts no need to update.
+	s.nflog = &testNflog{
+		qerr: nflog.ErrNotFound,
+	}
+	s.resolved = func([]*types.Alert) bool { return true }
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.NoError(t, err)
+	require.Nil(t, res, "unexpected alerts returned")
+
+	// Must return no error and all input alerts on changes.
+	s.nflog = &testNflog{
+		qerr: nil,
+		qres: []*nflogpb.Entry{
+			{GroupHash: []byte{1, 2, 3, 4}},
+		},
+	}
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.NoError(t, err)
+	require.Equal(t, alerts, res, "unexpected alerts returned")
 }
 
 func TestMultiStage(t *testing.T) {
@@ -235,86 +283,59 @@ func TestRoutingStage(t *testing.T) {
 }
 
 func TestSetNotifiesStage(t *testing.T) {
-	var (
-		notifies = newTestInfos()
-		recv     = &nflogpb.Receiver{GroupName: "name"}
-		stage    = NewSetNotifiesStage(notifies, recv)
-		ctx      = context.Background()
-	)
-	now := time.Now()
-
-	ctx = WithRepeatInterval(ctx, time.Duration(100*time.Minute))
-	ctx = WithNow(ctx, now)
-
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "0"},
-			},
-		}, {
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "1"},
-				EndsAt: now.Add(-5 * time.Minute),
-			},
-		},
+	tnflog := &testNflog{}
+	s := &SetNotifiesStage{
+		recv:  &nflogpb.Receiver{GroupName: "test"},
+		nflog: tnflog,
 	}
+	alerts := []*types.Alert{{}, {}, {}}
+	ctx := context.Background()
 
-	// Set an initial NotifyInfo to ensure that on notification failure
-	// nothing changes.
-	nsBefore := []*types.NotificationInfo{
-		nil,
-		{
-			Alert:     alerts[1].Fingerprint(),
-			Receiver:  recv.String(),
-			Resolved:  false,
-			Timestamp: now.Add(-10 * time.Minute),
-		},
+	resctx, res, err := s.Exec(ctx, alerts...)
+	require.EqualError(t, err, "notification hash missing")
+	require.Nil(t, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithNotificationHash(ctx, []byte{1, 2, 3})
+
+	_, res, err = s.Exec(ctx, alerts...)
+	require.EqualError(t, err, "group key missing")
+	require.Nil(t, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithGroupKey(ctx, 1)
+
+	s.resolved = func([]*types.Alert) bool { return false }
+	tnflog.logActiveFunc = func(r *nflogpb.Receiver, gkey, hash []byte) error {
+		require.Equal(t, s.recv, r)
+		require.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 1}, gkey)
+		require.Equal(t, []byte{1, 2, 3}, hash)
+		return nil
 	}
-
-	if err := notifies.Set(nsBefore...); err != nil {
-		t.Fatalf("Setting notifies failed: %s", err)
+	tnflog.logResolvedFunc = func(r *nflogpb.Receiver, gkey, hash []byte) error {
+		t.Fatalf("LogResolved called unexpectedly")
+		return nil
 	}
+	resctx, res, err = s.Exec(ctx, alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.NotNil(t, resctx)
 
-	_, _, err := stage.Exec(ctx, alerts...)
-	if err != nil {
-		t.Fatalf("Exec failed: %s", err)
+	s.resolved = func([]*types.Alert) bool { return true }
+	tnflog.logActiveFunc = func(r *nflogpb.Receiver, gkey, hash []byte) error {
+		t.Fatalf("LogActive called unexpectedly")
+		return nil
 	}
-
-	nsCur, err := notifies.Get(recv.String(), alerts[0].Fingerprint(), alerts[1].Fingerprint())
-	if err != nil {
-		t.Fatalf("Error getting notifies: %s", err)
+	tnflog.logResolvedFunc = func(r *nflogpb.Receiver, gkey, hash []byte) error {
+		require.Equal(t, s.recv, r)
+		require.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 1}, gkey)
+		require.Equal(t, []byte{1, 2, 3}, hash)
+		return nil
 	}
-
-	nsAfter := []*types.NotificationInfo{
-		{
-			Alert:     alerts[0].Fingerprint(),
-			Receiver:  recv.String(),
-			Resolved:  false,
-			Timestamp: now,
-		},
-		{
-			Alert:     alerts[1].Fingerprint(),
-			Receiver:  recv.String(),
-			Resolved:  true,
-			Timestamp: now,
-		},
-	}
-
-	for i, after := range nsAfter {
-		cur := nsCur[i]
-
-		// Hack correct timestamps back in if they are sane.
-		if cur != nil && after.Timestamp.IsZero() {
-			if cur.Timestamp.Before(now) {
-				t.Fatalf("Wrong timestamp for notify %v", cur)
-			}
-			after.Timestamp = cur.Timestamp
-		}
-
-		if !reflect.DeepEqual(after, cur) {
-			t.Errorf("Unexpected notifies, expected: %v, got: %v", after, cur)
-		}
-	}
+	resctx, res, err = s.Exec(ctx, alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.NotNil(t, resctx)
 }
 
 func TestSilenceStage(t *testing.T) {
@@ -427,54 +448,4 @@ func TestInhibitStage(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
-}
-
-type testInfos struct {
-	mtx sync.RWMutex
-	m   map[string]map[model.Fingerprint]*types.NotificationInfo
-}
-
-func newTestInfos() *testInfos {
-	return &testInfos{
-		m: map[string]map[model.Fingerprint]*types.NotificationInfo{},
-	}
-}
-
-// Set implements the Notifies interface.
-func (n *testInfos) Set(ns ...*types.NotificationInfo) error {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
-
-	for _, v := range ns {
-
-		if v == nil {
-			continue
-		}
-		am, ok := n.m[v.Receiver]
-		if !ok {
-			am = map[model.Fingerprint]*types.NotificationInfo{}
-			n.m[v.Receiver] = am
-		}
-		am[v.Alert] = v
-	}
-	return nil
-}
-
-// Get implements the Notifies interface.
-func (n *testInfos) Get(dest string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
-	n.mtx.RLock()
-	defer n.mtx.RUnlock()
-
-	res := make([]*types.NotificationInfo, len(fps))
-
-	ns, ok := n.m[dest]
-	if !ok {
-		return res, nil
-	}
-
-	for i, fp := range fps {
-		res[i] = ns[fp]
-	}
-
-	return res, nil
 }
