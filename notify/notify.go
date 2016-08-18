@@ -26,6 +26,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/provider"
 	meshprov "github.com/prometheus/alertmanager/provider/mesh"
 	"github.com/prometheus/alertmanager/template"
@@ -60,16 +61,16 @@ const MinTimeout = 10 * time.Second
 type notifyKey int
 
 const (
-	keyReceiver notifyKey = iota
+	keyReceiverName notifyKey = iota
 	keyRepeatInterval
 	keyGroupLabels
 	keyGroupKey
 	keyNow
 )
 
-// WithReceiver populates a context with a receiver.
-func WithReceiver(ctx context.Context, rcv string) context.Context {
-	return context.WithValue(ctx, keyReceiver, rcv)
+// WithReceiverName populates a context with a receiver name.
+func WithReceiverName(ctx context.Context, rcv string) context.Context {
+	return context.WithValue(ctx, keyReceiverName, rcv)
 }
 
 // WithRepeatInterval populates a context with a repeat interval.
@@ -92,19 +93,19 @@ func WithNow(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, keyNow, t)
 }
 
-func receiver(ctx context.Context) string {
-	recv, ok := Receiver(ctx)
+// ReceiverName extracts a receiver name from the context. Iff none exists, the
+// second argument is false.
+func ReceiverName(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyReceiverName).(string)
+	return v, ok
+}
+
+func receiverName(ctx context.Context) string {
+	recv, ok := ReceiverName(ctx)
 	if !ok {
 		log.Error("missing receiver")
 	}
 	return recv
-}
-
-// Receiver extracts a receiver from the context. Iff none exists, the
-// second argument is false.
-func Receiver(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(keyReceiver).(string)
-	return v, ok
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -145,14 +146,14 @@ func Now(ctx context.Context) (time.Time, bool) {
 
 // A Stage processes alerts under the constraints of the given context.
 type Stage interface {
-	Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error)
+	Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
 }
 
 // StageFunc wraps a function to represent a Stage.
-type StageFunc func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error)
+type StageFunc func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
 
 // Exec implements Stage interface.
-func (f StageFunc) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+func (f StageFunc) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	return f(ctx, alerts...)
 }
 
@@ -160,7 +161,7 @@ func (f StageFunc) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.A
 func BuildPipeline(
 	confs []*config.Receiver,
 	tmpl *template.Template,
-	meshWait func() time.Duration,
+	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silences *meshprov.Silences,
 	ni *meshprov.NotificationInfos,
@@ -168,45 +169,34 @@ func BuildPipeline(
 ) RoutingStage {
 	rs := RoutingStage{}
 
-	for _, rc := range confs {
-		rs[rc.Name] = createStage(BuildReceiverIntegrations(rc, tmpl), meshWait, inhibitor, silences, ni, marker)
-	}
+	is := NewInhibitStage(inhibitor, marker)
+	ss := NewSilenceStage(silences, marker)
 
+	for _, rc := range confs {
+		rs[rc.Name] = MultiStage{is, ss, createStage(rc, tmpl, wait, ni)}
+	}
 	return rs
 }
 
 // createStage creates a pipeline of stages for a receiver.
-func createStage(
-	receiverIntegrations []Integration,
-	meshWait func() time.Duration,
-	inhibitor *inhibit.Inhibitor,
-	silences *meshprov.Silences,
-	ni *meshprov.NotificationInfos,
-	marker types.Marker,
-) Stage {
-	var ms MultiStage
-	ms = append(ms, NewLogStage(log.With("step", "inhibit")))
-	ms = append(ms, NewInhibitStage(inhibitor, marker))
-	ms = append(ms, NewLogStage(log.With("step", "silence")))
-	ms = append(ms, NewSilenceStage(silences, marker))
-
-	var fs = FanoutStage{}
-	for _, i := range receiverIntegrations {
+func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, ni *meshprov.NotificationInfos) Stage {
+	var fs FanoutStage
+	for _, i := range BuildReceiverIntegrations(rc, tmpl) {
+		recv := &nflogpb.Receiver{
+			GroupName:   rc.Name,
+			Integration: i.name,
+			Idx:         uint32(i.idx),
+		}
 		var s MultiStage
-		s = append(s, NewLogStage(log.With("step", "wait")))
-		s = append(s, NewWaitStage(meshWait))
-		s = append(s, NewLogStage(log.With("step", "filterResolved")))
+		s = append(s, NewWaitStage(wait))
 		s = append(s, NewFilterResolvedStage(i.conf))
-		s = append(s, NewLogStage(log.With("step", "dedup")))
-		s = append(s, NewDedupStage(ni))
-		s = append(s, NewLogStage(log.With("step", "integration")))
+		s = append(s, NewDedupStage(ni, recv))
 		s = append(s, NewRetryStage(i))
-		s = append(s, NewLogStage(log.With("step", "newNotifies")))
-		s = append(s, NewSetNotifiesStage(ni))
-		fs[fmt.Sprintf("%s/%d", i.name, i.idx)] = s
-	}
+		s = append(s, NewSetNotifiesStage(ni, recv))
 
-	return append(ms, fs)
+		fs = append(fs, s)
+	}
+	return fs
 }
 
 // RoutingStage executes the inner stages based on the receiver specified in
@@ -214,15 +204,15 @@ func createStage(
 type RoutingStage map[string]Stage
 
 // Exec implements the Stage interface.
-func (rs RoutingStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
-	receiver, ok := Receiver(ctx)
+func (rs RoutingStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	receiver, ok := ReceiverName(ctx)
 	if !ok {
-		return nil, fmt.Errorf("receiver missing")
+		return ctx, nil, fmt.Errorf("receiver missing")
 	}
 
 	s, ok := rs[receiver]
 	if !ok {
-		return nil, fmt.Errorf("stage for receiver missing")
+		return ctx, nil, fmt.Errorf("stage for receiver missing")
 	}
 
 	return s.Exec(ctx, alerts...)
@@ -232,75 +222,48 @@ func (rs RoutingStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*typ
 type MultiStage []Stage
 
 // Exec implements the Stage interface.
-func (ms MultiStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+func (ms MultiStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var err error
 	for _, s := range ms {
 		if len(alerts) == 0 {
-			return nil, nil
+			return ctx, nil, nil
 		}
 
-		alerts, err = s.Exec(ctx, alerts...)
+		ctx, alerts, err = s.Exec(ctx, alerts...)
 		if err != nil {
-			return nil, err
+			return ctx, nil, err
 		}
 	}
-	return alerts, nil
+	return ctx, alerts, nil
 }
 
 // FanoutStage executes its stages concurrently
-type FanoutStage map[string]Stage
+type FanoutStage []Stage
 
-// Exec attempts to execute all stages concurrently. It returns a
-// types.MultiError if any of them fails.
-func (fs FanoutStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+// Exec attempts to execute all stages concurrently and discards the results.
+// It returns its input alerts and a types.MultiError if one or more stages fail.
+func (fs FanoutStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var (
 		wg sync.WaitGroup
 		me types.MultiError
 	)
 	wg.Add(len(fs))
 
-	receiver, ok := Receiver(ctx)
-	if !ok {
-		return nil, fmt.Errorf("receiver missing")
-	}
-
-	for suffix, s := range fs {
-		// Suffix the receiver with the unique key for the fanout.
-		foCtx := WithReceiver(ctx, fmt.Sprintf("%s/%s", receiver, suffix))
-
+	for _, s := range fs {
 		go func(s Stage) {
-			_, err := s.Exec(foCtx, alerts...)
-			if err != nil {
+			if _, _, err := s.Exec(ctx, alerts...); err != nil {
 				me.Add(err)
 				log.Errorf("Error on notify: %s", err)
 			}
 			wg.Done()
 		}(s)
 	}
-
 	wg.Wait()
 
 	if me.Len() > 0 {
-		return nil, &me
+		return ctx, alerts, &me
 	}
-
-	return alerts, nil
-}
-
-// LogStage logs the passed alerts with a given logger.
-type LogStage struct {
-	log log.Logger
-}
-
-func NewLogStage(log log.Logger) *LogStage {
-	return &LogStage{log: log}
-}
-
-// Exec implements the Stage interface.
-func (l *LogStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
-	l.log.Debugf("notify %v", alerts)
-
-	return alerts, nil
+	return ctx, alerts, nil
 }
 
 // InhibitStage filters alerts through an inhibition muter.
@@ -318,7 +281,7 @@ func NewInhibitStage(m types.Muter, mk types.Marker) *InhibitStage {
 }
 
 // Exec implements the Stage interface.
-func (n *InhibitStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+func (n *InhibitStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		ok := n.marker.Inhibited(a.Fingerprint())
@@ -332,7 +295,7 @@ func (n *InhibitStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*typ
 		}
 	}
 
-	return filtered, nil
+	return ctx, filtered, nil
 }
 
 // SilenceStage filters alerts through a silence muter.
@@ -350,7 +313,7 @@ func NewSilenceStage(m types.Muter, mk types.Marker) *SilenceStage {
 }
 
 // Exec implements the Stage interface.
-func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		_, ok := n.marker.Silenced(a.Fingerprint())
@@ -364,7 +327,7 @@ func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*typ
 		}
 	}
 
-	return filtered, nil
+	return ctx, filtered, nil
 }
 
 // WaitStage waits for a certain amount of time before continuing or until the
@@ -381,13 +344,13 @@ func NewWaitStage(wait func() time.Duration) *WaitStage {
 }
 
 // Exec implements the Stage interface.
-func (ws *WaitStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+func (ws *WaitStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	select {
 	case <-time.After(ws.wait()):
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return ctx, nil, ctx.Err()
 	}
-	return alerts, nil
+	return ctx, alerts, nil
 }
 
 // FilterResolvedStage filters alerts based on a given notifierConfig. Either
@@ -404,7 +367,7 @@ func NewFilterResolvedStage(conf notifierConfig) *FilterResolvedStage {
 }
 
 // Exec implements the Stage interface.
-func (fr *FilterResolvedStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+func (fr *FilterResolvedStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var res []*types.Alert
 
 	if fr.conf.SendResolved() {
@@ -417,18 +380,22 @@ func (fr *FilterResolvedStage) Exec(ctx context.Context, alerts ...*types.Alert)
 		}
 	}
 
-	return res, nil
+	return ctx, res, nil
 }
 
 // DedupStage filters alerts.
 // Filtering happens based on a provider of NotifyInfos.
 type DedupStage struct {
 	notifies provider.Notifies
+	recv     *nflogpb.Receiver
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given NotifyInfo provider.
-func NewDedupStage(notifies provider.Notifies) *DedupStage {
-	return &DedupStage{notifies}
+func NewDedupStage(notifies provider.Notifies, recv *nflogpb.Receiver) *DedupStage {
+	return &DedupStage{
+		notifies: notifies,
+		recv:     recv,
+	}
 }
 
 // hasUpdates checks an alert against the last notification that was made
@@ -455,20 +422,15 @@ func (n *DedupStage) hasUpdate(alert *types.Alert, last *types.NotificationInfo,
 }
 
 // Exec implements the Stage interface.
-func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
-	name, ok := Receiver(ctx)
-	if !ok {
-		return nil, fmt.Errorf("notifier name missing")
-	}
-
+func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
-		return nil, fmt.Errorf("repeat interval missing")
+		return ctx, nil, fmt.Errorf("repeat interval missing")
 	}
 
 	now, ok := Now(ctx)
 	if !ok {
-		return nil, fmt.Errorf("now time missing")
+		return ctx, nil, fmt.Errorf("now time missing")
 	}
 
 	var fps []model.Fingerprint
@@ -476,20 +438,20 @@ func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types
 		fps = append(fps, a.Fingerprint())
 	}
 
-	notifyInfo, err := n.notifies.Get(name, fps...)
+	notifyInfo, err := n.notifies.Get(n.recv.String(), fps...)
 	if err != nil {
-		return nil, err
+		return ctx, nil, err
 	}
 
 	// If we have to notify about any of the alerts, we send a notification
 	// for the entire batch.
 	for i, alert := range alerts {
 		if n.hasUpdate(alert, notifyInfo[i], now, repeatInterval) {
-			return alerts, nil
+			return ctx, alerts, nil
 		}
 	}
 
-	return nil, nil
+	return ctx, nil, nil
 }
 
 // RetryStage notifies via passed integration with exponential backoff until it
@@ -506,7 +468,7 @@ func NewRetryStage(i Integration) *RetryStage {
 }
 
 // Exec implements the Stage interface.
-func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var (
 		i    = 0
 		b    = backoff.NewExponentialBackOff()
@@ -519,7 +481,7 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.
 		// Always check the context first to not notify again.
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx, nil, ctx.Err()
 		default:
 		}
 
@@ -530,10 +492,10 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.
 				log.Warnf("Notify attempt %d failed: %s", i, err)
 			} else {
 				numNotifications.WithLabelValues(r.integration.name).Inc()
-				return alerts, nil
+				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx, nil, ctx.Err()
 		}
 	}
 }
@@ -542,25 +504,22 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.
 // passed alerts should have already been sent to the receivers.
 type SetNotifiesStage struct {
 	notifies provider.Notifies
+	recv     *nflogpb.Receiver
 }
 
 // NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-func NewSetNotifiesStage(notifies provider.Notifies) *SetNotifiesStage {
+func NewSetNotifiesStage(notifies provider.Notifies, recv *nflogpb.Receiver) *SetNotifiesStage {
 	return &SetNotifiesStage{
 		notifies: notifies,
+		recv:     recv,
 	}
 }
 
 // Exec implements the Stage interface.
-func (n SetNotifiesStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
-	name, ok := Receiver(ctx)
-	if !ok {
-		return nil, fmt.Errorf("notifier name missing")
-	}
-
+func (n SetNotifiesStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	now, ok := Now(ctx)
 	if !ok {
-		return nil, fmt.Errorf("now time missing")
+		return ctx, nil, fmt.Errorf("now time missing")
 	}
 
 	var newNotifies []*types.NotificationInfo
@@ -568,11 +527,11 @@ func (n SetNotifiesStage) Exec(ctx context.Context, alerts ...*types.Alert) ([]*
 	for _, a := range alerts {
 		newNotifies = append(newNotifies, &types.NotificationInfo{
 			Alert:     a.Fingerprint(),
-			Receiver:  name,
+			Receiver:  n.recv.String(),
 			Resolved:  a.Resolved(),
 			Timestamp: now,
 		})
 	}
 
-	return alerts, n.notifies.Set(newNotifies...)
+	return ctx, alerts, n.notifies.Set(newNotifies...)
 }

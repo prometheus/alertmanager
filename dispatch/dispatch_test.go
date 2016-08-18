@@ -82,7 +82,7 @@ func TestAggrGroup(t *testing.T) {
 		if lbls, ok := notify.GroupLabels(ctx); !ok || !reflect.DeepEqual(lbls, lset) {
 			t.Errorf("wrong group labels: %q", lbls)
 		}
-		if rcv, ok := notify.Receiver(ctx); !ok || rcv != opts.Receiver {
+		if rcv, ok := notify.ReceiverName(ctx); !ok || rcv != opts.Receiver {
 			t.Errorf("wrong receiver: %q", rcv)
 		}
 		if ri, ok := notify.RepeatInterval(ctx); !ok || ri != opts.RepeatInterval {
