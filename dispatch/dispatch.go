@@ -234,7 +234,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		groups[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
-			_, err := d.stage.Exec(ctx, alerts...)
+			_, _, err := d.stage.Exec(ctx, alerts...)
 			if err != nil {
 				log.Errorf("Notify for %d alerts failed: %s", len(alerts), err)
 			}

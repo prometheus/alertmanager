@@ -29,8 +29,8 @@ import (
 
 type failStage struct{}
 
-func (s failStage) Exec(ctx context.Context, as ...*types.Alert) ([]*types.Alert, error) {
-	return nil, fmt.Errorf("some error")
+func (s failStage) Exec(ctx context.Context, as ...*types.Alert) (context.Context, []*types.Alert, error) {
+	return ctx, nil, fmt.Errorf("some error")
 }
 
 func TestDedupStageHasUpdate(t *testing.T) {
@@ -164,21 +164,26 @@ func TestMultiStage(t *testing.T) {
 	)
 
 	stage := MultiStage{
-		StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of MultiStage")
 			}
-			return alerts2, nil
+			ctx = context.WithValue(ctx, "key", "value")
+			return ctx, alerts2, nil
 		}),
-		StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts2) {
 				t.Fatal("Input not equal to output of previous stage")
 			}
-			return alerts3, nil
+			v, ok := ctx.Value("key").(string)
+			if !ok || v != "value" {
+				t.Fatalf("Expected value %q for key %q but got %q", "value", "key", v)
+			}
+			return ctx, alerts3, nil
 		}),
 	}
 
-	alerts, err := stage.Exec(context.Background(), alerts1...)
+	_, alerts, err := stage.Exec(context.Background(), alerts1...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -195,7 +200,7 @@ func TestMultiStageFailure(t *testing.T) {
 		stage = MultiStage{s1}
 	)
 
-	_, err := stage.Exec(ctx, nil)
+	_, _, err := stage.Exec(ctx, nil)
 	if err.Error() != "some error" {
 		t.Fatal("Errors were not propagated correctly by MultiStage")
 	}
@@ -208,18 +213,18 @@ func TestRoutingStage(t *testing.T) {
 	)
 
 	stage := RoutingStage{
-		"name": StageFunc(func(ctx context.Context, alerts ...*types.Alert) ([]*types.Alert, error) {
+		"name": StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of RoutingStage")
 			}
-			return alerts2, nil
+			return ctx, alerts2, nil
 		}),
 		"not": failStage{},
 	}
 
 	ctx := WithReceiverName(context.Background(), "name")
 
-	alerts, err := stage.Exec(ctx, alerts1...)
+	_, alerts, err := stage.Exec(ctx, alerts1...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -270,7 +275,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		t.Fatalf("Setting notifies failed: %s", err)
 	}
 
-	_, err := stage.Exec(ctx, alerts...)
+	_, _, err := stage.Exec(ctx, alerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -350,7 +355,7 @@ func TestSilenceStage(t *testing.T) {
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), uuid.NewV4())
 
-	alerts, err := silencer.Exec(nil, inAlerts...)
+	_, alerts, err := silencer.Exec(nil, inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -406,7 +411,7 @@ func TestInhibitStage(t *testing.T) {
 	// the WasInhibited flag set to true afterwards.
 	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
 
-	alerts, err := inhibitor.Exec(nil, inAlerts...)
+	_, alerts, err := inhibitor.Exec(nil, inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
