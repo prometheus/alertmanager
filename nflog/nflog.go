@@ -311,7 +311,7 @@ func (l *nlog) log(r *pb.Receiver, gkey, ghash []byte, resolved bool) error {
 		return err
 	}
 
-	l.st[key] = &pb.MeshEntry{
+	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:  r,
 			GroupKey:  gkey,
@@ -321,6 +321,11 @@ func (l *nlog) log(r *pb.Receiver, gkey, ghash []byte, resolved bool) error {
 		},
 		ExpiresAt: expts,
 	}
+	l.gossip.GossipBroadcast(gossipData{
+		key: e,
+	})
+	l.st[key] = e
+
 	return nil
 }
 
