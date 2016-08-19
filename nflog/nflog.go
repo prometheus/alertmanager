@@ -225,6 +225,10 @@ func (l *nlog) run() {
 	}
 
 	f := func() error {
+		start := l.now()
+		l.logger.Log("msg", "running maintenance")
+		defer l.logger.Log("msg", "maintenance done", "duration", time.Since(start))
+
 		if _, err := l.GC(); err != nil {
 			return err
 		}
@@ -242,10 +246,11 @@ func (l *nlog) run() {
 		return f.Close()
 	}
 
+Loop:
 	for {
 		select {
 		case <-l.stopc:
-			break
+			break Loop
 		case <-t.C:
 			if err := f(); err != nil {
 				l.logger.Log("msg", "running maintenance failed", "err", err)

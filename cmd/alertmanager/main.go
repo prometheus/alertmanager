@@ -32,12 +32,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
-	"github.com/prometheus/common/route"
-	"github.com/prometheus/common/version"
-	"github.com/weaveworks/mesh"
-
+	kitlog "github.com/go-kit/kit/log"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -49,6 +44,11 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/route"
+	"github.com/prometheus/common/version"
+	"github.com/weaveworks/mesh"
 )
 
 var (
@@ -115,6 +115,7 @@ func main() {
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
+		nflog.WithLogger(kitlog.NewLogfmtLogger(os.Stdout)),
 	)
 	if err != nil {
 		log.Fatal(err)
