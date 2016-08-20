@@ -237,6 +237,12 @@ type Silence struct {
 	now func() time.Time
 }
 
+type SilencesSlice []*Silence
+
+func (ss SilencesSlice) Less(i, j int) bool { return ss[i].UpdatedAt.After(ss[j].UpdatedAt) }
+func (ss SilencesSlice) Swap(i, j int)      { ss[i], ss[j] = ss[j], ss[i] }
+func (ss SilencesSlice) Len() int           { return len(ss) }
+
 // Validate returns true iff all fields of the silence have valid values.
 func (s *Silence) Validate() error {
 	if s.ID == uuid.Nil {

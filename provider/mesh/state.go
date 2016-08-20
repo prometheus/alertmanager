@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"sort"
 	"sync"
 	"time"
 
@@ -230,15 +231,21 @@ func (st *silenceState) gc(retention time.Duration) {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
-	keys := []uuid.UUID{}
+	sils := []*types.Silence{}
 	t := st.now().Add(-retention)
 	for k, v := range st.m {
 		if v.EndsAt.Before(t) {
 			delete(st.m, k)
 		} else {
-			// create new key cache from existing silences
-			keys = append(keys, v.ID)
+			sils = append(sils, v)
 		}
+	}
+
+	sort.Sort(types.SilencesSlice(sils))
+	// create new key cache from sorted existing silences
+	keys := make([]uuid.UUID, len(sils))
+	for i, s := range sils {
+		keys[i] = s.ID
 	}
 	st.k = keys
 }
