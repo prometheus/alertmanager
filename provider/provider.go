@@ -96,7 +96,7 @@ type Silences interface {
 	types.Muter
 
 	// All returns all existing silences.
-	All() (*types.QueryResponse, error)
+	All() (*types.SilencesQueryResponse, error)
 	// Set a new silence.
 	Set(*types.Silence) (uuid.UUID, error)
 	// Del removes a silence.
@@ -106,7 +106,7 @@ type Silences interface {
 	// Get at most n silences starting at o offset. Returns
 	// ErrorNoMoreSilences and silences if n exceeds number of silences
 	// found.
-	Query(n, o int) (*types.QueryResponse, error)
+	Query(n, o int) (*types.SilencesQueryResponse, error)
 }
 
 // Notifies provides information about pending and successful

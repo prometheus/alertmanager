@@ -328,8 +328,8 @@ func (n *NotificationInfo) Fingerprint() model.Fingerprint {
 	return fp ^ n.Alert
 }
 
-// queryResponse is the data structure returned from the Query method.
-type QueryResponse struct {
+// SilencesQueryResponse is the data structure returned from the Query method.
+type SilencesQueryResponse struct {
 	// Silences returned by query.
 	Silences []*Silence `json:"silences"`
 	// Total silences.

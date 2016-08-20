@@ -300,12 +300,12 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 }
 
 // All returns a list of all known silences.
-func (s *Silences) All() (*types.QueryResponse, error) {
+func (s *Silences) All() (*types.SilencesQueryResponse, error) {
 	return s.Query(len(s.st.k), 0)
 }
 
 // Query returns n silences starting at offset o.
-func (s *Silences) Query(n, o int) (*types.QueryResponse, error) {
+func (s *Silences) Query(n, o int) (*types.SilencesQueryResponse, error) {
 	s.st.mtx.RLock()
 	defer s.st.mtx.RUnlock()
 
@@ -317,7 +317,7 @@ func (s *Silences) Query(n, o int) (*types.QueryResponse, error) {
 
 	pageStart := n * o
 	if pageStart > klen {
-		return &types.QueryResponse{}, types.ErrRequestExceedsAvailable
+		return &types.SilencesQueryResponse{}, types.ErrRequestExceedsAvailable
 	}
 	pageEnd := pageStart + n
 	if pageEnd > klen {
@@ -337,7 +337,7 @@ func (s *Silences) Query(n, o int) (*types.QueryResponse, error) {
 		silences[i] = s.st.m[id]
 		i++
 	}
-	return &types.QueryResponse{
+	return &types.SilencesQueryResponse{
 		Silences:      silences,
 		TotalSilences: klen,
 	}, nil
