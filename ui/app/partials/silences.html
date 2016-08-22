@@ -1,27 +1,50 @@
-<div class="group">
-	<div class="right">
-		<button ng-hide="showForm" type="primary" ng-click="toggleForm()" small>New Silence</button>
-		<button ng-show="showForm" type="primary" ng-click="toggleForm()" small>Hide Form</button>
-	</div>
-	<div ng-show="showForm">
-		<silence-form sil="silence"></silence-form>
-	</div>
+<div class="row">
+  <div ng-show="showForm" class="col-sm-11">
+    <silence-form sil="silence" form-title="Create" form-subtitle="Define a new silence" button-text="Create"></silence-form>
+  </div>
+  <div class="col-sm-1">
+    <button ng-show="showForm" type="button" class="btn btn-primary btn-sm" ng-click="toggleForm()">Hide Form</button>
+  </div>
 </div>
 
-<div id="silences-query" class="forms">
-	<row>
-		<column cols="5">
-			<input type="search" placeholder="search" ng-model="query">
-		</column>
-		<column cols="2">
-			<select class="select" ng-model="order">
-				<option value="startsAt">start</option>
-				<option value="endsAt">end</option>
-				<option value="createdAt">created</option>
-			</select>
-		</column>
-	</row>
+<div id="silences-query" class="form" ng-if="!showForm">
+  <div class="row">
+    <div class="col-sm-11">
+      <h2>Search</h2>
+    </div>
+    <div class="col-sm-1">
+      <button ng-hide="showForm" type="button" class="btn btn-primary btn-sm" ng-click="toggleForm()">New Silence</button>
+    </div>
+    </div>
+  <div class="row">
+    <div class="col-sm-4">
+      <label class="sr-only">Search</label>
+      <input class="form-control" placeholder="Search" ng-model="query">
+    </div>
+    <div class="col-sm-2">
+      <label class="sr-only">Sort order</label>
+      <select class="form-control" ng-model="order">
+        <option value="startsAt">start</option>
+        <option value="endsAt">end</option>
+        <option value="createdAt">created</option>
+      </select>
+    </div>
+  </div>
+    </div>
 </div>
+
+<div uib-dropdown dropdown-append-to-body>
+  <button type="button" class="btn btn-default btn-sm pagination-height" uib-dropdown-toggle>
+    {{itemsPerPage}} <span class="caret"></span>
+  </button>
+  <ul class="dropdown-menu" uib-dropdown-menu role="menu" aria-labelledby="btn-append-to-body">
+    <li ng-click="setPerPage(l)" role="menuitem" ng-repeat="l in paginationLengths">
+      <a class="pointer">{{l}}</a>
+    </li>
+  </ul>
+</div>
+
+<ul uib-pagination total-items="totalItems" items-per-page="itemsPerPage" ng-model="currentPage" ng-change="pageChanged()" max-size="maxSize" class="pagination-sm" boundary-link-numbers="true" rotate="false"></ul>
 
 <div ng-show="silences.length == 0">No silences configured</div>
 
@@ -29,14 +52,21 @@
 
 	<div class="active-silences">
 		<h4 class="thin">Active</h4>
-		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:elapsed(false) | orderBy:order">
+		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:{active:true} | orderBy:order">
+			<silence sil="sil"></silence>
+		</div>
+	</div>
+
+	<div class="pending-silences">
+		<h4 class="thin">Pending</h4>
+		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:{pending:true} | orderBy:order">
 			<silence sil="sil"></silence>
 		</div>
 	</div>
 
 	<div class="elapsed-silences">
 		<h4 class="thin">Elapsed</h4>
-		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:elapsed(true) | orderBy:order">
+		<div class="list-item group" ng-repeat="sil in silences | filter:query | filter:{elapsed:true} | orderBy:order">
 			<silence sil="sil"></silence>
 		</div>
 	</div>

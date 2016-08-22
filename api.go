@@ -373,7 +373,21 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	sils, err := api.silences.All()
+	var (
+		num    = r.FormValue("n")
+		offset = r.FormValue("offset")
+	)
+
+	n, err := strconv.Atoi(num)
+	if err != nil {
+		n = 50
+	}
+	o, err := strconv.Atoi(offset)
+	if err != nil {
+		o = 0
+	}
+
+	resp, err := api.silences.Query(n, o)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -381,7 +395,8 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
-	respond(w, sils)
+
+	respond(w, resp)
 }
 
 type status string
