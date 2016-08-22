@@ -394,6 +394,7 @@ func (s *Silences) Del(uid uint64) error {
 	for i, id := range s.k {
 		if id == uid {
 			s.k = append(s.k[:i], s.k[i+1:]...)
+			break
 		}
 	}
 	return nil
