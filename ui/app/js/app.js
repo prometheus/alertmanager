@@ -291,15 +291,15 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   }
   $scope.currentPage = parseInt($location.search()['page']);
 
-  $scope.itemsPerPage = params['n'];
+  $scope.itemsPerPage = params['limit'];
   if (isNaN(parseInt($scope.itemsPerPage))) {
     $scope.itemsPerPage = DEFAULT_PER_PAGE;
-    $location.search('n', $scope.itemsPerPage);
+    $location.search('limit', $scope.itemsPerPage);
   }
 
   $scope.setPerPage = function(n) {
     $scope.itemsPerPage = n;
-    $location.search('n', $scope.itemsPerPage);
+    $location.search('limit', $scope.itemsPerPage);
   };
 
   // Controls the number of pages to display in the pagination list.
@@ -320,12 +320,12 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
     }
     $scope.currentPage = params['offset']+1;
 
-    if (search['n']) {
-      params['n'] = search['n'];
-      $scope.itemsPerPage = params['n'];
+    if (search['limit']) {
+      params['limit'] = search['limit'];
+      $scope.itemsPerPage = params['limit'];
     } else {
-      params['n'] = $scope.itemsPerPage;
-      $scope.setPerPage(params['n']);
+      params['limit'] = $scope.itemsPerPage;
+      $scope.setPerPage(params['limit']);
     }
 
     Silence.query(params, function(resp) {
@@ -498,7 +498,7 @@ angular.module('am').config(
           // Required to get the total number of silences before the controller
           // loads. Without this, the user is forced to page 1 of the
           // pagination.
-          return Silence.query({'n':0});
+          return Silence.query({'limit':0});
         }
       },
       reloadOnSearch: false
