@@ -104,11 +104,3 @@ type Silences interface {
 	// Get a silence associated with a fingerprint.
 	Get(uuid.UUID) (*types.Silence, error)
 }
-
-// Notifies provides information about pending and successful
-// notifications. All methods are goroutine-safe.
-type Notifies interface {
-	Get(dest string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error)
-	// Set several notifies at once. All or none must succeed.
-	Set(ns ...*types.NotificationInfo) error
-}
