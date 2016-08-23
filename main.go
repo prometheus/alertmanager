@@ -70,6 +70,10 @@ func init() {
 func main() {
 	flag.Parse()
 
+	if len(flag.Args()) > 0 {
+		log.Fatalln("Received unexpected and unparsed arguments: ", strings.Join(flag.Args(), ", "))
+	}
+
 	if *showVersion {
 		fmt.Fprintln(os.Stdout, version.Print("alertmanager"))
 		os.Exit(0)
