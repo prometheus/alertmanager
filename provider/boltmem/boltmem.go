@@ -264,7 +264,7 @@ func (s *Silences) All() (*types.SilencesQueryResponse, error) {
 	return s.Query(len(s.k), 0)
 }
 
-// Query returns n silences starting at offset o.
+// Query returns n silences starting at page offset o.
 func (s *Silences) Query(n, o int) (*types.SilencesQueryResponse, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
