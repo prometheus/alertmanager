@@ -49,7 +49,10 @@ angular.module('am.directives').directive('silenceForm',
     return {
       restrict: 'E',
       scope: {
-        silence: '='
+        silence: '=',
+        formTitle: '@',
+        formSubtitle: '@',
+        buttonText: '@'
       },
       templateUrl: 'app/partials/silence-form.html'
     };
@@ -263,129 +266,185 @@ angular.module('am.controllers').controller('SilenceCtrl',
   }
 );
 
-angular.module('am.controllers').controller('SilencesCtrl',
-  function($scope, Silence) {
-    $scope.silences = [];
-    $scope.order = "endsAt";
+angular.module('am.controllers').controller('SilencesCtrl', function($scope, $location, Silence, silences) {
+  $scope.totalItems = silences.data.totalSilences;
+  var DEFAULT_PER_PAGE = 25;
+  var DEFAULT_PAGE = 1;
+  $scope.silences = [];
+  $scope.order = "endsAt";
 
-    $scope.showForm = false;
+  $scope.showForm = false;
 
-    $scope.toggleForm = function() {
-      $scope.showForm = !$scope.showForm
-    }
-
-    $scope.refresh = function() {
-      Silence.query({},
-        function(data) {
-          $scope.silences = data.data || [];
-	  var now = new Date;
-
-          angular.forEach($scope.silences, function(value) {
-            value.endsAt = new Date(value.endsAt);
-            value.startsAt = new Date(value.startsAt);
-            value.updatedAt = new Date(value.updatedAt);
-
-	    value.elapsed = value.endsAt < now;
-	    value.pending = value.startsAt > now;
-	    value.active = value.startsAt <= now && value.endsAt > now;
-          });
-        },
-        function(data) {
-          $scope.error = data.data;
-        }
-      );
-    };
-
-    $scope.$on('silence-created', function(evt) {
-      $scope.refresh();
-    });
-    $scope.$on('silence-deleted', function(evt) {
-      $scope.refresh();
-    });
-
-    $scope.refresh();
+  $scope.toggleForm = function() {
+    $scope.showForm = !$scope.showForm;
   }
-);
 
-angular.module('am.controllers').controller('SilenceCreateCtrl',
-  function($scope, Silence) {
-    $scope.error = null;
-    $scope.silence = $scope.silence || {};
+  // Pagination
+  $scope.pageChanged = function() {
+    $location.search('page', $scope.currentPage);
+  };
 
-    if (!$scope.silence.matchers) {
-      $scope.silence.matchers = [{}];
+  var params = $location.search()
+  var page = params['page'];
+  if (!page) {
+    $location.search('page', DEFAULT_PAGE);
+  }
+  $scope.currentPage = parseInt($location.search()['page']);
+
+  $scope.itemsPerPage = params['n'];
+  if (isNaN(parseInt($scope.itemsPerPage))) {
+    $scope.itemsPerPage = DEFAULT_PER_PAGE;
+    $location.search('n', $scope.itemsPerPage);
+  }
+
+  $scope.setPerPage = function(n) {
+    $scope.itemsPerPage = n;
+    $location.search('n', $scope.itemsPerPage);
+  };
+
+  // Controls the number of pages to display in the pagination list.
+  $scope.maxSize = 8;
+
+  // Arbitrary suggested page lengths. The user can override this at any time
+  // by entering their own n value in the url.
+  $scope.paginationLengths = [5,15,25,50];
+  // End Pagination
+
+  $scope.refresh = function() {
+    var search = $location.search();
+    var params = {};
+    if (search['page']) {
+      params['offset'] = search['page']-1;
+    } else {
+      params['offset'] = DEFAULT_PAGE-1;
+    }
+    $scope.currentPage = params['offset']+1;
+
+    if (search['n']) {
+      params['n'] = search['n'];
+      $scope.itemsPerPage = params['n'];
+    } else {
+      params['n'] = $scope.itemsPerPage;
+      $scope.setPerPage(params['n']);
     }
 
-    var origSilence = angular.copy($scope.silence);
-
-    $scope.reset = function() {
-      var now = new Date();
-      var end = new Date();
-
-      now.setMilliseconds(0);
-      end.setMilliseconds(0);
-      now.setSeconds(0);
-      end.setSeconds(0);
-
-      end.setHours(end.getHours() + 4)
-
-      $scope.silence = angular.copy(origSilence);
-
-      if (!origSilence.startsAt || origSilence.elapsed) {
-        $scope.silence.startsAt = now;
-      }
-      if (!origSilence.endsAt || origSilence.elapsed) {
-        $scope.silence.endsAt = end;
-      }
-    };
-
-    $scope.reset();
-
-    $scope.addMatcher = function() {
-      $scope.silence.matchers.push({});
-    };
-
-    $scope.delMatcher = function(i) {
-      $scope.silence.matchers.splice(i, 1);
-    };
-
-    $scope.create = function() {
+    Silence.query(params, function(resp) {
+      var data = resp.data;
+      $scope.silences = data.silences || [];
+      $scope.totalItems = data.totalSilences;
       var now = new Date;
-      // Go through conditions that go against immutability of historic silences.
-      var createNew = !angular.equals(origSilence.matchers, $scope.silence.matchers);
-      console.log(origSilence, $scope.silence);
-      createNew = createNew || $scope.silence.elapsed;
-      createNew = createNew || ($scope.silence.active && (origSilence.startsAt == $scope.silence.startsAt || origSilence.endsAt == $scope.silence.endsAt));
 
-      if (createNew) {
-        $scope.silence.id = undefined;
+      angular.forEach($scope.silences, function(value) {
+        value.endsAt = new Date(value.endsAt);
+        value.startsAt = new Date(value.startsAt);
+        value.updatedAt = new Date(value.updatedAt);
+
+        value.elapsed = value.endsAt < now;
+        value.pending = value.startsAt > now;
+        value.active = value.startsAt <= now && value.endsAt > now;
+      });
+    }, function(data) {
+      $scope.error = data.data;
+    });
+  };
+
+  $scope.$on('silence-created', function(evt) {
+    $scope.refresh();
+  });
+  $scope.$on('silence-deleted', function(evt) {
+    $scope.refresh();
+  });
+
+  $scope.elapsed = function(elapsed) {
+    return function(sil) {
+      if (elapsed) {
+        return sil.endsAt <= new Date;
       }
+      return sil.endsAt > new Date;
+    }
+  };
 
-      Silence.create($scope.silence,
-        function(data) {
-	  // If the modifications require creating a new silence,
-	  // we expire/delete the old one.
-          if (createNew && origSilence.id && !$scope.silence.elapsed) {
-	    Silence.delete({id: origSilence.id},
-	      function(data) {
-		// Only trigger reload after after old silence was deleted.
-                $scope.$emit('silence-created');
-	      },
-	      function(data) {
-	        console.warn("deleting silence failed", data);
-                $scope.$emit('silence-created');
-	      });
-          } else {
-	    $scope.$emit('silence-created');
-	  }
-        },
-        function(data) {
-          $scope.error = data.data.error;
-        }
-      );
-    };
+  $scope.$watch(function() {
+    return $location.search();
+  }, function() {
+    $scope.refresh();
+  }, true);
+});
+
+angular.module('am.controllers').controller('SilenceCreateCtrl', function($scope, Silence) {
+  $scope.error = null;
+  $scope.silence = $scope.silence || {};
+
+  if (!$scope.silence.matchers) {
+    $scope.silence.matchers = [{}];
   }
-);
+
+  var origSilence = angular.copy($scope.silence);
+
+  $scope.reset = function() {
+    var now = new Date();
+    var end = new Date();
+
+    now.setMilliseconds(0);
+    end.setMilliseconds(0);
+    now.setSeconds(0);
+    end.setSeconds(0);
+
+    end.setHours(end.getHours() + 4)
+
+    $scope.silence = angular.copy(origSilence);
+
+    if (!origSilence.startsAt || origSilence.elapsed) {
+      $scope.silence.startsAt = now;
+    }
+    if (!origSilence.endsAt || origSilence.elapsed) {
+      $scope.silence.endsAt = end;
+    }
+  };
+
+  $scope.reset();
+
+  $scope.addMatcher = function() {
+    $scope.silence.matchers.push({});
+  };
+
+  $scope.delMatcher = function(i) {
+    $scope.silence.matchers.splice(i, 1);
+  };
+
+  $scope.create = function() {
+    var now = new Date;
+    // Go through conditions that go against immutability of historic silences.
+    var createNew = !angular.equals(origSilence.matchers, $scope.silence.matchers);
+    console.log(origSilence, $scope.silence);
+    createNew = createNew || $scope.silence.elapsed;
+    createNew = createNew || ($scope.silence.active && (origSilence.startsAt == $scope.silence.startsAt || origSilence.endsAt == $scope.silence.endsAt));
+
+    if (createNew) {
+      $scope.silence.id = undefined;
+    }
+
+    Silence.create($scope.silence, function(data) {
+      // If the modifications require creating a new silence,
+      // we expire/delete the old one.
+      if (createNew && origSilence.id && !$scope.silence.elapsed) {
+        Silence.delete({id: origSilence.id},
+          function(data) {
+            // Only trigger reload after after old silence was deleted.
+            $scope.$emit('silence-created');
+          },
+          function(data) {
+            console.warn("deleting silence failed", data);
+            $scope.$emit('silence-created');
+          });
+      } else {
+        $scope.$emit('silence-created');
+      }
+    }, function(data) {
+      $scope.error = data.data.error;
+    });
+  };
+});
 
 angular.module('am.services').factory('Status',
   function($resource) {
@@ -407,7 +466,7 @@ angular.module('am.controllers').controller('StatusCtrl',
         $scope.uptime = data.data.uptime;
       },
       function(data) {
-        console.log(data.data); 
+        console.log(data.data);
       })
   }
 );
@@ -416,6 +475,7 @@ angular.module('am', [
   'ngRoute',
   'ngSanitize',
   'angularMoment',
+  'ui.bootstrap',
 
   'am.controllers',
   'am.services',
@@ -433,6 +493,14 @@ angular.module('am').config(
     when('/silences', {
       templateUrl: 'app/partials/silences.html',
       controller: 'SilencesCtrl',
+      resolve: {
+        silences: function(Silence) {
+          // Required to get the total number of silences before the controller
+          // loads. Without this, the user is forced to page 1 of the
+          // pagination.
+          return Silence.query({'n':0});
+        }
+      },
       reloadOnSearch: false
     }).
     when('/status', {

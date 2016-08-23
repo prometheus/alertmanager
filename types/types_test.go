@@ -15,6 +15,7 @@ package types
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -58,6 +59,37 @@ func TestAlertMerge(t *testing.T) {
 	for _, p := range pairs {
 		if res := p.A.Merge(p.B); !reflect.DeepEqual(p.Res, res) {
 			t.Errorf("unexpected merged alert %#v", res)
+		}
+	}
+}
+
+func TestSilencesSliceSortsDescending(t *testing.T) {
+	t0 := time.Now()
+	ts := []time.Time{
+		t0.Add(15 * time.Minute),
+		t0.Add(10 * time.Minute),
+		t0.Add(5 * time.Minute),
+		t0,
+	}
+	sils := SilencesSlice{
+		&Silence{
+			UpdatedAt: ts[1],
+		},
+		&Silence{
+			UpdatedAt: ts[0],
+		},
+		&Silence{
+			UpdatedAt: ts[3],
+		},
+		&Silence{
+			UpdatedAt: ts[2],
+		},
+	}
+
+	sort.Sort(sils)
+	for i, sil := range sils {
+		if ts[i] != sil.UpdatedAt {
+			t.Fatalf("sort descending failed")
 		}
 	}
 }

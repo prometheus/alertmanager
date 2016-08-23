@@ -445,6 +445,131 @@ func TestSilencesSet(t *testing.T) {
 	}
 }
 
+func TestSilencesQuery(t *testing.T) {
+	var (
+		t0       = time.Now()
+		silences = testNewSilences(t, t0)
+	)
+
+	n := 500
+	insert := make([]*types.Silence, n)
+	for i := 0; i < n; i++ {
+		insert[i] = createNewSilence(t, silences, t0, i)
+	}
+
+	pairs := []queryPair{
+		queryPair{
+			n:      10,
+			offset: 0,
+		},
+		queryPair{
+			n:      10,
+			offset: 2,
+		},
+		queryPair{
+			n:      100,
+			offset: 4,
+		},
+	}
+
+	for _, p := range pairs {
+		res, err := silences.Query(p.n, p.offset)
+		if err != nil {
+			t.Fatalf("Retrieval failed: %s", err)
+		}
+
+		s := res.Silences
+
+		start := p.offset * p.n
+		end := start + p.n
+		if end > n {
+			t.Fatalf("your test data doesn't include the range you're requesting: insert[%d:%d] (max index %d)", start, end, n)
+		}
+		expected := append([]*types.Silence{}, insert[start:end]...)
+
+		if len(s) != p.n {
+			t.Fatalf("incorrect number of silences returned: wanted %d, got %d", p.n, len(s))
+		}
+		if !reflect.DeepEqual(s, expected) {
+			t.Errorf("incorrect silences returned\n")
+			t.Fatalf(pretty.Compare(s, expected))
+		}
+	}
+}
+
+func TestSilencesQueryExceedsAvailable(t *testing.T) {
+	var (
+		t0       = time.Now()
+		silences = testNewSilences(t, t0)
+	)
+
+	n := 50
+	insert := make([]*types.Silence, n)
+	for i := 0; i < n; i++ {
+		insert[i] = createNewSilence(t, silences, t0, i)
+	}
+
+	res, err := silences.Query(n*2, 0)
+	if err != nil {
+		t.Fatalf("Retrieval failed: %s", err)
+	}
+
+	if len(res.Silences) != n {
+		t.Fatalf("incorrect silences length: wanted %d, got %d", n, len(res.Silences))
+	}
+}
+
+func TestSilencesQueryOffsetOutOfBounds(t *testing.T) {
+	var (
+		t0       = time.Now()
+		silences = testNewSilences(t, t0)
+	)
+
+	n := 50
+	insert := make([]*types.Silence, n)
+	for i := 0; i < n; i++ {
+		insert[i] = createNewSilence(t, silences, t0, i)
+	}
+
+	_, err := silences.Query(n*2, 20)
+	if err != types.ErrRequestExceedsAvailable {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func testNewSilences(t *testing.T, t0 time.Time) *Silences {
+	silences, err := NewSilences(nil, log.Base(), time.Hour, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tg := &testGossip{}
+	silences.Register(tg)
+	silences.st.now = func() time.Time { return t0 }
+
+	return silences
+}
+
+type queryPair struct {
+	n, offset int
+}
+
+func createNewSilence(t *testing.T, s *Silences, t0 time.Time, i int) *types.Silence {
+	sil := &types.Silence{
+		Matchers:  types.NewMatchers(types.NewMatcher("a", "b")),
+		StartsAt:  t0.Add(time.Duration(i) * time.Minute),
+		EndsAt:    t0.Add((time.Duration(i) + 1) * time.Minute),
+		CreatedBy: "user",
+		Comment:   "another test comment",
+	}
+	uid, err := s.Set(sil)
+	if err != nil {
+		t.Fatalf("Insert failed: %s", err)
+	}
+	sil.ID = uid
+	return sil
+}
+
 // testGossip implements the mesh.Gossip interface. Received broadcast
 // updates are appended to a list.
 type testGossip struct {

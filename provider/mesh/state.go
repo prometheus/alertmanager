@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"sort"
 	"sync"
 	"time"
 
@@ -214,12 +215,14 @@ func (st *notificationState) mergeDelta(set msg.NotificationInfoSet) *notificati
 type silenceState struct {
 	mtx sync.RWMutex
 	m   map[uuid.UUID]*types.Silence
+	k   []uuid.UUID
 	now func() time.Time // now function for test injection
 }
 
 func newSilenceState() *silenceState {
 	return &silenceState{
 		m:   map[uuid.UUID]*types.Silence{},
+		k:   []uuid.UUID{},
 		now: utcNow,
 	}
 }
@@ -228,12 +231,23 @@ func (st *silenceState) gc(retention time.Duration) {
 	st.mtx.Lock()
 	defer st.mtx.Unlock()
 
+	sils := []*types.Silence{}
 	t := st.now().Add(-retention)
 	for k, v := range st.m {
 		if v.EndsAt.Before(t) {
 			delete(st.m, k)
+		} else {
+			sils = append(sils, v)
 		}
 	}
+
+	sort.Sort(types.SilencesSlice(sils))
+	// create new key cache from sorted existing silences
+	keys := make([]uuid.UUID, len(sils))
+	for i, s := range sils {
+		keys[i] = s.ID
+	}
+	st.k = keys
 }
 
 func (st *silenceState) snapshot(w io.Writer) error {
@@ -266,6 +280,9 @@ func (st *silenceState) loadSnapshot(r io.Reader) error {
 			return fmt.Errorf("iniializing silence failed: %s", err)
 		}
 		st.m[s.ID] = &s
+		// does this need to be zeroed out at the beginning of this
+		// method? or do we rely on gc to clean out extra keys.
+		st.k = append(st.k, s.ID)
 	}
 	return nil
 }
@@ -363,6 +380,7 @@ func (st *silenceState) set(s *types.Silence) error {
 		return err
 	}
 	st.m[s.ID] = s
+	st.k = append(st.k, s.ID)
 	return nil
 }
 
