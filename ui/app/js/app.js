@@ -294,7 +294,7 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   $scope.itemsPerPage = params['limit'];
   if (isNaN(parseInt($scope.itemsPerPage))) {
     $scope.itemsPerPage = DEFAULT_PER_PAGE;
-    $location.search('limit', $scope.itemsPerPage);
+    // $location.search('limit', $scope.itemsPerPage);
   }
 
   $scope.setPerPage = function(n) {
@@ -325,7 +325,7 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
       $scope.itemsPerPage = params['limit'];
     } else {
       params['limit'] = $scope.itemsPerPage;
-      $scope.setPerPage(params['limit']);
+      // $scope.setPerPage(params['limit']);
     }
 
     Silence.query(params, function(resp) {
