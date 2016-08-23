@@ -232,6 +232,7 @@ input[type="datetime-local"]  {
   border-radius: 2px;
   margin-bottom: 0;
   color: rgba(0, 0, 0, 0.85);
+  width: 100%;
 }
 
 /* Routing Tree */
@@ -275,3 +276,10 @@ input[type="datetime-local"]  {
   display: inline-block;
 }
 
+.pointer {
+  cursor: pointer;
+}
+
+.pagination-height {
+  height: 30px;
+}

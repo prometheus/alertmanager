@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -206,6 +207,7 @@ type Silences struct {
 
 	mtx   sync.RWMutex
 	cache map[uint64]*types.Silence
+	k     []uint64
 }
 
 // NewSilences creates a new Silences provider.
@@ -225,6 +227,7 @@ func NewSilences(path string, mk types.Marker) (*Silences, error) {
 		db:    db,
 		mk:    mk,
 		cache: map[uint64]*types.Silence{},
+		k:     []uint64{},
 	}
 	return s, s.initCache()
 }
@@ -238,14 +241,14 @@ func (s *Silences) Close() error {
 // for all its silences. The data provider may have access to an
 // optimized view of the data to perform this evaluation.
 func (s *Silences) Mutes(lset model.LabelSet) bool {
-	sils, err := s.All()
+	resp, err := s.All()
 	if err != nil {
 		log.Errorf("retrieving silences failed: %s", err)
 		// In doubt, do not silence anything.
 		return false
 	}
 
-	for _, sil := range sils {
+	for _, sil := range resp.Silences {
 		if sil.Mutes(lset) {
 			s.mk.SetSilenced(lset.Fingerprint(), sil.ID)
 			return true
@@ -257,15 +260,47 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 }
 
 // All returns all existing silences.
-func (s *Silences) All() ([]*types.Silence, error) {
+func (s *Silences) All() (*types.SilencesQueryResponse, error) {
+	return s.Query(len(s.k), 0)
+}
+
+// Query returns n silences starting at page offset o.
+func (s *Silences) Query(n, o int) (*types.SilencesQueryResponse, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
-	res := make([]*types.Silence, 0, len(s.cache))
-	for _, s := range s.cache {
-		res = append(res, s)
+	klen := len(s.k)
+
+	if klen < n {
+		n = klen
 	}
-	return res, nil
+
+	pageStart := n * o
+	if pageStart > klen {
+		return &types.SilencesQueryResponse{}, types.ErrRequestExceedsAvailable
+	}
+	pageEnd := pageStart + n
+	if pageEnd > klen {
+		pageEnd = klen
+	}
+
+	silences := make([]*types.Silence, pageEnd-pageStart)
+
+	i := 0
+	for _, id := range s.k[pageStart:pageEnd] {
+		// We control the cache and the key so they shouldn't ever be
+		// out of sync, i.e. we don't need to worry about existence
+		// checks on the cache
+
+		// Make sure this silences[i] business is kosher and won't index out
+		// of bounds. Like with a test.
+		silences[i] = s.cache[id]
+		i++
+	}
+	return &types.SilencesQueryResponse{
+		Silences:      silences,
+		TotalSilences: klen,
+	}, nil
 }
 
 func (s *Silences) initCache() error {
@@ -276,6 +311,7 @@ func (s *Silences) initCache() error {
 		b := tx.Bucket(bktSilences)
 		c := b.Cursor()
 
+		sils := []*types.Silence{}
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var ms model.Silence
 			if err := json.Unmarshal(v, &ms); err != nil {
@@ -283,8 +319,18 @@ func (s *Silences) initCache() error {
 			}
 			// The ID is duplicated in the value and always equal
 			// to the stored key.
-			s.cache[ms.ID] = types.NewSilence(&ms)
+			ns := types.NewSilence(&ms)
+			s.cache[ms.ID] = ns
+			sils = append(sils, ns)
 		}
+
+		sort.Sort(types.SilencesSlice(sils))
+		// create new key cache from sorted existing silences
+		keys := make([]uint64, len(sils))
+		for i, s := range sils {
+			keys[i] = s.ID
+		}
+		s.k = keys
 
 		return nil
 	})
@@ -323,6 +369,7 @@ func (s *Silences) Set(sil *types.Silence) (uint64, error) {
 		return 0, err
 	}
 	s.cache[uid] = sil
+	s.k = append(s.k, uid)
 	return uid, nil
 }
 
@@ -343,6 +390,13 @@ func (s *Silences) Del(uid uint64) error {
 		return err
 	}
 	delete(s.cache, uid)
+
+	for i, id := range s.k {
+		if id == uid {
+			s.k = append(s.k[:i], s.k[i+1:]...)
+			break
+		}
+	}
 	return nil
 }
 

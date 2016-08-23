@@ -19,7 +19,7 @@
 	</div>
 
 	<div class="edit-silence" ng-show="showSilenceForm">
-		<silence-form silence="sil"></silence-form>
+    <silence-form silence="sil" form-title="Edit" button-text="Update"></silence-form>
 	</div>
 
 	<div class="detail group" ng-show="showDetails">
@@ -37,7 +37,7 @@
 					<td>active</td>
 					<td>
 						<span>{{ sil.startsAt | date:'yyyy-MM-dd HH:mm' }}</span>
-						– 
+						–
 						<span>{{ sil.endsAt | date:'yyyy-MM-dd HH:mm' }}</span>
 					</td>
 				</tr>

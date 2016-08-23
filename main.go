@@ -46,6 +46,8 @@ var (
 
 	externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 	listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
+
+	devMode = flag.Bool("dev", false, "serve live instead of embedded assets")
 )
 
 var (
@@ -194,8 +196,12 @@ func main() {
 	router := route.New()
 
 	webReload := make(chan struct{})
-	RegisterWeb(router.WithPrefix(amURL.Path), webReload)
+	Register(router.WithPrefix(amURL.Path), webReload, *devMode)
 	api.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
+
+	if *devMode {
+		log.Infoln("devmode: serving live assets")
+	}
 
 	log.Infoln("Listening on", *listenAddress)
 	go listen(router)

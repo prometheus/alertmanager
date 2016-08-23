@@ -14,6 +14,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -269,3 +270,21 @@ func (n *NotifyInfo) Fingerprint() model.Fingerprint {
 
 	return fp ^ n.Alert
 }
+
+type SilencesSlice []*Silence
+
+func (ss SilencesSlice) Less(i, j int) bool { return ss[i].ID > ss[j].ID }
+func (ss SilencesSlice) Swap(i, j int)      { ss[i], ss[j] = ss[j], ss[i] }
+func (ss SilencesSlice) Len() int           { return len(ss) }
+
+// SilencesQueryResponse is the data structure returned from the Query method.
+type SilencesQueryResponse struct {
+	// Silences returned by query.
+	Silences []*Silence `json:"silences"`
+	// Total silences.
+	TotalSilences int `json:"totalSilences"`
+}
+
+var (
+	ErrRequestExceedsAvailable = errors.New("requested offset surpasses total number of resource")
+)
