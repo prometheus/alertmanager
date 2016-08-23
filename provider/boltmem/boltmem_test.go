@@ -600,7 +600,7 @@ func TestSilencesQuery(t *testing.T) {
 		if end > n {
 			t.Fatalf("your test data doesn't include the range you're requesting: insert[%d:%d] (max index %d)", start, end, n)
 		}
-		expected := append([]*types.Silence{}, insert[start:end]...)
+		expected := insert[start:end]
 
 		if len(s) != p.n {
 			t.Fatalf("incorrect number of silences returned: wanted %d, got %d", p.n, len(s))
