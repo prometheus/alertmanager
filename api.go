@@ -379,11 +379,11 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		sortBy = r.URL.Query().Get("sortBy")
 	)
 
-	l, err := strconv.Atoi(limit)
+	l, err := strconv.ParseUint(limit, 10, 32)
 	if err != nil {
 		l = 50
 	}
-	o, err := strconv.Atoi(offset)
+	o, err := strconv.ParseUint(offset, 10, 32)
 	if err != nil {
 		o = 0
 	}
@@ -392,7 +392,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		fn = types.ByEndsAt
 	}
 
-	resp, err := api.silences.Query(l, o, fn)
+	resp, err := api.silences.Query(uint(l), uint(o), fn)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,

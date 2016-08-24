@@ -597,12 +597,12 @@ func TestSilencesQuery(t *testing.T) {
 
 		start := p.offset * p.n
 		end := start + p.n
-		if end > n {
+		if end > uint(n) {
 			t.Fatalf("your test data doesn't include the range you're requesting: insert[%d:%d] (max index %d)", start, end, n)
 		}
 		expected := insert[start:end]
 
-		if len(s) != p.n {
+		if uint(len(s)) != p.n {
 			t.Fatalf("incorrect number of silences returned: wanted %d, got %d", p.n, len(s))
 		}
 		if !reflect.DeepEqual(s, expected) {
@@ -624,7 +624,7 @@ func TestSilencesQueryExceedsAvailable(t *testing.T) {
 		insert[i] = createNewSilence(t, silences, t0, i)
 	}
 
-	res, err := silences.Query(n*2, 0, types.ByCreatedAt)
+	res, err := silences.Query(uint(n*2), 0, types.ByCreatedAt)
 	if err != nil {
 		t.Fatalf("Retrieval failed: %s", err)
 	}
@@ -646,7 +646,7 @@ func TestSilencesQueryOffsetOutOfBounds(t *testing.T) {
 		insert[i] = createNewSilence(t, silences, t0, i)
 	}
 
-	_, err := silences.Query(n*2, 20, types.ByCreatedAt)
+	_, err := silences.Query(uint(n*2), 20, types.ByCreatedAt)
 	if err != types.ErrRequestExceedsAvailable {
 		t.Fatalf("expected error, got none")
 	}
@@ -667,7 +667,7 @@ func testNewSilences(t *testing.T, t0 time.Time) *Silences {
 }
 
 type queryPair struct {
-	n, offset int
+	n, offset uint
 }
 
 func createNewSilence(t *testing.T, s *Silences, t0 time.Time, i int) *types.Silence {

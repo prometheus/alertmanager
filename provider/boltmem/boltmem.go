@@ -261,15 +261,15 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 
 // All returns all existing silences.
 func (s *Silences) All() (*types.SilencesQueryResponse, error) {
-	return s.Query(len(s.sils), 0, types.ByCreatedAt)
+	return s.Query(uint(len(s.sils)), 0, types.ByCreatedAt)
 }
 
 // Query returns at most limit silences starting at offset.
-func (s *Silences) Query(limit, offset int, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error) {
+func (s *Silences) Query(limit, offset uint, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
-	klen := len(s.sils)
+	klen := uint(len(s.sils))
 
 	if klen < limit {
 		limit = klen
