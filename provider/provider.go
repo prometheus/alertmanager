@@ -105,7 +105,7 @@ type Silences interface {
 	// Get at most n silences starting at o offset. Returns
 	// ErrorNoMoreSilences and silences if n exceeds number of silences
 	// found.
-	Query(n, o int, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error)
+	Query(limit, offset int, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error)
 }
 
 // Notifies provides information about pending and successful

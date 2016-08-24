@@ -264,22 +264,22 @@ func (s *Silences) All() (*types.SilencesQueryResponse, error) {
 	return s.Query(len(s.sils), 0, types.ByCreatedAt)
 }
 
-// Query returns n silences starting at page offset o.
-func (s *Silences) Query(n, o int, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error) {
+// Query returns at most limit silences starting at offset.
+func (s *Silences) Query(limit, offset int, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
 	klen := len(s.sils)
 
-	if klen < n {
-		n = klen
+	if klen < limit {
+		limit = klen
 	}
 
-	pageStart := n * o
+	pageStart := limit * offset
 	if pageStart > klen {
 		return &types.SilencesQueryResponse{}, types.ErrRequestExceedsAvailable
 	}
-	pageEnd := pageStart + n
+	pageEnd := pageStart + limit
 	if pageEnd > klen {
 		pageEnd = klen
 	}
