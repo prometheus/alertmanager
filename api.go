@@ -389,7 +389,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	}
 	fn, ok := types.SilenceLessFuncs[types.SortKey(sortBy)]
 	if !ok {
-		fn = types.ByCreatedAt
+		fn = types.ByEndsAt
 	}
 
 	resp, err := api.silences.Query(l, o, fn)
