@@ -99,11 +99,11 @@ a.gen-link button {
 
 .alert-item .overview {
 	background: #f0f0f0;
-	padding: .8em;
+	padding: .8em 0;
 }
 .silence-item .overview {
 	background: #bfbfbf;
-	padding: .8em;
+	padding: .8em 0;
 }
 .silence-item.highlight .overview {
 	background: #dfdfdf;
@@ -145,8 +145,8 @@ a.gen-link button {
 
 .lbl {
 	display: inline-block;
-	font-size: 0.7em;
-	padding: 0 6px;
+	font-size: 0.8em;
+	padding: 4px 6px;
 	margin: 0 2px 2px 0;
 	font-family: Menlo, Monaco, Consolas, sans-serif;
 	border: 1px solid #ccc;
@@ -282,4 +282,8 @@ input[type="datetime-local"]  {
 
 .pagination-height {
   height: 30px;
+}
+
+.btn-spacing {
+  margin: 2px;
 }

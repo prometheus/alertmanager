@@ -1,21 +1,22 @@
 <div class="silence-item {{ highlight ? 'highlight' : ''}}" ng-controller="SilenceCtrl">
 	<div class="overview group">
-		<button type="primary" class="expand" ng-show="showDetails" ng-click="toggleDetails()" small>–</button>
-		<button type="primary" class="expand" ng-hide="showDetails" ng-click="toggleDetails()" small>+</button>
 
-		<div class="labels left">
-			<span ng-repeat="m in sil.matchers | orderBy:name">
-				<span class="lbl {{ m.name == 'alertname' ? 'lbl-highlight' : '' }}">
-					{{ m.name }} =<span ng-show="m.isRegex">~</span> "{{ m.value }}"
-				</span>
-			</span>
-		</div>
+    <div class="col-lg-8">
+      <button type="button" class="btn btn-primary btn-sm btn-spacing pagination-height" ng-show="showDetails" ng-click="toggleDetails()">–</button>
+      <button type="button" class="btn btn-primary btn-sm btn-spacing pagination-height" ng-hide="showDetails" ng-click="toggleDetails()">+</button>
+      <button type="button" ng-repeat="m in sil.matchers | orderBy:name" ng-class="{'btn-danger': m.name == 'alertname'}" class="btn btn-default btn-xs btn-spacing pagination-height">
+        {{ m.name }} =<span ng-show="m.isRegex">~</span> "{{ m.value }}"
+      </button>
+    </div>
 
-		<div class="right">
-			<button type="black" disabled small>Until {{ sil.endsAt | amCalendar }}</button>
-			<button class="delete-button" type="black" ng-click="delete(sil.id)" small upper>Delete</button>
-			<button class="edit-button" type="black" ng-click="toggleSilenceForm()" small upper>Edit</button>
-		</div>
+    <div class="col-lg-4">
+      <div class="pull-right">
+        <button type="black" disabled small>Until {{ sil.endsAt | amCalendar }}</button>
+        <button class="delete-button" type="black" ng-click="delete(sil.id)" small upper>Delete</button>
+        <button class="edit-button" type="black" ng-click="toggleSilenceForm()" small upper>Edit</button>
+      </div>
+    </div>
+
 	</div>
 
 	<div class="edit-silence" ng-show="showSilenceForm">
