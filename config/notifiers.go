@@ -116,6 +116,15 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultPlivoConfig defines default values for plivo calls
+	DefaultPlivoConfig = PlivoConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		AnswerUrl:    `https://s3.amazonaws.com/static.plivo.com/answer.xml`,
+		AnswerMethod: `GET`, // emergency (firing) or normal
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -392,4 +401,42 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+// PlivoConfig configures notifications via Plivo
+type PlivoConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	APIURL       string `yaml:"api_url"`
+	AuthId       string `yaml:"auth_id"`
+	AuthToken    Secret `yaml:"auth_token"`
+	FromNumber   string `yaml:"from_number"`
+	ToNumber     string `yaml:"to_number"`
+	AnswerUrl    string `yaml:"answer_url"`
+	AnswerMethod string `yaml:"answer_method"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *PlivoConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultPlivoConfig
+	type plain PlivoConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.AuthId == "" {
+		return fmt.Errorf("missing auth_id key in Plivo config")
+	}
+	if c.AuthToken == "" {
+		return fmt.Errorf("missing auth_token key in Plivo config")
+	}
+	if c.FromNumber == "" {
+		return fmt.Errorf("missing from_number key in Plivo config")
+	}
+	if c.ToNumber == "" {
+		return fmt.Errorf("missing to_number key in Plivo config")
+	}
+	return checkOverflow(c.XXX, "plivo config")
 }

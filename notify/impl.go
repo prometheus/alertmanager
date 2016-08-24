@@ -110,6 +110,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.PlivoConfigs {
+		n := NewPlivo(c)
+		add("plivo", i, n, c)
+	}
 	return integrations
 }
 
@@ -856,6 +860,75 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
 			return err
 		}
 		return fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+type plivoMessage struct {
+	From         string `json:"from"`
+	To           string `json:"to"`
+	AnswerUrl    string `json:"answer_url"`
+	AnswerMethod string `json:"answer_method"`
+}
+
+type plivoErrorResponse struct {
+	Result  string `json:"result"`
+	Message string `json:"message"`
+}
+
+type Plivo struct {
+	conf *config.PlivoConfig
+}
+
+func NewPlivo(c *config.PlivoConfig) *Plivo {
+	return &Plivo{conf: c}
+}
+
+// Notify implements the Notifier interface.
+func (n *Plivo) Notify(ctx context.Context, as ...*types.Alert) error {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return fmt.Errorf("group key missing")
+	}
+
+	var err error
+	var apiURL = fmt.Sprintf("%s/%s/Call/", n.conf.APIURL, n.conf.AuthId)
+
+	msg := &plivoMessage{
+		From:         n.conf.FromNumber,
+		To:           n.conf.ToNumber,
+		AnswerUrl:    n.conf.AnswerUrl,
+		AnswerMethod: n.conf.AnswerMethod,
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", apiURL, &buf)
+	req.SetBasicAuth(n.conf.AuthId, string(n.conf.AuthToken))
+	req.Header.Add("Content-Type", contentTypeJSON)
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		body, _ := ioutil.ReadAll(resp.Body)
+
+		var responseMessage plivoErrorResponse
+		if err := json.Unmarshal(body, &responseMessage); err != nil {
+			return fmt.Errorf("could not parse error response %q", body)
+		}
+
+		log.With("incident", key).Debugf("unexpected plivo response from %s (POSTed %s), %s: %s", apiURL, msg, resp.Status, body)
+
+		return fmt.Errorf("error when posting alert: result %q, message %q",
+			responseMessage.Result, responseMessage.Message)
 	}
 	return nil
 }
