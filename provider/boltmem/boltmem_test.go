@@ -588,7 +588,7 @@ func TestSilencesQuery(t *testing.T) {
 	}
 
 	for _, p := range pairs {
-		res, err := silences.Query(p.n, p.offset)
+		res, err := silences.Query(p.n, p.offset, types.ByCreatedAt)
 		if err != nil {
 			t.Fatalf("Retrieval failed: %s", err)
 		}
@@ -624,7 +624,7 @@ func TestSilencesQueryExceedsAvailable(t *testing.T) {
 		insert[i] = createNewSilence(t, silences, t0, i)
 	}
 
-	res, err := silences.Query(n*2, 0)
+	res, err := silences.Query(n*2, 0, types.ByCreatedAt)
 	if err != nil {
 		t.Fatalf("Retrieval failed: %s", err)
 	}
@@ -646,7 +646,7 @@ func TestSilencesQueryOffsetOutOfBounds(t *testing.T) {
 		insert[i] = createNewSilence(t, silences, t0, i)
 	}
 
-	_, err := silences.Query(n*2, 20)
+	_, err := silences.Query(n*2, 20, types.ByCreatedAt)
 	if err != types.ErrRequestExceedsAvailable {
 		t.Fatalf("expected error, got none")
 	}

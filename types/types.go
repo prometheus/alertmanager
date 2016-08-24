@@ -271,11 +271,52 @@ func (n *NotifyInfo) Fingerprint() model.Fingerprint {
 	return fp ^ n.Alert
 }
 
-type SilencesSlice []*Silence
+type SilencesLessFunc func(i, j *Silence) bool
+type SortKey string
 
-func (ss SilencesSlice) Less(i, j int) bool { return ss[i].ID > ss[j].ID }
-func (ss SilencesSlice) Swap(i, j int)      { ss[i], ss[j] = ss[j], ss[i] }
-func (ss SilencesSlice) Len() int           { return len(ss) }
+var (
+	createdAt SortKey = "createdAt"
+	startsAt  SortKey = "startsAt"
+	endsAt    SortKey = "endsAt"
+)
+
+func ByCreatedAt(i, j *Silence) bool {
+	return i.CreatedAt.After(j.CreatedAt)
+}
+
+func ByStartsAt(i, j *Silence) bool {
+	return i.StartsAt.After(j.StartsAt)
+}
+
+func ByEndsAt(i, j *Silence) bool {
+	return i.EndsAt.After(j.EndsAt)
+}
+
+var SilenceLessFuncs = map[SortKey]SilencesLessFunc{
+	createdAt: ByCreatedAt,
+	startsAt:  ByStartsAt,
+	endsAt:    ByEndsAt,
+}
+
+type SilencesSorter struct {
+	silences []*Silence
+	less     SilencesLessFunc
+}
+
+func NewSilencesSorter(s []*Silence, fn SilencesLessFunc) *SilencesSorter {
+	return &SilencesSorter{
+		silences: s,
+		less:     fn,
+	}
+}
+
+func (ss SilencesSorter) Swap(i, j int) {
+	ss.silences[i], ss.silences[j] = ss.silences[j], ss.silences[i]
+}
+func (ss SilencesSorter) Len() int { return len(ss.silences) }
+func (ss SilencesSorter) Less(i, j int) bool {
+	return ss.less(ss.silences[i], ss.silences[j])
+}
 
 // SilencesQueryResponse is the data structure returned from the Query method.
 type SilencesQueryResponse struct {
