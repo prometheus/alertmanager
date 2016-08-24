@@ -284,16 +284,45 @@ func (s *Silences) Query(n, o int, fn types.SilencesLessFunc) (*types.SilencesQu
 		pageEnd = klen
 	}
 
-	copiedSils := make([]*types.Silence, klen)
-	copy(copiedSils, s.sils)
+	active, pending, elapsed := s.toBuckets()
+	sort.Sort(types.NewSilencesSorter(active, fn))
+	sort.Sort(types.NewSilencesSorter(pending, fn))
+	sort.Sort(types.NewSilencesSorter(elapsed, fn))
 
-	ss := types.NewSilencesSorter(copiedSils, fn)
-	sort.Sort(ss)
+	copiedSils := make([]*types.Silence, klen)
+	i := 0
+	for _, sil := range active {
+		copiedSils[i] = sil
+		i++
+	}
+	for _, sil := range pending {
+		copiedSils[i] = sil
+		i++
+	}
+	for _, sil := range elapsed {
+		copiedSils[i] = sil
+		i++
+	}
 
 	return &types.SilencesQueryResponse{
 		Silences:      copiedSils[pageStart:pageEnd],
-		TotalSilences: klen,
+		TotalSilences: len(copiedSils),
 	}, nil
+}
+
+func (s *Silences) toBuckets() (active []*types.Silence, pending []*types.Silence, elapsed []*types.Silence) {
+	now := time.Now()
+	for _, sil := range s.sils {
+		switch {
+		case sil.EndsAt.Before(now):
+			elapsed = append(elapsed, sil)
+		case sil.StartsAt.After(now):
+			pending = append(pending, sil)
+		default:
+			active = append(active, sil)
+		}
+	}
+	return
 }
 
 func (s *Silences) initCache() error {
