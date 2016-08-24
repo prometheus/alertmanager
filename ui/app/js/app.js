@@ -266,8 +266,8 @@ angular.module('am.controllers').controller('SilenceCtrl',
   }
 );
 
-angular.module('am.controllers').controller('SilencesCtrl', function($scope, $location, Silence, silences) {
-  $scope.totalItems = silences.data.totalSilences;
+angular.module('am.controllers').controller('SilencesCtrl', function($scope, $location, Silence, totalSilences) {
+  $scope.totalItems = totalSilences;
   var DEFAULT_PER_PAGE = 25;
   var DEFAULT_PAGE = 1;
   $scope.silences = [];
@@ -494,11 +494,15 @@ angular.module('am').config(
       templateUrl: 'app/partials/silences.html',
       controller: 'SilencesCtrl',
       resolve: {
-        silences: function(Silence) {
+        totalSilences: function($q, Silence) {
           // Required to get the total number of silences before the controller
           // loads. Without this, the user is forced to page 1 of the
           // pagination.
-          return Silence.query({'limit':0});
+          var defer = $q.defer();
+          Silence.query({'limit':0}, function(resp) {
+            defer.resolve(resp.data.totalSilences);
+          });
+          return defer.promise;
         }
       },
       reloadOnSearch: false
