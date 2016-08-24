@@ -280,29 +280,37 @@ var (
 	endsAt    SortKey = "endsAt"
 )
 
+// ByCreatedAt sorts compares CreatedAt times for silences.
 func ByCreatedAt(i, j *Silence) bool {
 	return i.CreatedAt.After(j.CreatedAt)
 }
 
+// ByStartsAt sorts compares StartsAt times for silences.
 func ByStartsAt(i, j *Silence) bool {
 	return i.StartsAt.After(j.StartsAt)
 }
 
+// ByEndsAt sorts compares EndsAt times for silences.
 func ByEndsAt(i, j *Silence) bool {
 	return i.EndsAt.After(j.EndsAt)
 }
 
+// SilenceLessFuncs provides a typesafe way to take user input and select a
+// SilencesLessFunc.
 var SilenceLessFuncs = map[SortKey]SilencesLessFunc{
 	createdAt: ByCreatedAt,
 	startsAt:  ByStartsAt,
 	endsAt:    ByEndsAt,
 }
 
+// SilencesSorter implements the sort interface to sort a slice of silences
+// according to less.
 type SilencesSorter struct {
 	silences []*Silence
 	less     SilencesLessFunc
 }
 
+// NewSilencesSorter returns a new SilencesSorter.
 func NewSilencesSorter(s []*Silence, fn SilencesLessFunc) *SilencesSorter {
 	return &SilencesSorter{
 		silences: s,
