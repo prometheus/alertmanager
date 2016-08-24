@@ -310,7 +310,7 @@ func (s *Silences) Query(n, o int, fn types.SilencesLessFunc) (*types.SilencesQu
 	}, nil
 }
 
-func (s *Silences) toBuckets() (active []*types.Silence, pending []*types.Silence, elapsed []*types.Silence) {
+func (s *Silences) toBuckets() (active, pending, elapsed []*types.Silence) {
 	now := time.Now()
 	for _, sil := range s.sils {
 		switch {
