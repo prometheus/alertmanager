@@ -94,8 +94,6 @@ type Silences interface {
 	// optimized view of the data to perform this evaluation.
 	types.Muter
 
-	// All returns all existing silences.
-	All() (*types.SilencesQueryResponse, error)
 	// Set a new silence.
 	Set(*types.Silence) (uint64, error)
 	// Del removes a silence.

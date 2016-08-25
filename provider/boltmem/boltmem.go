@@ -241,7 +241,10 @@ func (s *Silences) Close() error {
 // for all its silences. The data provider may have access to an
 // optimized view of the data to perform this evaluation.
 func (s *Silences) Mutes(lset model.LabelSet) bool {
-	resp, err := s.All()
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	resp, err := s.Query(uint(len(s.sils)), 0, types.ByEndsAt)
 	if err != nil {
 		log.Errorf("retrieving silences failed: %s", err)
 		// In doubt, do not silence anything.
@@ -257,11 +260,6 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 
 	s.mk.SetSilenced(lset.Fingerprint())
 	return false
-}
-
-// All returns all existing silences.
-func (s *Silences) All() (*types.SilencesQueryResponse, error) {
-	return s.Query(uint(len(s.sils)), 0, types.ByCreatedAt)
 }
 
 // Query returns at most limit silences starting at offset.
