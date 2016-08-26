@@ -1,0 +1,11 @@
+FROM golang:alpine
+
+RUN apk --update --no-cache add git make
+
+# RUN mkdir -p $GOPATH/src/github.com/prometheus &&\
+#     cd $GOPATH/src/github.com/prometheus &&\
+#     git clone https://github.com/prometheus/alertmanager.git
+
+WORKDIR $GOPATH/src/github.com/prometheus/alertmanager
+
+CMD ["make", "build"]
