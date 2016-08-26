@@ -228,6 +228,26 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIURL += "/"
 			}
 		}
+		for _, pli := range rcv.PlivoConfigs {
+			if pli.APIURL == "" {
+				if c.Global.PlivoAPIURL == "" {
+					return fmt.Errorf("no global Plivo APIURL set")
+				}
+				pli.APIURL = c.Global.PlivoAPIURL
+			}
+			if pli.AuthId == "" {
+				if c.Global.PlivoAuthId == "" {
+					return fmt.Errorf("no global plivo AuthId set")
+				}
+				pli.AuthId = c.Global.PlivoAuthId
+			}
+			if pli.AuthToken == "" {
+				if c.Global.PlivoAuthToken == "" {
+					return fmt.Errorf("no global plivo AuthToken set")
+				}
+				pli.AuthToken = c.Global.PlivoAuthToken
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -276,6 +296,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	HipchatURL:      "https://api.hipchat.com/",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
+	PlivoAPIURL:     "https://api.plivo.com/v1/Account",
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -297,6 +318,9 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url"`
+	PlivoAuthId      string `yaml:"plivo_auth_id"`
+	PlivoAuthToken   Secret `yaml:"plivo_auth_token"`
+	PlivoAPIURL      string `yaml:"plivo_api_url"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -426,6 +450,7 @@ type Receiver struct {
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty"`
+	PlivoConfigs     []*PlivoConfig     `yaml:"plivo_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
