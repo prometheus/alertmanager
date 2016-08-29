@@ -15,22 +15,13 @@
     <div class="col-sm-1">
       <button ng-hide="showForm" type="button" class="btn btn-primary btn-sm" ng-click="toggleForm()">New Silence</button>
     </div>
-    </div>
+  </div>
   <div class="row">
     <div class="col-sm-4">
       <label class="sr-only">Search</label>
       <input class="form-control" placeholder="Search" ng-model="query">
     </div>
-    <div class="col-sm-2">
-      <label class="sr-only">Sort order</label>
-      <select class="form-control" ng-model="order">
-        <option value="startsAt">start</option>
-        <option value="endsAt">end</option>
-        <option value="createdAt">created</option>
-      </select>
-    </div>
   </div>
-    </div>
 </div>
 
 <div uib-dropdown dropdown-append-to-body ng-if="false">

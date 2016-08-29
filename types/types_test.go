@@ -63,31 +63,95 @@ func TestAlertMerge(t *testing.T) {
 	}
 }
 
-func TestSilencesSliceSortsDescending(t *testing.T) {
-	ts := []uint64{
-		15,
-		10,
-		5,
-		0,
+func TestSilencesSliceSortsCreatedAt(t *testing.T) {
+	t0 := time.Now()
+	ts := []time.Time{
+		t0.Add(15 * time.Minute),
+		t0.Add(10 * time.Minute),
+		t0.Add(5 * time.Minute),
+		t0,
 	}
-	sils := SilencesSlice{
-		&Silence{
-			Silence: model.Silence{ID: ts[1]},
-		},
-		&Silence{
-			Silence: model.Silence{ID: ts[0]},
-		},
-		&Silence{
-			Silence: model.Silence{ID: ts[3]},
-		},
-		&Silence{
-			Silence: model.Silence{ID: ts[2]},
-		},
-	}
+	ss := NewSilencesSorter(
+		[]*Silence{
+			&Silence{
+				Silence: model.Silence{CreatedAt: ts[1]},
+			},
+			&Silence{
+				Silence: model.Silence{CreatedAt: ts[0]},
+			},
+			&Silence{
+				Silence: model.Silence{CreatedAt: ts[3]},
+			},
+			&Silence{
+				Silence: model.Silence{CreatedAt: ts[2]},
+			},
+		}, ByCreatedAt)
 
-	sort.Sort(sils)
-	for i, sil := range sils {
-		if ts[i] != sil.Silence.ID {
+	sort.Sort(ss)
+	for i, sil := range ss.silences {
+		if ts[i] != sil.Silence.CreatedAt {
+			t.Fatalf("sort descending failed")
+		}
+	}
+}
+func TestSilencesSliceSortsEndsAt(t *testing.T) {
+	t0 := time.Now()
+	ts := []time.Time{
+		t0.Add(15 * time.Minute),
+		t0.Add(10 * time.Minute),
+		t0.Add(5 * time.Minute),
+		t0,
+	}
+	ss := NewSilencesSorter(
+		[]*Silence{
+			&Silence{
+				Silence: model.Silence{EndsAt: ts[1]},
+			},
+			&Silence{
+				Silence: model.Silence{EndsAt: ts[0]},
+			},
+			&Silence{
+				Silence: model.Silence{EndsAt: ts[3]},
+			},
+			&Silence{
+				Silence: model.Silence{EndsAt: ts[2]},
+			},
+		}, ByEndsAt)
+
+	sort.Sort(ss)
+	for i, sil := range ss.silences {
+		if ts[i] != sil.Silence.EndsAt {
+			t.Fatalf("sort descending failed")
+		}
+	}
+}
+func TestSilencesSliceSortsStartsAt(t *testing.T) {
+	t0 := time.Now()
+	ts := []time.Time{
+		t0.Add(15 * time.Minute),
+		t0.Add(10 * time.Minute),
+		t0.Add(5 * time.Minute),
+		t0,
+	}
+	ss := NewSilencesSorter(
+		[]*Silence{
+			&Silence{
+				Silence: model.Silence{StartsAt: ts[1]},
+			},
+			&Silence{
+				Silence: model.Silence{StartsAt: ts[0]},
+			},
+			&Silence{
+				Silence: model.Silence{StartsAt: ts[3]},
+			},
+			&Silence{
+				Silence: model.Silence{StartsAt: ts[2]},
+			},
+		}, ByStartsAt)
+
+	sort.Sort(ss)
+	for i, sil := range ss.silences {
+		if ts[i] != sil.Silence.StartsAt {
 			t.Fatalf("sort descending failed")
 		}
 	}

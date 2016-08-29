@@ -271,8 +271,6 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   var DEFAULT_PER_PAGE = 25;
   var DEFAULT_PAGE = 1;
   $scope.silences = [];
-  $scope.order = "endsAt";
-
   $scope.showForm = false;
 
   $scope.toggleForm = function() {

@@ -374,20 +374,25 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	var (
-		limit  = r.FormValue("limit")
-		offset = r.FormValue("offset")
+		limit  = r.URL.Query().Get("limit")
+		offset = r.URL.Query().Get("offset")
+		sortBy = r.URL.Query().Get("sortBy")
 	)
 
-	l, err := strconv.Atoi(limit)
+	l, err := strconv.ParseUint(limit, 10, 32)
 	if err != nil {
 		l = 50
 	}
-	o, err := strconv.Atoi(offset)
+	o, err := strconv.ParseUint(offset, 10, 32)
 	if err != nil {
 		o = 0
 	}
+	fn, ok := types.SilenceLessFuncs[types.SortKey(sortBy)]
+	if !ok {
+		fn = types.ByEndsAt
+	}
 
-	resp, err := api.silences.Query(l, o)
+	resp, err := api.silences.Query(uint(l), uint(o), fn)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,

@@ -94,8 +94,6 @@ type Silences interface {
 	// optimized view of the data to perform this evaluation.
 	types.Muter
 
-	// All returns all existing silences.
-	All() (*types.SilencesQueryResponse, error)
 	// Set a new silence.
 	Set(*types.Silence) (uint64, error)
 	// Del removes a silence.
@@ -105,7 +103,7 @@ type Silences interface {
 	// Get at most n silences starting at o offset. Returns
 	// ErrorNoMoreSilences and silences if n exceeds number of silences
 	// found.
-	Query(n, o int) (*types.SilencesQueryResponse, error)
+	Query(limit, offset uint, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error)
 }
 
 // Notifies provides information about pending and successful

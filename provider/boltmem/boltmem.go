@@ -207,7 +207,7 @@ type Silences struct {
 
 	mtx   sync.RWMutex
 	cache map[uint64]*types.Silence
-	k     []uint64
+	sils  []*types.Silence
 }
 
 // NewSilences creates a new Silences provider.
@@ -227,7 +227,7 @@ func NewSilences(path string, mk types.Marker) (*Silences, error) {
 		db:    db,
 		mk:    mk,
 		cache: map[uint64]*types.Silence{},
-		k:     []uint64{},
+		sils:  []*types.Silence{},
 	}
 	return s, s.initCache()
 }
@@ -241,7 +241,10 @@ func (s *Silences) Close() error {
 // for all its silences. The data provider may have access to an
 // optimized view of the data to perform this evaluation.
 func (s *Silences) Mutes(lset model.LabelSet) bool {
-	resp, err := s.All()
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	resp, err := s.Query(uint(len(s.sils)), 0, types.ByEndsAt)
 	if err != nil {
 		log.Errorf("retrieving silences failed: %s", err)
 		// In doubt, do not silence anything.
@@ -259,48 +262,65 @@ func (s *Silences) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
-// All returns all existing silences.
-func (s *Silences) All() (*types.SilencesQueryResponse, error) {
-	return s.Query(len(s.k), 0)
-}
-
-// Query returns n silences starting at page offset o.
-func (s *Silences) Query(n, o int) (*types.SilencesQueryResponse, error) {
+// Query returns at most limit silences starting at offset.
+func (s *Silences) Query(limit, offset uint, fn types.SilencesLessFunc) (*types.SilencesQueryResponse, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
-	klen := len(s.k)
+	klen := uint(len(s.sils))
 
-	if klen < n {
-		n = klen
+	if klen < limit {
+		limit = klen
 	}
 
-	pageStart := n * o
+	pageStart := limit * offset
 	if pageStart > klen {
 		return &types.SilencesQueryResponse{}, types.ErrRequestExceedsAvailable
 	}
-	pageEnd := pageStart + n
+	pageEnd := pageStart + limit
 	if pageEnd > klen {
 		pageEnd = klen
 	}
 
-	silences := make([]*types.Silence, pageEnd-pageStart)
+	active, pending, elapsed := s.toBuckets()
+	sort.Sort(types.NewSilencesSorter(active, fn))
+	sort.Sort(types.NewSilencesSorter(pending, fn))
+	sort.Sort(types.NewSilencesSorter(elapsed, fn))
 
+	copiedSils := make([]*types.Silence, klen)
 	i := 0
-	for _, id := range s.k[pageStart:pageEnd] {
-		// We control the cache and the key so they shouldn't ever be
-		// out of sync, i.e. we don't need to worry about existence
-		// checks on the cache
-
-		// Make sure this silences[i] business is kosher and won't index out
-		// of bounds. Like with a test.
-		silences[i] = s.cache[id]
+	for _, sil := range active {
+		copiedSils[i] = sil
 		i++
 	}
+	for _, sil := range pending {
+		copiedSils[i] = sil
+		i++
+	}
+	for _, sil := range elapsed {
+		copiedSils[i] = sil
+		i++
+	}
+
 	return &types.SilencesQueryResponse{
-		Silences:      silences,
-		TotalSilences: klen,
+		Silences:      copiedSils[pageStart:pageEnd],
+		TotalSilences: len(copiedSils),
 	}, nil
+}
+
+func (s *Silences) toBuckets() (active, pending, elapsed []*types.Silence) {
+	now := time.Now()
+	for _, sil := range s.sils {
+		switch {
+		case sil.EndsAt.Before(now):
+			elapsed = append(elapsed, sil)
+		case sil.StartsAt.After(now):
+			pending = append(pending, sil)
+		default:
+			active = append(active, sil)
+		}
+	}
+	return
 }
 
 func (s *Silences) initCache() error {
@@ -324,13 +344,7 @@ func (s *Silences) initCache() error {
 			sils = append(sils, ns)
 		}
 
-		sort.Sort(types.SilencesSlice(sils))
-		// create new key cache from sorted existing silences
-		keys := make([]uint64, len(sils))
-		for i, s := range sils {
-			keys[i] = s.ID
-		}
-		s.k = keys
+		s.sils = sils
 
 		return nil
 	})
@@ -369,7 +383,7 @@ func (s *Silences) Set(sil *types.Silence) (uint64, error) {
 		return 0, err
 	}
 	s.cache[uid] = sil
-	s.k = append(s.k, uid)
+	s.sils = append(s.sils, sil)
 	return uid, nil
 }
 
@@ -391,9 +405,9 @@ func (s *Silences) Del(uid uint64) error {
 	}
 	delete(s.cache, uid)
 
-	for i, id := range s.k {
-		if id == uid {
-			s.k = append(s.k[:i], s.k[i+1:]...)
+	for i, sil := range s.sils {
+		if sil.ID == uid {
+			s.sils = append(s.sils[:i], s.sils[i+1:]...)
 			break
 		}
 	}

@@ -207,77 +207,6 @@ func TestSilencesDelete(t *testing.T) {
 	}
 }
 
-func TestSilencesAll(t *testing.T) {
-	var (
-		t0 = time.Now()
-		t1 = t0.Add(10 * time.Minute)
-		t2 = t0.Add(20 * time.Minute)
-		t3 = t0.Add(30 * time.Minute)
-	)
-
-	insert := []*types.Silence{
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
-				{Name: "key", Value: "val"},
-			},
-			StartsAt:  t0,
-			EndsAt:    t2,
-			CreatedAt: t1,
-			CreatedBy: "user",
-			Comment:   "test comment",
-		}),
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
-				{Name: "key", Value: "val"},
-				{Name: "key2", Value: "val2.*", IsRegex: true},
-			},
-			StartsAt:  t1,
-			EndsAt:    t2,
-			CreatedAt: t1,
-			CreatedBy: "user2",
-			Comment:   "test comment",
-		}),
-		types.NewSilence(&model.Silence{
-			Matchers: []*model.Matcher{
-				{Name: "key", Value: "val"},
-			},
-			StartsAt:  t2,
-			EndsAt:    t3,
-			CreatedAt: t3,
-			CreatedBy: "user",
-			Comment:   "another test comment",
-		}),
-	}
-
-	dir, err := ioutil.TempDir("", "silences_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	silences, err := NewSilences(dir, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, sil := range insert {
-		uid, err := silences.Set(sil)
-		if err != nil {
-			t.Fatalf("Insert failed: %s", err)
-		}
-		sil.ID = uid
-	}
-
-	res, err := silences.All()
-	if err != nil {
-		t.Fatalf("Retrieval failed: %s", err)
-	}
-
-	if silenceListEqual(res.Silences, insert) {
-		t.Errorf("Unexpected result")
-		t.Fatalf(pretty.Compare(res, insert))
-	}
-}
-
 func TestSilencesMutes(t *testing.T) {
 	var (
 		t0 = time.Now()
@@ -588,7 +517,7 @@ func TestSilencesQuery(t *testing.T) {
 	}
 
 	for _, p := range pairs {
-		res, err := silences.Query(p.n, p.offset)
+		res, err := silences.Query(p.n, p.offset, types.ByCreatedAt)
 		if err != nil {
 			t.Fatalf("Retrieval failed: %s", err)
 		}
@@ -597,12 +526,12 @@ func TestSilencesQuery(t *testing.T) {
 
 		start := p.offset * p.n
 		end := start + p.n
-		if end > n {
+		if end > uint(n) {
 			t.Fatalf("your test data doesn't include the range you're requesting: insert[%d:%d] (max index %d)", start, end, n)
 		}
 		expected := insert[start:end]
 
-		if len(s) != p.n {
+		if uint(len(s)) != p.n {
 			t.Fatalf("incorrect number of silences returned: wanted %d, got %d", p.n, len(s))
 		}
 		if !reflect.DeepEqual(s, expected) {
@@ -624,7 +553,7 @@ func TestSilencesQueryExceedsAvailable(t *testing.T) {
 		insert[i] = createNewSilence(t, silences, t0, i)
 	}
 
-	res, err := silences.Query(n*2, 0)
+	res, err := silences.Query(uint(n*2), 0, types.ByCreatedAt)
 	if err != nil {
 		t.Fatalf("Retrieval failed: %s", err)
 	}
@@ -646,7 +575,7 @@ func TestSilencesQueryOffsetOutOfBounds(t *testing.T) {
 		insert[i] = createNewSilence(t, silences, t0, i)
 	}
 
-	_, err := silences.Query(n*2, 20)
+	_, err := silences.Query(uint(n*2), 20, types.ByCreatedAt)
 	if err != types.ErrRequestExceedsAvailable {
 		t.Fatalf("expected error, got none")
 	}
@@ -667,7 +596,7 @@ func testNewSilences(t *testing.T, t0 time.Time) *Silences {
 }
 
 type queryPair struct {
-	n, offset int
+	n, offset uint
 }
 
 func createNewSilence(t *testing.T, s *Silences, t0 time.Time, i int) *types.Silence {
