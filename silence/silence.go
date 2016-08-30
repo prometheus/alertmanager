@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The silence package provides a storage for silences, which can share its
+// Package silence provides a storage for silences, which can share its
 // state over a mesh network and snapshot it.
 package silence
 
@@ -43,7 +43,7 @@ func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
-// Silences holds a silence state that can be modified, queried, and snapshottet.
+// Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
 	logger    log.Logger
 	now       func() time.Time
@@ -60,6 +60,7 @@ type Silences struct {
 }
 
 // Options exposes configuration options for creating a new Silences object.
+// Its zero value is a safe default.
 type Options struct {
 	// A snapshot file or reader from which the initial state is loaded.
 	// None or only one of them must be set.
@@ -709,7 +710,7 @@ func (gd gossipData) clone() gossipData {
 	return res
 }
 
-// Merge the silence set with gosip data and reutrn a new silence state.
+// Merge the silence set with gossip data and reutrn a new silence state.
 func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
 	for id, s := range other.(gossipData) {
 		prev, ok := gd[id]

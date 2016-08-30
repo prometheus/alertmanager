@@ -297,7 +297,7 @@ func (s *Silence) Mutes(lset model.LabelSet) bool {
 	return s.Matchers.Match(lset)
 }
 
-// Returns whether a silence is deleted. Semantically this means it had no effect
+// Deleted returns whether a silence is deleted. Semantically this means it had no effect
 // on history at any point.
 func (s *Silence) Deleted() bool {
 	return s.StartsAt.Equal(s.EndsAt)
