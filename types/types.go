@@ -15,7 +15,6 @@ package types
 
 import (
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strings"
 	"sync"
@@ -302,27 +301,4 @@ func (s *Silence) Mutes(lset model.LabelSet) bool {
 // on history at any point.
 func (s *Silence) Deleted() bool {
 	return s.StartsAt.Equal(s.EndsAt)
-}
-
-// NotifcationInfo holds information about the last successful notification
-// of an alert to a receiver.
-type NotificationInfo struct {
-	Alert     model.Fingerprint
-	Receiver  string
-	Resolved  bool
-	Timestamp time.Time
-}
-
-func (n *NotificationInfo) String() string {
-	return fmt.Sprintf("<Notify:%q@%s to=%v res=%v>", n.Alert, n.Timestamp, n.Receiver, n.Resolved)
-}
-
-// Fingerprint returns a quasi-unique fingerprint for the NotifyInfo.
-func (n *NotificationInfo) Fingerprint() model.Fingerprint {
-	h := fnv.New64a()
-	h.Write([]byte(n.Receiver))
-
-	fp := model.Fingerprint(h.Sum64())
-
-	return fp ^ n.Alert
 }

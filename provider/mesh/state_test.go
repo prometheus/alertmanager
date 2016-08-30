@@ -14,61 +14,6 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-func TestNotificationStateGC(t *testing.T) {
-	now := utcNow()
-
-	initial := map[notificationKey]notificationEntry{
-		{"", 1}: {true, now, now.Add(10 * time.Second)},
-		{"", 2}: {true, now.Add(30 * time.Minute), now.Add(time.Second)},
-		{"", 3}: {true, now.Add(-30 * time.Minute), now},
-		{"", 5}: {true, now.Add(-61 * time.Minute), now.Add(-time.Second)},
-	}
-	final := map[notificationKey]notificationEntry{
-		{"", 1}: {true, now, now.Add(10 * time.Second)},
-		{"", 2}: {true, now.Add(30 * time.Minute), now.Add(time.Second)},
-	}
-
-	st := newNotificationState()
-	st.now = func() time.Time { return now }
-	st.set = initial
-	st.gc()
-
-	if !reflect.DeepEqual(st.set, final) {
-		t.Errorf("Unexpected state after GC")
-		t.Errorf("%s", pretty.Compare(st.set, final))
-	}
-}
-
-func TestNotificationStateSnapshot(t *testing.T) {
-	now := utcNow()
-
-	initial := map[notificationKey]notificationEntry{
-		{"abc", 123}: {false, now.Add(30 * time.Minute), now.Add(time.Hour)},
-		{"xyz", 789}: {false, now, now.Add(time.Second)},
-	}
-
-	st := newNotificationState()
-	st.now = func() time.Time { return now }
-	st.set = initial
-
-	var buf bytes.Buffer
-
-	if err := st.snapshot(&buf); err != nil {
-		t.Fatalf("Snapshotting failed: %s", err)
-	}
-
-	st = newNotificationState()
-
-	if err := st.loadSnapshot(&buf); err != nil {
-		t.Fatalf("Loading snapshot failed: %s", err)
-	}
-
-	if !reflect.DeepEqual(st.set, initial) {
-		t.Errorf("Loaded snapshot did not match")
-		t.Errorf("%s", pretty.Compare(st.set, initial))
-	}
-}
-
 func TestSilenceStateGC(t *testing.T) {
 	var (
 		now = utcNow()
