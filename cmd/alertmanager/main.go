@@ -40,7 +40,7 @@ import (
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
-	meshprov "github.com/prometheus/alertmanager/provider/mesh"
+	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
@@ -106,6 +106,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	logger := kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
+	logger = kitlog.NewContext(logger).With("ts", kitlog.DefaultTimestampUTC, "caller", kitlog.DefaultCaller)
+
 	mrouter := initMesh(*meshListen, *hwaddr, *nickname)
 
 	stopc := make(chan struct{})
@@ -119,7 +122,7 @@ func main() {
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
-		nflog.WithLogger(kitlog.NewLogfmtLogger(os.Stdout)),
+		nflog.WithLogger(kitlog.NewContext(logger).With("component", "nflog")),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -127,15 +130,24 @@ func main() {
 
 	marker := types.NewMarker()
 
-	silences, err := meshprov.NewSilences(marker, log.Base(), *retention, filepath.Join(*dataDir, "silences"))
+	silences, err := silence.New(silence.Options{
+		SnapshotFile: filepath.Join(*dataDir, "silences"),
+		Retention:    *retention,
+		Logger:       kitlog.NewContext(logger).With("component", "silences"),
+		Gossip: func(g mesh.Gossiper) mesh.Gossip {
+			return mrouter.NewGossip("silences", g)
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	silences.Register(mrouter.NewGossip("silences", silences))
 
 	// Start providers before router potentially sends updates.
-	go silences.Run()
 	wg.Add(1)
+	go func() {
+		silences.Maintenance(15*time.Minute, filepath.Join(*dataDir, "silences"), stopc)
+		wg.Done()
+	}()
 
 	mrouter.Start()
 
@@ -143,11 +155,6 @@ func main() {
 		close(stopc)
 		// Stop receiving updates from router before shutting down.
 		mrouter.Stop()
-
-		go func() {
-			silences.Stop()
-			wg.Done()
-		}()
 		wg.Wait()
 	}()
 

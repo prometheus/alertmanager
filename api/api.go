@@ -20,16 +20,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
-	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -55,7 +57,7 @@ func init() {
 // API provides registration of handlers for API routes.
 type API struct {
 	alerts         provider.Alerts
-	silences       provider.Silences
+	silences       *silence.Silences
 	config         string
 	resolveTimeout time.Duration
 	uptime         time.Time
@@ -68,7 +70,7 @@ type API struct {
 }
 
 // New returns a new API.
-func New(alerts provider.Alerts, silences provider.Silences, gf func() dispatch.AlertOverview) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.AlertOverview) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,
@@ -292,16 +294,20 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
-
-	if err := sil.Init(); err != nil {
+	psil, err := silenceToProto(&sil)
+	if err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
 	}
+	// Drop start time for new silences so we default to now.
+	if sil.ID == "" && sil.StartsAt.Before(time.Now()) {
+		psil.StartsAt = nil
+	}
 
-	sid, err := api.silences.Set(&sil)
+	sid, err := api.silences.Create(psil)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -311,46 +317,38 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond(w, struct {
-		SilenceID uuid.UUID `json:"silenceId"`
+		SilenceID string `json:"silenceId"`
 	}{
 		SilenceID: sid,
 	})
 }
 
 func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
-	sids := route.Param(api.context(r), "sid")
-	sid, err := uuid.FromString(sids)
-	if err != nil {
-		respondError(w, apiError{
-			typ: errorBadData,
-			err: err,
-		}, nil)
-		return
-	}
+	sid := route.Param(api.context(r), "sid")
 
-	sil, err := api.silences.Get(sid)
-	if err != nil {
+	sils, err := api.silences.Query(silence.QIDs(sid))
+	if err != nil || len(sils) == 0 {
 		http.Error(w, fmt.Sprint("Error getting silence: ", err), http.StatusNotFound)
 		return
 	}
-
-	respond(w, &sil)
-}
-
-func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
-	sids := route.Param(api.context(r), "sid")
-	sid, err := uuid.FromString(sids)
+	sil, err := silenceFromProto(sils[0])
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
 	}
 
-	if err := api.silences.Del(sid); err != nil {
+	respond(w, sil)
+}
+
+func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
+	sid := route.Param(api.context(r), "sid")
+
+	if err := api.silences.Expire(sid); err != nil {
 		respondError(w, apiError{
-			typ: errorInternal,
+			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
@@ -359,7 +357,7 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	sils, err := api.silences.All()
+	psils, err := api.silences.Query()
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -367,7 +365,100 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
+
+	var sils []*types.Silence
+	for _, ps := range psils {
+		s, err := silenceFromProto(ps)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorInternal,
+				err: err,
+			}, nil)
+			return
+		}
+		sils = append(sils, s)
+	}
+
 	respond(w, sils)
+}
+
+func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
+	startsAt, err := ptypes.TimestampProto(s.StartsAt)
+	if err != nil {
+		return nil, err
+	}
+	endsAt, err := ptypes.TimestampProto(s.EndsAt)
+	if err != nil {
+		return nil, err
+	}
+	updatedAt, err := ptypes.TimestampProto(s.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	sil := &silencepb.Silence{
+		Id:        s.ID,
+		StartsAt:  startsAt,
+		EndsAt:    endsAt,
+		UpdatedAt: updatedAt,
+	}
+	for _, m := range s.Matchers {
+		matcher := &silencepb.Matcher{
+			Name:    m.Name,
+			Pattern: m.Value,
+			Type:    silencepb.Matcher_EQUAL,
+		}
+		if m.IsRegex {
+			matcher.Type = silencepb.Matcher_REGEXP
+		}
+		sil.Matchers = append(sil.Matchers, matcher)
+	}
+	sil.Comments = append(sil.Comments, &silencepb.Comment{
+		Timestamp: updatedAt,
+		Author:    s.CreatedBy,
+		Comment:   s.Comment,
+	})
+	return sil, nil
+}
+
+func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
+	startsAt, err := ptypes.Timestamp(s.StartsAt)
+	if err != nil {
+		return nil, err
+	}
+	endsAt, err := ptypes.Timestamp(s.EndsAt)
+	if err != nil {
+		return nil, err
+	}
+	updatedAt, err := ptypes.Timestamp(s.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	sil := &types.Silence{
+		ID:        s.Id,
+		StartsAt:  startsAt,
+		EndsAt:    endsAt,
+		UpdatedAt: updatedAt,
+	}
+	for _, m := range s.Matchers {
+		matcher := &types.Matcher{
+			Name:  m.Name,
+			Value: m.Pattern,
+		}
+		switch m.Type {
+		case silencepb.Matcher_EQUAL:
+		case silencepb.Matcher_REGEXP:
+			matcher.IsRegex = true
+		default:
+			return nil, fmt.Errorf("unknown matcher type")
+		}
+		sil.Matchers = append(sil.Matchers, matcher)
+	}
+	if len(s.Comments) > 0 {
+		sil.CreatedBy = s.Comments[0].Author
+		sil.Comment = s.Comments[0].Comment
+	}
+
+	return sil, nil
 }
 
 type status string

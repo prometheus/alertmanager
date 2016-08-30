@@ -17,7 +17,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
 
 	"github.com/prometheus/alertmanager/types"
 )
@@ -86,21 +85,4 @@ type Alerts interface {
 	Get(model.Fingerprint) (*types.Alert, error)
 	// Put adds the given alert to the set.
 	Put(...*types.Alert) error
-}
-
-// Silences gives access to silences. All methods are goroutine-safe.
-type Silences interface {
-	// The Silences provider must implement the Muter interface
-	// for all its silences. The data provider may have access to an
-	// optimized view of the data to perform this evaluation.
-	types.Muter
-
-	// All returns all existing silences.
-	All() ([]*types.Silence, error)
-	// Set a new silence.
-	Set(*types.Silence) (uuid.UUID, error)
-	// Del removes a silence.
-	Del(uuid.UUID) error
-	// Get a silence associated with a fingerprint.
-	Get(uuid.UUID) (*types.Silence, error)
 }

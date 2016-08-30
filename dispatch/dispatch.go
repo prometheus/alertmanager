@@ -8,7 +8,6 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -73,8 +72,8 @@ type AlertBlock struct {
 type APIAlert struct {
 	*model.Alert
 
-	Inhibited bool       `json:"inhibited"`
-	Silenced  *uuid.UUID `json:"silenced,omitempty"`
+	Inhibited bool   `json:"inhibited"`
+	Silenced  string `json:"silenced,omitempty"`
 }
 
 // AlertGroup is a list of alert blocks grouped by the same label set.
@@ -121,7 +120,7 @@ func (d *Dispatcher) Groups() AlertOverview {
 					Inhibited: d.marker.Inhibited(a.Fingerprint()),
 				}
 				if sid, ok := d.marker.Silenced(a.Fingerprint()); ok {
-					aa.Silenced = &sid
+					aa.Silenced = sid
 				}
 				apiAlerts = append(apiAlerts, aa)
 			}
