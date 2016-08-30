@@ -58,7 +58,7 @@ receivers:
 	)
 
 	// Add a silence that affects the first alert.
-	am.SetSilence(At(2.5), Silence(2, 4.5).Match("alertname", "test1"))
+	am.SetSilence(At(2.3), Silence(2.5, 4.5).Match("alertname", "test1"))
 
 	co.Want(Between(3, 3.5), Alert("alertname", "test2").Active(1))
 	co.Want(Between(4, 4.5), Alert("alertname", "test2").Active(1))
@@ -106,7 +106,7 @@ receivers:
 
 	// Silence everything for a long time and delete the silence after
 	// two iterations.
-	sil := Silence(1, 100).MatchRE("alertname", ".*")
+	sil := Silence(1.5, 100).MatchRE("alertname", ".*")
 
 	am.SetSilence(At(1.3), sil)
 	am.DelSilence(At(3.5), sil)

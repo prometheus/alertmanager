@@ -30,7 +30,6 @@ import (
 
 	"github.com/prometheus/client_golang/api/alertmanager"
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 )
 
@@ -329,10 +328,10 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 		var v struct {
 			Status string `json:"status"`
 			Data   struct {
-				SilenceID uuid.UUID `json:"silenceId"`
+				SilenceID string `json:"silenceId"`
 			} `json:"data"`
 		}
-		if err := json.Unmarshal(b, &v); err != nil {
+		if err := json.Unmarshal(b, &v); err != nil || resp.StatusCode/100 != 2 {
 			am.t.Errorf("error setting silence %v: %s", sil, err)
 			return
 		}
@@ -349,8 +348,8 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 			return
 		}
 
-		_, err = http.DefaultClient.Do(req)
-		if err != nil {
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil || resp.StatusCode/100 != 2 {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 			return
 		}

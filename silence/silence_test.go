@@ -318,7 +318,7 @@ func TestQState(t *testing.T) {
 	cases := []struct {
 		sil    *pb.Silence
 		states []SilenceState
-		drop   bool
+		keep   bool
 	}{
 		{
 			sil: &pb.Silence{
@@ -326,7 +326,7 @@ func TestQState(t *testing.T) {
 				EndsAt:   mustTimeProto(now.Add(time.Hour)),
 			},
 			states: []SilenceState{StateActive, StateExpired},
-			drop:   true,
+			keep:   false,
 		},
 		{
 			sil: &pb.Silence{
@@ -334,7 +334,7 @@ func TestQState(t *testing.T) {
 				EndsAt:   mustTimeProto(now.Add(time.Hour)),
 			},
 			states: []SilenceState{StatePending},
-			drop:   false,
+			keep:   true,
 		},
 		{
 			sil: &pb.Silence{
@@ -342,7 +342,7 @@ func TestQState(t *testing.T) {
 				EndsAt:   mustTimeProto(now.Add(time.Hour)),
 			},
 			states: []SilenceState{StateExpired, StatePending},
-			drop:   false,
+			keep:   true,
 		},
 	}
 	for i, c := range cases {
@@ -350,9 +350,9 @@ func TestQState(t *testing.T) {
 		QState(c.states...)(q)
 		f := q.filters[0]
 
-		drop, err := f(c.sil, mustTimeProto(now))
+		keep, err := f(c.sil, mustTimeProto(now))
 		require.NoError(t, err)
-		require.Equal(t, c.drop, drop, "unexpected filter result for case %d", i)
+		require.Equal(t, c.keep, keep, "unexpected filter result for case %d", i)
 	}
 }
 

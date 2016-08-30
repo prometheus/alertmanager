@@ -32,7 +32,7 @@ import (
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
-	meshprov "github.com/prometheus/alertmanager/provider/mesh"
+	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -180,7 +180,7 @@ func BuildPipeline(
 	tmpl *template.Template,
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
-	silences *meshprov.Silences,
+	silences *silence.Silences,
 	notificationLog nflog.Log,
 	marker types.Marker,
 ) RoutingStage {
@@ -317,16 +317,24 @@ func (n *InhibitStage) Exec(ctx context.Context, alerts ...*types.Alert) (contex
 
 // SilenceStage filters alerts through a silence muter.
 type SilenceStage struct {
-	muter  types.Muter
-	marker types.Marker
+	silences *silence.Silences
+	marker   types.Marker
 }
 
 // NewSilenceStage returns a new SilenceStage.
-func NewSilenceStage(m types.Muter, mk types.Marker) *SilenceStage {
+func NewSilenceStage(s *silence.Silences, mk types.Marker) *SilenceStage {
 	return &SilenceStage{
-		muter:  m,
-		marker: mk,
+		silences: s,
+		marker:   mk,
 	}
+}
+
+func lsetToStrings(ls model.LabelSet) map[string]string {
+	m := make(map[string]string, len(ls))
+	for k, v := range ls {
+		m[string(k)] = string(v)
+	}
+	return m
 }
 
 // Exec implements the Stage interface.
@@ -336,11 +344,21 @@ func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (contex
 		_, ok := n.marker.Silenced(a.Fingerprint())
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if the silencer mutes it.
-		if !n.muter.Mutes(a.Labels) {
+		sils, err := n.silences.Query(
+			silence.QState(silence.StateActive),
+			silence.QMatches(lsetToStrings(a.Labels)),
+		)
+		if err != nil {
+			log.Errorf("Querying silences failed: %s", err)
+		}
+		if len(sils) == 0 {
 			// TODO(fabxc): increment muted alerts counter.
 			filtered = append(filtered, a)
+			n.marker.SetSilenced(a.Labels.Fingerprint())
 			// Store whether a previously silenced alert is firing again.
 			a.WasSilenced = ok
+		} else {
+			n.marker.SetSilenced(a.Labels.Fingerprint(), sils[0].Id)
 		}
 	}
 

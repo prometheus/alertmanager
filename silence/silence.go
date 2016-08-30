@@ -90,9 +90,12 @@ func New(o Options) (*Silences, error) {
 		return nil, err
 	}
 	if o.SnapshotFile != "" {
-		var err error
-		if o.SnapshotReader, err = os.Open(o.SnapshotFile); err != nil {
-			return nil, err
+		if r, err := os.Open(o.SnapshotFile); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+		} else {
+			o.SnapshotReader = r
 		}
 	}
 	s := &Silences{
@@ -317,6 +320,7 @@ func (s *Silences) Create(sil *pb.Silence) (id string, err error) {
 	if err := s.setSilence(sil); err != nil {
 		return "", err
 	}
+	s.logger.Log("created silence", sil.Id)
 	return sil.Id, nil
 }
 
@@ -502,12 +506,13 @@ func QState(states ...SilenceState) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, now *timestamp.Timestamp) (bool, error) {
 			s := getState(sil, now)
+
 			for _, ps := range states {
 				if s == ps {
-					return false, nil
+					return true, nil
 				}
 			}
-			return true, nil
+			return false, nil
 		}
 		q.filters = append(q.filters, f)
 		return nil

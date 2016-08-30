@@ -25,7 +25,6 @@ import (
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/satori/go.uuid"
 )
 
 // At is a convenience method to allow for declarative syntax of Acceptance
@@ -54,7 +53,7 @@ func Between(start, end float64) Interval {
 
 // TestSilence models a model.Silence with relative times.
 type TestSilence struct {
-	ID               uuid.UUID
+	ID               string
 	match            []string
 	matchRE          []string
 	startsAt, endsAt float64
