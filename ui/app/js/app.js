@@ -347,6 +347,7 @@ angular.module('am.controllers').controller('SilencesCtrl', function($scope, $lo
   };
 
   $scope.$on('silence-created', function(evt) {
+    $scope.toggleForm();
     $scope.refresh();
   });
   $scope.$on('silence-deleted', function(evt) {
@@ -402,6 +403,11 @@ angular.module('am.controllers').controller('SilenceCreateCtrl', function($scope
 
   $scope.reset();
 
+  $scope.$on('silence-created', function(evt) {
+    $scope.form.$setUntouched();
+    $scope.reset();
+  });
+
   $scope.addMatcher = function() {
     $scope.silence.matchers.push({});
   };
@@ -414,7 +420,6 @@ angular.module('am.controllers').controller('SilenceCreateCtrl', function($scope
     var now = new Date;
     // Go through conditions that go against immutability of historic silences.
     var createNew = !angular.equals(origSilence.matchers, $scope.silence.matchers);
-    console.log(origSilence, $scope.silence);
     createNew = createNew || $scope.silence.elapsed;
     createNew = createNew || ($scope.silence.active && (origSilence.startsAt == $scope.silence.startsAt || origSilence.endsAt == $scope.silence.endsAt));
 
