@@ -1,3 +1,16 @@
+## v0.4.1 / 2016-08-31
+
+* [BUGFIX] Wait for silence query to finish instead of showing error
+* [BUGFIX] Fix sorting of silences
+* [BUGFIX] Provide visual feedback after creating a silence
+* [BUGFIX] Fix styling of silences
+* [ENHANCEMENT] Provide cleaner API silence interface
+
+## v0.4.0 / 2016-08-23
+
+* [FEATURE] Silences are now paginated in the web ui
+* [CHANGE] Failure to start on unparsed flags
+
 ## 0.3.0 / 2016-07-07
 
 * [CHANGE] Alerts are purely in memory and no longer persistent across restarts
