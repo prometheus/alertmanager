@@ -83,7 +83,7 @@ func templateDefaultTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "template/default.tmpl", size: 15667, mode: os.FileMode(420), modTime: time.Unix(1472027785, 0)}
+	info := bindataFileInfo{name: "template/default.tmpl", size: 15667, mode: os.FileMode(420), modTime: time.Unix(1472465564, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -182,6 +182,7 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
 	"template": &bintree{nil, map[string]*bintree{
 		"default.tmpl": &bintree{templateDefaultTmpl, map[string]*bintree{}},
@@ -234,4 +235,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-
