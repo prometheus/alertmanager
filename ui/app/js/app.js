@@ -417,20 +417,12 @@ angular.module('am.controllers').controller('SilenceCreateCtrl', function($scope
   };
 
   $scope.create = function() {
-    var now = new Date;
-    // Go through conditions that go against immutability of historic silences.
-    var createNew = !angular.equals(origSilence.matchers, $scope.silence.matchers);
-    createNew = createNew || $scope.silence.elapsed;
-    createNew = createNew || ($scope.silence.active && (origSilence.startsAt == $scope.silence.startsAt || origSilence.endsAt == $scope.silence.endsAt));
-
-    if (createNew) {
+    if (origSilence.id) {
       $scope.silence.id = undefined;
     }
 
     Silence.create($scope.silence, function(data) {
-      // If the modifications require creating a new silence,
-      // we expire/delete the old one.
-      if (createNew && origSilence.id && !$scope.silence.elapsed) {
+      if (origSilence.id) {
         Silence.delete({id: origSilence.id},
           function(data) {
             // Only trigger reload after after old silence was deleted.
