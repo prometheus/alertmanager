@@ -1,3 +1,8 @@
+## v0.4.2 / 2016-09-02
+
+* [BUGFIX] Fix broken regex checkbox in silence form
+* [BUGFIX] Simplify inconsistent silence update behavior
+
 ## v0.4.1 / 2016-08-31
 
 * [BUGFIX] Wait for silence query to finish instead of showing error
