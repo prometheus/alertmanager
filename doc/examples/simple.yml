@@ -10,7 +10,7 @@ global:
   hipchat_url: 'https://hipchat.foobar.org/'
 
 # The directory from which notification templates are read.
-templates: 
+templates:
 - '/etc/alertmanager/template/*.tmpl'
 
 # The root route on which each incoming alert enters.
@@ -23,7 +23,7 @@ route:
   # When a new group of alerts is created by an incoming alert, wait at
   # least 'group_wait' to send the initial notification.
   # This way ensures that you get multiple alerts for the same group that start
-  # firing shortly after another are batched together on the first 
+  # firing shortly after another are batched together on the first
   # notification.
   group_wait: 30s
 
@@ -33,12 +33,12 @@ route:
 
   # If an alert has successfully been sent, wait 'repeat_interval' to
   # resend them.
-  repeat_interval: 3h 
+  repeat_interval: 3h
 
   # A default receiver
   receiver: team-X-mails
 
-  # All the above attributes are inherited by all child routes and can 
+  # All the above attributes are inherited by all child routes and can
   # overwritten on each.
 
   # The child route trees.
@@ -82,7 +82,7 @@ route:
 
 # Inhibition rules allow to mute a set of alerts given that another alert is
 # firing.
-# We use this to mute any warning-level notifications if the same alert is 
+# We use this to mute any warning-level notifications if the same alert is
 # already critical.
 inhibit_rules:
 - source_match:
