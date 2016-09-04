@@ -54,6 +54,20 @@ func init() {
 	prometheus.Register(numInvalidAlerts)
 }
 
+var corsHeaders = map[string]string{
+	"Access-Control-Allow-Headers":  "Accept, Authorization, Content-Type, Origin",
+	"Access-Control-Allow-Methods":  "GET, OPTIONS",
+	"Access-Control-Allow-Origin":   "*",
+	"Access-Control-Expose-Headers": "Date",
+}
+
+// Enables cross-site script calls.
+func setCORS(w http.ResponseWriter) {
+	for h, v := range corsHeaders {
+		w.Header().Set(h, v)
+	}
+}
+
 // API provides registration of handlers for API routes.
 type API struct {
 	alerts         provider.Alerts
@@ -83,7 +97,14 @@ func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.
 // Register registers the API handlers under their correct routes
 // in the given router.
 func (api *API) Register(r *route.Router) {
-	ihf := prometheus.InstrumentHandlerFunc
+	ihf := func(name string, f http.HandlerFunc) http.HandlerFunc {
+		return prometheus.InstrumentHandlerFunc(name, func(w http.ResponseWriter, r *http.Request) {
+			setCORS(w)
+			f(w, r)
+		})
+	}
+
+	r.Options("/*path", ihf("options", func(w http.ResponseWriter, r *http.Request) {}))
 
 	// Register legacy forwarder for alert pushing.
 	r.Post("/alerts", ihf("legacy_add_alerts", api.legacyAddAlerts))
