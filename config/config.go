@@ -297,13 +297,19 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultGlobalConfig
 	type plain GlobalConfig
-	return unmarshal((*plain)(c))
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	return checkOverflow(c.XXX, "global")
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
