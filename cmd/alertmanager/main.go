@@ -183,6 +183,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	waitFunc := meshWait(mrouter, 5*time.Second)
+	timeoutFunc := func(d time.Duration) time.Duration {
+		if d < notify.MinTimeout {
+			d = notify.MinTimeout
+		}
+		return d + waitFunc()
+	}
+
 	reload := func() (err error) {
 		log.With("file", *configFile).Infof("Loading configuration file")
 		defer func() {
@@ -215,13 +223,13 @@ func main() {
 		pipeline = notify.BuildPipeline(
 			conf.Receivers,
 			tmpl,
-			meshWait(mrouter, 5*time.Second),
+			waitFunc,
 			inhibitor,
 			silences,
 			notificationLog,
 			marker,
 		)
-		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker)
+		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc)
 
 		go disp.Run()
 		go inhibitor.Run()
