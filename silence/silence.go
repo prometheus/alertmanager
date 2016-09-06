@@ -26,11 +26,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
@@ -134,8 +134,8 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 
 	f := func() error {
 		start := s.now()
-		s.logger.Log("msg", "running maintenance")
-		defer s.logger.Log("msg", "maintenance done", "duration", s.now().Sub(start))
+		s.logger.Info("running maintenance")
+		defer s.logger.With("duration", s.now().Sub(start)).Info("maintenance done")
 
 		if _, err := s.GC(); err != nil {
 			return err
@@ -161,7 +161,7 @@ Loop:
 			break Loop
 		case <-t.C:
 			if err := f(); err != nil {
-				s.logger.Log("msg", "running maintenance failed", "err", err)
+				s.logger.With("err", err).Error("running maintenance failed")
 			}
 		}
 	}
@@ -170,7 +170,7 @@ Loop:
 		return
 	}
 	if err := f(); err != nil {
-		s.logger.Log("msg", "creating shutdown snapshot failed", "err", err)
+		s.logger.With("err", err).Info("msg", "creating shutdown snapshot failed")
 	}
 }
 
@@ -321,7 +321,6 @@ func (s *Silences) Create(sil *pb.Silence) (id string, err error) {
 	if err := s.setSilence(sil); err != nil {
 		return "", err
 	}
-	s.logger.Log("created silence", sil.Id)
 	return sil.Id, nil
 }
 

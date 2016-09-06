@@ -32,7 +32,6 @@ import (
 	"syscall"
 	"time"
 
-	kitlog "github.com/go-kit/kit/log"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -106,9 +105,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	logger := kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
-	logger = kitlog.NewContext(logger).With("ts", kitlog.DefaultTimestampUTC, "caller", kitlog.DefaultCaller)
-
+	logger := log.NewLogger(os.Stderr)
 	mrouter := initMesh(*meshListen, *hwaddr, *nickname)
 
 	stopc := make(chan struct{})
@@ -122,7 +119,7 @@ func main() {
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
-		nflog.WithLogger(kitlog.NewContext(logger).With("component", "nflog")),
+		nflog.WithLogger(logger.With("component", "nflog")),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -133,7 +130,7 @@ func main() {
 	silences, err := silence.New(silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
-		Logger:       kitlog.NewContext(logger).With("component", "silences"),
+		Logger:       logger.With("component", "silences"),
 		Gossip: func(g mesh.Gossiper) mesh.Gossip {
 			return mrouter.NewGossip("silences", g)
 		},

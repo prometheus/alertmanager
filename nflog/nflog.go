@@ -27,10 +27,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/common/log"
 	"github.com/weaveworks/mesh"
 )
 
@@ -226,8 +226,8 @@ func (l *nlog) run() {
 
 	f := func() error {
 		start := l.now()
-		l.logger.Log("msg", "running maintenance")
-		defer l.logger.Log("msg", "maintenance done", "duration", time.Since(start))
+		l.logger.Info("running maintenance")
+		defer l.logger.With("duration", l.now().Sub(start)).Info("maintenance done")
 
 		if _, err := l.GC(); err != nil {
 			return err
@@ -253,7 +253,7 @@ Loop:
 			break Loop
 		case <-t.C:
 			if err := f(); err != nil {
-				l.logger.Log("msg", "running maintenance failed", "err", err)
+				l.logger.With("err", err).Error("running maintenance failed")
 			}
 		}
 	}
@@ -262,7 +262,7 @@ Loop:
 		return
 	}
 	if err := f(); err != nil {
-		l.logger.Log("msg", "creating shutdown snapshot failed", "err", err)
+		l.logger.With("err", err).Error("creating shutdown snapshot failed")
 	}
 }
 
