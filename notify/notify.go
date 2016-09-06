@@ -561,6 +561,7 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.C
 		i    = 0
 		b    = backoff.NewExponentialBackOff()
 		tick = backoff.NewTicker(b)
+		iErr error
 	)
 	defer tick.Stop()
 
@@ -569,20 +570,35 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.C
 		// Always check the context first to not notify again.
 		select {
 		case <-ctx.Done():
+			if iErr != nil {
+				return ctx, nil, iErr
+			}
+
 			return ctx, nil, ctx.Err()
 		default:
 		}
 
 		select {
 		case <-tick.C:
-			if err := r.integration.Notify(ctx, alerts...); err != nil {
+			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
-				log.Warnf("Notify attempt %d failed: %s", i, err)
+				log.Debugf("Notify attempt %d failed: %s", i, err)
+				if !retry {
+					return ctx, alerts, fmt.Errorf("Cancelling notify retry due to unrecoverable error: %s", err)
+				}
+
+				// Save this error to be able to return the last seen error by an
+				// integration upon context timeout.
+				iErr = err
 			} else {
 				numNotifications.WithLabelValues(r.integration.name).Inc()
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
+			if iErr != nil {
+				return ctx, nil, iErr
+			}
+
 			return ctx, nil, ctx.Err()
 		}
 	}
