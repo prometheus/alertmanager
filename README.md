@@ -4,28 +4,27 @@
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status)][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
 
-The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integration such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
 * [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
 
 
-## Installation
+## Install
 
-### Build dependencies
+There are various ways of installing Alertmanager.
 
-These dependencies are necessary for building Alertmanager. There are no runtime dependencies, as the resulting binary is statically linked.
+### Precompiled binaries
 
-Debian family:
+Precompiled binaries for released versions are available in the
+[*releases* section](https://github.com/prometheus/alertmanager/releases)
+of the GitHub repository. Using the latest production release binary
+is the recommended way of installing Alertmanager.
 
-    sudo apt-get install build-essential libc6-dev
+### Container images
 
-Red Hat family:
-
-    sudo yum install glibc-static
+Container images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager).
 
 ### Compiling the binary
-
-The current version has to be run from the repository folder as UI assets and notification templates are not yet statically compiled into the binary.
 
 You can either `go get` it:
 
@@ -165,23 +164,6 @@ receivers:
 - name: 'team-DB-pager'
   pagerduty_configs:
   - service_key: <team-DB-key>
-```
-
-## Testing
-
-If you want to test the new Alertmanager while running the current version, you can mirror traffic to the new one with a simple nginx configuration similar to this:
-
-```
-server {
-  server_name <your_current_alertmanager>;
-  location / {
-    proxy_pass  http://localhost:9093;
-    post_action @forward;
-  }
-  location @forward {
-    proxy_pass http://<your_new_alertmanager>:9093;
-  }
-}
 ```
 
 ## Architecture
