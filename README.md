@@ -16,13 +16,13 @@ There are various ways of installing Alertmanager.
 ### Precompiled binaries
 
 Precompiled binaries for released versions are available in the
-[*releases* section](https://github.com/prometheus/alertmanager/releases)
-of the GitHub repository. Using the latest production release binary
+[*download* section](https://prometheus.io/download/)
+on [prometheus.io](https://prometheus.io). Using the latest production release binary
 is the recommended way of installing Alertmanager.
 
-### Container images
+### Docker images
 
-Container images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager).
+Docker images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager).
 
 ### Compiling the binary
 
