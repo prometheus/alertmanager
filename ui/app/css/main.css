@@ -93,17 +93,17 @@ a.gen-link button {
 	opacity: 1.0;
 }
 
-.active-silences, .pending-silences, .elapsed-silences {
+.active-silences, .elapsed-silences {
 	margin-bottom: 12px;
 }
 
 .alert-item .overview {
 	background: #f0f0f0;
-	padding: .8em;
+	padding: .8em 0;
 }
 .silence-item .overview {
 	background: #bfbfbf;
-	padding: .8em;
+	padding: .8em 0;
 }
 .silence-item.highlight .overview {
 	background: #dfdfdf;
@@ -145,8 +145,8 @@ a.gen-link button {
 
 .lbl {
 	display: inline-block;
-	font-size: 0.7em;
-	padding: 0 6px;
+	font-size: 0.8em;
+	padding: 4px 6px;
 	margin: 0 2px 2px 0;
 	font-family: Menlo, Monaco, Consolas, sans-serif;
 	border: 1px solid #ccc;
@@ -232,6 +232,7 @@ input[type="datetime-local"]  {
   border-radius: 2px;
   margin-bottom: 0;
   color: rgba(0, 0, 0, 0.85);
+  width: 100%;
 }
 
 /* Routing Tree */
@@ -275,3 +276,14 @@ input[type="datetime-local"]  {
   display: inline-block;
 }
 
+.pointer {
+  cursor: pointer;
+}
+
+.pagination-height {
+  height: 30px;
+}
+
+.btn-spacing {
+  margin: 2px;
+}

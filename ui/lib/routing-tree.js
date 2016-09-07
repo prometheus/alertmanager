@@ -43,7 +43,7 @@ function resetSVG() {
 
 // Handler for reading config.yml
 d3.json("api/v1/status", function(error, data) {
-  var parsedConfig = jsyaml.load(data.data.config);
+  var parsedConfig = data.data.configJSON;
 
   // Create a new SVG for each time a config is loaded.
   resetSVG();

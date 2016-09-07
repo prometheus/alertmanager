@@ -1,55 +1,84 @@
 <form novalidate name="form" class="forms" ng-controller="SilenceCreateCtrl">
-	<fieldset id="silence-create">
-		<legend>Create <span class="desc">Define a new silence.</span></legend>
+  <div class="row">
+    <div class="col-sm-12">
+      <h2>{{formTitle}} <small>{{formSubtitle}}</small></h2>
+    </div>
+  </div>
 
-		<row>
-			<column>
-				<label>Start</label>
-				<input ng-model="silence.startsAt" type="datetime-local" name="start-time" required>
-			</column>
-			<column>
-				<label>End</label>
-				<input ng-model="silence.endsAt" type="datetime-local" name="end-time" required>
-			</column>
-		</row>
-				
-		<label>Matchers <span class="desc">Alerts affected by this silence.</span></label>
-		<row class="silence-matchers" ng-repeat="m in silence.matchers">
-			<column cols="2">
-				<input class="input-small" type="text" placeholder="name" ng-model="m.name" required>
-			</column>
-			<column cols="2">
-				<input class="input-small" type="text" placeholder="value" ng-model="m.value" required>
-			</column>
+  <div class="row" class="silence-matchers">
+    <div class="col-sm-3">
+      <label>Start</label>
+      <div class="form-group">
+        <label class="sr-only" for="silence-start-time">Name</label>
+        <input id="silence-start-time" ng-model="silence.startsAt" type="datetime-local" name="start-time" required>
+      </div>
+    </div>
+    <div class="col-sm-3">
+      <label>End</label>
+      <div class="form-group">
+        <label class="sr-only" for="silence-end-time">Name</label>
+        <input id="silence-end-time" ng-model="silence.endsAt" type="datetime-local" name="end-time" required>
+      </div>
+    </div>
+  </div>
 
-			<column>
-				<div class="btn-group">
-					<button type="primary" small><label class="checkbox is-regex"><input type="checkbox" ng-model="m.isRegex"> regex</label></button>
-					<button type="secondary" ng-hide="silence.matchers.length <= 1" ng-click="delMatcher($index)" small>-</button>
-					<button type="secondary" ng-click="addMatcher()" small>+</button>
-				</div>
-			</column>
-		</row>
+  <label>Matchers <span class="desc">Alerts affected by this silence.</span></label>
+  <div ng-repeat="m in silence.matchers">
+    <div class="row" class="silence-matchers">
+      <div class="col-sm-3">
+        <div class="form-group">
+          <label class="sr-only" for="silence-name-input">Name</label>
+          <input type="text" class="form-control" id="silence-name-input" placeholder="Name" ng-model="m.name" required>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="form-group">
+          <label class="sr-only" for="silence-value-input">Value</label>
+          <input type="text" class="form-control" id="silence-value-input" placeholder="Value" ng-model="m.value" reguired>
+        </div>
+      </div>
+      <div class="col-sm-1">
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" ng-model="m.isRegex"> Regex
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-1" ng-if="!$last">
+        <button type="button" class="btn btn-danger btn-sm" ng-if="silence.matchers.length > 1" ng-click="delMatcher($index)">-</button>
+      </div>
+      <div class="col-sm-1 btn-group" ng-if="$last">
+        <button type="button" class="btn btn-danger btn-sm" ng-if="silence.matchers.length > 1" ng-click="delMatcher($index)">-</button>
+        <button type="button" class="btn btn-primary btn-sm" ng-click="addMatcher()">+</button>
+      </div>
+    </div>
+  </div>
 
-		<row>
-			<column cols="2">
-				<label>Creator</label>
-				<input ng-model="silence.createdBy" type="email" name="creator" placeholder="me@company.com" required>
-			</column>
-			<column cols="4">
-				<label>Comment</label>
-				<input ng-model="silence.comment" type="text" name="comment" placeholder="reason for silence..." required>
-			</column>
-		</row>
 
-		<div ng-show="error != null" class="alert alert-error">
-			<span class="error">{{ error }}</span>
-		</div>
+  <div class="row">
+    <div class="col-sm-3">
+      <label>Creator</label>
+      <div class="form-group">
+        <label class="sr-only" for="silence-created-by">Creator</label>
+        <input id="silence-created-by" ng-model="silence.createdBy" type="email" name="creator" placeholder="me@company.com" required>
+      </div>
+    </div>
+    <div class="col-sm-5">
+      <label>Comment</label>
+      <div class="form-group">
+        <label class="sr-only" for="silence-created-reason">Name</label>
+        <input id="silence-created-reason" ng-model="silence.comment" type="text" name="comment" placeholder="Reason for silence..." required>
+      </div>
+    </div>
+  </div>
 
-	</fieldset>
+  <div ng-show="error != null" class="alert alert-error">
+    <span class="error">{{ error }}</span>
+  </div>
 
-	<div class="btn-group">
-		<button type="primary" ng-disabled="silence.matchers.length == 0 || form.$invalid" ng-click="create()" upper>Create</button>
-		<button type="seconday" ng-click="reset()" upper>Reset</button>
-	</div>
+
+  <div class="btn-group">
+    <button type="button" class="btn btn-primary" ng-disabled="silence.matchers.length == 0 || form.$invalid" ng-click="create()" upper>{{buttonText}}</button>
+    <button type="button" class="btn btn-danger" ng-click="reset()" upper>Reset</button>
+  </div>
 </form>
