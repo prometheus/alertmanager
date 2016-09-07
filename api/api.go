@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -378,7 +379,33 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	psils, err := api.silences.Query()
+	var (
+		limit  = r.URL.Query().Get("limit")
+		offset = r.URL.Query().Get("offset")
+		sortBy = r.URL.Query().Get("sortBy")
+	)
+
+	l, err := strconv.ParseUint(limit, 10, 32)
+	if err != nil {
+		l = 50
+	}
+	o, err := strconv.ParseUint(offset, 10, 32)
+	if err != nil {
+		o = 0
+	}
+
+	order := silence.QOrderUpdatedAt()
+	if sortBy == "endsAt" {
+		order = silence.QOrderEndsAt()
+	}
+	if sortBy == "startAt" {
+		order = silence.QOrderStartsAt()
+	}
+
+	psils, err := api.silences.Query(
+		silence.QLimitOffset(int(l), int(o)),
+		order,
+	)
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,

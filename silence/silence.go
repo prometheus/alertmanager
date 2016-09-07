@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"os"
 	"regexp"
+	"sort"
 	"sync"
 	"time"
 
@@ -196,6 +197,13 @@ func (s *Silences) GC() (int, error) {
 }
 
 func protoBefore(a, b *timestamp.Timestamp) bool {
+	// nil timestamps are always smaller.
+	if a == nil {
+		return true
+	}
+	if b == nil {
+		return false
+	}
 	if a.Seconds > b.Seconds {
 		return false
 	}
@@ -419,8 +427,10 @@ func (s *Silences) AddComment(id string, author, comment string) error {
 type QueryParam func(*query) error
 
 type query struct {
-	ids     []string
-	filters []silenceFilter
+	ids           []string
+	filters       []silenceFilter
+	order         order
+	limit, offset int
 }
 
 // silenceFilter is a function that returns true if a silence
@@ -433,6 +443,68 @@ var errNotSupported = errors.New("query parameter not supported")
 func QIDs(ids ...string) QueryParam {
 	return func(q *query) error {
 		q.ids = append(q.ids, ids...)
+		return nil
+	}
+}
+
+// QLimitOffset configures a query to return n results at offset o.
+func QLimitOffset(n, o int) QueryParam {
+	return func(q *query) error {
+		if n < 0 {
+			return fmt.Errorf("invalid limit %d", n)
+		}
+		if o < 0 {
+			return fmt.Errorf("invalid offset %d", o)
+		}
+		q.limit = n
+		q.offset = o
+		return nil
+	}
+}
+
+type order int
+
+const (
+	orderNone order = iota
+	orderStartsAt
+	orderEndSAt
+	orderUpdatedAt
+)
+
+type sortByStartsAt []*pb.Silence
+
+func (s sortByStartsAt) Len() int           { return len(s) }
+func (s sortByStartsAt) Less(i, j int) bool { return protoBefore(s[i].StartsAt, s[j].StartsAt) }
+func (s sortByStartsAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+type sortByEndsAt []*pb.Silence
+
+func (s sortByEndsAt) Len() int           { return len(s) }
+func (s sortByEndsAt) Less(i, j int) bool { return protoBefore(s[i].EndsAt, s[j].EndsAt) }
+func (s sortByEndsAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+type sortByUpdatedAt []*pb.Silence
+
+func (s sortByUpdatedAt) Len() int           { return len(s) }
+func (s sortByUpdatedAt) Less(i, j int) bool { return protoBefore(s[i].UpdatedAt, s[j].UpdatedAt) }
+func (s sortByUpdatedAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+func QOrderStartsAt() QueryParam {
+	return func(q *query) error {
+		q.order = orderStartsAt
+		return nil
+	}
+}
+
+func QOrderUpdatedAt() QueryParam {
+	return func(q *query) error {
+		q.order = orderUpdatedAt
+		return nil
+	}
+}
+func QOrderEndsAt() QueryParam {
+	return func(q *query) error {
+		q.order = orderEndSAt
 		return nil
 	}
 }
@@ -533,7 +605,6 @@ func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, error) {
 	}
 	return s.query(q, nowpb)
 }
-
 func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, error) {
 	// If we have an ID constraint, all silences are our base set.
 	// This and the use of post-filter functions is the
@@ -572,6 +643,30 @@ func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, err
 		}
 	}
 
+	var so sort.Interface
+	switch q.order {
+	case orderStartsAt:
+		so = sortByStartsAt(resf)
+	case orderEndSAt:
+		so = sortByEndsAt(resf)
+	case orderUpdatedAt:
+		so = sortByUpdatedAt(resf)
+	}
+	// The sorters start with the smallest timestamp, which is the earliest time.
+	// We generally want to view silences from the most recent onwards so we reverse.
+	if so != nil {
+		so = sort.Reverse(so)
+		sort.Sort(so)
+	}
+
+	// Apply limit and offset.
+	if len(resf) < q.offset {
+		return nil, errors.New("requested offset surpasses total number of resource")
+	}
+	resf = resf[q.offset:]
+	if q.limit > 0 && q.limit < len(resf) {
+		resf = resf[:q.limit]
+	}
 	return resf, nil
 }
 
