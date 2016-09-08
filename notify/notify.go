@@ -329,14 +329,6 @@ func NewSilenceStage(s *silence.Silences, mk types.Marker) *SilenceStage {
 	}
 }
 
-func lsetToStrings(ls model.LabelSet) map[string]string {
-	m := make(map[string]string, len(ls))
-	for k, v := range ls {
-		m[string(k)] = string(v)
-	}
-	return m
-}
-
 // Exec implements the Stage interface.
 func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
@@ -346,7 +338,7 @@ func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (contex
 		// Do not send the alert if the silencer mutes it.
 		sils, err := n.silences.Query(
 			silence.QState(silence.StateActive),
-			silence.QMatches(lsetToStrings(a.Labels)),
+			silence.QMatches(a.Labels),
 		)
 		if err != nil {
 			log.Errorf("Querying silences failed: %s", err)

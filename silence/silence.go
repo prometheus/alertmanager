@@ -30,6 +30,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/satori/go.uuid"
@@ -43,11 +44,57 @@ func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
+type matcherCache map[*pb.Silence]types.Matchers
+
+// Get retrieves the matchers for a given silence. If it is a missed cache
+// access, it compiles and adds the matchers of the requested silence to the
+// cache.
+func (c matcherCache) Get(s *pb.Silence) (types.Matchers, error) {
+	if m, ok := c[s]; ok {
+		return m, nil
+	}
+	return c.add(s)
+}
+
+// add compiles a silences' matchers and adds them to the cache.
+// It returns the compiled matchers.
+func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
+	var (
+		ms types.Matchers
+		mt *types.Matcher
+	)
+
+	for _, m := range s.Matchers {
+		mt = &types.Matcher{
+			Name:  m.Name,
+			Value: m.Pattern,
+		}
+		switch m.Type {
+		case pb.Matcher_EQUAL:
+			mt.IsRegex = false
+		case pb.Matcher_REGEXP:
+			mt.IsRegex = true
+		}
+		err := mt.Init()
+		if err != nil {
+			return nil, err
+		}
+
+		ms = append(ms, mt)
+	}
+
+	c[s] = ms
+
+	return ms, nil
+}
+
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
 	logger    log.Logger
 	now       func() time.Time
 	retention time.Duration
+
+	mc matcherCache
 
 	gossip mesh.Gossip // gossip channel for sharing silences
 
@@ -100,6 +147,7 @@ func New(o Options) (*Silences, error) {
 		}
 	}
 	s := &Silences{
+		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
 		retention: o.Retention,
 		now:       utcNow,
@@ -189,6 +237,7 @@ func (s *Silences) GC() (int, error) {
 	for id, sil := range s.st {
 		if !protoBefore(now, sil.ExpiresAt) {
 			delete(s.st, id)
+			delete(s.mc, sil.Silence)
 			n++
 		}
 	}
@@ -276,6 +325,7 @@ func (s *Silences) setSilence(sil *pb.Silence) error {
 	if err != nil {
 		return err
 	}
+
 	msil := &pb.MeshSilence{
 		Silence:   sil,
 		ExpiresAt: expiresAt,
@@ -425,7 +475,7 @@ type query struct {
 
 // silenceFilter is a function that returns true if a silence
 // should be dropped from a result set for a given time.
-type silenceFilter func(*pb.Silence, *timestamp.Timestamp) (bool, error)
+type silenceFilter func(*pb.Silence, *Silences, *timestamp.Timestamp) (bool, error)
 
 var errNotSupported = errors.New("query parameter not supported")
 
@@ -447,33 +497,14 @@ func QTimeRange(start, end time.Time) QueryParam {
 }
 
 // QMatches returns silences that match the given label set.
-func QMatches(set map[string]string) QueryParam {
+func QMatches(set model.LabelSet) QueryParam {
 	return func(q *query) error {
-		f := func(s *pb.Silence, _ *timestamp.Timestamp) (bool, error) {
-			// TODO(fabxc): we compile every regexp matcher of a silence
-			// each time we check it against a label set.
-			// This could be notably slower than the old caching behavior.
-			// With the protobuf type not being extensible, we need a more
-			// efficient solution without wrapping the silence in another layer.
-			for _, m := range s.Matchers {
-				switch m.Type {
-				case pb.Matcher_EQUAL:
-					if set[m.Name] != m.Pattern {
-						return false, nil
-					}
-				case pb.Matcher_REGEXP:
-					re, err := regexp.Compile(m.Pattern)
-					if err != nil {
-						return false, err
-					}
-					if !re.MatchString(set[m.Name]) {
-						return false, nil
-					}
-				}
+		f := func(sil *pb.Silence, s *Silences, _ *timestamp.Timestamp) (bool, error) {
+			m, err := s.mc.Get(sil)
+			if err != nil {
+				return true, err
 			}
-			// All matchers applied to the given set and the silence
-			// passes as a result.
-			return true, nil
+			return m.Match(set), nil
 		}
 		q.filters = append(q.filters, f)
 		return nil
@@ -504,7 +535,7 @@ func getState(sil *pb.Silence, ts *timestamp.Timestamp) SilenceState {
 // QState filters queried silences by the given states.
 func QState(states ...SilenceState) QueryParam {
 	return func(q *query) error {
-		f := func(sil *pb.Silence, now *timestamp.Timestamp) (bool, error) {
+		f := func(sil *pb.Silence, _ *Silences, now *timestamp.Timestamp) (bool, error) {
 			s := getState(sil, now)
 
 			for _, ps := range states {
@@ -552,13 +583,12 @@ func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, err
 			res = append(res, sil.Silence)
 		}
 	}
-	s.mtx.RUnlock()
 
 	var resf []*pb.Silence
 	for _, sil := range res {
 		remove := false
 		for _, f := range q.filters {
-			ok, err := f(sil, now)
+			ok, err := f(sil, s, now)
 			if err != nil {
 				return nil, err
 			}
@@ -571,6 +601,7 @@ func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, err
 			resf = append(resf, sil)
 		}
 	}
+	s.mtx.RUnlock()
 
 	return resf, nil
 }
@@ -581,14 +612,18 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 	st := gossipData{}
 
 	for {
-		var s pb.MeshSilence
-		if _, err := pbutil.ReadDelimited(r, &s); err != nil {
+		var sil pb.MeshSilence
+		if _, err := pbutil.ReadDelimited(r, &sil); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return err
 		}
-		st[s.Silence.Id] = &s
+		st[sil.Silence.Id] = &sil
+		_, err := s.mc.Get(sil.Silence)
+		if err != nil {
+			return err
+		}
 	}
 	s.mtx.Lock()
 	s.st = st
@@ -714,7 +749,7 @@ func (gd gossipData) clone() gossipData {
 	return res
 }
 
-// Merge the silence set with gossip data and reutrn a new silence state.
+// Merge the silence set with gossip data and return a new silence state.
 func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
 	for id, s := range other.(gossipData) {
 		prev, ok := gd[id]
