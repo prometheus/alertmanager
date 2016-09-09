@@ -1,4 +1,4 @@
-## v0.4.0-alpha.0 / 2016-09-09
+## v0.5.0-alpha.0 / 2016-09-09
 
 This realease requires a storage wipe.
 
