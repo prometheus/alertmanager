@@ -25,6 +25,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/mesh"
 )
@@ -152,7 +153,7 @@ func TestSilencesSnapshot(t *testing.T) {
 		require.NoError(t, err, "opening snapshot file failed")
 
 		// Check again against new nlog instance.
-		s2 := &Silences{}
+		s2 := &Silences{mc: matcherCache{}}
 		err = s2.loadSnapshot(f)
 		require.NoError(t, err, "error loading snapshot")
 		require.Equal(t, s1.st, s2.st, "state after loading snapshot did not match snapshotted state")
@@ -350,14 +351,14 @@ func TestQState(t *testing.T) {
 		QState(c.states...)(q)
 		f := q.filters[0]
 
-		keep, err := f(c.sil, mustTimeProto(now))
+		keep, err := f(c.sil, nil, mustTimeProto(now))
 		require.NoError(t, err)
 		require.Equal(t, c.keep, keep, "unexpected filter result for case %d", i)
 	}
 }
 
 func TestQMatches(t *testing.T) {
-	qp := QMatches(map[string]string{
+	qp := QMatches(model.LabelSet{
 		"job":      "test",
 		"instance": "web-1",
 		"path":     "/user/profile",
@@ -408,7 +409,7 @@ func TestQMatches(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		drop, err := f(c.sil, nil)
+		drop, err := f(c.sil, &Silences{mc: matcherCache{}}, nil)
 		require.NoError(t, err)
 		require.Equal(t, c.drop, drop, "unexpected filter result")
 	}
@@ -454,7 +455,7 @@ func TestSilencesQuery(t *testing.T) {
 			// Retrieve all and filter
 			q: &query{
 				filters: []silenceFilter{
-					func(sil *pb.Silence, _ *timestamp.Timestamp) (bool, error) {
+					func(sil *pb.Silence, _ *Silences, _ *timestamp.Timestamp) (bool, error) {
 						return sil.Id == "1" || sil.Id == "2", nil
 					},
 				},
@@ -469,7 +470,7 @@ func TestSilencesQuery(t *testing.T) {
 			q: &query{
 				ids: []string{"2", "5"},
 				filters: []silenceFilter{
-					func(sil *pb.Silence, _ *timestamp.Timestamp) (bool, error) {
+					func(sil *pb.Silence, _ *Silences, _ *timestamp.Timestamp) (bool, error) {
 						return sil.Id == "1" || sil.Id == "2", nil
 					},
 				},
