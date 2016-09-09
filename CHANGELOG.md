@@ -1,3 +1,11 @@
+## v0.4.0-alpha.0 / 2016-09-09
+
+This realease requires a storage wipe.
+
+* [FEATURE] High Availability
+* [FEATURE] Garbage collected storage
+* [CHANGE] Different storage format
+
 ## v0.4.2 / 2016-09-02
 
 * [BUGFIX] Fix broken regex checkbox in silence form
