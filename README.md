@@ -166,6 +166,38 @@ receivers:
   - service_key: <team-DB-key>
 ```
 
+## High Availability
+
+> Warning: High Availablility is under active development
+
+To create a highly available cluster of the Alertmanager the instances need to
+be configured to communicate with each other. This is configured using the
+`-mesh.*` flags.
+
+- `-mesh.hardware-address` string: MAC address, i.e. mesh peer ID (default "&lt;hardware-mac-address&gt;")
+- `-mesh.listen-address` string: mesh listen address (default "0.0.0.0:6783")
+- `-mesh.nickname` string: peer nickname (default "&lt;machine-hostname&gt;")
+- `-mesh.peer` value: initial peers (may be repeated)
+
+The `mesh.hardware-address` flag is used as a unique ID among the peers. It
+defaults to the MAC address, therefore the default value should typically be a
+good option. The same applies to the default of the `mesh.nickname` flag, as it
+defaults to the hostname. The chosen port in the `mesh.listen-address` flag is
+the port that needs to be specified in the `mesh.peer` flag of the other peers.
+
+To start a cluster of three peers on your local machine use `goreman` and the
+Procfile within this repository.
+
+	goreman start
+
+To point your prometheus instance to multiple Alertmanagers use the
+`-alertmanager.url` parameter. It allows passing in a comma separated list.
+Start your prometheus like this, for example:
+
+	./prometheus -config.file=prometheus.yml -alertmanager.url http://localhost:9095,http://localhost:9094,http://localhost:9093
+
+> Note: make sure to have a valid `prometheus.yml` in your current directory
+
 ## Architecture
 
 ![](https://raw.githubusercontent.com/prometheus/alertmanager/4e6695682acd2580773a904e4aa2e3b927ee27b7/doc/arch.jpg)
