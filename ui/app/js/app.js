@@ -330,6 +330,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
       end.setHours(end.getHours() + 4)
 
       $scope.silence = angular.copy(origSilence);
+      $scope.silence.createdBy = localStorage.creator;
 
       if (!origSilence.startsAt || origSilence.elapsed) {
         $scope.silence.startsAt = now;
@@ -351,6 +352,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
 
     $scope.create = function() {
       var now = new Date;
+      localStorage.creator = $scope.silence.createdBy;
       // Go through conditions that go against immutability of historic silences.
       var createNew = !angular.equals(origSilence.matchers, $scope.silence.matchers);
       console.log(origSilence, $scope.silence);
@@ -407,7 +409,7 @@ angular.module('am.controllers').controller('StatusCtrl',
         $scope.uptime = data.data.uptime;
       },
       function(data) {
-        console.log(data.data); 
+        console.log(data.data);
       })
   }
 );
