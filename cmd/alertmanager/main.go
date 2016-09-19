@@ -131,6 +131,7 @@ func main() {
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
 		Logger:       logger.With("component", "silences"),
+		Metrics:      prometheus.DefaultRegisterer,
 		Gossip: func(g mesh.Gossiper) mesh.Gossip {
 			return mrouter.NewGossip("silences", g)
 		},
