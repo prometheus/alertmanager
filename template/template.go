@@ -210,6 +210,11 @@ func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
 }
 
+// FormattedTimeNow returns a formatted time string of TimeNow
+func (data *Data) FormattedTimeNow(str string) string {
+  return data.TimeNow.Format(str)
+}
+
 // Data is the data passed to notification templates and webhook pushes.
 //
 // End-users should not be exposed to Go's type system, as this will confuse them and prevent
@@ -218,6 +223,7 @@ type Data struct {
 	Receiver string `json:"receiver"`
 	Status   string `json:"status"`
 	Alerts   Alerts `json:"alerts"`
+	TimeNow  time.Time `json:"timeNow"`
 
 	GroupLabels       KV `json:"groupLabels"`
 	CommonLabels      KV `json:"commonLabels"`
@@ -267,6 +273,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		Receiver:          strings.SplitN(recv, "/", 2)[0],
 		Status:            string(types.Alerts(alerts...).Status()),
 		Alerts:            make(Alerts, 0, len(alerts)),
+		TimeNow:           time.Now(),
 		GroupLabels:       KV{},
 		CommonLabels:      KV{},
 		CommonAnnotations: KV{},
