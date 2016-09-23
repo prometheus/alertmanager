@@ -249,7 +249,8 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, fmt.Errorf("invalid address: %s", err)
 	}
 
-	if n.conf.RequireTLS {
+	// Global Config guarantees RequireTLS is not nil
+	if *n.conf.RequireTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return true, fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
