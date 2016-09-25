@@ -29,7 +29,7 @@ Docker images are available on [Quay.io](https://quay.io/repository/prometheus/a
 You can either `go get` it:
 
 ```
-$ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager
+$ go get github.com/prometheus/alertmanager/cmd/...
 # cd $GOPATH/src/github.com/prometheus/alertmanager
 $ alertmanager -config.file=<your_file>
 ```
