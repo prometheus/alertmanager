@@ -935,19 +935,33 @@ func NewIRC(c *config.IRCConfig, t *template.Template) *IRC {
 	conn.UseTLS = c.TLS
 
 	// warm up the connection. This might fail, but we will check it in the Notify.
-	err := conn.Connect(c.Server)
+	irc := IRC{conf: c, tmpl: t, conn: conn}
+	err := irc.verifyConnected()
 	if err != nil {
 		log.Debugln("failed to pre-connect to irc:", err)
+	} else {
+		log.Debugln("connected to irc")
 	}
-	if c.Target[0] == '#' {
-		if c.ChannelPassword == "" {
-			conn.Join(c.Target)
-		} else {
-			conn.Join(c.Target + " " + string(c.ChannelPassword))
+
+	return &irc
+}
+
+func (n *IRC) verifyConnected() error {
+	if !n.conn.Connected() {
+		err := n.conn.Connect(n.conf.Server)
+		if err != nil {
+			return err
 		}
 	}
 
-	return &IRC{conf: c, tmpl: t, conn: conn}
+	if n.conf.Target[0] == '#' {
+		if n.conf.ChannelPassword == "" {
+			n.conn.Join(n.conf.Target)
+		} else {
+			n.conn.Join(n.conf.Target + " " + string(n.conf.ChannelPassword))
+		}
+	}
+	return nil
 }
 
 // Notify implements the Notifier interface.
@@ -975,11 +989,9 @@ func (n *IRC) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		message = "(no details)"
 	}
 
-	if !n.conn.Connected() {
-		err := n.conn.Connect(n.conf.Server)
-		if err != nil {
-			return false, fmt.Errorf("failed to connect to irc server: %v", err)
-		}
+	err = n.verifyConnected()
+	if err != nil {
+		return false, fmt.Errorf("failed to connect to irc server: %v", err)
 	}
 
 	if n.conf.Notice {
