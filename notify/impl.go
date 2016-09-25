@@ -32,6 +32,7 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/thoj/go-ircevent"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
@@ -111,6 +112,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 	for i, c := range nc.PushoverConfigs {
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
+	}
+	for i, c := range nc.IRCConfigs {
+		n := NewIRC(c, tmpl)
+		add("irc", i, n, c)
 	}
 	return integrations
 }
@@ -914,6 +919,76 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	return false, nil
+}
+
+// IRC implements a Notifier for IRC notifications.
+type IRC struct {
+	conf *config.IRCConfig
+	tmpl *template.Template
+
+	conn *irc.Connection
+}
+
+// NewIRC returns a new IRC notifier.
+func NewIRC(c *config.IRCConfig, t *template.Template) *IRC {
+	conn := irc.IRC(c.Nickname, c.Username)
+	conn.UseTLS = c.TLS
+
+	// warm up the connection. This might fail, but we will check it in the Notify.
+	err := conn.Connect(c.Server)
+	if err != nil {
+		log.Debugln("failed to pre-connect to irc:", err)
+	}
+	if c.Target[0] == '#' {
+		if c.ChannelPassword == "" {
+			conn.Join(c.Target)
+		} else {
+			conn.Join(c.Target + " " + string(c.ChannelPassword))
+		}
+	}
+
+	return &IRC{conf: c, tmpl: t, conn: conn}
+}
+
+// Notify implements the Notifier interface.
+func (n *IRC) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+
+	log.With("incident", key).Debugln("notifying IRC")
+
+	var err error
+	tmpl := tmplText(n.tmpl, data, &err)
+
+	message := tmpl(n.conf.Message)
+
+	// TODO(farcaller): the technical limit is 512b/line, so this should be handled better
+	if len(message) > 500 {
+		message = message[:500]
+		log.With("incident", key).Debugf("Truncated message to %q due to IRC message limit", message)
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		message = "(no details)"
+	}
+
+	if !n.conn.Connected() {
+		err := n.conn.Connect(n.conf.Server)
+		if err != nil {
+			return false, fmt.Errorf("failed to connect to irc server: %v", err)
+		}
+	}
+
+	if n.conf.Notice {
+		n.conn.Notice(n.conf.Target, message)
+	} else {
+		n.conn.Privmsg(n.conf.Target, message)
+	}
+
+	return true, nil
 }
 
 func tmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
