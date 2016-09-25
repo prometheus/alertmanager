@@ -116,6 +116,18 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultIRCConfig defines default values for IRC configurations.
+	DefaultIRCConfig = IRCConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		TLS:      true,
+		Nickname: "alertmanager",
+		Username: "alertmanager",
+		Message:  `{{ template "irc.default.message" . }}`,
+		Notice:   false,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -346,6 +358,38 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return fmt.Errorf("missing Routing key in VictorOps config")
 	}
 	return checkOverflow(c.XXX, "victorops config")
+}
+
+// IRCConfig configures notifications via IRC
+type IRCConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	Server          string `yaml:"server"`
+	TLS             bool   `yaml:"tls"`
+	Nickname        string `yaml:"nickname"`
+	Username        string `yaml:"username"`
+	Target          string `yaml:"target"`
+	ChannelPassword Secret `yaml:"channel_password"`
+	Message         string `yaml:"message"`
+	Notice          bool   `yaml:"notice"`
+
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *IRCConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultIRCConfig
+	type plain IRCConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Server == "" {
+		return fmt.Errorf("missing Server in IRC config")
+	}
+	if c.Target == "" {
+		return fmt.Errorf("missing Target in IRC config")
+	}
+	return checkOverflow(c.XXX, "irc config")
 }
 
 type duration time.Duration
