@@ -159,6 +159,12 @@
 			"revisionTime": "2016-06-15T09:26:46Z"
 		},
 		{
+			"checksumSHA1": "wYdF7QqwSS598ZVKVCipSOruAWg=",
+			"path": "github.com/thoj/go-ircevent",
+			"revision": "a6b1561a016c2a4aae183c3ef152c25d134c095d",
+			"revisionTime": "2016-07-25T11:27:37Z"
+		},
+		{
 			"checksumSHA1": "yDaVpVkVvG/i7L0K3WvCjhj3OUE=",
 			"path": "github.com/weaveworks/mesh",
 			"revision": "02ce71e4bf54aa0f82d2c89b3911de8047157f37",
