@@ -172,6 +172,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if ec.AuthIdentity == "" {
 				ec.AuthIdentity = c.Global.SMTPAuthIdentity
 			}
+			if ec.RequireTLS == nil {
+				ec.RequireTLS = new(bool)
+				*ec.RequireTLS = c.Global.SMTPRequireTLS
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.APIURL == "" {
@@ -272,6 +276,7 @@ func checkReceiver(r *Route, receivers map[string]struct{}) error {
 var DefaultGlobalConfig = GlobalConfig{
 	ResolveTimeout: model.Duration(5 * time.Minute),
 
+	SMTPRequireTLS:  true,
 	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
 	HipchatURL:      "https://api.hipchat.com/",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
@@ -291,6 +296,7 @@ type GlobalConfig struct {
 	SMTPAuthPassword Secret `yaml:"smtp_auth_password"`
 	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret"`
 	SMTPAuthIdentity string `yaml:"smtp_auth_identity"`
+	SMTPRequireTLS   bool   `yaml:"smtp_require_tls"`
 	SlackAPIURL      Secret `yaml:"slack_api_url"`
 	PagerdutyURL     string `yaml:"pagerduty_url"`
 	HipchatURL       string `yaml:"hipchat_url"`

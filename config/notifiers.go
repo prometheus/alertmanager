@@ -33,7 +33,6 @@ var (
 			VSendResolved: false,
 		},
 		HTML:       `{{ template "email.default.html" . }}`,
-		RequireTLS: true,
 	}
 
 	// DefaultEmailSubject defines the default Subject header of an Email.
@@ -141,7 +140,7 @@ type EmailConfig struct {
 	AuthIdentity string            `yaml:"auth_identity"`
 	Headers      map[string]string `yaml:"headers"`
 	HTML         string            `yaml:"html"`
-	RequireTLS   bool              `yaml:"require_tls"`
+	RequireTLS   *bool             `yaml:"require_tls,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
