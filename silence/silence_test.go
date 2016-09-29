@@ -139,7 +139,7 @@ func TestSilencesSnapshot(t *testing.T) {
 		f, err := ioutil.TempFile("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
-		s1 := &Silences{st: gossipData{}}
+		s1 := &Silences{st: gossipData{}, metrics: newMetrics(nil)}
 		// Setup internal state manually.
 		for _, e := range c.entries {
 			s1.st[e.Silence.Id] = e

@@ -31,6 +31,7 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/satori/go.uuid"
@@ -91,6 +92,7 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
 	logger    log.Logger
+	metrics   *metrics
 	now       func() time.Time
 	retention time.Duration
 
@@ -104,6 +106,50 @@ type Silences struct {
 	// range and affected labels.
 	mtx sync.RWMutex
 	st  gossipData
+}
+
+type metrics struct {
+	gcDuration       prometheus.Summary
+	snapshotDuration prometheus.Summary
+	queriesTotal     prometheus.Counter
+	queryErrorsTotal prometheus.Counter
+	queryDuration    prometheus.Histogram
+}
+
+func newMetrics(r prometheus.Registerer) *metrics {
+	m := &metrics{}
+
+	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+		Name: "alertmanager_silences_gc_duration_seconds",
+		Help: "Duration of the last silence garbage collection cycle.",
+	})
+	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+		Name: "alertmanager_silences_snapshot_duration_seconds",
+		Help: "Duration of the last silence snapshot.",
+	})
+	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_queries_total",
+		Help: "How many silence queries were received.",
+	})
+	m.queryErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_query_errors_total",
+		Help: "How many silence received queries did not succeed.",
+	})
+	m.queryDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "alertmanager_silences_query_duration_seconds",
+		Help: "Duration of silence query evaluation.",
+	})
+
+	if r != nil {
+		r.MustRegister(
+			m.gcDuration,
+			m.snapshotDuration,
+			m.queriesTotal,
+			m.queryErrorsTotal,
+			m.queryDuration,
+		)
+	}
+	return m
 }
 
 // Options exposes configuration options for creating a new Silences object.
@@ -122,7 +168,8 @@ type Options struct {
 	Gossip func(g mesh.Gossiper) mesh.Gossip
 
 	// A logger used by background processing.
-	Logger log.Logger
+	Logger  log.Logger
+	Metrics prometheus.Registerer
 }
 
 func (o *Options) validate() error {
@@ -149,6 +196,7 @@ func New(o Options) (*Silences, error) {
 	s := &Silences{
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
+		metrics:   newMetrics(o.Metrics),
 		retention: o.Retention,
 		now:       utcNow,
 		gossip:    nopGossip{},
@@ -225,6 +273,9 @@ Loop:
 // GC runs a garbage collection that removes silences that have ended longer
 // than the configured retention time ago.
 func (s *Silences) GC() (int, error) {
+	start := time.Now()
+	defer func() { s.metrics.gcDuration.Observe(time.Since(start).Seconds()) }()
+
 	now, err := s.nowProto()
 	if err != nil {
 		return 0, err
@@ -552,17 +603,27 @@ func QState(states ...SilenceState) QueryParam {
 
 // Query for silences based on the given query parameters.
 func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, error) {
-	q := &query{}
-	for _, p := range params {
-		if err := p(q); err != nil {
+	start := time.Now()
+	s.metrics.queriesTotal.Inc()
+
+	sils, err := func() ([]*pb.Silence, error) {
+		q := &query{}
+		for _, p := range params {
+			if err := p(q); err != nil {
+				return nil, err
+			}
+		}
+		nowpb, err := s.nowProto()
+		if err != nil {
 			return nil, err
 		}
-	}
-	nowpb, err := s.nowProto()
+		return s.query(q, nowpb)
+	}()
 	if err != nil {
-		return nil, err
+		s.metrics.queryErrorsTotal.Inc()
 	}
-	return s.query(q, nowpb)
+	s.metrics.queryDuration.Observe(time.Since(start).Seconds())
+	return sils, err
 }
 
 func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, error) {
@@ -635,6 +696,9 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 // Snapshot writes the full internal state into the writer and returns the number of bytes
 // written.
 func (s *Silences) Snapshot(w io.Writer) (int, error) {
+	start := time.Now()
+	defer func() { s.metrics.snapshotDuration.Observe(time.Since(start).Seconds()) }()
+
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
