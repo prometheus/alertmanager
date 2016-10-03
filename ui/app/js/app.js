@@ -174,6 +174,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
   function($scope, $location, AlertGroups) {
     $scope.groups = null;
     $scope.allReceivers = [];
+    $scope.hideSilenced = localStorage.hideSilenced == "true";
 
     $scope.$watch('receivers', function(recvs) {
       if (recvs === undefined || angular.equals(recvs, $scope.allReceivers)) {
@@ -200,6 +201,10 @@ angular.module('am.controllers').controller('AlertsCtrl',
 
       return ret;
     };
+
+    $scope.onClickHideSilenced = function() {
+      localStorage.hideSilenced = $scope.hideSilenced.toString()
+    }
 
     $scope.refresh = function() {
       AlertGroups.query({},
