@@ -206,7 +206,6 @@ func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewFilterResolvedStage(i.conf))
 		s = append(s, NewDedupStage(notificationLog, recv))
 		s = append(s, NewRetryStage(i))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
@@ -378,36 +377,6 @@ func (ws *WaitStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.
 		return ctx, nil, ctx.Err()
 	}
 	return ctx, alerts, nil
-}
-
-// FilterResolvedStage filters alerts based on a given notifierConfig. Either
-// returns all alerts or only those that are not resolved.
-type FilterResolvedStage struct {
-	conf notifierConfig
-}
-
-// NewFilterRecolvedStage returns a new instance of a FilterResolvedStage.
-func NewFilterResolvedStage(conf notifierConfig) *FilterResolvedStage {
-	return &FilterResolvedStage{
-		conf: conf,
-	}
-}
-
-// Exec implements the Stage interface.
-func (fr *FilterResolvedStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	var res []*types.Alert
-
-	if fr.conf.SendResolved() {
-		res = alerts
-	} else {
-		for _, a := range alerts {
-			if a.Status() != model.AlertResolved {
-				res = append(res, a)
-			}
-		}
-	}
-
-	return ctx, res, nil
 }
 
 // DedupStage filters alerts.

@@ -62,6 +62,23 @@ type Integration struct {
 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	var res []*types.Alert
+
+	// Resolved alerts have to be filtered only at this point, because they need
+	// to end up unfiltered in the SetNotifiesStage.
+	if i.conf.SendResolved() {
+		res = alerts
+	} else {
+		for _, a := range alerts {
+			if a.Status() != model.AlertResolved {
+				res = append(res, a)
+			}
+		}
+	}
+	if len(res) == 0 {
+		return false, nil
+	}
+
 	return i.notifier.Notify(ctx, alerts...)
 }
 
