@@ -33,6 +33,18 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+type notifierConfigFunc func() bool
+
+func (f notifierConfigFunc) SendResolved() bool {
+	return f()
+}
+
+type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
+
+func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	return f(ctx, alerts...)
+}
+
 type failStage struct{}
 
 func (s failStage) Exec(ctx context.Context, as ...*types.Alert) (context.Context, []*types.Alert, error) {
@@ -281,6 +293,39 @@ func TestRoutingStage(t *testing.T) {
 	if !reflect.DeepEqual(alerts, alerts2) {
 		t.Fatal("Output of RoutingStage is not equal to the output of the inner stage")
 	}
+}
+
+func TestIntegration(t *testing.T) {
+	res := []*types.Alert{}
+	r := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		res = append(res, alerts...)
+
+		return false, nil
+	})
+	i1 := Integration{
+		notifier: r,
+		conf:     notifierConfigFunc(func() bool { return false }),
+	}
+	i2 := Integration{
+		notifier: r,
+		conf:     notifierConfigFunc(func() bool { return true }),
+	}
+
+	alerts := []*types.Alert{
+		&types.Alert{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(-time.Hour),
+			},
+		},
+	}
+
+	i1.Notify(nil, alerts...)
+	i2.Notify(nil, alerts...)
+
+	// Even though the alert is sent to both integrations, which end up being
+	// delivered to the same notifier, only one is actually delivered as the
+	// second integration filters the resolved notifications.
+	require.Equal(t, res, alerts)
 }
 
 func TestSetNotifiesStage(t *testing.T) {
