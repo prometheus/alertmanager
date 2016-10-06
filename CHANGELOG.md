@@ -1,3 +1,9 @@
+## v0.5.0-beta.0 / 2016-10-06
+
+* [BUGFIX] Fix resolved notification filter
+* [ENHANCEMENT] Add silence metrics
+* [ENHANCEMENT] Allow global require TLS config
+
 ## v0.5.0-alpha.0 / 2016-09-09
 
 This realease requires a storage wipe.
