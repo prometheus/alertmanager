@@ -84,6 +84,7 @@ func main() {
 		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
 		hwaddr     = flag.String("mesh.hardware-address", mustHardwareAddr(), "MAC address, i.e. mesh peer ID")
 		nickname   = flag.String("mesh.nickname", mustHostname(), "peer nickname")
+		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
 	)
 	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
 	flag.Parse()
@@ -106,7 +107,7 @@ func main() {
 	}
 
 	logger := log.NewLogger(os.Stderr)
-	mrouter := initMesh(*meshListen, *hwaddr, *nickname)
+	mrouter := initMesh(*meshListen, *hwaddr, *nickname, *password)
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
@@ -303,7 +304,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func initMesh(addr, hwaddr, nickname string) *mesh.Router {
+func initMesh(addr, hwaddr, nickname, pw string) *mesh.Router {
 	host, portStr, err := net.SplitHostPort(addr)
 
 	if err != nil {
@@ -319,11 +320,18 @@ func initMesh(addr, hwaddr, nickname string) *mesh.Router {
 		log.Fatalf("invalid hardware address %q: %v", hwaddr, err)
 	}
 
+	password := []byte(pw)
+	if len(password) == 0 {
+		// Emtpy password is used to disable secure communication. Using a nil
+		// password disables encryption in mesh.
+		password = nil
+	}
+
 	return mesh.NewRouter(mesh.Config{
 		Host:               host,
 		Port:               port,
 		ProtocolMinVersion: mesh.ProtocolMinVersion,
-		Password:           []byte(""),
+		Password:           password,
 		ConnLimit:          64,
 		PeerDiscovery:      true,
 		TrustedSubnets:     []*net.IPNet{},
