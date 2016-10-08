@@ -184,7 +184,7 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 // set the alert in the source cache.
 func (r *InhibitRule) set(a *types.Alert) {
 	r.mtx.Lock()
-	r.mtx.Unlock()
+	defer r.mtx.Unlock()
 
 	r.scache[a.Fingerprint()] = a
 }
