@@ -319,18 +319,15 @@ func (r *Route) MarshalJSON() ([]byte, error) {
 		m[k] = v.String()
 	}
 	b := struct {
-		Receiver string            `json:"receiver,omitempty"`
-		GroupBy  []model.LabelName `json:"group_by,omitempty"`
-
-		Match map[string]string `json:"match,omitempty"`
-		// This needs to be marshaled as Regexp.String()
-		MatchRE  map[string]string `json:"match_re,omitempty"`
-		Continue bool              `json:"continue,omitempty"`
-		Routes   []*Route          `json:"routes,omitempty"`
-
-		GroupWait      *model.Duration `json:"group_wait,omitempty"`
-		GroupInterval  *model.Duration `json:"group_interval,omitempty"`
-		RepeatInterval *model.Duration `json:"repeat_interval,omitempty"`
+		Receiver       string            `json:"receiver,omitempty"`
+		GroupBy        []model.LabelName `json:"group_by,omitempty"`
+		Match          map[string]string `json:"match,omitempty"`
+		MatchRE        map[string]string `json:"match_re,omitempty"`
+		Continue       bool              `json:"continue,omitempty"`
+		Routes         []*Route          `json:"routes,omitempty"`
+		GroupWait      *model.Duration   `json:"group_wait,omitempty"`
+		GroupInterval  *model.Duration   `json:"group_interval,omitempty"`
+		RepeatInterval *model.Duration   `json:"repeat_interval,omitempty"`
 	}{
 		Receiver:       r.Receiver,
 		GroupBy:        r.GroupBy,
