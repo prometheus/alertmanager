@@ -14,7 +14,6 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -312,36 +311,6 @@ type Route struct {
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
-// MarshalJSON implements the json.Marshaler interface.
-func (r *Route) MarshalJSON() ([]byte, error) {
-	m := make(map[string]string)
-	for k, v := range r.MatchRE {
-		m[k] = v.String()
-	}
-	b := struct {
-		Receiver       string            `json:"receiver,omitempty"`
-		GroupBy        []model.LabelName `json:"group_by,omitempty"`
-		Match          map[string]string `json:"match,omitempty"`
-		MatchRE        map[string]string `json:"match_re,omitempty"`
-		Continue       bool              `json:"continue,omitempty"`
-		Routes         []*Route          `json:"routes,omitempty"`
-		GroupWait      *model.Duration   `json:"group_wait,omitempty"`
-		GroupInterval  *model.Duration   `json:"group_interval,omitempty"`
-		RepeatInterval *model.Duration   `json:"repeat_interval,omitempty"`
-	}{
-		Receiver:       r.Receiver,
-		GroupBy:        r.GroupBy,
-		Match:          r.Match,
-		MatchRE:        m,
-		Continue:       r.Continue,
-		Routes:         r.Routes,
-		GroupWait:      r.GroupWait,
-		GroupInterval:  r.GroupInterval,
-		RepeatInterval: r.RepeatInterval,
-	}
-	return json.Marshal(b)
-}
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain Route
@@ -485,4 +454,9 @@ func (re *Regexp) MarshalYAML() (interface{}, error) {
 		return re.String(), nil
 	}
 	return nil, nil
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (re *Regexp) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%s"`, re.String())), nil
 }
