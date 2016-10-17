@@ -57,7 +57,7 @@ type API struct {
 	alerts         provider.Alerts
 	silences       provider.Silences
 	config         string
-	configJSON     *config.Config
+	configJSON     config.Config
 	resolveTimeout time.Duration
 	uptime         time.Time
 
@@ -139,7 +139,7 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 
 	var status = struct {
 		Config      string            `json:"config"`
-		ConfigJSON  *config.Config    `json:"configJSON"`
+		ConfigJSON  config.Config     `json:"configJSON"`
 		VersionInfo map[string]string `json:"versionInfo"`
 		Uptime      time.Time         `json:"uptime"`
 	}{

@@ -458,6 +458,6 @@ func (re *Regexp) MarshalYAML() (interface{}, error) {
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-func (re *Regexp) MarshalJSON() ([]byte, error) {
+func (re Regexp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(re.String())
 }
