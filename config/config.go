@@ -14,6 +14,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -458,5 +459,5 @@ func (re *Regexp) MarshalYAML() (interface{}, error) {
 
 // MarshalJSON implements the json.Marshaler interface.
 func (re *Regexp) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf(`"%s"`, re.String())), nil
+	return json.Marshal(re.String())
 }
