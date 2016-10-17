@@ -59,6 +59,11 @@ func Register(r *route.Router, reloadCh chan<- struct{}, devMode bool) {
 		r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 			http.ServeFile(w, req, "ui/app/index.html")
 		})
+		r.Get("/lib/*filepath", func(w http.ResponseWriter, req *http.Request) {
+			fp := route.Param(route.Context(req), "filepath")
+			log.Infoln("Serving file", fp)
+			http.ServeFile(w, req, fmt.Sprintf("ui/lib/%s", fp))
+		})
 	} else {
 		r.Get("/app/*filepath", ihf("app_files",
 			func(w http.ResponseWriter, req *http.Request) {
@@ -70,13 +75,13 @@ func Register(r *route.Router, reloadCh chan<- struct{}, devMode bool) {
 		r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
 			serveAsset(w, req, "ui/app/index.html")
 		}))
+		r.Get("/lib/*filepath", ihf("lib_files",
+			func(w http.ResponseWriter, req *http.Request) {
+				fp := route.Param(route.Context(req), "filepath")
+				serveAsset(w, req, filepath.Join("ui/lib", fp))
+			},
+		))
 	}
-	r.Get("/lib/*filepath", ihf("lib_files",
-		func(w http.ResponseWriter, req *http.Request) {
-			fp := route.Param(route.Context(req), "filepath")
-			serveAsset(w, req, filepath.Join("ui/lib", fp))
-		},
-	))
 
 	r.Get("/metrics", prometheus.Handler().ServeHTTP)
 
