@@ -80,7 +80,7 @@ function match(root, labelSet) {
   if (root.children) {
     for (var j = 0; j < root.children.length; j++) {
       var child = root.children[j];
-      var matches = match(child, labelSet)
+      var matches = match(child, labelSet);
 
       all = all.concat(matches);
 
