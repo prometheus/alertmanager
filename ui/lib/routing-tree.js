@@ -56,9 +56,14 @@ d3.select(".js-find-match").on("click", function() {
   var labelSet = parseSearch(searchValue);
   var matches = match(root, labelSet)
   var nodes = tree.nodes(root);
-  var idx = nodes.map(function(n) { return n.id }).indexOf(matches[0].id)
-  nodes.forEach(function(n) { n.matched = false });
-  nodes[idx].matched = true;
+  var matchedIds = matches.map(function(n) { return n.id; });
+  nodes.forEach(function(n) {
+    if (matchedIds.indexOf(n.id) > -1) {
+      n.matched = true;
+    } else {
+      n.matched = false;
+    }
+  });
   update(root);
 });
 
@@ -74,12 +79,12 @@ function match(root, labelSet) {
 
   if (root.children) {
     for (var j = 0; j < root.children.length; j++) {
-      child = root.children[j];
-      matches = match(child, labelSet)
+      var child = root.children[j];
+      var matches = match(child, labelSet);
 
       all = all.concat(matches);
 
-      if (matches && !child.continue) {
+      if (matches.length && !child.continue) {
         break;
       }
     }
@@ -131,10 +136,6 @@ function massage(root) {
 
   root.children = root.routes
 
-  if (root.continue != false) {
-    root.continue = true;
-  }
-
   var matchers = []
   if (root.match) {
     for (var key in root.match) {
@@ -172,14 +173,17 @@ function update(root) {
   var nodes = tree.nodes(root);
   var links = tree.links(nodes);
 
-  var matchedNode = nodes.find(function(n) { return n.matched })
+  var matchedNodes = nodes.filter(function(n) { return n.matched })
   var highlight = [];
-  if (matchedNode) {
-    highlight = [matchedNode]
-    while (matchedNode.parent) {
-      highlight.push(matchedNode.parent);
-      matchedNode = matchedNode.parent;
-    }
+  if (matchedNodes.length) {
+    highlight = matchedNodes
+    matchedNodes.forEach(function(n) {
+      var mn = n
+      while (mn.parent) {
+        highlight.push(mn.parent);
+        mn = mn.parent;
+      }
+    });
   }
 
   var link = svg.selectAll(".link").data(links);
