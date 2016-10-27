@@ -83,7 +83,7 @@ func templateDefaultTmpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "template/default.tmpl", size: 15667, mode: os.FileMode(420), modTime: time.Unix(1476382594, 0)}
+	info := bindataFileInfo{name: "template/default.tmpl", size: 15667, mode: os.FileMode(420), modTime: time.Unix(1477154510, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
