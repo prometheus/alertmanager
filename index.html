@@ -1,0 +1,22 @@
+<html>
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Alertmanager</title>
+    <link rel="stylesheet" href="https://unpkg.com/tachyons@4.5.3/css/tachyons.min.css"/>
+  </head>
+
+  <body>
+    <div id="app"></div>
+  </body>
+
+  <!-- Your source after making -->
+  <script type="text/javascript" src="/script.js"></script>
+
+  <!-- Removes splash and starts elm app. -->
+  <script type="text/javascript">
+    var node = document.getElementById('app');
+    var app = Elm.Main.embed(node);
+  </script>
+
+</html>

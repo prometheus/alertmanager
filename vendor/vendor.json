@@ -1,0 +1,20 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "ZxzYc1JwJ3U6kZbw/KGuPko5lSY=",
+			"origin": "github.com/stuartnelson3/guac/vendor/github.com/howeyc/fsnotify",
+			"path": "github.com/howeyc/fsnotify",
+			"revision": "e6a44e9b009f06370480facd69da9cc5401741e9",
+			"revisionTime": "2016-10-29T13:20:31Z"
+		},
+		{
+			"checksumSHA1": "tQ4r0v1PCXZ7tmc9/M/XvsZxneA=",
+			"path": "github.com/stuartnelson3/guac",
+			"revision": "e6a44e9b009f06370480facd69da9cc5401741e9",
+			"revisionTime": "2016-10-29T13:20:31Z"
+		}
+	],
+	"rootPath": "github.com/stuartnelson3/elm-bootstrap"
+}
