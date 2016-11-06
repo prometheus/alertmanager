@@ -19,7 +19,7 @@ type alias Model =
   , route : Route
   }
 
-type Silence =
+type alias Silence =
     { id : Int
     , createdBy : String
     , comment : String
@@ -30,10 +30,15 @@ type Silence =
     }
 
 -- TODO: Implement Alert.
-type Alert = {}
+type alias Alert =
+  { id : String }
 
 -- TODO: Implement Matcher.
-type Matcher = {}
+type alias Matcher =
+  { name : String
+  , value : String
+  , isRegex : Bool
+  }
 
 type Msg
   = SilenceFetchSucceed Silence
@@ -43,9 +48,10 @@ type Msg
   | FetchFail Http.Error
 
 type Route
-  = Silences
-  | Silence String
-  | Alerts
-  | Alert String
+  = SilencesRoute
+  | SilenceRoute String
+  | AlertsRoute
+  | AlertRoute String
+  | TopLevel
   | NotFound
 

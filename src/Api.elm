@@ -14,34 +14,30 @@ import Types exposing (..)
 
 
 baseUrl : String
-baseUrl = "http://localhost:8080/api/v1"
+baseUrl = "/api/v1"
 
 
-
-getSilence : String -> Cmd Msg
-getSilence sid =
+getSilences : Cmd Msg
+getSilences =
   let
-      url = String.join "/" [baseUrl, "sid", id]
+    url = String.join "/" [baseUrl, "silences"]
   in
-     Task.perform FetchFail FetchSucceed (Http.get responseDecoder url)
+    Task.perform FetchFail SilencesFetchSucceed (Http.get responseDecoder url)
 
 
 decodeApiResponse : Json.Decoder (List Silence)
 decodeApiResponse =
-  Json.list responseDecoder
+  Json.list silenceDecoder
 
 
-responseDecoder : Json.Decoder Silence
+responseDecoder : Json.Decoder (List Silence)
 responseDecoder =
-  Json.at ["data"] Json.object3 Silence
-    ("Title" := Json.string)
-    ("FullPath" := Json.string)
-    ("ApiMovie" := apiResponseDecoder)
+  Json.at ["data", "silences"] decodeApiResponse
 
 silenceDecoder : Json.Decoder Silence
 silenceDecoder =
   Json.object7 Silence
-    ("id" := Json.string)
+    ("id" := Json.int)
     ("createdBy" := Json.string)
     ("comment" := Json.string)
     ("startsAt" := Json.string)

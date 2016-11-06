@@ -15,19 +15,19 @@ import Types exposing (Model, Silence, Alert, Msg, Route(..))
 view : Model -> Html Msg
 view model =
   case model.route of
-    Alerts ->
-      alertsView model.alerts
+    AlertsRoute ->
+      genericListView todoView model.alerts
 
-    Alert name ->
+    AlertRoute name ->
       let
         one = Debug.log "view: name" name
       in
-        alertView model.alert
+        todoView model.alert
 
-    Silences ->
-      silencesView model.silences
+    SilencesRoute ->
+      genericListView silenceListView model.silences
 
-    Silence name ->
+    SilenceRoute name ->
       let
         one = Debug.log "view: name" name
       in
@@ -37,18 +37,31 @@ view model =
       notFoundView model
 
 
-notFoundView : Model -> Html Msg
+todoView : a -> Html Msg
+todoView model =
+  div [] [
+    h1 [] [ text "todo" ]
+  ]
+
+notFoundView : a -> Html Msg
 notFoundView model =
   div [] [
     h1 [] [ text "not found" ]
   ]
 
 
+genericListView : (a -> Html Msg) -> List a -> Html Msg
+genericListView fn list =
+  div [ classList [ ("cf", True)
+                  , ("pa2", True)
+                  ]
+  ] (List.map fn list)
+
 silenceListView : Silence -> Html Msg
-silenceListView model =
+silenceListView silence =
   a [ class "db link dim tc"
-    , href ("#/silence/" ++ model.silence.id) ]
-    [ silenceView model ]
+    , href ("#/silence/" ++ silence.id) ]
+    [ silenceView silence ]
 
 
 silencesView : List Silence -> Html Msg
@@ -68,14 +81,7 @@ silenceView silence =
                   , ("w-w-20-l", True)
                   ]
     ]
-    [ img [ src silence.poster
-          , classList [ ("db", True)
-                      , ("w-100", True)
-                      , ("outline", True)
-                      , ("black-10", True)
-                      ]
-      ] []
-    , dl [ classList [ ("mt2", True)
+    [ dl [ classList [ ("mt2", True)
                      , ("f6", True)
                      , ("lh-copy", True)
                      ]

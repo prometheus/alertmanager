@@ -60,10 +60,10 @@ topLevelParser =
 routeParser : Parser (Route -> a) a
 routeParser =
   UrlParser.oneOf
-    [ format Silences silencesParser
-    , format Silence silenceParser
-    , format Alerts alertsParser
-    , format Alert alertParser
+    [ format SilencesRoute silencesParser
+    , format SilenceRoute silenceParser
+    , format AlertsRoute alertsParser
+    , format AlertRoute alertParser
     , format TopLevel topLevelParser
     ]
 
