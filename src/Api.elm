@@ -18,7 +18,7 @@ import Types exposing (..)
 
 baseUrl : String
 baseUrl =
-    "/api/v1"
+    "http://localhost:9093/api/v1"
 
 
 getSilences : Cmd Msg
@@ -27,17 +27,26 @@ getSilences =
         url =
             String.join "/" [ baseUrl, "silences" ]
     in
-        Task.perform FetchFail SilencesFetchSucceed (Http.get responseDecoder url)
+        Task.perform FetchFail SilencesFetchSucceed (Http.get listResponseDecoder url)
 
 
-decodeApiResponse : Json.Decoder (List Silence)
-decodeApiResponse =
-    Json.list silenceDecoder
+getSilence : String -> Cmd Msg
+getSilence id =
+    let
+        url =
+            String.join "/" [ baseUrl, "silence", id ]
+    in
+        Task.perform FetchFail SilenceFetchSucceed (Http.get showResponseDecoder url)
 
 
-responseDecoder : Json.Decoder (List Silence)
-responseDecoder =
-    Json.at [ "data", "silences" ] decodeApiResponse
+-- Make these generic when I've gotten to Alerts
+showResponseDecoder : Json.Decoder Silence
+showResponseDecoder =
+    (Json.at [ "data" ] silenceDecoder)
+
+listResponseDecoder : Json.Decoder (List Silence)
+listResponseDecoder =
+    Json.at [ "data", "silences" ] (Json.list silenceDecoder)
 
 
 silenceDecoder : Json.Decoder Silence

@@ -60,6 +60,9 @@ urlUpdate route model =
                 SilencesRoute ->
                     Api.getSilences
 
+                SilenceRoute id ->
+                    Api.getSilence id
+
                 TopLevel ->
                     Navigation.modifyUrl "/#/alerts"
 

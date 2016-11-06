@@ -6,11 +6,12 @@ import Html exposing (..)
 import Html.App as Html
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import String
 
 
 -- Internal Imports
 
-import Types exposing (Model, Silence, Alert, Msg, Route(..))
+import Types exposing (Model, Silence, Alert, Matcher, Msg, Route(..))
 
 
 view : Model -> Html Msg
@@ -34,7 +35,8 @@ view model =
                 one =
                     Debug.log "view: name" name
             in
-                silenceView model.silence
+                div []
+                  (silenceView model.silence :: (List.map matcherView model.silence.matchers))
 
         _ ->
             notFoundView model
@@ -69,7 +71,7 @@ silenceListView : Silence -> Html Msg
 silenceListView silence =
     a
         [ class "db link dim tc"
-        , href ("#/silence/" ++ silence.id)
+        , href ("#/silence/" ++ (toString silence.id))
         ]
         [ silenceView silence ]
 
@@ -92,8 +94,10 @@ silenceView silence =
             [ ( "fl", True )
             , ( "w-50", False )
             , ( "pa2", True )
+            , ( "ma1", True )
             , ( "w-25-m", True )
             , ( "w-w-20-l", True )
+            , ( "ba b--gray", True )
             ]
         ]
         [ dl
@@ -103,13 +107,16 @@ silenceView silence =
                 , ( "lh-copy", True )
                 ]
             ]
-            [ objectData silence.id
+            [ objectData (toString silence.id)
             , objectData silence.createdBy
             , objectData silence.comment
             ]
         ]
 
+matcherView : Matcher -> Html msg
+matcherView matcher =
+    dt [ class "m10 black w-100" ] [ text (String.join " " [matcher.name, "=", matcher.value]) ]
 
 objectData : String -> Html msg
 objectData data =
-    dt [ class "m10 black truncate w-100" ] [ text data ]
+    dt [ class "m10 black w-100" ] [ text data ]
