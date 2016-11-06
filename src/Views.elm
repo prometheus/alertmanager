@@ -36,7 +36,7 @@ view model =
                     Debug.log "view: name" name
             in
                 div []
-                  (silenceView model.silence :: (List.map matcherView model.silence.matchers))
+                    (silenceView model.silence :: (List.map matcherView model.silence.matchers))
 
         _ ->
             notFoundView model
@@ -102,9 +102,11 @@ silenceView silence =
             ]
         ]
 
+
 matcherView : Matcher -> Html msg
 matcherView matcher =
-    dt [ class "m10 black w-100" ] [ text (String.join " " [matcher.name, "=", matcher.value]) ]
+    dt [ class "m10 black w-100" ] [ text (String.join " " [ matcher.name, "=", matcher.value ]) ]
+
 
 objectData : String -> Html msg
 objectData data =

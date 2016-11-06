@@ -39,10 +39,14 @@ getSilence id =
         Task.perform FetchFail SilenceFetchSucceed (Http.get showResponseDecoder url)
 
 
+
 -- Make these generic when I've gotten to Alerts
+
+
 showResponseDecoder : Json.Decoder Silence
 showResponseDecoder =
     (Json.at [ "data" ] silenceDecoder)
+
 
 listResponseDecoder : Json.Decoder (List Silence)
 listResponseDecoder =
