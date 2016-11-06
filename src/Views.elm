@@ -76,17 +76,6 @@ silenceListView silence =
         [ silenceView silence ]
 
 
-silencesView : List Silence -> Html Msg
-silencesView silences =
-    div
-        [ classList
-            [ ( "cf", True )
-            , ( "pa2", True )
-            ]
-        ]
-        (List.map silenceListView silences)
-
-
 silenceView : Silence -> Html msg
 silenceView silence =
     div
