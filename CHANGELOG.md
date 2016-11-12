@@ -1,16 +1,12 @@
-## v0.5.0-beta.0 / 2016-10-06
+## v0.5.0 / 2016-11-01
 
-* [BUGFIX] Fix resolved notification filter
-* [ENHANCEMENT] Add silence metrics
-* [ENHANCEMENT] Allow global require TLS config
+This release requires a storage wipe. It contains fundamental internal
+changes that came with implementing the high availability mode.
 
-## v0.5.0-alpha.0 / 2016-09-09
-
-This realease requires a storage wipe.
-
-* [FEATURE] High Availability
-* [FEATURE] Garbage collected storage
-* [CHANGE] Different storage format
+* [FEATURE] Alertmanager clustering for high availability
+* [FEATURE] Garbage collection of old silences and notification logs
+* [CHANGE] New storage format
+* [CHANGE] Stricter silence semantics for consistent historical view
 
 ## v0.4.2 / 2016-09-02
 
