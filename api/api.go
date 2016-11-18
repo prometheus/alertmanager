@@ -531,7 +531,7 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	if err != nil {
 		return
 	}
-	log.Errorf("api error: %s", apiErr)
+	log.Errorf("api error: %v", apiErr.Error())
 
 	w.Write(b)
 }
