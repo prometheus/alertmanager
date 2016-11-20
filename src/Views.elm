@@ -58,10 +58,10 @@ notFoundView model =
 
 genericListView : (a -> Html Msg) -> List a -> Html Msg
 genericListView fn list =
-    div
+    ul
         [ classList
-            [ ( "cf", True )
-            , ( "pa2", True )
+            [ ( "list", True )
+            , ( "pa0", True )
             ]
         ]
         (List.map fn list)
@@ -69,11 +69,31 @@ genericListView fn list =
 
 silenceListView : Silence -> Html Msg
 silenceListView silence =
-    a
-        [ class "db link dim tc"
-        , href ("#/silence/" ++ (toString silence.id))
-        ]
-        [ silenceView silence ]
+    let
+        -- TODO: Check with fabxc if the alert being in the first position can
+        -- be relied upon.
+        alertName =
+            case List.head silence.matchers of
+                Just m ->
+                    m.value
+
+                Nothing ->
+                    ""
+    in
+        li
+            [ class "pa3 pa4-ns bb b--black-10" ]
+            [ a
+                [ class "db link dim blue"
+                , href ("#/silence/" ++ (toString silence.id))
+                ]
+                [ b [ class "db f4 mb1" ]
+                    [ text alertName ]
+                ]
+            , span [ class "f5 db lh-copy measure" ]
+                [ text silence.createdBy ]
+            , span [ class "f5 db lh-copy measure" ]
+                [ text silence.comment ]
+            ]
 
 
 silenceView : Silence -> Html msg
