@@ -319,6 +319,7 @@ angular.module('am.controllers').controller('SilenceCreateCtrl',
     var origSilence = angular.copy($scope.silence);
 
     $scope.reset = function() {
+      $scope.timezoneGuess = moment.tz.guess();
       var now = new Date();
       var end = new Date();
 
@@ -422,9 +423,34 @@ angular.module('am', [
   'am.controllers',
   'am.services',
   'am.directives'
-]);
-
-angular.module('am').config(
+]).run(function(moment) {
+  (moment.updateLocale || moment.locale)('en', {
+    calendar : {
+      lastDay : '[Yesterday at] LT z',
+      sameDay : '[Today at] LT z',
+      nextDay : '[Tomorrow at] LT z',
+      lastWeek : '[last] dddd [at] LT z',
+      nextWeek : 'dddd [at] LT z',
+      sameElse : 'L'
+    }
+  });
+}).constant('angularMomentConfig', (function() {
+  var uiTimezone = 'UTC';
+  return {
+    timezone: uiTimezone,
+    preprocess: function(value) {  // https://github.com/urish/angular-moment/issues/271#issuecomment-254668949
+      if (!isNaN(parseFloat(value)) && isFinite(value))
+        value = parseInt(value, 10);
+      return moment.tz(moment(value), uiTimezone);
+    },
+    statefulFilters: false
+  };
+})()).constant('amTimeAgoConfig', {
+  fullDateFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
+  titleFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
+  fullDateThreshold: 7,
+  fullDateThresholdUnit: 'day'
+}).config(
   function($routeProvider) {
     $routeProvider.
     when('/alerts', {
