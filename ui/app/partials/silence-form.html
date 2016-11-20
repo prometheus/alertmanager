@@ -4,11 +4,11 @@
 
 		<row>
 			<column>
-				<label>Start</label>
+				<label>Start <span class="desc" id="startzonex">({{ timezoneGuess }})</span></label>
 				<input ng-model="silence.startsAt" type="datetime-local" name="start-time" required>
 			</column>
 			<column>
-				<label>End</label>
+				<label>End <span class="desc" id="endzone">({{ timezoneGuess }})</span></label>
 				<input ng-model="silence.endsAt" type="datetime-local" name="end-time" required>
 			</column>
 		</row>
