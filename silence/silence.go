@@ -96,16 +96,16 @@ type Silences struct {
 	now       func() time.Time
 	retention time.Duration
 
-	mc matcherCache
-
 	gossip mesh.Gossip // gossip channel for sharing silences
 
 	// We store silences in a map of IDs for now. Currently, the memory
 	// state is equivalent to the mesh.GossipData representation.
 	// In the future we'll want support for efficient queries by time
 	// range and affected labels.
-	mtx sync.RWMutex
+	// Mutex also guards the matcherCache, which always need write lock access.
+	mtx sync.Mutex
 	st  gossipData
+	mc  matcherCache
 }
 
 type metrics struct {
@@ -632,7 +632,9 @@ func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, err
 	// the trivial solution for now.
 	var res []*pb.Silence
 
-	s.mtx.RLock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	if q.ids != nil {
 		for _, id := range q.ids {
 			if s, ok := s.st[string(id)]; ok {
@@ -662,7 +664,6 @@ func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, err
 			resf = append(resf, sil)
 		}
 	}
-	s.mtx.RUnlock()
 
 	return resf, nil
 }
@@ -671,6 +672,9 @@ func (s *Silences) query(q *query, now *timestamp.Timestamp) ([]*pb.Silence, err
 // Any previous state is wiped.
 func (s *Silences) loadSnapshot(r io.Reader) error {
 	st := gossipData{}
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	for {
 		var sil pb.MeshSilence
@@ -686,9 +690,8 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 			return err
 		}
 	}
-	s.mtx.Lock()
+
 	s.st = st
-	s.mtx.Unlock()
 
 	return nil
 }
@@ -699,8 +702,8 @@ func (s *Silences) Snapshot(w io.Writer) (int, error) {
 	start := time.Now()
 	defer func() { s.metrics.snapshotDuration.Observe(time.Since(start).Seconds()) }()
 
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	var n int
 	for _, s := range s.st {
@@ -719,8 +722,8 @@ type gossiper struct {
 
 // Gossip implements the mesh.Gossiper interface.
 func (g gossiper) Gossip() mesh.GossipData {
-	g.mtx.RLock()
-	defer g.mtx.RUnlock()
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
 
 	return g.st.clone()
 }

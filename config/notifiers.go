@@ -32,7 +32,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		HTML:       `{{ template "email.default.html" . }}`,
+		HTML: `{{ template "email.default.html" . }}`,
 	}
 
 	// DefaultEmailSubject defines the default Subject header of an Email.
