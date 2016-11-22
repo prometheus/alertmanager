@@ -100,40 +100,40 @@
 			"revisionTime": "2015-02-12T10:17:44Z"
 		},
 		{
-			"checksumSHA1": "OFZ6f2tsxQ+pk+wl7474eIxBs80=",
+			"checksumSHA1": "mHyjbJ3BWOfUV6q9f5PBt0gaY1k=",
 			"path": "github.com/prometheus/common/expfmt",
-			"revision": "c25d279efa03dacfede108044f9506ce65c1992e",
-			"revisionTime": "2016-09-06T09:47:59Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
 			"checksumSHA1": "GWlM3d2vPYyNATtTFgftS10/A9w=",
 			"path": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
-			"revision": "c25d279efa03dacfede108044f9506ce65c1992e",
-			"revisionTime": "2016-09-06T09:47:59Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
-			"checksumSHA1": "BUvnhpirWkSUQ9XV3YouQRCofSI=",
+			"checksumSHA1": "UU6hIfhVjnAYDADQEfE/3T7Ddm8=",
 			"path": "github.com/prometheus/common/log",
-			"revision": "c25d279efa03dacfede108044f9506ce65c1992e",
-			"revisionTime": "2016-09-06T09:47:59Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
-			"checksumSHA1": "Jx0GXl5hGnO25s3ryyvtdWHdCpw=",
+			"checksumSHA1": "bRBAUlwQCpJvDqeLb8fq2ZopqkY=",
 			"path": "github.com/prometheus/common/model",
-			"revision": "c25d279efa03dacfede108044f9506ce65c1992e",
-			"revisionTime": "2016-09-06T09:47:59Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
-			"checksumSHA1": "CKVJRc1NREmfoAWQLHxqWQlvxo0=",
+			"checksumSHA1": "QQKJYoGcY10nIHxhBEHwjwUZQzk=",
 			"path": "github.com/prometheus/common/route",
-			"revision": "c25d279efa03dacfede108044f9506ce65c1992e",
-			"revisionTime": "2016-09-06T09:47:59Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
 			"checksumSHA1": "91KYK0SpvkaMJJA2+BcxbVnyRO0=",
 			"path": "github.com/prometheus/common/version",
-			"revision": "c25d279efa03dacfede108044f9506ce65c1992e",
-			"revisionTime": "2016-09-06T09:47:59Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
 			"path": "github.com/prometheus/procfs",
