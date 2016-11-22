@@ -3,7 +3,7 @@ module Parsing exposing (..)
 -- External Imports
 
 import Navigation
-import UrlParser exposing (Parser, (</>), format, int, oneOf, s, string)
+import UrlParser exposing (Parser, (</>), map, int, oneOf, s, string)
 import String
 
 
@@ -15,29 +15,18 @@ import Types exposing (Route(..))
 -- Parsing
 
 
-parse : Navigation.Location -> Route
-parse { pathname, hash } =
+urlParser : Navigation.Location -> Route
+urlParser location =
     let
         one =
-            Debug.log "parse: hash" hash
-
-        path =
-            if String.startsWith "#/" hash then
-                String.dropLeft 2 hash
-            else
-                hash
+            Debug.log "hash" location.hash
     in
-        case UrlParser.parse identity routeParser path of
-            Err err ->
-                NotFound
-
-            Ok route ->
+        case UrlParser.parseHash routeParser location of
+            Just route ->
                 route
 
-
-urlParser : Navigation.Parser Route
-urlParser =
-    Navigation.makeParser parse
+            Nothing ->
+                NotFound
 
 
 silencesParser : Parser a a
@@ -68,9 +57,9 @@ topLevelParser =
 routeParser : Parser (Route -> a) a
 routeParser =
     UrlParser.oneOf
-        [ format SilencesRoute silencesParser
-        , format SilenceRoute silenceParser
-        , format AlertsRoute alertsParser
-        , format AlertRoute alertParser
-        , format TopLevel topLevelParser
+        [ map SilencesRoute silencesParser
+        , map SilenceRoute silenceParser
+        , map AlertsRoute alertsParser
+        , map AlertRoute alertParser
+        , map TopLevel topLevelParser
         ]

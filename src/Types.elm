@@ -49,11 +49,11 @@ type alias Matcher =
 
 
 type Msg
-    = SilenceFetchSucceed Silence
-    | SilencesFetchSucceed (List Silence)
-    | AlertFetchSucceed Alert
-    | AlertsFetchSucceed (List Alert)
-    | FetchFail Http.Error
+    = SilenceFetch (Result Http.Error Silence)
+    | SilencesFetch (Result Http.Error (List Silence))
+    | FetchSilences
+    | FetchSilence String
+    | RedirectAlerts
 
 
 type Route

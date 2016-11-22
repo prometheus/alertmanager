@@ -25,9 +25,9 @@ getSilences : Cmd Msg
 getSilences =
     let
         url =
-            String.join "/" [ baseUrl, "silences" ]
+            String.join "/" [ baseUrl, "silences?limit=1000" ]
     in
-        Task.perform FetchFail SilencesFetchSucceed (Http.get listResponseDecoder url)
+        Http.send SilencesFetch (Http.get url listResponseDecoder)
 
 
 getSilence : String -> Cmd Msg
@@ -36,7 +36,7 @@ getSilence id =
         url =
             String.join "/" [ baseUrl, "silence", id ]
     in
-        Task.perform FetchFail SilenceFetchSucceed (Http.get showResponseDecoder url)
+        Http.send SilenceFetch (Http.get url showResponseDecoder)
 
 
 
@@ -55,19 +55,19 @@ listResponseDecoder =
 
 silenceDecoder : Json.Decoder Silence
 silenceDecoder =
-    Json.object7 Silence
-        ("id" := Json.int)
-        ("createdBy" := Json.string)
-        ("comment" := Json.string)
-        ("startsAt" := Json.string)
-        ("endsAt" := Json.string)
-        ("createdAt" := Json.string)
-        ("matchers" := (Json.list matcherDecoder))
+    Json.map7 Silence
+        (field "id" Json.int)
+        (field "createdBy" Json.string)
+        (field "comment" Json.string)
+        (field "startsAt" Json.string)
+        (field "endsAt" Json.string)
+        (field "createdAt" Json.string)
+        (field "matchers" (Json.list matcherDecoder))
 
 
 matcherDecoder : Json.Decoder Matcher
 matcherDecoder =
-    Json.object3 Matcher
-        ("name" := Json.string)
-        ("value" := Json.string)
-        ("isRegex" := Json.bool)
+    Json.map3 Matcher
+        (field "name" Json.string)
+        (field "value" Json.string)
+        (field "isRegex" Json.bool)

@@ -3,7 +3,6 @@ module Views exposing (..)
 -- External Imports
 
 import Html exposing (..)
-import Html.App as Html
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import String
@@ -36,7 +35,10 @@ view model =
                     Debug.log "view: name" name
             in
                 div []
-                    (silenceView model.silence :: (List.map matcherView model.silence.matchers))
+                    [ silenceView model.silence
+                    , ul [ class "list" ]
+                        (List.map matcherView model.silence.matchers)
+                    ]
 
         _ ->
             notFoundView model
@@ -125,7 +127,10 @@ silenceView silence =
 
 matcherView : Matcher -> Html msg
 matcherView matcher =
-    dt [ class "m10 black w-100" ] [ text (String.join " " [ matcher.name, "=", matcher.value ]) ]
+    li [ class "dib mr1 mb2" ]
+        [ a [ href "#", class "f6 b db pa2 link dim dark-gray ba b--black-20 truncate" ]
+            [ text (String.join " " [ matcher.name, "=", matcher.value ]) ]
+        ]
 
 
 objectData : String -> Html msg

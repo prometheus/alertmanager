@@ -15,61 +15,78 @@ import Types exposing (..)
 
 
 main =
-    Navigation.program Parsing.urlParser
+    Navigation.program urlUpdate
         { init = init
-        , view = Views.view
         , update = update
-        , urlUpdate = urlUpdate
+        , view = Views.view
         , subscriptions = subscriptions
         }
 
 
-init : Route -> ( Model, Cmd Msg )
-init route =
-    urlUpdate route (Model [] (Silence 0 "" "" "" "" "" []) [] (Alert "") route)
+init : Navigation.Location -> ( Model, Cmd Msg )
+init location =
+    let
+        route =
+            Parsing.urlParser location
+    in
+        ( Model [] (Silence 0 "" "" "" "" "" []) [] (Alert "") route, routeCmd route )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        SilencesFetchSucceed silences ->
+        SilencesFetch (Ok silences) ->
             ( { model | silences = silences }, Cmd.none )
 
-        SilenceFetchSucceed silence ->
+        SilencesFetch (Err _) ->
+            ( { model | route = NotFound }, Cmd.none )
+
+        SilenceFetch (Ok silence) ->
             ( { model | silence = silence }, Cmd.none )
 
-        AlertsFetchSucceed alerts ->
-            ( { model | alerts = alerts }, Cmd.none )
+        SilenceFetch (Err _) ->
+            -- show the error somehow
+            ( { model | route = NotFound }, Cmd.none )
 
-        AlertFetchSucceed alert ->
-            ( { model | alert = alert }, Cmd.none )
+        FetchSilences ->
+            ( { model | route = SilencesRoute }, Api.getSilences )
 
-        FetchFail fail ->
-            let
-                one =
-                    Debug.log "fail" fail
-            in
-                ( { model | route = NotFound }, Cmd.none )
+        FetchSilence id ->
+            ( { model | route = SilenceRoute id }, Api.getSilence id )
+
+        RedirectAlerts ->
+            ( { model | route = AlertsRoute }, Navigation.newUrl "/#/alerts" )
 
 
-urlUpdate : Route -> Model -> ( Model, Cmd Msg )
-urlUpdate route model =
+routeCmd : Route -> Cmd Msg
+routeCmd route =
+    case route of
+        SilencesRoute ->
+            Api.getSilences
+
+        SilenceRoute id ->
+            Api.getSilence id
+
+        _ ->
+            Cmd.none
+
+
+urlUpdate : Navigation.Location -> Msg
+urlUpdate location =
     let
-        cmd =
-            case route of
-                SilencesRoute ->
-                    Api.getSilences
-
-                SilenceRoute id ->
-                    Api.getSilence id
-
-                TopLevel ->
-                    Navigation.modifyUrl "/#/alerts"
-
-                _ ->
-                    Cmd.none
+        route =
+            Parsing.urlParser location
     in
-        ( { model | route = route }, cmd )
+        case route of
+            SilencesRoute ->
+                FetchSilences
+
+            SilenceRoute id ->
+                FetchSilence id
+
+            _ ->
+                -- TODO: 404 page
+                RedirectAlerts
 
 
 
