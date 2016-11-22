@@ -22,17 +22,16 @@ import (
 	"net/url"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/Sirupsen/logrus"
 )
 
-type levelFlag string
+type levelFlag struct{}
 
 // String implements flag.Value.
 func (f levelFlag) String() string {
-	return fmt.Sprintf("%q", string(f))
+	return origLogger.Level.String()
 }
 
 // Set implements flag.Value.
@@ -48,23 +47,20 @@ func (f levelFlag) Set(level string) error {
 // setSyslogFormatter is nil if the target architecture does not support syslog.
 var setSyslogFormatter func(string, string) error
 
-// setEventlogFormatter is nil if the target OS does not support Eventlog (i.e., is not Windows).
-var setEventlogFormatter func(string, bool) error
-
 func setJSONFormatter() {
 	origLogger.Formatter = &logrus.JSONFormatter{}
 }
 
-type logFormatFlag url.URL
+type logFormatFlag struct{ uri string }
 
 // String implements flag.Value.
 func (f logFormatFlag) String() string {
-	u := url.URL(f)
-	return fmt.Sprintf("%q", u.String())
+	return f.uri
 }
 
 // Set implements flag.Value.
 func (f logFormatFlag) Set(format string) error {
+	f.uri = format
 	u, err := url.Parse(format)
 	if err != nil {
 		return err
@@ -85,23 +81,13 @@ func (f logFormatFlag) Set(format string) error {
 		appname := u.Query().Get("appname")
 		facility := u.Query().Get("local")
 		return setSyslogFormatter(appname, facility)
-	case "eventlog":
-		if setEventlogFormatter == nil {
-			return fmt.Errorf("system does not support eventlog")
-		}
-		name := u.Query().Get("name")
-		debugAsInfo := false
-		debugAsInfoRaw := u.Query().Get("debugAsInfo")
-		if parsedDebugAsInfo, err := strconv.ParseBool(debugAsInfoRaw); err == nil {
-			debugAsInfo = parsedDebugAsInfo
-		}
-		return setEventlogFormatter(name, debugAsInfo)
 	case "stdout":
 		origLogger.Out = os.Stdout
 	case "stderr":
 		origLogger.Out = os.Stderr
+
 	default:
-		return fmt.Errorf("unsupported logger %q", u.Opaque)
+		return fmt.Errorf("unsupported logger %s", u.Opaque)
 	}
 	return nil
 }
@@ -115,19 +101,10 @@ func init() {
 // adds the flags to flag.CommandLine anyway. Thus, it's usually enough to call
 // flag.Parse() to make the logging flags take effect.
 func AddFlags(fs *flag.FlagSet) {
-	fs.Var(
-		levelFlag(origLogger.Level.String()),
-		"log.level",
-		"Only log messages with the given severity or above. Valid levels: [debug, info, warn, error, fatal]",
-	)
-	fs.Var(
-		logFormatFlag(url.URL{Scheme: "logger", Opaque: "stderr"}),
-		"log.format",
-		`Set the log target and format. Example: "logger:syslog?appname=bob&local=7" or "logger:stdout?json=true"`,
-	)
+	fs.Var(levelFlag{}, "log.level", "Only log messages with the given severity or above. Valid levels: [debug, info, warn, error, fatal].")
+	fs.Var(logFormatFlag{}, "log.format", "If set use a syslog logger or JSON logging. Example: logger:syslog?appname=bob&local=7 or logger:stdout?json=true. Defaults to stderr.")
 }
 
-// Logger is the interface for loggers used in the Prometheus components.
 type Logger interface {
 	Debug(...interface{})
 	Debugln(...interface{})
@@ -296,7 +273,7 @@ func Info(args ...interface{}) {
 	baseLogger.sourced().Info(args...)
 }
 
-// Infoln logs a message at level Info on the standard logger.
+// Info logs a message at level Info on the standard logger.
 func Infoln(args ...interface{}) {
 	baseLogger.sourced().Infoln(args...)
 }

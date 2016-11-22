@@ -64,8 +64,17 @@ type ConfigState struct {
 	// inside these interface methods.  As a result, this option relies on
 	// access to the unsafe package, so it will not have any effect when
 	// running in environments without access to the unsafe package such as
-	// Google App Engine or with the "disableunsafe" build tag specified.
+	// Google App Engine or with the "safe" build tag specified.
 	DisablePointerMethods bool
+
+	// DisablePointerAddresses specifies whether to disable the printing of
+	// pointer addresses. This is useful when diffing data structures in tests.
+	DisablePointerAddresses bool
+
+	// DisableCapacities specifies whether to disable the printing of capacities
+	// for arrays, slices, maps and channels. This is useful when diffing
+	// data structures in tests.
+	DisableCapacities bool
 
 	// ContinueOnMethod specifies whether or not recursion should continue once
 	// a custom error or Stringer interface is invoked.  The default, false,
