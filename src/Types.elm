@@ -53,7 +53,7 @@ type Msg
     | SilencesFetch (Result Http.Error (List Silence))
     | FetchSilences
     | FetchSilence String
-    | RedirectAlerts
+    | RedirectSilences
 
 
 type Route

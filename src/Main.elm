@@ -29,7 +29,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        ( Model [] (Silence 0 "" "" "" "" "" []) [] (Alert "") route, routeCmd route )
+        update (urlUpdate location) (Model [] (Silence 0 "" "" "" "" "" []) [] (Alert "") route)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -54,21 +54,8 @@ update msg model =
         FetchSilence id ->
             ( { model | route = SilenceRoute id }, Api.getSilence id )
 
-        RedirectAlerts ->
-            ( { model | route = AlertsRoute }, Navigation.newUrl "/#/alerts" )
-
-
-routeCmd : Route -> Cmd Msg
-routeCmd route =
-    case route of
-        SilencesRoute ->
-            Api.getSilences
-
-        SilenceRoute id ->
-            Api.getSilence id
-
-        _ ->
-            Cmd.none
+        RedirectSilences ->
+            ( { model | route = AlertsRoute }, Navigation.newUrl "/#/silences" )
 
 
 urlUpdate : Navigation.Location -> Msg
@@ -86,7 +73,7 @@ urlUpdate location =
 
             _ ->
                 -- TODO: 404 page
-                RedirectAlerts
+                RedirectSilences
 
 
 
