@@ -41,7 +41,8 @@ func TestNlogGC(t *testing.T) {
 			"a2": newEntry(now.Add(time.Second)),
 			"a3": newEntry(now.Add(-time.Second)),
 		},
-		now: func() time.Time { return now },
+		now:     func() time.Time { return now },
+		metrics: newMetrics(nil),
 	}
 	n, err := l.GC()
 	require.NoError(t, err, "unexpected error in garbage collection")
@@ -98,7 +99,10 @@ func TestNlogSnapshot(t *testing.T) {
 		f, err := ioutil.TempFile("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
-		l1 := &nlog{st: gossipData{}}
+		l1 := &nlog{
+			st:      gossipData{},
+			metrics: newMetrics(nil),
+		}
 		// Setup internal state manually.
 		for _, e := range c.entries {
 			l1.st[stateKey(e.Entry.GroupKey, e.Entry.Receiver)] = e
