@@ -1,3 +1,9 @@
+## v0.5.1 / 2016-11-24
+
+* [BUGFIX] Fix crash caused by race condition in silencing
+* [ENHANCEMENT] Improve logging of API errors
+* [ENHANCEMENT] Add metrics for the notification log
+
 ## v0.5.0 / 2016-11-01
 
 This release requires a storage wipe. It contains fundamental internal
