@@ -122,46 +122,40 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-			"checksumSHA1": "OFZ6f2tsxQ+pk+wl7474eIxBs80=",
-			"origin": "github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/expfmt",
+			"checksumSHA1": "mHyjbJ3BWOfUV6q9f5PBt0gaY1k=",
 			"path": "github.com/prometheus/common/expfmt",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
 			"checksumSHA1": "GWlM3d2vPYyNATtTFgftS10/A9w=",
-			"origin": "github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
 			"path": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
-			"checksumSHA1": "BUvnhpirWkSUQ9XV3YouQRCofSI=",
-			"origin": "github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/log",
+			"checksumSHA1": "UU6hIfhVjnAYDADQEfE/3T7Ddm8=",
 			"path": "github.com/prometheus/common/log",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
-			"checksumSHA1": "Jx0GXl5hGnO25s3ryyvtdWHdCpw=",
-			"origin": "github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/model",
+			"checksumSHA1": "bRBAUlwQCpJvDqeLb8fq2ZopqkY=",
 			"path": "github.com/prometheus/common/model",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
-			"checksumSHA1": "CKVJRc1NREmfoAWQLHxqWQlvxo0=",
-			"origin": "github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/route",
+			"checksumSHA1": "QQKJYoGcY10nIHxhBEHwjwUZQzk=",
 			"path": "github.com/prometheus/common/route",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
 			"checksumSHA1": "91KYK0SpvkaMJJA2+BcxbVnyRO0=",
-			"origin": "github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/version",
 			"path": "github.com/prometheus/common/version",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+			"revisionTime": "2016-11-14T13:47:43Z"
 		},
 		{
 			"checksumSHA1": "gc+7liWFv9C7S5kS2l7qLajiWdc=",
@@ -248,25 +242,28 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-			"checksumSHA1": "42L+GOKH+OoRYqVyIohUcj8bLzI=",
-			"origin": "github.com/prometheus/alertmanager/vendor/golang.org/x/sys/windows",
-			"path": "golang.org/x/sys/windows",
-			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
-			"revisionTime": "2016-07-03T23:56:20Z"
+			"checksumSHA1": "Mk0HzIHe8LoPSTkLvGLAvwUtUcQ=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "d5645953809d8b4752afb2c3224b1f1ad73dfa70",
+			"revisionTime": "2016-11-25T20:53:50Z"
 		},
 		{
-			"checksumSHA1": "Qvq4DjtYrcpGgBT0O1s8nTTeFWQ=",
-			"origin": "github.com/prometheus/alertmanager/vendor/golang.org/x/sys/windows/registry",
+			"checksumSHA1": "fpW2dhGFC6SrVzipJx7fjg2DIH8=",
+			"path": "golang.org/x/sys/windows",
+			"revision": "d5645953809d8b4752afb2c3224b1f1ad73dfa70",
+			"revisionTime": "2016-11-25T20:53:50Z"
+		},
+		{
+			"checksumSHA1": "PjYlbMS0ttyZYlaevvjA/gV3g1c=",
 			"path": "golang.org/x/sys/windows/registry",
-			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
-			"revisionTime": "2016-07-03T23:56:20Z"
+			"revision": "d5645953809d8b4752afb2c3224b1f1ad73dfa70",
+			"revisionTime": "2016-11-25T20:53:50Z"
 		},
 		{
 			"checksumSHA1": "uVlUSSKplihZG7N+QJ6fzDZ4Kh8=",
-			"origin": "github.com/prometheus/alertmanager/vendor/golang.org/x/sys/windows/svc/eventlog",
 			"path": "golang.org/x/sys/windows/svc/eventlog",
-			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
-			"revisionTime": "2016-07-03T23:56:20Z"
+			"revision": "d5645953809d8b4752afb2c3224b1f1ad73dfa70",
+			"revisionTime": "2016-11-25T20:53:50Z"
 		},
 		{
 			"checksumSHA1": "KgT+peLCcuh0/m2mpoOZXuxXmwc=",
