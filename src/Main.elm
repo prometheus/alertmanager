@@ -29,7 +29,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model [] (Silence 0 "" "" "" "" "" []) [] (Alert "") route)
+        update (urlUpdate location) (Model [] (Silence 0 "" "" "" "" "" []) [] route)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -54,8 +54,21 @@ update msg model =
         FetchSilence id ->
             ( { model | route = SilenceRoute id }, Api.getSilence id )
 
+        FetchAlertGroups ->
+            ( { model | route = AlertGroupsRoute }, Api.getAlertGroups )
+
+        AlertGroupsFetch (Ok alertGroups) ->
+            ( { model | alertGroups = alertGroups }, Cmd.none )
+
+        AlertGroupsFetch (Err err) ->
+            let
+                one =
+                    Debug.log "error" err
+            in
+                ( { model | route = NotFound }, Cmd.none )
+
         RedirectSilences ->
-            ( { model | route = AlertsRoute }, Navigation.newUrl "/#/silences" )
+            ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/silences" )
 
 
 urlUpdate : Navigation.Location -> Msg
@@ -70,6 +83,9 @@ urlUpdate location =
 
             SilenceRoute id ->
                 FetchSilence id
+
+            AlertGroupsRoute ->
+                FetchAlertGroups
 
             _ ->
                 -- TODO: 404 page

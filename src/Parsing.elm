@@ -44,11 +44,6 @@ alertsParser =
     UrlParser.s "alerts"
 
 
-alertParser : Parser (String -> a) a
-alertParser =
-    UrlParser.s "alert" </> UrlParser.string
-
-
 topLevelParser : Parser a a
 topLevelParser =
     UrlParser.s ""
@@ -59,7 +54,6 @@ routeParser =
     UrlParser.oneOf
         [ map SilencesRoute silencesParser
         , map SilenceRoute silenceParser
-        , map AlertsRoute alertsParser
-        , map AlertRoute alertParser
+        , map AlertGroupsRoute alertsParser
         , map TopLevel topLevelParser
         ]

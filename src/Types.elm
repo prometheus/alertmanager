@@ -12,8 +12,7 @@ import Http exposing (Error)
 type alias Model =
     { silences : List Silence
     , silence : Silence
-    , alerts : List Alert
-    , alert : Alert
+    , alertGroups : List AlertGroup
     , route : Route
     }
 
@@ -33,10 +32,22 @@ type alias Silence =
 -- TODO: Implement Alert.
 
 
+type alias AlertGroup =
+    { alerts : Maybe (List (List Alert))
+    , labels : List ( String, String ) }
+
+
 type alias Alert =
-    { id : String }
+    { annotations : List (String, String)
+    , labels : List (String, String)
+    , inhibited : Bool
+    , silenced : Maybe Int -- TODO: See how to rename this on parsing from API to silenceId
+    , startsAt : String
+    , generatorUrl : String }
 
 
+type alias Block =
+    { alerts : List Alert }
 
 -- TODO: Implement Matcher.
 
@@ -53,13 +64,14 @@ type Msg
     | SilencesFetch (Result Http.Error (List Silence))
     | FetchSilences
     | FetchSilence String
+    | AlertGroupsFetch (Result Http.Error (List AlertGroup))
+    | FetchAlertGroups
     | RedirectSilences
 
 
 type Route
     = SilencesRoute
     | SilenceRoute String
-    | AlertsRoute
-    | AlertRoute String
+    | AlertGroupsRoute
     | TopLevel
     | NotFound

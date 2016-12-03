@@ -6,25 +6,19 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import String
+import Tuple
 
 
 -- Internal Imports
 
-import Types exposing (Model, Silence, Alert, Matcher, Msg, Route(..))
+import Types exposing (Model, Silence, AlertGroup, Matcher, Msg, Route(..))
 
 
 view : Model -> Html Msg
 view model =
     case model.route of
-        AlertsRoute ->
-            genericListView todoView model.alerts
-
-        AlertRoute name ->
-            let
-                one =
-                    Debug.log "view: name" name
-            in
-                todoView model.alert
+        AlertGroupsRoute ->
+            genericListView alertGroupsView model.alertGroups
 
         SilencesRoute ->
             genericListView silenceListView model.silences
@@ -49,6 +43,19 @@ todoView model =
     div []
         [ h1 [] [ text "todo" ]
         ]
+
+
+alertGroupsView : AlertGroup -> Html Msg
+alertGroupsView alertGroup =
+    li
+        [ class "pa3 pa4-ns bb b--black-10" ]
+        (List.map labelView alertGroup.labels)
+
+
+labelView : ( String, String ) -> Html msg
+labelView ( key, value ) =
+    span [ class "f5 db lh-copy measure" ]
+        [ text <| key ++ "=" ++ value ]
 
 
 notFoundView : a -> Html Msg

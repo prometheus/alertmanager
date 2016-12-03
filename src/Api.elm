@@ -39,8 +39,44 @@ getSilence id =
         Http.send SilenceFetch (Http.get url showResponseDecoder)
 
 
+getAlertGroups : Cmd Msg
+getAlertGroups =
+    let
+        url =
+            String.join "/" [ baseUrl, "alerts", "groups" ]
+    in
+        Http.send AlertGroupsFetch (Http.get url alertGroupsDecoder)
+
+
 
 -- Make these generic when I've gotten to Alerts
+
+
+alertGroupsDecoder : Json.Decoder (List AlertGroup)
+alertGroupsDecoder =
+    Json.at [ "data" ] (Json.list alertGroupDecoder)
+
+
+alertGroupDecoder : Json.Decoder AlertGroup
+alertGroupDecoder =
+    Json.map2 AlertGroup
+        (Json.at [ "blocks" ] <| Json.maybe <| Json.list blockDecoder)
+        (Json.at [ "labels" ] (Json.keyValuePairs Json.string))
+
+
+blockDecoder : Json.Decoder (List Alert)
+blockDecoder =
+  Json.at [ "alerts" ] (Json.list alertDecoder)
+
+alertDecoder : Json.Decoder Alert
+alertDecoder =
+  Json.map6 Alert
+        (field "annotations" (Json.keyValuePairs Json.string))
+        (field "labels"      (Json.keyValuePairs Json.string))
+        (field "inhibited"    Json.bool )
+        (Json.maybe (field "silenced"    Json.int ))
+        (field "startsAt"    Json.string )
+        (field "generatorURL"    Json.string )
 
 
 showResponseDecoder : Json.Decoder Silence
