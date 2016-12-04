@@ -30,11 +30,11 @@ getSilences =
         Http.send SilencesFetch (Http.get url listResponseDecoder)
 
 
-getSilence : String -> Cmd Msg
+getSilence : Int -> Cmd Msg
 getSilence id =
     let
         url =
-            String.join "/" [ baseUrl, "silence", id ]
+            String.join "/" [ baseUrl, "silence", toString id ]
     in
         Http.send SilenceFetch (Http.get url showResponseDecoder)
 
@@ -66,17 +66,18 @@ alertGroupDecoder =
 
 blockDecoder : Json.Decoder (List Alert)
 blockDecoder =
-  Json.at [ "alerts" ] (Json.list alertDecoder)
+    Json.at [ "alerts" ] (Json.list alertDecoder)
+
 
 alertDecoder : Json.Decoder Alert
 alertDecoder =
-  Json.map6 Alert
+    Json.map6 Alert
         (field "annotations" (Json.keyValuePairs Json.string))
-        (field "labels"      (Json.keyValuePairs Json.string))
-        (field "inhibited"    Json.bool )
-        (Json.maybe (field "silenced"    Json.int ))
-        (field "startsAt"    Json.string )
-        (field "generatorURL"    Json.string )
+        (field "labels" (Json.keyValuePairs Json.string))
+        (field "inhibited" Json.bool)
+        (Json.maybe (field "silenced" Json.int))
+        (field "startsAt" Json.string)
+        (field "generatorURL" Json.string)
 
 
 showResponseDecoder : Json.Decoder Silence

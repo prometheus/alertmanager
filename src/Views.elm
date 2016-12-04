@@ -20,6 +20,12 @@ view model =
         AlertGroupsRoute ->
             genericListView alertGroupsView model.alertGroups
 
+        NewSilenceRoute ->
+            silenceFormView "New" model.silence
+
+        EditSilenceRoute id ->
+            silenceFormView "Edit" model.silence
+
         SilencesRoute ->
             genericListView silenceListView model.silences
 
@@ -45,11 +51,30 @@ todoView model =
         ]
 
 
+silenceFormView : String -> Silence -> Html Msg
+silenceFormView kind silence =
+    div [ class "pa4 black-80" ]
+        [ fieldset [ class "ba b--transparent ph0 mh0" ]
+            [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
+            ]
+        ]
+
+
 alertGroupsView : AlertGroup -> Html Msg
 alertGroupsView alertGroup =
-    li
-        [ class "pa3 pa4-ns bb b--black-10" ]
-        (List.map labelView alertGroup.labels)
+    let
+        labels =
+            case alertGroup.alerts of
+                Just alerts ->
+                    -- (List.concatMap (\x -> List.concatMap (\y -> y.labels)) alerts)
+                    []
+
+                Nothing ->
+                    []
+    in
+        li
+            [ class "pa3 pa4-ns bb b--black-10" ]
+            (List.map labelView alertGroup.labels)
 
 
 labelView : ( String, String ) -> Html msg
@@ -93,7 +118,7 @@ silenceListView silence =
             [ class "pa3 pa4-ns bb b--black-10" ]
             [ a
                 [ class "db link dim blue"
-                , href ("#/silence/" ++ (toString silence.id))
+                , href ("#/silences/" ++ (toString silence.id))
                 ]
                 [ b [ class "db f4 mb1" ]
                     [ text alertName ]

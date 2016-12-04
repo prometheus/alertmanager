@@ -29,7 +29,12 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model [] (Silence 0 "" "" "" "" "" []) [] route)
+        update (urlUpdate location) (Model [] nullSilence [] route)
+
+
+nullSilence : Silence
+nullSilence =
+    Silence 0 "" "" "" "" "" []
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -53,6 +58,12 @@ update msg model =
 
         FetchSilence id ->
             ( { model | route = SilenceRoute id }, Api.getSilence id )
+
+        EditSilence id ->
+            ( { model | route = EditSilenceRoute id }, Api.getSilence id )
+
+        NewSilence ->
+            ( { model | silence = nullSilence, route = NewSilenceRoute }, Cmd.none )
 
         FetchAlertGroups ->
             ( { model | route = AlertGroupsRoute }, Api.getAlertGroups )
@@ -81,8 +92,14 @@ urlUpdate location =
             SilencesRoute ->
                 FetchSilences
 
+            NewSilenceRoute ->
+                NewSilence
+
             SilenceRoute id ->
                 FetchSilence id
+
+            EditSilenceRoute id ->
+                EditSilence id
 
             AlertGroupsRoute ->
                 FetchAlertGroups

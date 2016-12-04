@@ -34,20 +34,26 @@ type alias Silence =
 
 type alias AlertGroup =
     { alerts : Maybe (List (List Alert))
-    , labels : List ( String, String ) }
+    , labels : List ( String, String )
+    }
 
 
 type alias Alert =
-    { annotations : List (String, String)
-    , labels : List (String, String)
+    { annotations : List ( String, String )
+    , labels : List ( String, String )
     , inhibited : Bool
-    , silenced : Maybe Int -- TODO: See how to rename this on parsing from API to silenceId
+    , silenced :
+        Maybe Int
+        -- TODO: See how to rename this on parsing from API to silenceId
     , startsAt : String
-    , generatorUrl : String }
+    , generatorUrl : String
+    }
 
 
 type alias Block =
     { alerts : List Alert }
+
+
 
 -- TODO: Implement Matcher.
 
@@ -63,7 +69,9 @@ type Msg
     = SilenceFetch (Result Http.Error Silence)
     | SilencesFetch (Result Http.Error (List Silence))
     | FetchSilences
-    | FetchSilence String
+    | FetchSilence Int
+    | NewSilence
+    | EditSilence Int
     | AlertGroupsFetch (Result Http.Error (List AlertGroup))
     | FetchAlertGroups
     | RedirectSilences
@@ -71,7 +79,9 @@ type Msg
 
 type Route
     = SilencesRoute
-    | SilenceRoute String
+    | NewSilenceRoute
+    | SilenceRoute Int
+    | EditSilenceRoute Int
     | AlertGroupsRoute
     | TopLevel
     | NotFound

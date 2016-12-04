@@ -34,9 +34,19 @@ silencesParser =
     UrlParser.s "silences"
 
 
-silenceParser : Parser (String -> a) a
+newSilenceParser : Parser a a
+newSilenceParser =
+    UrlParser.s "silences" </> UrlParser.s "new"
+
+
+silenceParser : Parser (Int -> a) a
 silenceParser =
-    UrlParser.s "silence" </> UrlParser.string
+    UrlParser.s "silences" </> UrlParser.int
+
+
+editSilenceParser : Parser (Int -> a) a
+editSilenceParser =
+    UrlParser.s "silences" </> UrlParser.int </> UrlParser.s "edit"
 
 
 alertsParser : Parser a a
@@ -53,6 +63,8 @@ routeParser : Parser (Route -> a) a
 routeParser =
     UrlParser.oneOf
         [ map SilencesRoute silencesParser
+        , map NewSilenceRoute newSilenceParser
+        , map EditSilenceRoute editSilenceParser
         , map SilenceRoute silenceParser
         , map AlertGroupsRoute alertsParser
         , map TopLevel topLevelParser
