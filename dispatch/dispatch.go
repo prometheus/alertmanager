@@ -86,8 +86,9 @@ type APIAlert struct {
 
 // AlertGroup is a list of alert blocks grouped by the same label set.
 type AlertGroup struct {
-	Labels model.LabelSet `json:"labels"`
-	Blocks []*AlertBlock  `json:"blocks"`
+	Labels   model.LabelSet `json:"labels"`
+	GroupKey uint64         `json:"groupKey"`
+	Blocks   []*AlertBlock  `json:"blocks"`
 }
 
 // AlertOverview is a representation of all active alerts in the system.
@@ -111,6 +112,7 @@ func (d *Dispatcher) Groups() AlertOverview {
 			alertGroup, ok := seen[ag.fingerprint()]
 			if !ok {
 				alertGroup = &AlertGroup{Labels: ag.labels}
+				alertGroup.GroupKey = ag.GroupKey()
 
 				seen[ag.fingerprint()] = alertGroup
 				overview = append(overview, alertGroup)
@@ -329,7 +331,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithNow(ctx, now)
 
 			// Populate context with information needed along the pipeline.
-			ctx = notify.WithGroupKey(ctx, ag.labels.Fingerprint()^ag.routeFP)
+			ctx = notify.WithGroupKey(ctx, model.Fingerprint(ag.GroupKey()))
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
@@ -360,6 +362,10 @@ func (ag *aggrGroup) stop() {
 
 func (ag *aggrGroup) fingerprint() model.Fingerprint {
 	return ag.labels.Fingerprint()
+}
+
+func (ag *aggrGroup) GroupKey() uint64 {
+	return uint64(ag.labels.Fingerprint() ^ ag.routeFP)
 }
 
 // insert inserts the alert into the aggregation group. If the aggregation group
