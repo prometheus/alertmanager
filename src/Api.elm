@@ -64,9 +64,10 @@ alertGroupDecoder =
         (Json.at [ "labels" ] (Json.keyValuePairs Json.string))
 
 
-blockDecoder : Json.Decoder (List Alert)
+blockDecoder : Json.Decoder Block
 blockDecoder =
-    Json.at [ "alerts" ] (Json.list alertDecoder)
+    Json.map Block
+        (field "alerts" <| Json.list alertDecoder)
 
 
 alertDecoder : Json.Decoder Alert

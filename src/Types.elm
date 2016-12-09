@@ -33,7 +33,7 @@ type alias Silence =
 
 
 type alias AlertGroup =
-    { alerts : Maybe (List (List Alert))
+    { blocks : Maybe (List Block)
     , labels : List ( String, String )
     }
 

@@ -11,7 +11,7 @@ import Tuple
 
 -- Internal Imports
 
-import Types exposing (Model, Silence, AlertGroup, Matcher, Msg, Route(..))
+import Types exposing (Model, Silence, AlertGroup, Block, Alert, Matcher, Msg, Route(..))
 
 
 view : Model -> Html Msg
@@ -63,24 +63,53 @@ silenceFormView kind silence =
 alertGroupsView : AlertGroup -> Html Msg
 alertGroupsView alertGroup =
     let
-        labels =
-            case alertGroup.alerts of
-                Just alerts ->
-                    -- (List.concatMap (\x -> List.concatMap (\y -> y.labels)) alerts)
-                    []
+        blocks =
+            case alertGroup.blocks of
+                Just blocks ->
+                    blocks
 
                 Nothing ->
                     []
+
+        pairs =
+            List.map2 (,) alertGroup.labels blocks
     in
-        li
-            [ class "pa3 pa4-ns bb b--black-10" ]
-            (List.map labelView alertGroup.labels)
+        li [ class "pa3 pa4-ns bb b--black-10" ]
+            [ div [] (List.map labelHeader alertGroup.labels)
+            , div [] (List.map blockView blocks)
+            ]
 
 
-labelView : ( String, String ) -> Html msg
-labelView ( key, value ) =
-    span [ class "f5 db lh-copy measure" ]
-        [ text <| key ++ "=" ++ value ]
+blockView : Block -> Html msg
+blockView block =
+    -- Block level
+    div [] <|
+        p [] [ text "one block, this'll probably be changed to accept a Block type instead of just the list of alerts" ]
+            :: (List.map alertView block.alerts)
+
+
+alertView : Alert -> Html msg
+alertView alert =
+    div [] [ text alert.startsAt ]
+
+
+
+-- Make this into a type?
+-- labelView : (( String, String ), List Alert) -> Html msg
+-- labelView (( key, value ), alerts) =
+
+
+labelHeader : ( String, String ) -> Html msg
+labelHeader ( key, value ) =
+    let
+        color =
+            if key == "alertname" then
+                "bg-red white"
+            else
+                ""
+    in
+        a [ class <| "no-underline near-white bg-animate bg-near-black hover-bg-gray inline-flex items-center ma1 tc br2 pa2 " ++ color ]
+            [ text <| key ++ "=" ++ value ]
 
 
 notFoundView : a -> Html Msg
