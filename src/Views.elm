@@ -7,6 +7,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import String
 import Tuple
+import Utils.Date exposing (..)
 
 
 -- Internal Imports
@@ -90,7 +91,7 @@ blockView block =
 
 alertView : Alert -> Html msg
 alertView alert =
-    div [] [ text alert.startsAt ]
+    div [] [ text <| Utils.Date.dateFormat alert.startsAt ]
 
 
 

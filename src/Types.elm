@@ -3,6 +3,7 @@ module Types exposing (..)
 -- External Imports
 
 import Http exposing (Error)
+import Date exposing (Date)
 
 
 -- Internal Imports
@@ -45,7 +46,7 @@ type alias Alert =
     , silenced :
         Maybe Int
         -- TODO: See how to rename this on parsing from API to silenceId
-    , startsAt : String
+    , startsAt : Date
     , generatorUrl : String
     }
 

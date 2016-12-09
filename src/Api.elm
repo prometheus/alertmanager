@@ -6,6 +6,7 @@ import Http
 import Json.Decode as Json exposing (..)
 import Task
 import String
+import Date exposing (..)
 
 
 -- Internal Imports
@@ -77,8 +78,22 @@ alertDecoder =
         (field "labels" (Json.keyValuePairs Json.string))
         (field "inhibited" Json.bool)
         (Json.maybe (field "silenced" Json.int))
-        (field "startsAt" Json.string)
+        (field "startsAt" stringToDate)
         (field "generatorURL" Json.string)
+
+
+stringToDate : Decoder Date.Date
+stringToDate =
+    Json.string
+        |> andThen
+            (\val ->
+                case Date.fromString val of
+                    Err err ->
+                        Json.fail err
+
+                    Ok date ->
+                        Json.succeed <| date
+            )
 
 
 showResponseDecoder : Json.Decoder Silence
