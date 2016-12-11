@@ -85,19 +85,36 @@ blockView : Block -> Html msg
 blockView block =
     -- Block level
     div [] <|
-        p [] [ text "one block, this'll probably be changed to accept a Block type instead of just the list of alerts" ]
+        p [] [ text "one block" ]
             :: (List.map alertView block.alerts)
 
 
 alertView : Alert -> Html msg
 alertView alert =
-    div [] [ text <| Utils.Date.dateFormat alert.startsAt ]
+    let
+        id =
+            case alert.silenceId of
+                Just id ->
+                    id
+
+                Nothing ->
+                    0
+
+        b =
+            if alert.silenced then
+                button "Silenced" ("#/silences/" ++ toString id)
+            else
+                button "Active" "#/alerts"
+    in
+        div []
+            [ p [] [ text <| Utils.Date.dateFormat alert.startsAt ]
+            , b
+            ]
 
 
-
--- Make this into a type?
--- labelView : (( String, String ), List Alert) -> Html msg
--- labelView (( key, value ), alerts) =
+button : String -> String -> Html msg
+button txt link =
+    a [ class "f6 link dim br-pill ba ph3 pv2 mb2 dib dark-blue", href link ] [ text txt ]
 
 
 labelHeader : ( String, String ) -> Html msg

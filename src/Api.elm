@@ -73,13 +73,28 @@ blockDecoder =
 
 alertDecoder : Json.Decoder Alert
 alertDecoder =
-    Json.map6 Alert
+    Json.map7 Alert
         (field "annotations" (Json.keyValuePairs Json.string))
         (field "labels" (Json.keyValuePairs Json.string))
         (field "inhibited" Json.bool)
         (Json.maybe (field "silenced" Json.int))
+        (decodeSilenced)
         (field "startsAt" stringToDate)
         (field "generatorURL" Json.string)
+
+
+decodeSilenced : Decoder Bool
+decodeSilenced =
+    Json.maybe (Json.at [ "silenced" ] Json.int)
+        |> andThen
+            (\val ->
+                case val of
+                    Just _ ->
+                        Json.succeed True
+
+                    Nothing ->
+                        Json.succeed False
+            )
 
 
 stringToDate : Decoder Date.Date

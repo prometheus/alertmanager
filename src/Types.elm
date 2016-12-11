@@ -43,9 +43,8 @@ type alias Alert =
     { annotations : List ( String, String )
     , labels : List ( String, String )
     , inhibited : Bool
-    , silenced :
-        Maybe Int
-        -- TODO: See how to rename this on parsing from API to silenceId
+    , silenceId : Maybe Int
+    , silenced : Bool
     , startsAt : Date
     , generatorUrl : String
     }
