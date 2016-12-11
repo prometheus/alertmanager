@@ -63,22 +63,10 @@ silenceFormView kind silence =
 
 alertGroupsView : AlertGroup -> Html Msg
 alertGroupsView alertGroup =
-    let
-        blocks =
-            case alertGroup.blocks of
-                Just blocks ->
-                    blocks
-
-                Nothing ->
-                    []
-
-        pairs =
-            List.map2 (,) alertGroup.labels blocks
-    in
-        li [ class "pa3 pa4-ns bb b--black-10" ]
-            [ div [] (List.map labelHeader alertGroup.labels)
-            , div [] (List.map blockView blocks)
-            ]
+    li [ class "pa3 pa4-ns bb b--black-10" ]
+        [ div [] (List.map labelHeader alertGroup.labels)
+        , div [] (List.map blockView alertGroup.blocks)
+        ]
 
 
 blockView : Block -> Html msg

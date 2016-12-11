@@ -61,8 +61,24 @@ alertGroupsDecoder =
 alertGroupDecoder : Json.Decoder AlertGroup
 alertGroupDecoder =
     Json.map2 AlertGroup
-        (Json.at [ "blocks" ] <| Json.maybe <| Json.list blockDecoder)
+        (decodeBlocks)
         (Json.at [ "labels" ] (Json.keyValuePairs Json.string))
+
+
+decodeBlocks : Json.Decoder (List Block)
+decodeBlocks =
+    Json.maybe (Json.at [ "blocks" ] (Json.list blockDecoder))
+        |> andThen (unwrapWithDefault [])
+
+
+unwrapWithDefault : a -> Maybe a -> Json.Decoder a
+unwrapWithDefault default val =
+    case val of
+        Just a ->
+            Json.succeed a
+
+        Nothing ->
+            Json.succeed default
 
 
 blockDecoder : Json.Decoder Block
