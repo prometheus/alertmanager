@@ -51,7 +51,13 @@ type alias Alert =
 
 
 type alias Block =
-    { alerts : List Alert }
+    { alerts : List Alert
+    , routeOpts : RouteOpts
+    }
+
+
+type alias RouteOpts =
+    { receiver : String }
 
 
 

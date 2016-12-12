@@ -83,8 +83,15 @@ unwrapWithDefault default val =
 
 blockDecoder : Json.Decoder Block
 blockDecoder =
-    Json.map Block
+    Json.map2 Block
         (field "alerts" <| Json.list alertDecoder)
+        (field "routeOpts" routeOptsDecoder)
+
+
+routeOptsDecoder : Json.Decoder RouteOpts
+routeOptsDecoder =
+    Json.map RouteOpts
+        (field "receiver" Json.string)
 
 
 alertDecoder : Json.Decoder Alert
