@@ -90,19 +90,20 @@ alertView alert =
 
         b =
             if alert.silenced then
-                button "Silenced" ("#/silences/" ++ toString id)
+                button "Silenced" ("#/silences/" ++ toString id) "dark-blue"
             else
-                button "Active" "#/alerts"
+                button "Active" "#/alerts" "dark-red"
     in
         div []
             [ p [] [ text <| Utils.Date.dateFormat alert.startsAt ]
+            , div [] (List.map labelHeader <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
             , b
             ]
 
 
-button : String -> String -> Html msg
-button txt link =
-    a [ class "f6 link dim br-pill ba ph3 pv2 mb2 dib dark-blue", href link ] [ text txt ]
+button : String -> String -> String -> Html msg
+button txt link color =
+    a [ class <| "f6 link dim br1 ba ph3 pv2 mb2 dib " ++ color, href link ] [ text txt ]
 
 
 labelHeader : ( String, String ) -> Html msg
@@ -110,11 +111,11 @@ labelHeader ( key, value ) =
     let
         color =
             if key == "alertname" then
-                "bg-red white"
+                "near-black bg-dark-red"
             else
                 ""
     in
-        a [ class <| "no-underline near-white bg-animate bg-near-black hover-bg-gray inline-flex items-center ma1 tc br2 pa2 " ++ color ]
+        a [ class <| "f6 link dim br1 ba ma1 ph3 pv2 mb2 dib " ++ color ]
             [ text <| key ++ "=" ++ value ]
 
 
