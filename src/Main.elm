@@ -78,8 +78,8 @@ update msg model =
             in
                 ( { model | route = NotFound }, Cmd.none )
 
-        RedirectSilences ->
-            ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/silences" )
+        RedirectAlerts ->
+            ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )
 
 
 urlUpdate : Navigation.Location -> Msg
@@ -106,7 +106,7 @@ urlUpdate location =
 
             _ ->
                 -- TODO: 404 page
-                RedirectSilences
+                RedirectAlerts
 
 
 

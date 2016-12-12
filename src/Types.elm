@@ -74,7 +74,7 @@ type Msg
     | EditSilence Int
     | AlertGroupsFetch (Result Http.Error (List AlertGroup))
     | FetchAlertGroups
-    | RedirectSilences
+    | RedirectAlerts
 
 
 type Route
