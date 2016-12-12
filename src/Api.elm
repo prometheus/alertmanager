@@ -67,7 +67,7 @@ alertGroupDecoder =
 
 decodeBlocks : Json.Decoder (List Block)
 decodeBlocks =
-    Json.maybe (field "blocks"  (Json.list blockDecoder))
+    Json.maybe (field "blocks" (Json.list blockDecoder))
         |> andThen (unwrapWithDefault [])
 
 
@@ -108,7 +108,7 @@ alertDecoder =
 
 decodeSilenced : Decoder Bool
 decodeSilenced =
-    Json.maybe (field  "silenced"  Json.int)
+    Json.maybe (field "silenced" Json.int)
         |> andThen
             (\val ->
                 case val of
