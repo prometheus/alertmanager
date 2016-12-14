@@ -430,14 +430,15 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	HipchatConfigs    []*HipchatConfig    `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
+	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	RunCommandConfigs []*RunCommandConfig `yaml:"runcommand_configs,omitempty" json:"runcommand_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
