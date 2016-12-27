@@ -68,6 +68,7 @@ var (
 		Pretext:   `{{ template "slack.default.pretext" . }}`,
 		Text:      `{{ template "slack.default.text" . }}`,
 		Fallback:  `{{ template "slack.default.fallback" . }}`,
+		LinkNames: true,
 	}
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
@@ -216,6 +217,7 @@ type SlackConfig struct {
 	Fallback  string `yaml:"fallback" json:"fallback"`
 	IconEmoji string `yaml:"icon_emoji" json:"icon_emoji"`
 	IconURL   string `yaml:"icon_url" json:"icon_url"`
+	LinkNames bool   `yaml:"link_names" json:"link_names"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
