@@ -4,6 +4,8 @@ build:
     binaries:
         - name: alertmanager
           path: ./cmd/alertmanager
+        - name: amtool
+          path: ./cmd/amtool
     flags: -a -tags netgo
     ldflags: |
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Version={{.Version}}
