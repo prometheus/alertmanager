@@ -373,47 +373,27 @@ receivers:
 			am.Push(At(1),
 				Alert("alertname", "test", "lbl", "v1"),
 				Alert("alertname", "test", "lbl", "v2"),
-				Alert("alertname", "test", "lbl", "v3"),
 			)
 
-			am.Push(At(16),
+			am.Push(At(7),
 				Alert("alertname", "test", "lbl", "v1"),
-				Alert("alertname", "test", "lbl", "v2"),
-				Alert("alertname", "test", "lbl", "v3"),
 			)
 
 			co1.Want(Between(2, 2.5),
 				Alert("alertname", "test", "lbl", "v1").Active(1),
 				Alert("alertname", "test", "lbl", "v2").Active(1),
-				Alert("alertname", "test", "lbl", "v3").Active(1),
 			)
 			co1.Want(Between(12, 13),
-				Alert("alertname", "test", "lbl", "v1").Active(1, 11),
+				Alert("alertname", "test", "lbl", "v1").Active(1),
 				Alert("alertname", "test", "lbl", "v2").Active(1, 11),
-				Alert("alertname", "test", "lbl", "v3").Active(1, 11),
-			)
-
-			co1.Want(Between(17, 17.5),
-				Alert("alertname", "test", "lbl", "v1").Active(16),
-				Alert("alertname", "test", "lbl", "v2").Active(16),
-				Alert("alertname", "test", "lbl", "v3").Active(16),
-			)
-			co1.Want(Between(27, 28),
-				Alert("alertname", "test", "lbl", "v1").Active(16, 26),
-				Alert("alertname", "test", "lbl", "v2").Active(16, 26),
-				Alert("alertname", "test", "lbl", "v3").Active(16, 26),
 			)
 
 			co2.Want(Between(2, 2.5),
 				Alert("alertname", "test", "lbl", "v1").Active(1),
 				Alert("alertname", "test", "lbl", "v2").Active(1),
-				Alert("alertname", "test", "lbl", "v3").Active(1),
 			)
-
-			co2.Want(Between(17, 17.5),
-				Alert("alertname", "test", "lbl", "v1").Active(16),
-				Alert("alertname", "test", "lbl", "v2").Active(16),
-				Alert("alertname", "test", "lbl", "v3").Active(16),
+			co2.Want(Between(12, 13),
+				Alert("alertname", "test", "lbl", "v1").Active(1),
 			)
 
 			at.Run()
