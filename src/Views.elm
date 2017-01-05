@@ -83,9 +83,11 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "Silenced" ("#/silences/" ++ toString id) "dark-blue"
+                -- buttonLink "Silenced" ("#/silences/" ++ toString id) "dark-blue"
+                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "dark-blue"
             else
-                buttonLink "Active" "#/alerts" "dark-red"
+                -- buttonLink "Active" "#/alerts" "dark-red"
+                buttonLink "fa-exclamation-triangle" "#/alerts" "dark-red"
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
@@ -100,8 +102,10 @@ alertView alert =
 
 
 buttonLink : String -> String -> String -> Html msg
-buttonLink txt link color =
-    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link ] [ text txt ]
+buttonLink icon link color =
+    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link ]
+        [ i [ class <| "fa fa-3 " ++ icon ] []
+        ]
 
 
 alertHeader : ( String, String ) -> Html msg
