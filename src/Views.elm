@@ -101,7 +101,7 @@ alertView alert =
                     ]
                 , p [ class "dib mr2" ] [ text <| Utils.Date.dateFormat alert.startsAt ]
                 ]
-            , div [ class "mb2" ] (List.map labelHeader <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
+            , div [ class "mb2" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
             ]
 
 
@@ -114,13 +114,12 @@ alertHeader : ( String, String ) -> Html msg
 alertHeader ( key, value ) =
     if key == "alertname" then
         b [ class "db f4 mr2 dark-red dib" ] [ text value ]
-
     else
         listButton "ph1 pv1" ( key, value )
 
 
-labelHeader : ( String, String ) -> Html msg
-labelHeader ( key, value ) =
+labelButton : ( String, String ) -> Html msg
+labelButton ( key, value ) =
     listButton "light-silver hover-black ph3 pv2 " ( key, value )
 
 
