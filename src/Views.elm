@@ -13,6 +13,8 @@ import Utils.Date exposing (..)
 -- Internal Imports
 
 import Types exposing (Model, Silence, AlertGroup, Block, Alert, Matcher, Msg, Route(..))
+import Utils.Views exposing (..)
+import Silences.Views
 
 
 view : Model -> Html Msg
@@ -31,7 +33,7 @@ view model =
             genericListView silenceListView model.silences
 
         SilenceRoute name ->
-            silenceView model.silence
+            Silences.Views.silenceView model.silence
 
         _ ->
             notFoundView model
@@ -110,17 +112,6 @@ alertHeader ( key, value ) =
         listButton "ph1 pv1" ( key, value )
 
 
-labelButton : ( String, String ) -> Html msg
-labelButton ( key, value ) =
-    listButton "light-silver hover-black ph3 pv2 " ( key, value )
-
-
-listButton : String -> ( String, String ) -> Html msg
-listButton classString ( key, value ) =
-    a [ class <| "f6 link br1 ba mr1 mb2 dib " ++ classString ]
-        [ text <| String.join "=" [ key, value ] ]
-
-
 notFoundView : a -> Html Msg
 notFoundView model =
     div []
@@ -166,25 +157,3 @@ silenceListView silence =
             , span [ class "f5 db lh-copy measure" ]
                 [ text silence.comment ]
             ]
-
-
-silenceView : Silence -> Html msg
-silenceView silence =
-    let
-        dictMatchers =
-            List.map (\x -> ( x.name, x.value )) silence.matchers
-    in
-        div []
-            [ dl [ class "mt2 f6 lh-copy" ]
-                [ objectData (toString silence.id)
-                , objectData silence.createdBy
-                , objectData silence.comment
-                ]
-            , ul [ class "list" ]
-                (List.map labelButton dictMatchers)
-            ]
-
-
-objectData : String -> Html msg
-objectData data =
-    dt [ class "m10 black w-100" ] [ text data ]
