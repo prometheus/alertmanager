@@ -64,7 +64,7 @@ silenceFormView kind silence =
 alertGroupsView : AlertGroup -> Html Msg
 alertGroupsView alertGroup =
     li [ class "pa3 pa4-ns bb b--black-10" ]
-        [ div [] (List.map labelHeader alertGroup.labels)
+        [ div [ class "mb3" ] (List.map alertHeader <| List.sort alertGroup.labels)
         , div [] (List.map blockView alertGroup.blocks)
         ]
 
@@ -72,9 +72,8 @@ alertGroupsView alertGroup =
 blockView : Block -> Html msg
 blockView block =
     -- Block level
-    div [] <|
-        p [] [ text "one block" ]
-            :: (List.map alertView block.alerts)
+    div []
+        (List.map alertView block.alerts)
 
 
 alertView : Alert -> Html msg
@@ -90,33 +89,45 @@ alertView alert =
 
         b =
             if alert.silenced then
-                button "Silenced" ("#/silences/" ++ toString id) "dark-blue"
+                buttonLink "Silenced" ("#/silences/" ++ toString id) "dark-blue"
             else
-                button "Active" "#/alerts" "dark-red"
+                buttonLink "Active" "#/alerts" "dark-red"
     in
-        div []
-            [ p [] [ text <| Utils.Date.dateFormat alert.startsAt ]
-            , div [] (List.map labelHeader <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
-            , b
+        div [ class "f6 mb3" ]
+            [ div [ class "mb1" ]
+                [ b
+                , a [ class <| "link br1 ba ph3 pv2 mr2 dib black", href alert.generatorUrl, target "_blank" ]
+                    [ i [ class "fa fa-bar-chart fa-3" ] []
+                    ]
+                , p [ class "dib mr2" ] [ text <| Utils.Date.dateFormat alert.startsAt ]
+                ]
+            , div [ class "mb2" ] (List.map labelHeader <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
             ]
 
 
-button : String -> String -> String -> Html msg
-button txt link color =
-    a [ class <| "f6 link dim br1 ba ph3 pv2 mb2 dib " ++ color, href link ] [ text txt ]
+buttonLink : String -> String -> String -> Html msg
+buttonLink txt link color =
+    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link ] [ text txt ]
+
+
+alertHeader : ( String, String ) -> Html msg
+alertHeader ( key, value ) =
+    if key == "alertname" then
+        b [ class "db f4 mr2 dark-red dib" ] [ text value ]
+
+    else
+        listButton "ph1 pv1" ( key, value )
 
 
 labelHeader : ( String, String ) -> Html msg
 labelHeader ( key, value ) =
-    let
-        color =
-            if key == "alertname" then
-                "near-black bg-dark-red"
-            else
-                ""
-    in
-        a [ class <| "f6 link dim br1 ba ma1 ph3 pv2 mb2 dib " ++ color ]
-            [ text <| key ++ "=" ++ value ]
+    listButton "light-silver hover-black ph3 pv2 " ( key, value )
+
+
+listButton : String -> ( String, String ) -> Html msg
+listButton classString ( key, value ) =
+    a [ class <| "f6 link br1 ba mr1 mb2 dib " ++ classString ]
+        [ text <| String.join "=" [ key, value ] ]
 
 
 notFoundView : a -> Html Msg
@@ -153,7 +164,7 @@ silenceListView silence =
         li
             [ class "pa3 pa4-ns bb b--black-10" ]
             [ a
-                [ class "db link dim blue"
+                [ class "db link blue"
                 , href ("#/silences/" ++ (toString silence.id))
                 ]
                 [ b [ class "db f4 mb1" ]
