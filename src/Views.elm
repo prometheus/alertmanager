@@ -31,18 +31,7 @@ view model =
             genericListView silenceListView model.silences
 
         SilenceRoute name ->
-            let
-                one =
-                    Debug.log "view: name" name
-
-                dictMatchers =
-                    List.map (\x -> ( x.name, x.value )) model.silence.matchers
-            in
-                div []
-                    [ silenceView model.silence
-                    , ul [ class "list" ]
-                        (List.map labelButton dictMatchers)
-                    ]
+            silenceView model.silence
 
         _ ->
             notFoundView model
@@ -181,29 +170,19 @@ silenceListView silence =
 
 silenceView : Silence -> Html msg
 silenceView silence =
-    div
-        [ classList
-            [ ( "fl", True )
-            , ( "w-50", False )
-            , ( "pa2", True )
-            , ( "ma1", True )
-            , ( "w-25-m", True )
-            , ( "w-w-20-l", True )
-            , ( "ba b--gray", True )
-            ]
-        ]
-        [ dl
-            [ classList
-                [ ( "mt2", True )
-                , ( "f6", True )
-                , ( "lh-copy", True )
+    let
+        dictMatchers =
+            List.map (\x -> ( x.name, x.value )) silence.matchers
+    in
+        div []
+            [ dl [ class "mt2 f6 lh-copy" ]
+                [ objectData (toString silence.id)
+                , objectData silence.createdBy
+                , objectData silence.comment
                 ]
+            , ul [ class "list" ]
+                (List.map labelButton dictMatchers)
             ]
-            [ objectData (toString silence.id)
-            , objectData silence.createdBy
-            , objectData silence.comment
-            ]
-        ]
 
 
 objectData : String -> Html msg
