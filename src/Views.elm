@@ -92,9 +92,7 @@ alertView alert =
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
                 [ b
-                , a [ class <| "link br1 ba ph3 pv2 mr2 dib black", href alert.generatorUrl, target "_blank" ]
-                    [ i [ class "fa fa-bar-chart fa-3" ] []
-                    ]
+                , buttonLink "fa-bar-chart" alert.generatorUrl "black"
                 , p [ class "dib mr2" ] [ text <| Utils.Date.dateFormat alert.startsAt ]
                 ]
             , div [ class "mb2" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
