@@ -34,11 +34,14 @@ view model =
             let
                 one =
                     Debug.log "view: name" name
+
+                dictMatchers =
+                    List.map (\x -> ( x.name, x.value )) model.silence.matchers
             in
                 div []
                     [ silenceView model.silence
                     , ul [ class "list" ]
-                        (List.map matcherView model.silence.matchers)
+                        (List.map labelButton dictMatchers)
                     ]
 
         _ ->
@@ -200,14 +203,6 @@ silenceView silence =
             , objectData silence.createdBy
             , objectData silence.comment
             ]
-        ]
-
-
-matcherView : Matcher -> Html msg
-matcherView matcher =
-    li [ class "dib mr1 mb2" ]
-        [ a [ href "#", class "f6 b db pa2 link dim dark-gray ba b--black-20 truncate" ]
-            [ text (String.join " " [ matcher.name, "=", matcher.value ]) ]
         ]
 
 
