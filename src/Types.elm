@@ -29,10 +29,6 @@ type alias Silence =
     }
 
 
-
--- TODO: Implement Alert.
-
-
 type alias AlertGroup =
     { blocks : List Block
     , labels : List ( String, String )
@@ -58,10 +54,6 @@ type alias Block =
 
 type alias RouteOpts =
     { receiver : String }
-
-
-
--- TODO: Implement Matcher.
 
 
 type alias Matcher =
