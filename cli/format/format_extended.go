@@ -3,11 +3,13 @@ package format
 import (
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 type ExtendedFormatter struct {
@@ -15,24 +17,60 @@ type ExtendedFormatter struct {
 }
 
 func init() {
-	Formatters["extended"] = &ExtendedFormatter{}
+	Formatters["extended"] = &ExtendedFormatter{writer: os.Stdout}
 }
 
-func (formatter *ExtendedFormatter) Init(writer io.Writer) {
+func (formatter *ExtendedFormatter) SetOutput(writer io.Writer) {
 	formatter.writer = writer
 }
 
-func (formatter *ExtendedFormatter) Format(silences []types.Silence) error {
+func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByEndAt(silences))
 	fmt.Fprintln(w, "ID\tMatchers\tStarts At\tEnds At\tUpdated At\tCreated By\tComment\t")
 	for _, silence := range silences {
-
 		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t", silence.ID, extendedFormatMatchers(silence.Matchers), silence.StartsAt, silence.EndsAt, silence.UpdatedAt, silence.CreatedBy, silence.Comment)
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()
 	return nil
+}
+
+func (formatter *ExtendedFormatter) FormatAlerts(alerts model.Alerts) error {
+	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
+	sort.Sort(ByStartsAt(alerts))
+	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
+	for _, alert := range alerts {
+		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t", extendedFormatLabels(alert.Labels), extendedFormatAnnotations(alert.Annotations), alert.StartsAt, alert.EndsAt, alert.GeneratorURL)
+		fmt.Fprintln(w, line)
+	}
+	w.Flush()
+	return nil
+}
+
+func (formatter *ExtendedFormatter) FormatConfig(config Config) error {
+	fmt.Fprintln(formatter.writer, config.Config)
+	fmt.Fprintln(formatter.writer, config.VersionINFO)
+	fmt.Fprintln(formatter.writer, config.Uptime)
+	return nil
+}
+
+func extendedFormatLabels(labels model.LabelSet) string {
+	output := []string{}
+	for name, value := range labels {
+		output = append(output, fmt.Sprintf("%s=%s", name, value))
+	}
+	sort.Strings(output)
+	return strings.Join(output, " ")
+}
+
+func extendedFormatAnnotations(labels model.LabelSet) string {
+	output := []string{}
+	for name, value := range labels {
+		output = append(output, fmt.Sprintf("%s=\"%s\"", name, value))
+	}
+	sort.Strings(output)
+	return strings.Join(output, " ")
 }
 
 func extendedFormatMatchers(matchers types.Matchers) string {

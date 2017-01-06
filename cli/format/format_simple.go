@@ -3,11 +3,13 @@ package format
 import (
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 type SimpleFormatter struct {
@@ -15,14 +17,14 @@ type SimpleFormatter struct {
 }
 
 func init() {
-	Formatters["simple"] = &SimpleFormatter{}
+	Formatters["simple"] = &SimpleFormatter{writer: os.Stdout}
 }
 
-func (formatter *SimpleFormatter) Init(writer io.Writer) {
+func (formatter *SimpleFormatter) SetOutput(writer io.Writer) {
 	formatter.writer = writer
 }
 
-func (formatter *SimpleFormatter) Format(silences []types.Silence) error {
+func (formatter *SimpleFormatter) FormatSilences(silences []types.Silence) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByEndAt(silences))
 	fmt.Fprintln(w, "ID\tMatchers\tEnds At\tCreated By\tComment\t")
@@ -32,6 +34,23 @@ func (formatter *SimpleFormatter) Format(silences []types.Silence) error {
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()
+	return nil
+}
+
+func (formatter *SimpleFormatter) FormatAlerts(alerts model.Alerts) error {
+	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
+	sort.Sort(ByStartsAt(alerts))
+	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\t")
+	for _, alert := range alerts {
+		line := fmt.Sprintf("%s\t%s\t%s\t", alert.Labels["alertname"], alert.StartsAt, alert.Annotations["summary"])
+		fmt.Fprintln(w, line)
+	}
+	w.Flush()
+	return nil
+}
+
+func (formatter *SimpleFormatter) FormatConfig(config Config) error {
+	fmt.Fprintln(formatter.writer, config.Config)
 	return nil
 }
 
