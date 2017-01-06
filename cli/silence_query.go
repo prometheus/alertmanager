@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"time"
 
@@ -26,28 +25,35 @@ var queryCmd = &cobra.Command{
 
 func init() {
 	queryCmd.Flags().Bool("all", false, "Show expired silences as well as active")
-	queryCmd.Flags().StringP("output", "o", "simple", "Output formatter (simple, extended, json)")
-	viper.BindPFlag("output", queryCmd.Flags().Lookup("output"))
 	queryFlags = queryCmd.Flags()
 }
 
-func query(cmd *cobra.Command, args []string) error {
-	silenceResponse := alertmanagerResponse{}
+func fetchSilences() ([]types.Silence, error) {
+	silenceResponse := alertmanagerSilenceResponse{}
 	u, err := url.Parse(viper.GetString("alertmanager"))
 	if err != nil {
-		return err
+		return []types.Silence{}, err
 	}
 
 	u.Path = path.Join(u.Path, "/api/v1/silences")
 	res, err := http.Get(u.String())
 	if err != nil {
-		return err
+		return []types.Silence{}, err
 	}
 
 	defer res.Body.Close()
 	decoder := json.NewDecoder(res.Body)
 
 	err = decoder.Decode(&silenceResponse)
+	if err != nil {
+		return []types.Silence{}, err
+	}
+
+	return silenceResponse.Data, nil
+}
+
+func query(cmd *cobra.Command, args []string) error {
+	silences, err := fetchSilences()
 	if err != nil {
 		return err
 	}
@@ -70,7 +76,7 @@ func query(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	for _, silence := range silenceResponse.Data {
+	for _, silence := range silences {
 		// If we are only returning current silences and this one has already expired skip it
 		if !all && silence.EndsAt.Before(time.Now()) {
 			continue
@@ -94,8 +100,6 @@ func query(cmd *cobra.Command, args []string) error {
 	if !found {
 		return errors.New("Unknown output formatter")
 	}
-	formatter.Init(os.Stdout)
-	formatter.Format(displaySilences)
-	//fmt.Printf("%+v\n", displaySilences)
+	formatter.FormatSilences(displaySilences)
 	return nil
 }

@@ -36,7 +36,7 @@ func expire(cmd *cobra.Command, args []string) error {
 		defer res.Body.Close()
 		decoder := json.NewDecoder(res.Body)
 
-		response := alertmanagerResponse{}
+		response := alertmanagerSilenceResponse{}
 		err = decoder.Decode(&response)
 		if err != nil {
 			return err

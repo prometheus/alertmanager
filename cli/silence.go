@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -12,7 +13,7 @@ import (
 
 var labels []string
 
-type alertmanagerResponse struct {
+type alertmanagerSilenceResponse struct {
 	Status    string          `json:"status"`
 	Data      []types.Silence `json:"data,omitempty"`
 	ErrorType string          `json:"errorType,omitempty"`
@@ -23,7 +24,8 @@ type alertmanagerResponse struct {
 var silenceCmd = &cobra.Command{
 	Use:   "silence",
 	Short: "Manage silences",
-	Long:  `Add, expire or view silences`,
+	Long:  `Add, expire or view silences For more information and additional flags see query help`,
+	RunE:  query,
 }
 
 func init() {
@@ -144,6 +146,9 @@ func parseMatchers(labels []string) (types.Matchers, error) {
 			sep = "="
 		}
 		labelVec := strings.SplitN(v, sep, 2)
+		if len(labelVec) != 2 {
+			return nil, errors.New("Unable to parse match groups")
+		}
 		label, value := labelVec[0], labelVec[1]
 		matcher := types.Matcher{
 			Name:    label,
