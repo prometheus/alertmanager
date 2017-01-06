@@ -44,6 +44,8 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.amtool.yaml)")
 	RootCmd.PersistentFlags().String("alertmanager", "", "Alertmanager to talk to")
 	viper.BindPFlag("alertmanager", RootCmd.PersistentFlags().Lookup("alertmanager"))
+	RootCmd.PersistentFlags().StringP("output", "o", "simple", "Output formatter (simple, extended, json)")
+	viper.BindPFlag("output", RootCmd.PersistentFlags().Lookup("output"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -59,6 +61,6 @@ func initConfig() {
 	// If a config file is found, read it in.
 	err := viper.ReadInConfig()
 	if err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
 }
