@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -107,7 +106,7 @@ func parseMatcherGroups(matchers types.Matchers) []types.Matchers {
 	return output
 }
 
-// Thanks @vicky for help with this one
+// Thanks @vendemiat for help with this one
 func merge(dst []types.Matchers, source types.Matchers) []types.Matchers {
 	if len(dst) == 0 {
 		for i := range source {
@@ -146,10 +145,13 @@ func parseMatchers(labels []string) (types.Matchers, error) {
 			sep = "="
 		}
 		labelVec := strings.SplitN(v, sep, 2)
-		if len(labelVec) != 2 {
-			return nil, errors.New("Unable to parse match groups")
+		// Assume that no = was given and just use alertname
+		var label, value string
+		if len(labelVec) < 2 {
+			label, value = "alertname", labelVec[0]
+		} else {
+			label, value = labelVec[0], labelVec[1]
 		}
-		label, value := labelVec[0], labelVec[1]
 		matcher := types.Matcher{
 			Name:    label,
 			Value:   value,
