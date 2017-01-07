@@ -7,12 +7,11 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import String
 import Tuple
-import Utils.Date exposing (..)
-
 
 -- Internal Imports
 
-import Types exposing (Model, Silence, AlertGroup, Block, Alert, Matcher, Msg, Route(..))
+import Types exposing (..)
+import Utils.Date exposing (..)
 import Utils.Views exposing (..)
 import Silences.Views
 
@@ -46,14 +45,69 @@ todoView model =
         ]
 
 
+
+-- Start
+-- End
+-- Matchers (Name, Value, Regexp) and add additional
+-- Creator
+-- Comment
+-- Create
+
+
 silenceFormView : String -> Silence -> Html Msg
 silenceFormView kind silence =
     div [ class "pa4 black-80" ]
         [ fieldset [ class "ba b--transparent ph0 mh0" ]
             [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
+            , formField "Start" silence.startsAt
+            -- , dateTimePicker "Start"
+            , formField "End" silence.endsAt
+            , div [ class "mt3" ]
+                [ label [ class "f6 b db mb2" ] [ text "Matchers "
+                , span [class "normal black-60"] [ text "Alerts affected by this silence." ]
+                ]
+                , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
+                , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
+                , matcherForm <| Matcher "device" "/dev/xda1" True
+                ]
+            , formField "Creator" silence.createdBy
+            , textField "Comment" silence.comment
+            , div [ class "mt3" ]
+                [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue", href "#0"] [ text "Create" ]
+                , a [ class "f6 link br2 ba ph3 pv2 mb2 dib dark-red", href "#0"] [ text "Reset" ]
+                ]
             ]
         ]
 
+
+matcherForm : Matcher -> Html msg
+matcherForm matcher =
+    div [] [ input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.name ] []
+    , input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.value ] []
+    , checkbox "Regex" matcher.isRegex
+    ]
+
+
+checkbox : String -> Bool -> Html msg
+checkbox name status =
+    label [ class "f6 dib mb2" ]
+        [ input [ type_ "checkbox", checked status ] []
+        , text <| " " ++ name
+        ]
+
+formField : String -> String -> Html msg
+formField labelText content =
+    div [ class "mt3" ]
+        [ label [ class "f6 b db mb2" ] [ text labelText ]
+        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 db w-100", value content ] []
+        ]
+
+textField : String -> String -> Html msg
+textField labelText content =
+    div [ class "mt3" ]
+        [ label [ class "f6 b db mb2" ] [ text labelText ]
+        , textarea [ class "db border-box hover-black w-100 ba b--black-20 pa2 br1 mb2", value content ] []
+        ]
 
 alertGroupsView : AlertGroup -> Html Msg
 alertGroupsView alertGroup =
