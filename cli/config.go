@@ -15,6 +15,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Config is the response type of alertmanager config endpoint
+// Duped in cli/format needs to be moved to common/model
 type Config struct {
 	Config      string            `json:"config"`
 	ConfigJSON  config.Config     `json:configJSON`
