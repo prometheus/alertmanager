@@ -135,7 +135,7 @@ func parseMatchers(labels []string) (types.Matchers, error) {
 
 	for _, v := range labels {
 		var sep string
-		isRegex, err := regexp.MatchString(".+~=.+", v)
+		isRegex, err := regexp.MatchString(".+=~.+", v)
 		if err != nil {
 			return types.Matchers{}, err
 		}
