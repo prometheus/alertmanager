@@ -69,9 +69,8 @@ silenceFormView kind silence =
         div [ class "pa4 black-80" ]
             [ fieldset [ class "ba b--transparent ph0 mh0" ]
                 [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
-                , formField "Start" silence.startsAt
-                  -- , dateTimePicker "Start"
-                , formField "End" silence.endsAt
+                , formField "Start" silence.startsAt UpdateStartsAt
+                , formField "End" silence.endsAt UpdateEndsAt
                 , div [ class "mt3" ]
                     [ label [ class "f6 b db mb2" ]
                         [ text "Matchers "
@@ -82,8 +81,8 @@ silenceFormView kind silence =
                     ]
                 , div [] <| List.map matcherForm silence.matchers
                 , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue", onClick AddMatcher ] [ text "Add Matcher" ]
-                , formField "Creator" silence.createdBy
-                , textField "Comment" silence.comment
+                , formField "Creator" silence.createdBy UpdateCreatedBy
+                , textField "Comment" silence.comment UpdateComment
                 , div [ class "mt3" ]
                     [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue", href "#" ] [ text "Create" ]
                     , a [ class "f6 link br2 ba ph3 pv2 mb2 dib dark-red", href url ] [ text "Reset" ]

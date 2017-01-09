@@ -87,6 +87,35 @@ update msg model =
         RedirectAlerts ->
             ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )
 
+        UpdateStartsAt date ->
+            -- TODO: Will have to parse the date into a string probably.
+            let
+                sil =
+                    model.silence
+            in
+                ( { model | silence = { sil | startsAt = date } }, Cmd.none )
+
+        UpdateEndsAt date ->
+            let
+                sil =
+                    model.silence
+            in
+                ( { model | silence = { sil | endsAt = date } }, Cmd.none )
+
+        UpdateCreatedBy by ->
+            let
+                sil =
+                    model.silence
+            in
+                ( { model | silence = { sil | createdBy = by } }, Cmd.none )
+
+        UpdateComment comment ->
+            let
+                sil =
+                    model.silence
+            in
+                ( { model | silence = { sil | comment = comment } }, Cmd.none )
+
         AddMatcher ->
             -- TODO: If a user adds two blank matchers and attempts to update
             -- one, both are updated because they are identical. Maybe add a
@@ -94,11 +123,8 @@ update msg model =
             let
                 sil =
                     model.silence
-
-                newSil =
-                    { sil | matchers = sil.matchers ++ [ Matcher "" "" False ] }
             in
-                ( { model | silence = newSil }, Cmd.none )
+                ( { model | silence = { sil | matchers = sil.matchers ++ [ Matcher "" "" False ] } }, Cmd.none )
 
         DeleteMatcher matcher ->
             let
@@ -119,11 +145,8 @@ update msg model =
 
                 s =
                     model.silence
-
-                newSil =
-                    { s | matchers = matchers }
             in
-                ( { model | silence = newSil }, Cmd.none )
+                ( { model | silence = { s | matchers = matchers } }, Cmd.none )
 
         UpdateMatcherValue matcher value ->
             let
@@ -132,11 +155,8 @@ update msg model =
 
                 s =
                     model.silence
-
-                newSil =
-                    { s | matchers = matchers }
             in
-                ( { model | silence = newSil }, Cmd.none )
+                ( { model | silence = { s | matchers = matchers } }, Cmd.none )
 
         UpdateMatcherRegex matcher bool ->
             let
@@ -145,11 +165,8 @@ update msg model =
 
                 s =
                     model.silence
-
-                newSil =
-                    { s | matchers = matchers }
             in
-                ( { model | silence = newSil }, Cmd.none )
+                ( { model | silence = { s | matchers = matchers } }, Cmd.none )
 
 
 urlUpdate : Navigation.Location -> Msg

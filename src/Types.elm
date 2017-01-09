@@ -78,6 +78,10 @@ type Msg
     | UpdateMatcherName Matcher String
     | UpdateMatcherValue Matcher String
     | UpdateMatcherRegex Matcher Bool
+    | UpdateEndsAt String
+    | UpdateStartsAt String
+    | UpdateCreatedBy String
+    | UpdateComment String
 
 
 type Route

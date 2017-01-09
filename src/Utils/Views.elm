@@ -4,7 +4,7 @@ module Utils.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onCheck)
+import Html.Events exposing (onCheck, onInput)
 
 
 -- Internal Imports
@@ -29,17 +29,17 @@ checkbox name status msg =
         ]
 
 
-formField : String -> String -> Html msg
-formField labelText content =
+formField : String -> String -> (String -> msg) -> Html msg
+formField labelText content msg =
     div [ class "mt3" ]
         [ label [ class "f6 b db mb2" ] [ text labelText ]
-        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 db w-100", value content ] []
+        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 db w-100", value content, onInput msg ] []
         ]
 
 
-textField : String -> String -> Html msg
-textField labelText content =
+textField : String -> String -> (String -> msg) -> Html msg
+textField labelText content msg =
     div [ class "mt3" ]
         [ label [ class "f6 b db mb2" ] [ text labelText ]
-        , textarea [ class "db border-box hover-black w-100 ba b--black-20 pa2 br1 mb2", value content ] []
+        , textarea [ class "db border-box hover-black w-100 ba b--black-20 pa2 br1 mb2", value content, onInput msg ] []
         ]
