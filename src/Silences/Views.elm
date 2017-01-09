@@ -26,6 +26,11 @@ silenceView silence =
                 ]
             , ul [ class "list" ]
                 (List.map labelButton dictMatchers)
+            , a
+                [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue"
+                , href ("#/silences/" ++ (toString silence.id) ++ "/edit")
+                ]
+                [ text "Create" ]
             ]
 
 
