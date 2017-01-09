@@ -79,7 +79,7 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool,
 		return false, nil
 	}
 
-	return i.notifier.Notify(ctx, alerts...)
+	return i.notifier.Notify(ctx, res...)
 }
 
 // BuildReceiverIntegrations builds a list of integration notifiers off of a

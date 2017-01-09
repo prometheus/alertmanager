@@ -295,18 +295,44 @@ func TestRoutingStage(t *testing.T) {
 	}
 }
 
-func TestIntegration(t *testing.T) {
+func TestIntegrationNoResolved(t *testing.T) {
 	res := []*types.Alert{}
 	r := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 		res = append(res, alerts...)
 
 		return false, nil
 	})
-	i1 := Integration{
+	i := Integration{
 		notifier: r,
 		conf:     notifierConfigFunc(func() bool { return false }),
 	}
-	i2 := Integration{
+
+	alerts := []*types.Alert{
+		&types.Alert{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(-time.Hour),
+			},
+		},
+		&types.Alert{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	i.Notify(nil, alerts...)
+
+	require.Equal(t, len(res), 1)
+}
+
+func TestIntegrationSendResolved(t *testing.T) {
+	res := []*types.Alert{}
+	r := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		res = append(res, alerts...)
+
+		return false, nil
+	})
+	i := Integration{
 		notifier: r,
 		conf:     notifierConfigFunc(func() bool { return true }),
 	}
@@ -319,12 +345,9 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	i1.Notify(nil, alerts...)
-	i2.Notify(nil, alerts...)
+	i.Notify(nil, alerts...)
 
-	// Even though the alert is sent to both integrations, which end up being
-	// delivered to the same notifier, only one is actually delivered as the
-	// second integration filters the resolved notifications.
+	require.Equal(t, len(res), 1)
 	require.Equal(t, res, alerts)
 }
 
