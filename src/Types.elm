@@ -74,6 +74,10 @@ type Msg
     | FetchAlertGroups
     | RedirectAlerts
     | DeleteMatcher Matcher
+    | AddMatcher
+    | UpdateMatcherName Matcher String
+    | UpdateMatcherValue Matcher String
+    | UpdateMatcherRegex Matcher Bool
 
 
 type Route

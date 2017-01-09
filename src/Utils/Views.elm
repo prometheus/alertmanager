@@ -4,6 +4,7 @@ module Utils.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Events exposing (onCheck)
 
 
 -- Internal Imports
@@ -20,10 +21,10 @@ listButton classString ( key, value ) =
         [ text <| String.join "=" [ key, value ] ]
 
 
-checkbox : String -> Bool -> Html msg
-checkbox name status =
+checkbox : String -> Bool -> (Bool -> msg) -> Html msg
+checkbox name status msg =
     label [ class "f6 dib mb2" ]
-        [ input [ type_ "checkbox", checked status ] []
+        [ input [ type_ "checkbox", checked status, onCheck msg ] []
         , text <| " " ++ name
         ]
 

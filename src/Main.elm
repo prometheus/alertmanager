@@ -12,6 +12,7 @@ import Parsing
 import Views
 import Api
 import Types exposing (..)
+import Utils.List
 
 
 main =
@@ -34,7 +35,12 @@ init location =
 
 nullSilence : Silence
 nullSilence =
-    Silence 0 "" "" "" "" "" []
+    Silence 0 "" "" "" "" "" [ nullMatcher ]
+
+
+nullMatcher : Matcher
+nullMatcher =
+    Matcher "" "" False
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -81,13 +87,67 @@ update msg model =
         RedirectAlerts ->
             ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )
 
+        AddMatcher ->
+            -- TODO: If a user adds two blank matchers and attempts to update
+            -- one, both are updated because they are identical. Maybe add a
+            -- unique identifier on creation so this doesn't happen.
+            let
+                sil =
+                    model.silence
+
+                newSil =
+                    { sil | matchers = sil.matchers ++ [ Matcher "" "" False ] }
+            in
+                ( { model | silence = newSil }, Cmd.none )
+
         DeleteMatcher matcher ->
             let
                 s =
                     model.silence
 
+                -- TODO: This removes all empty matchers. Maybe just remove the
+                -- one that was clicked.
                 newSil =
                     { s | matchers = (List.filter (\x -> x /= matcher) s.matchers) }
+            in
+                ( { model | silence = newSil }, Cmd.none )
+
+        UpdateMatcherName matcher name ->
+            let
+                matchers =
+                    Utils.List.replaceIf (\x -> x == matcher) { matcher | name = name } model.silence.matchers
+
+                s =
+                    model.silence
+
+                newSil =
+                    { s | matchers = matchers }
+            in
+                ( { model | silence = newSil }, Cmd.none )
+
+        UpdateMatcherValue matcher value ->
+            let
+                matchers =
+                    Utils.List.replaceIf (\x -> x == matcher) { matcher | value = value } model.silence.matchers
+
+                s =
+                    model.silence
+
+                newSil =
+                    { s | matchers = matchers }
+            in
+                ( { model | silence = newSil }, Cmd.none )
+
+        UpdateMatcherRegex matcher bool ->
+            let
+                matchers =
+                    Utils.List.replaceIf (\x -> x == matcher) { matcher | isRegex = bool } model.silence.matchers
+
+                s =
+                    model.silence
+
+                newSil =
+                    { s | matchers = matchers }
             in
                 ( { model | silence = newSil }, Cmd.none )
 

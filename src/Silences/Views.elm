@@ -4,12 +4,12 @@ module Silences.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 
 
 -- Internal Imports
 
-import Types exposing (Silence, Matcher, Msg(DeleteMatcher))
+import Types exposing (Silence, Matcher, Msg(..))
 import Utils.Views exposing (..)
 
 
@@ -81,6 +81,7 @@ silenceFormView kind silence =
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
                     ]
                 , div [] <| List.map matcherForm silence.matchers
+                , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue", onClick AddMatcher ] [ text "Add Matcher" ]
                 , formField "Creator" silence.createdBy
                 , textField "Comment" silence.comment
                 , div [ class "mt3" ]
@@ -94,8 +95,8 @@ silenceFormView kind silence =
 matcherForm : Matcher -> Html Msg
 matcherForm matcher =
     div []
-        [ input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.name ] []
-        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.value ] []
-        , checkbox "Regex" matcher.isRegex
+        [ input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.name, onInput (UpdateMatcherName matcher) ] []
+        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.value, onInput (UpdateMatcherValue matcher) ] []
+        , checkbox "Regex" matcher.isRegex (UpdateMatcherRegex matcher)
         , a [ class <| "f6 link br1 ba mr1 mb2 dib ph1 pv1", onClick (DeleteMatcher matcher) ] [ text "X" ]
         ]
