@@ -81,6 +81,16 @@ update msg model =
         RedirectAlerts ->
             ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )
 
+        DeleteMatcher matcher ->
+            let
+                s =
+                    model.silence
+
+                newSil =
+                    { s | matchers = (List.filter (\x -> x /= matcher) s.matchers) }
+            in
+                ( { model | silence = newSil }, Cmd.none )
+
 
 urlUpdate : Navigation.Location -> Msg
 urlUpdate location =

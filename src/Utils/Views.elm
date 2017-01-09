@@ -18,3 +18,27 @@ listButton : String -> ( String, String ) -> Html msg
 listButton classString ( key, value ) =
     a [ class <| "f6 link br1 ba mr1 mb2 dib " ++ classString ]
         [ text <| String.join "=" [ key, value ] ]
+
+
+checkbox : String -> Bool -> Html msg
+checkbox name status =
+    label [ class "f6 dib mb2" ]
+        [ input [ type_ "checkbox", checked status ] []
+        , text <| " " ++ name
+        ]
+
+
+formField : String -> String -> Html msg
+formField labelText content =
+    div [ class "mt3" ]
+        [ label [ class "f6 b db mb2" ] [ text labelText ]
+        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 db w-100", value content ] []
+        ]
+
+
+textField : String -> String -> Html msg
+textField labelText content =
+    div [ class "mt3" ]
+        [ label [ class "f6 b db mb2" ] [ text labelText ]
+        , textarea [ class "db border-box hover-black w-100 ba b--black-20 pa2 br1 mb2", value content ] []
+        ]

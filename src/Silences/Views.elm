@@ -4,11 +4,12 @@ module Silences.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Events exposing (onClick)
 
 
 -- Internal Imports
 
-import Types exposing (Silence)
+import Types exposing (Silence, Matcher, Msg(DeleteMatcher))
 import Utils.Views exposing (..)
 
 
@@ -37,3 +38,64 @@ silenceView silence =
 objectData : String -> Html msg
 objectData data =
     dt [ class "m10 black w-100" ] [ text data ]
+
+
+
+-- Start
+-- End
+-- Matchers (Name, Value, Regexp) and add additional
+-- Creator
+-- Comment
+-- Create
+
+
+silenceFormView : String -> Silence -> Html Msg
+silenceFormView kind silence =
+    let
+        base =
+            "/#/silences/"
+
+        url =
+            case kind of
+                "New" ->
+                    base ++ "new"
+
+                "Edit" ->
+                    base ++ (toString silence.id) ++ "/edit"
+
+                _ ->
+                    "/#/silences"
+    in
+        div [ class "pa4 black-80" ]
+            [ fieldset [ class "ba b--transparent ph0 mh0" ]
+                [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
+                , formField "Start" silence.startsAt
+                  -- , dateTimePicker "Start"
+                , formField "End" silence.endsAt
+                , div [ class "mt3" ]
+                    [ label [ class "f6 b db mb2" ]
+                        [ text "Matchers "
+                        , span [ class "normal black-60" ] [ text "Alerts affected by this silence." ]
+                        ]
+                    , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
+                    , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
+                    ]
+                , div [] <| List.map matcherForm silence.matchers
+                , formField "Creator" silence.createdBy
+                , textField "Comment" silence.comment
+                , div [ class "mt3" ]
+                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue", href "#" ] [ text "Create" ]
+                    , a [ class "f6 link br2 ba ph3 pv2 mb2 dib dark-red", href url ] [ text "Reset" ]
+                    ]
+                ]
+            ]
+
+
+matcherForm : Matcher -> Html Msg
+matcherForm matcher =
+    div []
+        [ input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.name ] []
+        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.value ] []
+        , checkbox "Regex" matcher.isRegex
+        , a [ class <| "f6 link br1 ba mr1 mb2 dib ph1 pv1", onClick (DeleteMatcher matcher) ] [ text "X" ]
+        ]

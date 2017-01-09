@@ -73,6 +73,7 @@ type Msg
     | AlertGroupsFetch (Result Http.Error (List AlertGroup))
     | FetchAlertGroups
     | RedirectAlerts
+    | DeleteMatcher Matcher
 
 
 type Route
