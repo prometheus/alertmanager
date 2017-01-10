@@ -121,3 +121,9 @@ receivers:
     room_id: 85
     message_format: html
     notify: true
+- name: 'matrix'
+  matrix_configs:
+  - access_token: <access_token>
+    room_id: !<something>:matrix.org
+    text: "text msg"
+    html: "html msg"

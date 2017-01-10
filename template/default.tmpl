@@ -26,6 +26,11 @@
 {{ define "hipchat.default.message" }}{{ template "__subject" . }}{{ end }}
 
 
+{{ define "matrix.default.text" }}{{ template "__subject" . }}
+{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "matrix.default.html" }}<a href="{{ template "__alertmanagerURL" . }}"><font color="{{ if eq .Status "firing" }}red{{ else }}green{{ end }}"><b>{{ template "__subject" . }}</b></font></a>{{ end }}
+
+
 {{ define "pagerduty.default.description" }}{{ template "__subject" . }}{{ end }}
 {{ define "pagerduty.default.client" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "pagerduty.default.clientURL" }}{{ template "__alertmanagerURL" . }}{{ end }}
