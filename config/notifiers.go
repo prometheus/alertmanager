@@ -115,6 +115,14 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultZabbixConfig defines the default values for Zabbix configurations.
+	DefaultZabbixConfig = ZabbixConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Port: "10051",
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -391,4 +399,34 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+type ZabbixConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	Server string `yaml:"server" json:"server"`
+	Port   string `yaml:"port" json:"port"`
+	Host   string `yaml:"host" json:"host"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+func (c *ZabbixConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultZabbixConfig
+	type plain ZabbixConfig
+
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.Server == "" {
+		return fmt.Errorf("missing server in Zabbix config")
+	}
+
+	if c.Host == "" {
+		return fmt.Errorf("missing host in Zabbix config")
+	}
+
+	return checkOverflow(c.XXX, "zabbix config")
 }

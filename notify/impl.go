@@ -129,6 +129,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.ZabbixConfigs {
+		n := NewZabbix(c, tmpl)
+		add("zabbix", i, n, c)
+	}
 	return integrations
 }
 
@@ -979,4 +983,98 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
+}
+
+type Zabbix struct {
+	conf *config.ZabbixConfig
+	tmpl *template.Template
+}
+
+func NewZabbix(c *config.ZabbixConfig, t *template.Template) *Zabbix {
+	return &Zabbix{conf: c, tmpl: t}
+}
+
+type zabbixMessage struct {
+	Request string            `json:"request"`
+	Data    []zabbixDataField `json:"data"`
+	Clock   string            `json:"clock,omitempty"`
+}
+
+type zabbixDataField struct {
+	Host  string `json:"host"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
+	Clock string `json:"clock,omitempty"`
+}
+
+func (n *Zabbix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		log.Errorf("group key missing")
+	}
+
+	// Compose zabbix sender Data
+	data := []zabbixDataField{}
+	for _, alert := range as {
+		var status string
+		switch alert.Status() {
+		case model.AlertFiring:
+			status = "1"
+		case model.AlertResolved:
+			status = "0"
+		}
+
+		data = append(data, zabbixDataField{
+			Host:  n.conf.Host,
+			Key:   alert.Name(),
+			Value: status,
+		})
+	}
+
+	msg := zabbixMessage{
+		Request: "sender data",
+		Data:    data,
+	}
+
+	log.With("incident", key).Debugln("notifying Zabbix")
+	// Send message to zabbix
+	conn, err := net.Dial("tcp", net.JoinHostPort(n.conf.Server, n.conf.Port))
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+
+	if err := json.NewEncoder(conn).Encode(msg); err != nil {
+		return false, err
+	}
+
+	// Read confirmation back from zabbix
+	var zabbixResponse interface{}
+
+	// Cant just use a normal json Decoder because zabbix response includes a header
+	// ex, ZBXDZ\x00\x00\x00\x00\x00\x00\x00{"response":"success","info":"processed: 1; failed: 0; total: 1; seconds spent: 0.000190"}
+	//if err := json.NewDecoder(conn).Decode(&zabbixResponse); err != nil {
+	//	log.With("incident", key).Infoln("failed to read response from zabbix")
+	//	return false, err
+	//}
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, conn)
+	if err != nil {
+		// Throw error if we failed to read confirmation back
+		// Data may still have been received successfully on zabbix
+		// but since we cant guarantee it, we'll fail
+		return false, err
+	}
+
+	// Trim off header ( ZBXDZ\x00\x00\x00\x00\x00\x00\x00 )
+	resp := buf.Bytes()
+	err = json.Unmarshal(resp[13:], &zabbixResponse)
+	if err != nil {
+		log.With("incident", key).Debugln("failed to read response from zabbix", string(resp))
+		return false, err
+	}
+	log.With("incident", key).Debugln("Zabbix response", zabbixResponse)
+
+	return true, nil
 }

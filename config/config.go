@@ -232,6 +232,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIURL += "/"
 			}
 		}
+		for _, zc := range rcv.ZabbixConfigs {
+			if zc.Server == "" {
+				if c.Global.ZabbixServer == "" {
+					return fmt.Errorf("no global Zabbix Server set")
+				}
+				zc.Server = c.Global.ZabbixServer
+			}
+			if zc.Port == "" {
+				if c.Global.ZabbixPort == "" {
+					return fmt.Errorf("no global Zabbix Port set")
+				}
+				zc.Port = c.Global.ZabbixPort
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -303,6 +317,8 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token" json:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host" json:"opsgenie_api_host"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url" json:"victorops_api_url"`
+	ZabbixServer     string `yaml:"zabbix_server" json:"zabbix_server"`
+	ZabbixPort       string `yaml:"zabbix_port" json:"zabbix_port"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -438,6 +454,7 @@ type Receiver struct {
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	ZabbixConfigs    []*ZabbixConfig    `yaml:"zabbix_configs,omitempty" json:"zabbix_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
