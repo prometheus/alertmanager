@@ -129,6 +129,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.JiraConfigs {
+		n := NewJira(c, tmpl)
+		add("jira", i, n, c)
+	}
 	return integrations
 }
 
@@ -929,6 +933,78 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, err
 		}
 		return false, fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+	}
+
+	return false, nil
+}
+
+type Jira struct {
+	conf *config.JiraConfig
+	tmpl *template.Template
+}
+
+func NewJira(c *config.JiraConfig, t *template.Template) *Jira {
+	return &Jira{conf: c, tmpl: t}
+}
+
+type jiraCreateIssueRequest struct {
+	Fields map[string]interface{} `json:"fields"`
+}
+
+type jiraCreateIssueResponse struct {
+	ID   string `json:"id"`
+	Key  string `json:"key"`
+	Self string `json:"self"`
+}
+
+// Notify implements the Notifier interface.
+func (n *Jira) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+	tmpl := tmplText(n.tmpl, data, &err)
+
+	fields := map[string]interface{}{
+		"project":     map[string]string{"key": tmpl(n.conf.Project)},
+		"issuetype":   map[string]string{"name": tmpl(n.conf.IssueType)},
+		"summary":     tmpl(n.conf.Summary),
+		"description": tmpl(n.conf.Description),
+	}
+	// check errors from tmpl()
+	if err != nil {
+		return false, err
+	}
+	if n.conf.Priority != "" {
+		fields["priority"] = map[string]string{"name": n.conf.Priority}
+	}
+	for key, value := range n.conf.Fields {
+		fields[key] = value
+	}
+	body, err := json.Marshal(jiraCreateIssueRequest{Fields: fields})
+	if err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequest("POST", "https://jira.atlassian.com/rest/api/2/issue", bytes.NewBuffer(body))
+	if err != nil {
+		return false, err
+	}
+	req.SetBasicAuth(n.conf.User, string(n.conf.Password))
+	req.URL.Host = n.conf.Domain
+	req.Host = n.conf.Domain
+	req.Header.Add("Content-Type", "application/json")
+
+	log.Debugf("Sending request body %q to %s", string(body), req.URL)
+	res, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
+	// issue creation should return `201 Created`
+	if res.StatusCode != 201 {
+		body, _ := ioutil.ReadAll(res.Body)
+		retry := res.StatusCode == 500 || res.StatusCode == 503
+		return retry, fmt.Errorf("unexpected status %q from %v (body: %q)", res.Status, res.Request.URL.String(), string(body))
 	}
 
 	return false, nil

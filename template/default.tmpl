@@ -190,3 +190,6 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 {{ define "pushover.default.url" }}{{ template "__alertmanagerURL" . }}{{ end }}
+
+{{ define "jira.default.summary" }}{{ template "__subject" . }}{{ end }}
+{{ define "jira.default.description" }}{{ template "__text_alert_list" .Alerts.Firing }}{{ end }}
