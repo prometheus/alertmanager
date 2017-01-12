@@ -17,16 +17,12 @@ import Types exposing (Route(..))
 
 urlParser : Navigation.Location -> Route
 urlParser location =
-    let
-        one =
-            Debug.log "hash" location.hash
-    in
-        case UrlParser.parseHash routeParser location of
-            Just route ->
-                route
+    case UrlParser.parseHash routeParser location of
+        Just route ->
+            route
 
-            Nothing ->
-                NotFound
+        Nothing ->
+            NotFound
 
 
 silencesParser : Parser a a
