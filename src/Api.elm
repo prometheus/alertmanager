@@ -8,6 +8,7 @@ import Json.Encode as Encode
 import Task
 import String
 import Date exposing (..)
+import Time
 import ISO8601
 
 
@@ -64,6 +65,36 @@ createSilence silence =
         -- redirect to the silence show page.
         Http.send SilenceCreate
             (Http.post url body createResponseDecoder)
+
+
+destroySilence : Silence -> Cmd Msg
+destroySilence silence =
+    let
+        url =
+            String.join "/" [ baseUrl, "silences", toString silence.id ]
+
+        body =
+            Http.jsonBody <| silenceEncoder silence
+    in
+        -- TODO: This should return the silence, not just the ID, so that we can
+        -- redirect to the silence show page.
+        Http.send SilenceDestroy
+            (Http.request
+                { method = "DELETE"
+                , headers = []
+                , url = url
+                , body =
+                    Http.emptyBody
+                    -- Body being sent
+                , expect =
+                    (Http.expectJson createResponseDecoder)
+                    -- Response expected
+                , timeout =
+                    Nothing
+                    -- Just (200 * Time.millisecond)
+                , withCredentials = False
+                }
+            )
 
 
 

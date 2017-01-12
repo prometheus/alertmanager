@@ -69,6 +69,13 @@ update msg model =
         SilenceCreate (Err err) ->
             ( { model | route = SilencesRoute }, Api.getSilences )
 
+        SilenceDestroy (Ok id) ->
+            -- TODO: "Deleted id: ID" growl
+            ( { model | route = SilencesRoute }, Navigation.newUrl "/#/silences" )
+
+        SilenceDestroy (Err err) ->
+            ( { model | route = SilencesRoute }, Api.getSilences )
+
         FetchSilences ->
             ( { model | route = SilencesRoute }, Api.getSilences )
 
@@ -84,6 +91,9 @@ update msg model =
         CreateSilence silence ->
             ( model, Api.createSilence silence )
 
+        DestroySilence silence ->
+            ( model, Api.destroySilence silence )
+
         FetchAlertGroups ->
             ( { model | route = AlertGroupsRoute }, Api.getAlertGroups )
 
@@ -91,11 +101,7 @@ update msg model =
             ( { model | alertGroups = alertGroups }, Cmd.none )
 
         AlertGroupsFetch (Err err) ->
-            let
-                one =
-                    Debug.log "error" err
-            in
-                ( { model | route = NotFound }, Cmd.none )
+            ( { model | route = NotFound }, Cmd.none )
 
         RedirectAlerts ->
             ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )

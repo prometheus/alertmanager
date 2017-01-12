@@ -14,7 +14,7 @@ import Types exposing (Silence, Matcher, Msg(..))
 import Utils.Views exposing (..)
 
 
-silenceView : Silence -> Html msg
+silenceView : Silence -> Html Msg
 silenceView silence =
     let
         dictMatchers =
@@ -33,6 +33,12 @@ silenceView silence =
                 , href ("#/silences/" ++ (toString silence.id) ++ "/edit")
                 ]
                 [ text "Update" ]
+            , a
+                [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red"
+                , href ("#")
+                , onClick (DestroySilence silence)
+                ]
+                [ text "Destroy" ]
             ]
 
 
