@@ -63,6 +63,12 @@ update msg model =
             -- show the error somehow
             ( { model | route = NotFound }, Cmd.none )
 
+        SilenceCreate (Ok id) ->
+            ( { model | route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
+
+        SilenceCreate (Err err) ->
+            ( { model | route = SilencesRoute }, Api.getSilences )
+
         FetchSilences ->
             ( { model | route = SilencesRoute }, Api.getSilences )
 
@@ -73,7 +79,10 @@ update msg model =
             ( { model | route = EditSilenceRoute id }, Api.getSilence id )
 
         NewSilence ->
-            ( { model | route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
+            ( { model | silence = nullSilence, route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
+
+        CreateSilence silence ->
+            ( model, Api.createSilence silence )
 
         FetchAlertGroups ->
             ( { model | route = AlertGroupsRoute }, Api.getAlertGroups )

@@ -67,10 +67,12 @@ type alias Matcher =
 type Msg
     = SilenceFetch (Result Http.Error Silence)
     | SilencesFetch (Result Http.Error (List Silence))
+    | SilenceCreate (Result Http.Error Int)
     | FetchSilences
     | FetchSilence Int
     | NewSilence
     | EditSilence Int
+    | CreateSilence Silence
     | AlertGroupsFetch (Result Http.Error (List AlertGroup))
     | FetchAlertGroups
     | RedirectAlerts

@@ -4,6 +4,7 @@ module Api exposing (..)
 
 import Http
 import Json.Decode as Json exposing (..)
+import Json.Encode as Encode
 import Task
 import String
 import Date exposing (..)
@@ -50,8 +51,54 @@ getAlertGroups =
         Http.send AlertGroupsFetch (Http.get url alertGroupsDecoder)
 
 
+createSilence : Silence -> Cmd Msg
+createSilence silence =
+    let
+        url =
+            String.join "/" [ baseUrl, "silences" ]
 
--- Make these generic when I've gotten to Alerts
+        body =
+            Http.jsonBody <| silenceEncoder silence
+    in
+        -- TODO: This should return the silence, not just the ID, so that we can
+        -- redirect to the silence show page.
+        Http.send SilenceCreate
+            (Http.post url body createResponseDecoder)
+
+
+
+-- Encoders
+
+
+silenceEncoder : Silence -> Encode.Value
+silenceEncoder silence =
+    Encode.object
+        [ ( "createdBy", Encode.string silence.createdBy )
+        , ( "comment", Encode.string silence.comment )
+        , ( "startsAt", Encode.string <| ISO8601.toString silence.startsAt )
+        , ( "endsAt", Encode.string <| ISO8601.toString silence.endsAt )
+        , ( "matchers", (Encode.list (List.map matcherEncoder silence.matchers)) )
+        ]
+
+
+matcherEncoder : Matcher -> Encode.Value
+matcherEncoder matcher =
+    Encode.object
+        [ ( "name", Encode.string matcher.name )
+        , ( "value", Encode.string matcher.value )
+        , ( "isRegex", Encode.bool matcher.isRegex )
+        ]
+
+
+
+-- Decoders
+-- Once the API returns the newly created silence, this can go away and we
+-- re-use the silence decoder.
+
+
+createResponseDecoder : Json.Decoder Int
+createResponseDecoder =
+    (Json.at [ "data", "silenceId" ] Json.int)
 
 
 alertGroupsDecoder : Json.Decoder (List AlertGroup)
