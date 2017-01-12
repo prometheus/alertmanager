@@ -1,9 +1,12 @@
--- External Imports
-
-
 module Main exposing (..)
 
+-- External Imports
+
+import Date
 import Navigation
+import Task
+import Time
+import ISO8601
 
 
 -- Internal Imports
@@ -13,6 +16,7 @@ import Views
 import Api
 import Types exposing (..)
 import Utils.List
+import Utils.Date
 
 
 main =
@@ -35,7 +39,7 @@ init location =
 
 nullSilence : Silence
 nullSilence =
-    Silence 0 "" "" "" "" "" [ nullMatcher ]
+    Silence 0 "" "" Utils.Date.unixEpochStart Utils.Date.unixEpochStart Utils.Date.unixEpochStart [ nullMatcher ]
 
 
 nullMatcher : Matcher
@@ -69,7 +73,7 @@ update msg model =
             ( { model | route = EditSilenceRoute id }, Api.getSilence id )
 
         NewSilence ->
-            ( { model | silence = nullSilence, route = NewSilenceRoute }, Cmd.none )
+            ( { model | route = NewSilenceRoute }, Cmd.none )
 
         FetchAlertGroups ->
             ( { model | route = AlertGroupsRoute }, Api.getAlertGroups )
@@ -87,20 +91,25 @@ update msg model =
         RedirectAlerts ->
             ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )
 
-        UpdateStartsAt date ->
-            -- TODO: Will have to parse the date into a string probably.
+        UpdateStartsAt time ->
             let
                 sil =
                     model.silence
-            in
-                ( { model | silence = { sil | startsAt = date } }, Cmd.none )
 
-        UpdateEndsAt date ->
+                startsAt =
+                    Utils.Date.parseWithDefault sil.startsAt time
+            in
+                ( { model | silence = { sil | startsAt = startsAt } }, Cmd.none )
+
+        UpdateEndsAt time ->
             let
                 sil =
                     model.silence
+
+                endsAt =
+                    Utils.Date.parseWithDefault sil.endsAt time
             in
-                ( { model | silence = { sil | endsAt = date } }, Cmd.none )
+                ( { model | silence = { sil | endsAt = endsAt } }, Cmd.none )
 
         UpdateCreatedBy by ->
             let
@@ -167,6 +176,29 @@ update msg model =
                     model.silence
             in
                 ( { model | silence = { s | matchers = matchers } }, Cmd.none )
+
+        SilenceFromAlert matchers ->
+            let
+                s =
+                    { nullSilence | matchers = List.sortBy .name matchers }
+            in
+                ( { model | silence = s }, (Task.perform NewDefaultTimeRange Time.now) )
+
+        NewDefaultTimeRange time ->
+            let
+                endsAt =
+                    Utils.Date.addTime time (2 * Time.hour)
+
+                startsAt =
+                    Utils.Date.toISO8601 time
+
+                s =
+                    model.silence
+            in
+                ( { model | silence = { s | startsAt = startsAt, endsAt = endsAt } }, Cmd.none )
+
+        Noop _ ->
+            ( model, Cmd.none )
 
 
 urlUpdate : Navigation.Location -> Msg

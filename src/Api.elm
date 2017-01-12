@@ -7,6 +7,7 @@ import Json.Decode as Json exposing (..)
 import Task
 import String
 import Date exposing (..)
+import ISO8601
 
 
 -- Internal Imports
@@ -102,7 +103,7 @@ alertDecoder =
         (field "inhibited" Json.bool)
         (Json.maybe (field "silenced" Json.int))
         (decodeSilenced)
-        (field "startsAt" stringToDate)
+        (field "startsAt" stringtoISO8601)
         (field "generatorURL" Json.string)
 
 
@@ -120,12 +121,12 @@ decodeSilenced =
             )
 
 
-stringToDate : Decoder Date.Date
-stringToDate =
+stringtoISO8601 : Decoder ISO8601.Time
+stringtoISO8601 =
     Json.string
         |> andThen
             (\val ->
-                case Date.fromString val of
+                case ISO8601.fromString val of
                     Err err ->
                         Json.fail err
 
@@ -150,9 +151,9 @@ silenceDecoder =
         (field "id" Json.int)
         (field "createdBy" Json.string)
         (field "comment" Json.string)
-        (field "startsAt" Json.string)
-        (field "endsAt" Json.string)
-        (field "createdAt" Json.string)
+        (field "startsAt" stringtoISO8601)
+        (field "endsAt" stringtoISO8601)
+        (field "createdAt" stringtoISO8601)
         (field "matchers" (Json.list matcherDecoder))
 
 

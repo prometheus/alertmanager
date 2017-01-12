@@ -54,14 +54,14 @@ alertGroupsView alertGroup =
         ]
 
 
-blockView : Block -> Html msg
+blockView : Block -> Html Msg
 blockView block =
     -- Block level
     div []
         (List.map alertView block.alerts)
 
 
-alertView : Alert -> Html msg
+alertView : Alert -> Html Msg
 alertView alert =
     let
         id =
@@ -74,23 +74,24 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "dark-blue"
+                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "dark-blue" (Noop [])
             else
-                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red"
+                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" <|
+                    (SilenceFromAlert (List.map (\( k, v ) -> Matcher k v False) alert.labels))
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
                 [ b
-                , buttonLink "fa-bar-chart" alert.generatorUrl "black"
+                , buttonLink "fa-bar-chart" alert.generatorUrl "black" (Noop [])
                 , p [ class "dib mr2" ] [ text <| Utils.Date.dateFormat alert.startsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
             ]
 
 
-buttonLink : String -> String -> String -> Html msg
-buttonLink icon link color =
-    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link ]
+buttonLink : String -> String -> String -> msg -> Html msg
+buttonLink icon link color msg =
+    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link, onClick msg ]
         [ i [ class <| "fa fa-3 " ++ icon ] []
         ]
 

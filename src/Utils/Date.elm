@@ -1,55 +1,37 @@
 module Utils.Date exposing (..)
 
-import Date exposing (Month(..))
+import Date exposing (Date, Month(..))
+import Time
+import ISO8601
 
 
-dateFormat : Date.Date -> String
-dateFormat date =
+dateFormat : ISO8601.Time -> String
+dateFormat t =
+    String.join "/" <| List.map toString [ ISO8601.month t, ISO8601.day t, ISO8601.year t ]
+
+
+unixEpochStart : ISO8601.Time
+unixEpochStart =
+    ISO8601.fromTime 0
+
+
+addTime : Time.Time -> Time.Time -> ISO8601.Time
+addTime isoTime add =
     let
-        time =
-            String.join ":" <| List.map toString [ Date.hour date, Date.minute date, Date.second date ]
+        ms =
+            (Time.inMilliseconds isoTime) + (Time.inMilliseconds add)
 
-        d =
-            String.join "/" <| List.map toString [ dateToInt <| Date.month date, Date.day date, Date.year date ]
+        t =
+            round ms
     in
-        d
+        ISO8601.fromTime t
 
 
-dateToInt : Date.Month -> Int
-dateToInt month =
-    case month of
-        Jan ->
-            1
+parseWithDefault : ISO8601.Time -> String -> ISO8601.Time
+parseWithDefault default toParse =
+    Result.withDefault default (ISO8601.fromString toParse)
 
-        Feb ->
-            2
 
-        Mar ->
-            3
-
-        Apr ->
-            4
-
-        May ->
-            5
-
-        Jun ->
-            6
-
-        Jul ->
-            7
-
-        Aug ->
-            8
-
-        Sep ->
-            9
-
-        Oct ->
-            10
-
-        Nov ->
-            11
-
-        Dec ->
-            12
+toISO8601 : Time.Time -> ISO8601.Time
+toISO8601 time =
+    ISO8601.fromTime <| round (Time.inMilliseconds time)

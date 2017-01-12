@@ -3,7 +3,8 @@ module Types exposing (..)
 -- External Imports
 
 import Http exposing (Error)
-import Date exposing (Date)
+import Time
+import ISO8601
 
 
 -- Internal Imports
@@ -22,9 +23,9 @@ type alias Silence =
     { id : Int
     , createdBy : String
     , comment : String
-    , startsAt : String
-    , endsAt : String
-    , createdAt : String
+    , startsAt : ISO8601.Time
+    , endsAt : ISO8601.Time
+    , createdAt : ISO8601.Time
     , matchers : List Matcher
     }
 
@@ -41,7 +42,7 @@ type alias Alert =
     , inhibited : Bool
     , silenceId : Maybe Int
     , silenced : Bool
-    , startsAt : Date
+    , startsAt : ISO8601.Time
     , generatorUrl : String
     }
 
@@ -82,6 +83,9 @@ type Msg
     | UpdateStartsAt String
     | UpdateCreatedBy String
     | UpdateComment String
+    | SilenceFromAlert (List Matcher)
+    | Noop (List Matcher)
+    | NewDefaultTimeRange Time.Time
 
 
 type Route

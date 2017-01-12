@@ -5,6 +5,7 @@ module Silences.Views exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
+import ISO8601
 
 
 -- Internal Imports
@@ -31,7 +32,7 @@ silenceView silence =
                 [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue"
                 , href ("#/silences/" ++ (toString silence.id) ++ "/edit")
                 ]
-                [ text "Create" ]
+                [ text "Update" ]
             ]
 
 
@@ -69,8 +70,8 @@ silenceFormView kind silence =
         div [ class "pa4 black-80" ]
             [ fieldset [ class "ba b--transparent ph0 mh0" ]
                 [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
-                , formField "Start" silence.startsAt UpdateStartsAt
-                , formField "End" silence.endsAt UpdateEndsAt
+                , formField "Start" (ISO8601.toString silence.startsAt) UpdateStartsAt
+                , formField "End" (ISO8601.toString silence.endsAt) UpdateEndsAt
                 , div [ class "mt3" ]
                     [ label [ class "f6 b db mb2" ]
                         [ text "Matchers "
