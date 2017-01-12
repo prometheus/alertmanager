@@ -73,7 +73,7 @@ update msg model =
             ( { model | route = EditSilenceRoute id }, Api.getSilence id )
 
         NewSilence ->
-            ( { model | route = NewSilenceRoute }, Cmd.none )
+            ( { model | route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
 
         FetchAlertGroups ->
             ( { model | route = AlertGroupsRoute }, Api.getAlertGroups )
