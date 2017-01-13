@@ -17,6 +17,7 @@ import Api
 import Types exposing (..)
 import Utils.List
 import Utils.Date
+import Silences.Api
 
 
 main =
@@ -64,10 +65,10 @@ update msg model =
             ( { model | route = NotFound }, Cmd.none )
 
         SilenceCreate (Ok id) ->
-            ( { model | route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
+            ( { model | silence = nullSilence, route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
 
         SilenceCreate (Err err) ->
-            ( { model | route = SilencesRoute }, Navigation.newUrl "/#/silences" )
+            ( { model | silence = nullSilence, route = SilencesRoute }, Navigation.newUrl "/#/silences" )
 
         SilenceDestroy (Ok id) ->
             -- TODO: "Deleted id: ID" growl
@@ -80,16 +81,23 @@ update msg model =
             ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
         FetchSilences ->
-            ( { model | route = SilencesRoute }, Api.getSilences )
+            ( { model | silence = nullSilence, route = SilencesRoute }, Silences.Api.getSilences )
 
         FetchSilence id ->
-            ( { model | route = SilenceRoute id }, Api.getSilence id )
+            ( { model | route = SilenceRoute id }, Silences.Api.getSilence id )
 
         EditSilence id ->
-            ( { model | route = EditSilenceRoute id }, Api.getSilence id )
+            ( { model | route = EditSilenceRoute id }, Silences.Api.getSilence id )
 
         NewSilence ->
-            ( { model | silence = nullSilence, route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
+            ( { model | route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
+
+        SilenceFromAlert matchers ->
+            let
+                s =
+                    { nullSilence | matchers = List.sortBy .name matchers }
+            in
+                ( { model | silence = s }, (Task.perform NewDefaultTimeRange Time.now) )
 
         CreateSilence silence ->
             ( model, Api.createSilence silence )
@@ -98,7 +106,7 @@ update msg model =
             ( model, Api.destroySilence silence )
 
         FetchAlertGroups ->
-            ( { model | route = AlertGroupsRoute }, Api.getAlertGroups )
+            ( { model | silence = nullSilence, route = AlertGroupsRoute }, Api.getAlertGroups )
 
         AlertGroupsFetch (Ok alertGroups) ->
             ( { model | alertGroups = alertGroups }, Cmd.none )
@@ -194,13 +202,6 @@ update msg model =
                     model.silence
             in
                 ( { model | silence = { s | matchers = matchers } }, Cmd.none )
-
-        SilenceFromAlert matchers ->
-            let
-                s =
-                    { nullSilence | matchers = List.sortBy .name matchers }
-            in
-                ( { model | silence = s }, (Task.perform NewDefaultTimeRange Time.now) )
 
         NewDefaultTimeRange time ->
             let

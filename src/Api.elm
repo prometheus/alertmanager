@@ -15,32 +15,7 @@ import ISO8601
 -- Internal Imports
 
 import Types exposing (..)
-
-
--- Api
-
-
-baseUrl : String
-baseUrl =
-    "http://localhost:9093/api/v1"
-
-
-getSilences : Cmd Msg
-getSilences =
-    let
-        url =
-            String.join "/" [ baseUrl, "silences?limit=1000" ]
-    in
-        Http.send SilencesFetch (Http.get url listResponseDecoder)
-
-
-getSilence : Int -> Cmd Msg
-getSilence id =
-    let
-        url =
-            String.join "/" [ baseUrl, "silence", toString id ]
-    in
-        Http.send SilenceFetch (Http.get url showResponseDecoder)
+import Utils.Api exposing (stringtoISO8601, baseUrl)
 
 
 getAlertGroups : Cmd Msg
@@ -199,47 +174,3 @@ decodeSilenced =
                     Nothing ->
                         Json.succeed False
             )
-
-
-stringtoISO8601 : Decoder ISO8601.Time
-stringtoISO8601 =
-    Json.string
-        |> andThen
-            (\val ->
-                case ISO8601.fromString val of
-                    Err err ->
-                        Json.fail err
-
-                    Ok date ->
-                        Json.succeed <| date
-            )
-
-
-showResponseDecoder : Json.Decoder Silence
-showResponseDecoder =
-    (Json.at [ "data" ] silenceDecoder)
-
-
-listResponseDecoder : Json.Decoder (List Silence)
-listResponseDecoder =
-    Json.at [ "data", "silences" ] (Json.list silenceDecoder)
-
-
-silenceDecoder : Json.Decoder Silence
-silenceDecoder =
-    Json.map7 Silence
-        (field "id" Json.int)
-        (field "createdBy" Json.string)
-        (field "comment" Json.string)
-        (field "startsAt" stringtoISO8601)
-        (field "endsAt" stringtoISO8601)
-        (field "createdAt" stringtoISO8601)
-        (field "matchers" (Json.list matcherDecoder))
-
-
-matcherDecoder : Json.Decoder Matcher
-matcherDecoder =
-    Json.map3 Matcher
-        (field "name" Json.string)
-        (field "value" Json.string)
-        (field "isRegex" Json.bool)
