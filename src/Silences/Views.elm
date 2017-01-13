@@ -47,15 +47,6 @@ objectData data =
     dt [ class "m10 black w-100" ] [ text data ]
 
 
-
--- Start
--- End
--- Matchers (Name, Value, Regexp) and add additional
--- Creator
--- Comment
--- Create
-
-
 silenceFormView : String -> Silence -> Html Msg
 silenceFormView kind silence =
     let
