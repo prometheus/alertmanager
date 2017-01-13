@@ -40,6 +40,8 @@ func main() {
 		return cmd.Run()
 	}
 
+	go recompileFn()
+
 	watcher, err := guac.NewWatcher(ctx, "./src", recompileFn)
 	if err != nil {
 		log.Fatalf("error watching: %v", err)
