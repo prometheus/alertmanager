@@ -42,13 +42,13 @@ var (
 		Namespace: "alertmanager",
 		Name:      "notifications_total",
 		Help:      "The total number of attempted notifications.",
-	}, []string{"integration"})
+	}, []string{"integration", "receiver"})
 
 	numFailedNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "alertmanager",
 		Name:      "notifications_failed_total",
 		Help:      "The total number of failed notifications.",
-	}, []string{"integration"})
+	}, []string{"integration", "receiver"})
 )
 
 func init() {
@@ -207,7 +207,7 @@ func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(notificationLog, recv))
-		s = append(s, NewRetryStage(i))
+		s = append(s, NewRetryStage(i, rc.Name))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -507,12 +507,14 @@ func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
 	integration Integration
+	receiver    string
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration) *RetryStage {
+func NewRetryStage(i Integration, receiver string) *RetryStage {
 	return &RetryStage{
 		integration: i,
+		receiver:    receiver,
 	}
 }
 
@@ -542,7 +544,7 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.C
 		select {
 		case <-tick.C:
 			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
-				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
+				numFailedNotifications.WithLabelValues(r.integration.name, r.receiver).Inc()
 				log.Debugf("Notify attempt %d failed: %s", i, err)
 				if !retry {
 					return ctx, alerts, fmt.Errorf("Cancelling notify retry due to unrecoverable error: %s", err)
@@ -552,7 +554,7 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.C
 				// integration upon context timeout.
 				iErr = err
 			} else {
-				numNotifications.WithLabelValues(r.integration.name).Inc()
+				numNotifications.WithLabelValues(r.integration.name, r.receiver).Inc()
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
