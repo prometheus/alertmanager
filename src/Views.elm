@@ -24,10 +24,10 @@ view model =
             genericListView alertGroupsView model.alertGroups
 
         NewSilenceRoute ->
-            Silences.Views.silenceFormView "New" model.silence
+            Silences.Views.silenceForm "New" model.silence
 
         EditSilenceRoute id ->
-            Silences.Views.silenceFormView "Edit" model.silence
+            Silences.Views.silenceForm "Edit" model.silence
 
         SilencesRoute ->
             genericListView Silences.Views.silenceList model.silences

@@ -90,8 +90,8 @@ silenceExtra silence =
             ]
 
 
-silenceFormView : String -> Silence -> Html Msg
-silenceFormView kind silence =
+silenceForm : String -> Silence -> Html Msg
+silenceForm kind silence =
     let
         base =
             "/#/silences/"
