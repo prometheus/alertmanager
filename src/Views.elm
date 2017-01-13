@@ -30,7 +30,7 @@ view model =
             Silences.Views.silenceFormView "Edit" model.silence
 
         SilencesRoute ->
-            genericListView silenceListView model.silences
+            genericListView Silences.Views.silenceListView model.silences
 
         SilenceRoute name ->
             Silences.Views.silenceView model.silence
@@ -113,11 +113,3 @@ genericListView fn list =
             ]
         ]
         (List.map fn list)
-
-
-silenceListView : Silence -> Html Msg
-silenceListView silence =
-    li
-        [ class "pa3 pa4-ns bb b--black-10" ]
-        [ Silences.Views.silenceView silence
-        ]

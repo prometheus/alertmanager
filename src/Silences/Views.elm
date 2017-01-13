@@ -15,6 +15,14 @@ import Utils.Views exposing (..)
 import Utils.Date
 
 
+silenceListView : Silence -> Html Msg
+silenceListView silence =
+    li
+        [ class "pa3 pa4-ns bb b--black-10" ]
+        [ silenceView silence
+        ]
+
+
 silenceView : Silence -> Html Msg
 silenceView silence =
     let
