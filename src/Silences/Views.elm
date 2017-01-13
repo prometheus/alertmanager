@@ -15,16 +15,24 @@ import Utils.Views exposing (..)
 import Utils.Date
 
 
-silenceListView : Silence -> Html Msg
-silenceListView silence =
+silenceList : Silence -> Html Msg
+silenceList silence =
     li
         [ class "pa3 pa4-ns bb b--black-10" ]
-        [ silenceView silence
+        [ silenceBase silence
         ]
 
 
-silenceView : Silence -> Html Msg
-silenceView silence =
+silence : Silence -> Html Msg
+silence silence =
+    div []
+        [ silenceBase silence
+        , silenceExtra silence
+        ]
+
+
+silenceBase : Silence -> Html Msg
+silenceBase silence =
     let
         -- TODO: Check with fabxc if the alert being in the first position can
         -- be relied upon.
@@ -53,6 +61,32 @@ silenceView silence =
                 , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton <| List.filter (\m -> m.name /= "alertname") silence.matchers)
+            ]
+
+
+silenceExtra : Silence -> Html msg
+silenceExtra silence =
+    let
+        -- TODO: It would be nice to get this from the API. I want
+        -- Alertmanager's view of things, not the browser client's.
+        status =
+            "elapsed"
+    in
+        div [ class "f6" ]
+            [ div [ class "mb1" ]
+                [ p []
+                    [ text "Status: "
+                    , Utils.Views.button "ph3 pv2" status
+                    ]
+                , div []
+                    [ label [ class "f6 dib mb2 mr2 w-40" ] [ text "Created by" ]
+                    , p [] [ text silence.createdBy ]
+                    ]
+                , div []
+                    [ label [ class "f6 dib mb2 mr2 w-40" ] [ text "Comment" ]
+                    , p [] [ text silence.comment ]
+                    ]
+                ]
             ]
 
 

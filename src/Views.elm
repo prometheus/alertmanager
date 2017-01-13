@@ -30,10 +30,10 @@ view model =
             Silences.Views.silenceFormView "Edit" model.silence
 
         SilencesRoute ->
-            genericListView Silences.Views.silenceListView model.silences
+            genericListView Silences.Views.silenceList model.silences
 
         SilenceRoute name ->
-            Silences.Views.silenceView model.silence
+            Silences.Views.silence model.silence
 
         _ ->
             notFoundView model

@@ -17,8 +17,13 @@ labelButton ( key, value ) =
 
 listButton : String -> ( String, String ) -> Html msg
 listButton classString ( key, value ) =
+    button classString <| String.join "=" [ key, value ]
+
+
+button : String -> String -> Html msg
+button classString textString =
     a [ class <| "f6 link br1 ba mr1 mb2 dib " ++ classString ]
-        [ text <| String.join "=" [ key, value ] ]
+        [ text textString ]
 
 
 checkbox : String -> Bool -> (Bool -> msg) -> Html msg
