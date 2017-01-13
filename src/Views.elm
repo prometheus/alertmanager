@@ -89,13 +89,6 @@ alertView alert =
             ]
 
 
-buttonLink : String -> String -> String -> msg -> Html msg
-buttonLink icon link color msg =
-    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link, onClick msg ]
-        [ i [ class <| "fa fa-3 " ++ icon ] []
-        ]
-
-
 alertHeader : ( String, String ) -> Html msg
 alertHeader ( key, value ) =
     if key == "alertname" then
@@ -124,33 +117,7 @@ genericListView fn list =
 
 silenceListView : Silence -> Html Msg
 silenceListView silence =
-    let
-        -- TODO: Check with fabxc if the alert being in the first position can
-        -- be relied upon.
-        alertName =
-            case List.head silence.matchers of
-                Just m ->
-                    m.value
-
-                Nothing ->
-                    ""
-
-        editUrl =
-            String.join "/" [ "#/silences", toString silence.id, "edit" ]
-    in
-        li
-            [ class "pa3 pa4-ns bb b--black-10" ]
-            [ a
-                [ class "db link blue mb3"
-                , href ("#/silences/" ++ (toString silence.id))
-                ]
-                [ b [ class "db f4 mb1" ]
-                    [ text alertName ]
-                ]
-            , div [ class "mb1 f6" ]
-                [ buttonLink "fa-pencil" editUrl "blue" (Noop [])
-                , buttonLink "fa-trash-o" "#/silences" "dark-red" (DestroySilence silence)
-                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt ]
-                ]
-            , div [ class "mb2 w-80-l w-100-m" ] (List.map Silences.Views.matcherButton <| List.filter (\m -> m.name /= "alertname") silence.matchers)
-            ]
+    li
+        [ class "pa3 pa4-ns bb b--black-10" ]
+        [ Silences.Views.silenceView silence
+        ]

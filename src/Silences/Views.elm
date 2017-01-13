@@ -12,33 +12,39 @@ import ISO8601
 
 import Types exposing (Silence, Matcher, Msg(..))
 import Utils.Views exposing (..)
+import Utils.Date
 
 
 silenceView : Silence -> Html Msg
 silenceView silence =
     let
-        dictMatchers =
-            List.map (\x -> ( x.name, x.value )) silence.matchers
+        -- TODO: Check with fabxc if the alert being in the first position can
+        -- be relied upon.
+        alertName =
+            case List.head silence.matchers of
+                Just m ->
+                    m.value
+
+                Nothing ->
+                    ""
+
+        editUrl =
+            String.join "/" [ "#/silences", toString silence.id, "edit" ]
     in
-        div []
-            [ dl [ class "mt2 f6 lh-copy" ]
-                [ objectData (toString silence.id)
-                , objectData silence.createdBy
-                , objectData silence.comment
+        div [ class "f6 mb3" ]
+            [ a
+                [ class "db link blue mb3"
+                , href ("#/silences/" ++ (toString silence.id))
                 ]
-            , ul [ class "list" ]
-                (List.map labelButton dictMatchers)
-            , a
-                [ class "f6 link br2 ba ph3 pv2 mr2 dib blue"
-                , href ("#/silences/" ++ (toString silence.id) ++ "/edit")
+                [ b [ class "db f4 mb1" ]
+                    [ text alertName ]
                 ]
-                [ text "Update" ]
-            , a
-                [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red"
-                , href ("#")
-                , onClick (DestroySilence silence)
+            , div [ class "mb1" ]
+                [ buttonLink "fa-pencil" editUrl "blue" (Noop [])
+                , buttonLink "fa-trash-o" "#/silences" "dark-red" (DestroySilence silence)
+                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt ]
                 ]
-                [ text "Destroy" ]
+            , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton <| List.filter (\m -> m.name /= "alertname") silence.matchers)
             ]
 
 

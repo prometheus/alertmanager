@@ -4,7 +4,7 @@ module Utils.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onCheck, onInput)
+import Html.Events exposing (onCheck, onInput, onClick)
 
 
 -- Internal Imports
@@ -42,4 +42,11 @@ textField labelText content msg =
     div [ class "mt3" ]
         [ label [ class "f6 b db mb2" ] [ text labelText ]
         , textarea [ class "db border-box hover-black w-100 ba b--black-20 pa2 br1 mb2", value content, onInput msg ] []
+        ]
+
+
+buttonLink : String -> String -> String -> msg -> Html msg
+buttonLink icon link color msg =
+    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link, onClick msg ]
+        [ i [ class <| "fa fa-3 " ++ icon ] []
         ]
