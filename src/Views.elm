@@ -74,7 +74,7 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "dark-blue" (Noop [])
+                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "blue" (Noop [])
             else
                 buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" <|
                     (SilenceFromAlert (List.map (\( k, v ) -> Matcher k v False) alert.labels))
@@ -134,18 +134,23 @@ silenceListView silence =
 
                 Nothing ->
                     ""
+
+        editUrl =
+            String.join "/" [ "#/silences", toString silence.id, "edit" ]
     in
         li
             [ class "pa3 pa4-ns bb b--black-10" ]
             [ a
-                [ class "db link blue"
+                [ class "db link blue mb3"
                 , href ("#/silences/" ++ (toString silence.id))
                 ]
                 [ b [ class "db f4 mb1" ]
                     [ text alertName ]
                 ]
-            , span [ class "f5 db lh-copy measure" ]
-                [ text silence.createdBy ]
-            , span [ class "f5 db lh-copy measure" ]
-                [ text silence.comment ]
+            , div [ class "mb1 f6" ]
+                [ buttonLink "fa-pencil" editUrl "blue" (Noop [])
+                , buttonLink "fa-trash-o" "#/silences" "dark-red" (DestroySilence silence)
+                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt ]
+                ]
+            , div [ class "mb2 w-80-l w-100-m" ] (List.map Silences.Views.matcherButton <| List.filter (\m -> m.name /= "alertname") silence.matchers)
             ]

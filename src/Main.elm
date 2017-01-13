@@ -34,7 +34,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model [] nullSilence [] route)
+        update (urlUpdate location) (Model [] nullSilence [] route "")
 
 
 nullSilence : Silence
@@ -67,14 +67,17 @@ update msg model =
             ( { model | route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
 
         SilenceCreate (Err err) ->
-            ( { model | route = SilencesRoute }, Api.getSilences )
+            ( { model | route = SilencesRoute }, Navigation.newUrl "/#/silences" )
 
         SilenceDestroy (Ok id) ->
             -- TODO: "Deleted id: ID" growl
+            -- TODO: Add DELETE to accepted CORS methods in alertmanager
+            -- TODO: Check why POST isn't there but is accepted
             ( { model | route = SilencesRoute }, Navigation.newUrl "/#/silences" )
 
         SilenceDestroy (Err err) ->
-            ( { model | route = SilencesRoute }, Api.getSilences )
+            -- TODO: Add error to the message or something.
+            ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
         FetchSilences ->
             ( { model | route = SilencesRoute }, Api.getSilences )

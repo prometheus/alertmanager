@@ -29,7 +29,7 @@ silenceView silence =
             , ul [ class "list" ]
                 (List.map labelButton dictMatchers)
             , a
-                [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue"
+                [ class "f6 link br2 ba ph3 pv2 mr2 dib blue"
                 , href ("#/silences/" ++ (toString silence.id) ++ "/edit")
                 ]
                 [ text "Update" ]
@@ -87,11 +87,11 @@ silenceFormView kind silence =
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
                     ]
                 , div [] <| List.map matcherForm silence.matchers
-                , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue", onClick AddMatcher ] [ text "Add Matcher" ]
+                , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick AddMatcher ] [ text "Add Matcher" ]
                 , formField "Creator" silence.createdBy UpdateCreatedBy
                 , textField "Comment" silence.comment UpdateComment
                 , div [ class "mt3" ]
-                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-blue", href "#", onClick (CreateSilence silence) ] [ text "Create" ]
+                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", href "#", onClick (CreateSilence silence) ] [ text "Create" ]
                     , a [ class "f6 link br2 ba ph3 pv2 mb2 dib dark-red", href url ] [ text "Reset" ]
                     ]
                 ]
@@ -106,3 +106,8 @@ matcherForm matcher =
         , checkbox "Regex" matcher.isRegex (UpdateMatcherRegex matcher)
         , a [ class <| "f6 link br1 ba mr1 mb2 dib ph1 pv1", onClick (DeleteMatcher matcher) ] [ text "X" ]
         ]
+
+
+matcherButton : Matcher -> Html msg
+matcherButton matcher =
+    labelButton ( matcher.name, matcher.value )

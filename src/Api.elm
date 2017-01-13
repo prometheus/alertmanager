@@ -69,9 +69,11 @@ createSilence silence =
 
 destroySilence : Silence -> Cmd Msg
 destroySilence silence =
+    -- The incorrect route using "silences" receives a 405. The route seems to
+    -- be matching on /silences and ignoring the :sid, should be getting a 404.
     let
         url =
-            String.join "/" [ baseUrl, "silences", toString silence.id ]
+            String.join "/" [ baseUrl, "silence", toString silence.id ]
 
         body =
             Http.jsonBody <| silenceEncoder silence

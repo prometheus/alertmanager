@@ -16,6 +16,7 @@ type alias Model =
     , silence : Silence
     , alertGroups : List AlertGroup
     , route : Route
+    , error : String
     }
 
 
