@@ -56,11 +56,6 @@ silenceView silence =
             ]
 
 
-objectData : String -> Html msg
-objectData data =
-    dt [ class "m10 black w-100" ] [ text data ]
-
-
 silenceFormView : String -> Silence -> Html Msg
 silenceFormView kind silence =
     let
