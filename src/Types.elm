@@ -17,6 +17,7 @@ type alias Model =
     , alertGroups : List AlertGroup
     , route : Route
     , error : String
+    , loading : Bool
     }
 
 

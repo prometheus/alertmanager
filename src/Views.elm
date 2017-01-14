@@ -27,16 +27,31 @@ view model =
             Silences.Views.silenceForm "New" model.silence
 
         EditSilenceRoute id ->
-            Silences.Views.silenceForm "Edit" model.silence
+            if model.loading then
+                loading
+            else
+                Silences.Views.silenceForm "Edit" model.silence
 
         SilencesRoute ->
-            genericListView Silences.Views.silenceList model.silences
+            if model.loading then
+                loading
+            else
+                -- Add buttons at the top to filter Active/Pending/Expired
+                genericListView Silences.Views.silenceList model.silences
 
         SilenceRoute name ->
             Silences.Views.silence model.silence
 
         _ ->
             notFoundView model
+
+
+loading : Html msg
+loading =
+    div []
+        [ i [ class "fa fa-cog fa-spin fa-3x fa-fw" ] []
+        , span [ class "sr-only" ] [ text "Loading..." ]
+        ]
 
 
 todoView : a -> Html Msg

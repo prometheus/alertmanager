@@ -35,7 +35,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model [] nullSilence [] route "")
+        update (urlUpdate location) (Model [] nullSilence [] route "" True)
 
 
 nullSilence : Silence
@@ -52,13 +52,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SilencesFetch (Ok silences) ->
-            ( { model | silences = silences }, Cmd.none )
+            ( { model | silences = silences, loading = False }, Cmd.none )
 
         SilencesFetch (Err _) ->
-            ( { model | route = NotFound }, Cmd.none )
+            ( { model | route = NotFound, loading = False }, Cmd.none )
 
         SilenceFetch (Ok silence) ->
-            ( { model | silence = silence }, Cmd.none )
+            ( { model | silence = silence, loading = False }, Cmd.none )
 
         SilenceFetch (Err _) ->
             -- show the error somehow
@@ -81,10 +81,10 @@ update msg model =
             ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
         FetchSilences ->
-            ( { model | silence = nullSilence, route = SilencesRoute }, Silences.Api.getSilences )
+            ( { model | silence = nullSilence, route = SilencesRoute, loading = True }, Silences.Api.getSilences )
 
         FetchSilence id ->
-            ( { model | route = SilenceRoute id }, Silences.Api.getSilence id )
+            ( { model | route = SilenceRoute id, loading = True }, Silences.Api.getSilence id )
 
         EditSilence id ->
             ( { model | route = EditSilenceRoute id }, Silences.Api.getSilence id )
