@@ -19,31 +19,28 @@ import Silences.Views
 
 view : Model -> Html Msg
 view model =
-    case model.route of
-        AlertGroupsRoute ->
-            genericListView alertGroupsView model.alertGroups
+    if model.loading then
+        loading
+    else
+        case model.route of
+            AlertGroupsRoute ->
+                genericListView alertGroupsView model.alertGroups
 
-        NewSilenceRoute ->
-            Silences.Views.silenceForm "New" model.silence
+            NewSilenceRoute ->
+                Silences.Views.silenceForm "New" model.silence
 
-        EditSilenceRoute id ->
-            if model.loading then
-                loading
-            else
+            EditSilenceRoute id ->
                 Silences.Views.silenceForm "Edit" model.silence
 
-        SilencesRoute ->
-            if model.loading then
-                loading
-            else
+            SilencesRoute ->
                 -- Add buttons at the top to filter Active/Pending/Expired
                 genericListView Silences.Views.silenceList model.silences
 
-        SilenceRoute name ->
-            Silences.Views.silence model.silence
+            SilenceRoute name ->
+                Silences.Views.silence model.silence
 
-        _ ->
-            notFoundView model
+            _ ->
+                notFoundView model
 
 
 loading : Html msg

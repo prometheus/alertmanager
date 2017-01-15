@@ -82,10 +82,10 @@ update msg model =
             ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
         AlertGroupsFetch (Ok alertGroups) ->
-            ( { model | alertGroups = alertGroups }, Cmd.none )
+            ( { model | alertGroups = alertGroups, loading = False }, Cmd.none )
 
         AlertGroupsFetch (Err err) ->
-            ( { model | route = NotFound }, Cmd.none )
+            ( { model | route = NotFound, loading = False }, Cmd.none )
 
         -- API interaction messages
         FetchSilences ->
@@ -97,7 +97,7 @@ update msg model =
         EditSilence id ->
             -- Look into setting the silence if we're moving from the list to
             -- edit view, so that there's no pause for users navigating around.
-            ( { model | route = EditSilenceRoute id }, Silences.Api.getSilence id )
+            ( { model | route = EditSilenceRoute id, loading = True }, Silences.Api.getSilence id )
 
         CreateSilence silence ->
             ( model, Api.createSilence silence )
