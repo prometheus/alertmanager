@@ -3,7 +3,7 @@ module Parsing exposing (..)
 -- External Imports
 
 import Navigation
-import UrlParser exposing (Parser, (</>), map, int, oneOf, s, string)
+import UrlParser exposing (Parser, (</>), map, int, oneOf, s, string, parseHash)
 import String
 
 
@@ -17,7 +17,7 @@ import Types exposing (Route(..))
 
 urlParser : Navigation.Location -> Route
 urlParser location =
-    case UrlParser.parseHash routeParser location of
+    case parseHash routeParser location of
         Just route ->
             route
 
@@ -27,37 +27,37 @@ urlParser location =
 
 silencesParser : Parser a a
 silencesParser =
-    UrlParser.s "silences"
+    s "silences"
 
 
 newSilenceParser : Parser a a
 newSilenceParser =
-    UrlParser.s "silences" </> UrlParser.s "new"
+    s "silences" </> s "new"
 
 
 silenceParser : Parser (Int -> a) a
 silenceParser =
-    UrlParser.s "silences" </> UrlParser.int
+    s "silences" </> int
 
 
 editSilenceParser : Parser (Int -> a) a
 editSilenceParser =
-    UrlParser.s "silences" </> UrlParser.int </> UrlParser.s "edit"
+    s "silences" </> int </> s "edit"
 
 
 alertsParser : Parser a a
 alertsParser =
-    UrlParser.s "alerts"
+    s "alerts"
 
 
 topLevelParser : Parser a a
 topLevelParser =
-    UrlParser.s ""
+    s ""
 
 
 routeParser : Parser (Route -> a) a
 routeParser =
-    UrlParser.oneOf
+    oneOf
         [ map SilencesRoute silencesParser
         , map NewSilenceRoute newSilenceParser
         , map EditSilenceRoute editSilenceParser
