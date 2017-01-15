@@ -51,6 +51,7 @@ nullMatcher =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        -- HTTP Result messages
         SilencesFetch (Ok silences) ->
             ( { model | silences = silences, loading = False }, Cmd.none )
 
@@ -80,6 +81,13 @@ update msg model =
             -- TODO: Add error to the message or something.
             ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
+        AlertGroupsFetch (Ok alertGroups) ->
+            ( { model | alertGroups = alertGroups }, Cmd.none )
+
+        AlertGroupsFetch (Err err) ->
+            ( { model | route = NotFound }, Cmd.none )
+
+        -- API interaction messages
         FetchSilences ->
             ( { model | silence = nullSilence, route = SilencesRoute, loading = True }, Silences.Api.getSilences )
 
@@ -87,7 +95,18 @@ update msg model =
             ( { model | route = SilenceRoute id, loading = True }, Silences.Api.getSilence id )
 
         EditSilence id ->
+            -- Look into setting the silence if we're moving from the list to
+            -- edit view, so that there's no pause for users navigating around.
             ( { model | route = EditSilenceRoute id }, Silences.Api.getSilence id )
+
+        CreateSilence silence ->
+            ( model, Api.createSilence silence )
+
+        DestroySilence silence ->
+            ( model, Api.destroySilence silence )
+
+        FetchAlertGroups ->
+            ( { model | silence = nullSilence, route = AlertGroupsRoute }, Api.getAlertGroups )
 
         NewSilence ->
             ( { model | route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
@@ -99,24 +118,10 @@ update msg model =
             in
                 ( { model | silence = s }, (Task.perform NewDefaultTimeRange Time.now) )
 
-        CreateSilence silence ->
-            ( model, Api.createSilence silence )
-
-        DestroySilence silence ->
-            ( model, Api.destroySilence silence )
-
-        FetchAlertGroups ->
-            ( { model | silence = nullSilence, route = AlertGroupsRoute }, Api.getAlertGroups )
-
-        AlertGroupsFetch (Ok alertGroups) ->
-            ( { model | alertGroups = alertGroups }, Cmd.none )
-
-        AlertGroupsFetch (Err err) ->
-            ( { model | route = NotFound }, Cmd.none )
-
         RedirectAlerts ->
             ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )
 
+        -- New silence form messages
         UpdateStartsAt time ->
             let
                 sil =
