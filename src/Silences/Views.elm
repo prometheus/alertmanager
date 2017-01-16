@@ -119,17 +119,18 @@ silenceForm kind silence =
                 , div [ class "mt3" ]
                     [ label [ class "f6 b db mb2" ]
                         [ text "Matchers "
-                        , span [ class "normal black-60" ] [ text "Alerts affected by this silence." ]
+                        , span [ class "normal black-60" ] [ text "Alerts affected by this silence. Format: name=value" ]
                         ]
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
                     ]
                 , div [] <| List.map matcherForm silence.matchers
-                , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick AddMatcher ] [ text "Add Matcher" ]
+                , iconButtonMsg "blue" "fa-plus" AddMatcher
                 , formField "Creator" silence.createdBy UpdateCreatedBy
                 , textField "Comment" silence.comment UpdateComment
                 , div [ class "mt3" ]
                     [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", href "#", onClick (CreateSilence silence) ] [ text "Create" ]
+                      -- Reset isn't working for "New" -- just updates time.
                     , a [ class "f6 link br2 ba ph3 pv2 mb2 dib dark-red", href url ] [ text "Reset" ]
                     ]
                 ]
@@ -139,13 +140,20 @@ silenceForm kind silence =
 matcherForm : Matcher -> Html Msg
 matcherForm matcher =
     div []
-        [ input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.name, onInput (UpdateMatcherName matcher) ] []
-        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value matcher.value, onInput (UpdateMatcherValue matcher) ] []
+        [ formInput matcher.name (UpdateMatcherName matcher)
+        , formInput matcher.value (UpdateMatcherValue matcher)
         , checkbox "Regex" matcher.isRegex (UpdateMatcherRegex matcher)
-        , a [ class <| "f6 link br1 ba mr1 mb2 dib ph1 pv1", onClick (DeleteMatcher matcher) ] [ text "X" ]
+        , iconButtonMsg "dark-red" "fa-trash-o" (DeleteMatcher matcher)
         ]
 
 
 matcherButton : Matcher -> Html msg
 matcherButton matcher =
-    labelButton ( matcher.name, matcher.value )
+    let
+        join =
+            if matcher.isRegex then
+                "=~"
+            else
+                "="
+    in
+        Utils.Views.button "light-silver hover-black ph3 pv2" <| String.join join [ matcher.name, matcher.value ]

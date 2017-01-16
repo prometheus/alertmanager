@@ -12,7 +12,7 @@ import Html.Events exposing (onCheck, onInput, onClick)
 
 labelButton : ( String, String ) -> Html msg
 labelButton ( key, value ) =
-    listButton "light-silver hover-black ph3 pv2 " ( key, value )
+    listButton "light-silver hover-black ph3 pv2" ( key, value )
 
 
 listButton : String -> ( String, String ) -> Html msg
@@ -26,9 +26,16 @@ button classString textString =
         [ text textString ]
 
 
+iconButtonMsg : String -> String -> msg -> Html msg
+iconButtonMsg classString icon msg =
+    a [ class <| "f6 link br1 ba mr1 ph2 pv2 mb2 dib " ++ classString, onClick msg ]
+        [ i [ class <| "fa fa-3 " ++ icon ] []
+        ]
+
+
 checkbox : String -> Bool -> (Bool -> msg) -> Html msg
 checkbox name status msg =
-    label [ class "f6 dib mb2" ]
+    label [ class "f6 dib mb2 mr2" ]
         [ input [ type_ "checkbox", checked status, onCheck msg ] []
         , text <| " " ++ name
         ]
@@ -55,3 +62,8 @@ buttonLink icon link color msg =
     a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link, onClick msg ]
         [ i [ class <| "fa fa-3 " ++ icon ] []
         ]
+
+
+formInput : String -> (String -> msg) -> Html msg
+formInput inputValue msg =
+    Html.input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value inputValue, onInput msg ] []
