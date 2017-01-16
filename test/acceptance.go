@@ -275,7 +275,7 @@ func (am *Alertmanager) Start() {
 		if err == nil {
 			_, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
-				panic(err)
+				am.t.Fatalf("Starting alertmanager failed: %s", err)
 			}
 			resp.Body.Close()
 			return
