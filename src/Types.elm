@@ -25,10 +25,17 @@ type alias Silence =
     { id : Int
     , createdBy : String
     , comment : String
-    , startsAt : ISO8601.Time
-    , endsAt : ISO8601.Time
-    , createdAt : ISO8601.Time
+    , startsAt : Time
+    , endsAt : Time
+    , createdAt : Time
     , matchers : List Matcher
+    }
+
+
+type alias Time =
+    { t : ISO8601.Time
+    , s : String
+    , valid : Bool
     }
 
 

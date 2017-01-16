@@ -40,12 +40,21 @@ init location =
 
 nullSilence : Silence
 nullSilence =
-    Silence 0 "" "" Utils.Date.unixEpochStart Utils.Date.unixEpochStart Utils.Date.unixEpochStart [ nullMatcher ]
+    Silence 0 "" "" nullTime nullTime nullTime [ nullMatcher ]
 
 
 nullMatcher : Matcher
 nullMatcher =
     Matcher "" "" False
+
+
+nullTime : Types.Time
+nullTime =
+    let
+        epochString =
+            ISO8601.toString Utils.Date.unixEpochStart
+    in
+        Types.Time Utils.Date.unixEpochStart epochString True
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -100,16 +109,16 @@ update msg model =
             ( { model | route = EditSilenceRoute id, loading = True }, Silences.Api.getSilence id )
 
         CreateSilence silence ->
-            ( model, Api.createSilence silence )
+            ( model, Silences.Api.create silence )
 
         DestroySilence silence ->
-            ( model, Api.destroySilence silence )
+            ( model, Silences.Api.destroy silence )
 
         FetchAlertGroups ->
             ( { model | silence = nullSilence, route = AlertGroupsRoute }, Api.getAlertGroups )
 
         NewSilence ->
-            ( { model | route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
+            ( { model | route = NewSilenceRoute, loading = False }, (Task.perform NewDefaultTimeRange Time.now) )
 
         SilenceFromAlert matchers ->
             let
@@ -123,12 +132,16 @@ update msg model =
 
         -- New silence form messages
         UpdateStartsAt time ->
+            -- TODO:
+            -- Update silence to hold datetime as string, on each pass through
+            -- here update an error message "this is invalid", but let them put
+            -- it in anyway.
             let
                 sil =
                     model.silence
 
                 startsAt =
-                    Utils.Date.parseWithDefault sil.startsAt time
+                    Utils.Date.toISO8601Time time
             in
                 ( { model | silence = { sil | startsAt = startsAt } }, Cmd.none )
 
@@ -138,7 +151,7 @@ update msg model =
                     model.silence
 
                 endsAt =
-                    Utils.Date.parseWithDefault sil.endsAt time
+                    Utils.Date.toISO8601Time time
             in
                 ( { model | silence = { sil | endsAt = endsAt } }, Cmd.none )
 
@@ -210,11 +223,17 @@ update msg model =
 
         NewDefaultTimeRange time ->
             let
-                endsAt =
+                endsIso =
                     Utils.Date.addTime time (2 * Time.hour)
 
-                startsAt =
+                endsAt =
+                    Types.Time endsIso (ISO8601.toString endsIso) True
+
+                startsIso =
                     Utils.Date.toISO8601 time
+
+                startsAt =
+                    Types.Time endsIso (ISO8601.toString startsIso) True
 
                 s =
                     model.silence

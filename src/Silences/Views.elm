@@ -58,7 +58,7 @@ silenceBase silence =
             , div [ class "mb1" ]
                 [ buttonLink "fa-pencil" editUrl "blue" (Noop [])
                 , buttonLink "fa-trash-o" "#/silences" "dark-red" (DestroySilence silence)
-                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt ]
+                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt.t ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton <| List.filter (\m -> m.name /= "alertname") silence.matchers)
             ]
@@ -114,8 +114,8 @@ silenceForm kind silence =
         div [ class "pa4 black-80" ]
             [ fieldset [ class "ba b--transparent ph0 mh0" ]
                 [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
-                , formField "Start" (ISO8601.toString silence.startsAt) UpdateStartsAt
-                , formField "End" (ISO8601.toString silence.endsAt) UpdateEndsAt
+                , formField "Start" (silence.startsAt.s) UpdateStartsAt
+                , formField "End" (silence.endsAt.s) UpdateEndsAt
                 , div [ class "mt3" ]
                     [ label [ class "f6 b db mb2" ]
                         [ text "Matchers "

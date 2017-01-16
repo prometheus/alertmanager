@@ -7,7 +7,7 @@ import Json.Decode as Json exposing (field)
 
 -- Internal
 
-import Utils.Api exposing (stringtoISO8601)
+import Utils.Api exposing (iso8601Time)
 import Types exposing (Silence, Matcher)
 
 
@@ -21,15 +21,20 @@ list =
     Json.at [ "data", "silences" ] (Json.list silence)
 
 
+create : Json.Decoder Int
+create =
+    (Json.at [ "data", "silenceId" ] Json.int)
+
+
 silence : Json.Decoder Silence
 silence =
     Json.map7 Silence
         (field "id" Json.int)
         (field "createdBy" Json.string)
         (field "comment" Json.string)
-        (field "startsAt" stringtoISO8601)
-        (field "endsAt" stringtoISO8601)
-        (field "createdAt" stringtoISO8601)
+        (iso8601Time "startsAt")
+        (iso8601Time "endsAt")
+        (iso8601Time "createdAt")
         (field "matchers" (Json.list matcher))
 
 
