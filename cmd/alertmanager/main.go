@@ -208,7 +208,10 @@ func main() {
 			return err
 		}
 
-		apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		err = apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		if err != nil {
+			return err
+		}
 
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
