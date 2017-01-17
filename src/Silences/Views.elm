@@ -129,7 +129,7 @@ silenceForm kind silence =
                 , formField "Creator" silence.createdBy UpdateCreatedBy
                 , textField "Comment" silence.comment UpdateComment
                 , div [ class "mt3" ]
-                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", href "#", onClick (CreateSilence silence) ] [ text "Create" ]
+                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (CreateSilence silence) ] [ text "Create" ]
                       -- Reset isn't working for "New" -- just updates time.
                     , a [ class "f6 link br2 ba ph3 pv2 mb2 dib dark-red", href url ] [ text "Reset" ]
                     ]
