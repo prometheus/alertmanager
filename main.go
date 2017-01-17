@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	http.HandleFunc("/script.js", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "dist/script.js")
+		http.ServeFile(w, r, "script.js")
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +34,9 @@ func main() {
 	defer cancel()
 
 	recompileFn := func() error {
-		cmd := exec.Command("elm-make", "src/Main.elm", "--output", "dist/script.js")
+		cmd := exec.Command("elm-make", "src/Main.elm", "--output", "script.js")
+		// Look into the debugger
+		// cmd := exec.Command("elm-make", "src/Main.elm", "--output", "dist/script.js", "--debug")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
