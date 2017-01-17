@@ -10,9 +10,12 @@ import Utils.Api exposing (baseUrl)
 getSilences : Cmd Msg
 getSilences =
     let
+        -- Can remove limit=1000 when we are on version >= 0.5.x
         url =
             String.join "/" [ baseUrl, "silences?limit=1000" ]
     in
+        -- TODO: Talk with fabxc about adding some sort of filter for e.g.
+        -- entering values into a search bar or clicking on labels
         Http.send SilencesFetch (Http.get url list)
 
 
