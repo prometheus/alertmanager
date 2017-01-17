@@ -127,7 +127,7 @@ func (api *API) Register(r *route.Router) {
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(cfg string, resolveTimeout time.Duration) {
+func (api *API) Update(cfg string, resolveTimeout time.Duration) error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
@@ -137,8 +137,11 @@ func (api *API) Update(cfg string, resolveTimeout time.Duration) {
 	configJSON, err := config.Load(cfg)
 	if err != nil {
 		log.Errorf("error: %v", err)
+		return err
 	}
+
 	api.configJSON = *configJSON
+	return nil
 }
 
 type errorType string
