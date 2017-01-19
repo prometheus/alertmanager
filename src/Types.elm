@@ -97,8 +97,8 @@ type Msg
     | UpdateCreatedBy String
     | UpdateComment String
     | SilenceFromAlert (List Matcher)
-    | Noop (List Matcher)
     | NewDefaultTimeRange Time.Time
+    | Noop
 
 
 type Route

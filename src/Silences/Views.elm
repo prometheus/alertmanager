@@ -56,7 +56,7 @@ silenceBase silence =
                     [ text alertName ]
                 ]
             , div [ class "mb1" ]
-                [ buttonLink "fa-pencil" editUrl "blue" (Noop [])
+                [ buttonLink "fa-pencil" editUrl "blue" Noop
                 , buttonLink "fa-trash-o" "#/silences" "dark-red" (DestroySilence silence)
                 , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt.t ]
                 ]

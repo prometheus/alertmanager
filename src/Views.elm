@@ -86,7 +86,7 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "blue" (Noop [])
+                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "blue" Noop
             else
                 buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" <|
                     (SilenceFromAlert (List.map (\( k, v ) -> Matcher k v False) alert.labels))
@@ -94,7 +94,7 @@ alertView alert =
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
                 [ b
-                , buttonLink "fa-bar-chart" alert.generatorUrl "black" (Noop [])
+                , buttonLink "fa-bar-chart" alert.generatorUrl "black" Noop
                 , p [ class "dib mr2" ] [ text <| Utils.Date.dateFormat alert.startsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)

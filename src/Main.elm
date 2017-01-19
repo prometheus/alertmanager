@@ -240,7 +240,7 @@ update msg model =
             in
                 ( { model | silence = { s | startsAt = startsAt, endsAt = endsAt } }, Cmd.none )
 
-        Noop _ ->
+        Noop ->
             ( model, Cmd.none )
 
 
