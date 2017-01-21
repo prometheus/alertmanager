@@ -2,9 +2,10 @@ module Parsing exposing (..)
 
 -- External Imports
 
+import Alerts.Parsing exposing (alertsParser)
 import Navigation
-import UrlParser exposing (Parser, (</>), map, int, oneOf, s, string, parseHash)
-import String
+import Types exposing (Route(..))
+import UrlParser exposing ((</>), Parser, int, map, oneOf, parseHash, s, string)
 
 
 -- Internal Imports
@@ -45,11 +46,6 @@ editSilenceParser =
     s "silences" </> int </> s "edit"
 
 
-alertsParser : Parser a a
-alertsParser =
-    s "alerts"
-
-
 topLevelParser : Parser a a
 topLevelParser =
     s ""
@@ -62,6 +58,6 @@ routeParser =
         , map NewSilenceRoute newSilenceParser
         , map EditSilenceRoute editSilenceParser
         , map SilenceRoute silenceParser
-        , map AlertGroupsRoute alertsParser
+        , map AlertsRoute alertsParser
         , map TopLevel topLevelParser
         ]

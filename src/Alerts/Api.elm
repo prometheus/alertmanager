@@ -1,24 +1,15 @@
-module Api exposing (..)
+module Alerts.Api exposing (..)
 
 -- External Imports
 
 import Http
 import Json.Decode as Json exposing (..)
-import Json.Encode as Encode
-import Task
 import String
-import Date exposing (..)
-import Time
-import ISO8601
+import Utils.Api exposing (baseUrl, stringtoISO8601)
+import Alerts.Types exposing (..)
 
 
--- Internal Imports
-
-import Types exposing (..)
-import Utils.Api exposing (stringtoISO8601, baseUrl)
-
-
-getAlertGroups : Cmd Msg
+getAlertGroups : Cmd AlertsMsg
 getAlertGroups =
     let
         url =

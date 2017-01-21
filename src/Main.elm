@@ -2,7 +2,6 @@ module Main exposing (..)
 
 -- External Imports
 
-import Date
 import Navigation
 import Task
 import Time
@@ -13,13 +12,14 @@ import ISO8601
 
 import Parsing
 import Views
-import Api
+import Alerts.Update
 import Types exposing (..)
 import Utils.List
 import Utils.Date
 import Silences.Api
 
 
+main : Program Never Model Msg
 main =
     Navigation.program urlUpdate
         { init = init
@@ -90,11 +90,15 @@ update msg model =
             -- TODO: Add error to the message or something.
             ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
-        AlertGroupsFetch (Ok alertGroups) ->
-            ( { model | alertGroups = alertGroups, loading = False }, Cmd.none )
+        Alerts alertsMsg ->
+            let
+                ( alertGroups, maybeLoading, alertCmd ) =
+                    Alerts.Update.update alertsMsg model.alertGroups
 
-        AlertGroupsFetch (Err err) ->
-            ( { model | route = NotFound, loading = False }, Cmd.none )
+                loading =
+                    Maybe.withDefault model.loading maybeLoading
+            in
+                ( { model | alertGroups = alertGroups, loading = loading }, Cmd.map Alerts alertCmd )
 
         -- API interaction messages
         FetchSilences ->
@@ -114,9 +118,6 @@ update msg model =
         DestroySilence silence ->
             ( model, Silences.Api.destroy silence )
 
-        FetchAlertGroups ->
-            ( { model | silence = nullSilence, route = AlertGroupsRoute }, Api.getAlertGroups )
-
         NewSilence ->
             ( { model | route = NewSilenceRoute, loading = False }, (Task.perform NewDefaultTimeRange Time.now) )
 
@@ -128,7 +129,7 @@ update msg model =
                 ( { model | silence = s }, (Task.perform NewDefaultTimeRange Time.now) )
 
         RedirectAlerts ->
-            ( { model | route = AlertGroupsRoute }, Navigation.newUrl "/#/alerts" )
+            ( model, Navigation.newUrl "/#/alerts" )
 
         -- New silence form messages
         UpdateStartsAt time ->
@@ -263,8 +264,8 @@ urlUpdate location =
             EditSilenceRoute id ->
                 EditSilence id
 
-            AlertGroupsRoute ->
-                FetchAlertGroups
+            AlertsRoute alertsRoute ->
+                Alerts (Alerts.Update.urlUpdate alertsRoute)
 
             _ ->
                 -- TODO: 404 page
