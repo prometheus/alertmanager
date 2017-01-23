@@ -25,7 +25,7 @@ var RootCmd = &cobra.Command{
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)
-		os.Exit(-1)
+		os.Exit(1)
 	}
 }
 
@@ -34,7 +34,7 @@ func getAlertmanagerUrl() {
 	if am == "" {
 		fmt.Println("Alertmanager url not specified in the config file or on the command line")
 		RootCmd.Usage()
-		os.Exit(-1)
+		os.Exit(1)
 	}
 }
 
