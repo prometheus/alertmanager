@@ -29,15 +29,6 @@ func Execute() {
 	}
 }
 
-func getAlertmanagerUrl() {
-	am := viper.GetString("alertmanager")
-	if am == "" {
-		fmt.Println("Alertmanager url not specified in the config file or on the command line")
-		RootCmd.Usage()
-		os.Exit(1)
-	}
-}
-
 func init() {
 	cobra.OnInitialize(initConfig)
 
