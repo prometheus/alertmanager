@@ -51,7 +51,7 @@ func TestParseMatcherGroups(t *testing.T) {
 		&types.Matcher{Name: "bar", Value: "baz", IsRegex: false},
 	}
 
-	testGroups := MatcherGroup{
+	testGroups := []types.Matchers{
 		types.Matchers{
 			&types.Matcher{Name: "foo", Value: "bar.*", IsRegex: true},
 			&types.Matcher{Name: "bar", Value: "baz", IsRegex: false},
