@@ -42,7 +42,7 @@ func init() {
 
 func fetchAlerts() (model.Alerts, error) {
 	alertResponse := alertmanagerAlertResponse{}
-	u, err := url.Parse(viper.GetString("alertmanager"))
+	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
 	if err != nil {
 		return model.Alerts{}, err
 	}

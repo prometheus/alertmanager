@@ -30,7 +30,7 @@ func init() {
 
 func fetchSilences() ([]types.Silence, error) {
 	silenceResponse := alertmanagerSilenceResponse{}
-	u, err := url.Parse(viper.GetString("alertmanager"))
+	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
 	if err != nil {
 		return []types.Silence{}, err
 	}

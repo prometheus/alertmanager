@@ -31,7 +31,7 @@ func init() {
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.amtool.yml)")
 	RootCmd.PersistentFlags().String("alertmanager.url", "", "Alertmanager to talk to")
-	viper.BindPFlag("alertmanager.url", RootCmd.PersistentFlags().Lookup("alertmanager"))
+	viper.BindPFlag("alertmanager.url", RootCmd.PersistentFlags().Lookup("alertmanager.url"))
 	RootCmd.PersistentFlags().StringP("output", "o", "simple", "Output formatter (simple, extended, json)")
 	viper.BindPFlag("output", RootCmd.PersistentFlags().Lookup("output"))
 }

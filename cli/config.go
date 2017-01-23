@@ -45,7 +45,7 @@ func init() {
 
 func fetchConfig() (Config, error) {
 	configResponse := alertmanagerStatusResponse{}
-	u, err := url.Parse(viper.GetString("alertmanager"))
+	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
 	if err != nil {
 		return Config{}, err
 	}
