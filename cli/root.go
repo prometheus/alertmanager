@@ -14,7 +14,7 @@ var cfgFile string
 var RootCmd = &cobra.Command{
 	Use:   "amtool",
 	Short: "Alertmanager CLI",
-	Long:  `View and modify the current alertmanager state.`,
+	Long:  `View and modify the current Alertmanager state.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
