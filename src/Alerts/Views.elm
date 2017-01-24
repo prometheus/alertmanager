@@ -1,6 +1,6 @@
 module Alerts.Views exposing (..)
 
-import Alerts.Types exposing (AlertGroup, Block, Alert, AlertsMsg(Noop), Route)
+import Alerts.Types exposing (AlertGroup, Block, Alert, AlertsMsg(Noop, SendAlert), Route)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Utils.Date
@@ -37,9 +37,7 @@ alertView alert =
             if alert.silenced then
                 buttonLink "fa-deaf" ("#/silences/" ++ toString id) "blue" Noop
             else
-                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" Noop
-
-        ---TODO: (SilenceFromAlert (List.map (\( k, v ) -> Matcher k v False) alert.labels))
+                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" (SendAlert alert)
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]

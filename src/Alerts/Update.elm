@@ -4,20 +4,23 @@ import Alerts.Types exposing (..)
 import Alerts.Api as Api
 
 
-update : AlertsMsg -> List AlertGroup -> ( List AlertGroup, Maybe Bool, Cmd AlertsMsg )
+update : AlertsMsg -> List AlertGroup -> ( List AlertGroup, Maybe Alert, Maybe Bool, Cmd AlertsMsg )
 update msg groups =
     case msg of
         AlertGroupsFetch (Ok alertGroups) ->
-            ( alertGroups, Just False, Cmd.none )
+            ( alertGroups, Nothing, Just False, Cmd.none )
 
         AlertGroupsFetch (Err err) ->
-            ( groups, Just False, Cmd.none )
+            ( groups, Nothing, Just False, Cmd.none )
 
         FetchAlertGroups ->
-            ( groups, Just True, Api.getAlertGroups )
+            ( groups, Nothing, Just True, Api.getAlertGroups )
+
+        SendAlert alert ->
+            ( groups, Just alert, Nothing, Cmd.none )
 
         Noop ->
-            ( groups, Nothing, Cmd.none )
+            ( groups, Nothing, Nothing, Cmd.none )
 
 
 urlUpdate : Route -> AlertsMsg

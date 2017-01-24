@@ -11,6 +11,7 @@ type Route
 type AlertsMsg
     = AlertGroupsFetch (Result Http.Error (List AlertGroup))
     | FetchAlertGroups
+    | SendAlert Alert
     | Noop
 
 

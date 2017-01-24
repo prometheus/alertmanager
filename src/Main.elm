@@ -92,13 +92,21 @@ update msg model =
 
         Alerts alertsMsg ->
             let
-                ( alertGroups, maybeLoading, alertCmd ) =
+                ( alertGroups, maybeAlert, maybeLoading, alertCmd ) =
                     Alerts.Update.update alertsMsg model.alertGroups
 
                 loading =
                     Maybe.withDefault model.loading maybeLoading
+
+                silence =
+                    case maybeAlert of
+                        Just alert ->
+                            { nullSilence | matchers = (List.map (\( k, v ) -> Matcher k v False) alert.labels) }
+
+                        Nothing ->
+                            nullSilence
             in
-                ( { model | alertGroups = alertGroups, loading = loading }, Cmd.map Alerts alertCmd )
+                ( { model | alertGroups = alertGroups, silence = silence, loading = loading }, Cmd.map Alerts alertCmd )
 
         -- API interaction messages
         FetchSilences ->
