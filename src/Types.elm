@@ -72,7 +72,6 @@ type Msg
     | UpdateStartsAt String
     | UpdateCreatedBy String
     | UpdateComment String
-    | SilenceFromAlert (List Matcher)
     | NewDefaultTimeRange Time.Time
     | Noop
 

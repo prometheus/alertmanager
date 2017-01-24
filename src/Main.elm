@@ -139,13 +139,6 @@ update msg model =
         NewSilence ->
             ( { model | route = NewSilenceRoute, loading = False }, (Task.perform NewDefaultTimeRange Time.now) )
 
-        SilenceFromAlert matchers ->
-            let
-                s =
-                    { nullSilence | matchers = List.sortBy .name matchers }
-            in
-                ( { model | silence = s }, (Task.perform NewDefaultTimeRange Time.now) )
-
         RedirectAlerts ->
             ( model, Navigation.newUrl "/#/alerts" )
 
