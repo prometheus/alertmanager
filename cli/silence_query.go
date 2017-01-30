@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"path"
 	"time"
 
@@ -19,18 +18,50 @@ var queryFlags *flag.FlagSet
 var queryCmd = &cobra.Command{
 	Use:   "query",
 	Short: "Query silences",
-	Long:  `Query Alertmanager silences`,
-	RunE:  query,
+	Long: `Query Alertmanager silences.
+
+  Amtool has a simplified prometheus query syntax, but contains robust support for
+  bash variable expansions. The non-option section of arguments constructs a list
+  of "Matcher Groups" that will be used to filter your query. The following
+  examples will attempt to show this behaviour in action:
+
+  amtool silence query alertname=foo node=bar
+
+  	This query will match all silences with the alertname=foo and node=bar label
+  	value pairs set.
+
+  amtool silence query foo node=bar
+
+  	If alertname is ommited and the first argument does not contain a '=' or a
+  	'=~' then it will be assumed to be the value of the alertname pair.
+
+  amtool silence query 'alertname=~foo.*'
+
+  	As well as direct equality, regex matching is also supported. The '=~' syntax
+  	(similar to prometheus) is used to represent a regex match. Regex matching
+  	can be used in combination with a direct match.
+
+  amtool silence query alertname=foo node={bar,baz}
+
+  	This query will match all silences with the alertname=foo label value pair
+  	and EITHER node=bar or node=baz.
+
+  amtool silence query alertname=foo{a,b} node={bar,baz}
+
+	Similar to the previous example this query will match all silences with any
+	combination of alertname=fooa or alertname=foob AND node=bar or node=baz.
+				`,
+	RunE: query,
 }
 
 func init() {
-	queryCmd.Flags().Bool("all", false, "Show expired silences as well as active")
+	queryCmd.Flags().Bool("expired", false, "Show expired silences as well as active")
 	queryFlags = queryCmd.Flags()
 }
 
 func fetchSilences() ([]types.Silence, error) {
 	silenceResponse := alertmanagerSilenceResponse{}
-	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
+	u, err := GetAlertmanagerURL()
 	if err != nil {
 		return []types.Silence{}, err
 	}
@@ -58,7 +89,7 @@ func query(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	all, err := queryFlags.GetBool("all")
+	expired, err := queryFlags.GetBool("expired")
 	if err != nil {
 		return err
 	}
@@ -78,7 +109,7 @@ func query(cmd *cobra.Command, args []string) error {
 
 	for _, silence := range silences {
 		// If we are only returning current silences and this one has already expired skip it
-		if !all && silence.EndsAt.Before(time.Now()) {
+		if !expired && silence.EndsAt.Before(time.Now()) {
 			continue
 		}
 

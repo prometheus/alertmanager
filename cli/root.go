@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -34,6 +35,9 @@ func init() {
 	viper.BindPFlag("alertmanager.url", RootCmd.PersistentFlags().Lookup("alertmanager.url"))
 	RootCmd.PersistentFlags().StringP("output", "o", "simple", "Output formatter (simple, extended, json)")
 	viper.BindPFlag("output", RootCmd.PersistentFlags().Lookup("output"))
+	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose running information")
+	viper.BindPFlag("verbose", RootCmd.PersistentFlags().Lookup("verbose"))
+	viper.SetDefault("date.format", format.DefaultDateFormat)
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -43,12 +47,15 @@ func initConfig() {
 	}
 
 	viper.SetConfigName(".amtool") // name of config file (without extension)
-	viper.AddConfigPath("$HOME")   // adding home directory as first search path
-	viper.AutomaticEnv()           // read in environment variables that match
+	viper.AddConfigPath("/etc")
+	viper.AddConfigPath("$HOME")
+	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	err := viper.ReadInConfig()
 	if err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+		if viper.GetBool("verbose") {
+			fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+		}
 	}
 }

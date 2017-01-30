@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"path"
 	"time"
 
@@ -35,8 +34,13 @@ type alertmanagerStatusResponse struct {
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "View the running config",
-	Long:  `View current config.`,
-	RunE:  queryConfig,
+	Long: `View current config
+
+The amount of output is controlled by the output selection flag:
+	- Simple: Print just the running config
+	- Extended: Print the running config as well as uptime and all version info
+	- Json: Print entire config object as json`,
+	RunE: queryConfig,
 }
 
 func init() {
@@ -45,7 +49,7 @@ func init() {
 
 func fetchConfig() (Config, error) {
 	configResponse := alertmanagerStatusResponse{}
-	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
+	u, err := GetAlertmanagerURL()
 	if err != nil {
 		return Config{}, err
 	}

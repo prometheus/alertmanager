@@ -2,13 +2,11 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
-	"net/url"
 	"path"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var expireCmd = &cobra.Command{
@@ -19,11 +17,15 @@ var expireCmd = &cobra.Command{
 }
 
 func expire(cmd *cobra.Command, args []string) error {
-	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
+	u, err := GetAlertmanagerURL()
 	if err != nil {
 		return err
 	}
 	basePath := path.Join(u.Path, "/api/v1/silence")
+
+	if len(args) < 1 {
+		return errors.New("No silence IDs specified")
+	}
 
 	for _, arg := range args {
 		u.Path = path.Join(basePath, arg)
@@ -41,10 +43,10 @@ func expire(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		if response.Status == "error" {
-			fmt.Printf("[%s] %s", response.ErrorType, response.Error)
-		}
 
+		if response.Status == "error" {
+			return errors.New(response.Error)
+		}
 	}
 	return nil
 }
