@@ -1,26 +1,24 @@
 module Alerts.Update exposing (..)
 
-import Alerts.Types exposing (..)
 import Alerts.Api as Api
+import Alerts.Types exposing (..)
+import Task
 
 
-update : AlertsMsg -> List AlertGroup -> ( List AlertGroup, Maybe Alert, Maybe Bool, Cmd AlertsMsg )
+update : AlertsMsg -> List AlertGroup -> ( List AlertGroup, Cmd Msg )
 update msg groups =
     case msg of
         AlertGroupsFetch (Ok alertGroups) ->
-            ( alertGroups, Nothing, Just False, Cmd.none )
+            ( alertGroups, Task.succeed (UpdateLoading False) |> Task.perform ForParent )
 
         AlertGroupsFetch (Err err) ->
-            ( groups, Nothing, Just False, Cmd.none )
+            ( groups, Task.succeed (UpdateLoading False) |> Task.perform ForParent )
 
         FetchAlertGroups ->
-            ( groups, Nothing, Just True, Api.getAlertGroups )
-
-        SendAlert alert ->
-            ( groups, Just alert, Nothing, Cmd.none )
+            ( groups, Api.getAlertGroups )
 
         Noop ->
-            ( groups, Nothing, Nothing, Cmd.none )
+            ( groups, Cmd.none )
 
 
 urlUpdate : Route -> AlertsMsg

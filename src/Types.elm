@@ -2,7 +2,7 @@ module Types exposing (..)
 
 -- External Imports
 
-import Alerts.Types exposing (AlertGroup, AlertsMsg)
+import Alerts.Types exposing (AlertGroup, AlertsMsg, Alert)
 import Http exposing (Error)
 import ISO8601
 import Time
@@ -57,7 +57,10 @@ type Msg
     | NewSilence
     | EditSilence Int
     | CreateSilence Silence
+    | CreateSilenceFromAlert Alert
+    | UpdateLoading Bool
     | DestroySilence Silence
+    | NavigateToAlerts Alerts.Types.Route
     | Alerts AlertsMsg
     | RedirectAlerts
     | DeleteMatcher Matcher

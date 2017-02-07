@@ -17,6 +17,7 @@ import Types exposing (..)
 import Utils.List
 import Utils.Date
 import Silences.Api
+import Translators exposing (alertTranslator)
 
 
 main : Program Never Model Msg
@@ -90,23 +91,32 @@ update msg model =
             -- TODO: Add error to the message or something.
             ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
+        UpdateLoading loading ->
+            ( { model | loading = loading }, Cmd.none )
+
+        CreateSilenceFromAlert alert ->
+            let
+                silence =
+                    { nullSilence | matchers = (List.map (\( k, v ) -> Matcher k v False) alert.labels) }
+            in
+                ( { model | silence = silence }, Cmd.none )
+
+        NavigateToAlerts alertsRoute ->
+            let
+                alertsMsg =
+                    (Alerts.Update.urlUpdate alertsRoute)
+
+                ( alertGroups, alertCmd ) =
+                    Alerts.Update.update alertsMsg model.alertGroups
+            in
+                ( { model | alertGroups = alertGroups, loading = True, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
+
         Alerts alertsMsg ->
             let
-                ( alertGroups, maybeAlert, maybeLoading, alertCmd ) =
+                ( alertGroups, alertCmd ) =
                     Alerts.Update.update alertsMsg model.alertGroups
-
-                loading =
-                    Maybe.withDefault model.loading maybeLoading
-
-                silence =
-                    case maybeAlert of
-                        Just alert ->
-                            { nullSilence | matchers = (List.map (\( k, v ) -> Matcher k v False) alert.labels) }
-
-                        Nothing ->
-                            nullSilence
             in
-                ( { model | alertGroups = alertGroups, silence = silence, loading = loading }, Cmd.map Alerts alertCmd )
+                ( { model | alertGroups = alertGroups }, Cmd.map alertTranslator alertCmd )
 
         -- API interaction messages
         FetchSilences ->
@@ -273,7 +283,7 @@ urlUpdate location =
                 EditSilence id
 
             AlertsRoute alertsRoute ->
-                Alerts (Alerts.Update.urlUpdate alertsRoute)
+                NavigateToAlerts alertsRoute
 
             _ ->
                 -- TODO: 404 page

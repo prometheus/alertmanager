@@ -9,13 +9,13 @@ import Utils.Api exposing (baseUrl, stringtoISO8601)
 import Alerts.Types exposing (..)
 
 
-getAlertGroups : Cmd AlertsMsg
+getAlertGroups : Cmd Msg
 getAlertGroups =
     let
         url =
             String.join "/" [ baseUrl, "alerts", "groups" ]
     in
-        Http.send AlertGroupsFetch (Http.get url alertGroupsDecoder)
+        Http.send (AlertGroupsFetch >> ForSelf) (Http.get url alertGroupsDecoder)
 
 
 

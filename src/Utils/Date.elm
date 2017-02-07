@@ -1,6 +1,5 @@
 module Utils.Date exposing (..)
 
-import Date exposing (Date, Month(..))
 import Time
 import ISO8601
 import Types

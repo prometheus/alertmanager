@@ -3,7 +3,6 @@ module Silences.Encoders exposing (..)
 -- External
 
 import Json.Encode as Encode
-import ISO8601
 
 
 -- Internal

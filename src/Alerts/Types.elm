@@ -8,10 +8,19 @@ type Route
     = Route
 
 
+type Msg
+    = ForSelf AlertsMsg
+    | ForParent OutMsg
+
+
+type OutMsg
+    = UpdateLoading Bool
+    | SilenceFromAlert Alert
+
+
 type AlertsMsg
     = AlertGroupsFetch (Result Http.Error (List AlertGroup))
     | FetchAlertGroups
-    | SendAlert Alert
     | Noop
 
 

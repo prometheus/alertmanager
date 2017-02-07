@@ -1,13 +1,14 @@
-module Alerts.Views exposing (..)
+module Alerts.Views exposing (view)
 
-import Alerts.Types exposing (AlertGroup, Block, Alert, AlertsMsg(Noop, SendAlert), Route)
+import Alerts.Types exposing (Alert, AlertGroup, Block, Route)
+import Alerts.Types exposing (AlertsMsg(..), Msg(..), OutMsg(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Utils.Date
 import Utils.Views exposing (..)
 
 
-alertGroupView : AlertGroup -> Html AlertsMsg
+alertGroupView : AlertGroup -> Html Msg
 alertGroupView alertGroup =
     li [ class "pa3 pa4-ns bb b--black-10" ]
         [ div [ class "mb3" ] (List.map alertHeader <| List.sort alertGroup.labels)
@@ -15,14 +16,14 @@ alertGroupView alertGroup =
         ]
 
 
-blockView : Block -> Html AlertsMsg
+blockView : Block -> Html Msg
 blockView block =
     -- Block level
     div []
         (List.map alertView block.alerts)
 
 
-alertView : Alert -> Html AlertsMsg
+alertView : Alert -> Html Msg
 alertView alert =
     let
         id =
@@ -35,21 +36,21 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "blue" Noop
+                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "blue" (ForSelf Noop)
             else
-                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" (SendAlert alert)
+                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" (ForParent (SilenceFromAlert alert))
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
                 [ b
-                , buttonLink "fa-bar-chart" alert.generatorUrl "black" Noop
+                , buttonLink "fa-bar-chart" alert.generatorUrl "black" (ForSelf Noop)
                 , p [ class "dib mr2" ] [ text <| Utils.Date.dateFormat alert.startsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
             ]
 
 
-alertHeader : ( String, String ) -> Html AlertsMsg
+alertHeader : ( String, String ) -> Html Msg
 alertHeader ( key, value ) =
     if key == "alertname" then
         b [ class "db f4 mr2 dark-red dib" ] [ text value ]
@@ -57,7 +58,7 @@ alertHeader ( key, value ) =
         listButton "ph1 pv1" ( key, value )
 
 
-view : Route -> List AlertGroup -> Html AlertsMsg
+view : Route -> List AlertGroup -> Html Msg
 view _ alertGroups =
     ul
         [ classList

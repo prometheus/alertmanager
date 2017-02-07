@@ -5,7 +5,6 @@ module Silences.Views exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
-import ISO8601
 
 
 -- Internal Imports

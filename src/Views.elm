@@ -9,6 +9,7 @@ import Html.Attributes exposing (..)
 -- Internal Imports
 
 import Types exposing (..)
+import Translators exposing (alertTranslator)
 import Silences.Views
 import Alerts.Views
 
@@ -20,7 +21,7 @@ view model =
     else
         case model.route of
             AlertsRoute route ->
-                Html.map Alerts (Alerts.Views.view route model.alertGroups)
+                Html.map alertTranslator (Alerts.Views.view route model.alertGroups)
 
             NewSilenceRoute ->
                 Silences.Views.silenceForm "New" model.silence
