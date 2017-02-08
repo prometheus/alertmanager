@@ -2,7 +2,23 @@ module Utils.Api exposing (..)
 
 import Json.Decode as Json exposing (field)
 import ISO8601
-import Types exposing (Time)
+import Types exposing (Msg, Time, ApiResponse(..), ApiData)
+import Http
+
+
+fromResult : Result e a -> ApiResponse e a
+fromResult result =
+    case result of
+        Err e ->
+            Failure e
+
+        Ok x ->
+            Success x
+
+
+send : Http.Request a -> Cmd (ApiData a)
+send =
+    Http.send fromResult
 
 
 stringtoISO8601 : Json.Decoder ISO8601.Time

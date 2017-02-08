@@ -9,7 +9,7 @@ import Html.Events exposing (onClick, onInput)
 
 -- Internal Imports
 
-import Types exposing (Silence, Matcher, Msg(..))
+import Types exposing (Silence, Matcher, Msg(..), ApiResponse(..))
 import Utils.Views exposing (..)
 import Utils.Date
 
@@ -99,6 +99,9 @@ silenceForm kind silence =
         base =
             "/#/silences/"
 
+        boundMatcherForm =
+            matcherForm silence
+
         url =
             case kind of
                 "New" ->
@@ -113,8 +116,8 @@ silenceForm kind silence =
         div [ class "pa4 black-80" ]
             [ fieldset [ class "ba b--transparent ph0 mh0" ]
                 [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
-                , formField "Start" (silence.startsAt.s) UpdateStartsAt
-                , formField "End" (silence.endsAt.s) UpdateEndsAt
+                , formField "Start" (silence.startsAt.s) (UpdateStartsAt silence)
+                , formField "End" (silence.endsAt.s) (UpdateEndsAt silence)
                 , div [ class "mt3" ]
                     [ label [ class "f6 b db mb2" ]
                         [ text "Matchers "
@@ -123,10 +126,10 @@ silenceForm kind silence =
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
                     ]
-                , div [] <| List.map matcherForm silence.matchers
-                , iconButtonMsg "blue" "fa-plus" AddMatcher
-                , formField "Creator" silence.createdBy UpdateCreatedBy
-                , textField "Comment" silence.comment UpdateComment
+                , div [] <| List.map boundMatcherForm silence.matchers
+                , iconButtonMsg "blue" "fa-plus" (AddMatcher silence)
+                , formField "Creator" silence.createdBy (UpdateCreatedBy silence)
+                , textField "Comment" silence.comment (UpdateComment silence)
                 , div [ class "mt3" ]
                     [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (CreateSilence silence) ] [ text "Create" ]
                       -- Reset isn't working for "New" -- just updates time.
@@ -136,13 +139,13 @@ silenceForm kind silence =
             ]
 
 
-matcherForm : Matcher -> Html Msg
-matcherForm matcher =
+matcherForm : Silence -> Matcher -> Html Msg
+matcherForm silence matcher =
     div []
-        [ formInput matcher.name (UpdateMatcherName matcher)
-        , formInput matcher.value (UpdateMatcherValue matcher)
-        , checkbox "Regex" matcher.isRegex (UpdateMatcherRegex matcher)
-        , iconButtonMsg "dark-red" "fa-trash-o" (DeleteMatcher matcher)
+        [ formInput matcher.name (UpdateMatcherName silence matcher)
+        , formInput matcher.value (UpdateMatcherValue silence matcher)
+        , checkbox "Regex" matcher.isRegex (UpdateMatcherRegex silence matcher)
+        , iconButtonMsg "dark-red" "fa-trash-o" (DeleteMatcher silence matcher)
         ]
 
 

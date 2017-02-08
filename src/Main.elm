@@ -36,7 +36,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model [] nullSilence [] route "" True)
+        update (urlUpdate location) (Model NotAsked NotAsked [] route "" True)
 
 
 nullSilence : Silence
@@ -62,24 +62,17 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         -- HTTP Result messages
-        SilencesFetch (Ok silences) ->
-            ( { model | silences = silences, loading = False }, Cmd.none )
+        SilencesFetch silences ->
+            ( { model | silences = silences }, Cmd.none )
 
-        SilencesFetch (Err _) ->
-            ( { model | route = NotFound, loading = False }, Cmd.none )
-
-        SilenceFetch (Ok silence) ->
-            ( { model | silence = silence, loading = False }, Cmd.none )
-
-        SilenceFetch (Err _) ->
-            -- show the error somehow
-            ( { model | route = NotFound }, Cmd.none )
+        SilenceFetch silence ->
+            ( { model | silence = silence }, Cmd.none )
 
         SilenceCreate (Ok id) ->
-            ( { model | silence = nullSilence, route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
+            ( { model | silence = Success nullSilence, route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
 
         SilenceCreate (Err err) ->
-            ( { model | silence = nullSilence, route = SilencesRoute }, Navigation.newUrl "/#/silences" )
+            ( { model | silence = Success nullSilence, route = SilencesRoute }, Navigation.newUrl "/#/silences" )
 
         SilenceDestroy (Ok id) ->
             -- TODO: "Deleted id: ID" growl
@@ -91,15 +84,15 @@ update msg model =
             -- TODO: Add error to the message or something.
             ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
 
-        UpdateLoading loading ->
-            ( { model | loading = loading }, Cmd.none )
-
         CreateSilenceFromAlert alert ->
             let
                 silence =
                     { nullSilence | matchers = (List.map (\( k, v ) -> Matcher k v False) alert.labels) }
             in
-                ( { model | silence = silence }, Cmd.none )
+                ( { model | silence = Success silence }, Cmd.none )
+
+        UpdateLoading loading ->
+            ( model, Cmd.none )
 
         NavigateToAlerts alertsRoute ->
             let
@@ -109,7 +102,7 @@ update msg model =
                 ( alertGroups, alertCmd ) =
                     Alerts.Update.update alertsMsg model.alertGroups
             in
-                ( { model | alertGroups = alertGroups, loading = True, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
+                ( { model | alertGroups = alertGroups, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
 
         Alerts alertsMsg ->
             let
@@ -120,15 +113,15 @@ update msg model =
 
         -- API interaction messages
         FetchSilences ->
-            ( { model | silence = nullSilence, route = SilencesRoute, loading = True }, Silences.Api.getSilences )
+            ( { model | silences = Loading, route = SilencesRoute }, Silences.Api.getSilences )
 
         FetchSilence id ->
-            ( { model | route = SilenceRoute id, loading = True }, Silences.Api.getSilence id )
+            ( { model | silence = Loading, route = SilenceRoute id }, Silences.Api.getSilence id )
 
         EditSilence id ->
             -- Look into setting the silence if we're moving from the list to
             -- edit view, so that there's no pause for users navigating around.
-            ( { model | route = EditSilenceRoute id, loading = True }, Silences.Api.getSilence id )
+            ( { model | route = EditSilenceRoute id }, Silences.Api.getSilence id )
 
         CreateSilence silence ->
             ( model, Silences.Api.create silence )
@@ -137,103 +130,73 @@ update msg model =
             ( model, Silences.Api.destroy silence )
 
         NewSilence ->
-            ( { model | route = NewSilenceRoute, loading = False }, (Task.perform NewDefaultTimeRange Time.now) )
+            ( { model | route = NewSilenceRoute }, (Task.perform (NewDefaultTimeRange nullSilence) Time.now) )
 
         RedirectAlerts ->
             ( model, Navigation.newUrl "/#/alerts" )
 
         -- New silence form messages
-        UpdateStartsAt time ->
+        UpdateStartsAt silence time ->
             -- TODO:
             -- Update silence to hold datetime as string, on each pass through
             -- here update an error message "this is invalid", but let them put
             -- it in anyway.
             let
-                sil =
-                    model.silence
-
                 startsAt =
                     Utils.Date.toISO8601Time time
             in
-                ( { model | silence = { sil | startsAt = startsAt } }, Cmd.none )
+                ( { model | silence = Success { silence | startsAt = startsAt } }, Cmd.none )
 
-        UpdateEndsAt time ->
+        UpdateEndsAt silence time ->
             let
-                sil =
-                    model.silence
-
                 endsAt =
                     Utils.Date.toISO8601Time time
             in
-                ( { model | silence = { sil | endsAt = endsAt } }, Cmd.none )
+                ( { model | silence = (Success { silence | endsAt = endsAt }) }, Cmd.none )
 
-        UpdateCreatedBy by ->
-            let
-                sil =
-                    model.silence
-            in
-                ( { model | silence = { sil | createdBy = by } }, Cmd.none )
+        UpdateCreatedBy silence by ->
+            ( { model | silence = Success { silence | createdBy = by } }, Cmd.none )
 
-        UpdateComment comment ->
-            let
-                sil =
-                    model.silence
-            in
-                ( { model | silence = { sil | comment = comment } }, Cmd.none )
+        UpdateComment silence comment ->
+            ( { model | silence = Success { silence | comment = comment } }, Cmd.none )
 
-        AddMatcher ->
+        AddMatcher silence ->
             -- TODO: If a user adds two blank matchers and attempts to update
             -- one, both are updated because they are identical. Maybe add a
             -- unique identifier on creation so this doesn't happen.
-            let
-                sil =
-                    model.silence
-            in
-                ( { model | silence = { sil | matchers = sil.matchers ++ [ Matcher "" "" False ] } }, Cmd.none )
+            ( { model | silence = Success { silence | matchers = silence.matchers ++ [ Matcher "" "" False ] } }, Cmd.none )
 
-        DeleteMatcher matcher ->
+        DeleteMatcher silence matcher ->
             let
-                s =
-                    model.silence
-
                 -- TODO: This removes all empty matchers. Maybe just remove the
                 -- one that was clicked.
                 newSil =
-                    { s | matchers = (List.filter (\x -> x /= matcher) s.matchers) }
+                    { silence | matchers = (List.filter (\x -> x /= matcher) silence.matchers) }
             in
-                ( { model | silence = newSil }, Cmd.none )
+                ( { model | silence = Success newSil }, Cmd.none )
 
-        UpdateMatcherName matcher name ->
+        UpdateMatcherName silence matcher name ->
             let
                 matchers =
-                    Utils.List.replaceIf (\x -> x == matcher) { matcher | name = name } model.silence.matchers
-
-                s =
-                    model.silence
+                    Utils.List.replaceIf (\x -> x == matcher) { matcher | name = name } silence.matchers
             in
-                ( { model | silence = { s | matchers = matchers } }, Cmd.none )
+                ( { model | silence = Success { silence | matchers = matchers } }, Cmd.none )
 
-        UpdateMatcherValue matcher value ->
+        UpdateMatcherValue silence matcher value ->
             let
                 matchers =
-                    Utils.List.replaceIf (\x -> x == matcher) { matcher | value = value } model.silence.matchers
-
-                s =
-                    model.silence
+                    Utils.List.replaceIf (\x -> x == matcher) { matcher | value = value } silence.matchers
             in
-                ( { model | silence = { s | matchers = matchers } }, Cmd.none )
+                ( { model | silence = Success { silence | matchers = matchers } }, Cmd.none )
 
-        UpdateMatcherRegex matcher bool ->
+        UpdateMatcherRegex silence matcher bool ->
             let
                 matchers =
-                    Utils.List.replaceIf (\x -> x == matcher) { matcher | isRegex = bool } model.silence.matchers
-
-                s =
-                    model.silence
+                    Utils.List.replaceIf (\x -> x == matcher) { matcher | isRegex = bool } silence.matchers
             in
-                ( { model | silence = { s | matchers = matchers } }, Cmd.none )
+                ( { model | silence = Success { silence | matchers = matchers } }, Cmd.none )
 
-        NewDefaultTimeRange time ->
+        NewDefaultTimeRange silence time ->
             let
                 endsIso =
                     Utils.Date.addTime time (2 * Time.hour)
@@ -250,7 +213,7 @@ update msg model =
                 s =
                     model.silence
             in
-                ( { model | silence = { s | startsAt = startsAt, endsAt = endsAt } }, Cmd.none )
+                ( { model | silence = Success { silence | startsAt = startsAt, endsAt = endsAt } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )

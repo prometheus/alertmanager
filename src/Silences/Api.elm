@@ -1,7 +1,7 @@
 module Silences.Api exposing (..)
 
 import Http
-import Types exposing (Silence, Msg(..))
+import Types exposing (Silence, Msg(..), ApiResponse(..))
 import Silences.Decoders exposing (..)
 import Silences.Encoders
 import Utils.Api exposing (baseUrl)
@@ -16,7 +16,8 @@ getSilences =
     in
         -- TODO: Talk with fabxc about adding some sort of filter for e.g.
         -- entering values into a search bar or clicking on labels
-        Http.send SilencesFetch (Http.get url list)
+        Utils.Api.send (Http.get url list)
+            |> Cmd.map SilencesFetch
 
 
 getSilence : Int -> Cmd Msg
@@ -25,7 +26,8 @@ getSilence id =
         url =
             String.join "/" [ baseUrl, "silence", toString id ]
     in
-        Http.send SilenceFetch (Http.get url show)
+        Utils.Api.send (Http.get url show)
+            |> Cmd.map SilenceFetch
 
 
 create : Silence -> Cmd Msg

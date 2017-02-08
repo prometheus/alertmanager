@@ -13,13 +13,24 @@ import Time
 
 
 type alias Model =
-    { silences : List Silence
-    , silence : Silence
+    { silences : ApiData (List Silence)
+    , silence : ApiData Silence
     , alertGroups : List AlertGroup
     , route : Route
     , error : String
     , loading : Bool
     }
+
+
+type ApiResponse e a
+    = NotAsked
+    | Loading
+    | Failure e
+    | Success a
+
+
+type alias ApiData a =
+    ApiResponse Http.Error a
 
 
 type alias Silence =
@@ -48,8 +59,8 @@ type alias Matcher =
 
 
 type Msg
-    = SilenceFetch (Result Http.Error Silence)
-    | SilencesFetch (Result Http.Error (List Silence))
+    = SilenceFetch (ApiData Silence)
+    | SilencesFetch (ApiData (List Silence))
     | SilenceCreate (Result Http.Error Int)
     | SilenceDestroy (Result Http.Error Int)
     | FetchSilences
@@ -63,16 +74,16 @@ type Msg
     | NavigateToAlerts Alerts.Types.Route
     | Alerts AlertsMsg
     | RedirectAlerts
-    | DeleteMatcher Matcher
-    | AddMatcher
-    | UpdateMatcherName Matcher String
-    | UpdateMatcherValue Matcher String
-    | UpdateMatcherRegex Matcher Bool
-    | UpdateEndsAt String
-    | UpdateStartsAt String
-    | UpdateCreatedBy String
-    | UpdateComment String
-    | NewDefaultTimeRange Time.Time
+    | DeleteMatcher Silence Matcher
+    | AddMatcher Silence
+    | UpdateMatcherName Silence Matcher String
+    | UpdateMatcherValue Silence Matcher String
+    | UpdateMatcherRegex Silence Matcher Bool
+    | UpdateEndsAt Silence String
+    | UpdateStartsAt Silence String
+    | UpdateCreatedBy Silence String
+    | UpdateComment Silence String
+    | NewDefaultTimeRange Silence Time.Time
     | Noop
 
 

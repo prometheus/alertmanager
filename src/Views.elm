@@ -16,28 +16,57 @@ import Alerts.Views
 
 view : Model -> Html Msg
 view model =
-    if model.loading then
-        loading
-    else
-        case model.route of
-            AlertsRoute route ->
-                Html.map alertTranslator (Alerts.Views.view route model.alertGroups)
+    case model.route of
+        AlertsRoute route ->
+            Html.map alertTranslator (Alerts.Views.view route model.alertGroups)
 
-            NewSilenceRoute ->
-                Silences.Views.silenceForm "New" model.silence
+        NewSilenceRoute ->
+            case model.silence of
+                Success silence ->
+                    Silences.Views.silenceForm "New" silence
 
-            EditSilenceRoute id ->
-                Silences.Views.silenceForm "Edit" model.silence
+                Loading ->
+                    loading
 
-            SilencesRoute ->
-                -- Add buttons at the top to filter Active/Pending/Expired
-                genericListView Silences.Views.silenceList model.silences
+                _ ->
+                    notFoundView model
 
-            SilenceRoute name ->
-                Silences.Views.silence model.silence
+        EditSilenceRoute id ->
+            case model.silence of
+                Success silence ->
+                    Silences.Views.silenceForm "Edit" silence
 
-            _ ->
-                notFoundView model
+                Loading ->
+                    loading
+
+                _ ->
+                    notFoundView model
+
+        SilencesRoute ->
+            -- Add buttons at the top to filter Active/Pending/Expired
+            case model.silences of
+                Success silences ->
+                    apiDataList Silences.Views.silenceList silences
+
+                Loading ->
+                    loading
+
+                _ ->
+                    notFoundView model
+
+        SilenceRoute name ->
+            case model.silence of
+                Success silence ->
+                    Silences.Views.silence silence
+
+                Loading ->
+                    loading
+
+                _ ->
+                    notFoundView model
+
+        _ ->
+            notFoundView model
 
 
 loading : Html msg
@@ -62,8 +91,8 @@ notFoundView model =
         ]
 
 
-genericListView : (a -> Html Msg) -> List a -> Html Msg
-genericListView fn list =
+apiDataList : (a -> Html Msg) -> List a -> Html Msg
+apiDataList fn list =
     ul
         [ classList
             [ ( "list", True )
