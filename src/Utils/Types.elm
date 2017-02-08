@@ -4,8 +4,7 @@ import Http
 
 
 type ApiResponse e a
-    = NotAsked
-    | Loading
+    = Loading
     | Failure e
     | Success a
 
