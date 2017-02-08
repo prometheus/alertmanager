@@ -14,8 +14,7 @@ type Msg
 
 
 type OutMsg
-    = UpdateLoading Bool
-    | SilenceFromAlert Alert
+    = SilenceFromAlert Alert
 
 
 type AlertsMsg

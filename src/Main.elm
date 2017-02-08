@@ -36,7 +36,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model NotAsked NotAsked [] route "" True)
+        update (urlUpdate location) (Model NotAsked NotAsked [] route "")
 
 
 nullSilence : Silence
@@ -90,9 +90,6 @@ update msg model =
                     { nullSilence | matchers = (List.map (\( k, v ) -> Matcher k v False) alert.labels) }
             in
                 ( { model | silence = Success silence }, Cmd.none )
-
-        UpdateLoading loading ->
-            ( model, Cmd.none )
 
         NavigateToAlerts alertsRoute ->
             let

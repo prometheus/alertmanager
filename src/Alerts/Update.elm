@@ -9,10 +9,10 @@ update : AlertsMsg -> List AlertGroup -> ( List AlertGroup, Cmd Msg )
 update msg groups =
     case msg of
         AlertGroupsFetch (Ok alertGroups) ->
-            ( alertGroups, Task.succeed (UpdateLoading False) |> Task.perform ForParent )
+            ( alertGroups, Cmd.none )
 
         AlertGroupsFetch (Err err) ->
-            ( groups, Task.succeed (UpdateLoading False) |> Task.perform ForParent )
+            ( groups, Cmd.none )
 
         FetchAlertGroups ->
             ( groups, Api.getAlertGroups )

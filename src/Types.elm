@@ -18,7 +18,6 @@ type alias Model =
     , alertGroups : List AlertGroup
     , route : Route
     , error : String
-    , loading : Bool
     }
 
 
@@ -69,7 +68,6 @@ type Msg
     | EditSilence Int
     | CreateSilence Silence
     | CreateSilenceFromAlert Alert
-    | UpdateLoading Bool
     | DestroySilence Silence
     | NavigateToAlerts Alerts.Types.Route
     | Alerts AlertsMsg
