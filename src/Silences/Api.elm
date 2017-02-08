@@ -57,8 +57,6 @@ destroy silence =
         body =
             Http.jsonBody <| Silences.Encoders.silence silence
     in
-        -- TODO: This should return the silence, not just the ID, so that we can
-        -- redirect to the silence show page.
         Http.send SilenceDestroy
             (Http.request
                 { method = "DELETE"

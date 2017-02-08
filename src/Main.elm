@@ -70,20 +70,20 @@ update msg model =
             ( { model | silence = silence }, Cmd.none )
 
         SilenceCreate (Ok id) ->
-            ( { model | silence = Success nullSilence, route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
+            ( { model | silence = Loading, route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
 
         SilenceCreate (Err err) ->
-            ( { model | silence = Success nullSilence, route = SilencesRoute }, Navigation.newUrl "/#/silences" )
+            ( { model | silence = Failure err, route = SilencesRoute }, Navigation.newUrl "/#/silences" )
 
         SilenceDestroy (Ok id) ->
             -- TODO: "Deleted id: ID" growl
             -- TODO: Add DELETE to accepted CORS methods in alertmanager
             -- TODO: Check why POST isn't there but is accepted
-            ( { model | route = SilencesRoute }, Navigation.newUrl "/#/silences" )
+            ( { model | route = SilencesRoute, silence = Loading }, Navigation.newUrl "/#/silences" )
 
         SilenceDestroy (Err err) ->
             -- TODO: Add error to the message or something.
-            ( { model | route = SilencesRoute, error = "Failed to destroy silence" }, Navigation.newUrl "/#/silences" )
+            ( { model | route = SilencesRoute, silence = Failure err }, Navigation.newUrl "/#/silences" )
 
         CreateSilenceFromAlert alert ->
             let
