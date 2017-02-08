@@ -13,8 +13,9 @@ import (
 
 func main() {
 	var (
-		port = flag.String("port", "8080", "port to listen on")
-		dev  = flag.Bool("dev", true, "enable code rebuilding")
+		port  = flag.String("port", "8080", "port to listen on")
+		dev   = flag.Bool("dev", true, "enable code rebuilding")
+		debug = flag.Bool("debug", false, "enable elm debugger")
 	)
 	flag.Parse()
 
@@ -35,10 +36,15 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		const elmMake = "elm-make"
+		elmMakeArgs := []string{"src/Main.elm", "--output", "script.js"}
+
+		if *debug {
+			elmMakeArgs = append(elmMakeArgs, "--debug")
+		}
+
 		recompileFn := func() error {
-			cmd := exec.Command("elm-make", "src/Main.elm", "--output", "script.js")
-			// Look into the debugger
-			// cmd := exec.Command("elm-make", "src/Main.elm", "--output", "dist/script.js", "--debug")
+			cmd := exec.Command(elmMake, elmMakeArgs...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			return cmd.Run()
