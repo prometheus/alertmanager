@@ -3,16 +3,14 @@ module Alerts.Update exposing (..)
 import Alerts.Api as Api
 import Alerts.Types exposing (..)
 import Task
+import Utils.Types exposing (ApiData, ApiResponse(..))
 
 
-update : AlertsMsg -> List AlertGroup -> ( List AlertGroup, Cmd Msg )
+update : AlertsMsg -> ApiData (List AlertGroup) -> ( ApiData (List AlertGroup), Cmd Msg )
 update msg groups =
     case msg of
-        AlertGroupsFetch (Ok alertGroups) ->
+        AlertGroupsFetch alertGroups ->
             ( alertGroups, Cmd.none )
-
-        AlertGroupsFetch (Err err) ->
-            ( groups, Cmd.none )
 
         FetchAlertGroups ->
             ( groups, Api.getAlertGroups )

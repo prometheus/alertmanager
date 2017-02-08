@@ -6,6 +6,7 @@ import Alerts.Types exposing (AlertGroup, AlertsMsg, Alert)
 import Http exposing (Error)
 import ISO8601
 import Time
+import Utils.Types exposing (ApiData)
 
 
 -- Internal Imports
@@ -15,21 +16,10 @@ import Time
 type alias Model =
     { silences : ApiData (List Silence)
     , silence : ApiData Silence
-    , alertGroups : List AlertGroup
+    , alertGroups : ApiData (List AlertGroup)
     , route : Route
     , error : String
     }
-
-
-type ApiResponse e a
-    = NotAsked
-    | Loading
-    | Failure e
-    | Success a
-
-
-type alias ApiData a =
-    ApiResponse Http.Error a
 
 
 type alias Silence =

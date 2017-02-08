@@ -14,6 +14,7 @@ import Parsing
 import Views
 import Alerts.Update
 import Types exposing (..)
+import Utils.Types exposing (..)
 import Utils.List
 import Utils.Date
 import Silences.Api
@@ -36,7 +37,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model NotAsked NotAsked [] route "")
+        update (urlUpdate location) (Model Loading Loading Loading route "")
 
 
 nullSilence : Silence

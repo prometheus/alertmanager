@@ -2,6 +2,7 @@ module Alerts.Types exposing (..)
 
 import Http exposing (Error)
 import ISO8601
+import Utils.Types exposing (ApiData)
 
 
 type Route
@@ -18,7 +19,7 @@ type OutMsg
 
 
 type AlertsMsg
-    = AlertGroupsFetch (Result Http.Error (List AlertGroup))
+    = AlertGroupsFetch (ApiData (List AlertGroup))
     | FetchAlertGroups
     | Noop
 

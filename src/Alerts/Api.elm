@@ -15,7 +15,8 @@ getAlertGroups =
         url =
             String.join "/" [ baseUrl, "alerts", "groups" ]
     in
-        Http.send (AlertGroupsFetch >> ForSelf) (Http.get url alertGroupsDecoder)
+        Utils.Api.send (Http.get url alertGroupsDecoder)
+            |> Cmd.map (AlertGroupsFetch >> ForSelf)
 
 
 

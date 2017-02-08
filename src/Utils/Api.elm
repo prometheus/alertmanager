@@ -2,7 +2,8 @@ module Utils.Api exposing (..)
 
 import Json.Decode as Json exposing (field)
 import ISO8601
-import Types exposing (Msg, Time, ApiResponse(..), ApiData)
+import Types exposing (Msg, Time)
+import Utils.Types exposing (ApiResponse(..), ApiData)
 import Http
 
 

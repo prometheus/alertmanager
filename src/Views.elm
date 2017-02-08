@@ -9,6 +9,7 @@ import Html.Attributes exposing (..)
 -- Internal Imports
 
 import Types exposing (..)
+import Utils.Types exposing (ApiResponse(..))
 import Translators exposing (alertTranslator)
 import Silences.Views
 import Alerts.Views
@@ -18,7 +19,15 @@ view : Model -> Html Msg
 view model =
     case model.route of
         AlertsRoute route ->
-            Html.map alertTranslator (Alerts.Views.view route model.alertGroups)
+            case model.alertGroups of
+                Success alertGroups ->
+                    Html.map alertTranslator (Alerts.Views.view route alertGroups)
+
+                Loading ->
+                    loading
+
+                _ ->
+                    notFoundView model
 
         NewSilenceRoute ->
             case model.silence of
