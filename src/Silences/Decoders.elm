@@ -26,6 +26,15 @@ create =
     (Json.at [ "data", "silenceId" ] Json.int)
 
 
+
+-- This should just be the ID
+
+
+destroy : Json.Decoder String
+destroy =
+    (Json.at [ "status" ] Json.string)
+
+
 silence : Json.Decoder Silence
 silence =
     Json.map7 Silence

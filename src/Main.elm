@@ -37,7 +37,7 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model Loading Loading Loading route "")
+        update (urlUpdate location) (Model Loading Loading Loading route)
 
 
 nullSilence : Silence

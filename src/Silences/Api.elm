@@ -66,7 +66,7 @@ destroy silence =
                     Http.emptyBody
                     -- Body being sent
                 , expect =
-                    (Http.expectJson Silences.Decoders.create)
+                    (Http.expectJson Silences.Decoders.destroy)
                     -- Response expected
                 , timeout =
                     Nothing

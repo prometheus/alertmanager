@@ -18,7 +18,6 @@ type alias Model =
     , silence : ApiData Silence
     , alertGroups : ApiData (List AlertGroup)
     , route : Route
-    , error : String
     }
 
 
@@ -51,7 +50,7 @@ type Msg
     = SilenceFetch (ApiData Silence)
     | SilencesFetch (ApiData (List Silence))
     | SilenceCreate (Result Http.Error Int)
-    | SilenceDestroy (Result Http.Error Int)
+    | SilenceDestroy (Result Http.Error String)
     | FetchSilences
     | FetchSilence Int
     | NewSilence
