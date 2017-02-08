@@ -128,7 +128,7 @@ update msg model =
             ( model, Silences.Api.destroy silence )
 
         NewSilence ->
-            ( { model | route = NewSilenceRoute }, (Task.perform (NewDefaultTimeRange nullSilence) Time.now) )
+            ( { model | route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
 
         RedirectAlerts ->
             ( model, Navigation.newUrl "/#/alerts" )
@@ -194,7 +194,7 @@ update msg model =
             in
                 ( { model | silence = Success { silence | matchers = matchers } }, Cmd.none )
 
-        NewDefaultTimeRange silence time ->
+        NewDefaultTimeRange time ->
             let
                 endsIso =
                     Utils.Date.addTime time (2 * Time.hour)
@@ -208,8 +208,13 @@ update msg model =
                 startsAt =
                     Types.Time endsIso (ISO8601.toString startsIso) True
 
-                s =
-                    model.silence
+                silence =
+                    case model.silence of
+                        Success s ->
+                            s
+
+                        _ ->
+                            nullSilence
             in
                 ( { model | silence = Success { silence | startsAt = startsAt, endsAt = endsAt } }, Cmd.none )
 

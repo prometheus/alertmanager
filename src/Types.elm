@@ -71,7 +71,7 @@ type Msg
     | UpdateStartsAt Silence String
     | UpdateCreatedBy Silence String
     | UpdateComment Silence String
-    | NewDefaultTimeRange Silence Time.Time
+    | NewDefaultTimeRange Time.Time
     | Noop
 
 
