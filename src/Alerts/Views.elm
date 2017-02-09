@@ -1,6 +1,6 @@
 module Alerts.Views exposing (view)
 
-import Alerts.Types exposing (Alert, AlertGroup, Block, Route)
+import Alerts.Types exposing (Alert, AlertGroup, Block, Route(..))
 import Alerts.Types exposing (AlertsMsg(..), Msg(..), OutMsg(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -59,11 +59,38 @@ alertHeader ( key, value ) =
 
 
 view : Route -> List AlertGroup -> Html Msg
-view _ alertGroups =
-    ul
-        [ classList
-            [ ( "list", True )
-            , ( "pa0", True )
+view route alertGroups =
+    let
+        groups =
+            case route of
+                AllReceivers ->
+                    alertGroups
+
+                Receiver receiver ->
+                    -- Handle when no groups are returned
+                    filterByReceiver receiver alertGroups
+    in
+        ul
+            [ classList
+                [ ( "list", True )
+                , ( "pa0", True )
+                ]
             ]
-        ]
-        (List.map alertGroupView alertGroups)
+            (List.map alertGroupView groups)
+
+
+filterByReceiver : String -> List AlertGroup -> List AlertGroup
+filterByReceiver receiver groups =
+    List.filterMap (filterAlertGroup receiver) groups
+
+
+filterAlertGroup : String -> AlertGroup -> Maybe AlertGroup
+filterAlertGroup receiver alertGroup =
+    let
+        blocks =
+            List.filter (\b -> receiver == b.routeOpts.receiver) alertGroup.blocks
+    in
+        if not <| List.isEmpty blocks then
+            Just { alertGroup | blocks = blocks }
+        else
+            Nothing
