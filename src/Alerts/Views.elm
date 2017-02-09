@@ -18,9 +18,7 @@ alertGroupView alertGroup =
 
 blockView : Block -> Html Msg
 blockView block =
-    -- Block level
-    div []
-        (List.map alertView block.alerts)
+    div [] (List.map alertView block.alerts)
 
 
 alertView : Alert -> Html Msg
@@ -61,22 +59,25 @@ alertHeader ( key, value ) =
 view : Route -> List AlertGroup -> Html Msg
 view route alertGroups =
     let
-        groups =
+        ( groups, emptyMessage ) =
             case route of
                 AllReceivers ->
-                    alertGroups
+                    ( alertGroups, "thing" )
 
                 Receiver receiver ->
                     -- Handle when no groups are returned
-                    filterByReceiver receiver alertGroups
+                    ( filterByReceiver receiver alertGroups, "no receivers matching " ++ receiver )
     in
-        ul
-            [ classList
-                [ ( "list", True )
-                , ( "pa0", True )
+        if List.isEmpty groups then
+            div [] [ text emptyMessage ]
+        else
+            ul
+                [ classList
+                    [ ( "list", True )
+                    , ( "pa0", True )
+                    ]
                 ]
-            ]
-            (List.map alertGroupView groups)
+                (List.map alertGroupView groups)
 
 
 filterByReceiver : String -> List AlertGroup -> List AlertGroup
