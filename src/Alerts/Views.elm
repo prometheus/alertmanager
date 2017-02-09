@@ -61,12 +61,13 @@ view route alertGroups =
     let
         ( groups, emptyMessage ) =
             case route of
-                AllReceivers ->
-                    ( alertGroups, "thing" )
+                Receiver maybeReceiver ->
+                    case maybeReceiver of
+                        Just receiver ->
+                            ( filterByReceiver receiver alertGroups, "no receivers matching " ++ receiver )
 
-                Receiver receiver ->
-                    -- Handle when no groups are returned
-                    ( filterByReceiver receiver alertGroups, "no receivers matching " ++ receiver )
+                        Nothing ->
+                            ( alertGroups, "" )
     in
         if List.isEmpty groups then
             div [] [ text emptyMessage ]

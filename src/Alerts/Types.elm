@@ -6,8 +6,7 @@ import Utils.Types exposing (ApiData)
 
 
 type Route
-    = AllReceivers
-    | Receiver String
+    = Receiver (Maybe String)
 
 
 type Msg

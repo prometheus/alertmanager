@@ -6,7 +6,4 @@ import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, 
 
 alertsParser : Parser (Route -> a) a
 alertsParser =
-    oneOf
-        [ map AllReceivers (s "alerts")
-        , map Receiver (s "alerts" </> string)
-        ]
+    map Receiver (s "alerts" <?> stringParam "receiver")
