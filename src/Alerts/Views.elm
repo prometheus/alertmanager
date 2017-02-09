@@ -59,18 +59,13 @@ alertHeader ( key, value ) =
 view : Route -> List AlertGroup -> Html Msg
 view route alertGroups =
     let
-        ( groups, emptyMessage ) =
+        groups =
             case route of
-                Receiver maybeReceiver ->
-                    case maybeReceiver of
-                        Just receiver ->
-                            ( filterByReceiver receiver alertGroups, "no receivers matching " ++ receiver )
-
-                        Nothing ->
-                            ( alertGroups, "" )
+                Receiver maybeReceiver maybeShowSilenced ->
+                    filterBySilenced maybeShowSilenced <| filterByReceiver maybeReceiver alertGroups
     in
         if List.isEmpty groups then
-            div [] [ text emptyMessage ]
+            div [] [ text "no alerts found found" ]
         else
             ul
                 [ classList
@@ -81,9 +76,19 @@ view route alertGroups =
                 (List.map alertGroupView groups)
 
 
-filterByReceiver : String -> List AlertGroup -> List AlertGroup
-filterByReceiver receiver groups =
-    List.filterMap (filterAlertGroup receiver) groups
+filterBy : (a -> Maybe a) -> List a -> List a
+filterBy fn groups =
+    List.filterMap fn groups
+
+
+filterByReceiver : Maybe String -> List AlertGroup -> List AlertGroup
+filterByReceiver maybeReceiver groups =
+    case maybeReceiver of
+        Just receiver ->
+            filterBy (filterAlertGroup receiver) groups
+
+        Nothing ->
+            groups
 
 
 filterAlertGroup : String -> AlertGroup -> Maybe AlertGroup
@@ -94,5 +99,39 @@ filterAlertGroup receiver alertGroup =
     in
         if not <| List.isEmpty blocks then
             Just { alertGroup | blocks = blocks }
+        else
+            Nothing
+
+
+filterBySilenced : Maybe Bool -> List AlertGroup -> List AlertGroup
+filterBySilenced maybeShowSilenced groups =
+    case maybeShowSilenced of
+        Just showSilenced ->
+            groups
+
+        Nothing ->
+            filterBy filterAlertGroupSilenced groups
+
+
+filterAlertGroupSilenced : AlertGroup -> Maybe AlertGroup
+filterAlertGroupSilenced alertGroup =
+    let
+        blocks =
+            List.filterMap filterSilencedAlerts alertGroup.blocks
+    in
+        if not <| List.isEmpty blocks then
+            Just { alertGroup | blocks = blocks }
+        else
+            Nothing
+
+
+filterSilencedAlerts : Block -> Maybe Block
+filterSilencedAlerts block =
+    let
+        alerts =
+            List.filter (\a -> not a.silenced) block.alerts
+    in
+        if not <| List.isEmpty alerts then
+            Just { block | alerts = alerts }
         else
             Nothing
