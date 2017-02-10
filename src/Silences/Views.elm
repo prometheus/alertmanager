@@ -9,7 +9,7 @@ import Html.Events exposing (onClick, onInput)
 
 -- Internal Imports
 
-import Types exposing (Silence, Matcher, Msg(..))
+import Silences.Types exposing (Silence, Matcher, SilencesMsg(..), Msg(..))
 import Utils.Types exposing (ApiResponse(..))
 import Utils.Views exposing (..)
 import Utils.Date
@@ -56,8 +56,8 @@ silenceBase silence =
                     [ text alertName ]
                 ]
             , div [ class "mb1" ]
-                [ buttonLink "fa-pencil" editUrl "blue" Noop
-                , buttonLink "fa-trash-o" "#/silences" "dark-red" (DestroySilence silence)
+                [ buttonLink "fa-pencil" editUrl "blue" (ForSelf Noop)
+                , buttonLink "fa-trash-o" "#/silences" "dark-red" (ForSelf (DestroySilence silence))
                 , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt.t ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton <| List.filter (\m -> m.name /= "alertname") silence.matchers)
@@ -94,7 +94,7 @@ silenceExtra silence =
 -- TODO: Add field validations.
 
 
-silenceForm : String -> Silence -> Html Msg
+silenceForm : String -> Silence -> Html SilencesMsg
 silenceForm kind silence =
     let
         base =
@@ -117,8 +117,8 @@ silenceForm kind silence =
         div [ class "pa4 black-80" ]
             [ fieldset [ class "ba b--transparent ph0 mh0" ]
                 [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
-                , formField "Start" (silence.startsAt.s) (UpdateStartsAt silence)
-                , formField "End" (silence.endsAt.s) (UpdateEndsAt silence)
+                , (formField "Start" silence.startsAt.s (UpdateStartsAt silence))
+                , (formField "End" silence.endsAt.s (UpdateEndsAt silence))
                 , div [ class "mt3" ]
                     [ label [ class "f6 b db mb2" ]
                         [ text "Matchers "
@@ -140,7 +140,7 @@ silenceForm kind silence =
             ]
 
 
-matcherForm : Silence -> Matcher -> Html Msg
+matcherForm : Silence -> Matcher -> Html SilencesMsg
 matcherForm silence matcher =
     div []
         [ formInput matcher.name (UpdateMatcherName silence matcher)

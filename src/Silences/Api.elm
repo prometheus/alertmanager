@@ -1,14 +1,15 @@
 module Silences.Api exposing (..)
 
 import Http
-import Types exposing (Silence, Msg(..))
+import Types
+import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..))
 import Utils.Types exposing (ApiResponse(..))
 import Silences.Decoders exposing (..)
 import Silences.Encoders
 import Utils.Api exposing (baseUrl)
 
 
-getSilences : Cmd Msg
+getSilences : Cmd Types.Msg
 getSilences =
     let
         -- Can remove limit=1000 when we are on version >= 0.5.x
@@ -18,17 +19,17 @@ getSilences =
         -- TODO: Talk with fabxc about adding some sort of filter for e.g.
         -- entering values into a search bar or clicking on labels
         Utils.Api.send (Http.get url list)
-            |> Cmd.map SilencesFetch
+            |> Cmd.map Types.SilencesFetch
 
 
-getSilence : Int -> Cmd Msg
+getSilence : Int -> Cmd Types.Msg
 getSilence id =
     let
         url =
             String.join "/" [ baseUrl, "silence", toString id ]
     in
         Utils.Api.send (Http.get url show)
-            |> Cmd.map SilenceFetch
+            |> Cmd.map Types.SilenceFetch
 
 
 create : Silence -> Cmd Msg
@@ -44,6 +45,7 @@ create silence =
         -- redirect to the silence show page.
         Http.send SilenceCreate
             (Http.post url body Silences.Decoders.create)
+            |> Cmd.map ForSelf
 
 
 destroy : Silence -> Cmd Msg
@@ -74,3 +76,4 @@ destroy silence =
                 , withCredentials = False
                 }
             )
+            |> Cmd.map ForSelf

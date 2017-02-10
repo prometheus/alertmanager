@@ -1,24 +1,17 @@
 module Main exposing (..)
 
--- External Imports
-
 import Navigation
 import Task
 import Time
-import ISO8601
-
-
--- Internal Imports
-
 import Parsing
 import Views
 import Alerts.Update
 import Types exposing (..)
 import Utils.Types exposing (..)
-import Utils.List
-import Utils.Date
 import Silences.Api
-import Translators exposing (alertTranslator)
+import Silences.Types exposing (Silence, Matcher, nullTime, nullSilence)
+import Silences.Update
+import Translators exposing (alertTranslator, silenceTranslator)
 
 
 main : Program Never Model Msg
@@ -40,25 +33,6 @@ init location =
         update (urlUpdate location) (Model Loading Loading Loading route)
 
 
-nullSilence : Silence
-nullSilence =
-    Silence 0 "" "" nullTime nullTime nullTime [ nullMatcher ]
-
-
-nullMatcher : Matcher
-nullMatcher =
-    Matcher "" "" False
-
-
-nullTime : Types.Time
-nullTime =
-    let
-        epochString =
-            ISO8601.toString Utils.Date.unixEpochStart
-    in
-        Types.Time Utils.Date.unixEpochStart epochString True
-
-
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -68,22 +42,6 @@ update msg model =
 
         SilenceFetch silence ->
             ( { model | silence = silence }, Cmd.none )
-
-        SilenceCreate (Ok id) ->
-            ( { model | silence = Loading, route = SilenceRoute id }, Navigation.newUrl ("/#/silences/" ++ toString id) )
-
-        SilenceCreate (Err err) ->
-            ( { model | silence = Failure err, route = SilencesRoute }, Navigation.newUrl "/#/silences" )
-
-        SilenceDestroy (Ok id) ->
-            -- TODO: "Deleted id: ID" growl
-            -- TODO: Add DELETE to accepted CORS methods in alertmanager
-            -- TODO: Check why POST isn't there but is accepted
-            ( { model | route = SilencesRoute, silence = Loading }, Navigation.newUrl "/#/silences" )
-
-        SilenceDestroy (Err err) ->
-            -- TODO: Add error to the message or something.
-            ( { model | route = SilencesRoute, silence = Failure err }, Navigation.newUrl "/#/silences" )
 
         CreateSilenceFromAlert alert ->
             let
@@ -109,6 +67,13 @@ update msg model =
             in
                 ( { model | alertGroups = alertGroups }, Cmd.map alertTranslator alertCmd )
 
+        Silences silencesMsg ->
+            let
+                ( silences, silence, silenceCmd ) =
+                    Silences.Update.update silencesMsg model.silences model.silence
+            in
+                ( { model | silences = silences, silence = silence }, Cmd.map silenceTranslator silenceCmd )
+
         -- API interaction messages
         FetchSilences ->
             ( { model | silences = Loading, route = SilencesRoute }, Silences.Api.getSilences )
@@ -121,102 +86,11 @@ update msg model =
             -- edit view, so that there's no pause for users navigating around.
             ( { model | route = EditSilenceRoute id }, Silences.Api.getSilence id )
 
-        CreateSilence silence ->
-            ( model, Silences.Api.create silence )
-
-        DestroySilence silence ->
-            ( model, Silences.Api.destroy silence )
-
         NewSilence ->
-            ( { model | route = NewSilenceRoute }, (Task.perform NewDefaultTimeRange Time.now) )
+            ( { model | route = NewSilenceRoute }, (Task.perform Silences.Types.NewDefaultTimeRange Time.now) |> Cmd.map Silences )
 
         RedirectAlerts ->
             ( model, Navigation.newUrl "/#/alerts" )
-
-        -- New silence form messages
-        UpdateStartsAt silence time ->
-            -- TODO:
-            -- Update silence to hold datetime as string, on each pass through
-            -- here update an error message "this is invalid", but let them put
-            -- it in anyway.
-            let
-                startsAt =
-                    Utils.Date.toISO8601Time time
-            in
-                ( { model | silence = Success { silence | startsAt = startsAt } }, Cmd.none )
-
-        UpdateEndsAt silence time ->
-            let
-                endsAt =
-                    Utils.Date.toISO8601Time time
-            in
-                ( { model | silence = (Success { silence | endsAt = endsAt }) }, Cmd.none )
-
-        UpdateCreatedBy silence by ->
-            ( { model | silence = Success { silence | createdBy = by } }, Cmd.none )
-
-        UpdateComment silence comment ->
-            ( { model | silence = Success { silence | comment = comment } }, Cmd.none )
-
-        AddMatcher silence ->
-            -- TODO: If a user adds two blank matchers and attempts to update
-            -- one, both are updated because they are identical. Maybe add a
-            -- unique identifier on creation so this doesn't happen.
-            ( { model | silence = Success { silence | matchers = silence.matchers ++ [ Matcher "" "" False ] } }, Cmd.none )
-
-        DeleteMatcher silence matcher ->
-            let
-                -- TODO: This removes all empty matchers. Maybe just remove the
-                -- one that was clicked.
-                newSil =
-                    { silence | matchers = (List.filter (\x -> x /= matcher) silence.matchers) }
-            in
-                ( { model | silence = Success newSil }, Cmd.none )
-
-        UpdateMatcherName silence matcher name ->
-            let
-                matchers =
-                    Utils.List.replaceIf (\x -> x == matcher) { matcher | name = name } silence.matchers
-            in
-                ( { model | silence = Success { silence | matchers = matchers } }, Cmd.none )
-
-        UpdateMatcherValue silence matcher value ->
-            let
-                matchers =
-                    Utils.List.replaceIf (\x -> x == matcher) { matcher | value = value } silence.matchers
-            in
-                ( { model | silence = Success { silence | matchers = matchers } }, Cmd.none )
-
-        UpdateMatcherRegex silence matcher bool ->
-            let
-                matchers =
-                    Utils.List.replaceIf (\x -> x == matcher) { matcher | isRegex = bool } silence.matchers
-            in
-                ( { model | silence = Success { silence | matchers = matchers } }, Cmd.none )
-
-        NewDefaultTimeRange time ->
-            let
-                endsIso =
-                    Utils.Date.addTime time (2 * Time.hour)
-
-                endsAt =
-                    Types.Time endsIso (ISO8601.toString endsIso) True
-
-                startsIso =
-                    Utils.Date.toISO8601 time
-
-                startsAt =
-                    Types.Time endsIso (ISO8601.toString startsIso) True
-
-                silence =
-                    case model.silence of
-                        Success s ->
-                            s
-
-                        _ ->
-                            nullSilence
-            in
-                ( { model | silence = Success { silence | startsAt = startsAt, endsAt = endsAt } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )

@@ -2,7 +2,7 @@ module Utils.Date exposing (..)
 
 import Time
 import ISO8601
-import Types
+import Utils.Types as Types
 
 
 dateFormat : ISO8601.Time -> String

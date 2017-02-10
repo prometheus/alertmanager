@@ -1,13 +1,22 @@
 module Translators exposing (..)
 
 import Alerts.Types
-import Alerts.Translator exposing (translator)
-import Types exposing (Msg(Alerts, CreateSilenceFromAlert))
+import Alerts.Translator
+import Silences.Types
+import Silences.Translator
+import Types exposing (Msg(Alerts, CreateSilenceFromAlert, Silences))
 
 
 alertTranslator : Alerts.Types.Msg -> Msg
 alertTranslator =
-    translator
+    Alerts.Translator.translator
         { onInternalMessage = Alerts
         , onSilenceFromAlert = CreateSilenceFromAlert
+        }
+
+
+silenceTranslator : Silences.Types.Msg -> Msg
+silenceTranslator =
+    Silences.Translator.translator
+        { onFormMsg = Silences
         }

@@ -10,8 +10,9 @@ import Html.Attributes exposing (..)
 
 import Types exposing (..)
 import Utils.Types exposing (ApiResponse(..))
-import Translators exposing (alertTranslator)
+import Translators exposing (alertTranslator, silenceTranslator)
 import Silences.Views
+import Silences.Types
 import Alerts.Views
 
 
@@ -32,7 +33,7 @@ view model =
         NewSilenceRoute ->
             case model.silence of
                 Success silence ->
-                    Silences.Views.silenceForm "New" silence
+                    Html.map silenceTranslator (Html.map Silences.Types.ForSelf (Silences.Views.silenceForm "New" silence))
 
                 Loading ->
                     loading
@@ -43,7 +44,7 @@ view model =
         EditSilenceRoute id ->
             case model.silence of
                 Success silence ->
-                    Silences.Views.silenceForm "Edit" silence
+                    Html.map silenceTranslator (Html.map Silences.Types.ForSelf (Silences.Views.silenceForm "Edit" silence))
 
                 Loading ->
                     loading
@@ -55,7 +56,7 @@ view model =
             -- Add buttons at the top to filter Active/Pending/Expired
             case model.silences of
                 Success silences ->
-                    apiDataList Silences.Views.silenceList silences
+                    Html.map silenceTranslator (apiDataList Silences.Views.silenceList silences)
 
                 Loading ->
                     loading
@@ -66,7 +67,7 @@ view model =
         SilenceRoute name ->
             case model.silence of
                 Success silence ->
-                    Silences.Views.silence silence
+                    Html.map silenceTranslator (Silences.Views.silence silence)
 
                 Loading ->
                     loading
@@ -93,14 +94,14 @@ todoView model =
         ]
 
 
-notFoundView : a -> Html Msg
+notFoundView : a -> Html msg
 notFoundView model =
     div []
         [ h1 [] [ text "not found" ]
         ]
 
 
-apiDataList : (a -> Html Msg) -> List a -> Html Msg
+apiDataList : (a -> Html msg) -> List a -> Html msg
 apiDataList fn list =
     ul
         [ classList

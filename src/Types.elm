@@ -3,6 +3,7 @@ module Types exposing (..)
 -- External Imports
 
 import Alerts.Types exposing (AlertGroup, AlertsMsg, Alert)
+import Silences.Types exposing (SilencesMsg, Silence)
 import Http exposing (Error)
 import ISO8601
 import Time
@@ -21,56 +22,18 @@ type alias Model =
     }
 
 
-type alias Silence =
-    { id : Int
-    , createdBy : String
-    , comment : String
-    , startsAt : Time
-    , endsAt : Time
-    , createdAt : Time
-    , matchers : List Matcher
-    }
-
-
-type alias Time =
-    { t : ISO8601.Time
-    , s : String
-    , valid : Bool
-    }
-
-
-type alias Matcher =
-    { name : String
-    , value : String
-    , isRegex : Bool
-    }
-
-
 type Msg
     = SilenceFetch (ApiData Silence)
     | SilencesFetch (ApiData (List Silence))
-    | SilenceCreate (Result Http.Error Int)
-    | SilenceDestroy (Result Http.Error String)
     | FetchSilences
     | FetchSilence Int
     | NewSilence
     | EditSilence Int
-    | CreateSilence Silence
     | CreateSilenceFromAlert Alert
-    | DestroySilence Silence
     | NavigateToAlerts Alerts.Types.Route
     | Alerts AlertsMsg
+    | Silences SilencesMsg
     | RedirectAlerts
-    | DeleteMatcher Silence Matcher
-    | AddMatcher Silence
-    | UpdateMatcherName Silence Matcher String
-    | UpdateMatcherValue Silence Matcher String
-    | UpdateMatcherRegex Silence Matcher Bool
-    | UpdateEndsAt Silence String
-    | UpdateStartsAt Silence String
-    | UpdateCreatedBy Silence String
-    | UpdateComment Silence String
-    | NewDefaultTimeRange Time.Time
     | Noop
 
 
