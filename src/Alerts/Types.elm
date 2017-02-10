@@ -2,7 +2,7 @@ module Alerts.Types exposing (..)
 
 import Http exposing (Error)
 import ISO8601
-import Utils.Types exposing (ApiData)
+import Utils.Types exposing (ApiData, Filter)
 
 
 type Route
@@ -16,12 +16,14 @@ type Msg
 
 type OutMsg
     = SilenceFromAlert Alert
+    | UpdateFilter Filter String
 
 
 type AlertsMsg
     = AlertGroupsFetch (ApiData (List AlertGroup))
     | FetchAlertGroups
     | Noop
+    | FilterAlerts
 
 
 type alias Block =

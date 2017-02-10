@@ -2,10 +2,39 @@ module Alerts.Views exposing (view)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block, Route(..))
 import Alerts.Types exposing (AlertsMsg(..), Msg(..), OutMsg(..))
+import Alerts.Update exposing (filterBySilenced, filterByReceiver, filterByLabels)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Events exposing (onClick)
 import Utils.Date
+import Utils.Types exposing (Filter)
 import Utils.Views exposing (..)
+
+
+view : Route -> List AlertGroup -> Filter -> Html Msg
+view route alertGroups filter =
+    let
+        groups =
+            case route of
+                Receiver maybeReceiver maybeShowSilenced ->
+                    filterByReceiver maybeReceiver alertGroups
+                        |> filterBySilenced maybeShowSilenced
+                        |> filterByLabels filter.labels
+    in
+        if List.isEmpty groups then
+            div [] [ text "no alerts found found" ]
+        else
+            div []
+                [ Html.map ForParent (textField "Filter" filter.text (UpdateFilter filter))
+                , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
+                , ul
+                    [ classList
+                        [ ( "list", True )
+                        , ( "pa0", True )
+                        ]
+                    ]
+                    (List.map alertGroupView groups)
+                ]
 
 
 alertGroupView : AlertGroup -> Html Msg
@@ -54,84 +83,3 @@ alertHeader ( key, value ) =
         b [ class "db f4 mr2 dark-red dib" ] [ text value ]
     else
         listButton "ph1 pv1" ( key, value )
-
-
-view : Route -> List AlertGroup -> Html Msg
-view route alertGroups =
-    let
-        groups =
-            case route of
-                Receiver maybeReceiver maybeShowSilenced ->
-                    filterBySilenced maybeShowSilenced <| filterByReceiver maybeReceiver alertGroups
-    in
-        if List.isEmpty groups then
-            div [] [ text "no alerts found found" ]
-        else
-            ul
-                [ classList
-                    [ ( "list", True )
-                    , ( "pa0", True )
-                    ]
-                ]
-                (List.map alertGroupView groups)
-
-
-filterBy : (a -> Maybe a) -> List a -> List a
-filterBy fn groups =
-    List.filterMap fn groups
-
-
-filterByReceiver : Maybe String -> List AlertGroup -> List AlertGroup
-filterByReceiver maybeReceiver groups =
-    case maybeReceiver of
-        Just receiver ->
-            filterBy (filterAlertGroup receiver) groups
-
-        Nothing ->
-            groups
-
-
-filterAlertGroup : String -> AlertGroup -> Maybe AlertGroup
-filterAlertGroup receiver alertGroup =
-    let
-        blocks =
-            List.filter (\b -> receiver == b.routeOpts.receiver) alertGroup.blocks
-    in
-        if not <| List.isEmpty blocks then
-            Just { alertGroup | blocks = blocks }
-        else
-            Nothing
-
-
-filterBySilenced : Maybe Bool -> List AlertGroup -> List AlertGroup
-filterBySilenced maybeShowSilenced groups =
-    case maybeShowSilenced of
-        Just showSilenced ->
-            groups
-
-        Nothing ->
-            filterBy filterAlertGroupSilenced groups
-
-
-filterAlertGroupSilenced : AlertGroup -> Maybe AlertGroup
-filterAlertGroupSilenced alertGroup =
-    let
-        blocks =
-            List.filterMap filterSilencedAlerts alertGroup.blocks
-    in
-        if not <| List.isEmpty blocks then
-            Just { alertGroup | blocks = blocks }
-        else
-            Nothing
-
-
-filterSilencedAlerts : Block -> Maybe Block
-filterSilencedAlerts block =
-    let
-        alerts =
-            List.filter (\a -> not a.silenced) block.alerts
-    in
-        if not <| List.isEmpty alerts then
-            Just { block | alerts = alerts }
-        else
-            Nothing

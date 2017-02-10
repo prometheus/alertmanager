@@ -7,7 +7,7 @@ import Silences.Types exposing (SilencesMsg, Silence)
 import Http exposing (Error)
 import ISO8601
 import Time
-import Utils.Types exposing (ApiData)
+import Utils.Types exposing (ApiData, Filter)
 
 
 -- Internal Imports
@@ -19,6 +19,7 @@ type alias Model =
     , silence : ApiData Silence
     , alertGroups : ApiData (List AlertGroup)
     , route : Route
+    , filter : Filter
     }
 
 
@@ -30,6 +31,7 @@ type Msg
     | NewSilence
     | EditSilence Int
     | CreateSilenceFromAlert Alert
+    | UpdateFilter Filter String
     | NavigateToAlerts Alerts.Types.Route
     | Alerts AlertsMsg
     | Silences SilencesMsg

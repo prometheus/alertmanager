@@ -30,7 +30,8 @@ init location =
         route =
             Parsing.urlParser location
     in
-        update (urlUpdate location) (Model Loading Loading Loading route)
+        -- Need to parse out the filter text with the url parser
+        update (urlUpdate location) (Model Loading Loading Loading route ({ text = "", labels = [] }))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -55,17 +56,17 @@ update msg model =
                 alertsMsg =
                     (Alerts.Update.urlUpdate alertsRoute)
 
-                ( alertGroups, alertCmd ) =
-                    Alerts.Update.update alertsMsg model.alertGroups
+                ( alertGroups, filter, alertCmd ) =
+                    Alerts.Update.update alertsMsg model.alertGroups model.filter
             in
-                ( { model | alertGroups = alertGroups, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
+                ( { model | alertGroups = alertGroups, filter = filter, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
 
         Alerts alertsMsg ->
             let
-                ( alertGroups, alertCmd ) =
-                    Alerts.Update.update alertsMsg model.alertGroups
+                ( alertGroups, filter, alertCmd ) =
+                    Alerts.Update.update alertsMsg model.alertGroups model.filter
             in
-                ( { model | alertGroups = alertGroups }, Cmd.map alertTranslator alertCmd )
+                ( { model | alertGroups = alertGroups, filter = filter }, Cmd.map alertTranslator alertCmd )
 
         Silences silencesMsg ->
             let
@@ -91,6 +92,9 @@ update msg model =
 
         RedirectAlerts ->
             ( model, Navigation.newUrl "/#/alerts" )
+
+        UpdateFilter filter text ->
+            ( { model | filter = { filter | text = text } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )

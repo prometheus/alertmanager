@@ -10,6 +10,12 @@ type ApiResponse e a
     | Success a
 
 
+type alias Filter =
+    { text : String
+    , labels : List ( String, String )
+    }
+
+
 type alias ApiData a =
     ApiResponse Http.Error a
 

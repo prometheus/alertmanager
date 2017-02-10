@@ -22,7 +22,7 @@ view model =
         AlertsRoute route ->
             case model.alertGroups of
                 Success alertGroups ->
-                    Html.map alertTranslator (Alerts.Views.view route alertGroups)
+                    Html.map alertTranslator (Alerts.Views.view route alertGroups model.filter)
 
                 Loading ->
                     loading
