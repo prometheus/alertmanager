@@ -85,7 +85,7 @@ update msg model =
         EditSilence id ->
             -- Look into setting the silence if we're moving from the list to
             -- edit view, so that there's no pause for users navigating around.
-            ( { model | route = EditSilenceRoute id }, Silences.Api.getSilence id )
+            ( { model | silence = Loading, route = EditSilenceRoute id }, Silences.Api.getSilence id )
 
         NewSilence ->
             ( { model | route = NewSilenceRoute }, (Task.perform Silences.Types.NewDefaultTimeRange Time.now) |> Cmd.map Silences )
