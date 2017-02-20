@@ -6,10 +6,11 @@ import Time
 import Parsing
 import Views
 import Alerts.Update
+import Alerts.Types exposing (Route(Receiver))
 import Types exposing (..)
 import Utils.Types exposing (..)
 import Silences.Api
-import Silences.Types exposing (Silence, Matcher, nullTime, nullSilence)
+import Silences.Types exposing (Silence, nullTime, nullSilence)
 import Silences.Update
 import Translators exposing (alertTranslator, silenceTranslator)
 
@@ -29,9 +30,17 @@ init location =
     let
         route =
             Parsing.urlParser location
+
+        filter =
+            case route of
+                AlertsRoute alertsRoute ->
+                    Alerts.Update.updateFilter alertsRoute
+
+                _ ->
+                    { text = Nothing, matchers = Nothing, receiver = Nothing, showSilenced = Nothing }
     in
         -- Need to parse out the filter text with the url parser
-        update (urlUpdate location) (Model Loading Loading Loading route ({ text = "", labels = [] }))
+        update (urlUpdate location) (Model Loading Loading Loading route filter)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -53,13 +62,13 @@ update msg model =
 
         NavigateToAlerts alertsRoute ->
             let
-                alertsMsg =
+                ( alertsMsg, filter ) =
                     (Alerts.Update.urlUpdate alertsRoute)
 
-                ( alertGroups, filter, alertCmd ) =
-                    Alerts.Update.update alertsMsg model.alertGroups model.filter
+                ( alertGroups, pf, alertCmd ) =
+                    Alerts.Update.update alertsMsg model.alertGroups filter
             in
-                ( { model | alertGroups = alertGroups, filter = filter, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
+                ( { model | alertGroups = alertGroups, filter = pf, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
 
         Alerts alertsMsg ->
             let
@@ -94,7 +103,7 @@ update msg model =
             ( model, Navigation.newUrl "/#/alerts" )
 
         UpdateFilter filter text ->
-            ( { model | filter = { filter | text = text } }, Cmd.none )
+            ( { model | filter = { filter | text = Just text } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )

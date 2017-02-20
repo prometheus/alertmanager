@@ -4,7 +4,10 @@ import Alerts.Api as Api
 import Alerts.Types exposing (..)
 import Task
 import Utils.Types exposing (ApiData, ApiResponse(..), Filter)
+import Utils.Parsing
 import Regex
+import QueryString exposing (QueryString, empty, add, render)
+import Navigation
 
 
 update : AlertsMsg -> ApiData (List AlertGroup) -> Filter -> ( ApiData (List AlertGroup), Filter, Cmd Msg )
@@ -24,39 +27,41 @@ update msg groups filter =
                 f =
                     case groups of
                         Success groups ->
-                            let
-                                replace =
-                                    (Regex.replace Regex.All (Regex.regex "{|}|\"|\\s") (\_ -> ""))
-
-                                matches =
-                                    String.split "," (replace filter.text)
-
-                                labels =
-                                    List.filterMap
-                                        (\m ->
-                                            let
-                                                label =
-                                                    String.split "=" m
-                                            in
-                                                if List.length label == 2 then
-                                                    Just ( Maybe.withDefault "" (List.head label), Maybe.withDefault "" (List.head <| List.reverse label) )
-                                                else
-                                                    Nothing
-                                        )
-                                        matches
-                            in
-                                -- Instead of changing filter, change the query string and that then is parsed into the filter structure
-                                { filter | labels = labels }
+                            { filter | matchers = Utils.Parsing.parseLabels filter.text }
 
                         _ ->
                             filter
+
+                query =
+                    empty
+                        |> addMaybe "receiver" filter.receiver toString
+                        |> addMaybe "silenced" filter.showSilenced (toString >> String.toLower)
+                        |> addMaybe "query" filter.text identity
+                        |> render
             in
-                ( groups, f, Cmd.none )
+                ( groups, f, Navigation.newUrl <| "/#/alerts" ++ query )
 
 
-urlUpdate : Route -> AlertsMsg
-urlUpdate _ =
-    FetchAlertGroups
+updateFilter : Route -> Filter
+updateFilter route =
+    case route of
+        Receiver maybeReceiver maybeShowSilenced maybeQuery ->
+            { receiver = maybeReceiver, showSilenced = maybeShowSilenced, text = maybeQuery, matchers = Utils.Parsing.parseLabels maybeQuery }
+
+
+addMaybe : String -> Maybe a -> (a -> String) -> QueryString -> QueryString
+addMaybe key maybeValue stringFn qs =
+    case maybeValue of
+        Just value ->
+            add key (stringFn value) qs
+
+        Nothing ->
+            qs
+
+
+urlUpdate : Route -> ( AlertsMsg, Filter )
+urlUpdate route =
+    ( FetchAlertGroups, updateFilter route )
 
 
 filterBy : (a -> Maybe a) -> List a -> List a
@@ -108,7 +113,7 @@ filterAlertsFromBlock fn block =
             Nothing
 
 
-filterAlertsByLabel : List ( String, String ) -> Block -> Maybe Block
+filterAlertsByLabel : Utils.Types.Labels -> Block -> Maybe Block
 filterAlertsByLabel labels block =
     filterAlertsFromBlock
         (\a ->
@@ -122,16 +127,21 @@ filterAlertsByLabel labels block =
         block
 
 
-filterAlertGroupLabels : List ( String, String ) -> AlertGroup -> Maybe AlertGroup
-filterAlertGroupLabels labels alertGroup =
+filterAlertGroupLabels : Utils.Types.Matchers -> AlertGroup -> Maybe AlertGroup
+filterAlertGroupLabels matchers alertGroup =
     let
         blocks =
-            List.filterMap (filterAlertsByLabel labels) alertGroup.blocks
+            List.filterMap (filterAlertsByLabel <| matchersToLabels matchers) alertGroup.blocks
     in
         if not <| List.isEmpty blocks then
             Just { alertGroup | blocks = blocks }
         else
             Nothing
+
+
+matchersToLabels : Utils.Types.Matchers -> Utils.Types.Labels
+matchersToLabels matchers =
+    List.map (\m -> ( m.name, m.value )) matchers
 
 
 filterAlertGroupSilenced : AlertGroup -> Maybe AlertGroup
@@ -148,9 +158,14 @@ filterAlertGroupSilenced alertGroup =
 
 filterSilencedAlerts : Block -> Maybe Block
 filterSilencedAlerts block =
-    filterAlertsFromBlock (\a -> not a.silenced) block
+    filterAlertsFromBlock (.silenced >> not) block
 
 
-filterByLabels : List ( String, String ) -> List AlertGroup -> List AlertGroup
+filterByLabels : Maybe Utils.Types.Matchers -> List AlertGroup -> List AlertGroup
 filterByLabels labels groups =
-    filterBy (filterAlertGroupLabels labels) groups
+    case labels of
+        Just ls ->
+            filterBy (filterAlertGroupLabels ls) groups
+
+        Nothing ->
+            groups

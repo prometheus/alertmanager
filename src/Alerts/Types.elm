@@ -3,10 +3,11 @@ module Alerts.Types exposing (..)
 import Http exposing (Error)
 import ISO8601
 import Utils.Types exposing (ApiData, Filter)
+import Utils.Parsing
 
 
 type Route
-    = Receiver (Maybe String) (Maybe Bool)
+    = Receiver (Maybe String) (Maybe Bool) (Maybe String)
 
 
 type Msg
@@ -38,13 +39,13 @@ type alias RouteOpts =
 
 type alias AlertGroup =
     { blocks : List Block
-    , labels : List ( String, String )
+    , labels : Utils.Types.Labels
     }
 
 
 type alias Alert =
-    { annotations : List ( String, String )
-    , labels : List ( String, String )
+    { annotations : Utils.Types.Labels
+    , labels : Utils.Types.Labels
     , inhibited : Bool
     , silenceId : Maybe Int
     , silenced : Bool

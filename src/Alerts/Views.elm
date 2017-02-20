@@ -16,16 +16,19 @@ view route alertGroups filter =
     let
         groups =
             case route of
-                Receiver maybeReceiver maybeShowSilenced ->
+                Receiver maybeReceiver maybeShowSilenced maybeQuery ->
                     filterByReceiver maybeReceiver alertGroups
                         |> filterBySilenced maybeShowSilenced
-                        |> filterByLabels filter.labels
+                        |> filterByLabels filter.matchers
+
+        filterText =
+            Maybe.withDefault "" filter.text
     in
         if List.isEmpty groups then
             div [] [ text "no alerts found found" ]
         else
             div []
-                [ Html.map ForParent (textField "Filter" filter.text (UpdateFilter filter))
+                [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
                 , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
                 , ul
                     [ classList

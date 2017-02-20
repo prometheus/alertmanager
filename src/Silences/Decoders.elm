@@ -2,7 +2,8 @@ module Silences.Decoders exposing (..)
 
 import Json.Decode as Json exposing (field)
 import Utils.Api exposing (iso8601Time)
-import Silences.Types exposing (Silence, Matcher)
+import Silences.Types exposing (Silence)
+import Utils.Types exposing (Matcher)
 
 
 show : Json.Decoder Silence

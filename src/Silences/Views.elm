@@ -9,8 +9,8 @@ import Html.Events exposing (onClick, onInput)
 
 -- Internal Imports
 
-import Silences.Types exposing (Silence, Matcher, SilencesMsg(..), Msg(..))
-import Utils.Types exposing (ApiResponse(..))
+import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..))
+import Utils.Types exposing (Matcher, ApiResponse(..))
 import Utils.Views exposing (..)
 import Utils.Date
 

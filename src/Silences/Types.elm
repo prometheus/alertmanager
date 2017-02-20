@@ -1,7 +1,7 @@
 module Silences.Types exposing (..)
 
 import Http
-import Utils.Types exposing (Time)
+import Utils.Types exposing (Time, Matcher)
 import Utils.Date
 import Time
 import ISO8601
@@ -15,13 +15,6 @@ type alias Silence =
     , endsAt : Time
     , createdAt : Time
     , matchers : List Matcher
-    }
-
-
-type alias Matcher =
-    { name : String
-    , value : String
-    , isRegex : Bool
     }
 
 

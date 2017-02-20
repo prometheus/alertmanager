@@ -11,9 +11,30 @@ type ApiResponse e a
 
 
 type alias Filter =
-    { text : String
-    , labels : List ( String, String )
+    { text : Maybe String
+    , matchers : Maybe Matchers
+    , receiver : Maybe String
+    , showSilenced : Maybe Bool
     }
+
+
+type alias Matcher =
+    { name : String
+    , value : String
+    , isRegex : Bool
+    }
+
+
+type alias Matchers =
+    List Matcher
+
+
+type alias Labels =
+    List Label
+
+
+type alias Label =
+    ( String, String )
 
 
 type alias ApiData a =
