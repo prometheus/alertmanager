@@ -34,7 +34,7 @@ update msg groups filter =
 
                 query =
                     empty
-                        |> addMaybe "receiver" filter.receiver toString
+                        |> addMaybe "receiver" filter.receiver identity
                         |> addMaybe "silenced" filter.showSilenced (toString >> String.toLower)
                         |> addMaybe "query" filter.text identity
                         |> render
