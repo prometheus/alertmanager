@@ -23,21 +23,24 @@ view route alertGroups filter =
 
         filterText =
             Maybe.withDefault "" filter.text
-    in
-        if List.isEmpty groups then
-            div [] [ text "no alerts found found" ]
-        else
-            div []
-                [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
-                , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
-                , ul
+
+        alertHtml =
+            if List.isEmpty groups then
+                div [ class "mt2" ] [ text "no alerts found found" ]
+            else
+                ul
                     [ classList
                         [ ( "list", True )
                         , ( "pa0", True )
                         ]
                     ]
                     (List.map alertGroupView groups)
-                ]
+    in
+        div []
+            [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
+            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
+            , alertHtml
+            ]
 
 
 alertGroupView : AlertGroup -> Html Msg
