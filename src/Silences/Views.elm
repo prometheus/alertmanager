@@ -94,7 +94,7 @@ silenceExtra silence =
 -- TODO: Add field validations.
 
 
-silenceForm : String -> Silence -> Html SilencesMsg
+silenceForm : String -> Silence -> Html Msg
 silenceForm kind silence =
     let
         base =
@@ -138,6 +138,7 @@ silenceForm kind silence =
                     ]
                 ]
             ]
+            |> (Html.map ForSelf)
 
 
 matcherForm : Silence -> Matcher -> Html SilencesMsg

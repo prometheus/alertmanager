@@ -28,7 +28,7 @@ view model =
         NewSilenceRoute ->
             case model.silence of
                 Success silence ->
-                    Html.map silenceTranslator (Html.map Silences.Types.ForSelf (Silences.Views.silenceForm "New" silence))
+                    Html.map silenceTranslator (Silences.Views.silenceForm "New" silence)
 
                 Loading ->
                     loading
@@ -39,7 +39,7 @@ view model =
         EditSilenceRoute id ->
             case model.silence of
                 Success silence ->
-                    Html.map silenceTranslator (Html.map Silences.Types.ForSelf (Silences.Views.silenceForm "Edit" silence))
+                    Html.map silenceTranslator (Silences.Views.silenceForm "Edit" silence)
 
                 Loading ->
                     loading
