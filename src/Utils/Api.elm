@@ -32,6 +32,11 @@ post url body decoder =
     request "POST" [] url body decoder
 
 
+delete : String -> Json.Decoder a -> Http.Request a
+delete url decoder =
+    request "DELETE" [] url Http.emptyBody decoder
+
+
 request : String -> List Http.Header -> String -> Http.Body -> Json.Decoder a -> Http.Request a
 request method headers url body decoder =
     Http.request

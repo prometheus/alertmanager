@@ -42,7 +42,7 @@ type SilencesMsg
     | NewDefaultTimeRange Time.Time
     | Noop
     | SilenceCreate (Utils.Types.ApiData Int)
-    | SilenceDestroy (Result Http.Error String)
+    | SilenceDestroy (Utils.Types.ApiData String)
     | CreateSilence Silence
     | DestroySilence Silence
 

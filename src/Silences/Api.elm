@@ -56,24 +56,10 @@ destroy silence =
         url =
             String.join "/" [ baseUrl, "silence", toString silence.id ]
 
-        body =
-            Http.jsonBody <| Silences.Encoders.silence silence
+        responseDecoder =
+            -- Silences.Encoders.silence silence
+            Silences.Decoders.destroy
     in
-        Http.send SilenceDestroy
-            (Http.request
-                { method = "DELETE"
-                , headers = []
-                , url = url
-                , body =
-                    Http.emptyBody
-                    -- Body being sent
-                , expect =
-                    (Http.expectJson Silences.Decoders.destroy)
-                    -- Response expected
-                , timeout =
-                    Nothing
-                    -- Just (200 * Time.millisecond)
-                , withCredentials = False
-                }
-            )
-            |> Cmd.map ForSelf
+        Utils.Api.send
+            (Utils.Api.delete url responseDecoder)
+            |> Cmd.map (SilenceDestroy >> ForSelf)

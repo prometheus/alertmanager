@@ -31,15 +31,20 @@ update msg silences silence =
                 Loading ->
                     ( silences, Loading, Navigation.newUrl "/#/silences" )
 
-        SilenceDestroy (Ok id) ->
+        SilenceDestroy silence ->
             -- TODO: "Deleted id: ID" growl
             -- TODO: Add DELETE to accepted CORS methods in alertmanager
             -- TODO: Check why POST isn't there but is accepted
-            ( silences, Loading, Navigation.newUrl "/#/silences" )
+            let
+                res =
+                    case silence of
+                        Failure err ->
+                            Failure err
 
-        SilenceDestroy (Err err) ->
-            -- TODO: Add error to the message or something.
-            ( silences, Failure err, Navigation.newUrl "/#/silences" )
+                        _ ->
+                            Loading
+            in
+                ( silences, res, Navigation.newUrl "/#/silences" )
 
         UpdateStartsAt silence time ->
             -- TODO:
