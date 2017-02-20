@@ -24,11 +24,21 @@ send =
 
 get : String -> Json.Decoder a -> Http.Request a
 get url decoder =
+    request "GET" [] url Http.emptyBody decoder
+
+
+post : String -> Http.Body -> Json.Decoder a -> Http.Request a
+post url body decoder =
+    request "POST" [] url body decoder
+
+
+request : String -> List Http.Header -> String -> Http.Body -> Json.Decoder a -> Http.Request a
+request method headers url body decoder =
     Http.request
-        { method = "GET"
-        , headers = []
+        { method = method
+        , headers = headers
         , url = url
-        , body = Http.emptyBody
+        , body = body
         , expect = Http.expectJson decoder
         , timeout = Just (500 * Time.millisecond)
         , withCredentials = False

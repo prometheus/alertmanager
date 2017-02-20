@@ -41,7 +41,7 @@ type SilencesMsg
     | UpdateComment Silence String
     | NewDefaultTimeRange Time.Time
     | Noop
-    | SilenceCreate (Result Http.Error Int)
+    | SilenceCreate (Utils.Types.ApiData Int)
     | SilenceDestroy (Result Http.Error String)
     | CreateSilence Silence
     | DestroySilence Silence

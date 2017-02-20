@@ -18,7 +18,7 @@ getSilences =
     in
         -- TODO: Talk with fabxc about adding some sort of filter for e.g.
         -- entering values into a search bar or clicking on labels
-        Utils.Api.send (Http.get url list)
+        Utils.Api.send (Utils.Api.get url list)
             |> Cmd.map Types.SilencesFetch
 
 
@@ -28,7 +28,7 @@ getSilence id =
         url =
             String.join "/" [ baseUrl, "silence", toString id ]
     in
-        Utils.Api.send (Http.get url show)
+        Utils.Api.send (Utils.Api.get url show)
             |> Cmd.map Types.SilenceFetch
 
 
@@ -43,9 +43,9 @@ create silence =
     in
         -- TODO: This should return the silence, not just the ID, so that we can
         -- redirect to the silence show page.
-        Http.send SilenceCreate
-            (Http.post url body Silences.Decoders.create)
-            |> Cmd.map ForSelf
+        Utils.Api.send
+            (Utils.Api.post url body Silences.Decoders.create)
+            |> Cmd.map (SilenceCreate >> ForSelf)
 
 
 destroy : Silence -> Cmd Msg

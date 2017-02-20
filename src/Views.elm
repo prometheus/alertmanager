@@ -33,8 +33,8 @@ view model =
                 Loading ->
                     loading
 
-                _ ->
-                    notFoundView model
+                Failure msg ->
+                    error msg
 
         EditSilenceRoute id ->
             case model.silence of
@@ -44,8 +44,8 @@ view model =
                 Loading ->
                     loading
 
-                _ ->
-                    notFoundView model
+                Failure msg ->
+                    error msg
 
         SilencesRoute ->
             -- Add buttons at the top to filter Active/Pending/Expired
@@ -56,8 +56,8 @@ view model =
                 Loading ->
                     loading
 
-                _ ->
-                    notFoundView model
+                Failure msg ->
+                    error msg
 
         SilenceRoute name ->
             case model.silence of
@@ -67,8 +67,8 @@ view model =
                 Loading ->
                     loading
 
-                _ ->
-                    notFoundView model
+                Failure msg ->
+                    error msg
 
         _ ->
             notFoundView model

@@ -20,11 +20,16 @@ update msg silences silence =
         DestroySilence silence ->
             ( silences, Loading, Api.destroy silence )
 
-        SilenceCreate (Ok id) ->
-            ( silences, Loading, Navigation.newUrl ("/#/silences/" ++ toString id) )
+        SilenceCreate silence ->
+            case silence of
+                Success id ->
+                    ( silences, Loading, Navigation.newUrl ("/#/silences/" ++ toString id) )
 
-        SilenceCreate (Err err) ->
-            ( silences, Failure err, Navigation.newUrl "/#/silences" )
+                Failure err ->
+                    ( silences, Failure err, Navigation.newUrl "/#/silences" )
+
+                Loading ->
+                    ( silences, Loading, Navigation.newUrl "/#/silences" )
 
         SilenceDestroy (Ok id) ->
             -- TODO: "Deleted id: ID" growl
