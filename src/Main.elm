@@ -103,7 +103,14 @@ update msg model =
             ( model, Navigation.newUrl "/#/alerts" )
 
         UpdateFilter filter text ->
-            ( { model | filter = { filter | text = Just text } }, Cmd.none )
+            let
+                t =
+                    if text == "" then
+                        Nothing
+                    else
+                        Just text
+            in
+                ( { model | filter = { filter | text = t } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )
