@@ -1,10 +1,6 @@
 module Alerts.Api exposing (..)
 
--- External Imports
-
-import Http
 import Json.Decode as Json exposing (..)
-import String
 import Utils.Api exposing (baseUrl, stringtoISO8601)
 import Alerts.Types exposing (..)
 
@@ -15,7 +11,7 @@ getAlertGroups =
         url =
             String.join "/" [ baseUrl, "alerts", "groups" ]
     in
-        Utils.Api.send (Http.get url alertGroupsDecoder)
+        Utils.Api.send (Utils.Api.get url alertGroupsDecoder)
             |> Cmd.map (AlertGroupsFetch >> ForSelf)
 
 

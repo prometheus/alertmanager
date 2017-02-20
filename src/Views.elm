@@ -1,13 +1,8 @@
 module Views exposing (..)
 
--- External Imports
-
 import Html exposing (..)
 import Html.Attributes exposing (..)
-
-
--- Internal Imports
-
+import Http exposing (Error(..))
 import Types exposing (..)
 import Utils.Types exposing (ApiResponse(..))
 import Translators exposing (alertTranslator, silenceTranslator)
@@ -27,8 +22,8 @@ view model =
                 Loading ->
                     loading
 
-                _ ->
-                    notFoundView model
+                Failure msg ->
+                    error msg
 
         NewSilenceRoute ->
             case model.silence of
@@ -99,6 +94,33 @@ notFoundView model =
     div []
         [ h1 [] [ text "not found" ]
         ]
+
+
+error : Http.Error -> Html msg
+error err =
+    let
+        msg =
+            case err of
+                Timeout ->
+                    "timeout exceeded"
+
+                NetworkError ->
+                    "network error"
+
+                BadStatus resp ->
+                    "bad status: " ++ resp.status.message
+
+                BadPayload payload resp ->
+                    -- OK status, unexpected payload
+                    "unexpected response from api"
+
+                BadUrl url ->
+                    "malformed url: " ++ url
+    in
+        div []
+            [ h1 [] [ text "Error" ]
+            , p [] [ text msg ]
+            ]
 
 
 apiDataList : (a -> Html msg) -> List a -> Html msg

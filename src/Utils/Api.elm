@@ -4,6 +4,7 @@ import Json.Decode as Json exposing (field)
 import ISO8601
 import Utils.Types exposing (ApiResponse(..), ApiData, Time)
 import Http
+import Time
 
 
 fromResult : Result e a -> ApiResponse e a
@@ -19,6 +20,19 @@ fromResult result =
 send : Http.Request a -> Cmd (ApiData a)
 send =
     Http.send fromResult
+
+
+get : String -> Json.Decoder a -> Http.Request a
+get url decoder =
+    Http.request
+        { method = "GET"
+        , headers = []
+        , url = url
+        , body = Http.emptyBody
+        , expect = Http.expectJson decoder
+        , timeout = Just (500 * Time.millisecond)
+        , withCredentials = False
+        }
 
 
 stringtoISO8601 : Json.Decoder ISO8601.Time
