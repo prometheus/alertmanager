@@ -25,4 +25,4 @@ boolParam name =
 
 alertsParser : Parser (Route -> a) a
 alertsParser =
-    map Receiver (s "alerts" <?> stringParam "receiver" <?> boolParam "silenced" <?> stringParam "query")
+    map Receiver (s "alerts" <?> stringParam "receiver" <?> boolParam "silenced" <?> stringParam "filter")

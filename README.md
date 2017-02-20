@@ -12,11 +12,17 @@ By default, the alerts page only shows active (not silenced) alerts. Adding a qu
 http://alertmanager/#/alerts?silenced=true
 ```
 
+Filter based on label matching are available.
+
+```
+http://alertmanager/#/alerts?filter=backend
+```
+
 The alerts page can also be filtered by the receivers for a page. Receivers are
 configured in Alertmanager's yaml configuration file.
 
 ```
-http://alertmanager/#/alerts?receiver=backend
+http://alertmanager/#/alerts?filter=severity%3Dwarning%2C%20owner%3Dbackend%2C%20env%3Dstaging
 ```
 
 These filters can be used in conjunction.

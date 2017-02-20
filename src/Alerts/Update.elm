@@ -36,7 +36,7 @@ update msg groups filter =
                     empty
                         |> addMaybe "receiver" filter.receiver identity
                         |> addMaybe "silenced" filter.showSilenced (toString >> String.toLower)
-                        |> addMaybe "query" filter.text identity
+                        |> addMaybe "filter" filter.text identity
                         |> render
             in
                 ( groups, f, Navigation.newUrl <| "/#/alerts" ++ query )
