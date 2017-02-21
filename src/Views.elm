@@ -82,13 +82,6 @@ loading =
         ]
 
 
-todoView : a -> Html Msg
-todoView model =
-    div []
-        [ h1 [] [ text "todo" ]
-        ]
-
-
 notFoundView : a -> Html msg
 notFoundView model =
     div []
