@@ -45,7 +45,7 @@ request method headers url body decoder =
         , url = url
         , body = body
         , expect = Http.expectJson decoder
-        , timeout = Just (500 * Time.millisecond)
+        , timeout = Just defaultTimeout
         , withCredentials = False
         }
 
@@ -75,6 +75,11 @@ iso8601Time fieldName =
 baseUrl : String
 baseUrl =
     "http://alertmanager.int.s-cloud.net/api/v1"
+
+
+defaultTimeout : Time.Time
+defaultTimeout =
+    1000 * Time.millisecond
 
 
 
