@@ -36,6 +36,7 @@ type Msg
     | Alerts AlertsMsg
     | Silences SilencesMsg
     | RedirectAlerts
+    | NewUrl String
     | Noop
 
 

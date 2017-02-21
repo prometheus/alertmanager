@@ -23,13 +23,13 @@ update msg silences silence =
         SilenceCreate silence ->
             case silence of
                 Success id ->
-                    ( silences, Loading, Navigation.newUrl ("/#/silences/" ++ toString id) )
+                    ( silences, Loading, generateParentMsg <| NewUrl ("/#/silences/" ++ toString id) )
 
                 Failure err ->
-                    ( silences, Failure err, Navigation.newUrl "/#/silences" )
+                    ( silences, Failure err, generateParentMsg <| NewUrl "/#/silences" )
 
                 Loading ->
-                    ( silences, Loading, Navigation.newUrl "/#/silences" )
+                    ( silences, Loading, generateParentMsg <| NewUrl "/#/silences" )
 
         SilenceDestroy silence ->
             -- TODO: "Deleted id: ID" growl
@@ -44,7 +44,7 @@ update msg silences silence =
                         _ ->
                             Loading
             in
-                ( silences, res, Navigation.newUrl "/#/silences" )
+                ( silences, res, generateParentMsg <| NewUrl "/#/silences" )
 
         UpdateStartsAt silence time ->
             -- TODO:
@@ -132,3 +132,8 @@ update msg silences silence =
 
         Noop ->
             ( silences, silence, Cmd.none )
+
+
+generateParentMsg : OutMsg -> Cmd Msg
+generateParentMsg outMsg =
+    Task.perform ForParent (Task.succeed outMsg)

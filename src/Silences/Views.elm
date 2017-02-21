@@ -127,7 +127,7 @@ silenceForm kind silence =
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
                     , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
                     ]
-                , div [] <| List.map boundMatcherForm silence.matchers
+                , div [] (List.map boundMatcherForm silence.matchers)
                 , iconButtonMsg "blue" "fa-plus" (AddMatcher silence)
                 , formField "Creator" silence.createdBy (UpdateCreatedBy silence)
                 , textField "Comment" silence.comment (UpdateComment silence)

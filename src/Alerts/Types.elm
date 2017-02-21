@@ -18,6 +18,7 @@ type Msg
 type OutMsg
     = SilenceFromAlert Alert
     | UpdateFilter Filter String
+    | NewUrl String
 
 
 type AlertsMsg

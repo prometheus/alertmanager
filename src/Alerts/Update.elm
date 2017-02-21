@@ -38,15 +38,28 @@ update msg groups filter =
                         |> addMaybe "silenced" filter.showSilenced (toString >> String.toLower)
                         |> addMaybe "filter" filter.text identity
                         |> render
+
+                url =
+                    "/#/alerts" ++ query
             in
-                ( groups, f, Navigation.newUrl <| "/#/alerts" ++ query )
+                -- Pass this upward as a "NewUrl url" Cmd Msg
+                ( groups, f, generateParentMsg (NewUrl url) )
+
+
+generateParentMsg : OutMsg -> Cmd Msg
+generateParentMsg outMsg =
+    Task.perform ForParent (Task.succeed outMsg)
 
 
 updateFilter : Route -> Filter
 updateFilter route =
     case route of
         Receiver maybeReceiver maybeShowSilenced maybeQuery ->
-            { receiver = maybeReceiver, showSilenced = maybeShowSilenced, text = maybeQuery, matchers = Utils.Parsing.parseLabels maybeQuery }
+            { receiver = maybeReceiver
+            , showSilenced = maybeShowSilenced
+            , text = maybeQuery
+            , matchers = Utils.Parsing.parseLabels maybeQuery
+            }
 
 
 addMaybe : String -> Maybe a -> (a -> String) -> QueryString -> QueryString

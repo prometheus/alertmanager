@@ -20,6 +20,11 @@ type alias Silence =
 
 type Msg
     = ForSelf SilencesMsg
+    | ForParent OutMsg
+
+
+type OutMsg
+    = NewUrl String
 
 
 type SilencesMsg

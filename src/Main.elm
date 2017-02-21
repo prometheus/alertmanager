@@ -100,7 +100,7 @@ update msg model =
             ( { model | route = NewSilenceRoute }, (Task.perform Silences.Types.NewDefaultTimeRange Time.now) |> Cmd.map Silences )
 
         RedirectAlerts ->
-            ( model, Navigation.newUrl "/#/alerts" )
+            ( model, Task.perform NewUrl (Task.succeed "/#/alerts") )
 
         UpdateFilter filter text ->
             let
@@ -111,6 +111,9 @@ update msg model =
                         Just text
             in
                 ( { model | filter = { filter | text = t } }, Cmd.none )
+
+        NewUrl url ->
+            ( model, Navigation.newUrl url )
 
         Noop ->
             ( model, Cmd.none )
