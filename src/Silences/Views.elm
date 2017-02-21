@@ -15,6 +15,17 @@ import Utils.Views exposing (..)
 import Utils.Date
 
 
+silences : List Silence -> Html Msg
+silences silences =
+    ul
+        [ classList
+            [ ( "list", True )
+            , ( "pa0", True )
+            ]
+        ]
+        (List.map silenceList silences)
+
+
 silenceList : Silence -> Html Msg
 silenceList silence =
     li

@@ -51,7 +51,7 @@ view model =
             -- Add buttons at the top to filter Active/Pending/Expired
             case model.silences of
                 Success silences ->
-                    Html.map silenceTranslator (apiDataList Silences.Views.silenceList silences)
+                    Html.map silenceTranslator (Silences.Views.silences silences)
 
                 Loading ->
                     loading
@@ -121,14 +121,3 @@ error err =
             [ h1 [] [ text "Error" ]
             , p [] [ text msg ]
             ]
-
-
-apiDataList : (a -> Html msg) -> List a -> Html msg
-apiDataList fn list =
-    ul
-        [ classList
-            [ ( "list", True )
-            , ( "pa0", True )
-            ]
-        ]
-        (List.map fn list)
