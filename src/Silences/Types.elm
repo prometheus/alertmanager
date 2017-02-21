@@ -1,7 +1,7 @@
 module Silences.Types exposing (..)
 
 import Http
-import Utils.Types exposing (Time, Matcher)
+import Utils.Types exposing (Time, Matcher, Filter)
 import Utils.Date
 import Time
 import ISO8601
@@ -25,6 +25,8 @@ type Msg
 
 type OutMsg
     = NewUrl String
+    | UpdateFilter Filter String
+    | ParseFilterText
 
 
 type SilencesMsg
@@ -43,6 +45,7 @@ type SilencesMsg
     | SilenceDestroy (Utils.Types.ApiData String)
     | CreateSilence Silence
     | DestroySilence Silence
+    | FilterSilences
 
 
 nullSilence : Silence

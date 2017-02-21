@@ -37,11 +37,12 @@ type Msg
     | Silences SilencesMsg
     | RedirectAlerts
     | NewUrl String
+    | ParseFilterText
     | Noop
 
 
 type Route
-    = SilencesRoute
+    = SilencesRoute (Maybe String)
     | NewSilenceRoute
     | SilenceRoute Int
     | EditSilenceRoute Int

@@ -9,6 +9,7 @@ import Alerts.Update
 import Alerts.Types exposing (Route(Receiver))
 import Types exposing (..)
 import Utils.Types exposing (..)
+import Utils.Parsing
 import Silences.Api
 import Silences.Types exposing (Silence, nullTime, nullSilence)
 import Silences.Update
@@ -35,6 +36,14 @@ init location =
             case route of
                 AlertsRoute alertsRoute ->
                     Alerts.Update.updateFilter alertsRoute
+
+                -- TODO: Extract silences routes to silences namespace
+                SilencesRoute maybeQuery ->
+                    { receiver = Nothing
+                    , showSilenced = Nothing
+                    , text = maybeQuery
+                    , matchers = Utils.Parsing.parseLabels maybeQuery
+                    }
 
                 _ ->
                     { text = Nothing, matchers = Nothing, receiver = Nothing, showSilenced = Nothing }
@@ -78,12 +87,12 @@ update msg model =
         Silences silencesMsg ->
             let
                 ( silences, silence, silenceCmd ) =
-                    Silences.Update.update silencesMsg model.silences model.silence
+                    Silences.Update.update silencesMsg model.silences model.silence model.filter
             in
                 ( { model | silences = silences, silence = silence }, Cmd.map silenceTranslator silenceCmd )
 
         FetchSilences ->
-            ( { model | silences = Loading, route = SilencesRoute }, Silences.Api.getSilences )
+            ( { model | silences = Loading, route = (SilencesRoute model.filter.text) }, Silences.Api.getSilences )
 
         FetchSilence id ->
             ( { model | silence = Loading, route = SilenceRoute id }, Silences.Api.getSilence id )
@@ -112,6 +121,16 @@ update msg model =
         NewUrl url ->
             ( model, Navigation.newUrl url )
 
+        ParseFilterText ->
+            let
+                filter =
+                    model.filter
+
+                f =
+                    { filter | matchers = Utils.Parsing.parseLabels filter.text }
+            in
+                ( { model | filter = f }, Cmd.none )
+
         Noop ->
             ( model, Cmd.none )
 
@@ -123,7 +142,7 @@ urlUpdate location =
             Parsing.urlParser location
     in
         case route of
-            SilencesRoute ->
+            SilencesRoute _ ->
                 FetchSilences
 
             NewSilenceRoute ->

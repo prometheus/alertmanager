@@ -47,11 +47,11 @@ view model =
                 Failure msg ->
                     error msg
 
-        SilencesRoute ->
+        SilencesRoute _ ->
             -- Add buttons at the top to filter Active/Pending/Expired
             case model.silences of
                 Success silences ->
-                    Html.map silenceTranslator (Silences.Views.silences silences)
+                    Html.map silenceTranslator (Silences.Views.silences silences model.filter)
 
                 Loading ->
                     loading

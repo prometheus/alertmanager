@@ -4,15 +4,16 @@ import Navigation
 import Silences.Api as Api
 import Silences.Types exposing (..)
 import Task
-import Utils.Types as Types exposing (ApiData, ApiResponse(..), Time)
+import Utils.Types as Types exposing (ApiData, ApiResponse(..), Time, Filter, Matchers)
 import ISO8601
 import Time
 import Utils.Date
 import Utils.List
+import Utils.Filter exposing (generateQueryString)
 
 
-update : SilencesMsg -> ApiData (List Silence) -> ApiData Silence -> ( ApiData (List Silence), ApiData Silence, Cmd Msg )
-update msg silences silence =
+update : SilencesMsg -> ApiData (List Silence) -> ApiData Silence -> Filter -> ( ApiData (List Silence), ApiData Silence, Cmd Msg )
+update msg silences silence filter =
     case msg of
         CreateSilence silence ->
             ( silences, Loading, Api.create silence )
@@ -130,6 +131,16 @@ update msg silences silence =
             in
                 ( silences, Success { sil | startsAt = startsAt, endsAt = endsAt }, Cmd.none )
 
+        FilterSilences ->
+            let
+                url =
+                    "/#/silences" ++ (generateQueryString filter)
+
+                cmds =
+                    Cmd.batch [ generateParentMsg ParseFilterText, generateParentMsg (NewUrl url) ]
+            in
+                ( silences, silence, cmds )
+
         Noop ->
             ( silences, silence, Cmd.none )
 
@@ -137,3 +148,21 @@ update msg silences silence =
 generateParentMsg : OutMsg -> Cmd Msg
 generateParentMsg outMsg =
     Task.perform ForParent (Task.succeed outMsg)
+
+
+filterByMatchers : Maybe Matchers -> List Silence -> List Silence
+filterByMatchers maybeMatchers silences =
+    case maybeMatchers of
+        Just matchers ->
+            List.filter
+                (\s ->
+                    List.all
+                        (\m ->
+                            List.member m s.matchers
+                        )
+                        matchers
+                )
+                silences
+
+        Nothing ->
+            silences

@@ -5,7 +5,7 @@ module Parsing exposing (..)
 import Alerts.Parsing exposing (alertsParser)
 import Navigation
 import Types exposing (Route(..))
-import UrlParser exposing ((</>), Parser, int, map, oneOf, parseHash, s, string)
+import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
 import Regex
 
 
@@ -52,9 +52,9 @@ urlParser location =
                 NotFound
 
 
-silencesParser : Parser a a
+silencesParser : Parser (Maybe String -> a) a
 silencesParser =
-    s "silences"
+    s "silences" <?> stringParam "filter"
 
 
 newSilenceParser : Parser a a

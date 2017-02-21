@@ -9,21 +9,39 @@ import Html.Events exposing (onClick, onInput)
 
 -- Internal Imports
 
-import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..))
-import Utils.Types exposing (Matcher, ApiResponse(..))
+import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..), OutMsg(UpdateFilter))
+import Silences.Update exposing (filterByMatchers)
+import Utils.Types exposing (Matcher, ApiResponse(..), Filter)
 import Utils.Views exposing (..)
 import Utils.Date
 
 
-silences : List Silence -> Html Msg
-silences silences =
-    ul
-        [ classList
-            [ ( "list", True )
-            , ( "pa0", True )
+silences : List Silence -> Filter -> Html Msg
+silences silences filter =
+    let
+        groups =
+            filterByMatchers filter.matchers silences
+
+        filterText =
+            Maybe.withDefault "" filter.text
+
+        html =
+            if List.isEmpty groups then
+                div [ class "mt2" ] [ text "no silences found found" ]
+            else
+                ul
+                    [ classList
+                        [ ( "list", True )
+                        , ( "pa0", True )
+                        ]
+                    ]
+                    (List.map silenceList groups)
+    in
+        div []
+            [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
+            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterSilences) ] [ text "Filter Silences" ]
+            , html
             ]
-        ]
-        (List.map silenceList silences)
 
 
 silenceList : Silence -> Html Msg
