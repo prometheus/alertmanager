@@ -39,14 +39,12 @@ init location =
                 _ ->
                     { text = Nothing, matchers = Nothing, receiver = Nothing, showSilenced = Nothing }
     in
-        -- Need to parse out the filter text with the url parser
         update (urlUpdate location) (Model Loading Loading Loading route filter)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        -- HTTP Result messages
         SilencesFetch silences ->
             ( { model | silences = silences }, Cmd.none )
 
@@ -84,7 +82,6 @@ update msg model =
             in
                 ( { model | silences = silences, silence = silence }, Cmd.map silenceTranslator silenceCmd )
 
-        -- API interaction messages
         FetchSilences ->
             ( { model | silences = Loading, route = SilencesRoute }, Silences.Api.getSilences )
 
