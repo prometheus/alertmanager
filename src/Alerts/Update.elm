@@ -42,7 +42,6 @@ update msg groups filter =
                 url =
                     "/#/alerts" ++ query
             in
-                -- Pass this upward as a "NewUrl url" Cmd Msg
                 ( groups, f, generateParentMsg (NewUrl url) )
 
 
