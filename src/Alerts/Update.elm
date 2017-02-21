@@ -105,11 +105,13 @@ filterAlertGroup receiver alertGroup =
 
 filterBySilenced : Maybe Bool -> List AlertGroup -> List AlertGroup
 filterBySilenced maybeShowSilenced groups =
-    case maybeShowSilenced of
-        Just showSilenced ->
+    let
+        showSilenced =
+            Maybe.withDefault False maybeShowSilenced
+    in
+        if showSilenced then
             groups
-
-        Nothing ->
+        else
             filterBy filterAlertGroupSilenced groups
 
 

@@ -15,7 +15,6 @@ boolParam name =
                     Nothing
 
                 Just value ->
-                    -- TODO: Handle Just False case
                     if (String.toLower value) == "false" then
                         Just False
                     else
