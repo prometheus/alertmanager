@@ -47,11 +47,11 @@ generateParentMsg outMsg =
 updateFilter : Route -> Filter
 updateFilter route =
     case route of
-        Receiver maybeReceiver maybeShowSilenced maybeQuery ->
+        Receiver maybeReceiver maybeShowSilenced maybeFilter ->
             { receiver = maybeReceiver
             , showSilenced = maybeShowSilenced
-            , text = maybeQuery
-            , matchers = Utils.Parsing.parseLabels maybeQuery
+            , text = maybeFilter
+            , matchers = Utils.Parsing.parseLabels maybeFilter
             }
 
 

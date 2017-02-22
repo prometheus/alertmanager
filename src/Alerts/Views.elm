@@ -16,7 +16,7 @@ view route alertGroups filter =
     let
         groups =
             case route of
-                Receiver maybeReceiver maybeShowSilenced maybeQuery ->
+                Receiver maybeReceiver maybeShowSilenced maybeFilter ->
                     receiver maybeReceiver alertGroups
                         |> silenced maybeShowSilenced
                         |> labels filter.matchers

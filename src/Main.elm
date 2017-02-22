@@ -38,11 +38,11 @@ init location =
                     Alerts.Update.updateFilter alertsRoute
 
                 -- TODO: Extract silences routes to silences namespace
-                SilencesRoute maybeQuery ->
+                SilencesRoute maybeFilter ->
                     { receiver = Nothing
                     , showSilenced = Nothing
-                    , text = maybeQuery
-                    , matchers = Utils.Parsing.parseLabels maybeQuery
+                    , text = maybeFilter
+                    , matchers = Utils.Parsing.parseLabels maybeFilter
                     }
 
                 _ ->
@@ -142,7 +142,7 @@ urlUpdate location =
             Parsing.urlParser location
     in
         case route of
-            SilencesRoute _ ->
+            SilencesRoute maybeFilter ->
                 FetchSilences
 
             NewSilenceRoute ->
