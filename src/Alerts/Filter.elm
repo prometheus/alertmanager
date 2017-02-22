@@ -1,12 +1,8 @@
-module Alerts.Filter exposing (receiver, silenced, labels)
+module Alerts.Filter exposing (receiver, silenced, matchers)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block)
 import Utils.Types exposing (Matchers)
-
-
-by : (a -> Maybe a) -> List a -> List a
-by fn groups =
-    List.filterMap fn groups
+import Regex
 
 
 receiver : Maybe String -> List AlertGroup -> List AlertGroup
@@ -19,11 +15,11 @@ receiver maybeReceiver groups =
             groups
 
 
-labels : Maybe Utils.Types.Matchers -> List AlertGroup -> List AlertGroup
-labels labels groups =
-    case labels of
-        Just ls ->
-            by (filterAlertGroupLabels ls) groups
+matchers : Maybe Utils.Types.Matchers -> List AlertGroup -> List AlertGroup
+matchers matchers groups =
+    case matchers of
+        Just ms ->
+            by (filterAlertGroupLabels ms) groups
 
         Nothing ->
             groups
@@ -38,7 +34,7 @@ silenced maybeShowSilenced groups =
         if showSilenced then
             groups
         else
-            by filterAlertGroupSilenced groups
+            by alertGroupsSilenced groups
 
 
 filterAlertGroup : String -> AlertGroup -> Maybe AlertGroup
@@ -53,8 +49,8 @@ filterAlertGroup receiver alertGroup =
             Nothing
 
 
-filterAlertsFromBlock : (Alert -> Bool) -> Block -> Maybe Block
-filterAlertsFromBlock fn block =
+alertsFromBlock : (Alert -> Bool) -> Block -> Maybe Block
+alertsFromBlock fn block =
     let
         alerts =
             List.filter fn block.alerts
@@ -65,16 +61,34 @@ filterAlertsFromBlock fn block =
             Nothing
 
 
-filterAlertsByLabel : Utils.Types.Labels -> Block -> Maybe Block
-filterAlertsByLabel labels block =
-    filterAlertsFromBlock
+byLabel : Utils.Types.Matchers -> Block -> Maybe Block
+byLabel matchers block =
+    alertsFromBlock
         (\a ->
             -- Check that all labels are present within the alert's label set.
             List.all
-                (\l ->
-                    List.member l a.labels
+                (\m ->
+                    -- Check for regex or direct match
+                    if m.isRegex then
+                        -- Check if key is present, then regex match value.
+                        let
+                            x =
+                                List.head <| List.filter (\( key, value ) -> key == m.name) a.labels
+
+                            regex =
+                                Regex.regex m.value
+                        in
+                            -- No regex match
+                            case x of
+                                Just ( _, value ) ->
+                                    Regex.contains regex value
+
+                                Nothing ->
+                                    False
+                    else
+                        List.member ( m.name, m.value ) a.labels
                 )
-                labels
+                matchers
         )
         block
 
@@ -83,7 +97,7 @@ filterAlertGroupLabels : Utils.Types.Matchers -> AlertGroup -> Maybe AlertGroup
 filterAlertGroupLabels matchers alertGroup =
     let
         blocks =
-            List.filterMap (filterAlertsByLabel <| matchersToLabels matchers) alertGroup.blocks
+            List.filterMap (byLabel matchers) alertGroup.blocks
     in
         if not <| List.isEmpty blocks then
             Just { alertGroup | blocks = blocks }
@@ -96,8 +110,8 @@ matchersToLabels matchers =
     List.map (\m -> ( m.name, m.value )) matchers
 
 
-filterAlertGroupSilenced : AlertGroup -> Maybe AlertGroup
-filterAlertGroupSilenced alertGroup =
+alertGroupsSilenced : AlertGroup -> Maybe AlertGroup
+alertGroupsSilenced alertGroup =
     let
         blocks =
             List.filterMap filterSilencedAlerts alertGroup.blocks
@@ -110,4 +124,9 @@ filterAlertGroupSilenced alertGroup =
 
 filterSilencedAlerts : Block -> Maybe Block
 filterSilencedAlerts block =
-    filterAlertsFromBlock (.silenced >> not) block
+    alertsFromBlock (.silenced >> not) block
+
+
+by : (a -> Maybe a) -> List a -> List a
+by fn groups =
+    List.filterMap fn groups

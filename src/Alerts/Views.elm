@@ -2,7 +2,7 @@ module Alerts.Views exposing (view)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block, Route(..))
 import Alerts.Types exposing (AlertsMsg(..), Msg(..), OutMsg(..))
-import Alerts.Filter exposing (silenced, receiver, labels)
+import Alerts.Filter exposing (silenced, receiver, matchers)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -14,18 +14,18 @@ import Utils.Views exposing (..)
 view : Route -> List AlertGroup -> Filter -> Html Msg
 view route alertGroups filter =
     let
-        groups =
+        filteredGroups =
             case route of
                 Receiver maybeReceiver maybeShowSilenced maybeFilter ->
                     receiver maybeReceiver alertGroups
                         |> silenced maybeShowSilenced
-                        |> labels filter.matchers
+                        |> matchers filter.matchers
 
         filterText =
             Maybe.withDefault "" filter.text
 
         alertHtml =
-            if List.isEmpty groups then
+            if List.isEmpty filteredGroups then
                 div [ class "mt2" ] [ text "no alerts found found" ]
             else
                 ul
@@ -34,7 +34,7 @@ view route alertGroups filter =
                         , ( "pa0", True )
                         ]
                     ]
-                    (List.map alertGroupView groups)
+                    (List.map alertGroupView filteredGroups)
     in
         div []
             [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
