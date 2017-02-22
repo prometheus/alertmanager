@@ -118,9 +118,6 @@ update msg model =
             in
                 ( { model | filter = { filter | text = t } }, Cmd.none )
 
-        NewUrl url ->
-            ( model, Navigation.newUrl url )
-
         ParseFilterText ->
             let
                 filter =
@@ -130,6 +127,9 @@ update msg model =
                     { filter | matchers = Utils.Parsing.parseLabels filter.text }
             in
                 ( { model | filter = f }, Cmd.none )
+
+        NewUrl url ->
+            ( model, Navigation.newUrl url )
 
         Noop ->
             ( model, Cmd.none )
