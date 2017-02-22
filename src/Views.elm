@@ -103,7 +103,7 @@ error err =
                 BadStatus resp ->
                     "bad status: " ++ resp.status.message
 
-                BadPayload payload resp ->
+                BadPayload err resp ->
                     -- OK status, unexpected payload
                     "unexpected response from api"
 
