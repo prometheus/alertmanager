@@ -13,7 +13,7 @@ show =
 
 list : Json.Decoder (List Silence)
 list =
-    Json.at [ "data", "silences" ] (Json.list silence)
+    Json.at [ "data" ] (Json.list silence)
 
 
 create : Json.Decoder Int
@@ -33,12 +33,12 @@ destroy =
 silence : Json.Decoder Silence
 silence =
     Json.map7 Silence
-        (field "id" Json.int)
+        (field "id" Json.string)
         (field "createdBy" Json.string)
         (field "comment" Json.string)
         (iso8601Time "startsAt")
         (iso8601Time "endsAt")
-        (iso8601Time "createdAt")
+        (iso8601Time "updatedAt")
         (field "matchers" (Json.list matcher))
 
 

@@ -8,12 +8,12 @@ import ISO8601
 
 
 type alias Silence =
-    { id : Int
+    { id : String
     , createdBy : String
     , comment : String
     , startsAt : Time
     , endsAt : Time
-    , createdAt : Time
+    , updatedAt : Time
     , matchers : List Matcher
     }
 
@@ -50,7 +50,7 @@ type SilencesMsg
 
 nullSilence : Silence
 nullSilence =
-    Silence 0 "" "" nullTime nullTime nullTime [ nullMatcher ]
+    Silence "" "" "" nullTime nullTime nullTime [ nullMatcher ]
 
 
 nullMatcher : Matcher
