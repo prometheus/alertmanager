@@ -2,7 +2,7 @@ module Alerts.Views exposing (view)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block, Route(..))
 import Alerts.Types exposing (AlertsMsg(..), Msg(..), OutMsg(..))
-import Alerts.Update exposing (filterBySilenced, filterByReceiver, filterByLabels)
+import Alerts.Filter exposing (silenced, receiver, labels)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -17,9 +17,9 @@ view route alertGroups filter =
         groups =
             case route of
                 Receiver maybeReceiver maybeShowSilenced maybeQuery ->
-                    filterByReceiver maybeReceiver alertGroups
-                        |> filterBySilenced maybeShowSilenced
-                        |> filterByLabels filter.matchers
+                    receiver maybeReceiver alertGroups
+                        |> silenced maybeShowSilenced
+                        |> labels filter.matchers
 
         filterText =
             Maybe.withDefault "" filter.text
