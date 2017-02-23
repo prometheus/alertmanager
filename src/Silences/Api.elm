@@ -22,11 +22,11 @@ getSilences =
             |> Cmd.map Types.SilencesFetch
 
 
-getSilence : Int -> Cmd Types.Msg
-getSilence id =
+getSilence : String -> Cmd Types.Msg
+getSilence uuid =
     let
         url =
-            String.join "/" [ baseUrl, "silence", toString id ]
+            String.join "/" [ baseUrl, "silence", uuid ]
     in
         Utils.Api.send (Utils.Api.get url show)
             |> Cmd.map Types.SilenceFetch
@@ -54,7 +54,7 @@ destroy silence =
     -- be matching on /silences and ignoring the :sid, should be getting a 404.
     let
         url =
-            String.join "/" [ baseUrl, "silence", toString silence.id ]
+            String.join "/" [ baseUrl, "silence", silence.id ]
 
         responseDecoder =
             -- Silences.Encoders.silence silence

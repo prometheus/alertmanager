@@ -16,9 +16,9 @@ list =
     Json.at [ "data" ] (Json.list silence)
 
 
-create : Json.Decoder Int
+create : Json.Decoder String
 create =
-    (Json.at [ "data", "silenceId" ] Json.int)
+    (Json.at [ "data", "silenceId" ] Json.string)
 
 
 

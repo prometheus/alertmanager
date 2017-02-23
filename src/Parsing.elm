@@ -62,14 +62,14 @@ newSilenceParser =
     s "silences" </> s "new"
 
 
-silenceParser : Parser (Int -> a) a
+silenceParser : Parser (String -> a) a
 silenceParser =
-    s "silences" </> int
+    s "silences" </> string
 
 
-editSilenceParser : Parser (Int -> a) a
+editSilenceParser : Parser (String -> a) a
 editSilenceParser =
-    s "silences" </> int </> s "edit"
+    s "silences" </> string </> s "edit"
 
 
 topLevelParser : Parser a a

@@ -27,9 +27,9 @@ type Msg
     = SilenceFetch (ApiData Silence)
     | SilencesFetch (ApiData (List Silence))
     | FetchSilences
-    | FetchSilence Int
+    | FetchSilence String
     | NewSilence
-    | EditSilence Int
+    | EditSilence String
     | CreateSilenceFromAlert Alert
     | UpdateFilter Filter String
     | NavigateToAlerts Alerts.Types.Route
@@ -44,8 +44,8 @@ type Msg
 type Route
     = SilencesRoute (Maybe String)
     | NewSilenceRoute
-    | SilenceRoute Int
-    | EditSilenceRoute Int
+    | SilenceRoute String
+    | EditSilenceRoute String
     | AlertsRoute Alerts.Types.Route
     | TopLevel
     | NotFound

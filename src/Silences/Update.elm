@@ -24,7 +24,7 @@ update msg silences silence filter =
         SilenceCreate silence ->
             case silence of
                 Success id ->
-                    ( silences, Loading, generateParentMsg <| NewUrl ("/#/silences/" ++ toString id) )
+                    ( silences, Loading, generateParentMsg <| NewUrl ("/#/silences/" ++ id) )
 
                 Failure err ->
                     ( silences, Failure err, generateParentMsg <| NewUrl "/#/silences" )

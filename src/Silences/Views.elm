@@ -74,12 +74,12 @@ silenceBase silence =
                     ""
 
         editUrl =
-            String.join "/" [ "#/silences", toString silence.id, "edit" ]
+            String.join "/" [ "#/silences", silence.id, "edit" ]
     in
         div [ class "f6 mb3" ]
             [ a
                 [ class "db link blue mb3"
-                , href ("#/silences/" ++ (toString silence.id))
+                , href ("#/silences/" ++ silence.id)
                 ]
                 [ b [ class "db f4 mb1" ]
                     [ text alertName ]
