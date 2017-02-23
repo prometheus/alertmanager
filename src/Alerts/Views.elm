@@ -65,11 +65,11 @@ alertView alert =
                     id
 
                 Nothing ->
-                    0
+                    ""
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ toString id) "blue" (ForSelf Noop)
+                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" (ForSelf Noop)
             else
                 buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" (ForParent (SilenceFromAlert alert))
     in

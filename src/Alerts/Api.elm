@@ -68,7 +68,7 @@ alertDecoder =
         (field "annotations" (Json.keyValuePairs Json.string))
         (field "labels" (Json.keyValuePairs Json.string))
         (field "inhibited" Json.bool)
-        (Json.maybe (field "silenced" Json.int))
+        (Json.maybe (field "silenced" Json.string))
         (decodeSilenced)
         (field "startsAt" stringtoISO8601)
         (field "generatorURL" Json.string)
@@ -76,7 +76,7 @@ alertDecoder =
 
 decodeSilenced : Decoder Bool
 decodeSilenced =
-    Json.maybe (field "silenced" Json.int)
+    Json.maybe (field "silenced" Json.string)
         |> andThen
             (\val ->
                 case val of

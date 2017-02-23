@@ -48,7 +48,7 @@ type alias Alert =
     { annotations : Utils.Types.Labels
     , labels : Utils.Types.Labels
     , inhibited : Bool
-    , silenceId : Maybe Int
+    , silenceId : Maybe String
     , silenced : Bool
     , startsAt : ISO8601.Time
     , generatorUrl : String
