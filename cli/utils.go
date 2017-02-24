@@ -13,6 +13,11 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+const (
+	RESOLVE_EXACT = iota
+	RESOLVE_FUZZY = iota
+)
+
 func GetAlertmanagerURL() (*url.URL, error) {
 	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
 	if err != nil {
@@ -22,7 +27,7 @@ func GetAlertmanagerURL() (*url.URL, error) {
 }
 
 // Parse a list of labels (cli arguments)
-func parseMatchers(labels []string) (types.Matchers, error) {
+func parseMatchers(labels []string, resolve int) (types.Matchers, error) {
 	matchers := make([]*types.Matcher, 0)
 
 	for _, v := range labels {
@@ -40,7 +45,17 @@ func parseMatchers(labels []string) (types.Matchers, error) {
 		// Assume that no = was given and just use alertname
 		var label, value string
 		if len(labelVec) < 2 {
-			label, value = "alertname", labelVec[0]
+			// Resolve to alertname=foo
+			if resolve == RESOLVE_EXACT {
+				label, value = "alertname", labelVec[0]
+				// Resolve to alertname=foo.* (mostly for search niceness)
+			} else if resolve == RESOLVE_FUZZY {
+				label = "alertname"
+				value = labelVec[0] + ".*"
+				isRegex = true
+			} else {
+				panic("Ambiguous resolution direction in parseMatchers")
+			}
 		} else {
 			label, value = labelVec[0], labelVec[1]
 		}

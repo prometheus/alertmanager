@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"os/user"
 	"path"
 	"time"
@@ -83,7 +82,7 @@ func init() {
 func add(cmd *cobra.Command, args []string) error {
 	var err error
 
-	matchers, err := parseMatchers(args)
+	matchers, err := parseMatchers(args, RESOLVE_EXACT)
 	if err != nil {
 		return err
 	}
@@ -92,25 +91,6 @@ func add(cmd *cobra.Command, args []string) error {
 
 	if len(groups) < 1 {
 		return errors.New("No matchers specified")
-	}
-
-	silences, err := fetchSilences()
-	for groupIndex, group := range groups {
-		for _, silence := range silences {
-			// Don't allow multiple active silences with the same matchers
-			if silence.EndsAt.Before(time.Now()) && silence.Matchers.Equal(group) {
-				// Slice delete groupIndex
-				groups = append(groups[:groupIndex], groups[groupIndex+1:]...)
-				break
-				if viper.GetBool("verbose") {
-					fmt.Fprintf(os.Stderr, "Skipped adding duplicate silence, %s matches\n", silence.ID)
-				}
-			}
-		}
-	}
-
-	if len(groups) < 1 {
-		return errors.New("No new silences specified (Enable verbose mode for more information)")
 	}
 
 	expire_on, err := addFlags.GetString("expire-on")

@@ -97,7 +97,7 @@ func query(cmd *cobra.Command, args []string) error {
 	displaySilences := []types.Silence{}
 	var groups []types.Matchers
 	if len(args) > 0 {
-		matchers, err := parseMatchers(args)
+		matchers, err := parseMatchers(args, RESOLVE_FUZZY)
 		if err != nil {
 			return err
 		}
