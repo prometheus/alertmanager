@@ -16,7 +16,7 @@ func TestParseMatchersSimple(t *testing.T) {
 		&types.Matcher{Name: "bar", Value: "baz", IsRegex: false},
 	}
 
-	matchers, err := parseMatchers(testSlice)
+	matchers, err := parseMatchers(testSlice, RESOLVE_EXACT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,13 +28,13 @@ func TestParseMatchersSimple(t *testing.T) {
 
 // Test the regex case of parseMatchers
 func TestParseMatchersRegex(t *testing.T) {
-	testSlice := []string{"foo~=bar", "bar~=baz"}
+	testSlice := []string{"foo=~bar", "bar=~baz"}
 	expected := types.Matchers{
-		&types.Matcher{Name: "foo", Value: "bar", IsRegex: true},
 		&types.Matcher{Name: "bar", Value: "baz", IsRegex: true},
+		&types.Matcher{Name: "foo", Value: "bar", IsRegex: true},
 	}
 
-	matchers, err := parseMatchers(testSlice)
+	matchers, err := parseMatchers(testSlice, RESOLVE_EXACT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,12 +53,12 @@ func TestParseMatcherGroups(t *testing.T) {
 
 	testGroups := []types.Matchers{
 		types.Matchers{
-			&types.Matcher{Name: "foo", Value: "bar.*", IsRegex: true},
 			&types.Matcher{Name: "bar", Value: "baz", IsRegex: false},
+			&types.Matcher{Name: "foo", Value: "bar.*", IsRegex: true},
 		},
 		types.Matchers{
-			&types.Matcher{Name: "foo", Value: "baz", IsRegex: false},
 			&types.Matcher{Name: "bar", Value: "baz", IsRegex: false},
+			&types.Matcher{Name: "foo", Value: "baz", IsRegex: false},
 		},
 	}
 
