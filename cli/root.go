@@ -15,7 +15,24 @@ var cfgFile string
 var RootCmd = &cobra.Command{
 	Use:   "amtool",
 	Short: "Alertmanager CLI",
-	Long:  `View and modify the current Alertmanager state.`,
+	Long: `View and modify the current Alertmanager state.
+
+[Config File]
+
+The alertmanger tool will read a config file from $HOME/.amtool.yml or /etc/amtool.yml the options are as follows
+
+	alertmanager.url
+		Set a default alertmanager url for each request
+
+	author
+		Set a default author value for new silences. If this argument is not specified then the username will be used
+
+	comment_required
+		Require a comment on silence creation
+
+	output
+		Set a default output type. Options are (simple, extended, json)
+	`,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
