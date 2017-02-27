@@ -61,7 +61,7 @@ route:
   # all alerts. It needs to have a receiver configured so alerts that do not
   # match any of the sub-routes are sent to someone.
   receiver: 'team-X-mails'
-  
+
   # The labels by which incoming alerts are grouped together. For example,
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
@@ -82,7 +82,7 @@ route:
   # resend them.
   repeat_interval: 3h
 
-  # All the above attributes are inherited by all child routes and can 
+  # All the above attributes are inherited by all child routes and can
   # overwritten on each.
 
   # The child route trees.
@@ -174,10 +174,10 @@ To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
 `-mesh.*` flags.
 
-- `-mesh.hardware-address` string: MAC address, i.e. mesh peer ID (default "&lt;hardware-mac-address&gt;")
+- `-mesh.hardware-address` string: mesh peer ID (default "&lt;hardware-mac-address&gt;")
 - `-mesh.listen-address` string: mesh listen address (default "0.0.0.0:6783")
-- `-mesh.nickname` string: peer nickname (default "&lt;machine-hostname&gt;")
-- `-mesh.peer` value: initial peers (may be repeated)
+- `-mesh.nickname` string: mesh peer nickname (default "&lt;machine-hostname&gt;")
+- `-mesh.peer` value: initial initial peers (may be repeated)
 
 The `mesh.hardware-address` flag is used as a unique ID among the peers. It
 defaults to the MAC address, therefore the default value should typically be a
