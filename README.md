@@ -174,12 +174,12 @@ To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
 `-mesh.*` flags.
 
-- `-mesh.hardware-address` string: mesh peer ID (default "&lt;hardware-mac-address&gt;")
+- `-mesh.peer-id` string: mesh peer ID (default "&lt;hardware-mac-address&gt;")
 - `-mesh.listen-address` string: mesh listen address (default "0.0.0.0:6783")
 - `-mesh.nickname` string: mesh peer nickname (default "&lt;machine-hostname&gt;")
-- `-mesh.peer` value: initial initial peers (may be repeated)
+- `-mesh.peer` value: initial peers (may be repeated)
 
-The `mesh.hardware-address` flag is used as a unique ID among the peers. It
+The `mesh.peer-id` flag is used as a unique ID among the peers. It
 defaults to the MAC address, therefore the default value should typically be a
 good option. The same applies to the default of the `mesh.nickname` flag, as it
 defaults to the hostname. The chosen port in the `mesh.listen-address` flag is

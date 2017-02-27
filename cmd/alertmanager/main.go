@@ -82,7 +82,7 @@ func main() {
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
 		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
-		hwaddr     = flag.String("mesh.hardware-address", "", "mesh peer ID (default: MAC address)")
+		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
 		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
 		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
 	)
