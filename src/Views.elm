@@ -17,13 +17,13 @@ view model =
         AlertsRoute route ->
             case model.alertGroups of
                 Success alertGroups ->
-                    Html.map alertTranslator (Alerts.Views.view route alertGroups model.filter)
+                    Html.map alertTranslator (Alerts.Views.view route alertGroups model.filter (text ""))
 
                 Loading ->
                     loading
 
                 Failure msg ->
-                    error msg
+                    Html.map alertTranslator (Alerts.Views.view route [] model.filter (error msg))
 
         NewSilenceRoute ->
             case model.silence of
@@ -101,7 +101,7 @@ error err =
                     "network error"
 
                 BadStatus resp ->
-                    "bad status: " ++ resp.status.message
+                    resp.status.message ++ " " ++ resp.body
 
                 BadPayload err resp ->
                     -- OK status, unexpected payload
@@ -111,6 +111,5 @@ error err =
                     "malformed url: " ++ url
     in
         div []
-            [ h1 [] [ text "Error" ]
-            , p [] [ text msg ]
+            [ p [] [ text <| "Error: " ++ msg ]
             ]

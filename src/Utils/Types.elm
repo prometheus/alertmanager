@@ -12,7 +12,6 @@ type ApiResponse e a
 
 type alias Filter =
     { text : Maybe String
-    , matchers : Maybe Matchers
     , receiver : Maybe String
     , showSilenced : Maybe Bool
     }

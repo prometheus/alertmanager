@@ -11,15 +11,14 @@ import Utils.Types exposing (Filter)
 import Utils.Views exposing (..)
 
 
-view : Route -> List AlertGroup -> Filter -> Html Msg
-view route alertGroups filter =
+view : Route -> List AlertGroup -> Filter -> Html Msg -> Html Msg
+view route alertGroups filter errorHtml =
     let
         filteredGroups =
             case route of
                 Receiver maybeReceiver maybeShowSilenced maybeFilter ->
                     receiver maybeReceiver alertGroups
                         |> silenced maybeShowSilenced
-                        |> matchers filter.matchers
 
         filterText =
             Maybe.withDefault "" filter.text
@@ -39,6 +38,7 @@ view route alertGroups filter =
         div []
             [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
             , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
+            , errorHtml
             , alertHtml
             ]
 

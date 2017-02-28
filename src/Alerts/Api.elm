@@ -3,13 +3,15 @@ module Alerts.Api exposing (..)
 import Json.Decode as Json exposing (..)
 import Utils.Api exposing (baseUrl, stringtoISO8601)
 import Alerts.Types exposing (..)
+import Utils.Types exposing (Filter)
+import Utils.Filter exposing (generateQueryString)
 
 
-getAlertGroups : Cmd Msg
-getAlertGroups =
+getAlertGroups : Filter -> Cmd Msg
+getAlertGroups filter =
     let
         url =
-            String.join "/" [ baseUrl, "alerts", "groups" ]
+            String.join "/" [ baseUrl, "alerts", "groups" ++ (generateQueryString filter) ]
     in
         Utils.Api.send (Utils.Api.get url alertGroupsDecoder)
             |> Cmd.map (AlertGroupsFetch >> ForSelf)

@@ -4,7 +4,6 @@ import Alerts.Api as Api
 import Alerts.Types exposing (..)
 import Task
 import Utils.Types exposing (ApiData, ApiResponse(..), Filter)
-import Utils.Parsing
 import Utils.Filter exposing (addMaybe, generateQueryString)
 import Regex
 import QueryString exposing (QueryString, empty, add, render)
@@ -18,25 +17,17 @@ update msg groups filter =
             ( alertGroups, filter, Cmd.none )
 
         FetchAlertGroups ->
-            ( groups, filter, Api.getAlertGroups )
+            ( groups, filter, Api.getAlertGroups filter )
 
         Noop ->
             ( groups, filter, Cmd.none )
 
         FilterAlerts ->
             let
-                f =
-                    case groups of
-                        Success groups ->
-                            { filter | matchers = Utils.Parsing.parseLabels filter.text }
-
-                        _ ->
-                            filter
-
                 url =
                     "/#/alerts" ++ (generateQueryString filter)
             in
-                ( groups, f, generateParentMsg (NewUrl url) )
+                ( groups, filter, generateParentMsg (NewUrl url) )
 
 
 generateParentMsg : OutMsg -> Cmd Msg
@@ -51,7 +42,6 @@ updateFilter route =
             { receiver = maybeReceiver
             , showSilenced = maybeShowSilenced
             , text = maybeFilter
-            , matchers = Utils.Parsing.parseLabels maybeFilter
             }
 
 

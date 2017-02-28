@@ -3,7 +3,6 @@ module Alerts.Types exposing (..)
 import Http exposing (Error)
 import ISO8601
 import Utils.Types exposing (ApiData, Filter)
-import Utils.Parsing
 
 
 type Route

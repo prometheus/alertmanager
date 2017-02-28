@@ -9,7 +9,6 @@ import Alerts.Update
 import Alerts.Types exposing (Route(Receiver))
 import Types exposing (..)
 import Utils.Types exposing (..)
-import Utils.Parsing
 import Silences.Api
 import Silences.Types exposing (Silence, nullTime, nullSilence)
 import Silences.Update
@@ -42,11 +41,10 @@ init location =
                     { receiver = Nothing
                     , showSilenced = Nothing
                     , text = maybeFilter
-                    , matchers = Utils.Parsing.parseLabels maybeFilter
                     }
 
                 _ ->
-                    { text = Nothing, matchers = Nothing, receiver = Nothing, showSilenced = Nothing }
+                    { text = Nothing, receiver = Nothing, showSilenced = Nothing }
     in
         update (urlUpdate location) (Model Loading Loading Loading route filter)
 
@@ -119,14 +117,7 @@ update msg model =
                 ( { model | filter = { filter | text = t } }, Cmd.none )
 
         ParseFilterText ->
-            let
-                filter =
-                    model.filter
-
-                f =
-                    { filter | matchers = Utils.Parsing.parseLabels filter.text }
-            in
-                ( { model | filter = f }, Cmd.none )
+            ( model, Cmd.none )
 
         NewUrl url ->
             ( model, Navigation.newUrl url )

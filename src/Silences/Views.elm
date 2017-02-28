@@ -19,14 +19,11 @@ import Utils.Date
 silences : List Silence -> Filter -> Html Msg
 silences silences filter =
     let
-        groups =
-            filterByMatchers filter.matchers silences
-
         filterText =
             Maybe.withDefault "" filter.text
 
         html =
-            if List.isEmpty groups then
+            if List.isEmpty silences then
                 div [ class "mt2" ] [ text "no silences found found" ]
             else
                 ul
@@ -35,7 +32,7 @@ silences silences filter =
                         , ( "pa0", True )
                         ]
                     ]
-                    (List.map silenceList groups)
+                    (List.map silenceList silences)
     in
         div []
             [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
