@@ -245,7 +245,7 @@ func (am *Alertmanager) Start() {
 		"-web.listen-address", am.addr,
 		"-storage.path", am.dir,
 		"-mesh.listen-address", am.mesh,
-		"-mesh.hardware-address", am.hwaddr,
+		"-mesh.peer-id", am.hwaddr,
 		"-mesh.nickname", am.nickname,
 	)
 
