@@ -4,10 +4,7 @@ import Alerts.Api as Api
 import Alerts.Types exposing (..)
 import Task
 import Utils.Types exposing (ApiData, ApiResponse(..), Filter)
-import Utils.Filter exposing (addMaybe, generateQueryString)
-import Regex
-import QueryString exposing (QueryString, empty, add, render)
-import Navigation
+import Utils.Filter exposing (generateQueryString)
 
 
 update : AlertsMsg -> ApiData (List AlertGroup) -> Filter -> ( ApiData (List AlertGroup), Cmd Msg )
@@ -25,7 +22,7 @@ update msg groups filter =
         FilterAlerts ->
             let
                 url =
-                    "/#/alerts" ++ (generateQueryString filter)
+                    "/#/alerts" ++ generateQueryString filter
             in
                 ( groups, generateParentMsg (NewUrl url) )
 

@@ -77,7 +77,7 @@ alertView alert =
             [ div [ class "mb1" ]
                 [ b
                 , buttonLink "fa-bar-chart" alert.generatorUrl "black" (ForSelf Noop)
-                , p [ class "dib mr2" ] [ text <| Utils.Date.dateFormat alert.startsAt ]
+                , p [ class "dib mr2" ] [ text <| Utils.Date.timeFormat alert.startsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
             ]

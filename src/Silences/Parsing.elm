@@ -1,7 +1,6 @@
 module Silences.Parsing exposing (silencesParser)
 
 import Silences.Types exposing (..)
-import Utils.Types
 import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
 
 

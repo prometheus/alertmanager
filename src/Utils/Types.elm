@@ -1,7 +1,7 @@
 module Utils.Types exposing (..)
 
 import Http
-import ISO8601
+import Time
 
 
 type ApiResponse e a
@@ -41,7 +41,12 @@ type alias ApiData a =
 
 
 type alias Time =
-    { t : ISO8601.Time
+    { t : Maybe Time.Time
     , s : String
-    , valid : Bool
+    }
+
+
+type alias Duration =
+    { d : Maybe Time.Time
+    , s : String
     }

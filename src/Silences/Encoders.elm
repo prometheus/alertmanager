@@ -3,16 +3,18 @@ module Silences.Encoders exposing (..)
 import Json.Encode as Encode
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (Matcher)
+import Utils.Date
 
 
 silence : Silence -> Encode.Value
 silence silence =
+    -- Todo: only submit validated date
     Encode.object
         [ ( "createdBy", Encode.string silence.createdBy )
         , ( "comment", Encode.string silence.comment )
-        , ( "startsAt", Encode.string silence.startsAt.s )
-        , ( "endsAt", Encode.string silence.endsAt.s )
-        , ( "matchers", (Encode.list (List.map matcher silence.matchers)) )
+        , ( "startsAt", Encode.string (Utils.Date.encode silence.startsAt) )
+        , ( "endsAt", Encode.string (Utils.Date.encode silence.endsAt) )
+        , ( "matchers", Encode.list (List.map matcher silence.matchers) )
         ]
 
 

@@ -1,10 +1,10 @@
 module Utils.Api exposing (..)
 
 import Json.Decode as Json exposing (field)
-import ISO8601
-import Utils.Types exposing (ApiResponse(..), ApiData, Time)
+import Utils.Types exposing (ApiResponse(..), ApiData, Time, Duration)
 import Http
 import Time
+import Utils.Date
 
 
 fromResult : Result e a -> ApiResponse e a
@@ -50,26 +50,24 @@ request method headers url body decoder =
         }
 
 
-stringtoISO8601 : Json.Decoder ISO8601.Time
-stringtoISO8601 =
-    Json.string
-        |> Json.andThen
-            (\val ->
-                case ISO8601.fromString val of
-                    Err err ->
-                        Json.fail err
+duration : String -> String -> Json.Decoder Duration
+duration startsAt endsAt =
+    Json.map2
+        (\t1 t2 ->
+            case ( t1.t, t2.t ) of
+                ( Just time1, Just time2 ) ->
+                    Utils.Date.duration (time2 - time1)
 
-                    Ok date ->
-                        Json.succeed <| date
-            )
+                _ ->
+                    Utils.Date.duration 0
+        )
+        (Json.field startsAt iso8601Time)
+        (Json.field endsAt iso8601Time)
 
 
-iso8601Time : String -> Json.Decoder Time
-iso8601Time fieldName =
-    Json.map3 Utils.Types.Time
-        (field fieldName stringtoISO8601)
-        (field fieldName Json.string)
-        (field fieldName <| Json.succeed True)
+iso8601Time : Json.Decoder Time
+iso8601Time =
+    Json.map Utils.Date.timeFromString Json.string
 
 
 baseUrl : String

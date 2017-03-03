@@ -1,7 +1,5 @@
 module Alerts.Types exposing (..)
 
-import Http exposing (Error)
-import ISO8601
 import Utils.Types exposing (ApiData, Filter)
 
 
@@ -49,6 +47,6 @@ type alias Alert =
     , inhibited : Bool
     , silenceId : Maybe String
     , silenced : Bool
-    , startsAt : ISO8601.Time
+    , startsAt : Utils.Types.Time
     , generatorUrl : String
     }

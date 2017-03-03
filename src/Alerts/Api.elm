@@ -1,7 +1,7 @@
 module Alerts.Api exposing (..)
 
 import Json.Decode as Json exposing (..)
-import Utils.Api exposing (baseUrl, stringtoISO8601)
+import Utils.Api exposing (baseUrl, iso8601Time)
 import Alerts.Types exposing (..)
 import Utils.Types exposing (Filter)
 import Utils.Filter exposing (generateQueryString)
@@ -72,7 +72,7 @@ alertDecoder =
         (field "inhibited" Json.bool)
         (Json.maybe (field "silenced" Json.string))
         (decodeSilenced)
-        (field "startsAt" stringtoISO8601)
+        (field "startsAt" iso8601Time)
         (field "generatorURL" Json.string)
 
 

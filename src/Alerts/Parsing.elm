@@ -1,7 +1,6 @@
 module Alerts.Parsing exposing (..)
 
 import Alerts.Types exposing (..)
-import Utils.Types
 import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
 
 

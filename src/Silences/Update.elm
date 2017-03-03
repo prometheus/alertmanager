@@ -1,11 +1,10 @@
 module Silences.Update exposing (..)
 
-import Navigation
 import Silences.Api as Api
 import Silences.Types exposing (..)
 import Task
 import Utils.Types exposing (ApiData, ApiResponse(..), Filter, Matchers)
-import ISO8601
+import Utils.Types as Types exposing (ApiData, ApiResponse(..), Time, Filter, Matchers)
 import Time
 import Utils.Date
 import Utils.List
@@ -69,16 +68,38 @@ update msg silences silence filter =
             -- it in anyway.
             let
                 startsAt =
-                    Utils.Date.toISO8601Time time
+                    Utils.Date.timeFromString time
+
+                duration =
+                    Maybe.map2 (-) silence.endsAt.t startsAt.t
+                        |> Maybe.map Utils.Date.duration
+                        |> Maybe.withDefault silence.duration
             in
-                ( silences, Success { silence | startsAt = startsAt }, Cmd.none )
+                ( silences, Success { silence | startsAt = startsAt, duration = duration }, Cmd.none )
 
         UpdateEndsAt silence time ->
             let
                 endsAt =
-                    Utils.Date.toISO8601Time time
+                    Utils.Date.timeFromString time
+
+                duration =
+                    Maybe.map2 (-) endsAt.t silence.startsAt.t
+                        |> Maybe.map Utils.Date.duration
+                        |> Maybe.withDefault silence.duration
             in
-                ( silences, Success { silence | endsAt = endsAt }, Cmd.none )
+                ( silences, Success { silence | endsAt = endsAt, duration = duration }, Cmd.none )
+
+        UpdateDuration silence time ->
+            let
+                duration =
+                    Utils.Date.durationFromString time
+
+                endsAt =
+                    Maybe.map2 (+) silence.startsAt.t duration.d
+                        |> Maybe.map Utils.Date.fromTime
+                        |> Maybe.withDefault silence.endsAt
+            in
+                ( silences, Success { silence | duration = duration, endsAt = endsAt }, Cmd.none )
 
         UpdateCreatedBy silence by ->
             ( silences, Success { silence | createdBy = by }, Cmd.none )
@@ -124,17 +145,14 @@ update msg silences silence filter =
 
         NewDefaultTimeRange time ->
             let
-                endsIso =
-                    Utils.Date.addTime time (2 * Time.hour)
+                startsAt =
+                    Utils.Date.fromTime time
+
+                duration =
+                    Utils.Date.duration (2 * Time.hour)
 
                 endsAt =
-                    Utils.Types.Time endsIso (ISO8601.toString endsIso) True
-
-                startsIso =
-                    Utils.Date.toISO8601 time
-
-                startsAt =
-                    Utils.Types.Time startsIso (ISO8601.toString startsIso) True
+                    Utils.Date.fromTime (time + 2 * Time.hour)
 
                 sil =
                     case silence of
@@ -144,12 +162,15 @@ update msg silences silence filter =
                         _ ->
                             nullSilence
             in
-                ( silences, Success { sil | startsAt = startsAt, endsAt = endsAt }, Cmd.none )
+                ( silences, Success { sil | startsAt = startsAt, duration = duration, endsAt = endsAt }, Cmd.none )
 
         FilterSilences ->
             let
                 url =
-                    "/#/silences" ++ (generateQueryString filter)
+                    "/#/silences" ++ generateQueryString filter
+
+                cmds =
+                    Cmd.batch [ generateParentMsg (NewUrl url) ]
             in
                 ( silences, silence, generateParentMsg (NewUrl url) )
 

@@ -1,14 +1,14 @@
 module Silences.Decoders exposing (..)
 
 import Json.Decode as Json exposing (field)
-import Utils.Api exposing (iso8601Time)
+import Utils.Api exposing (iso8601Time, duration)
 import Silences.Types exposing (Silence)
-import Utils.Types exposing (Matcher)
+import Utils.Types exposing (Matcher, Time)
 
 
 show : Json.Decoder Silence
 show =
-    (Json.at [ "data" ] silence)
+    Json.at [ "data" ] silence
 
 
 list : Json.Decoder (List Silence)
@@ -18,7 +18,7 @@ list =
 
 create : Json.Decoder String
 create =
-    (Json.at [ "data", "silenceId" ] Json.string)
+    Json.at [ "data", "silenceId" ] Json.string
 
 
 
@@ -27,18 +27,19 @@ create =
 
 destroy : Json.Decoder String
 destroy =
-    (Json.at [ "status" ] Json.string)
+    Json.at [ "status" ] Json.string
 
 
 silence : Json.Decoder Silence
 silence =
-    Json.map7 Silence
+    Json.map8 Silence
         (field "id" Json.string)
         (field "createdBy" Json.string)
         (field "comment" Json.string)
-        (iso8601Time "startsAt")
-        (iso8601Time "endsAt")
-        (iso8601Time "updatedAt")
+        (field "startsAt" iso8601Time)
+        (field "endsAt" iso8601Time)
+        (duration "startsAt" "endsAt")
+        (field "updatedAt" iso8601Time)
         (field "matchers" (Json.list matcher))
 
 

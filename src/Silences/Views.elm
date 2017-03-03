@@ -5,15 +5,14 @@ module Silences.Views exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (Error)
 import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..), OutMsg(UpdateFilter), Route(..))
 import Utils.Types exposing (Matcher, ApiResponse(..), Filter, ApiData)
 import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
 import Utils.Date
-import ISO8601 exposing (toTime)
+import Time
 
 
-view : Route -> ApiData (List Silence) -> ApiData Silence -> ISO8601.Time -> Filter -> Html Msg
+view : Route -> ApiData (List Silence) -> ApiData Silence -> Time.Time -> Filter -> Html Msg
 view route apiSilences apiSilence currentTime filter =
     case route of
         ShowSilences _ ->
@@ -97,7 +96,7 @@ silenceList silence =
         ]
 
 
-silence : Silence -> ISO8601.Time -> Html Msg
+silence : Silence -> Time.Time -> Html Msg
 silence silence currentTime =
     div []
         [ silenceBase silence
@@ -133,13 +132,13 @@ silenceBase silence =
             , div [ class "mb1" ]
                 [ buttonLink "fa-pencil" editUrl "blue" (ForSelf Noop)
                 , buttonLink "fa-trash-o" "#/silences" "dark-red" (ForSelf (DestroySilence silence))
-                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt.t ]
+                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.timeFormat silence.endsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton silence.matchers)
             ]
 
 
-silenceExtra : Silence -> ISO8601.Time -> Html msg
+silenceExtra : Silence -> Time.Time -> Html msg
 silenceExtra silence currentTime =
     div [ class "f6" ]
         [ div [ class "mb1" ]
@@ -159,21 +158,18 @@ silenceExtra silence currentTime =
         ]
 
 
-status : Silence -> ISO8601.Time -> String
+status : Silence -> Time.Time -> String
 status silence currentTime =
     let
-        ct =
-            toTime currentTime
-
         et =
-            toTime silence.endsAt.t
+            Maybe.withDefault currentTime silence.endsAt.t
 
         st =
-            toTime silence.startsAt.t
+            Maybe.withDefault currentTime silence.startsAt.t
     in
-        if et <= ct then
+        if et <= currentTime then
             "expired"
-        else if st > ct then
+        else if st > currentTime then
             "pending"
         else
             "active"
@@ -204,7 +200,8 @@ silenceForm kind silence =
             [ fieldset [ class "ba b--transparent ph0 mh0" ]
                 [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
                 , (formField "Start" silence.startsAt.s (UpdateStartsAt silence))
-                , (formField "End" silence.endsAt.s (UpdateEndsAt silence))
+                , div [ class "dib mb2 mr2 w-40" ] [ formField "End" silence.endsAt.s (UpdateEndsAt silence) ]
+                , div [ class "dib mb2 mr2 w-40" ] [ formField "Duration" silence.duration.s (UpdateDuration silence) ]
                 , div [ class "mt3" ]
                     [ label [ class "f6 b db mb2" ]
                         [ text "Matchers "

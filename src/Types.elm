@@ -1,17 +1,9 @@
 module Types exposing (..)
 
--- External Imports
-
 import Alerts.Types exposing (AlertGroup, AlertsMsg, Alert)
 import Silences.Types exposing (SilencesMsg, Silence)
-import Http exposing (Error)
-import ISO8601
-import Time
 import Utils.Types exposing (ApiData, Filter)
-
-
--- Internal Imports
--- Types
+import Time
 
 
 type alias Model =
@@ -20,7 +12,7 @@ type alias Model =
     , alertGroups : ApiData (List AlertGroup)
     , route : Route
     , filter : Filter
-    , currentTime : ISO8601.Time
+    , currentTime : Time.Time
     }
 
 

@@ -1,10 +1,8 @@
 module Silences.Types exposing (..)
 
-import Http
-import Utils.Types exposing (Time, Matcher, Filter, ApiData)
+import Utils.Types exposing (Time, Duration, Matcher, Filter, ApiData)
 import Utils.Date
 import Time
-import ISO8601
 
 
 type alias Silence =
@@ -13,6 +11,7 @@ type alias Silence =
     , comment : String
     , startsAt : Time
     , endsAt : Time
+    , duration : Duration
     , updatedAt : Time
     , matchers : List Matcher
     }
@@ -43,6 +42,7 @@ type SilencesMsg
     | UpdateMatcherValue Silence Matcher String
     | UpdateMatcherRegex Silence Matcher Bool
     | UpdateEndsAt Silence String
+    | UpdateDuration Silence String
     | UpdateStartsAt Silence String
     | UpdateCreatedBy Silence String
     | UpdateComment Silence String
@@ -62,7 +62,7 @@ type SilencesMsg
 
 nullSilence : Silence
 nullSilence =
-    Silence "" "" "" nullTime nullTime nullTime [ nullMatcher ]
+    Silence "" "" "" nullTime nullTime nullDuration nullTime [ nullMatcher ]
 
 
 nullMatcher : Matcher
@@ -70,10 +70,11 @@ nullMatcher =
     Matcher "" "" False
 
 
+nullDuration : Duration
+nullDuration =
+    Utils.Date.duration 0
+
+
 nullTime : Time
 nullTime =
-    let
-        epochString =
-            ISO8601.toString Utils.Date.unixEpochStart
-    in
-        Time Utils.Date.unixEpochStart epochString True
+    Utils.Date.fromTime 0

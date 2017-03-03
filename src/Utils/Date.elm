@@ -1,8 +1,60 @@
 module Utils.Date exposing (..)
 
-import Time
 import ISO8601
+import Parser exposing (Parser, (|.), (|=))
+import Time
 import Utils.Types as Types
+import Tuple
+
+
+parseDuration : String -> Result Parser.Error Time.Time
+parseDuration =
+    Parser.run durationParser
+
+
+durationParser : Parser Time.Time
+durationParser =
+    Parser.succeed (List.foldr (+) 0)
+        |= Parser.zeroOrMore term
+        |. Parser.end
+
+
+units : List ( String, number )
+units =
+    [ ( "y", 31556926000 )
+    , ( "d", 86400000 )
+    , ( "h", 3600000 )
+    , ( "m", 60000 )
+    , ( "s", 1000 )
+    ]
+
+
+term : Parser Time.Time
+term =
+    Parser.map2 (*)
+        Parser.float
+        (units
+            |> List.map (\( unit, ms ) -> Parser.succeed ms |. Parser.symbol unit)
+            |> Parser.oneOf
+        )
+        |. Parser.ignoreWhile ((==) ' ')
+
+
+durationFormat : Time.Time -> String
+durationFormat time =
+    List.foldl
+        (\( unit, ms ) ( result, curr ) ->
+            ( if curr // ms == 0 then
+                result
+              else
+                result ++ toString (curr // ms) ++ unit ++ " "
+            , curr % ms
+            )
+        )
+        ( "", round time )
+        units
+        |> Tuple.first
+        |> String.trim
 
 
 dateFormat : ISO8601.Time -> String
@@ -10,38 +62,49 @@ dateFormat t =
     String.join "/" <| List.map toString [ ISO8601.month t, ISO8601.day t, ISO8601.year t ]
 
 
-unixEpochStart : ISO8601.Time
-unixEpochStart =
-    ISO8601.fromTime 0
+timeFormat : Types.Time -> String
+timeFormat { t, s } =
+    t
+        |> Maybe.map (round >> ISO8601.fromTime >> dateFormat)
+        |> Maybe.withDefault s
 
 
-addTime : Time.Time -> Time.Time -> ISO8601.Time
-addTime isoTime add =
-    let
-        ms =
-            (Time.inMilliseconds isoTime) + (Time.inMilliseconds add)
-
-        t =
-            round ms
-    in
-        ISO8601.fromTime t
+encode : Types.Time -> String
+encode { t, s } =
+    t
+        |> Maybe.map (round >> ISO8601.fromTime >> ISO8601.toString)
+        |> Maybe.withDefault s
 
 
-parseWithDefault : ISO8601.Time -> String -> ISO8601.Time
-parseWithDefault default toParse =
-    Result.withDefault default (ISO8601.fromString toParse)
+timeFromString : String -> Types.Time
+timeFromString toParse =
+    { s = toParse
+    , t =
+        toParse
+            |> ISO8601.fromString
+            |> Result.toMaybe
+            |> Maybe.map (ISO8601.toTime >> toFloat)
+    }
 
 
-toISO8601Time : String -> Types.Time
-toISO8601Time toParse =
-    case ISO8601.fromString toParse of
-        Ok isoTime ->
-            { t = isoTime, s = toParse, valid = True }
+durationFromString : String -> Types.Duration
+durationFromString toParse =
+    { s = toParse
+    , d =
+        toParse
+            |> parseDuration
+            |> Result.mapError (Debug.log "error")
+            |> Result.toMaybe
+    }
 
-        Err _ ->
-            { t = ISO8601.fromTime 0, s = toParse, valid = False }
+
+duration : Time.Time -> Types.Duration
+duration time =
+    { d = Just time, s = durationFormat time }
 
 
-toISO8601 : Time.Time -> ISO8601.Time
-toISO8601 time =
-    ISO8601.fromTime <| round (Time.inMilliseconds time)
+fromTime : Time.Time -> Types.Time
+fromTime time =
+    { s = round time |> ISO8601.fromTime |> ISO8601.toString
+    , t = Just time
+    }
