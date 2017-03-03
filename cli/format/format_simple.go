@@ -64,7 +64,7 @@ func simpleFormatMatchers(matchers types.Matchers) string {
 
 func simpleFormatMatcher(matcher types.Matcher) string {
 	if matcher.IsRegex {
-		return fmt.Sprintf("%s~=%s", matcher.Name, matcher.Value)
+		return fmt.Sprintf("%s=~%s", matcher.Name, matcher.Value)
 	}
 	return fmt.Sprintf("%s=%s", matcher.Name, matcher.Value)
 }
