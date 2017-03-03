@@ -29,7 +29,15 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) err
 	sort.Sort(ByEndAt(silences))
 	fmt.Fprintln(w, "ID\tMatchers\tStarts At\tEnds At\tUpdated At\tCreated By\tComment\t")
 	for _, silence := range silences {
-		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t", silence.ID, extendedFormatMatchers(silence.Matchers), FormatDate(silence.StartsAt), FormatDate(silence.EndsAt), FormatDate(silence.UpdatedAt), silence.CreatedBy, silence.Comment)
+		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t",
+			silence.ID,
+			extendedFormatMatchers(silence.Matchers),
+			FormatDate(silence.StartsAt),
+			FormatDate(silence.EndsAt),
+			FormatDate(silence.UpdatedAt),
+			silence.CreatedBy,
+			silence.Comment,
+		)
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()
@@ -41,7 +49,13 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts model.Alerts) error {
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
 	for _, alert := range alerts {
-		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t", extendedFormatLabels(alert.Labels), extendedFormatAnnotations(alert.Annotations), FormatDate(alert.StartsAt), FormatDate(alert.EndsAt), alert.GeneratorURL)
+		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t",
+			extendedFormatLabels(alert.Labels),
+			extendedFormatAnnotations(alert.Annotations),
+			FormatDate(alert.StartsAt),
+			FormatDate(alert.EndsAt),
+			alert.GeneratorURL,
+		)
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()

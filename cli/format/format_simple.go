@@ -30,7 +30,13 @@ func (formatter *SimpleFormatter) FormatSilences(silences []types.Silence) error
 	fmt.Fprintln(w, "ID\tMatchers\tEnds At\tCreated By\tComment\t")
 	for _, silence := range silences {
 
-		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t", silence.ID, simpleFormatMatchers(silence.Matchers), FormatDate(silence.EndsAt), silence.CreatedBy, silence.Comment)
+		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t",
+			silence.ID,
+			simpleFormatMatchers(silence.Matchers),
+			FormatDate(silence.EndsAt),
+			silence.CreatedBy,
+			silence.Comment,
+		)
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()
@@ -42,7 +48,11 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts model.Alerts) error {
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\t")
 	for _, alert := range alerts {
-		line := fmt.Sprintf("%s\t%s\t%s\t", alert.Labels["alertname"], FormatDate(alert.StartsAt), alert.Annotations["summary"])
+		line := fmt.Sprintf("%s\t%s\t%s\t",
+			alert.Labels["alertname"],
+			FormatDate(alert.StartsAt),
+			alert.Annotations["summary"],
+		)
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()
