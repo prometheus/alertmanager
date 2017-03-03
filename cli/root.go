@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
-
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "amtool",
@@ -47,7 +45,8 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.amtool.yml)")
+	RootCmd.PersistentFlags().String("config", "", "config file (default is $HOME/.amtool.yml)")
+	viper.BindPFlag("config", RootCmd.PersistentFlags().Lookup("config"))
 	RootCmd.PersistentFlags().String("alertmanager.url", "", "Alertmanager to talk to")
 	viper.BindPFlag("alertmanager.url", RootCmd.PersistentFlags().Lookup("alertmanager.url"))
 	RootCmd.PersistentFlags().StringP("output", "o", "simple", "Output formatter (simple, extended, json)")
@@ -59,16 +58,17 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if cfgFile != "" { // enable ability to specify config file via flag
-		viper.SetConfigFile(cfgFile)
-	}
-
 	viper.SetConfigName(".amtool") // name of config file (without extension)
 	viper.AddConfigPath("/etc")
 	viper.AddConfigPath("$HOME")
+	viper.SetEnvPrefix("AMTOOL")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
+	cfgFile := viper.GetString("config")
+	if cfgFile != "" { // enable ability to specify config file via flag
+		viper.SetConfigFile(cfgFile)
+	}
 	err := viper.ReadInConfig()
 	if err == nil {
 		if viper.GetBool("verbose") {
