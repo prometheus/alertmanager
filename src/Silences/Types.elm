@@ -1,7 +1,7 @@
 module Silences.Types exposing (..)
 
 import Http
-import Utils.Types exposing (Time, Matcher, Filter)
+import Utils.Types exposing (Time, Matcher, Filter, ApiData)
 import Utils.Date
 import Time
 import ISO8601
@@ -16,6 +16,13 @@ type alias Silence =
     , updatedAt : Time
     , matchers : List Matcher
     }
+
+
+type Route
+    = ShowSilences (Maybe String)
+    | ShowNewSilence
+    | ShowSilence String
+    | ShowEditSilence String
 
 
 type Msg
@@ -40,11 +47,16 @@ type SilencesMsg
     | UpdateComment Silence String
     | NewDefaultTimeRange Time.Time
     | Noop
-    | SilenceCreate (Utils.Types.ApiData String)
-    | SilenceDestroy (Utils.Types.ApiData String)
+    | SilenceCreate (ApiData String)
+    | SilenceDestroy (ApiData String)
     | CreateSilence Silence
     | DestroySilence Silence
     | FilterSilences
+    | SilenceFetch (ApiData Silence)
+    | SilencesFetch (ApiData (List Silence))
+    | FetchSilences
+    | FetchSilence String
+    | NewSilence
 
 
 nullSilence : Silence

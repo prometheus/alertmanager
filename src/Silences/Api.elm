@@ -1,7 +1,6 @@
 module Silences.Api exposing (..)
 
 import Http
-import Types
 import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..))
 import Utils.Types exposing (Filter, ApiResponse(..))
 import Silences.Decoders exposing (..)
@@ -10,24 +9,24 @@ import Utils.Api exposing (baseUrl)
 import Utils.Filter exposing (generateQueryString)
 
 
-getSilences : Filter -> Cmd Types.Msg
+getSilences : Filter -> Cmd Msg
 getSilences filter =
     let
         url =
             String.join "/" [ baseUrl, "silences" ++ (generateQueryString filter) ]
     in
         Utils.Api.send (Utils.Api.get url list)
-            |> Cmd.map Types.SilencesFetch
+            |> Cmd.map (SilencesFetch >> ForSelf)
 
 
-getSilence : String -> Cmd Types.Msg
+getSilence : String -> Cmd Msg
 getSilence uuid =
     let
         url =
             String.join "/" [ baseUrl, "silence", uuid ]
     in
         Utils.Api.send (Utils.Api.get url show)
-            |> Cmd.map Types.SilenceFetch
+            |> Cmd.map (SilenceFetch >> ForSelf)
 
 
 create : Silence -> Cmd Msg

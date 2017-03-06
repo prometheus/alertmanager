@@ -1,13 +1,9 @@
 module Utils.Views exposing (..)
 
--- External Imports
-
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onCheck, onInput, onClick)
-
-
--- Internal Imports
+import Http exposing (Error(..))
 
 
 labelButton : ( String, String ) -> Html msg
@@ -67,3 +63,44 @@ buttonLink icon link color msg =
 formInput : String -> (String -> msg) -> Html msg
 formInput inputValue msg =
     Html.input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value inputValue, onInput msg ] []
+
+
+notFoundView : a -> Html msg
+notFoundView model =
+    div []
+        [ h1 [] [ text "not found" ]
+        ]
+
+
+loading : Html msg
+loading =
+    div []
+        [ i [ class "fa fa-cog fa-spin fa-3x fa-fw" ] []
+        , span [ class "sr-only" ] [ text "Loading..." ]
+        ]
+
+
+error : Http.Error -> Html msg
+error err =
+    let
+        msg =
+            case err of
+                Timeout ->
+                    "timeout exceeded"
+
+                NetworkError ->
+                    "network error"
+
+                BadStatus resp ->
+                    resp.status.message ++ " " ++ resp.body
+
+                BadPayload err resp ->
+                    -- OK status, unexpected payload
+                    "unexpected response from api"
+
+                BadUrl url ->
+                    "malformed url: " ++ url
+    in
+        div []
+            [ p [] [ text <| "Error: " ++ msg ]
+            ]

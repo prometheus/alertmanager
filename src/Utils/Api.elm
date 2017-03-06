@@ -74,7 +74,7 @@ iso8601Time fieldName =
 
 baseUrl : String
 baseUrl =
-    "http://alertmanager.int.s-cloud.net/api/v1"
+    "http://alertmanager-experimental.int.s-cloud.net/api/v1"
 
 
 defaultTimeout : Time.Time

@@ -4,7 +4,7 @@ import Navigation
 import Silences.Api as Api
 import Silences.Types exposing (..)
 import Task
-import Utils.Types as Types exposing (ApiData, ApiResponse(..), Time, Filter, Matchers)
+import Utils.Types exposing (ApiData, ApiResponse(..), Filter, Matchers)
 import ISO8601
 import Time
 import Utils.Date
@@ -15,6 +15,21 @@ import Utils.Filter exposing (generateQueryString)
 update : SilencesMsg -> ApiData (List Silence) -> ApiData Silence -> Filter -> ( ApiData (List Silence), ApiData Silence, Cmd Msg )
 update msg silences silence filter =
     case msg of
+        SilencesFetch silences ->
+            ( silences, silence, Cmd.none )
+
+        SilenceFetch silence ->
+            ( silences, silence, Cmd.none )
+
+        FetchSilences ->
+            ( silences, silence, Api.getSilences filter )
+
+        FetchSilence id ->
+            ( silences, silence, Api.getSilence id )
+
+        NewSilence ->
+            ( silences, silence, Cmd.map ForSelf (Task.perform NewDefaultTimeRange Time.now) )
+
         CreateSilence silence ->
             ( silences, Loading, Api.create silence )
 
@@ -113,13 +128,13 @@ update msg silences silence filter =
                     Utils.Date.addTime time (2 * Time.hour)
 
                 endsAt =
-                    Types.Time endsIso (ISO8601.toString endsIso) True
+                    Utils.Types.Time endsIso (ISO8601.toString endsIso) True
 
                 startsIso =
                     Utils.Date.toISO8601 time
 
                 startsAt =
-                    Types.Time endsIso (ISO8601.toString startsIso) True
+                    Utils.Types.Time endsIso (ISO8601.toString startsIso) True
 
                 sil =
                     case silence of
@@ -147,19 +162,37 @@ generateParentMsg outMsg =
     Task.perform ForParent (Task.succeed outMsg)
 
 
-filterByMatchers : Maybe Matchers -> List Silence -> List Silence
-filterByMatchers maybeMatchers silences =
-    case maybeMatchers of
-        Just matchers ->
-            List.filter
-                (\s ->
-                    List.all
-                        (\m ->
-                            List.member m s.matchers
-                        )
-                        matchers
-                )
-                silences
+urlUpdate : Route -> ( SilencesMsg, Filter )
+urlUpdate route =
+    let
+        msg =
+            case route of
+                ShowSilences _ ->
+                    FetchSilences
 
-        Nothing ->
-            silences
+                ShowSilence uuid ->
+                    FetchSilence uuid
+
+                ShowNewSilence ->
+                    NewSilence
+
+                ShowEditSilence uuid ->
+                    FetchSilence uuid
+    in
+        ( msg, updateFilter route )
+
+
+updateFilter : Route -> Filter
+updateFilter route =
+    case route of
+        ShowSilences maybeFilter ->
+            { receiver = Nothing
+            , showSilenced = Nothing
+            , text = maybeFilter
+            }
+
+        _ ->
+            { receiver = Nothing
+            , showSilenced = Nothing
+            , text = Nothing
+            }

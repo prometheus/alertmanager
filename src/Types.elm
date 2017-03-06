@@ -24,15 +24,10 @@ type alias Model =
 
 
 type Msg
-    = SilenceFetch (ApiData Silence)
-    | SilencesFetch (ApiData (List Silence))
-    | FetchSilences
-    | FetchSilence String
-    | NewSilence
-    | EditSilence String
-    | CreateSilenceFromAlert Alert
+    = CreateSilenceFromAlert Alert
     | UpdateFilter Filter String
     | NavigateToAlerts Alerts.Types.Route
+    | NavigateToSilences Silences.Types.Route
     | Alerts AlertsMsg
     | Silences SilencesMsg
     | RedirectAlerts
@@ -41,10 +36,7 @@ type Msg
 
 
 type Route
-    = SilencesRoute (Maybe String)
-    | NewSilenceRoute
-    | SilenceRoute String
-    | EditSilenceRoute String
+    = SilencesRoute Silences.Types.Route
     | AlertsRoute Alerts.Types.Route
     | TopLevel
     | NotFound

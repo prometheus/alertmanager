@@ -5,26 +5,71 @@ module Silences.Views exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
-
-
--- Internal Imports
-
-import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..), OutMsg(UpdateFilter))
-import Silences.Update exposing (filterByMatchers)
-import Utils.Types exposing (Matcher, ApiResponse(..), Filter)
-import Utils.Views exposing (..)
+import Http exposing (Error)
+import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..), OutMsg(UpdateFilter), Route(..))
+import Utils.Types exposing (Matcher, ApiResponse(..), Filter, ApiData)
+import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
 import Utils.Date
 
 
-silences : List Silence -> Filter -> Html Msg
-silences silences filter =
+view : Route -> ApiData (List Silence) -> ApiData Silence -> Filter -> Html Msg
+view route apiSilences apiSilence filter =
+    case route of
+        ShowSilences _ ->
+            case apiSilences of
+                Success sils ->
+                    -- Add buttons at the top to filter Active/Pending/Expired
+                    silences sils filter (text "")
+
+                Loading ->
+                    loading
+
+                Failure msg ->
+                    silences [] filter (error msg)
+
+        ShowSilence name ->
+            case apiSilence of
+                Success sil ->
+                    silence sil
+
+                Loading ->
+                    loading
+
+                Failure msg ->
+                    error msg
+
+        ShowNewSilence ->
+            case apiSilence of
+                Success silence ->
+                    silenceForm "New" silence
+
+                Loading ->
+                    loading
+
+                Failure msg ->
+                    error msg
+
+        ShowEditSilence id ->
+            case apiSilence of
+                Success silence ->
+                    silenceForm "Edit" silence
+
+                Loading ->
+                    loading
+
+                Failure msg ->
+                    error msg
+
+
+silences : List Silence -> Filter -> Html Msg -> Html Msg
+silences silences filter errorHtml =
     let
         filterText =
             Maybe.withDefault "" filter.text
 
         html =
             if List.isEmpty silences then
-                div [ class "mt2" ] [ text "no silences found found" ]
+                div [ class "mt2" ] [ text "no silences found" ]
             else
                 ul
                     [ classList
@@ -38,6 +83,7 @@ silences silences filter =
             [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
             , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterSilences) ] [ text "Filter Silences" ]
             , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", href "#/silences/new" ] [ text "New Silence" ]
+            , errorHtml
             , html
             ]
 

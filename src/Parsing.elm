@@ -1,20 +1,12 @@
 module Parsing exposing (..)
 
--- External Imports
-
 import Alerts.Parsing exposing (alertsParser)
+import Silences.Parsing exposing (silencesParser)
 import Navigation
 import Types exposing (Route(..))
 import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
 import Regex
-
-
--- Internal Imports
-
 import Types exposing (Route(..))
-
-
--- Parsing
 
 
 urlParser : Navigation.Location -> Route
@@ -52,26 +44,6 @@ urlParser location =
                 NotFound
 
 
-silencesParser : Parser (Maybe String -> a) a
-silencesParser =
-    s "silences" <?> stringParam "filter"
-
-
-newSilenceParser : Parser a a
-newSilenceParser =
-    s "silences" </> s "new"
-
-
-silenceParser : Parser (String -> a) a
-silenceParser =
-    s "silences" </> string
-
-
-editSilenceParser : Parser (String -> a) a
-editSilenceParser =
-    s "silences" </> string </> s "edit"
-
-
 topLevelParser : Parser a a
 topLevelParser =
     s ""
@@ -81,9 +53,6 @@ routeParser : Parser (Route -> a) a
 routeParser =
     oneOf
         [ map SilencesRoute silencesParser
-        , map NewSilenceRoute newSilenceParser
-        , map EditSilenceRoute editSilenceParser
-        , map SilenceRoute silenceParser
         , map AlertsRoute alertsParser
         , map TopLevel topLevelParser
         ]

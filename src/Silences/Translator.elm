@@ -5,17 +5,17 @@ import Utils.Types exposing (Filter)
 
 
 type alias TranslationDictionary msg =
-    { onFormMsg : SilencesMsg -> msg
+    { onInternalMessage : SilencesMsg -> msg
     , onNewUrl : String -> msg
     , onUpdateFilter : Filter -> String -> msg
     }
 
 
 translator : TranslationDictionary parentMsg -> Msg -> parentMsg
-translator { onFormMsg, onNewUrl, onUpdateFilter } msg =
+translator { onInternalMessage, onNewUrl, onUpdateFilter } msg =
     case msg of
         ForSelf internal ->
-            onFormMsg internal
+            onInternalMessage internal
 
         ForParent (NewUrl url) ->
             onNewUrl url

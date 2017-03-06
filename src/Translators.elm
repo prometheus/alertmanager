@@ -20,7 +20,7 @@ alertTranslator =
 silenceTranslator : Silences.Types.Msg -> Msg
 silenceTranslator =
     Silences.Translator.translator
-        { onFormMsg = Silences
+        { onInternalMessage = Silences
         , onNewUrl = NewUrl
         , onUpdateFilter = UpdateFilter
         }
