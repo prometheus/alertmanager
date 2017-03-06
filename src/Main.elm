@@ -90,7 +90,7 @@ update msg model =
                 ( { model | silences = silences, silence = silence }, Cmd.map silenceTranslator silenceCmd )
 
         FetchSilences ->
-            ( { model | silences = model.silences, route = (SilencesRoute model.filter.text) }, Silences.Api.getSilences )
+            ( { model | silences = model.silences, route = (SilencesRoute model.filter.text) }, Silences.Api.getSilences model.filter )
 
         FetchSilence id ->
             ( { model | silence = Loading, route = SilenceRoute id }, Silences.Api.getSilence id )

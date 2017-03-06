@@ -3,21 +3,19 @@ module Silences.Api exposing (..)
 import Http
 import Types
 import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..))
-import Utils.Types exposing (ApiResponse(..))
+import Utils.Types exposing (Filter, ApiResponse(..))
 import Silences.Decoders exposing (..)
 import Silences.Encoders
 import Utils.Api exposing (baseUrl)
+import Utils.Filter exposing (generateQueryString)
 
 
-getSilences : Cmd Types.Msg
-getSilences =
+getSilences : Filter -> Cmd Types.Msg
+getSilences filter =
     let
-        -- Can remove limit=1000 when we are on version >= 0.5.x
         url =
-            String.join "/" [ baseUrl, "silences?limit=1000" ]
+            String.join "/" [ baseUrl, "silences" ++ (generateQueryString filter) ]
     in
-        -- TODO: Talk with fabxc about adding some sort of filter for e.g.
-        -- entering values into a search bar or clicking on labels
         Utils.Api.send (Utils.Api.get url list)
             |> Cmd.map Types.SilencesFetch
 
