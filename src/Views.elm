@@ -24,7 +24,7 @@ view model =
                     Html.map alertTranslator (Alerts.Views.view route [] model.filter (error msg))
 
         SilencesRoute route ->
-            Html.map silenceTranslator (Silences.Views.view route model.silences model.silence model.filter)
+            Html.map silenceTranslator (Silences.Views.view route model.silences model.silence model.currentTime model.filter)
 
         _ ->
             notFoundView model

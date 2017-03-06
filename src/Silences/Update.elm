@@ -16,7 +16,7 @@ update : SilencesMsg -> ApiData (List Silence) -> ApiData Silence -> Filter -> (
 update msg silences silence filter =
     case msg of
         SilencesFetch sils ->
-            ( sils, silence, Cmd.none )
+            ( sils, silence, Cmd.map ForParent (Task.perform UpdateCurrentTime Time.now) )
 
         SilenceFetch sil ->
             ( silences, sil, Cmd.none )

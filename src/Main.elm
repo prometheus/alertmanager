@@ -9,6 +9,7 @@ import Alerts.Update
 import Alerts.Types exposing (Route(Receiver))
 import Types exposing (..)
 import Utils.Types exposing (..)
+import Utils.Date exposing (toISO8601, unixEpochStart)
 import Silences.Api
 import Silences.Types exposing (Silence, nullTime, nullSilence)
 import Silences.Update
@@ -41,8 +42,11 @@ init location =
 
                 _ ->
                     { text = Nothing, receiver = Nothing, showSilenced = Nothing }
+
+        ( model, msg ) =
+            update (urlUpdate location) (Model Loading Loading Loading route filter unixEpochStart)
     in
-        update (urlUpdate location) (Model Loading Loading Loading route filter)
+        model ! [ msg, Task.perform UpdateCurrentTime Time.now ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -111,6 +115,9 @@ update msg model =
 
         Noop ->
             ( model, Cmd.none )
+
+        UpdateCurrentTime time ->
+            ( { model | currentTime = toISO8601 time }, Cmd.none )
 
 
 urlUpdate : Navigation.Location -> Msg

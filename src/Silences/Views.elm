@@ -10,10 +10,11 @@ import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..), OutMsg(Update
 import Utils.Types exposing (Matcher, ApiResponse(..), Filter, ApiData)
 import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
 import Utils.Date
+import ISO8601 exposing (toTime)
 
 
-view : Route -> ApiData (List Silence) -> ApiData Silence -> Filter -> Html Msg
-view route apiSilences apiSilence filter =
+view : Route -> ApiData (List Silence) -> ApiData Silence -> ISO8601.Time -> Filter -> Html Msg
+view route apiSilences apiSilence currentTime filter =
     case route of
         ShowSilences _ ->
             case apiSilences of
@@ -30,7 +31,7 @@ view route apiSilences apiSilence filter =
         ShowSilence name ->
             case apiSilence of
                 Success sil ->
-                    silence sil
+                    silence sil currentTime
 
                 Loading ->
                     loading
@@ -96,11 +97,11 @@ silenceList silence =
         ]
 
 
-silence : Silence -> Html Msg
-silence silence =
+silence : Silence -> ISO8601.Time -> Html Msg
+silence silence currentTime =
     div []
         [ silenceBase silence
-        , silenceExtra silence
+        , silenceExtra silence currentTime
         ]
 
 
@@ -137,38 +138,49 @@ silenceBase silence =
             ]
 
 
-silenceExtra : Silence -> Html msg
-silenceExtra silence =
-    let
-        -- TODO: It would be nice to get this from the API. I want
-        -- Alertmanager's view of things, not the browser client's.
-        status =
-            "elapsed"
-    in
-        div [ class "f6" ]
-            [ div [ class "mb1" ]
-                [ p []
-                    [ text "Status: "
-                    , Utils.Views.button "ph3 pv2" status
-                    ]
-                , div []
-                    [ label [ class "f6 dib mb2 mr2 w-40" ] [ text "Created by" ]
-                    , p [] [ text silence.createdBy ]
-                    ]
-                , div []
-                    [ label [ class "f6 dib mb2 mr2 w-40" ] [ text "Comment" ]
-                    , p [] [ text silence.comment ]
-                    ]
+silenceExtra : Silence -> ISO8601.Time -> Html msg
+silenceExtra silence currentTime =
+    div [ class "f6" ]
+        [ div [ class "mb1" ]
+            [ p []
+                [ text "Status: "
+                , Utils.Views.button "ph3 pv2" (status silence currentTime)
+                ]
+            , div []
+                [ label [ class "f6 dib mb2 mr2 w-40" ] [ text "Created by" ]
+                , p [] [ text silence.createdBy ]
+                ]
+            , div []
+                [ label [ class "f6 dib mb2 mr2 w-40" ] [ text "Comment" ]
+                , p [] [ text silence.comment ]
                 ]
             ]
+        ]
 
 
+status : Silence -> ISO8601.Time -> String
+status silence currentTime =
+    let
+        ct =
+            toTime currentTime
 
--- TODO: Add field validations.
+        et =
+            toTime silence.endsAt.t
+
+        st =
+            toTime silence.startsAt.t
+    in
+        if et <= ct then
+            "expired"
+        else if st > ct then
+            "pending"
+        else
+            "active"
 
 
 silenceForm : String -> Silence -> Html Msg
 silenceForm kind silence =
+    -- TODO: Add field validations.
     let
         base =
             "/#/silences/"

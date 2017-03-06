@@ -33,6 +33,7 @@ type Msg
 type OutMsg
     = NewUrl String
     | UpdateFilter Filter String
+    | UpdateCurrentTime Time.Time
 
 
 type SilencesMsg

@@ -20,6 +20,7 @@ type alias Model =
     , alertGroups : ApiData (List AlertGroup)
     , route : Route
     , filter : Filter
+    , currentTime : ISO8601.Time
     }
 
 
@@ -33,6 +34,7 @@ type Msg
     | RedirectAlerts
     | NewUrl String
     | Noop
+    | UpdateCurrentTime Time.Time
 
 
 type Route
