@@ -10,24 +10,24 @@ import QueryString exposing (QueryString, empty, add, render)
 import Navigation
 
 
-update : AlertsMsg -> ApiData (List AlertGroup) -> Filter -> ( ApiData (List AlertGroup), Filter, Cmd Msg )
+update : AlertsMsg -> ApiData (List AlertGroup) -> Filter -> ( ApiData (List AlertGroup), Cmd Msg )
 update msg groups filter =
     case msg of
         AlertGroupsFetch alertGroups ->
-            ( alertGroups, filter, Cmd.none )
+            ( alertGroups, Cmd.none )
 
         FetchAlertGroups ->
-            ( groups, filter, Api.getAlertGroups filter )
+            ( groups, Api.getAlertGroups filter )
 
         Noop ->
-            ( groups, filter, Cmd.none )
+            ( groups, Cmd.none )
 
         FilterAlerts ->
             let
                 url =
                     "/#/alerts" ++ (generateQueryString filter)
             in
-                ( groups, filter, generateParentMsg (NewUrl url) )
+                ( groups, generateParentMsg (NewUrl url) )
 
 
 generateParentMsg : OutMsg -> Cmd Msg

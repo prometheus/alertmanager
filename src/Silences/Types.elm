@@ -26,7 +26,6 @@ type Msg
 type OutMsg
     = NewUrl String
     | UpdateFilter Filter String
-    | ParseFilterText
 
 
 type SilencesMsg

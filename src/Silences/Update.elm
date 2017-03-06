@@ -135,11 +135,8 @@ update msg silences silence filter =
             let
                 url =
                     "/#/silences" ++ (generateQueryString filter)
-
-                cmds =
-                    Cmd.batch [ generateParentMsg ParseFilterText, generateParentMsg (NewUrl url) ]
             in
-                ( silences, silence, cmds )
+                ( silences, silence, generateParentMsg (NewUrl url) )
 
         Noop ->
             ( silences, silence, Cmd.none )

@@ -70,17 +70,17 @@ update msg model =
                 ( alertsMsg, filter ) =
                     (Alerts.Update.urlUpdate alertsRoute)
 
-                ( alertGroups, pf, alertCmd ) =
+                ( alertGroups, alertCmd ) =
                     Alerts.Update.update alertsMsg model.alertGroups filter
             in
-                ( { model | alertGroups = alertGroups, filter = pf, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
+                ( { model | alertGroups = alertGroups, route = AlertsRoute alertsRoute }, Cmd.map alertTranslator alertCmd )
 
         Alerts alertsMsg ->
             let
-                ( alertGroups, filter, alertCmd ) =
+                ( alertGroups, alertCmd ) =
                     Alerts.Update.update alertsMsg model.alertGroups model.filter
             in
-                ( { model | alertGroups = alertGroups, filter = filter }, Cmd.map alertTranslator alertCmd )
+                ( { model | alertGroups = alertGroups }, Cmd.map alertTranslator alertCmd )
 
         Silences silencesMsg ->
             let
@@ -115,9 +115,6 @@ update msg model =
                         Just text
             in
                 ( { model | filter = { filter | text = t } }, Cmd.none )
-
-        ParseFilterText ->
-            ( model, Cmd.none )
 
         NewUrl url ->
             ( model, Navigation.newUrl url )

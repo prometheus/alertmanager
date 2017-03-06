@@ -37,7 +37,6 @@ type Msg
     | Silences SilencesMsg
     | RedirectAlerts
     | NewUrl String
-    | ParseFilterText
     | Noop
 
 
