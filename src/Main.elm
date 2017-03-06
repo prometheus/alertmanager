@@ -80,14 +80,18 @@ update msg model =
                 ( silences, silence, silencesCmd ) =
                     Silences.Update.update silencesMsg model.silences model.silence filter
             in
-                ( { model | route = SilencesRoute silencesRoute, filter = filter }, Cmd.map silenceTranslator silencesCmd )
+                ( { model | silence = silence, silences = silences, route = SilencesRoute silencesRoute, filter = filter }
+                , Cmd.map silenceTranslator silencesCmd
+                )
 
         Silences silencesMsg ->
             let
                 ( silences, silence, silencesCmd ) =
                     Silences.Update.update silencesMsg model.silences model.silence model.filter
             in
-                ( { model | silences = silences, silence = silence }, Cmd.map silenceTranslator silencesCmd )
+                ( { model | silences = silences, silence = silence }
+                , Cmd.map silenceTranslator silencesCmd
+                )
 
         RedirectAlerts ->
             ( model, Task.perform NewUrl (Task.succeed "/#/alerts") )

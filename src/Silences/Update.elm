@@ -15,11 +15,11 @@ import Utils.Filter exposing (generateQueryString)
 update : SilencesMsg -> ApiData (List Silence) -> ApiData Silence -> Filter -> ( ApiData (List Silence), ApiData Silence, Cmd Msg )
 update msg silences silence filter =
     case msg of
-        SilencesFetch silences ->
-            ( silences, silence, Cmd.none )
+        SilencesFetch sils ->
+            ( sils, silence, Cmd.none )
 
-        SilenceFetch silence ->
-            ( silences, silence, Cmd.none )
+        SilenceFetch sil ->
+            ( silences, sil, Cmd.none )
 
         FetchSilences ->
             ( silences, silence, Api.getSilences filter )
