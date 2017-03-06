@@ -37,6 +37,7 @@ silences silences filter =
         div []
             [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
             , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterSilences) ] [ text "Filter Silences" ]
+            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", href "#/silences/new" ] [ text "New Silence" ]
             , html
             ]
 
