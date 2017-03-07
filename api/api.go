@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/weaveworks/mesh"
 )
 
 var (
@@ -77,6 +78,7 @@ type API struct {
 	configJSON     config.Config
 	resolveTimeout time.Duration
 	uptime         time.Time
+	mrouter        *mesh.Router
 
 	groups func() dispatch.AlertOverview
 
@@ -86,13 +88,14 @@ type API struct {
 }
 
 // New returns a new API.
-func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.AlertOverview) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.AlertOverview, router *mesh.Router) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,
 		silences: silences,
 		groups:   gf,
 		uptime:   time.Now(),
+		mrouter:  router,
 	}
 }
 
@@ -165,10 +168,11 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	api.mtx.RLock()
 
 	var status = struct {
-		Config      string            `json:"config"`
-		ConfigJSON  config.Config     `json:"configJSON"`
-		VersionInfo map[string]string `json:"versionInfo"`
-		Uptime      time.Time         `json:"uptime"`
+		Config      string                 `json:"config"`
+		ConfigJSON  config.Config          `json:"configJSON"`
+		VersionInfo map[string]string      `json:"versionInfo"`
+		Uptime      time.Time              `json:"uptime"`
+		MeshStatus  strippedDownMeshStatus `json:"meshStatus"`
 	}{
 		Config:     api.config,
 		ConfigJSON: api.configJSON,
@@ -180,12 +184,38 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 			"buildDate": version.BuildDate,
 			"goVersion": version.GoVersion,
 		},
-		Uptime: api.uptime,
+		Uptime:     api.uptime,
+		MeshStatus: getStrippedDownMeshStatus(api),
 	}
 
 	api.mtx.RUnlock()
 
 	respond(w, status)
+}
+
+type strippedDownMeshStatus struct {
+	Connections []strippedDownLocalConnectionStatus `json:"connections"`
+}
+
+type strippedDownLocalConnectionStatus struct {
+	Address string `json:"address"`
+	State   string `json:"state"`
+}
+
+func getStrippedDownMeshStatus(api *API) strippedDownMeshStatus {
+	status := mesh.NewStatus(api.mrouter)
+	strippedStatus := strippedDownMeshStatus{
+		Connections: make([]strippedDownLocalConnectionStatus, len(status.Connections)),
+	}
+
+	for i := 0; i < len(status.Connections); i++ {
+		strippedStatus.Connections[i] = strippedDownLocalConnectionStatus{
+			Address: status.Connections[i].Address,
+			State:   status.Connections[i].State,
+		}
+	}
+
+	return strippedStatus
 }
 
 func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
