@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/weaveworks/mesh"
 )
 
 var (
@@ -77,6 +78,7 @@ type API struct {
 	configJSON     config.Config
 	resolveTimeout time.Duration
 	uptime         time.Time
+	mrouter        *mesh.Router
 
 	groups func() dispatch.AlertOverview
 
@@ -86,13 +88,14 @@ type API struct {
 }
 
 // New returns a new API.
-func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.AlertOverview) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.AlertOverview, router *mesh.Router) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,
 		silences: silences,
 		groups:   gf,
 		uptime:   time.Now(),
+		mrouter:  router,
 	}
 }
 
@@ -169,6 +172,7 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 		ConfigJSON  config.Config     `json:"configJSON"`
 		VersionInfo map[string]string `json:"versionInfo"`
 		Uptime      time.Time         `json:"uptime"`
+		MeshStatus  meshStatus        `json:"meshStatus"`
 	}{
 		Config:     api.config,
 		ConfigJSON: api.configJSON,
@@ -180,12 +184,44 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 			"buildDate": version.BuildDate,
 			"goVersion": version.GoVersion,
 		},
-		Uptime: api.uptime,
+		Uptime:     api.uptime,
+		MeshStatus: getMeshStatus(api),
 	}
 
 	api.mtx.RUnlock()
 
 	respond(w, status)
+}
+
+type meshStatus struct {
+	Name     string       `json:"name"`
+	NickName string       `json:"nickName"`
+	Peers    []peerStatus `json:"peers"`
+}
+
+type peerStatus struct {
+	Name     string `json:"name"`     // e.g. "00:00:00:00:00:01"
+	NickName string `json:"nickName"` // e.g. "a"
+	UID      uint64 `json:"uid"`      // e.g. "14015114173033265000"
+}
+
+func getMeshStatus(api *API) meshStatus {
+	status := mesh.NewStatus(api.mrouter)
+	strippedStatus := meshStatus{
+		Name:     status.Name,
+		NickName: status.NickName,
+		Peers:    make([]peerStatus, len(status.Peers)),
+	}
+
+	for i := 0; i < len(status.Peers); i++ {
+		strippedStatus.Peers[i] = peerStatus{
+			Name:     status.Peers[i].Name,
+			NickName: status.Peers[i].NickName,
+			UID:      uint64(status.Peers[i].UID),
+		}
+	}
+
+	return strippedStatus
 }
 
 func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {

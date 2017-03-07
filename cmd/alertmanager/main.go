@@ -180,7 +180,7 @@ func main() {
 
 	apiv := api.New(alerts, silences, func() dispatch.AlertOverview {
 		return disp.Groups()
-	})
+	}, mrouter)
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
