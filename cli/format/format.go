@@ -17,7 +17,7 @@ const DefaultDateFormat = "2006-01-02 15:04:05 MST"
 type Config struct {
 	Config      string            `json:"config"`
 	ConfigJSON  config.Config     `json:configJSON`
-	VersionINFO map[string]string `json:"versionInfo"`
+	VersionInfo map[string]string `json:"versionInfo"`
 	Uptime      time.Time         `json:"uptime"`
 }
 

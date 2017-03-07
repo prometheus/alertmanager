@@ -64,12 +64,12 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts model.Alerts) error {
 
 func (formatter *ExtendedFormatter) FormatConfig(config Config) error {
 	fmt.Fprintln(formatter.writer, config.Config)
-	fmt.Fprintln(formatter.writer, "buildUser", config.VersionINFO["buildUser"])
-	fmt.Fprintln(formatter.writer, "goVersion", config.VersionINFO["goVersion"])
-	fmt.Fprintln(formatter.writer, "revision", config.VersionINFO["revision"])
-	fmt.Fprintln(formatter.writer, "version", config.VersionINFO["version"])
-	fmt.Fprintln(formatter.writer, "branch", config.VersionINFO["branch"])
-	fmt.Fprintln(formatter.writer, "buildDate", config.VersionINFO["buildDate"])
+	fmt.Fprintln(formatter.writer, "buildUser", config.VersionInfo["buildUser"])
+	fmt.Fprintln(formatter.writer, "goVersion", config.VersionInfo["goVersion"])
+	fmt.Fprintln(formatter.writer, "revision", config.VersionInfo["revision"])
+	fmt.Fprintln(formatter.writer, "version", config.VersionInfo["version"])
+	fmt.Fprintln(formatter.writer, "branch", config.VersionInfo["branch"])
+	fmt.Fprintln(formatter.writer, "buildDate", config.VersionInfo["buildDate"])
 	fmt.Fprintln(formatter.writer, "uptime", config.Uptime)
 	return nil
 }
