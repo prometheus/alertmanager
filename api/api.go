@@ -168,11 +168,11 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	api.mtx.RLock()
 
 	var status = struct {
-		Config      string                 `json:"config"`
-		ConfigJSON  config.Config          `json:"configJSON"`
-		VersionInfo map[string]string      `json:"versionInfo"`
-		Uptime      time.Time              `json:"uptime"`
-		MeshStatus  strippedDownMeshStatus `json:"meshStatus"`
+		Config      string            `json:"config"`
+		ConfigJSON  config.Config     `json:"configJSON"`
+		VersionInfo map[string]string `json:"versionInfo"`
+		Uptime      time.Time         `json:"uptime"`
+		MeshStatus  meshStatus        `json:"meshStatus"`
 	}{
 		Config:     api.config,
 		ConfigJSON: api.configJSON,
@@ -185,7 +185,7 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 			"goVersion": version.GoVersion,
 		},
 		Uptime:     api.uptime,
-		MeshStatus: getStrippedDownMeshStatus(api),
+		MeshStatus: getMeshStatus(api),
 	}
 
 	api.mtx.RUnlock()
@@ -193,25 +193,31 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	respond(w, status)
 }
 
-type strippedDownMeshStatus struct {
-	Connections []strippedDownLocalConnectionStatus `json:"connections"`
+type meshStatus struct {
+	Name     string       `json:"name"`
+	NickName string       `json:"nickName"`
+	Peers    []peerStatus `json:"peers"`
 }
 
-type strippedDownLocalConnectionStatus struct {
-	Address string `json:"address"`
-	State   string `json:"state"`
+type peerStatus struct {
+	Name     string `json:"name"`     // e.g. "00:00:00:00:00:01"
+	NickName string `json:"nickName"` // e.g. "a"
+	UID      uint64 `json:"uid"`      // e.g. "14015114173033265000"
 }
 
-func getStrippedDownMeshStatus(api *API) strippedDownMeshStatus {
+func getMeshStatus(api *API) meshStatus {
 	status := mesh.NewStatus(api.mrouter)
-	strippedStatus := strippedDownMeshStatus{
-		Connections: make([]strippedDownLocalConnectionStatus, len(status.Connections)),
+	strippedStatus := meshStatus{
+		Name:     status.Name,
+		NickName: status.NickName,
+		Peers:    make([]peerStatus, len(status.Peers)),
 	}
 
-	for i := 0; i < len(status.Connections); i++ {
-		strippedStatus.Connections[i] = strippedDownLocalConnectionStatus{
-			Address: status.Connections[i].Address,
-			State:   status.Connections[i].State,
+	for i := 0; i < len(status.Peers); i++ {
+		strippedStatus.Peers[i] = peerStatus{
+			Name:     status.Peers[i].Name,
+			NickName: status.Peers[i].NickName,
+			UID:      uint64(status.Peers[i].UID),
 		}
 	}
 
