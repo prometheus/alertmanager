@@ -44,8 +44,7 @@ type Log interface {
 	// The Log* methods store a notification log entry for
 	// a fully qualified receiver and a given IDs identifying the
 	// alert object.
-	LogActive(r *pb.Receiver, key, hash []byte) error
-	LogResolved(r *pb.Receiver, key, hash []byte) error
+	Log(r *pb.Receiver, key []byte, firing, resolved []uint64) error
 
 	// Query the log along the given Paramteres.
 	//
@@ -325,23 +324,13 @@ Loop:
 	}
 }
 
-// LogActive implements the Log interface.
-func (l *nlog) LogActive(r *pb.Receiver, key, hash []byte) error {
-	return l.log(r, key, hash, false)
-}
-
-// LogResolved implements the Log interface.
-func (l *nlog) LogResolved(r *pb.Receiver, key, hash []byte) error {
-	return l.log(r, key, hash, true)
-}
-
 // stateKey returns a string key for a log entry consisting of the group key
 // and receiver.
 func stateKey(k []byte, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, r)
 }
 
-func (l *nlog) log(r *pb.Receiver, gkey, ghash []byte, resolved bool) error {
+func (l *nlog) Log(r *pb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []uint64) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -372,11 +361,11 @@ func (l *nlog) log(r *pb.Receiver, gkey, ghash []byte, resolved bool) error {
 
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
-			Receiver:  r,
-			GroupKey:  gkey,
-			GroupHash: ghash,
-			Resolved:  resolved,
-			Timestamp: ts,
+			Receiver:       r,
+			GroupKey:       gkey,
+			Timestamp:      ts,
+			FiringAlerts:   firingAlerts,
+			ResolvedAlerts: resolvedAlerts,
 		},
 		ExpiresAt: expts,
 	}
