@@ -2,6 +2,7 @@ module Parsing exposing (..)
 
 import Alerts.Parsing exposing (alertsParser)
 import Silences.Parsing exposing (silencesParser)
+import Status.Parsing exposing (statusParser)
 import Navigation
 import Types exposing (Route(..))
 import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
@@ -53,6 +54,7 @@ routeParser : Parser (Route -> a) a
 routeParser =
     oneOf
         [ map SilencesRoute silencesParser
+        , map StatusRoute statusParser
         , map AlertsRoute alertsParser
         , map TopLevel topLevelParser
         ]

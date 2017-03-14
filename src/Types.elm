@@ -21,6 +21,7 @@ type Msg
     | UpdateFilter Filter String
     | NavigateToAlerts Alerts.Types.Route
     | NavigateToSilences Silences.Types.Route
+    | NavigateToStatus
     | Alerts AlertsMsg
     | Silences SilencesMsg
     | RedirectAlerts
@@ -32,5 +33,6 @@ type Msg
 type Route
     = SilencesRoute Silences.Types.Route
     | AlertsRoute Alerts.Types.Route
+    | StatusRoute
     | TopLevel
     | NotFound
