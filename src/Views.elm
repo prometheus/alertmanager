@@ -1,6 +1,7 @@
 module Views exposing (..)
 
-import Html exposing (Html, text)
+import Html exposing (Html, text, div)
+import Html.Attributes exposing (class)
 import Types exposing (Msg, Model, Route(SilencesRoute, AlertsRoute))
 import Utils.Types exposing (ApiResponse(..))
 import Utils.Views exposing (error, loading, notFoundView)
@@ -13,10 +14,20 @@ import NavBar.Views exposing (appHeader)
 view : Model -> Html Msg
 view model =
     div []
-        [ appHeader model
+        [ appHeader links
         , div [ class "pt6 w-80 center pa3" ]
             [ appBody model ]
         ]
+
+
+links : List ( String, String )
+links =
+    [ ( "#", "AlertManager" )
+    , ( "#/alerts", "Alerts" )
+    , ( "#/silences", "Silences" )
+    , ( "#/status", "Status" )
+    ]
+
 
 appBody : Model -> Html Msg
 appBody model =
