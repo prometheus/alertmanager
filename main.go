@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/stuartnelson3/guac"
 )
@@ -50,13 +51,10 @@ func main() {
 			return cmd.Run()
 		}
 
-		go recompileFn()
-
-		watcher, err := guac.NewWatcher(ctx, "./src", recompileFn)
+		_, err := guac.NewWatcher(ctx, "./src", 50*time.Millisecond, recompileFn)
 		if err != nil {
 			log.Fatalf("error watching: %v", err)
 		}
-		go watcher.Run()
 	}
 
 	log.Printf("starting listener on port %s", *port)

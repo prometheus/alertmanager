@@ -10,11 +10,11 @@
 			"revisionTime": "2016-10-29T13:20:31Z"
 		},
 		{
-			"checksumSHA1": "tQ4r0v1PCXZ7tmc9/M/XvsZxneA=",
+			"checksumSHA1": "Y7/vrMEQvLkfRJinNMxl5LyJArA=",
 			"path": "github.com/stuartnelson3/guac",
-			"revision": "e6a44e9b009f06370480facd69da9cc5401741e9",
-			"revisionTime": "2016-10-29T13:20:31Z"
+			"revision": "63e17125d08d68a949a1ff3a56dceef4ff4540b6",
+			"revisionTime": "2017-03-14T10:10:04Z"
 		}
 	],
-	"rootPath": "github.com/stuartnelson3/elm-bootstrap"
+	"rootPath": "github.com/stuartnelson3/am-ui"
 }
