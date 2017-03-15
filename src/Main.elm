@@ -11,6 +11,8 @@ import Utils.Types exposing (..)
 import Silences.Types exposing (Silence, nullTime, nullSilence)
 import Silences.Update
 import Translators exposing (alertTranslator, silenceTranslator)
+import Status.Types exposing (StatusModel)
+import Status.Update exposing (update)
 
 
 main : Program Never Model Msg
@@ -41,7 +43,7 @@ init location =
                     { text = Nothing, receiver = Nothing, showSilenced = Nothing }
 
         ( model, msg ) =
-            update (urlUpdate location) (Model Loading Loading Loading route filter 0)
+            update (urlUpdate location) (Model Loading Loading Loading route filter 0 (StatusModel Nothing))
     in
         model ! [ msg, Task.perform UpdateCurrentTime Time.now ]
 
@@ -84,8 +86,9 @@ update msg model =
                 ( { model | silence = silence, silences = silences, route = SilencesRoute silencesRoute, filter = filter }
                 , Cmd.map silenceTranslator silencesCmd
                 )
+
         NavigateToStatus ->
-            ({ model | route=StatusRoute }, Cmd.none)
+            ( { model | route = StatusRoute }, Cmd.none )
 
         Silences silencesMsg ->
             let
@@ -118,6 +121,13 @@ update msg model =
         UpdateCurrentTime time ->
             ( { model | currentTime = time }, Cmd.none )
 
+        MsgForStatus msg ->
+            let
+                ( status, cmd ) =
+                    Status.Update.update msg model.status
+            in
+                ( { model | status = status }, cmd )
+
 
 urlUpdate : Navigation.Location -> Msg
 urlUpdate location =
@@ -131,6 +141,7 @@ urlUpdate location =
 
             AlertsRoute alertsRoute ->
                 NavigateToAlerts alertsRoute
+
             StatusRoute ->
                 NavigateToStatus
 

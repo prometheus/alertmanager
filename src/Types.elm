@@ -2,6 +2,7 @@ module Types exposing (..)
 
 import Alerts.Types exposing (AlertGroup, AlertsMsg, Alert)
 import Silences.Types exposing (SilencesMsg, Silence)
+import Status.Types exposing (StatusModel, StatusMsg)
 import Utils.Types exposing (ApiData, Filter)
 import Time
 
@@ -13,6 +14,7 @@ type alias Model =
     , route : Route
     , filter : Filter
     , currentTime : Time.Time
+    , status : StatusModel
     }
 
 
@@ -28,6 +30,7 @@ type Msg
     | NewUrl String
     | Noop
     | UpdateCurrentTime Time.Time
+    | MsgForStatus StatusMsg
 
 
 type Route
