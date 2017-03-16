@@ -134,7 +134,7 @@ update msg silences silence filter =
                     Utils.Date.toISO8601 time
 
                 startsAt =
-                    Utils.Types.Time endsIso (ISO8601.toString startsIso) True
+                    Utils.Types.Time startsIso (ISO8601.toString startsIso) True
 
                 sil =
                     case silence of
