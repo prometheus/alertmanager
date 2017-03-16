@@ -170,12 +170,16 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 		GroupKey: uint64(groupKey),
 	}
 
+  var err error
+  tmpl := tmplText(w.tmpl, data, &err)
+  url := tmpl(w.URL)
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, w.URL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, url, contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
