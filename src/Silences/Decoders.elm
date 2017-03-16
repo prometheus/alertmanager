@@ -35,7 +35,11 @@ silence =
     Json.map8 Silence
         (field "id" Json.string)
         (field "createdBy" Json.string)
-        (field "comment" Json.string)
+        -- Remove this maybe once the api either disallows empty comments on
+        -- creation, or returns an empty string.
+        ((Json.maybe (field "comment" Json.string))
+            |> Json.andThen (\x -> Json.succeed <| Maybe.withDefault "" x)
+        )
         (field "startsAt" iso8601Time)
         (field "endsAt" iso8601Time)
         (duration "startsAt" "endsAt")
