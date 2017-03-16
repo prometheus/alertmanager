@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -129,6 +130,10 @@ var DefaultFuncs = FuncMap{
 	},
 	"safeHtml": func(text string) tmplhtml.HTML {
 		return tmplhtml.HTML(text)
+	},
+	"reReplaceAll": func(pattern, repl, text string) string {
+		re := regexp.MustCompile(pattern)
+		return re.ReplaceAllString(text, repl)
 	},
 }
 

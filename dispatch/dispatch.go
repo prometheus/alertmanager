@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -98,9 +99,19 @@ func (ao AlertOverview) Swap(i, j int)      { ao[i], ao[j] = ao[j], ao[i] }
 func (ao AlertOverview) Less(i, j int) bool { return ao[i].Labels.Before(ao[j].Labels) }
 func (ao AlertOverview) Len() int           { return len(ao) }
 
+func matchesFilterLabels(a *APIAlert, matchers []*labels.Matcher) bool {
+	for _, m := range matchers {
+		if v, prs := a.Labels[model.LabelName(m.Name)]; !prs || !m.Matches(string(v)) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Groups populates an AlertOverview from the dispatcher's internal state.
-func (d *Dispatcher) Groups() AlertOverview {
-	var overview AlertOverview
+func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
+	overview := AlertOverview{}
 
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
@@ -115,7 +126,6 @@ func (d *Dispatcher) Groups() AlertOverview {
 				alertGroup.GroupKey = ag.GroupKey()
 
 				seen[ag.fingerprint()] = alertGroup
-				overview = append(overview, alertGroup)
 			}
 
 			now := time.Now()
@@ -129,6 +139,11 @@ func (d *Dispatcher) Groups() AlertOverview {
 					Alert:     a,
 					Inhibited: d.marker.Inhibited(a.Fingerprint()),
 				}
+
+				if !matchesFilterLabels(aa, matchers) {
+					continue
+				}
+
 				if sid, ok := d.marker.Silenced(a.Fingerprint()); ok {
 					aa.Silenced = sid
 				}
@@ -142,6 +157,8 @@ func (d *Dispatcher) Groups() AlertOverview {
 				RouteOpts: &route.RouteOpts,
 				Alerts:    apiAlerts,
 			})
+
+			overview = append(overview, alertGroup)
 		}
 	}
 

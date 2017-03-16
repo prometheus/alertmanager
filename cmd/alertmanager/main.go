@@ -47,6 +47,7 @@ import (
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/weaveworks/mesh"
 )
 
@@ -82,12 +83,16 @@ func main() {
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
 		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
-		hwaddr     = flag.String("mesh.hardware-address", mustHardwareAddr(), "MAC address, i.e. mesh peer ID")
-		nickname   = flag.String("mesh.nickname", mustHostname(), "peer nickname")
+		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
+		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
 		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
 	)
 	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
 	flag.Parse()
+
+	if *hwaddr == "" {
+		*hwaddr = mustHardwareAddr()
+	}
 
 	if len(flag.Args()) > 0 {
 		log.Fatalln("Received unexpected and unparsed arguments: ", strings.Join(flag.Args(), ", "))
@@ -174,9 +179,9 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(alerts, silences, func() dispatch.AlertOverview {
-		return disp.Groups()
-	})
+	apiv := api.New(alerts, silences, func(matchers []*labels.Matcher) dispatch.AlertOverview {
+		return disp.Groups(matchers)
+	}, mrouter)
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
@@ -208,7 +213,10 @@ func main() {
 			return err
 		}
 
-		apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		err = apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		if err != nil {
+			return err
+		}
 
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {

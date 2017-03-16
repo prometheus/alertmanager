@@ -245,7 +245,7 @@ func (am *Alertmanager) Start() {
 		"-web.listen-address", am.addr,
 		"-storage.path", am.dir,
 		"-mesh.listen-address", am.mesh,
-		"-mesh.hardware-address", am.hwaddr,
+		"-mesh.peer-id", am.hwaddr,
 		"-mesh.nickname", am.nickname,
 	)
 
@@ -270,6 +270,19 @@ func (am *Alertmanager) Start() {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		resp, err := http.Get(fmt.Sprintf("http://%s/status", am.addr))
+		if err == nil {
+			_, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				am.t.Fatalf("Starting alertmanager failed: %s", err)
+			}
+			resp.Body.Close()
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	am.t.Fatalf("Starting alertmanager failed: timeout")
 }
 
 // Terminate kills the underlying Alertmanager process and remove intermediate

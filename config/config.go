@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 )
@@ -478,6 +479,14 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (re *Regexp) MarshalYAML() (interface{}, error) {
 	if re != nil {
 		return re.String(), nil
+	}
+	return nil, nil
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (re Regexp) MarshalJSON() ([]byte, error) {
+	if re.Regexp != nil {
+		return json.Marshal(re.String())
 	}
 	return nil, nil
 }
