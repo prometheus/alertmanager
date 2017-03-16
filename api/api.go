@@ -26,10 +26,12 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -80,15 +82,17 @@ type API struct {
 	uptime         time.Time
 	mrouter        *mesh.Router
 
-	groups func() dispatch.AlertOverview
+	groups groupsFn
 
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
 	mtx     sync.RWMutex
 }
 
+type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
+
 // New returns a new API.
-func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.AlertOverview, router *mesh.Router) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, router *mesh.Router) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,
@@ -225,7 +229,22 @@ func getMeshStatus(api *API) meshStatus {
 }
 
 func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
-	respond(w, api.groups())
+	var err error
+	matchers := []*labels.Matcher{}
+	if filter := req.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	groups := api.groups(matchers)
+
+	respond(w, groups)
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
@@ -436,7 +455,19 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sils []*types.Silence
+	matchers := []*labels.Matcher{}
+	if filter := r.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	sils := []*types.Silence{}
 	for _, ps := range psils {
 		s, err := silenceFromProto(ps)
 		if err != nil {
@@ -446,10 +477,28 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 			}, nil)
 			return
 		}
+
+		if !matchesFilterLabels(s, matchers) {
+			continue
+		}
 		sils = append(sils, s)
 	}
 
 	respond(w, sils)
+}
+
+func matchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
+	sms := map[string]string{}
+	for _, m := range s.Matchers {
+		sms[m.Name] = m.Value
+	}
+	for _, m := range matchers {
+		if v, prs := sms[m.Name]; !prs || !m.Matches(v) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
