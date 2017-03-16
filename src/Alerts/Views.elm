@@ -37,7 +37,7 @@ view route alertGroups filter errorHtml =
     in
         div []
             [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
-            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
+            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
             , errorHtml
             , alertHtml
             ]
