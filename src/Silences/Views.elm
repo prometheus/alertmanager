@@ -108,10 +108,11 @@ silence silence currentTime =
 silenceBase : Silence -> Html Msg
 silenceBase silence =
     let
-        -- TODO: Check with fabxc if the alert being in the first position can
-        -- be relied upon.
+        f =
+            List.filter (\m -> m.name == "alertname") silence.matchers
+
         alertName =
-            case List.head silence.matchers of
+            case List.head f of
                 Just m ->
                     m.value
 
@@ -134,7 +135,7 @@ silenceBase silence =
                 , buttonLink "fa-trash-o" "#/silences" "dark-red" (ForSelf (DestroySilence silence))
                 , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateFormat silence.endsAt.t ]
                 ]
-            , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton <| List.filter (\m -> m.name /= "alertname") silence.matchers)
+            , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton silence.matchers)
             ]
 
 
