@@ -13,6 +13,7 @@ import Silences.Update
 import Translators exposing (alertTranslator, silenceTranslator)
 import Status.Types exposing (StatusModel)
 import Status.Update exposing (update)
+import Status.Api exposing (getStatus)
 
 
 main : Program Never Model Msg
@@ -88,7 +89,7 @@ update msg model =
                 )
 
         NavigateToStatus ->
-            ( { model | route = StatusRoute }, Cmd.none )
+            ( { model | route = StatusRoute }, getStatus )
 
         Silences silencesMsg ->
             let
