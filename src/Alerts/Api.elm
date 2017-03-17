@@ -3,18 +3,29 @@ module Alerts.Api exposing (..)
 import Json.Decode as Json exposing (..)
 import Utils.Api exposing (baseUrl, iso8601Time)
 import Alerts.Types exposing (..)
-import Utils.Types exposing (Filter)
+import Utils.Types exposing (ApiData, Filter)
 import Utils.Filter exposing (generateQueryString)
 
 
 getAlertGroups : Filter -> Cmd Msg
 getAlertGroups filter =
+    alertGroups filter
+        |> Cmd.map (AlertGroupsFetch >> ForSelf)
+
+
+alertPreview : Filter -> Cmd Msg
+alertPreview filter =
+    alertGroups filter
+        |> Cmd.map (AlertGroupsPreview >> ForParent)
+
+
+alertGroups : Filter -> Cmd (ApiData (List AlertGroup))
+alertGroups filter =
     let
         url =
             String.join "/" [ baseUrl, "alerts", "groups" ++ (generateQueryString filter) ]
     in
         Utils.Api.send (Utils.Api.get url alertGroupsDecoder)
-            |> Cmd.map (AlertGroupsFetch >> ForSelf)
 
 
 

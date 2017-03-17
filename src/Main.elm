@@ -6,8 +6,10 @@ import Time
 import Parsing
 import Views
 import Alerts.Update
+import Alerts.Api
 import Types exposing (..)
 import Utils.Types exposing (..)
+import Utils.List
 import Silences.Types exposing (Silence, nullTime, nullSilence)
 import Silences.Update
 import Translators exposing (alertTranslator, silenceTranslator)
@@ -41,7 +43,7 @@ init location =
                     Silences.Update.updateFilter silencesRoute
 
                 _ ->
-                    { text = Nothing, receiver = Nothing, showSilenced = Nothing }
+                    nullFilter
 
         ( model, msg ) =
             update (urlUpdate location) (Model Loading Loading Loading route filter 0 (StatusModel Nothing))
@@ -58,6 +60,31 @@ update msg model =
                     { nullSilence | matchers = (List.map (\( k, v ) -> Matcher k v False) alert.labels) }
             in
                 ( { model | silence = Success silence }, Cmd.none )
+
+        PreviewSilence silence ->
+            let
+                s =
+                    { silence | silencedAlertGroups = Loading }
+
+                filter =
+                    { nullFilter | text = Just <| Utils.List.mjoin s.matchers }
+            in
+                ( { model | silence = Success silence }, Cmd.map alertTranslator (Alerts.Api.alertPreview filter) )
+
+        AlertGroupsPreview alertGroups ->
+            let
+                silence =
+                    case model.silence of
+                        Success sil ->
+                            Success { sil | silencedAlertGroups = alertGroups }
+
+                        Failure e ->
+                            Failure e
+
+                        Loading ->
+                            Loading
+            in
+                ( { model | silence = silence }, Cmd.none )
 
         NavigateToAlerts alertsRoute ->
             let

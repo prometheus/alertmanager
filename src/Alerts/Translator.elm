@@ -1,7 +1,7 @@
 module Alerts.Translator exposing (translator)
 
-import Alerts.Types exposing (Msg(..), Alert, AlertsMsg, OutMsg(..))
-import Utils.Types exposing (Filter)
+import Alerts.Types exposing (Msg(..), AlertGroup, Alert, AlertsMsg, OutMsg(..))
+import Utils.Types exposing (ApiData, Filter)
 
 
 type alias TranslationDictionary msg =
@@ -9,11 +9,12 @@ type alias TranslationDictionary msg =
     , onSilenceFromAlert : Alert -> msg
     , onUpdateFilter : Filter -> String -> msg
     , onNewUrl : String -> msg
+    , onAlertGroupsPreview : ApiData (List AlertGroup) -> msg
     }
 
 
 translator : TranslationDictionary parentMsg -> Msg -> parentMsg
-translator { onInternalMessage, onSilenceFromAlert, onUpdateFilter, onNewUrl } msg =
+translator { onInternalMessage, onSilenceFromAlert, onUpdateFilter, onNewUrl, onAlertGroupsPreview } msg =
     case msg of
         ForSelf internal ->
             onInternalMessage internal
@@ -26,3 +27,6 @@ translator { onInternalMessage, onSilenceFromAlert, onUpdateFilter, onNewUrl } m
 
         ForParent (NewUrl string) ->
             onNewUrl string
+
+        ForParent (AlertGroupsPreview groups) ->
+            onAlertGroupsPreview groups

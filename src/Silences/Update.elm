@@ -18,7 +18,16 @@ update msg silences silence filter =
             ( sils, silence, Cmd.map ForParent (Task.perform UpdateCurrentTime Time.now) )
 
         SilenceFetch sil ->
-            ( silences, sil, Cmd.none )
+            let
+                cmd =
+                    case sil of
+                        Success sil ->
+                            Task.perform ForParent <| Task.succeed (PreviewSilence sil)
+
+                        _ ->
+                            Cmd.none
+            in
+                ( silences, sil, cmd )
 
         FetchSilences ->
             ( silences, silence, Api.getSilences filter )

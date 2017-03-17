@@ -72,12 +72,18 @@ iso8601Time =
 
 baseUrl : String
 baseUrl =
-    "http://alertmanager-experimental.int.s-cloud.net/api/v1"
+    "http://alertmanager.int.s-cloud.net/api/v1"
 
 
 defaultTimeout : Time.Time
 defaultTimeout =
     1000 * Time.millisecond
+
+
+(|:) : Json.Decoder (a -> b) -> Json.Decoder a -> Json.Decoder b
+(|:) =
+    -- Taken from elm-community/json-extra
+    flip (Json.map2 (|>))
 
 
 

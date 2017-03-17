@@ -17,6 +17,14 @@ type alias Filter =
     }
 
 
+nullFilter : Filter
+nullFilter =
+    { text = Nothing
+    , receiver = Nothing
+    , showSilenced = Nothing
+    }
+
+
 type alias Matcher =
     { name : String
     , value : String

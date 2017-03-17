@@ -5,11 +5,13 @@ module Silences.Views exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
-import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..), OutMsg(UpdateFilter), Route(..))
+import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..), OutMsg(UpdateFilter, PreviewSilence), Route(..))
 import Utils.Types exposing (Matcher, ApiResponse(..), Filter, ApiData)
 import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
 import Utils.Date
+import Utils.List
 import Time
+import Alerts.Views
 
 
 view : Route -> ApiData (List Silence) -> ApiData Silence -> Time.Time -> Filter -> Html Msg
@@ -101,6 +103,8 @@ silence silence currentTime =
     div []
         [ silenceBase silence
         , silenceExtra silence currentTime
+        , h2 [ class "h6 dark-red" ] [ text "Affected alerts" ]
+        , preview silence
         ]
 
 
@@ -158,6 +162,20 @@ silenceExtra silence currentTime =
         ]
 
 
+preview : Silence -> Html msg
+preview s =
+    case s.silencedAlertGroups of
+        Success alertGroups ->
+            div []
+                (List.map Alerts.Views.compact alertGroups)
+
+        Loading ->
+            loading
+
+        Failure e ->
+            error e
+
+
 status : Silence -> Time.Time -> String
 status silence currentTime =
     let
@@ -196,32 +214,38 @@ silenceForm kind silence =
                 _ ->
                     "/#/silences"
     in
-        div [ class "pa4 black-80" ]
-            [ fieldset [ class "ba b--transparent ph0 mh0" ]
-                [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
-                , (formField "Start" silence.startsAt.s (UpdateStartsAt silence))
-                , div [ class "dib mb2 mr2 w-40" ] [ formField "End" silence.endsAt.s (UpdateEndsAt silence) ]
-                , div [ class "dib mb2 mr2 w-40" ] [ formField "Duration" silence.duration.s (UpdateDuration silence) ]
-                , div [ class "mt3" ]
-                    [ label [ class "f6 b db mb2" ]
-                        [ text "Matchers "
-                        , span [ class "normal black-60" ] [ text "Alerts affected by this silence. Format: name=value" ]
+        div []
+            [ div [ class "pa4 black-80" ]
+                [ fieldset [ class "ba b--transparent ph0 mh0" ]
+                    [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
+                    , (formField "Start" silence.startsAt.s (UpdateStartsAt silence))
+                    , div [ class "dib mb2 mr2 w-40" ] [ formField "End" silence.endsAt.s (UpdateEndsAt silence) ]
+                    , div [ class "dib mb2 mr2 w-40" ] [ formField "Duration" silence.duration.s (UpdateDuration silence) ]
+                    , div [ class "mt3" ]
+                        [ label [ class "f6 b db mb2" ]
+                            [ text "Matchers "
+                            , span [ class "normal black-60" ] [ text "Alerts affected by this silence. Format: name=value" ]
+                            ]
+                        , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
+                        , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
                         ]
-                    , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
-                    , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
+                    , div [] (List.map boundMatcherForm silence.matchers)
+                    , iconButtonMsg "blue" "fa-plus" (AddMatcher silence)
+                    , formField "Creator" silence.createdBy (UpdateCreatedBy silence)
+                    , textField "Comment" silence.comment (UpdateComment silence)
+                    , div [ class "mt3" ]
+                        [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (CreateSilence silence) ] [ text "Create" ]
+                          -- Reset isn't working for "New" -- just updates time.
+                        , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red", href url ] [ text "Reset" ]
+                        ]
                     ]
-                , div [] (List.map boundMatcherForm silence.matchers)
-                , iconButtonMsg "blue" "fa-plus" (AddMatcher silence)
-                , formField "Creator" silence.createdBy (UpdateCreatedBy silence)
-                , textField "Comment" silence.comment (UpdateComment silence)
+                    |> (Html.map ForSelf)
                 , div [ class "mt3" ]
-                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (CreateSilence silence) ] [ text "Create" ]
-                      -- Reset isn't working for "New" -- just updates time.
-                    , a [ class "f6 link br2 ba ph3 pv2 mb2 dib dark-red", href url ] [ text "Reset" ]
+                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-green", onClick (ForParent (PreviewSilence silence)) ] [ text "Show Affected Alerts" ]
                     ]
+                , preview silence
                 ]
             ]
-            |> (Html.map ForSelf)
 
 
 matcherForm : Silence -> Matcher -> Html SilencesMsg
@@ -236,11 +260,4 @@ matcherForm silence matcher =
 
 matcherButton : Matcher -> Html msg
 matcherButton matcher =
-    let
-        join =
-            if matcher.isRegex then
-                "=~"
-            else
-                "="
-    in
-        Utils.Views.button "light-silver hover-black ph3 pv2" <| String.join join [ matcher.name, matcher.value ]
+    Utils.Views.button "light-silver hover-black ph3 pv2" <| Utils.List.mstring matcher

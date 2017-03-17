@@ -16,6 +16,7 @@ type OutMsg
     = SilenceFromAlert Alert
     | UpdateFilter Filter String
     | NewUrl String
+    | AlertGroupsPreview (ApiData (List AlertGroup))
 
 
 type AlertsMsg

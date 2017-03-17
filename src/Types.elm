@@ -20,6 +20,8 @@ type alias Model =
 
 type Msg
     = CreateSilenceFromAlert Alert
+    | PreviewSilence Silence
+    | AlertGroupsPreview (ApiData (List AlertGroup))
     | UpdateFilter Filter String
     | NavigateToAlerts Alerts.Types.Route
     | NavigateToSilences Silences.Types.Route

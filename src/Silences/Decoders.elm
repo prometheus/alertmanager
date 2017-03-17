@@ -1,9 +1,9 @@
 module Silences.Decoders exposing (..)
 
 import Json.Decode as Json exposing (field)
-import Utils.Api exposing (iso8601Time, duration)
+import Utils.Api exposing (iso8601Time, duration, (|:))
 import Silences.Types exposing (Silence)
-import Utils.Types exposing (Matcher, Time)
+import Utils.Types exposing (Matcher, Time, ApiResponse(Success))
 
 
 show : Json.Decoder Silence
@@ -32,19 +32,21 @@ destroy =
 
 silence : Json.Decoder Silence
 silence =
-    Json.map8 Silence
-        (field "id" Json.string)
-        (field "createdBy" Json.string)
+    Json.succeed Silence
+        |: (field "id" Json.string)
+        |: (field "createdBy" Json.string)
         -- Remove this maybe once the api either disallows empty comments on
         -- creation, or returns an empty string.
-        ((Json.maybe (field "comment" Json.string))
-            |> Json.andThen (\x -> Json.succeed <| Maybe.withDefault "" x)
-        )
-        (field "startsAt" iso8601Time)
-        (field "endsAt" iso8601Time)
-        (duration "startsAt" "endsAt")
-        (field "updatedAt" iso8601Time)
-        (field "matchers" (Json.list matcher))
+        |:
+            ((Json.maybe (field "comment" Json.string))
+                |> Json.andThen (\x -> Json.succeed <| Maybe.withDefault "" x)
+            )
+        |: (field "startsAt" iso8601Time)
+        |: (field "endsAt" iso8601Time)
+        |: (duration "startsAt" "endsAt")
+        |: (field "updatedAt" iso8601Time)
+        |: (field "matchers" (Json.list matcher))
+        |: (Json.succeed <| Success [])
 
 
 matcher : Json.Decoder Matcher

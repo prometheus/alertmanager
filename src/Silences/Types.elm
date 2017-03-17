@@ -1,8 +1,9 @@
 module Silences.Types exposing (..)
 
-import Utils.Types exposing (Time, Duration, Matcher, Filter, ApiData)
+import Utils.Types exposing (Time, Duration, Matcher, Filter, ApiData, ApiResponse(..))
 import Utils.Date
 import Time
+import Alerts.Types exposing (AlertGroup)
 
 
 type alias Silence =
@@ -14,6 +15,7 @@ type alias Silence =
     , duration : Duration
     , updatedAt : Time
     , matchers : List Matcher
+    , silencedAlertGroups : ApiData (List AlertGroup)
     }
 
 
@@ -33,6 +35,7 @@ type OutMsg
     = NewUrl String
     | UpdateFilter Filter String
     | UpdateCurrentTime Time.Time
+    | PreviewSilence Silence
 
 
 type SilencesMsg
@@ -62,7 +65,16 @@ type SilencesMsg
 
 nullSilence : Silence
 nullSilence =
-    Silence "" "" "" nullTime nullTime nullDuration nullTime [ nullMatcher ]
+    { id = ""
+    , createdBy = ""
+    , comment = ""
+    , startsAt = nullTime
+    , endsAt = nullTime
+    , duration = nullDuration
+    , updatedAt = nullTime
+    , matchers = [ nullMatcher ]
+    , silencedAlertGroups = Success []
+    }
 
 
 nullMatcher : Matcher

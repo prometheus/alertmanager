@@ -4,7 +4,7 @@ import Alerts.Types
 import Alerts.Translator
 import Silences.Types
 import Silences.Translator
-import Types exposing (Msg(Alerts, CreateSilenceFromAlert, Silences, UpdateFilter, NewUrl, UpdateCurrentTime))
+import Types exposing (Msg(Alerts, CreateSilenceFromAlert, Silences, UpdateFilter, NewUrl, UpdateCurrentTime, PreviewSilence, AlertGroupsPreview))
 
 
 alertTranslator : Alerts.Types.Msg -> Msg
@@ -14,6 +14,7 @@ alertTranslator =
         , onSilenceFromAlert = CreateSilenceFromAlert
         , onUpdateFilter = UpdateFilter
         , onNewUrl = NewUrl
+        , onAlertGroupsPreview = AlertGroupsPreview
         }
 
 
@@ -24,4 +25,5 @@ silenceTranslator =
         , onNewUrl = NewUrl
         , onUpdateFilter = UpdateFilter
         , onUpdateCurrentTime = UpdateCurrentTime
+        , onPreviewSilence = PreviewSilence
         }
