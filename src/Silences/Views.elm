@@ -166,8 +166,11 @@ preview : Silence -> Html msg
 preview s =
     case s.silencedAlertGroups of
         Success alertGroups ->
-            div []
-                (List.map Alerts.Views.compact alertGroups)
+            if List.isEmpty alertGroups then
+                div [] [ text "No matches" ]
+            else
+                div []
+                    (List.map Alerts.Views.compact alertGroups)
 
         Loading ->
             loading
