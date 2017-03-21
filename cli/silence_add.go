@@ -82,7 +82,7 @@ func init() {
 func add(cmd *cobra.Command, args []string) error {
 	var err error
 
-	matchers, err := parseMatchers(args, RESOLVE_EXACT)
+	matchers, err := parseMatchers(args)
 	if err != nil {
 		return err
 	}
@@ -123,8 +123,12 @@ func add(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, matchers := range groups {
+		typeMatchers, err := TypeMatchers(matchers)
+		if err != nil {
+			return err
+		}
 		silence := types.Silence{
-			Matchers:  matchers,
+			Matchers:  typeMatchers,
 			StartsAt:  time.Now().UTC(),
 			EndsAt:    endsAt,
 			CreatedBy: author,

@@ -3,13 +3,15 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"time"
 
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -72,7 +74,7 @@ func init() {
 	alertFlags = alertCmd.Flags()
 }
 
-func fetchAlerts() (model.Alerts, error) {
+func fetchAlerts(filter *[]labels.Matcher) (model.Alerts, error) {
 	alertResponse := alertmanagerAlertResponse{}
 
 	u, err := GetAlertmanagerURL()
@@ -81,6 +83,12 @@ func fetchAlerts() (model.Alerts, error) {
 	}
 
 	u.Path = path.Join(u.Path, "/api/v1/alerts")
+	if filter != nil {
+		u.RawQuery = url.QueryEscape(MatchersToString(*filter))
+	}
+
+	fmt.Println(u.String())
+
 	res, err := http.Get(u.String())
 	if err != nil {
 		return model.Alerts{}, err
@@ -97,19 +105,14 @@ func fetchAlerts() (model.Alerts, error) {
 }
 
 func queryAlerts(cmd *cobra.Command, args []string) error {
-	alerts, err := fetchAlerts()
+	silences, err := fetchSilences(nil)
 	if err != nil {
 		return err
 	}
 
-	silences, err := fetchSilences()
-	if err != nil {
-		return err
-	}
-
-	var groups []types.Matchers
+	var groups [][]labels.Matcher
 	if len(args) > 0 {
-		matchers, err := parseMatchers(args, RESOLVE_FUZZY)
+		matchers, err := parseMatchers(args)
 		if err != nil {
 			return err
 		}
@@ -129,8 +132,26 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	fetchedAlerts := model.Alerts{}
+	if len(groups) < 1 {
+		fmt.Println("No specified matchers")
+		fetchedAlerts, err = fetchAlerts(nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Fetch all alerts that match each group of matchers
+	for _, matchers := range groups {
+		alerts, err := fetchAlerts(&matchers)
+		if err != nil {
+			return err
+		}
+		fetchedAlerts = append(fetchedAlerts, alerts...)
+	}
+
 	displayAlerts := model.Alerts{}
-	for _, alert := range alerts {
+	for _, alert := range fetchedAlerts {
 		// If we are only returning current alerts and this one has already expired skip it
 		if !expired {
 			if !alert.EndsAt.IsZero() && alert.EndsAt.Before(time.Now()) {
@@ -157,19 +178,7 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 				continue
 			}
 		}
-
-		// If the user hasn't specified and match groups then let it through
-		if len(groups) < 1 {
-			displayAlerts = append(displayAlerts, alert)
-			continue
-		}
-
-		for _, matchers := range groups {
-			if matchers.Match(alert.Labels) {
-				displayAlerts = append(displayAlerts, alert)
-				break
-			}
-		}
+		displayAlerts = append(displayAlerts, alert)
 	}
 
 	formatter, found := format.Formatters[viper.GetString("output")]

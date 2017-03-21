@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"path"
 	"time"
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -59,14 +61,19 @@ func init() {
 	queryFlags = queryCmd.Flags()
 }
 
-func fetchSilences() ([]types.Silence, error) {
+func fetchSilences(filter *[]labels.Matcher) ([]types.Silence, error) {
 	silenceResponse := alertmanagerSilenceResponse{}
+
 	u, err := GetAlertmanagerURL()
 	if err != nil {
 		return []types.Silence{}, err
 	}
 
 	u.Path = path.Join(u.Path, "/api/v1/silences")
+	if filter != nil {
+		u.RawQuery = url.QueryEscape(MatchersToString(*filter))
+	}
+
 	res, err := http.Get(u.String())
 	if err != nil {
 		return []types.Silence{}, err
@@ -84,20 +91,15 @@ func fetchSilences() ([]types.Silence, error) {
 }
 
 func query(cmd *cobra.Command, args []string) error {
-	silences, err := fetchSilences()
-	if err != nil {
-		return err
-	}
 
 	expired, err := queryFlags.GetBool("expired")
 	if err != nil {
 		return err
 	}
 
-	displaySilences := []types.Silence{}
-	var groups []types.Matchers
+	var groups [][]labels.Matcher
 	if len(args) > 0 {
-		matchers, err := parseMatchers(args, RESOLVE_FUZZY)
+		matchers, err := parseMatchers(args)
 		if err != nil {
 			return err
 		}
@@ -107,23 +109,28 @@ func query(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	for _, silence := range silences {
+	fetchedSilences := []types.Silence{}
+	if len(groups) < 1 {
+		fetchedSilences, err = fetchSilences(nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Fetch silences that match each group of matchers
+	for _, matchers := range groups {
+		silences, err := fetchSilences(&matchers)
+		if err != nil {
+			return err
+		}
+		fetchedSilences = append(fetchedSilences, silences...)
+	}
+
+	displaySilences := []types.Silence{}
+	for _, silence := range fetchedSilences {
 		// If we are only returning current silences and this one has already expired skip it
 		if !expired && silence.EndsAt.Before(time.Now()) {
 			continue
-		}
-
-		// If the user hasn't specified and match groups then let it through
-		if len(groups) < 1 {
-			displaySilences = append(displaySilences, silence)
-			continue
-		}
-
-		for _, matchers := range groups {
-			if groupMatch(silence.Matchers, matchers) {
-				displaySilences = append(displaySilences, silence)
-				break
-			}
 		}
 	}
 

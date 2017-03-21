@@ -46,6 +46,7 @@ func (formatter *SimpleFormatter) FormatSilences(silences []types.Silence) error
 func (formatter *SimpleFormatter) FormatAlerts(alerts model.Alerts) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
+	//alerts = UniqueAlerts(alerts)
 	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\t")
 	for _, alert := range alerts {
 		line := fmt.Sprintf("%s\t%s\t%s\t",

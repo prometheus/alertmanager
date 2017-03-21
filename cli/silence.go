@@ -6,7 +6,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var labels []string
+//var labels []string
 
 type alertmanagerSilenceResponse struct {
 	Status    string          `json:"status"`
