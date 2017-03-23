@@ -1,6 +1,6 @@
-module Alerts.Parsing exposing (..)
+module Views.AlertList.Parsing exposing (alertsParser)
 
-import Alerts.Types exposing (..)
+import Views.AlertList.Types exposing (Route(Receiver))
 import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
 
 

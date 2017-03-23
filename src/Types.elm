@@ -1,8 +1,12 @@
-module Types exposing (..)
+module Types exposing (Model, Msg(..), Route(..))
 
-import Alerts.Types exposing (AlertGroup, AlertsMsg, Alert)
-import Silences.Types exposing (SilencesMsg, Silence)
-import Status.Types exposing (StatusModel, StatusMsg)
+import Alerts.Types exposing (AlertGroup, Alert)
+import Views.AlertList.Types exposing (AlertListMsg)
+import Views.SilenceList.Types exposing (SilenceListMsg)
+import Views.Silence.Types exposing (SilenceMsg)
+import Views.SilenceForm.Types exposing (SilenceFormMsg)
+import Views.Status.Types exposing (StatusModel, StatusMsg)
+import Silences.Types exposing (Silence)
 import Utils.Types exposing (ApiData, Filter)
 import Time
 
@@ -20,24 +24,33 @@ type alias Model =
 
 type Msg
     = CreateSilenceFromAlert Alert
-    | PreviewSilence Silence
     | AlertGroupsPreview (ApiData (List AlertGroup))
-    | UpdateFilter Filter String
-    | NavigateToAlerts Alerts.Types.Route
-    | NavigateToSilences Silences.Types.Route
+    | MsgForAlertList AlertListMsg
+    | MsgForSilence SilenceMsg
+    | MsgForSilenceForm SilenceFormMsg
+    | MsgForSilenceList SilenceListMsg
+    | MsgForStatus StatusMsg
+    | NavigateToAlerts Views.AlertList.Types.Route
+    | NavigateToNotFound
+    | NavigateToSilence String
+    | NavigateToSilenceFormEdit String
+    | NavigateToSilenceFormNew
+    | NavigateToSilenceList (Maybe String)
     | NavigateToStatus
-    | Alerts AlertsMsg
-    | Silences SilencesMsg
-    | RedirectAlerts
     | NewUrl String
     | Noop
+    | PreviewSilence Silence
+    | RedirectAlerts
     | UpdateCurrentTime Time.Time
-    | MsgForStatus StatusMsg
+    | UpdateFilter Filter String
 
 
 type Route
-    = SilencesRoute Silences.Types.Route
-    | AlertsRoute Alerts.Types.Route
+    = AlertsRoute Views.AlertList.Types.Route
+    | NotFoundRoute
+    | SilenceFormEditRoute String
+    | SilenceFormNewRoute
+    | SilenceListRoute (Maybe String)
+    | SilenceRoute String
     | StatusRoute
-    | TopLevel
-    | NotFound
+    | TopLevelRoute

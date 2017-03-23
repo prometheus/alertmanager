@@ -1,4 +1,4 @@
-module NavBar.Views exposing (appHeader)
+module Views.NavBar.Views exposing (appHeader)
 
 import Html exposing (Html, header, text, a, nav)
 import Html.Attributes exposing (class, href, title)

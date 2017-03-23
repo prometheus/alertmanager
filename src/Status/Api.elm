@@ -1,22 +1,21 @@
 module Status.Api exposing (getStatus)
 
-import Utils.Api exposing (baseUrl)
-import Http
-import Status.Types exposing (StatusMsg(NewStatus), StatusResponse)
+import Utils.Api exposing (baseUrl, send, get)
+import Utils.Types exposing (ApiData)
+import Status.Types exposing (StatusResponse)
 import Json.Decode exposing (Decoder, map2, string, field, at)
-import Types exposing (Msg(MsgForStatus))
 
 
-getStatus : Cmd Msg
-getStatus =
+getStatus : (ApiData StatusResponse -> msg) -> Cmd msg
+getStatus msg =
     let
         url =
             String.join "/" [ baseUrl, "status" ]
 
         request =
-            Http.get url decodeStatusResponse
+            get url decodeStatusResponse
     in
-        Http.send (NewStatus >> MsgForStatus) request
+        Cmd.map msg <| send request
 
 
 decodeStatusResponse : Decoder StatusResponse

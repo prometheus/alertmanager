@@ -1,11 +1,12 @@
 module Parsing exposing (..)
 
-import Alerts.Parsing exposing (alertsParser)
-import Silences.Parsing exposing (silencesParser)
-import Status.Parsing exposing (statusParser)
+import Views.AlertList.Parsing exposing (alertsParser)
+import Views.SilenceList.Parsing exposing (silenceListParser)
+import Views.Silence.Parsing exposing (silenceParser)
+import Views.SilenceForm.Parsing exposing (silenceFormNewParser, silenceFormEditParser)
+import Views.Status.Parsing exposing (statusParser)
 import Navigation
-import Types exposing (Route(..))
-import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
+import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam, top)
 import Regex
 import Types exposing (Route(..))
 
@@ -42,19 +43,17 @@ urlParser location =
                 route
 
             Nothing ->
-                NotFound
-
-
-topLevelParser : Parser a a
-topLevelParser =
-    s ""
+                NotFoundRoute
 
 
 routeParser : Parser (Route -> a) a
 routeParser =
     oneOf
-        [ map SilencesRoute silencesParser
+        [ map SilenceListRoute silenceListParser
         , map StatusRoute statusParser
+        , map SilenceRoute silenceParser
+        , map SilenceFormEditRoute silenceFormEditParser
+        , map SilenceFormNewRoute silenceFormNewParser
         , map AlertsRoute alertsParser
-        , map TopLevel topLevelParser
+        , map TopLevelRoute top
         ]

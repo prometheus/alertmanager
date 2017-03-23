@@ -2,14 +2,16 @@ module Views exposing (..)
 
 import Html exposing (Html, text, div)
 import Html.Attributes exposing (class)
-import Types exposing (Msg, Model, Route(SilencesRoute, AlertsRoute, StatusRoute))
+import Types exposing (Msg, Model, Route(..))
 import Utils.Types exposing (ApiResponse(..))
-import Utils.Views exposing (error, loading, notFoundView)
-import Translators exposing (alertTranslator, silenceTranslator)
-import Silences.Views
-import Alerts.Views
-import Status.Views
-import NavBar.Views exposing (appHeader)
+import Utils.Views exposing (error, loading)
+import Views.SilenceList.Views as SilenceList
+import Views.SilenceForm.Views as SilenceForm
+import Views.AlertList.Views as AlertList
+import Views.Silence.Views as Silence
+import Views.NotFound.Views as NotFound
+import Views.Status.Views as Status
+import Views.NavBar.Views exposing (appHeader)
 
 
 view : Model -> Html Msg
@@ -34,21 +36,33 @@ appBody : Model -> Html Msg
 appBody model =
     case model.route of
         StatusRoute ->
-            Status.Views.view model
+            Status.view model
+
+        SilenceRoute silenceId ->
+            Silence.view model
 
         AlertsRoute route ->
             case model.alertGroups of
                 Success alertGroups ->
-                    Html.map alertTranslator (Alerts.Views.view route alertGroups model.filter (text ""))
+                   AlertList.view route alertGroups model.filter (text "")
 
                 Loading ->
                     loading
 
                 Failure msg ->
-                    Html.map alertTranslator (Alerts.Views.view route [] model.filter (error msg))
+                    AlertList.view route [] model.filter (error msg)
 
-        SilencesRoute route ->
-            Html.map silenceTranslator (Silences.Views.view route model.silences model.silence model.currentTime model.filter)
+        SilenceListRoute route ->
+            SilenceList.view model.silences model.silence model.currentTime model.filter
 
-        _ ->
-            notFoundView model
+        SilenceFormNewRoute ->
+            SilenceForm.new model.silence
+
+        SilenceFormEditRoute silenceId ->
+            SilenceForm.edit model.silence
+
+        TopLevelRoute ->
+            Utils.Views.loading
+
+        NotFoundRoute ->
+            NotFound.view

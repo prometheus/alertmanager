@@ -1,36 +1,36 @@
 module Silences.Api exposing (..)
 
 import Http
-import Silences.Types exposing (Silence, SilencesMsg(..), Msg(..))
-import Utils.Types exposing (Filter, ApiResponse(..))
+import Silences.Types exposing (Silence)
+import Utils.Types exposing (Filter, ApiResponse(..), ApiData)
 import Silences.Decoders exposing (..)
 import Silences.Encoders
 import Utils.Api exposing (baseUrl)
 import Utils.Filter exposing (generateQueryString)
 
 
-getSilences : Filter -> Cmd Msg
-getSilences filter =
+getSilences : Filter -> (ApiData (List Silence) -> msg) -> Cmd msg
+getSilences filter msg =
     let
         url =
             String.join "/" [ baseUrl, "silences" ++ (generateQueryString filter) ]
     in
         Utils.Api.send (Utils.Api.get url list)
-            |> Cmd.map (SilencesFetch >> ForSelf)
+            |> Cmd.map msg
 
 
-getSilence : String -> Cmd Msg
-getSilence uuid =
+getSilence : String -> (ApiData Silence -> msg) -> Cmd msg
+getSilence uuid msg =
     let
         url =
             String.join "/" [ baseUrl, "silence", uuid ]
     in
         Utils.Api.send (Utils.Api.get url show)
-            |> Cmd.map (SilenceFetch >> ForSelf)
+            |> Cmd.map msg
 
 
-create : Silence -> Cmd Msg
-create silence =
+create : Silence -> (ApiData String -> msg) -> Cmd msg
+create silence msg =
     let
         url =
             String.join "/" [ baseUrl, "silences" ]
@@ -42,11 +42,11 @@ create silence =
         -- redirect to the silence show page.
         Utils.Api.send
             (Utils.Api.post url body Silences.Decoders.create)
-            |> Cmd.map (SilenceCreate >> ForSelf)
+            |> Cmd.map msg
 
 
-destroy : Silence -> Cmd Msg
-destroy silence =
+destroy : Silence -> (ApiData String -> msg) -> Cmd msg
+destroy silence msg =
     -- The incorrect route using "silences" receives a 405. The route seems to
     -- be matching on /silences and ignoring the :sid, should be getting a 404.
     let
@@ -57,6 +57,5 @@ destroy silence =
             -- Silences.Encoders.silence silence
             Silences.Decoders.destroy
     in
-        Utils.Api.send
-            (Utils.Api.delete url responseDecoder)
-            |> Cmd.map (SilenceDestroy >> ForSelf)
+        Utils.Api.send (Utils.Api.delete url responseDecoder)
+            |> Cmd.map msg

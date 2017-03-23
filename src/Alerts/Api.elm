@@ -1,22 +1,23 @@
 module Alerts.Api exposing (..)
 
+import Alerts.Types exposing (Alert, RouteOpts, Block, AlertGroup)
 import Json.Decode as Json exposing (..)
 import Utils.Api exposing (baseUrl, iso8601Time)
-import Alerts.Types exposing (..)
 import Utils.Types exposing (ApiData, Filter)
 import Utils.Filter exposing (generateQueryString)
+import Types
 
 
-getAlertGroups : Filter -> Cmd Msg
-getAlertGroups filter =
+getAlertGroups : Filter -> (ApiData (List AlertGroup) -> Types.Msg) -> Cmd Types.Msg
+getAlertGroups filter msg =
     alertGroups filter
-        |> Cmd.map (AlertGroupsFetch >> ForSelf)
+        |> Cmd.map msg
 
 
-alertPreview : Filter -> Cmd Msg
+alertPreview : Filter -> Cmd Types.Msg
 alertPreview filter =
     alertGroups filter
-        |> Cmd.map (AlertGroupsPreview >> ForParent)
+        |> Cmd.map (Types.AlertGroupsPreview)
 
 
 alertGroups : Filter -> Cmd (ApiData (List AlertGroup))
@@ -78,7 +79,7 @@ routeOptsDecoder =
 alertDecoder : Json.Decoder Alert
 alertDecoder =
     Json.map7 Alert
-        (field "annotations" (Json.keyValuePairs Json.string))
+        (Json.maybe (field "annotations" (Json.keyValuePairs Json.string)) |> andThen (unwrapWithDefault []))
         (field "labels" (Json.keyValuePairs Json.string))
         (field "inhibited" Json.bool)
         (Json.maybe (field "silenced" Json.string))

@@ -1,14 +1,15 @@
-module Alerts.Views exposing (view, compact)
+module Views.AlertList.Views exposing (view)
 
-import Alerts.Types exposing (Alert, AlertGroup, Block, Route(..))
-import Alerts.Types exposing (AlertsMsg(..), Msg(..), OutMsg(..))
-import Alerts.Filter exposing (silenced, receiver, matchers)
+import Alerts.Types exposing (Alert, AlertGroup, Block)
+import Views.AlertList.Types exposing (Route(..), AlertListMsg(FilterAlerts))
+import Views.AlertList.Filter exposing (silenced, receiver, matchers)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Utils.Date
 import Utils.Types exposing (Filter)
 import Utils.Views exposing (..)
+import Types exposing (Msg(MsgForAlertList, Noop, CreateSilenceFromAlert))
 
 
 view : Route -> List AlertGroup -> Filter -> Html Msg -> Html Msg
@@ -36,35 +37,11 @@ view route alertGroups filter errorHtml =
                     (List.map alertGroupView filteredGroups)
     in
         div []
-            [ Html.map ForParent (textField "Filter" filterText (UpdateFilter filter))
-            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red", onClick (ForSelf FilterAlerts) ] [ text "Filter Alerts" ]
+            [ textField "Filter" filterText (Types.UpdateFilter filter)
+            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red", onClick (MsgForAlertList FilterAlerts) ] [ text "Filter Alerts" ]
             , errorHtml
             , alertHtml
             ]
-
-
-compact : AlertGroup -> Html msg
-compact ag =
-    let
-        alerts =
-            List.concatMap
-                (\b ->
-                    b.alerts
-                )
-                ag.blocks
-    in
-        ul
-            [ class "list pa0"
-            ]
-            (List.indexedMap alertCompact alerts)
-
-
-alertCompact : Int -> Alert -> Html msg
-alertCompact idx alert =
-    li [ class "mb2 w-80-l w-100-m" ]
-        [ span [] [ text <| toString (idx + 1) ++ ". " ]
-        , div [] (List.map labelButton alert.labels)
-        ]
 
 
 alertGroupView : AlertGroup -> Html Msg
@@ -93,14 +70,14 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" (ForSelf Noop)
+                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" (Types.Noop)
             else
-                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" (ForParent (SilenceFromAlert alert))
+                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" (CreateSilenceFromAlert alert)
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
                 [ b
-                , buttonLink "fa-bar-chart" alert.generatorUrl "black" (ForSelf Noop)
+                , buttonLink "fa-bar-chart" alert.generatorUrl "black" (Types.Noop)
                 , p [ class "dib mr2" ] [ text <| Utils.Date.timeFormat alert.startsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)

@@ -1,35 +1,29 @@
-module Alerts.Update exposing (..)
+module Views.AlertList.Updates exposing (..)
 
 import Alerts.Api as Api
-import Alerts.Types exposing (..)
+import Views.AlertList.Types exposing (AlertListMsg(..), Route(Receiver))
+import Alerts.Types exposing (AlertGroup)
 import Task
 import Utils.Types exposing (ApiData, ApiResponse(..), Filter)
 import Utils.Filter exposing (generateQueryString)
+import Types exposing (Msg(MsgForAlertList, NewUrl))
 
 
-update : AlertsMsg -> ApiData (List AlertGroup) -> Filter -> ( ApiData (List AlertGroup), Cmd Msg )
+update : AlertListMsg -> ApiData (List AlertGroup) -> Filter -> ( ApiData (List AlertGroup), Cmd Types.Msg )
 update msg groups filter =
     case msg of
         AlertGroupsFetch alertGroups ->
             ( alertGroups, Cmd.none )
 
         FetchAlertGroups ->
-            ( groups, Api.getAlertGroups filter )
-
-        Noop ->
-            ( groups, Cmd.none )
+            ( groups, Api.getAlertGroups filter (AlertGroupsFetch >> MsgForAlertList) )
 
         FilterAlerts ->
             let
                 url =
                     "/#/alerts" ++ generateQueryString filter
             in
-                ( groups, generateParentMsg (NewUrl url) )
-
-
-generateParentMsg : OutMsg -> Cmd Msg
-generateParentMsg outMsg =
-    Task.perform ForParent (Task.succeed outMsg)
+                ( groups, Task.perform identity (Task.succeed (Types.NewUrl url)) )
 
 
 updateFilter : Route -> Filter
@@ -42,6 +36,6 @@ updateFilter route =
             }
 
 
-urlUpdate : Route -> ( AlertsMsg, Filter )
+urlUpdate : Route -> ( AlertListMsg, Filter )
 urlUpdate route =
     ( FetchAlertGroups, updateFilter route )

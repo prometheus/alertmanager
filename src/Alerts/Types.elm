@@ -1,29 +1,23 @@
-module Alerts.Types exposing (..)
+module Alerts.Types exposing (Alert, AlertGroup, Block, RouteOpts)
 
-import Utils.Types exposing (ApiData, Filter)
-
-
-type Route
-    = Receiver (Maybe String) (Maybe Bool) (Maybe String)
+import Utils.Types exposing (Labels, Time)
 
 
-type Msg
-    = ForSelf AlertsMsg
-    | ForParent OutMsg
+type alias Alert =
+    { annotations : Labels
+    , labels : Labels
+    , inhibited : Bool
+    , silenceId : Maybe String
+    , silenced : Bool
+    , startsAt : Time
+    , generatorUrl : String
+    }
 
 
-type OutMsg
-    = SilenceFromAlert Alert
-    | UpdateFilter Filter String
-    | NewUrl String
-    | AlertGroupsPreview (ApiData (List AlertGroup))
-
-
-type AlertsMsg
-    = AlertGroupsFetch (ApiData (List AlertGroup))
-    | FetchAlertGroups
-    | Noop
-    | FilterAlerts
+type alias AlertGroup =
+    { blocks : List Block
+    , labels : Labels
+    }
 
 
 type alias Block =
@@ -34,20 +28,3 @@ type alias Block =
 
 type alias RouteOpts =
     { receiver : String }
-
-
-type alias AlertGroup =
-    { blocks : List Block
-    , labels : Utils.Types.Labels
-    }
-
-
-type alias Alert =
-    { annotations : Utils.Types.Labels
-    , labels : Utils.Types.Labels
-    , inhibited : Bool
-    , silenceId : Maybe String
-    , silenced : Bool
-    , startsAt : Utils.Types.Time
-    , generatorUrl : String
-    }
