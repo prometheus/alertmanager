@@ -46,7 +46,7 @@ update msg model =
                 filter =
                     { nullFilter | text = Just <| Utils.List.mjoin s.matchers }
             in
-                ( { model | silence = Success silence }, Alerts.Api.alertPreview filter )
+                ( { model | silence = Success silence }, Alerts.Api.getAlertGroups filter AlertGroupsPreview )
 
         AlertGroupsPreview alertGroups ->
             let
