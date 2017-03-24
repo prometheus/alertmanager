@@ -41,16 +41,16 @@ appBody model =
         SilenceRoute silenceId ->
             Silence.view model
 
-        AlertsRoute route ->
+        AlertsRoute filter ->
             case model.alertGroups of
                 Success alertGroups ->
-                   AlertList.view route alertGroups model.filter (text "")
+                    AlertList.view alertGroups model.filter (text "")
 
                 Loading ->
                     loading
 
                 Failure msg ->
-                    AlertList.view route [] model.filter (error msg)
+                    AlertList.view [] model.filter (error msg)
 
         SilenceListRoute route ->
             SilenceList.view model.silences model.silence model.currentTime model.filter

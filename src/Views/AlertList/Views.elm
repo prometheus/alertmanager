@@ -1,7 +1,7 @@
 module Views.AlertList.Views exposing (view)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block)
-import Views.AlertList.Types exposing (Route(..), AlertListMsg(FilterAlerts))
+import Views.AlertList.Types exposing (AlertListMsg(FilterAlerts))
 import Views.AlertList.Filter exposing (silenced, receiver, matchers)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -12,14 +12,12 @@ import Utils.Views exposing (..)
 import Types exposing (Msg(MsgForAlertList, Noop, CreateSilenceFromAlert))
 
 
-view : Route -> List AlertGroup -> Filter -> Html Msg -> Html Msg
-view route alertGroups filter errorHtml =
+view : List AlertGroup -> Filter -> Html Msg -> Html Msg
+view alertGroups filter errorHtml =
     let
         filteredGroups =
-            case route of
-                Receiver maybeReceiver maybeShowSilenced maybeFilter ->
-                    receiver maybeReceiver alertGroups
-                        |> silenced maybeShowSilenced
+            receiver filter.receiver alertGroups
+                |> silenced filter.showSilenced
 
         filterText =
             Maybe.withDefault "" filter.text

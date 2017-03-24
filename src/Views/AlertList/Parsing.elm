@@ -1,7 +1,7 @@
 module Views.AlertList.Parsing exposing (alertsParser)
 
-import Views.AlertList.Types exposing (Route(Receiver))
 import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
+import Utils.Types exposing (Filter)
 
 
 boolParam : String -> UrlParser.QueryParser (Maybe Bool -> a) a
@@ -20,6 +20,6 @@ boolParam name =
         )
 
 
-alertsParser : Parser (Route -> a) a
+alertsParser : Parser (Filter -> a) a
 alertsParser =
-    map Receiver (s "alerts" <?> stringParam "receiver" <?> boolParam "silenced" <?> stringParam "filter")
+    map Filter (s "alerts" <?> stringParam "filter" <?> stringParam "receiver" <?> boolParam "silenced")
