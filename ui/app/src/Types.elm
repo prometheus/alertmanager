@@ -30,12 +30,12 @@ type Msg
     | MsgForSilenceForm SilenceFormMsg
     | MsgForSilenceList SilenceListMsg
     | MsgForStatus StatusMsg
-    | NavigateToAlerts Views.AlertList.Types.Route
+    | NavigateToAlerts Filter
     | NavigateToNotFound
     | NavigateToSilence String
     | NavigateToSilenceFormEdit String
     | NavigateToSilenceFormNew
-    | NavigateToSilenceList (Maybe String)
+    | NavigateToSilenceList Filter
     | NavigateToStatus
     | NewUrl String
     | Noop
@@ -46,11 +46,11 @@ type Msg
 
 
 type Route
-    = AlertsRoute Views.AlertList.Types.Route
+    = AlertsRoute Filter
     | NotFoundRoute
     | SilenceFormEditRoute String
     | SilenceFormNewRoute
-    | SilenceListRoute (Maybe String)
+    | SilenceListRoute Filter
     | SilenceRoute String
     | StatusRoute
     | TopLevelRoute

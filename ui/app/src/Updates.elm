@@ -18,7 +18,9 @@ import Utils.Types
         , nullFilter
         )
 import Views.AlertList.Updates
+import Views.AlertList.Types exposing (AlertListMsg(FetchAlertGroups))
 import Views.Silence.Types exposing (SilenceMsg(SilenceFetched, InitSilenceView))
+import Views.SilenceList.Types exposing (SilenceListMsg(FetchSilences))
 import Views.Silence.Updates
 import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilence, FetchSilence))
 import Views.SilenceForm.Updates
@@ -63,25 +65,19 @@ update msg model =
             in
                 ( { model | silence = silence }, Cmd.none )
 
-        NavigateToAlerts alertsRoute ->
+        NavigateToAlerts filter ->
             let
-                ( alertsMsg, filter ) =
-                    (Views.AlertList.Updates.urlUpdate alertsRoute)
-
                 ( alertGroups, cmd ) =
-                    Views.AlertList.Updates.update alertsMsg model.alertGroups filter
+                    Views.AlertList.Updates.update FetchAlertGroups model.alertGroups filter
             in
-                ( { model | alertGroups = alertGroups, route = AlertsRoute alertsRoute, filter = filter }, cmd )
+                ( { model | alertGroups = alertGroups, route = AlertsRoute filter, filter = filter }, cmd )
 
-        NavigateToSilenceList maybeFilter ->
+        NavigateToSilenceList filter ->
             let
-                ( silencesMsg, filter ) =
-                    (Views.SilenceList.Updates.urlUpdate maybeFilter)
-
                 ( silences, silence, cmd ) =
-                    Views.SilenceList.Updates.update silencesMsg model.silences model.silence filter
+                    Views.SilenceList.Updates.update FetchSilences model.silences model.silence filter
             in
-                ( { model | silence = silence, silences = silences, route = SilenceListRoute maybeFilter, filter = filter }
+                ( { model | silence = silence, silences = silences, route = SilenceListRoute filter, filter = filter }
                 , cmd
                 )
 

@@ -5,7 +5,6 @@ import Task
 import Time
 import Parsing
 import Views
-import Views.AlertList.Updates exposing (updateFilter)
 import Types
     exposing
         ( Route(..)
@@ -46,11 +45,11 @@ init location =
 
         filter =
             case route of
-                AlertsRoute alertsRoute ->
-                    updateFilter alertsRoute
+                AlertsRoute filter ->
+                    filter
 
-                SilenceListRoute silencesRoute ->
-                    Views.SilenceList.Updates.updateFilter silencesRoute
+                SilenceListRoute filter ->
+                    filter
 
                 _ ->
                     nullFilter
@@ -80,8 +79,8 @@ urlUpdate location =
             SilenceFormNewRoute ->
                 NavigateToSilenceFormNew
 
-            AlertsRoute alertsRoute ->
-                NavigateToAlerts alertsRoute
+            AlertsRoute filter ->
+                NavigateToAlerts filter
 
             StatusRoute ->
                 NavigateToStatus

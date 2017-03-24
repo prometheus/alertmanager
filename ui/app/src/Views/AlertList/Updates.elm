@@ -1,7 +1,7 @@
 module Views.AlertList.Updates exposing (..)
 
 import Alerts.Api as Api
-import Views.AlertList.Types exposing (AlertListMsg(..), Route(Receiver))
+import Views.AlertList.Types exposing (AlertListMsg(..))
 import Alerts.Types exposing (AlertGroup)
 import Task
 import Utils.Types exposing (ApiData, ApiResponse(..), Filter)
@@ -24,18 +24,3 @@ update msg groups filter =
                     "/#/alerts" ++ generateQueryString filter
             in
                 ( groups, Task.perform identity (Task.succeed (Types.NewUrl url)) )
-
-
-updateFilter : Route -> Filter
-updateFilter route =
-    case route of
-        Receiver maybeReceiver maybeShowSilenced maybeFilter ->
-            { receiver = maybeReceiver
-            , showSilenced = maybeShowSilenced
-            , text = maybeFilter
-            }
-
-
-urlUpdate : Route -> ( AlertListMsg, Filter )
-urlUpdate route =
-    ( FetchAlertGroups, updateFilter route )
