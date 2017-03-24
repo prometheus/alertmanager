@@ -98,9 +98,9 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		MessageType:  `CRITICAL`,
-		StateMessage: `{{ template "victorops.default.message" . }}`,
-		From:         `{{ template "victorops.default.from" . }}`,
+		MessageType:    `CRITICAL`,
+		StateMessage:   `{{ template "victorops.default.state_message" . }}`,
+		MonitoringTool: `{{ template "victorops.default.monitoring_tool" . }}`,
 	}
 
 	// DefaultPushoverConfig defines default values for Pushover configurations.
@@ -321,12 +321,12 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 type VictorOpsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIKey       Secret `yaml:"api_key" json:"api_key"`
-	APIURL       string `yaml:"api_url" json:"api_url"`
-	RoutingKey   string `yaml:"routing_key" json:"routing_key"`
-	MessageType  string `yaml:"message_type" json:"message_type"`
-	StateMessage string `yaml:"message" json:"message"`
-	From         string `yaml:"from" json:"from"`
+	APIKey         Secret `yaml:"api_key" json:"api_key"`
+	APIURL         string `yaml:"api_url" json:"api_url"`
+	RoutingKey     string `yaml:"routing_key" json:"routing_key"`
+	MessageType    string `yaml:"message_type" json:"message_type"`
+	StateMessage   string `yaml:"state_message" json:"state_message"`
+	MonitoringTool string `yaml:"monitoring_tool" json:"monitoring_tool"`
 
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
