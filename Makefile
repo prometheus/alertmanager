@@ -58,7 +58,7 @@ docker:
 assets:
 	@echo ">> writing assets"
 	-@$(GO) get -u github.com/jteeuwen/go-bindata/...
-	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/...
+	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/app/index.html ui/app/script.js
 	@go-bindata $(bindata_flags) -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
 
 promu:

@@ -18,7 +18,6 @@ import (
 	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
-	"path/filepath"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
@@ -48,23 +47,14 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
 func Register(r *route.Router, reloadCh chan<- struct{}) {
 	ihf := prometheus.InstrumentHandlerFunc
 
-	r.Get("/app/*filepath", ihf("app_files",
-		func(w http.ResponseWriter, req *http.Request) {
-			fp := route.Param(route.Context(req), "filepath")
-			serveAsset(w, req, filepath.Join("ui/app", fp))
-		},
-	))
-	r.Get("/lib/*filepath", ihf("lib_files",
-		func(w http.ResponseWriter, req *http.Request) {
-			fp := route.Param(route.Context(req), "filepath")
-			serveAsset(w, req, filepath.Join("ui/lib", fp))
-		},
-	))
-
 	r.Get("/metrics", prometheus.Handler().ServeHTTP)
 
 	r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/index.html")
+	}))
+
+	r.Get("/script.js", ihf("app", func(w http.ResponseWriter, req *http.Request) {
+		serveAsset(w, req, "ui/app/script.js")
 	}))
 
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
