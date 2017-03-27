@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "summary": "Redesigned and reimplemented UI for Alertmanager.",
-    "repository": "https://github.com/stuartnelson3/am-ui.git",
+    "repository": "https://github.com/prometheus/alertmanager",
     "license": "BSD3",
     "source-directories": [
         "src"
