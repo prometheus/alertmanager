@@ -4,7 +4,6 @@ import Html exposing (Html, text, button, div, li, ul, b)
 import Status.Types exposing (StatusResponse)
 import Types exposing (Msg(MsgForStatus), Model)
 import Utils.Types exposing (ApiResponse(Failure, Success, Loading), ApiData)
-import Utils.Views exposing (loading)
 
 
 view : Model -> Html Types.Msg

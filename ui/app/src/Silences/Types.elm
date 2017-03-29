@@ -1,8 +1,8 @@
-module Silences.Types exposing (Silence, nullSilence, nullMatcher, nullDuration, nullTime, SilenceId)
+module Silences.Types exposing (Silence, nullSilence, nullMatcher, nullTime, SilenceId)
 
-import Utils.Date
 import Alerts.Types exposing (AlertGroup)
-import Utils.Types exposing (Duration, Time, Matcher, ApiData, ApiResponse(Success))
+import Utils.Types exposing (Matcher, ApiData, ApiResponse(Success))
+import Time exposing (Time)
 
 
 nullSilence : Silence
@@ -10,10 +10,9 @@ nullSilence =
     { id = ""
     , createdBy = ""
     , comment = ""
-    , startsAt = nullTime
-    , endsAt = nullTime
-    , duration = nullDuration
-    , updatedAt = nullTime
+    , startsAt = 0
+    , endsAt = 0
+    , updatedAt = 0
     , matchers = [ nullMatcher ]
     , silencedAlertGroups = Success []
     }
@@ -24,14 +23,9 @@ nullMatcher =
     Matcher "" "" False
 
 
-nullDuration : Duration
-nullDuration =
-    Utils.Date.duration 0
-
-
 nullTime : Time
 nullTime =
-    Utils.Date.fromTime 0
+    0
 
 
 type alias Silence =
@@ -40,7 +34,6 @@ type alias Silence =
     , comment : String
     , startsAt : Time
     , endsAt : Time
-    , duration : Duration
     , updatedAt : Time
     , matchers : List Matcher
     , silencedAlertGroups : ApiData (List AlertGroup)

@@ -7,9 +7,9 @@ import Utils.Types as Types
 import Tuple
 
 
-parseDuration : String -> Result Parser.Error Time.Time
+parseDuration : String -> Maybe Time.Time
 parseDuration =
-    Parser.run durationParser
+    Parser.run durationParser >> Result.toMaybe
 
 
 durationParser : Parser Time.Time
@@ -27,6 +27,11 @@ units =
     , ( "m", 60000 )
     , ( "s", 1000 )
     ]
+
+
+timeToString : Time.Time -> String
+timeToString =
+    round >> ISO8601.fromTime >> ISO8601.toString
 
 
 term : Parser Time.Time
@@ -62,45 +67,21 @@ dateFormat t =
     String.join "/" <| List.map toString [ ISO8601.month t, ISO8601.day t, ISO8601.year t ]
 
 
-timeFormat : Types.Time -> String
-timeFormat { t, s } =
-    t
-        |> Maybe.map (round >> ISO8601.fromTime >> dateFormat)
-        |> Maybe.withDefault s
+timeFormat : Time.Time -> String
+timeFormat =
+    round >> ISO8601.fromTime >> dateFormat
 
 
-encode : Types.Time -> String
-encode { t, s } =
-    t
-        |> Maybe.map (round >> ISO8601.fromTime >> ISO8601.toString)
-        |> Maybe.withDefault s
+encode : Time.Time -> String
+encode =
+    round >> ISO8601.fromTime >> ISO8601.toString
 
 
-timeFromString : String -> Types.Time
-timeFromString toParse =
-    { s = toParse
-    , t =
-        toParse
-            |> ISO8601.fromString
-            |> Result.toMaybe
-            |> Maybe.map (ISO8601.toTime >> toFloat)
-    }
-
-
-durationFromString : String -> Types.Duration
-durationFromString toParse =
-    { s = toParse
-    , d =
-        toParse
-            |> parseDuration
-            |> Result.mapError (Debug.log "error")
-            |> Result.toMaybe
-    }
-
-
-duration : Time.Time -> Types.Duration
-duration time =
-    { d = Just time, s = durationFormat time }
+timeFromString : String -> Maybe Time.Time
+timeFromString =
+    ISO8601.fromString
+        >> Result.toMaybe
+        >> Maybe.map (ISO8601.toTime >> toFloat)
 
 
 fromTime : Time.Time -> Types.Time

@@ -7,14 +7,13 @@ import Utils.Types exposing (ApiData, Filter)
 import Utils.Filter exposing (generateQueryString)
 
 
-getAlertGroups : Filter -> (ApiData (List AlertGroup) -> msg) -> Cmd msg
-getAlertGroups filter msg =
+alertGroups : Filter -> Cmd (ApiData (List AlertGroup))
+alertGroups filter =
     let
         url =
             String.join "/" [ baseUrl, "alerts", "groups" ++ (generateQueryString filter) ]
     in
         Utils.Api.send (Utils.Api.get url alertGroupsDecoder)
-            |> Cmd.map msg
 
 
 

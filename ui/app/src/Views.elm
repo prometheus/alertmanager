@@ -2,7 +2,7 @@ module Views exposing (..)
 
 import Html exposing (Html, text, div)
 import Html.Attributes exposing (class)
-import Types exposing (Msg, Model, Route(..))
+import Types exposing (Msg(MsgForSilenceForm), Model, Route(..))
 import Utils.Types exposing (ApiResponse(..))
 import Utils.Views exposing (error, loading)
 import Views.SilenceList.Views as SilenceList
@@ -55,11 +55,11 @@ appBody model =
         SilenceListRoute route ->
             SilenceList.view model.silences model.silence model.currentTime model.filter
 
-        SilenceFormNewRoute ->
-            SilenceForm.new model.silence
+        SilenceFormNewRoute keep ->
+            SilenceForm.view Nothing model.silenceForm |> Html.map MsgForSilenceForm
 
         SilenceFormEditRoute silenceId ->
-            SilenceForm.edit model.silence
+            SilenceForm.view (Just silenceId) model.silenceForm |> Html.map MsgForSilenceForm
 
         TopLevelRoute ->
             Utils.Views.loading

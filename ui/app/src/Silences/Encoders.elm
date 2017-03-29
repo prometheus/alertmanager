@@ -8,7 +8,6 @@ import Utils.Date
 
 silence : Silence -> Encode.Value
 silence silence =
-    -- Todo: only submit validated date
     Encode.object
         [ ( "createdBy", Encode.string silence.createdBy )
         , ( "comment", Encode.string silence.comment )

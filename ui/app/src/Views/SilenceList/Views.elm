@@ -7,15 +7,11 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 import Views.Shared.SilenceBase
-import Views.Shared.SilencePreview
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (Matcher, ApiResponse(..), Filter, ApiData)
 import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
-import Utils.Date
-import Utils.List
 import Time
-import Views.AlertList.Views
-import Types exposing (Msg(UpdateFilter, PreviewSilence, MsgForSilenceList, Noop))
+import Types exposing (Msg(UpdateFilter, MsgForSilenceList, Noop))
 
 
 view : ApiData (List Silence) -> ApiData Silence -> Time.Time -> Filter -> Html Msg

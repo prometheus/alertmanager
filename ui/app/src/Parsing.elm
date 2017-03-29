@@ -51,9 +51,9 @@ routeParser =
     oneOf
         [ map SilenceListRoute silenceListParser
         , map StatusRoute statusParser
+        , map SilenceFormNewRoute silenceFormNewParser
         , map SilenceRoute silenceParser
         , map SilenceFormEditRoute silenceFormEditParser
-        , map SilenceFormNewRoute silenceFormNewParser
         , map AlertsRoute alertsParser
         , map TopLevelRoute top
         ]

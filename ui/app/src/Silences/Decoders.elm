@@ -1,7 +1,7 @@
 module Silences.Decoders exposing (..)
 
 import Json.Decode as Json exposing (field)
-import Utils.Api exposing (iso8601Time, duration, (|:))
+import Utils.Api exposing (iso8601Time, (|:))
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (Matcher, Time, ApiResponse(Success))
 
@@ -43,7 +43,6 @@ silence =
             )
         |: (field "startsAt" iso8601Time)
         |: (field "endsAt" iso8601Time)
-        |: (duration "startsAt" "endsAt")
         |: (field "updatedAt" iso8601Time)
         |: (field "matchers" (Json.list matcher))
         |: (Json.succeed <| Success [])

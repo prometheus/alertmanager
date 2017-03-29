@@ -1,11 +1,14 @@
 module Views.SilenceForm.Parsing exposing (silenceFormNewParser, silenceFormEditParser)
 
-import UrlParser exposing (Parser, s, (</>), string, oneOf, map)
+import UrlParser exposing (Parser, s, (</>), (<?>), string, stringParam, oneOf, map)
 
 
-silenceFormNewParser : Parser a a
+silenceFormNewParser : Parser (Bool -> a) a
 silenceFormNewParser =
-    s "silences" </> s "new"
+    s "silences"
+        </> s "new"
+        <?> stringParam "keep"
+        |> map (Maybe.map (always True) >> Maybe.withDefault False)
 
 
 silenceFormEditParser : Parser (String -> a) a

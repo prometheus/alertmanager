@@ -4,7 +4,7 @@ import Alerts.Types exposing (AlertGroup, Alert)
 import Views.AlertList.Types exposing (AlertListMsg)
 import Views.SilenceList.Types exposing (SilenceListMsg)
 import Views.Silence.Types exposing (SilenceMsg)
-import Views.SilenceForm.Types exposing (SilenceFormMsg)
+import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.Status.Types exposing (StatusModel, StatusMsg)
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (ApiData, Filter)
@@ -14,6 +14,7 @@ import Time
 type alias Model =
     { silences : ApiData (List Silence)
     , silence : ApiData Silence
+    , silenceForm : SilenceForm.Model
     , alertGroups : ApiData (List AlertGroup)
     , route : Route
     , filter : Filter
@@ -24,7 +25,6 @@ type alias Model =
 
 type Msg
     = CreateSilenceFromAlert Alert
-    | AlertGroupsPreview (ApiData (List AlertGroup))
     | MsgForAlertList AlertListMsg
     | MsgForSilence SilenceMsg
     | MsgForSilenceForm SilenceFormMsg
@@ -34,12 +34,10 @@ type Msg
     | NavigateToNotFound
     | NavigateToSilence String
     | NavigateToSilenceFormEdit String
-    | NavigateToSilenceFormNew
+    | NavigateToSilenceFormNew Bool
     | NavigateToSilenceList Filter
     | NavigateToStatus
-    | NewUrl String
     | Noop
-    | PreviewSilence Silence
     | RedirectAlerts
     | UpdateCurrentTime Time.Time
     | UpdateFilter Filter String
@@ -49,7 +47,7 @@ type Route
     = AlertsRoute Filter
     | NotFoundRoute
     | SilenceFormEditRoute String
-    | SilenceFormNewRoute
+    | SilenceFormNewRoute Bool
     | SilenceListRoute Filter
     | SilenceRoute String
     | StatusRoute

@@ -1,6 +1,7 @@
 module Alerts.Types exposing (Alert, AlertGroup, Block, RouteOpts)
 
-import Utils.Types exposing (Labels, Time)
+import Utils.Types exposing (Labels)
+import Time exposing (Time)
 
 
 type alias Alert =

@@ -29,8 +29,8 @@ getSilence uuid msg =
             |> Cmd.map msg
 
 
-create : Silence -> (ApiData String -> msg) -> Cmd msg
-create silence msg =
+create : Silence -> Cmd (ApiData String)
+create silence =
     let
         url =
             String.join "/" [ baseUrl, "silences" ]
@@ -42,7 +42,6 @@ create silence msg =
         -- redirect to the silence show page.
         Utils.Api.send
             (Utils.Api.post url body Silences.Decoders.create)
-            |> Cmd.map msg
 
 
 destroy : Silence -> (ApiData String -> msg) -> Cmd msg

@@ -3,9 +3,9 @@ module Views.Silence.Updates exposing (update)
 import Views.Silence.Types exposing (SilenceMsg(..))
 import Types exposing (Model, Msg(MsgForSilence))
 import Silences.Api exposing (getSilence)
-import Utils.Types exposing (ApiResponse(Success))
-import Task
-import Types exposing (Msg(PreviewSilence))
+import Alerts.Api
+import Utils.List
+import Utils.Types exposing (ApiResponse(..), nullFilter)
 
 
 update : SilenceMsg -> Model -> ( Model, Cmd Msg )
@@ -14,9 +14,27 @@ update msg model =
         FetchSilence id ->
             ( model, getSilence id (SilenceFetched >> MsgForSilence) )
 
-        SilenceFetched (Success sil) ->
-            ( { model | silence = Success sil }
-            , Task.perform PreviewSilence (Task.succeed sil)
+        AlertGroupsPreview alertGroups ->
+            case model.silence of
+                Success silence ->
+                    ( { model
+                        | silence =
+                            Success
+                                { silence | silencedAlertGroups = alertGroups }
+                      }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        SilenceFetched (Success silence) ->
+            ( { model
+                | silence = Success { silence | silencedAlertGroups = Loading }
+              }
+            , Alerts.Api.alertGroups
+                ({ nullFilter | text = Just (Utils.List.mjoin silence.matchers) })
+                |> Cmd.map (AlertGroupsPreview >> MsgForSilence)
             )
 
         SilenceFetched silence ->

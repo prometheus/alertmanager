@@ -3,7 +3,7 @@ module Views.Silence.Views exposing (view)
 import Silences.Types exposing (Silence)
 import Html exposing (Html, div, h2, p, text, label)
 import Html.Attributes exposing (class)
-import Time
+import Time exposing (Time)
 import Types exposing (Model, Msg)
 import Utils.Types exposing (ApiResponse(Success, Loading, Failure))
 import Utils.Views exposing (loading, error)
@@ -24,7 +24,7 @@ view model =
             error msg
 
 
-silence : Silence -> Time.Time -> Html Msg
+silence : Silence -> Time -> Html Msg
 silence silence currentTime =
     div []
         [ Views.Shared.SilenceBase.view silence
@@ -34,7 +34,7 @@ silence silence currentTime =
         ]
 
 
-silenceExtra : Silence -> Time.Time -> Html msg
+silenceExtra : Silence -> Time -> Html msg
 silenceExtra silence currentTime =
     div [ class "f6" ]
         [ div [ class "mb1" ]
@@ -54,18 +54,11 @@ silenceExtra silence currentTime =
         ]
 
 
-status : Silence -> Time.Time -> String
-status silence currentTime =
-    let
-        et =
-            Maybe.withDefault currentTime silence.endsAt.t
-
-        st =
-            Maybe.withDefault currentTime silence.startsAt.t
-    in
-        if et <= currentTime then
-            "expired"
-        else if st > currentTime then
-            "pending"
-        else
-            "active"
+status : Silence -> Time -> String
+status { endsAt, startsAt } currentTime =
+    if endsAt <= currentTime then
+        "expired"
+    else if startsAt > currentTime then
+        "pending"
+    else
+        "active"

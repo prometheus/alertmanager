@@ -68,9 +68,9 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" (Types.Noop)
+                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" Types.Noop
             else
-                buttonLink "fa-exclamation-triangle" "#/silences/new" "dark-red" (CreateSilenceFromAlert alert)
+                buttonLink "fa-exclamation-triangle" "#/silences/new?keep=1" "dark-red" (CreateSilenceFromAlert alert)
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]

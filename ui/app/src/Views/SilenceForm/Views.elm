@@ -1,74 +1,36 @@
-module Views.SilenceForm.Views exposing (edit, new)
+module Views.SilenceForm.Views exposing (view)
 
-import Html exposing (Html, div, text, fieldset, legend, label, span, a)
+import Html exposing (Html, a, div, fieldset, label, legend, span, text)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence)
-import Types exposing (Msg(MsgForSilenceList, PreviewSilence, MsgForSilenceForm), Model)
-import Utils.Types exposing (Matcher, ApiResponse(Success, Loading, Failure), ApiData)
-import Utils.Views exposing (loading, error, checkbox)
+import Silences.Types exposing (Silence, SilenceId)
+import Utils.Types exposing (ApiData, ApiResponse(..), Matcher)
+import Utils.Views exposing (checkbox, error, formField, formInput, iconButtonMsg, textField)
 import Views.Shared.SilencePreview
-import Utils.Views exposing (formField, iconButtonMsg, textField, formInput)
-import Views.SilenceForm.Types
-    exposing
-        ( SilenceFormMsg(UpdateStartsAt, UpdateCreatedBy, UpdateDuration, UpdateEndsAt, UpdateComment, AddMatcher, CreateSilence, DeleteMatcher, UpdateMatcherRegex, UpdateMatcherValue, UpdateMatcherName)
-        )
+import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..))
+import Utils.Views exposing (checkbox, formField, formInput, iconButtonMsg, textField)
+import Views.Shared.SilencePreview
+import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..))
 
 
-edit : ApiData Silence -> Html Msg
-edit silence =
-    case silence of
-        Success silence ->
-            silenceForm "Edit" silence
-
-        Loading ->
-            loading
-
-        Failure msg ->
-            error msg
-
-
-new : ApiData Silence -> Html Msg
-new silence =
-    case silence of
-        Success silence ->
-            silenceForm "New" silence
-
-        Loading ->
-            loading
-
-        Failure msg ->
-            error msg
-
-
-silenceForm : String -> Silence -> Html Msg
-silenceForm kind silence =
-    -- TODO: Add field validations.
+view : Maybe SilenceId -> Model -> Html SilenceFormMsg
+view maybeId { silence, form } =
     let
-        base =
-            "/#/silence/"
+        ( title, resetClick ) =
+            case maybeId of
+                Just silenceId ->
+                    ( "Edit Silence", FetchSilence silenceId )
 
-        boundMatcherForm =
-            matcherForm silence
-
-        url =
-            case kind of
-                "New" ->
-                    base ++ "new"
-
-                "Edit" ->
-                    base ++ (toString silence.id) ++ "/edit"
-
-                _ ->
-                    "/#/silences"
+                Nothing ->
+                    ( "New Silence", NewSilenceFromMatchers [] )
     in
         div []
             [ div [ class "pa4 black-80" ]
                 [ fieldset [ class "ba b--transparent ph0 mh0" ]
-                    [ legend [ class "ph0 mh0 fw6" ] [ text <| kind ++ " Silence" ]
-                    , (formField "Start" silence.startsAt.s (UpdateStartsAt silence))
-                    , div [ class "dib mb2 mr2 w-40" ] [ formField "End" silence.endsAt.s (UpdateEndsAt silence) ]
-                    , div [ class "dib mb2 mr2 w-40" ] [ formField "Duration" silence.duration.s (UpdateDuration silence) ]
+                    [ legend [ class "ph0 mh0 fw6" ] [ text title ]
+                    , (formField "Start" form.startsAt (UpdateStartsAt >> UpdateField))
+                    , div [ class "dib mb2 mr2 w-40" ] [ formField "End" form.endsAt (UpdateEndsAt >> UpdateField) ]
+                    , div [ class "dib mb2 mr2 w-40" ] [ formField "Duration" form.duration (UpdateDuration >> UpdateField) ]
                     , div [ class "mt3" ]
                         [ label [ class "f6 b db mb2" ]
                             [ text "Matchers "
@@ -77,30 +39,65 @@ silenceForm kind silence =
                         , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
                         , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
                         ]
-                    , div [] (List.map boundMatcherForm silence.matchers)
-                    , iconButtonMsg "blue" "fa-plus" (AddMatcher silence)
-                    , formField "Creator" silence.createdBy (UpdateCreatedBy silence)
-                    , textField "Comment" silence.comment (UpdateComment silence)
+                    , div [] (List.indexedMap matcherForm form.matchers)
+                    , iconButtonMsg "blue" "fa-plus" (AddMatcher |> UpdateField)
+                    , formField "Creator" form.createdBy (UpdateCreatedBy >> UpdateField)
+                    , textField "Comment" form.comment (UpdateComment >> UpdateField)
                     , div [ class "mt3" ]
-                        [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (CreateSilence silence) ] [ text "Create" ]
-                          -- Reset isn't working for "New" -- just updates time.
-                        , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red", href url ] [ text "Reset" ]
+                        [ createSilence silence
+                        , a
+                            [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red"
+                            , onClick resetClick
+                            ]
+                            [ text "Reset" ]
                         ]
                     ]
-                    |> (Html.map MsgForSilenceForm)
-                , div [ class "mt3" ]
-                    [ a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-green", onClick <| PreviewSilence silence ] [ text "Show Affected Alerts" ]
-                    ]
-                , Views.Shared.SilencePreview.view silence
+                , preview silence
                 ]
             ]
 
 
-matcherForm : Silence -> Matcher -> Html SilenceFormMsg
-matcherForm silence matcher =
+createSilence : Result String Silence -> Html SilenceFormMsg
+createSilence silenceResult =
+    case silenceResult of
+        Ok silence ->
+            a
+                [ class "f6 link br2 ba ph3 pv2 mr2 dib blue"
+                , onClick (CreateSilence silence)
+                ]
+                [ text "Create" ]
+
+        Err msg ->
+            span
+                [ class "f6 link br2 ba ph3 pv2 mr2 dib red" ]
+                [ text "Create" ]
+
+
+preview : Result String Silence -> Html SilenceFormMsg
+preview silenceResult =
+    case silenceResult of
+        Ok silence ->
+            div []
+                [ div [ class "mt3" ]
+                    [ a
+                        [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-green"
+                        , onClick (PreviewSilence silence)
+                        ]
+                        [ text "Show Affected Alerts" ]
+                    ]
+                , Views.Shared.SilencePreview.view silence
+                ]
+
+        Err message ->
+            text message
+
+
+matcherForm : Int -> Matcher -> Html SilenceFormMsg
+matcherForm index { name, value, isRegex } =
     div []
-        [ formInput matcher.name (UpdateMatcherName silence matcher)
-        , formInput matcher.value (UpdateMatcherValue silence matcher)
-        , checkbox "Regex" matcher.isRegex (UpdateMatcherRegex silence matcher)
-        , iconButtonMsg "dark-red" "fa-trash-o" (DeleteMatcher silence matcher)
+        [ formInput name (UpdateMatcherName index)
+        , formInput value (UpdateMatcherValue index)
+        , checkbox "Regex" isRegex (UpdateMatcherRegex index)
+        , iconButtonMsg "dark-red" "fa-trash-o" (DeleteMatcher index)
         ]
+        |> Html.map UpdateField

@@ -5,4 +5,4 @@ import UrlParser exposing (Parser, s, string, (</>))
 
 silenceParser : Parser (String -> a) a
 silenceParser =
-    s "silence" </> string
+    s "silences" </> string

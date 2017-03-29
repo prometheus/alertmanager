@@ -15,6 +15,18 @@ replaceIf predicate replacement list =
         list
 
 
+replaceIndex : Int -> (a -> a) -> List a -> List a
+replaceIndex index replacement list =
+    List.indexedMap
+        (\currentIndex item ->
+            if index == currentIndex then
+                replacement item
+            else
+                item
+        )
+        list
+
+
 mjoin : Matchers -> String
 mjoin m =
     String.join "," (List.map mstring m)
