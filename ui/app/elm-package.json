@@ -2,7 +2,7 @@
     "version": "1.0.0",
     "summary": "Redesigned and reimplemented UI for Alertmanager.",
     "repository": "https://github.com/prometheus/alertmanager",
-    "license": "BSD3",
+    "license": "Apache-2.0",
     "source-directories": [
         "src"
     ],
