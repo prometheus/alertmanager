@@ -64,7 +64,7 @@ durationFormat time =
 
 dateFormat : ISO8601.Time -> String
 dateFormat t =
-    String.join "/" <| List.map toString [ ISO8601.month t, ISO8601.day t, ISO8601.year t ]
+    String.join "/" <| List.map toString [ ISO8601.year t, ISO8601.month t, ISO8601.day t ]
 
 
 timeFormat : Time.Time -> String
