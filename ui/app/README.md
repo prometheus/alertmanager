@@ -57,10 +57,3 @@ Operators include:
 - `!~`
 
 See the official documentation for additional information: https://prometheus.io/docs/querying/basics/#instant-vector-selectors
-
-
-## Requirements
-
-- Go installed (https://golang.org/dl/)
-- This repo is cloned into your `$GOPATH`
-- Elm is installed (https://guide.elm-lang.org/get_started.html)

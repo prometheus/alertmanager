@@ -201,6 +201,10 @@ Start your prometheus like this, for example:
 
 > Note: make sure to have a valid `prometheus.yml` in your current directory
 
+## Contributing to the Front-End
+
+Refer to [ui/app/CONTRIBUTING.md](https://github.com/prometheus/alertmanager/blob/master/ui/app/CONTRIBUTING.md).
+
 ## Architecture
 
 ![](https://raw.githubusercontent.com/prometheus/alertmanager/4e6695682acd2580773a904e4aa2e3b927ee27b7/doc/arch.jpg)
