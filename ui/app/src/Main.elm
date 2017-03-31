@@ -26,6 +26,7 @@ import Views.SilenceList.Updates
 import Views.SilenceForm.Types exposing (initSilenceForm)
 import Views.Status.Types exposing (StatusModel, initStatusModel)
 import Updates exposing (update)
+import Subscriptions exposing (subscriptions)
 
 
 main : Program Never Model Msg
@@ -91,13 +92,3 @@ urlUpdate location =
 
             NotFoundRoute ->
                 NavigateToNotFound
-
-
-
--- SUBSCRIPTIONS
--- TODO: Poll API for changes.
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
