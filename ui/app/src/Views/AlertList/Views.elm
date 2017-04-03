@@ -92,7 +92,7 @@ alertView alert =
                 |> List.map (\( k, v ) -> String.join "=" [ k, v ])
                 |> List.map2
                     (\label content ->
-                        onClickMsgButton content (AddLabel label)
+                        onClickMsgButton content (AddLabel (MsgForAlertList FilterAlerts) label)
                     )
                     labels
                 |> div [ class "mb2 w-80-l w-100-m" ]

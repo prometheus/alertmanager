@@ -52,7 +52,7 @@ type Msg
     | RedirectAlerts
     | UpdateCurrentTime Time.Time
     | UpdateFilter Filter String
-    | AddLabel Label
+    | AddLabel Msg Label
     | KeyDownMsg KeyCode
     | KeyUpMsg KeyCode
 

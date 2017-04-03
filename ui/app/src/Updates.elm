@@ -119,7 +119,7 @@ update msg model =
             in
                 ( { model | mode = mode }, Cmd.none )
 
-        AddLabel ( key, value ) ->
+        AddLabel msg ( key, value ) ->
             let
                 filter =
                     model.filter
@@ -144,7 +144,7 @@ update msg model =
                         Replace ->
                             label
             in
-                ( { model | filter = { filter | text = Just ("{" ++ text ++ "}") } }, Cmd.none )
+                ( { model | filter = { filter | text = Just ("{" ++ text ++ "}") } }, Task.perform identity (Task.succeed msg) )
 
         Noop ->
             ( model, Cmd.none )
