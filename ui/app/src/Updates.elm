@@ -127,24 +127,35 @@ update msg model =
                 label =
                     key ++ "=" ++ (toString value)
 
-                text =
+                labels =
                     case model.mode of
                         Append ->
                             Maybe.withDefault "" filter.text
                                 |> Regex.replace Regex.All (Regex.regex "{|}") (\_ -> "")
-                                |> (\x ->
-                                        if x == "" then
+                                |> (\cleaned ->
+                                        if String.isEmpty cleaned then
                                             []
                                         else
-                                            String.split ", " x
+                                            String.split ", " cleaned
                                    )
-                                |> flip List.append [ label ]
+                                |> (\labels ->
+                                        if List.member label labels then
+                                            List.filter (\l -> l /= label) labels
+                                        else
+                                            labels ++ [ label ]
+                                   )
                                 |> String.join ", "
 
                         Replace ->
                             label
+
+                text =
+                    if String.isEmpty labels then
+                        Nothing
+                    else
+                        Just ("{" ++ labels ++ "}")
             in
-                ( { model | filter = { filter | text = Just ("{" ++ text ++ "}") } }, Task.perform identity (Task.succeed msg) )
+                ( { model | filter = { filter | text = text } }, Task.perform identity (Task.succeed msg) )
 
         Noop ->
             ( model, Cmd.none )
