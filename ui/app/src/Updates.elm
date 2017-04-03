@@ -136,7 +136,7 @@ update msg model =
                                         if String.isEmpty cleaned then
                                             []
                                         else
-                                            String.split ", " cleaned
+                                            Regex.split Regex.All (Regex.regex "\\s*,\\s*") cleaned
                                    )
                                 |> (\labels ->
                                         if List.member label labels then
