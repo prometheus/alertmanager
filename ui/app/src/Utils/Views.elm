@@ -6,6 +6,12 @@ import Html.Events exposing (onCheck, onInput, onClick)
 import Http exposing (Error(..))
 
 
+onClickMsgButton : String -> msg -> Html msg
+onClickMsgButton content msg =
+    a [ class "f6 link br1 ba mr1 mb2 dib light-silver hover-black ph3 pv2", onClick msg ]
+        [ text content ]
+
+
 labelButton : ( String, String ) -> Html msg
 labelButton ( key, value ) =
     listButton "light-silver hover-black ph3 pv2" ( key, value )
@@ -13,13 +19,13 @@ labelButton ( key, value ) =
 
 listButton : String -> ( String, String ) -> Html msg
 listButton classString ( key, value ) =
-    button classString <| String.join "=" [ key, value ]
+    button classString (String.join "=" [ key, value ])
 
 
 button : String -> String -> Html msg
-button classString textString =
-    a [ class <| "f6 link br1 ba mr1 mb2 dib " ++ classString ]
-        [ text textString ]
+button classes content =
+    a [ class <| "f6 link br1 ba mr1 mb2 dib " ++ classes ]
+        [ text content ]
 
 
 iconButtonMsg : String -> String -> msg -> Html msg

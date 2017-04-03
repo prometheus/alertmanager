@@ -7,6 +7,8 @@ import Types
         ( Msg(..)
         , Model
         , Route(NotFoundRoute, SilenceFormEditRoute, SilenceFormNewRoute, SilenceRoute, StatusRoute, SilenceListRoute, AlertsRoute)
+        , Mode(Append, Replace)
+        , modifierKeys
         )
 import Utils.Types
     exposing
@@ -25,6 +27,7 @@ import Views.SilenceList.Updates
 import Views.Status.Types exposing (StatusMsg(InitStatusView))
 import Views.Status.Updates
 import String exposing (trim)
+import Regex
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -95,6 +98,53 @@ update msg model =
                         Just text
             in
                 ( { model | filter = { filter | text = t } }, Cmd.none )
+
+        KeyDownMsg code ->
+            let
+                mode =
+                    if List.member code modifierKeys then
+                        Append
+                    else
+                        Replace
+            in
+                ( { model | mode = mode }, Cmd.none )
+
+        KeyUpMsg code ->
+            let
+                mode =
+                    if List.member code modifierKeys then
+                        Replace
+                    else
+                        Append
+            in
+                ( { model | mode = mode }, Cmd.none )
+
+        AddLabel ( key, value ) ->
+            let
+                filter =
+                    model.filter
+
+                label =
+                    key ++ "=" ++ (toString value)
+
+                text =
+                    case model.mode of
+                        Append ->
+                            Maybe.withDefault "" filter.text
+                                |> Regex.replace Regex.All (Regex.regex "{|}") (\_ -> "")
+                                |> (\x ->
+                                        if x == "" then
+                                            []
+                                        else
+                                            String.split ", " x
+                                   )
+                                |> flip List.append [ label ]
+                                |> String.join ", "
+
+                        Replace ->
+                            label
+            in
+                ( { model | filter = { filter | text = Just ("{" ++ text ++ "}") } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )

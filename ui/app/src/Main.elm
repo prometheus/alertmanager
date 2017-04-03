@@ -20,11 +20,14 @@ import Types
             , RedirectAlerts
             )
         , Model
+        , Mode(Replace)
         )
 import Utils.Types exposing (..)
 import Views.SilenceForm.Types exposing (initSilenceForm)
 import Views.Status.Types exposing (StatusModel, initStatusModel)
 import Updates exposing (update)
+import Subscriptions exposing (subscriptions)
+import Keyboard
 
 
 main : Program Never Model Msg
@@ -55,7 +58,7 @@ init location =
                     nullFilter
 
         ( model, msg ) =
-            update (urlUpdate location) (Model Loading Loading initSilenceForm Loading route filter 0 initStatusModel)
+            update (urlUpdate location) (Model Loading Loading initSilenceForm Loading route filter 0 initStatusModel Replace)
     in
         model ! [ msg, Task.perform UpdateCurrentTime Time.now ]
 
@@ -90,13 +93,3 @@ urlUpdate location =
 
             NotFoundRoute ->
                 NavigateToNotFound
-
-
-
--- SUBSCRIPTIONS
--- TODO: Poll API for changes.
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none

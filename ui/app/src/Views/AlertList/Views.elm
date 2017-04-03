@@ -10,7 +10,7 @@ import Html.Events exposing (onClick)
 import Utils.Date
 import Utils.Types exposing (Filter)
 import Utils.Views exposing (..)
-import Types exposing (Msg(MsgForAlertList, Noop, CreateSilenceFromAlert))
+import Types exposing (Msg(MsgForAlertList, Noop, CreateSilenceFromAlert, UpdateFilter, AddLabel))
 
 
 view : List AlertGroup -> Filter -> Html Msg -> Html Msg
@@ -68,21 +68,38 @@ alertView alert =
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" Types.Noop
+                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" Noop
             else
                 buttonLink "fa-exclamation-triangle" "#/silences/new?keep=1" "dark-red" (CreateSilenceFromAlert alert)
+
+        labels =
+            List.filterMap
+                (\( k, v ) ->
+                    if k /= "alertname" then
+                        Just ( k, v )
+                    else
+                        Nothing
+                )
+                alert.labels
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
                 [ b
-                , buttonLink "fa-bar-chart" alert.generatorUrl "black" (Types.Noop)
+                , buttonLink "fa-bar-chart" alert.generatorUrl "black" Noop
                 , p [ class "dib mr2" ] [ text <| Utils.Date.timeFormat alert.startsAt ]
                 ]
-            , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
+            , labels
+                |> List.map (\( k, v ) -> String.join "=" [ k, v ])
+                |> List.map2
+                    (\label content ->
+                        onClickMsgButton content (AddLabel label)
+                    )
+                    labels
+                |> div [ class "mb2 w-80-l w-100-m" ]
             ]
 
 
-alertHeader : ( String, String ) -> Html Msg
+alertHeader : ( String, String ) -> Html msg
 alertHeader ( key, value ) =
     if key == "alertname" then
         b [ class "db f4 mr2 dark-red dib" ] [ text value ]
