@@ -37,10 +37,9 @@ silence =
         |: (field "createdBy" Json.string)
         -- Remove this maybe once the api either disallows empty comments on
         -- creation, or returns an empty string.
-        |:
-            ((Json.maybe (field "comment" Json.string))
+        |: ((Json.maybe (field "comment" Json.string))
                 |> Json.andThen (\x -> Json.succeed <| Maybe.withDefault "" x)
-            )
+           )
         |: (field "startsAt" iso8601Time)
         |: (field "endsAt" iso8601Time)
         |: (field "updatedAt" iso8601Time)

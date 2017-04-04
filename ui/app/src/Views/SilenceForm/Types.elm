@@ -33,9 +33,15 @@ toSilence { createdBy, comment, startsAt, endsAt, matchers } =
             , createdBy = createdBy
             , startsAt = parsedStartsAt
             , endsAt = parsedEndsAt
-            , silencedAlertGroups = Success [] {- ignored -}
-            , updatedAt = 0 {- ignored -}
-            , id = "" {- ignored -}
+
+            {- ignored -}
+            , silencedAlertGroups = Success []
+
+            {- ignored -}
+            , updatedAt = 0
+
+            {- ignored -}
+            , id = ""
             }
         )
         (timeFromString startsAt)
