@@ -18,8 +18,8 @@ view : Model -> Html Msg
 view model =
     div []
         [ appHeader links
-        , div [ class "pt6 w-80 center pa3" ]
-            [ appBody model ]
+        , div [ class "container" ]
+            [ currentView model ]
         ]
 
 
@@ -31,8 +31,8 @@ links =
     ]
 
 
-appBody : Model -> Html Msg
-appBody model =
+currentView : Model -> Html Msg
+currentView model =
     case model.route of
         StatusRoute ->
             Status.view model
