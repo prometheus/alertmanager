@@ -25,8 +25,7 @@ view model =
 
 links : List ( String, String )
 links =
-    [ ( "#", "AlertManager" )
-    , ( "#/alerts", "Alerts" )
+    [ ( "#/alerts", "Alerts" )
     , ( "#/silences", "Silences" )
     , ( "#/status", "Status" )
     ]

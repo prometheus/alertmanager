@@ -1,7 +1,7 @@
 module Views.NavBar.Views exposing (appHeader)
 
-import Html exposing (Html, header, text, a, nav)
-import Html.Attributes exposing (class, href, title)
+import Html exposing (Html, header, text, a, nav, ul, li)
+import Html.Attributes exposing (class, href, title, style)
 
 
 appHeader : List ( String, String ) -> Html msg
@@ -10,13 +10,20 @@ appHeader links =
         headerLinks =
             List.map (\( link, text ) -> headerLink link text) links
     in
-        header [ class "bg-black-90 fixed w-100 ph3 pv3 pv4-ns ph4-m ph5-l" ]
-            [ nav [ class "w-80 center f6 fw6 ttu tracked" ]
-                headerLinks
+        header
+            [ class "navbar navbar-toggleable-md navbar-light "
+            , style [ ( "margin-bottom", "3rem" ), ( "border-bottom", "1px solid rgba(0,0,0,.15)" ) ]
+            ]
+            [ nav [ class "container" ]
+                [ a [ class "navbar-brand", href "#" ] [ text "AlertManager" ]
+                , ul [ class "navbar-nav" ] headerLinks
+                ]
             ]
 
 
 headerLink : String -> String -> Html msg
 headerLink link linkText =
-    a [ class "link dim white dib mr3", href link, title linkText ]
-        [ text linkText ]
+    li [ class "nav-item" ]
+        [ a [ class "nav-link", href link, title linkText ]
+            [ text linkText ]
+        ]
