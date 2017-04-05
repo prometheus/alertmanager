@@ -11,24 +11,16 @@ import Views.AlertList.Views as AlertList
 import Views.Silence.Views as Silence
 import Views.NotFound.Views as NotFound
 import Views.Status.Views as Status
-import Views.NavBar.Views exposing (appHeader)
+import Views.NavBar.Views exposing (navBar)
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ appHeader links
+        [ navBar model.route
         , div [ class "container" ]
             [ currentView model ]
         ]
-
-
-links : List ( String, String )
-links =
-    [ ( "#/alerts", "Alerts" )
-    , ( "#/silences", "Silences" )
-    , ( "#/status", "Status" )
-    ]
 
 
 currentView : Model -> Html Msg
