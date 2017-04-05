@@ -1,22 +1,68 @@
-module Views.NavBar.Views exposing (appHeader)
+module Views.NavBar.Views exposing (navBar)
 
-import Html exposing (Html, header, text, a, nav)
-import Html.Attributes exposing (class, href, title)
+import Html exposing (Html, header, text, a, nav, ul, li)
+import Html.Attributes exposing (class, href, title, style)
+import Types exposing (Route(..))
+import Views.NavBar.Types exposing (Tab, alertsTab, silencesTab, statusTab, noneTab, tabs)
 
 
-appHeader : List ( String, String ) -> Html msg
-appHeader links =
-    let
-        headerLinks =
-            List.map (\( link, text ) -> headerLink link text) links
-    in
-        header [ class "bg-black-90 fixed w-100 ph3 pv3 pv4-ns ph4-m ph5-l" ]
-            [ nav [ class "w-80 center f6 fw6 ttu tracked" ]
-                headerLinks
+navBar : Route -> Html msg
+navBar currentRoute =
+    header
+        [ class "navbar navbar-toggleable-md navbar-light "
+        , style [ ( "margin-bottom", "3rem" ), ( "border-bottom", "1px solid rgba(0,0,0,.15)" ) ]
+        ]
+        [ nav [ class "container" ]
+            [ a [ class "navbar-brand", href "#" ] [ text "AlertManager" ]
+            , ul [ class "navbar-nav" ] (navBarItems currentRoute)
             ]
+        ]
 
 
-headerLink : String -> String -> Html msg
-headerLink link linkText =
-    a [ class "link dim white dib mr3", href link, title linkText ]
-        [ text linkText ]
+navBarItems : Route -> List (Html msg)
+navBarItems currentRoute =
+    List.map (navBarItem currentRoute) tabs
+
+
+navBarItem : Route -> Tab -> Html msg
+navBarItem currentRoute tab =
+    li [ class <| "nav-item" ++ (isActive currentRoute tab) ]
+        [ a [ class "nav-link", href tab.link, title tab.name ]
+            [ text tab.name ]
+        ]
+
+
+isActive : Route -> Tab -> String
+isActive currentRoute tab =
+    if routeToTab currentRoute == tab then
+        " active"
+    else
+        ""
+
+
+routeToTab : Route -> Tab
+routeToTab currentRoute =
+    case currentRoute of
+        AlertsRoute _ ->
+            alertsTab
+
+        NotFoundRoute ->
+            noneTab
+
+        SilenceFormEditRoute _ ->
+            silencesTab
+
+        SilenceFormNewRoute _ ->
+            silencesTab
+
+        SilenceListRoute _ ->
+            silencesTab
+
+        SilenceRoute _ ->
+            silencesTab
+
+        StatusRoute ->
+            statusTab
+
+        TopLevelRoute ->
+            noneTab

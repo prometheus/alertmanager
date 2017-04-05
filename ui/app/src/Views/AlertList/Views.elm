@@ -3,6 +3,7 @@ module Views.AlertList.Views exposing (view)
 import Alerts.Types exposing (Alert, AlertGroup, Block)
 import Views.AlertList.Types exposing (AlertListMsg(FilterAlerts))
 import Views.AlertList.Filter exposing (silenced, receiver, matchers)
+import Views.AlertList.FilterBar
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -35,8 +36,7 @@ view alertGroups filter errorHtml =
                     (List.map alertGroupView filteredGroups)
     in
         div []
-            [ textField "Filter" filterText (Types.UpdateFilter filter)
-            , a [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red", onClick (MsgForAlertList FilterAlerts) ] [ text "Filter Alerts" ]
+            [ Views.AlertList.FilterBar.view filterText (Types.UpdateFilter filter) (MsgForAlertList FilterAlerts)
             , errorHtml
             , alertHtml
             ]

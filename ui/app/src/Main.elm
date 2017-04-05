@@ -22,7 +22,6 @@ import Types
         , Model
         )
 import Utils.Types exposing (..)
-import Views.SilenceList.Updates
 import Views.SilenceForm.Types exposing (initSilenceForm)
 import Views.Status.Types exposing (StatusModel, initStatusModel)
 import Updates exposing (update)
