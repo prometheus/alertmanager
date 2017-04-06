@@ -154,7 +154,6 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-<<<<<<< HEAD
 			"checksumSHA1": "wTMmmuol+KHkz9EwVKaOjd2O4cs=",
 			"path": "github.com/mitchellh/mapstructure",
 			"revision": "db1efb556f84b25a0a13a04aad883943538ad2e0",
@@ -180,8 +179,6 @@
 			"revisionTime": "2016-11-17T07:43:51Z"
 		},
 		{
-=======
->>>>>>> 1e34f29532a251b728ddf304ebccd9234fcbd81a
 			"checksumSHA1": "FvZfvycWzgm7uHk9b4eINmD6CN0=",
 			"path": "github.com/prometheus/client_golang/api/alertmanager",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
@@ -242,17 +239,16 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-<<<<<<< HEAD
-			"checksumSHA1": "c7jHQZk5ZEsFR9EXsWJXkszPBZA=",
-			"path": "github.com/russross/blackfriday",
-			"revision": "5f33e7b7878355cd2b7e6b8eefc48a5472c69f70",
-			"revisionTime": "2016-10-03T16:27:22Z"
-=======
 			"checksumSHA1": "eaMsPRNZ92H6cbU80b6ExPCpKKs=",
 			"path": "github.com/prometheus/prometheus/pkg/labels",
 			"revision": "9304179ef7075d54cd60b3a0c5f3ab825179ddc7",
 			"revisionTime": "2017-02-28T08:43:16Z"
->>>>>>> 1e34f29532a251b728ddf304ebccd9234fcbd81a
+		},
+		{
+			"checksumSHA1": "c7jHQZk5ZEsFR9EXsWJXkszPBZA=",
+			"path": "github.com/russross/blackfriday",
+			"revision": "5f33e7b7878355cd2b7e6b8eefc48a5472c69f70",
+			"revisionTime": "2016-10-03T16:27:22Z"
 		},
 		{
 			"checksumSHA1": "cKNzpMpci3WUAzXpe+tVnBv2cjE=",
@@ -373,6 +369,12 @@
 			"path": "golang.org/x/net/context/ctxhttp",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
 			"revisionTime": "2016-11-21T14:22:35Z"
+		},
+		{
+			"checksumSHA1": "ArDa4bMPKzhiS1I7iioemBwZ6tE=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "7de4796419dc3b554e6dab3a119a62469569d299",
+			"revisionTime": "2017-04-06T16:25:34Z"
 		},
 		{
 			"checksumSHA1": "kQB2wRB3twjUp615F6zEwGHjNe0=",
