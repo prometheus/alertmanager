@@ -51,17 +51,6 @@ var addCmd = &cobra.Command{
 	As well as direct equality, regex matching is also supported. The '=~' syntax
 	(similar to prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
-
-  amtool silence add alertname=foo node={bar,baz}
-
-	This statement will create multiple silences. It will create a silence that
-	matches the alertname=foo label value pair and node=bar pair as well as a
-	silence that matches alertname=foo and node=baz.
-
-  amtool silence add alertname=foo{a,b} node={bar,baz}
-
-	Similar to the previous example this statement will create 4 silences to match
-	any combinartion of alertname=fooa or alertname=foob and node=bar or node=baz.
 	`,
 	RunE: add,
 }
@@ -87,10 +76,8 @@ func add(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	groups := parseMatcherGroups(matchers)
-
-	if len(groups) < 1 {
-		return errors.New("No matchers specified")
+	if len(matchers) < 1 {
+		return fmt.Errorf("No matchers specified")
 	}
 
 	expire_on, err := addFlags.GetString("expire-on")
@@ -122,51 +109,47 @@ func add(cmd *cobra.Command, args []string) error {
 		return errors.New("Comment required by config")
 	}
 
-	for _, matchers := range groups {
-		typeMatchers, err := TypeMatchers(matchers)
-		if err != nil {
-			return err
-		}
-		silence := types.Silence{
-			Matchers:  typeMatchers,
-			StartsAt:  time.Now().UTC(),
-			EndsAt:    endsAt,
-			CreatedBy: author,
-			Comment:   comment,
-		}
+	typeMatchers, err := TypeMatchers(matchers)
+	if err != nil {
+		return err
+	}
 
-		u, err := GetAlertmanagerURL()
-		if err != nil {
-			return err
-		}
-		u.Path = path.Join(u.Path, "/api/v1/silences")
+	silence := types.Silence{
+		Matchers:  typeMatchers,
+		StartsAt:  time.Now().UTC(),
+		EndsAt:    endsAt,
+		CreatedBy: author,
+		Comment:   comment,
+	}
 
-		buf := bytes.NewBuffer([]byte{})
-		enc := json.NewEncoder(buf)
-		err = enc.Encode(silence)
-		if err != nil {
-			return err
-		}
+	u, err := GetAlertmanagerURL()
+	if err != nil {
+		return err
+	}
+	u.Path = path.Join(u.Path, "/api/v1/silences")
 
-		res, err := http.Post(u.String(), "application/json", buf)
-		if err != nil {
-			return err
-		}
+	buf := bytes.NewBuffer([]byte{})
+	err = json.NewEncoder(buf).Encode(silence)
+	if err != nil {
+		return err
+	}
 
-		defer res.Body.Close()
-		decoder := json.NewDecoder(res.Body)
+	res, err := http.Post(u.String(), "application/json", buf)
+	if err != nil {
+		return err
+	}
 
-		response := addResponse{}
-		err = decoder.Decode(&response)
-		if err != nil {
-			return errors.New(fmt.Sprintf("Unable to parse silence json response from %s", u.String()))
-		}
+	defer res.Body.Close()
+	response := addResponse{}
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Unable to parse silence json response from %s", u.String()))
+	}
 
-		if response.Status == "error" {
-			fmt.Printf("[%s] %s\n", response.ErrorType, response.Error)
-		} else {
-			fmt.Println(response.Data.SilenceID)
-		}
+	if response.Status == "error" {
+		fmt.Printf("[%s] %s\n", response.ErrorType, response.Error)
+	} else {
+		fmt.Println(response.Data.SilenceID)
 	}
 	return nil
 }

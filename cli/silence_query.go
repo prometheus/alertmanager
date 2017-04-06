@@ -3,14 +3,15 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -42,16 +43,6 @@ var queryCmd = &cobra.Command{
   	As well as direct equality, regex matching is also supported. The '=~' syntax
   	(similar to prometheus) is used to represent a regex match. Regex matching
   	can be used in combination with a direct match.
-
-  amtool silence query alertname=foo node={bar,baz}
-
-  	This query will match all silences with the alertname=foo label value pair
-  	and EITHER node=bar or node=baz.
-
-  amtool silence query alertname=foo{a,b} node={bar,baz}
-
-	Similar to the previous example this query will match all silences with any
-	combination of alertname=fooa or alertname=foob AND node=bar or node=baz.
 				`,
 	RunE: query,
 }
@@ -61,7 +52,7 @@ func init() {
 	queryFlags = queryCmd.Flags()
 }
 
-func fetchSilences(filter *[]labels.Matcher) ([]types.Silence, error) {
+func fetchSilences(filter string) ([]types.Silence, error) {
 	silenceResponse := alertmanagerSilenceResponse{}
 
 	u, err := GetAlertmanagerURL()
@@ -70,9 +61,7 @@ func fetchSilences(filter *[]labels.Matcher) ([]types.Silence, error) {
 	}
 
 	u.Path = path.Join(u.Path, "/api/v1/silences")
-	if filter != nil {
-		u.RawQuery = url.QueryEscape(MatchersToString(*filter))
-	}
+	u.RawQuery = "filter=" + url.QueryEscape(filter)
 
 	res, err := http.Get(u.String())
 	if err != nil {
@@ -80,50 +69,33 @@ func fetchSilences(filter *[]labels.Matcher) ([]types.Silence, error) {
 	}
 
 	defer res.Body.Close()
-	decoder := json.NewDecoder(res.Body)
 
-	err = decoder.Decode(&silenceResponse)
+	err = json.NewDecoder(res.Body).Decode(&silenceResponse)
 	if err != nil {
 		return []types.Silence{}, err
+	}
+
+	if silenceResponse.Status != "success" {
+		return []types.Silence{}, fmt.Errorf("[%s] %s", silenceResponse.ErrorType, silenceResponse.Error)
 	}
 
 	return silenceResponse.Data, nil
 }
 
 func query(cmd *cobra.Command, args []string) error {
-
 	expired, err := queryFlags.GetBool("expired")
 	if err != nil {
 		return err
 	}
 
-	var groups [][]labels.Matcher
+	var filterString = ""
 	if len(args) > 0 {
-		matchers, err := parseMatchers(args)
-		if err != nil {
-			return err
-		}
-		groups = parseMatcherGroups(matchers)
-		if err != nil {
-			return err
-		}
+		filterString = fmt.Sprintf("{%s}", strings.Join(args, ","))
 	}
 
-	fetchedSilences := []types.Silence{}
-	if len(groups) < 1 {
-		fetchedSilences, err = fetchSilences(nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Fetch silences that match each group of matchers
-	for _, matchers := range groups {
-		silences, err := fetchSilences(&matchers)
-		if err != nil {
-			return err
-		}
-		fetchedSilences = append(fetchedSilences, silences...)
+	fetchedSilences, err := fetchSilences(filterString)
+	if err != nil {
+		return err
 	}
 
 	displaySilences := []types.Silence{}
@@ -132,6 +104,7 @@ func query(cmd *cobra.Command, args []string) error {
 		if !expired && silence.EndsAt.Before(time.Now()) {
 			continue
 		}
+		displaySilences = append(displaySilences, silence)
 	}
 
 	formatter, found := format.Formatters[viper.GetString("output")]

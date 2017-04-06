@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 	"github.com/spf13/viper"
 )
 
@@ -25,7 +25,7 @@ type Config struct {
 type Formatter interface {
 	SetOutput(io.Writer)
 	FormatSilences([]types.Silence) error
-	FormatAlerts(model.Alerts) error
+	FormatAlerts([]*dispatch.APIAlert) error
 	FormatConfig(Config) error
 }
 

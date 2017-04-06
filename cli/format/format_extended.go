@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
@@ -29,7 +30,9 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) err
 	sort.Sort(ByEndAt(silences))
 	fmt.Fprintln(w, "ID\tMatchers\tStarts At\tEnds At\tUpdated At\tCreated By\tComment\t")
 	for _, silence := range silences {
-		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t",
+		fmt.Fprintf(
+			w,
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n",
 			silence.ID,
 			extendedFormatMatchers(silence.Matchers),
 			FormatDate(silence.StartsAt),
@@ -38,25 +41,25 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) err
 			silence.CreatedBy,
 			silence.Comment,
 		)
-		fmt.Fprintln(w, line)
 	}
 	w.Flush()
 	return nil
 }
 
-func (formatter *ExtendedFormatter) FormatAlerts(alerts model.Alerts) error {
+func (formatter *ExtendedFormatter) FormatAlerts(alerts []*dispatch.APIAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
 	for _, alert := range alerts {
-		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t",
+		fmt.Fprintf(
+			w,
+			"%s\t%s\t%s\t%s\t%s\t\n",
 			extendedFormatLabels(alert.Labels),
 			extendedFormatAnnotations(alert.Annotations),
 			FormatDate(alert.StartsAt),
 			FormatDate(alert.EndsAt),
 			alert.GeneratorURL,
 		)
-		fmt.Fprintln(w, line)
 	}
 	w.Flush()
 	return nil

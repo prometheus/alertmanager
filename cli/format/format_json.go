@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 )
 
 type JsonFormatter struct {
@@ -26,7 +26,7 @@ func (formatter *JsonFormatter) FormatSilences(silences []types.Silence) error {
 	return enc.Encode(silences)
 }
 
-func (formatter *JsonFormatter) FormatAlerts(alerts model.Alerts) error {
+func (formatter *JsonFormatter) FormatAlerts(alerts []*dispatch.APIAlert) error {
 	enc := json.NewEncoder(formatter.writer)
 	return enc.Encode(alerts)
 }

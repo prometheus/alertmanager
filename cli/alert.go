@@ -7,21 +7,33 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
 type alertmanagerAlertResponse struct {
-	Status    string       `json:"status"`
-	Data      model.Alerts `json:"data,omitempty"`
-	ErrorType string       `json:"errorType,omitempty"`
-	Error     string       `json:"error,omitempty"`
+	Status    string        `json:"status"`
+	Data      []*alertGroup `json:"data,omitempty"`
+	ErrorType string        `json:"errorType,omitempty"`
+	Error     string        `json:"error,omitempty"`
+}
+
+type alertGroup struct {
+	Labels   model.LabelSet `json:"labels"`
+	GroupKey uint64         `json:"groupKey"`
+	Blocks   []*alertBlock  `json:"blocks"`
+}
+
+type alertBlock struct {
+	RouteOpts interface{}          `json:"routeOpts"`
+	Alerts    []*dispatch.APIAlert `json:"alerts"`
 }
 
 var alertFlags *flag.FlagSet
@@ -52,17 +64,6 @@ var alertCmd = &cobra.Command{
   	As well as direct equality, regex matching is also supported. The '=~' syntax
   	(similar to prometheus) is used to represent a regex match. Regex matching
   	can be used in combination with a direct match.
-
-  amtool alert query alertname=foo node={bar,baz}
-
-  	This query will match all alerts with the alertname=foo label value pair
-  	and EITHER node=bar or node=baz.
-
-  amtool alert query alertname=foo{a,b} node={bar,baz}
-
-	Similar to the previous example this query will match all alerts with any
-	combination of alertname=fooa or alertname=foob AND node=bar or node=baz.
-
 	`,
 	RunE: queryAlerts,
 }
@@ -74,54 +75,47 @@ func init() {
 	alertFlags = alertCmd.Flags()
 }
 
-func fetchAlerts(filter *[]labels.Matcher) (model.Alerts, error) {
+func fetchAlerts(filter string) ([]*dispatch.APIAlert, error) {
 	alertResponse := alertmanagerAlertResponse{}
 
 	u, err := GetAlertmanagerURL()
 	if err != nil {
-		return model.Alerts{}, err
+		return []*dispatch.APIAlert{}, err
 	}
 
-	u.Path = path.Join(u.Path, "/api/v1/alerts")
-	if filter != nil {
-		u.RawQuery = url.QueryEscape(MatchersToString(*filter))
-	}
-
-	fmt.Println(u.String())
+	u.Path = path.Join(u.Path, "/api/v1/alerts/groups")
+	u.RawQuery = "filter=" + url.QueryEscape(filter)
 
 	res, err := http.Get(u.String())
 	if err != nil {
-		return model.Alerts{}, err
+		return []*dispatch.APIAlert{}, err
 	}
 
 	defer res.Body.Close()
-	decoder := json.NewDecoder(res.Body)
 
-	err = decoder.Decode(&alertResponse)
+	err = json.NewDecoder(res.Body).Decode(&alertResponse)
 	if err != nil {
-		return model.Alerts{}, errors.New("Unable to decode json response")
+		return []*dispatch.APIAlert{}, errors.New("Unable to decode json response")
 	}
-	return alertResponse.Data, nil
+
+	if alertResponse.Status != "success" {
+		return []*dispatch.APIAlert{}, fmt.Errorf("[%s] %s", alertResponse.ErrorType, alertResponse.Error)
+	}
+
+	return flattenAlertOverview(alertResponse.Data), nil
+}
+
+func flattenAlertOverview(overview []*alertGroup) []*dispatch.APIAlert {
+	alerts := []*dispatch.APIAlert{}
+	for _, group := range overview {
+		for _, block := range group.Blocks {
+			alerts = append(alerts, block.Alerts...)
+		}
+	}
+	return alerts
 }
 
 func queryAlerts(cmd *cobra.Command, args []string) error {
-	silences, err := fetchSilences(nil)
-	if err != nil {
-		return err
-	}
-
-	var groups [][]labels.Matcher
-	if len(args) > 0 {
-		matchers, err := parseMatchers(args)
-		if err != nil {
-			return err
-		}
-		groups = parseMatcherGroups(matchers)
-		if err != nil {
-			return err
-		}
-	}
-
 	expired, err := alertFlags.GetBool("expired")
 	if err != nil {
 		return err
@@ -132,25 +126,17 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fetchedAlerts := model.Alerts{}
-	if len(groups) < 1 {
-		fmt.Println("No specified matchers")
-		fetchedAlerts, err = fetchAlerts(nil)
-		if err != nil {
-			return err
-		}
+	var filterString = ""
+	if len(args) > 0 {
+		filterString = fmt.Sprintf("{%s}", strings.Join(args, ","))
 	}
 
-	// Fetch all alerts that match each group of matchers
-	for _, matchers := range groups {
-		alerts, err := fetchAlerts(&matchers)
-		if err != nil {
-			return err
-		}
-		fetchedAlerts = append(fetchedAlerts, alerts...)
+	fetchedAlerts, err := fetchAlerts(filterString)
+	if err != nil {
+		return err
 	}
 
-	displayAlerts := model.Alerts{}
+	displayAlerts := []*dispatch.APIAlert{}
 	for _, alert := range fetchedAlerts {
 		// If we are only returning current alerts and this one has already expired skip it
 		if !expired {
@@ -161,23 +147,11 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 
 		if !showSilenced {
 			// If any silence mutes this alert don't show it
-			silenced := false
-			for _, silence := range silences {
-				// Need to call Init before Mutes
-				err = silence.Init()
-				if err != nil {
-					return err
-				}
-
-				if silence.Mutes(alert.Labels) {
-					silenced = true
-					break
-				}
-			}
-			if silenced {
+			if alert.Silenced != "" {
 				continue
 			}
 		}
+
 		displayAlerts = append(displayAlerts, alert)
 	}
 

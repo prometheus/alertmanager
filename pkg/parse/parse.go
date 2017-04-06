@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	re      = regexp.MustCompile(`(?:\s?)(\w+)(=|=~|!=|!~)\"((?:\W*|\w*)+)\"`)
+	re      = regexp.MustCompile(`(?:\s?)(\w+)(=|=~|!=|!~)(?:\"([^"=~!]+)\"|([^"=~!]+))`)
 	typeMap = map[string]labels.MatchType{
 		"=":  labels.MatchEqual,
 		"!=": labels.MatchNotEqual,
@@ -44,9 +44,16 @@ func Matcher(s string) (*labels.Matcher, error) {
 	}
 	var (
 		name           = ms[1]
-		value          = ms[3]
+		value          string
 		matchType, prs = typeMap[ms[2]]
 	)
+
+	if ms[3] != "" {
+		value = ms[3]
+	} else {
+		value = ms[4]
+	}
+
 	if name == "" || value == "" || !prs {
 		return nil, fmt.Errorf("failed to parse")
 	}

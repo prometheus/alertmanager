@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sort"
-	"strings"
 
 	"github.com/spf13/viper"
 
@@ -44,7 +42,6 @@ func parseMatchers(inputLabels []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0)
 
 	for _, v := range inputLabels {
-		fmt.Println(v)
 		matcher, err := parse.Matchers(v)
 		if err != nil {
 			return []labels.Matcher{}, err
@@ -55,70 +52,6 @@ func parseMatchers(inputLabels []string) ([]labels.Matcher, error) {
 	}
 
 	return matchers, nil
-}
-
-// Expand a list of matchers into a list of all combinations of matchers for each matcher that has the same Name
-// ```
-// alertname=foo instance=bar instance=baz
-// ```
-// Goes t
-// ```
-// alertname=foo instance=bar
-// alertname=foo instance=baz
-// ```
-func parseMatcherGroups(matchers []labels.Matcher) [][]labels.Matcher {
-	keyMap := make(map[string][]labels.Matcher)
-
-	for i, kv := range matchers {
-		if _, ok := keyMap[kv.Name]; !ok {
-			keyMap[kv.Name] = make([]labels.Matcher, 0)
-		}
-		keyMap[kv.Name] = append(keyMap[kv.Name], matchers[i])
-	}
-
-	var output [][]labels.Matcher
-	for _, v := range keyMap {
-		output = merge(output, v)
-	}
-
-	for _, group := range output {
-		sort.Sort(ByAlphabetical(group))
-	}
-
-	return output
-}
-
-// Thanks @vendemiat for help with this one
-func merge(dst [][]labels.Matcher, source []labels.Matcher) [][]labels.Matcher {
-	if len(dst) == 0 {
-		for i := range source {
-			dst = append(dst, []labels.Matcher{source[i]})
-		}
-		return dst
-	}
-
-	output := make([][]labels.Matcher, len(dst)*len(source))
-	j := 0
-	for i := range dst {
-		for k := range source {
-			output[j] = make([]labels.Matcher, len(dst[i]))
-			if n := copy(output[j], dst[i]); n == 0 {
-				fmt.Printf("copy failure\n")
-			}
-			output[j] = append(output[j], source[k])
-			j += 1
-		}
-	}
-	return output
-}
-
-func MatchersToString(matchers []labels.Matcher) string {
-	stringMatchers := make([]string, len(matchers))
-	for i, v := range matchers {
-		stringMatchers[i] = v.String()
-		fmt.Println(v.String())
-	}
-	return fmt.Sprintf("{%s}", strings.Join(stringMatchers, ", "))
 }
 
 // Only valid for when you are going to add a silence
@@ -137,15 +70,15 @@ func TypeMatchers(matchers []labels.Matcher) (types.Matchers, error) {
 // Only valid for when you are going to add a silence
 // Doesn't allow negative operators
 func TypeMatcher(matcher labels.Matcher) (types.Matcher, error) {
-	var typeMatcher types.Matcher
+	typeMatcher := types.NewMatcher(model.LabelName(matcher.Name), matcher.Value)
 
 	switch matcher.Type {
 	case labels.MatchEqual:
-		typeMatcher = *types.NewMatcher(model.LabelName(matcher.Name), matcher.Value)
+		typeMatcher.IsRegex = false
 	case labels.MatchRegexp:
-		typeMatcher = *types.NewRegexMatcher(model.LabelName(matcher.Name), matcher.Regexp())
+		typeMatcher.IsRegex = true
 	default:
-		return types.Matcher{}, errors.New("Invalid match type for creation operation")
+		return types.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
 	}
-	return typeMatcher, nil
+	return *typeMatcher, nil
 }
