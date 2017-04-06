@@ -344,6 +344,9 @@ func (conn *LocalConnection) registerRemote(remote *Peer, acceptNewPeer bool) er
 		}
 	}
 
+	if remote.Name == conn.local.Name && remote.UID != conn.local.UID {
+		return &peerNameCollisionError{conn.local, remote}
+	}
 	if conn.remote == conn.local {
 		return errConnectToSelf
 	}
@@ -474,6 +477,14 @@ const (
 )
 
 var errConnectToSelf = fmt.Errorf("cannot connect to ourself")
+
+type peerNameCollisionError struct {
+	local, remote *Peer
+}
+
+func (err *peerNameCollisionError) Error() string {
+	return fmt.Sprintf("local %q and remote %q peer names collision", err.local, err.remote)
+}
 
 // The actor closure used by LocalConnection. If an action returns an error,
 // it will terminate the actor loop, which terminates the connection in turn.
