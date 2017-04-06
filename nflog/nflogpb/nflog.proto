@@ -17,7 +17,7 @@ message Receiver {
 // Entry holds information about a successful notification
 // sent to a receiver.
 message Entry {
-// The key identifying the dispatching group.
+  // The key identifying the dispatching group.
   bytes group_key = 1;
   // The receiver that was notified.
   Receiver receiver = 2;

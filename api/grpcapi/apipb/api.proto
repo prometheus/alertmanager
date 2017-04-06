@@ -1,0 +1,54 @@
+syntax = "proto3";
+package apipb;
+
+import "google/protobuf/timestamp.proto";
+import "google/api/annotations.proto";
+
+service Alerts {
+  rpc Get(AlertsGetRequest) returns (AlertsGetResponse) {
+    option (google.api.http) = {
+        get: "/alerts"
+    };
+  }
+  
+  rpc Add(AlertsAddRequest) returns (AlertsAddResponse) {
+    option (google.api.http) = {
+        post: "/alerts"
+    };
+  }
+}
+
+// ResponseHeader is part of every API response. It allows to identify
+// the responding Alertmanager instance, which can be useful to debug temporary
+// inconsistencies if the Alertmanager setup is accesssed via a reverse proxy.
+message ResponseHeader {
+  string peer_name = 1;
+}
+
+message AlertsGetRequest {
+  // repeated string filter = 1;
+  // string group_by = 2;
+}
+
+message AlertsAddRequest {
+  repeated Alert alerts = 1;
+}
+
+message AlertsGetResponse {
+  ResponseHeader header = 1;
+  repeated Alert alerts = 2;
+}
+
+message AlertsAddResponse {
+  ResponseHeader header = 1;
+}
+
+message Alert {
+  map<string, string> labels = 1;
+  map<string, string> annotations = 2;
+
+  google.protobuf.Timestamp starts_at = 3;
+  google.protobuf.Timestamp ends_at = 4;
+
+  string generator_url = 5;
+}

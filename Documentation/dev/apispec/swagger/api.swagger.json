@@ -1,0 +1,124 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "api/grpcapi/apipb/api.proto",
+    "version": "version not set"
+  },
+  "schemes": [
+    "http",
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/alerts": {
+      "get": {
+        "operationId": "Get",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apipbAlertsGetResponse"
+            }
+          }
+        },
+        "tags": [
+          "Alerts"
+        ]
+      },
+      "post": {
+        "operationId": "Add",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/apipbAlertsAddResponse"
+            }
+          }
+        },
+        "tags": [
+          "Alerts"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "apipbAlert": {
+      "type": "object",
+      "properties": {
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "starts_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ends_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "generator_url": {
+          "type": "string"
+        }
+      }
+    },
+    "apipbAlertsAddRequest": {
+      "type": "object",
+      "properties": {
+        "alerts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apipbAlert"
+          }
+        }
+      }
+    },
+    "apipbAlertsAddResponse": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "$ref": "#/definitions/apipbResponseHeader"
+        }
+      }
+    },
+    "apipbAlertsGetRequest": {
+      "type": "object"
+    },
+    "apipbAlertsGetResponse": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "$ref": "#/definitions/apipbResponseHeader"
+        },
+        "alerts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apipbAlert"
+          }
+        }
+      }
+    },
+    "apipbResponseHeader": {
+      "type": "object",
+      "properties": {
+        "peer_name": {
+          "type": "string"
+        }
+      },
+      "description": "ResponseHeader is part of every API response."
+    }
+  }
+}

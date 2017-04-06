@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/prometheus/alertmanager/api"
+	"github.com/prometheus/alertmanager/api/grpcapi"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/inhibit"
@@ -81,6 +82,7 @@ func main() {
 
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
+		grpcAddress   = flag.String("web.grpc-address", ":9094", "Address to listen on for GRPC API communication.")
 
 		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
 		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
@@ -249,14 +251,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	grpcl, err := net.Listen("tcp", *grpcAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+	grpcs, h := grpcapi.Handle(grpcl, alerts, mrouter)
+	go grpcs.Serve(grpcl)
+
 	router := route.New(nil)
 
 	webReload := make(chan struct{})
 	ui.Register(router.WithPrefix(amURL.Path), webReload)
 	apiv.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
+	mux := http.NewServeMux()
+
+	// Register old API and UI
+	mux.Handle("/", router)
+	mux.Handle("/api/v2/", http.StripPrefix("/api/v2", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		fmt.Println("gotreq", req)
+		h.ServeHTTP(w, req)
+	})))
+
 	log.Infoln("Listening on", *listenAddress)
-	go listen(*listenAddress, router)
+	go http.ListenAndServe(*listenAddress, mux)
 
 	var (
 		hup      = make(chan os.Signal)
@@ -374,12 +392,6 @@ func extURL(listen, external string) (*url.URL, error) {
 	u.Path = ppref
 
 	return u, nil
-}
-
-func listen(listen string, router *route.Router) {
-	if err := http.ListenAndServe(listen, router); err != nil {
-		log.Fatal(err)
-	}
 }
 
 type stringset map[string]struct{}
