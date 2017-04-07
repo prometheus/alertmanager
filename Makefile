@@ -58,8 +58,9 @@ docker:
 assets:
 	@echo ">> writing assets"
 	-@$(GO) get -u github.com/jteeuwen/go-bindata/...
-	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/app/index.html ui/app/script.js
-	@go-bindata $(bindata_flags) -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
+# Using "-modtime 1" to make assets target deterministic. It sets all file time stamps to unix timestamp 1
+	@go-bindata $(bindata_flags) -modtime 1 -pkg ui -o ui/bindata.go ui/app/index.html ui/app/script.js
+	@go-bindata $(bindata_flags) -modtime 1 -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
 
 promu:
 	@GOOS=$(shell uname -s | tr A-Z a-z) \
