@@ -37,15 +37,14 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		const elmMake = "elm-make"
-		elmMakeArgs := []string{"src/Main.elm", "--output", "script.js"}
+		elmMakeArgs := []string{"make", "src/Main.elm", "--yes", "--output", "script.js"}
 
 		if *debug {
 			elmMakeArgs = append(elmMakeArgs, "--debug")
 		}
 
 		recompileFn := func() error {
-			cmd := exec.Command(elmMake, elmMakeArgs...)
+			cmd := exec.Command("elm", elmMakeArgs...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			return cmd.Run()
