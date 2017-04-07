@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
-	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -35,8 +34,6 @@ type alertBlock struct {
 	RouteOpts interface{}          `json:"routeOpts"`
 	Alerts    []*dispatch.APIAlert `json:"alerts"`
 }
-
-var alertFlags *flag.FlagSet
 
 // alertCmd represents the alert command
 var alertCmd = &cobra.Command{
@@ -68,11 +65,20 @@ var alertCmd = &cobra.Command{
 	RunE: queryAlerts,
 }
 
+var alertQueryCmd = &cobra.Command{
+	Use:   "query",
+	Short: "View and search through current alerts",
+	Long:  alertCmd.Long,
+	RunE:  queryAlerts,
+}
+
 func init() {
 	RootCmd.AddCommand(alertCmd)
-	alertCmd.Flags().Bool("expired", false, "Show expired alerts as well as active")
-	alertCmd.Flags().BoolP("silenced", "s", false, "Show silenced alerts")
-	alertFlags = alertCmd.Flags()
+	alertCmd.AddCommand(alertQueryCmd)
+	alertQueryCmd.Flags().Bool("expired", false, "Show expired alerts as well as active")
+	alertQueryCmd.Flags().BoolP("silenced", "s", false, "Show silenced alerts")
+	viper.BindPFlag("expired", alertQueryCmd.Flags().Lookup("expired"))
+	viper.BindPFlag("silenced", alertQueryCmd.Flags().Lookup("silenced"))
 }
 
 func fetchAlerts(filter string) ([]*dispatch.APIAlert, error) {
@@ -116,15 +122,8 @@ func flattenAlertOverview(overview []*alertGroup) []*dispatch.APIAlert {
 }
 
 func queryAlerts(cmd *cobra.Command, args []string) error {
-	expired, err := alertFlags.GetBool("expired")
-	if err != nil {
-		return err
-	}
-
-	showSilenced, err := alertFlags.GetBool("silenced")
-	if err != nil {
-		return err
-	}
+	expired := viper.GetBool("expired")
+	showSilenced := viper.GetBool("silenced")
 
 	var filterString = ""
 	if len(args) > 0 {
