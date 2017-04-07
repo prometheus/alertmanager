@@ -7,8 +7,6 @@ import Types
         ( Msg(..)
         , Model
         , Route(NotFoundRoute, SilenceFormEditRoute, SilenceFormNewRoute, SilenceRoute, StatusRoute, SilenceListRoute, AlertsRoute)
-        , Mode(Append, Replace)
-        , modifierKeys
         )
 import Utils.Types
     exposing
@@ -99,55 +97,26 @@ update msg model =
             in
                 ( { model | filter = { filter | text = t } }, Cmd.none )
 
-        KeyDownMsg code ->
-            let
-                mode =
-                    if List.member code modifierKeys then
-                        Append
-                    else
-                        Replace
-            in
-                ( { model | mode = mode }, Cmd.none )
-
-        KeyUpMsg code ->
-            let
-                mode =
-                    if List.member code modifierKeys then
-                        Replace
-                    else
-                        Append
-            in
-                ( { model | mode = mode }, Cmd.none )
-
         AddLabel msg ( key, value ) ->
             let
                 filter =
                     model.filter
 
                 label =
-                    key ++ "=" ++ (toString value)
+                    key ++ "=" ++ toString value
 
                 labels =
-                    case model.mode of
-                        Append ->
-                            Maybe.withDefault "" filter.text
-                                |> Regex.replace Regex.All (Regex.regex "{|}") (\_ -> "")
-                                |> (\cleaned ->
-                                        if String.isEmpty cleaned then
-                                            []
-                                        else
-                                            Regex.split Regex.All (Regex.regex "\\s*,\\s*") cleaned
-                                   )
-                                |> (\labels ->
-                                        if List.member label labels then
-                                            List.filter (\l -> l /= label) labels
-                                        else
-                                            labels ++ [ label ]
-                                   )
-                                |> String.join ", "
-
-                        Replace ->
-                            label
+                    Maybe.withDefault "" filter.text
+                        |> Regex.replace Regex.All (Regex.regex "{|}") (\_ -> "")
+                        |> Regex.split Regex.All (Regex.regex "\\s*,\\s*")
+                        |> List.filter (String.isEmpty >> not)
+                        |> (\labels ->
+                                if List.member label labels then
+                                    labels
+                                else
+                                    labels ++ [ label ]
+                           )
+                        |> String.join ", "
 
                 text =
                     if String.isEmpty labels then

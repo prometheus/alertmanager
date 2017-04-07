@@ -1,4 +1,4 @@
-module Main exposing (..)
+module Main exposing (main)
 
 import Navigation
 import Task
@@ -20,14 +20,11 @@ import Types
             , RedirectAlerts
             )
         , Model
-        , Mode(Replace)
         )
 import Utils.Types exposing (..)
 import Views.SilenceForm.Types exposing (initSilenceForm)
 import Views.Status.Types exposing (StatusModel, initStatusModel)
 import Updates exposing (update)
-import Subscriptions exposing (subscriptions)
-import Keyboard
 
 
 main : Program Never Model Msg
@@ -36,7 +33,7 @@ main =
         { init = init
         , update = update
         , view = Views.view
-        , subscriptions = subscriptions
+        , subscriptions = always Sub.none
         }
 
 
@@ -58,7 +55,7 @@ init location =
                     nullFilter
 
         ( model, msg ) =
-            update (urlUpdate location) (Model Loading Loading initSilenceForm Loading route filter 0 initStatusModel Replace)
+            update (urlUpdate location) (Model Loading Loading initSilenceForm Loading route filter 0 initStatusModel)
     in
         model ! [ msg, Task.perform UpdateCurrentTime Time.now ]
 

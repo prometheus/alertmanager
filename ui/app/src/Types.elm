@@ -1,4 +1,4 @@
-module Types exposing (Model, Msg(..), Route(..), Mode(..), modifierKeys)
+module Types exposing (Model, Msg(..), Route(..))
 
 import Alerts.Types exposing (AlertGroup, Alert)
 import Views.AlertList.Types exposing (AlertListMsg)
@@ -9,7 +9,6 @@ import Views.Status.Types exposing (StatusModel, StatusMsg)
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (ApiData, Filter, Label)
 import Time
-import Keyboard exposing (KeyCode)
 
 
 type alias Model =
@@ -21,17 +20,7 @@ type alias Model =
     , filter : Filter
     , currentTime : Time.Time
     , status : StatusModel
-    , mode : Mode
     }
-
-
-type Mode
-    = Append
-    | Replace
-
-
-modifierKeys =
-    [ 91, 93, 224, 17 ]
 
 
 type Msg
@@ -53,8 +42,6 @@ type Msg
     | UpdateCurrentTime Time.Time
     | UpdateFilter Filter String
     | AddLabel Msg Label
-    | KeyDownMsg KeyCode
-    | KeyUpMsg KeyCode
 
 
 type Route

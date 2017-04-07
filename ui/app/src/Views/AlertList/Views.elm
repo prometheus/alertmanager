@@ -6,7 +6,6 @@ import Views.AlertList.Filter exposing (silenced, receiver, matchers)
 import Views.AlertList.FilterBar
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
 import Utils.Date
 import Utils.Types exposing (Filter)
 import Utils.Views exposing (..)
@@ -59,12 +58,7 @@ alertView : Alert -> Html Msg
 alertView alert =
     let
         id =
-            case alert.silenceId of
-                Just id ->
-                    id
-
-                Nothing ->
-                    ""
+            Maybe.withDefault "" alert.silenceId
 
         b =
             if alert.silenced then
@@ -73,14 +67,7 @@ alertView alert =
                 buttonLink "fa-exclamation-triangle" "#/silences/new?keep=1" "dark-red" (CreateSilenceFromAlert alert)
 
         labels =
-            List.filterMap
-                (\( k, v ) ->
-                    if k /= "alertname" then
-                        Just ( k, v )
-                    else
-                        Nothing
-                )
-                alert.labels
+            List.filter (Tuple.first >> (/=) "alertname") alert.labels
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
@@ -88,15 +75,15 @@ alertView alert =
                 , buttonLink "fa-bar-chart" alert.generatorUrl "black" Noop
                 , p [ class "dib mr2" ] [ text <| Utils.Date.timeFormat alert.startsAt ]
                 ]
-            , labels
-                |> List.map (\( k, v ) -> String.join "=" [ k, v ])
-                |> List.map2
-                    (\label content ->
-                        onClickMsgButton content (AddLabel (MsgForAlertList FilterAlerts) label)
-                    )
-                    labels
-                |> div [ class "mb2 w-80-l w-100-m" ]
+            , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton labels)
             ]
+
+
+labelButton : ( String, String ) -> Html Msg
+labelButton (( key, value ) as label) =
+    onClickMsgButton
+        (key ++ "=" ++ value)
+        (AddLabel (MsgForAlertList FilterAlerts) label)
 
 
 alertHeader : ( String, String ) -> Html msg
