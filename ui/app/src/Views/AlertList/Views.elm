@@ -83,7 +83,7 @@ labelButton : ( String, String ) -> Html Msg
 labelButton (( key, value ) as label) =
     onClickMsgButton
         (key ++ "=" ++ value)
-        (AddLabel (MsgForAlertList FilterAlerts) label)
+        (AddLabel Noop label)
 
 
 alertHeader : ( String, String ) -> Html msg
