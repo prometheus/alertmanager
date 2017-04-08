@@ -1,4 +1,4 @@
-module Main exposing (..)
+module Main exposing (main)
 
 import Navigation
 import Task
@@ -33,7 +33,7 @@ main =
         { init = init
         , update = update
         , view = Views.view
-        , subscriptions = subscriptions
+        , subscriptions = always Sub.none
         }
 
 
@@ -90,13 +90,3 @@ urlUpdate location =
 
             NotFoundRoute ->
                 NavigateToNotFound
-
-
-
--- SUBSCRIPTIONS
--- TODO: Poll API for changes.
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none

@@ -25,6 +25,7 @@ import Views.SilenceList.Updates
 import Views.Status.Types exposing (StatusMsg(InitStatusView))
 import Views.Status.Updates
 import String exposing (trim)
+import Regex
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -95,6 +96,35 @@ update msg model =
                         Just text
             in
                 ( { model | filter = { filter | text = t } }, Cmd.none )
+
+        AddLabel msg ( key, value ) ->
+            let
+                filter =
+                    model.filter
+
+                label =
+                    key ++ "=" ++ toString value
+
+                labels =
+                    Maybe.withDefault "" filter.text
+                        |> Regex.replace Regex.All (Regex.regex "{|}") (\_ -> "")
+                        |> Regex.split Regex.All (Regex.regex "\\s*,\\s*")
+                        |> List.filter (String.isEmpty >> not)
+                        |> (\labels ->
+                                if List.member label labels then
+                                    labels
+                                else
+                                    labels ++ [ label ]
+                           )
+                        |> String.join ", "
+
+                text =
+                    if String.isEmpty labels then
+                        Nothing
+                    else
+                        Just ("{" ++ labels ++ "}")
+            in
+                ( { model | filter = { filter | text = text } }, Task.perform identity (Task.succeed msg) )
 
         Noop ->
             ( model, Cmd.none )

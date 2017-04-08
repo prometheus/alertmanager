@@ -7,7 +7,7 @@ import Views.Silence.Types exposing (SilenceMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.Status.Types exposing (StatusModel, StatusMsg)
 import Silences.Types exposing (Silence)
-import Utils.Types exposing (ApiData, Filter)
+import Utils.Types exposing (ApiData, Filter, Label)
 import Time
 
 
@@ -41,6 +41,7 @@ type Msg
     | RedirectAlerts
     | UpdateCurrentTime Time.Time
     | UpdateFilter Filter String
+    | AddLabel Msg Label
 
 
 type Route

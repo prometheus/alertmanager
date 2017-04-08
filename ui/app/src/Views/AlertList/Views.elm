@@ -6,11 +6,10 @@ import Views.AlertList.Filter exposing (silenced, receiver, matchers)
 import Views.AlertList.FilterBar
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
 import Utils.Date
 import Utils.Types exposing (Filter)
 import Utils.Views exposing (..)
-import Types exposing (Msg(MsgForAlertList, Noop, CreateSilenceFromAlert))
+import Types exposing (Msg(MsgForAlertList, Noop, CreateSilenceFromAlert, UpdateFilter, AddLabel))
 
 
 view : List AlertGroup -> Filter -> Html Msg -> Html Msg
@@ -59,30 +58,35 @@ alertView : Alert -> Html Msg
 alertView alert =
     let
         id =
-            case alert.silenceId of
-                Just id ->
-                    id
-
-                Nothing ->
-                    ""
+            Maybe.withDefault "" alert.silenceId
 
         b =
             if alert.silenced then
-                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" Types.Noop
+                buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" Noop
             else
                 buttonLink "fa-exclamation-triangle" "#/silences/new?keep=1" "dark-red" (CreateSilenceFromAlert alert)
+
+        labels =
+            List.filter (Tuple.first >> (/=) "alertname") alert.labels
     in
         div [ class "f6 mb3" ]
             [ div [ class "mb1" ]
                 [ b
-                , buttonLink "fa-bar-chart" alert.generatorUrl "black" (Types.Noop)
+                , buttonLink "fa-bar-chart" alert.generatorUrl "black" Noop
                 , p [ class "dib mr2" ] [ text <| Utils.Date.timeFormat alert.startsAt ]
                 ]
-            , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton <| List.filter (\( k, v ) -> k /= "alertname") alert.labels)
+            , div [ class "mb2 w-80-l w-100-m" ] (List.map labelButton labels)
             ]
 
 
-alertHeader : ( String, String ) -> Html Msg
+labelButton : ( String, String ) -> Html Msg
+labelButton (( key, value ) as label) =
+    onClickMsgButton
+        (key ++ "=" ++ value)
+        (AddLabel Noop label)
+
+
+alertHeader : ( String, String ) -> Html msg
 alertHeader ( key, value ) =
     if key == "alertname" then
         b [ class "db f4 mr2 dark-red dib" ] [ text value ]
