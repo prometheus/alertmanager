@@ -129,6 +129,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.TelegramConfigs {
+		n := NewTelegram(c, tmpl)
+		add("telegram", i, n, c)
+	}
 	return integrations
 }
 
@@ -929,6 +933,82 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, err
 		}
 		return false, fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+	}
+
+	return false, nil
+}
+
+// Telegram implements a Notifier for Telegram notifications.
+type Telegram struct {
+	conf *config.TelegramConfig
+	tmpl *template.Template
+}
+
+// NewTelegram returns a new Telegram notifier.
+func NewTelegram(c *config.TelegramConfig, t *template.Template) *Telegram {
+	return &Telegram{conf: c, tmpl: t}
+}
+
+// Notify implements the Notifier interface.
+func (t *Telegram) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+
+	log.With("incident", key).Debugln("notifying Telegram")
+
+	var post bytes.Buffer
+	var err error
+	var (
+		url  = t.conf.APIURL + "bot" + string(t.conf.Token) + "/sendMessage"
+		data = t.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		tmpl = tmplText(t.tmpl, data, &err)
+	)
+
+	messageText := tmpl(t.conf.Text)
+
+	// Current maximum length is 4096 UTF8 characters
+	// https://core.telegram.org/method/messages.sendMessage
+	if len(messageText) > 4096 {
+		messageText = messageText[:4096]
+		log.With("incident", key).Debugf("Truncated message to %q due to Telegram message limit", messageText)
+	}
+
+	messageText = strings.TrimSpace(messageText)
+	if messageText == "" {
+		// Telegram rejects empty messages.
+		messageText = "(no details)"
+	}
+	message := map[string]interface{}{
+		"chat_id":                  t.conf.ChatID,
+		"disable_web_page_preview": t.conf.DisableWebPagePreview,
+		"disable_notification":     t.conf.DisableNotification,
+		"parse_mode":               t.conf.ParseMode,
+		"text":                     messageText,
+	}
+
+	enc := json.NewEncoder(&post)
+	err = enc.Encode(message)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, url, contentTypeJSON, &post)
+	if err != nil {
+		return true, err
+	}
+
+	defer resp.Body.Close()
+
+	return t.retry(resp.StatusCode)
+}
+
+func (t *Telegram) retry(statusCode int) (bool, error) {
+	// Response codes 420 and 303 can potentially recover. 200 response code indicate successful requests.
+	// https://core.telegram.org/api/errors
+	if statusCode != 200 {
+		return (statusCode == 303 || statusCode == 420), fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil

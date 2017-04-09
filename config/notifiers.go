@@ -115,6 +115,16 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	DefaultTelegramConfig = TelegramConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		ParseMode:             "HTML",
+		DisableWebPagePreview: false,
+		DisableNotification:   false,
+		Text:                  `{{ template "telegram.default.text" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -391,4 +401,35 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+type TelegramConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	APIURL                string `yaml:"api_url" json:"api_url"`
+	Token                 Secret `yaml:"token" json:"token"`
+	ParseMode             string `yaml:"parse_mode" json:"parse_mode"`
+	DisableWebPagePreview bool   `yaml:"disable_web_page_preview" json:"disable_web_page_preview"`
+	DisableNotification   bool   `yaml:"disable_notification" json:"disable_notification"`
+	ChatID                string `yaml:"chat_id" json:"chat_id"`
+	Text                  string `yaml:"text" json:"text"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTelegramConfig
+	type plain TelegramConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.ChatID == "" {
+		return fmt.Errorf("missing chat id in Telegram config")
+	}
+	if c.ParseMode != "" && strings.ToLower(c.ParseMode) != "markdown" && strings.ToLower(c.ParseMode) != "html" {
+		return fmt.Errorf("invalid parse mode in Telegram config, use Markdown or HTML")
+	}
+	return checkOverflow(c.XXX, "telegram config")
 }
