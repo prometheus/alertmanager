@@ -543,9 +543,9 @@ func (r RetryStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.C
 		case <-tick.C:
 			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
-				log.Debugf("Notify attempt %d failed: %s", i, err)
+				log.Debugf("Notify attempt %d for %q failed: %s", i, r.integration.name, err)
 				if !retry {
-					return ctx, alerts, fmt.Errorf("Cancelling notify retry due to unrecoverable error: %s", err)
+					return ctx, alerts, fmt.Errorf("Cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
 				}
 
 				// Save this error to be able to return the last seen error by an
