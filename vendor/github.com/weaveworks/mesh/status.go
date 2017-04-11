@@ -20,6 +20,7 @@ type Status struct {
 	UnicastRoutes      []unicastRouteStatus
 	BroadcastRoutes    []broadcastRouteStatus
 	Connections        []LocalConnectionStatus
+	TerminationCount   int
 	Targets            []string
 	OverlayDiagnostics interface{}
 	TrustedSubnets     []string
@@ -40,6 +41,7 @@ func NewStatus(router *Router) *Status {
 		UnicastRoutes:      makeUnicastRouteStatusSlice(router.Routes),
 		BroadcastRoutes:    makeBroadcastRouteStatusSlice(router.Routes),
 		Connections:        makeLocalConnectionStatusSlice(router.ConnectionMaker),
+		TerminationCount:   router.ConnectionMaker.terminationCount,
 		Targets:            router.ConnectionMaker.Targets(false),
 		OverlayDiagnostics: router.Overlay.Diagnostics(),
 		TrustedSubnets:     makeTrustedSubnetsSlice(router.TrustedSubnets),

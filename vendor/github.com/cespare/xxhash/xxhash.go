@@ -5,8 +5,6 @@ package xxhash
 import (
 	"encoding/binary"
 	"hash"
-	"reflect"
-	"unsafe"
 )
 
 const (
@@ -30,24 +28,6 @@ var (
 	prime4v = prime4
 	prime5v = prime5
 )
-
-// Sum64String computes the 64-bit xxHash digest of s.
-// It may be faster than Sum64([]byte(s)) by avoiding a copy.
-//
-// TODO(caleb): Consider removing this if an optimization is ever added to make
-// it unnecessary: https://golang.org/issue//2205.
-//
-// TODO(caleb): We still have a function call; we could instead write Go/asm
-// copies of Sum64 for strings to squeeze out a bit more speed.
-func Sum64String(s string) uint64 {
-	var b []byte
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	bh.Data = uintptr(unsafe.Pointer(sh.Data))
-	bh.Len = sh.Len
-	bh.Cap = sh.Len
-	return Sum64(b)
-}
 
 type xxh struct {
 	v1    uint64
@@ -189,13 +169,6 @@ func mergeRound(acc, val uint64) uint64 {
 
 // It's important for performance to get the rotates to actually compile to
 // ROLQs. gc will do this for us but only if rotate amount is a constant.
-//
-// TODO(caleb): In Go 1.9 a single function
-//   rol(x uint64, k uint) uint64
-// should do instead. See https://golang.org/issue/18254.
-//
-// TODO(caleb): In Go 1.x (1.9?) consider using the new math/bits package to be more
-// explicit about things. See https://golang.org/issue/18616.
 
 func rol1(x uint64) uint64  { return (x << 1) | (x >> (64 - 1)) }
 func rol7(x uint64) uint64  { return (x << 7) | (x >> (64 - 7)) }
