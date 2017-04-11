@@ -12,6 +12,7 @@ import (
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -126,7 +127,17 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 	showSilenced := viper.GetBool("silenced")
 
 	var filterString = ""
-	if len(args) > 0 {
+	if len(args) == 1 {
+		// If we only have one argument then it's possible that the user wants me to assume alertname=<arg>
+		// Attempt to use the parser to pare the argument
+		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets prepend `alertname=` to the front
+		_, err := parse.Matcher(args[0])
+		if err != nil {
+			filterString = fmt.Sprintf("{alertname=%s}", args[0])
+		} else {
+			filterString = fmt.Sprintf("{%s}", strings.Join(args, ","))
+		}
+	} else if len(args) > 1 {
 		filterString = fmt.Sprintf("{%s}", strings.Join(args, ","))
 	}
 
