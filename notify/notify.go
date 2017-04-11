@@ -351,6 +351,7 @@ func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (contex
 		} else {
 			n.marker.SetSilenced(a.Labels.Fingerprint(), sils[0].Id)
 		}
+		n.marker.SetStatus(a.Fingerprint(), types.ProcessedStatus, true)
 	}
 
 	return ctx, filtered, nil

@@ -45,6 +45,9 @@ const (
 	// InhibitedStatus bit is set on memMarker->status when linked alert is
 	// inhibited
 	InhibitedStatus = 1
+	// ProcessedStatus bit is set on memMarker->status when linked alert is
+	// processed by notify code
+	ProcessedStatus = 2
 )
 
 type memMarker struct {

@@ -132,6 +132,11 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 
 			var apiAlerts []*APIAlert
 			for _, a := range types.Alerts(ag.alertSlice()...) {
+				// skip alerts that were not yet processed by notify and so we don't
+				// know if they are silenced or not
+				if !d.marker.Status(a.Fingerprint(), types.ProcessedStatus) {
+					continue
+				}
 				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 					continue
 				}
