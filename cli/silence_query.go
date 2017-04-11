@@ -50,6 +50,7 @@ var queryCmd = &cobra.Command{
 
 func init() {
 	queryCmd.Flags().Bool("expired", false, "Show expired silences as well as active")
+	queryCmd.Flags().BoolP("quiet", "q", false, "Only show ids")
 	queryFlags = queryCmd.Flags()
 }
 
@@ -89,6 +90,11 @@ func query(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	quiet, err := queryFlags.GetBool("quiet")
+	if err != nil {
+		return err
+	}
+
 	var filterString = ""
 	if len(args) == 1 {
 		// If we only have one argument then it's possible that the user wants me to assume alertname=<arg>
@@ -118,10 +124,16 @@ func query(cmd *cobra.Command, args []string) error {
 		displaySilences = append(displaySilences, silence)
 	}
 
-	formatter, found := format.Formatters[viper.GetString("output")]
-	if !found {
-		return errors.New("Unknown output formatter")
+	if quiet {
+		for _, silence := range displaySilences {
+			fmt.Println(silence.ID)
+		}
+	} else {
+		formatter, found := format.Formatters[viper.GetString("output")]
+		if !found {
+			return errors.New("Unknown output formatter")
+		}
+		formatter.FormatSilences(displaySilences)
 	}
-	formatter.FormatSilences(displaySilences)
 	return nil
 }
