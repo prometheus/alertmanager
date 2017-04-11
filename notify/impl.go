@@ -254,18 +254,31 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 
 // Notify implements the Notifier interface.
 func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	// Connect to the SMTP smarthost.
-	c, err := smtp.Dial(n.conf.Smarthost)
-	if err != nil {
-		return true, err
-	}
-	defer c.Quit()
-
 	// We need to know the hostname for both auth and TLS.
-	host, _, err := net.SplitHostPort(n.conf.Smarthost)
+	var c *smtp.Client
+	host, port, err := net.SplitHostPort(n.conf.Smarthost)
 	if err != nil {
 		return false, fmt.Errorf("invalid address: %s", err)
 	}
+
+	if port == "465" {
+		conn, err := tls.Dial("tcp", n.conf.Smarthost, &tls.Config{ServerName: host})
+		if err != nil {
+			return true, err
+		}
+		c, err = smtp.NewClient(conn, n.conf.Smarthost)
+		if err != nil {
+			return true, err
+		}
+
+	} else {
+		// Connect to the SMTP smarthost.
+		c, err = smtp.Dial(n.conf.Smarthost)
+		if err != nil {
+			return true, err
+		}
+	}
+	defer c.Quit()
 
 	// Global Config guarantees RequireTLS is not nil
 	if *n.conf.RequireTLS {
