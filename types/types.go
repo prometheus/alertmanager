@@ -26,23 +26,26 @@ import (
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {
-	SetInhibited(alert model.Fingerprint, b bool)
 	SetSilenced(alert model.Fingerprint, sil ...string)
 	SetStatus(alert model.Fingerprint, status uint8, b bool)
 
 	Silenced(alert model.Fingerprint) (string, bool)
-	Inhibited(alert model.Fingerprint) bool
 	Status(alert model.Fingerprint, status uint8) bool
 }
 
 // NewMarker returns an instance of a Marker implementation.
 func NewMarker() Marker {
 	return &memMarker{
-		inhibited: map[model.Fingerprint]struct{}{},
-		silenced:  map[model.Fingerprint]string{},
-		status:    map[model.Fingerprint]uint8{},
+		silenced: map[model.Fingerprint]string{},
+		status:   map[model.Fingerprint]uint8{},
 	}
 }
+
+const (
+	// InhibitedStatus bit is set on memMarker->status when linked alert is
+	// inhibited
+	InhibitedStatus = 1
+)
 
 type memMarker struct {
 	inhibited map[model.Fingerprint]struct{}
@@ -50,14 +53,6 @@ type memMarker struct {
 	status    map[model.Fingerprint]uint8
 
 	mtx sync.RWMutex
-}
-
-func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-
-	_, ok := m.inhibited[alert]
-	return ok
 }
 
 func (m *memMarker) Silenced(alert model.Fingerprint) (string, bool) {
@@ -77,17 +72,6 @@ func (m *memMarker) Status(alert model.Fingerprint, status uint8) bool {
 		return false
 	}
 	return s&status != 0
-}
-
-func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	if !b {
-		delete(m.inhibited, alert)
-	} else {
-		m.inhibited[alert] = struct{}{}
-	}
 }
 
 func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...string) {

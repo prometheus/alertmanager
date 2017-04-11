@@ -300,7 +300,7 @@ func NewInhibitStage(m types.Muter, mk types.Marker) *InhibitStage {
 func (n *InhibitStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
-		ok := n.marker.Inhibited(a.Fingerprint())
+		ok := n.marker.Status(a.Fingerprint(), types.InhibitedStatus)
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if the silencer mutes it.
 		if !n.muter.Mutes(a.Labels) {

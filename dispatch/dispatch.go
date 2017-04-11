@@ -137,7 +137,7 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 				}
 				aa := &APIAlert{
 					Alert:     a,
-					Inhibited: d.marker.Inhibited(a.Fingerprint()),
+					Inhibited: d.marker.Status(a.Fingerprint(), types.InhibitedStatus),
 				}
 
 				if !matchesFilterLabels(aa, matchers) {

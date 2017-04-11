@@ -504,7 +504,7 @@ func TestInhibitStage(t *testing.T) {
 
 	// Set the second alert as previously inhibited. It is expected to have
 	// the WasInhibited flag set to true afterwards.
-	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
+	marker.SetStatus(inAlerts[1].Fingerprint(), types.InhibitedStatus, true)
 
 	_, alerts, err := inhibitor.Exec(nil, inAlerts...)
 	if err != nil {
