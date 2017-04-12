@@ -38,15 +38,27 @@ func Matchers(s string) ([]*labels.Matcher, error) {
 }
 
 func Matcher(s string) (*labels.Matcher, error) {
+	name, value, matchType, err := Input(s)
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := labels.NewMatcher(matchType, name, value)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func Input(s string) (name, value string, matchType labels.MatchType, err error) {
 	ms := re.FindStringSubmatch(s)
 	if len(ms) < 4 {
-		return nil, fmt.Errorf("bad matcher format")
+		return "", "", labels.MatchEqual, fmt.Errorf("bad matcher format")
 	}
-	var (
-		name           = ms[1]
-		value          string
-		matchType, prs = typeMap[ms[2]]
-	)
+
+	var prs bool
+	name = ms[1]
+	matchType, prs = typeMap[ms[2]]
 
 	if ms[3] != "" {
 		value = ms[3]
@@ -55,12 +67,8 @@ func Matcher(s string) (*labels.Matcher, error) {
 	}
 
 	if name == "" || value == "" || !prs {
-		return nil, fmt.Errorf("failed to parse")
+		return "", "", labels.MatchEqual, fmt.Errorf("failed to parse")
 	}
 
-	m, err := labels.NewMatcher(matchType, name, value)
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
+	return name, value, matchType, nil
 }

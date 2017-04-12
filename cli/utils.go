@@ -42,13 +42,16 @@ func parseMatchers(inputLabels []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0)
 
 	for _, v := range inputLabels {
-		matcher, err := parse.Matchers(v)
+		name, value, matchType, err := parse.Input(v)
 		if err != nil {
 			return []labels.Matcher{}, err
 		}
-		for _, item := range matcher {
-			matchers = append(matchers, *item)
-		}
+
+		matchers = append(matchers, labels.Matcher{
+			Type:  matchType,
+			Name:  name,
+			Value: value,
+		})
 	}
 
 	return matchers, nil
