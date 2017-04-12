@@ -46,7 +46,8 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 		Value: v,
 	}
 	if t == MatchRegexp || t == MatchNotRegexp {
-		re, err := regexp.Compile("^(?:" + m.Value + ")$")
+		m.Value = "^(?:" + v + ")$"
+		re, err := regexp.Compile(m.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -57,6 +58,11 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 
 func (m *Matcher) String() string {
 	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
+}
+
+// Allow fetching of regex for conversion to internal types
+func (m *Matcher) Regexp() *regexp.Regexp {
+	return m.re
 }
 
 // Matches returns whether the matcher matches the given string value.
