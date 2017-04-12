@@ -91,6 +91,10 @@ func main() {
 	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
 	flag.Parse()
 
+	if *alertURL == "" {
+		alertURL = externalURL
+	}
+
 	if *hwaddr == "" {
 		*hwaddr = mustHardwareAddr()
 	}
