@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/prometheus/alertmanager/api/grpcapi/apipb"
 	"github.com/prometheus/alertmanager/provider"
@@ -54,14 +53,12 @@ func (s *alertsServer) Get(ctx context.Context, req *apipb.AlertsGetRequest) (*a
 		if err = alerts.Err(); err != nil {
 			return nil, err
 		}
-		start, _ := ptypes.TimestampProto(a.StartsAt)
-		end, _ := ptypes.TimestampProto(a.EndsAt)
 
 		res = append(res, &apipb.Alert{
 			Labels:      *(*map[string]string)(unsafe.Pointer(&a.Labels)),
 			Annotations: *(*map[string]string)(unsafe.Pointer(&a.Annotations)),
-			StartsAt:    start,
-			EndsAt:      end,
+			StartsAt:    a.StartsAt,
+			EndsAt:      a.EndsAt,
 		})
 	}
 

@@ -118,7 +118,7 @@
           "type": "string"
         }
       },
-      "description": "ResponseHeader is part of every API response."
+      "description": "ResponseHeader is part of every API response. It allows to identify\nthe responding Alertmanager instance, which can be useful to debug temporary\ninconsistencies if the Alertmanager setup is accesssed via a reverse proxy."
     }
   }
 }

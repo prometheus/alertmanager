@@ -3,6 +3,12 @@ package apipb;
 
 import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
+import "gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
 
 service Alerts {
   rpc Get(AlertsGetRequest) returns (AlertsGetResponse) {
@@ -47,8 +53,8 @@ message Alert {
   map<string, string> labels = 1;
   map<string, string> annotations = 2;
 
-  google.protobuf.Timestamp starts_at = 3;
-  google.protobuf.Timestamp ends_at = 4;
+  google.protobuf.Timestamp starts_at = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp ends_at = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 
   string generator_url = 5;
 }
