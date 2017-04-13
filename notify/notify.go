@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
@@ -454,11 +453,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, hash []byte, resolved boo
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	ts, err := ptypes.Timestamp(entry.Timestamp)
-	if err != nil {
-		return false, err
-	}
-	return ts.Before(n.now().Add(-repeat)), nil
+	return entry.Timestamp.Before(n.now().Add(-repeat)), nil
 }
 
 // Exec implements the Stage interface.
