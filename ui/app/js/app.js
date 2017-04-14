@@ -188,7 +188,7 @@ angular.module('am.controllers').controller('AlertsCtrl',
 
       angular.forEach(group.blocks, function(blk) {
         if (this.indexOf(blk.routeOpts.receiver) >= 0) {
-          var unsilencedAlerts = blk.alerts.filter(function (a) { return !a.silenced; });
+          var unsilencedAlerts = blk.alerts.filter(function (a) { return a.status.status != 'silenced'; });
           if (!$scope.hideSilenced && blk.alerts.length > 0 || $scope.hideSilenced && unsilencedAlerts.length > 0) {
             ret = true
           }
