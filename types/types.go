@@ -62,9 +62,14 @@ var statusMap = map[state]string{
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {
+	SetActive(alert model.Fingerprint)
 	SetInhibited(alert model.Fingerprint, b bool)
 	SetSilenced(alert model.Fingerprint, sil ...string)
 
+	Status(alert model.Fingerprint) alertStatus
+
+	Unprocessed(alert model.Fingerprint) bool
+	Active(alert model.Fingerprint) bool
 	Silenced(alert model.Fingerprint) (string, bool)
 	Inhibited(alert model.Fingerprint) bool
 }
@@ -97,6 +102,40 @@ func (m *memMarker) setStatus(alert model.Fingerprint, s state, v string) {
 	status.value = v
 }
 
+func (m *memMarker) Status(alert model.Fingerprint) alertStatus {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	s, found := m.status[alert]
+	if !found {
+		return alertStatus{}
+	}
+	return *s
+
+}
+
+func (m *memMarker) Unprocessed(alert model.Fingerprint) bool {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	s, found := m.status[alert]
+	if !found {
+		return true
+	}
+	return s.status == unprocessed
+}
+
+func (m *memMarker) Active(alert model.Fingerprint) bool {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	s, found := m.status[alert]
+	if !found {
+		return false
+	}
+	return s.status == active
+}
+
 func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
@@ -122,6 +161,10 @@ func (m *memMarker) Silenced(alert model.Fingerprint) (string, bool) {
 	return s.value, true
 }
 
+func (m *memMarker) SetActive(alert model.Fingerprint) {
+	m.setStatus(alert, active, "")
+}
+
 func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
 	if b {
 		m.setStatus(alert, inhibited, "")
@@ -132,7 +175,7 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
 
 func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...string) {
 	if len(sil) == 0 {
-		m.setStatus(alert, active, "")
+		m.SetActive(alert)
 	} else {
 		m.setStatus(alert, silenced, sil[0])
 	}
