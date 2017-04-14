@@ -65,39 +65,39 @@ func TestAlertMerge(t *testing.T) {
 
 func TestAlertStatusMarshal(t *testing.T) {
 	type statusTest struct {
-		alertStatus alertStatus
+		alertStatus AlertStatus
 		status      string
 		value       string
 	}
 
 	tests := []statusTest{
 		statusTest{
-			alertStatus: alertStatus{},
+			alertStatus: AlertStatus{},
 			status:      "unprocessed",
 			value:       "",
 		},
 		statusTest{
-			alertStatus: alertStatus{status: unprocessed},
+			alertStatus: AlertStatus{status: unprocessed},
 			status:      "unprocessed",
 			value:       "",
 		},
 		statusTest{
-			alertStatus: alertStatus{status: active},
+			alertStatus: AlertStatus{status: active},
 			status:      "active",
 			value:       "",
 		},
 		statusTest{
-			alertStatus: alertStatus{status: silenced, value: "123456"},
+			alertStatus: AlertStatus{status: silenced, value: "123456"},
 			status:      "silenced",
 			value:       "123456",
 		},
 		statusTest{
-			alertStatus: alertStatus{status: inhibited},
+			alertStatus: AlertStatus{status: inhibited},
 			status:      "inhibited",
 			value:       "",
 		},
 		statusTest{
-			alertStatus: alertStatus{status: 255},
+			alertStatus: AlertStatus{status: 255},
 			status:      "unknown",
 			value:       "",
 		},
