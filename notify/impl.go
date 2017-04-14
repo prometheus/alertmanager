@@ -30,6 +30,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sns"
+
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
@@ -128,6 +132,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 	for i, c := range nc.PushoverConfigs {
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
+	}
+	for i, c := range nc.AmazonSNSConfigs {
+		n := NewAmazonSNS(c, tmpl)
+		add("amazon_sns", i, n, c)
 	}
 	return integrations
 }
@@ -929,6 +937,73 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, err
 		}
 		return false, fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+	}
+
+	return false, nil
+}
+
+// AmazonSNS implements a Notifier for Amazon SNS notifications.
+type AmazonSNS struct {
+	conf *config.AmazonSNSConfig
+	tmpl *template.Template
+
+	// For testing only
+	testPublisher func(*aws.Config, *sns.PublishInput) error
+}
+
+// NewAmazonSNS returns a new AmazonSNS notifier.
+func NewAmazonSNS(c *config.AmazonSNSConfig, t *template.Template) *AmazonSNS {
+	return &AmazonSNS{
+		conf:          c,
+		tmpl:          t,
+		testPublisher: nil,
+	}
+}
+
+// Notify implements the Notifier interface.
+func (n *AmazonSNS) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var (
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		tmpl     = tmplText(n.tmpl, data, &err)
+		region   = tmpl(n.conf.AWSRegion)
+		topicARN = tmpl(n.conf.TopicARN)
+		subject  = tmpl(n.conf.Subject)
+		message  = tmpl(n.conf.Message)
+	)
+	if err != nil {
+		return false, fmt.Errorf("Amazon SNS templating error: %s", err)
+	}
+
+	// SNS ARNs are of the form arn:aws:sns:<region>:<account-id>:<topicname>
+	parts := strings.SplitN(topicARN, ":", 6)
+	if len(parts) < 6 {
+		return false, fmt.Errorf("Amazon SNS topic_arn not a valid ARN: '%s'", topicARN)
+	}
+	if region == "" {
+		region = parts[3]
+	}
+	awsConfig := aws.NewConfig()
+	if region != "" {
+		awsConfig = awsConfig.WithRegion(region)
+	}
+
+	params := &sns.PublishInput{
+		Message:          aws.String(message),
+		MessageStructure: aws.String("string"),
+		Subject:          aws.String(subject),
+		TopicArn:         aws.String(topicARN),
+	}
+
+	if n.testPublisher != nil {
+		err = n.testPublisher(awsConfig, params)
+	} else {
+		snsAPI := sns.New(session.New(awsConfig))
+		_, err = snsAPI.Publish(params)
+	}
+
+	if err != nil {
+		return true, fmt.Errorf("Amazon SNS publishing error: %s", err)
 	}
 
 	return false, nil

@@ -1,5 +1,6 @@
 /data/
 /alertmanager
+/alertmanager.exe
 *.yml
 *.yaml
 /.build
