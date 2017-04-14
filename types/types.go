@@ -14,6 +14,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -22,6 +23,41 @@ import (
 
 	"github.com/prometheus/common/model"
 )
+
+type state uint8
+
+const (
+	unprocessed state = iota
+	active
+	silenced
+	inhibited
+)
+
+// allows tracking of the status of an alert (active, silenced and so on)
+type alertStatus struct {
+	status state
+	value  string
+}
+
+// custom serializer for alertStatus that handles providing default value
+// if alertStatus for given fingerprint is missing from the statusMap
+func (a *alertStatus) MarshalJSON() ([]byte, error) {
+	status, found := statusMap[a.status]
+	if !found {
+		status = "unknown"
+	}
+	return json.Marshal(map[string]string{
+		"status": status,
+		"value":  a.value,
+	})
+}
+
+var statusMap = map[state]string{
+	unprocessed: "unprocessed",
+	active:      "active",
+	silenced:    "silenced",
+	inhibited:   "inhibited",
+}
 
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
@@ -44,6 +80,8 @@ func NewMarker() Marker {
 type memMarker struct {
 	inhibited map[model.Fingerprint]struct{}
 	silenced  map[model.Fingerprint]string
+
+	status map[model.Fingerprint]alertStatus
 
 	mtx sync.RWMutex
 }
