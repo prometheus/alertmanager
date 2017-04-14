@@ -34,14 +34,14 @@ const (
 )
 
 // allows tracking of the status of an alert (active, silenced, )
-type alertStatus struct {
+type AlertStatus struct {
 	status state
 	value  string
 }
 
 // custom serializer for alertStatus that handles providing default value
 // if alertStatus for given fingerprint is missing from the statusMap
-func (a *alertStatus) MarshalJSON() ([]byte, error) {
+func (a *AlertStatus) MarshalJSON() ([]byte, error) {
 	status, found := statusMap[a.status]
 	if !found {
 		status = "unknown"
@@ -66,7 +66,7 @@ type Marker interface {
 	SetInhibited(alert model.Fingerprint, b bool)
 	SetSilenced(alert model.Fingerprint, sil ...string)
 
-	Status(alert model.Fingerprint) alertStatus
+	Status(alert model.Fingerprint) AlertStatus
 
 	Unprocessed(alert model.Fingerprint) bool
 	Active(alert model.Fingerprint) bool
@@ -77,12 +77,12 @@ type Marker interface {
 // NewMarker returns an instance of a Marker implementation.
 func NewMarker() Marker {
 	return &memMarker{
-		status: map[model.Fingerprint]*alertStatus{},
+		status: map[model.Fingerprint]*AlertStatus{},
 	}
 }
 
 type memMarker struct {
-	status map[model.Fingerprint]*alertStatus
+	status map[model.Fingerprint]*AlertStatus
 
 	mtx sync.RWMutex
 }
@@ -95,20 +95,20 @@ func (m *memMarker) setStatus(alert model.Fingerprint, s state, v string) {
 
 	status, found := m.status[alert]
 	if !found {
-		status = &alertStatus{}
+		status = &AlertStatus{}
 		m.status[alert] = status
 	}
 	status.status = s
 	status.value = v
 }
 
-func (m *memMarker) Status(alert model.Fingerprint) alertStatus {
+func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	s, found := m.status[alert]
 	if !found {
-		return alertStatus{}
+		return AlertStatus{}
 	}
 	return *s
 
