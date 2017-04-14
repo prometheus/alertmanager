@@ -33,7 +33,7 @@ const (
 	inhibited
 )
 
-// allows tracking of the status of an alert (active, silenced and so on)
+// allows tracking of the status of an alert (active, silenced, )
 type alertStatus struct {
 	status state
 	value  string
@@ -72,26 +72,43 @@ type Marker interface {
 // NewMarker returns an instance of a Marker implementation.
 func NewMarker() Marker {
 	return &memMarker{
-		inhibited: map[model.Fingerprint]struct{}{},
-		silenced:  map[model.Fingerprint]string{},
+		silenced: map[model.Fingerprint]string{},
+		status:   map[model.Fingerprint]*alertStatus{},
 	}
 }
 
 type memMarker struct {
-	inhibited map[model.Fingerprint]struct{}
-	silenced  map[model.Fingerprint]string
+	silenced map[model.Fingerprint]string
 
-	status map[model.Fingerprint]alertStatus
+	status map[model.Fingerprint]*alertStatus
 
 	mtx sync.RWMutex
+}
+
+// helper method for updating status so that Set(Inhibited|Silenced) can focus
+// just on setting right values
+func (m *memMarker) setStatus(alert model.Fingerprint, s state, v string) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	status, found := m.status[alert]
+	if !found {
+		status = &alertStatus{}
+		m.status[alert] = status
+	}
+	status.status = s
+	status.value = v
 }
 
 func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	_, ok := m.inhibited[alert]
-	return ok
+	s, found := m.status[alert]
+	if !found {
+		return false
+	}
+	return s.status == inhibited
 }
 
 func (m *memMarker) Silenced(alert model.Fingerprint) (string, bool) {
@@ -103,13 +120,10 @@ func (m *memMarker) Silenced(alert model.Fingerprint) (string, bool) {
 }
 
 func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	if !b {
-		delete(m.inhibited, alert)
+	if b {
+		m.setStatus(alert, inhibited, "")
 	} else {
-		m.inhibited[alert] = struct{}{}
+		m.SetActive(alert)
 	}
 }
 
