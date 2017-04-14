@@ -14,6 +14,7 @@
 package types
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -58,6 +59,60 @@ func TestAlertMerge(t *testing.T) {
 	for _, p := range pairs {
 		if res := p.A.Merge(p.B); !reflect.DeepEqual(p.Res, res) {
 			t.Errorf("unexpected merged alert %#v", res)
+		}
+	}
+}
+
+func TestAlertStatusMarshal(t *testing.T) {
+	type statusTest struct {
+		alertStatus alertStatus
+		status      string
+		value       string
+	}
+
+	tests := []statusTest{
+		statusTest{
+			alertStatus: alertStatus{},
+			status:      "unprocessed",
+			value:       "",
+		},
+		statusTest{
+			alertStatus: alertStatus{status: unprocessed},
+			status:      "unprocessed",
+			value:       "",
+		},
+		statusTest{
+			alertStatus: alertStatus{status: active},
+			status:      "active",
+			value:       "",
+		},
+		statusTest{
+			alertStatus: alertStatus{status: silenced, value: "123456"},
+			status:      "silenced",
+			value:       "123456",
+		},
+		statusTest{
+			alertStatus: alertStatus{status: inhibited},
+			status:      "inhibited",
+			value:       "",
+		},
+		statusTest{
+			alertStatus: alertStatus{status: 255},
+			status:      "unknown",
+			value:       "",
+		},
+	}
+	for _, asTest := range tests {
+		b, err := json.Marshal(&asTest.alertStatus)
+		if err != nil {
+			t.Error(err)
+		}
+		expectedJSON, _ := json.Marshal(map[string]string{
+			"status": asTest.status,
+			"value":  asTest.value,
+		})
+		if string(b) != string(expectedJSON) {
+			t.Errorf("%v serialization failed, expected %s, got %s", asTest.alertStatus, expectedJSON, b)
 		}
 	}
 }
