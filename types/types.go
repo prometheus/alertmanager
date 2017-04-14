@@ -72,14 +72,11 @@ type Marker interface {
 // NewMarker returns an instance of a Marker implementation.
 func NewMarker() Marker {
 	return &memMarker{
-		silenced: map[model.Fingerprint]string{},
-		status:   map[model.Fingerprint]*alertStatus{},
+		status: map[model.Fingerprint]*alertStatus{},
 	}
 }
 
 type memMarker struct {
-	silenced map[model.Fingerprint]string
-
 	status map[model.Fingerprint]*alertStatus
 
 	mtx sync.RWMutex
@@ -115,8 +112,14 @@ func (m *memMarker) Silenced(alert model.Fingerprint) (string, bool) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	sid, ok := m.silenced[alert]
-	return sid, ok
+	s, found := m.status[alert]
+	if !found {
+		return "", false
+	}
+	if s.status != silenced {
+		return "", false
+	}
+	return s.value, true
 }
 
 func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
@@ -128,13 +131,10 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
 }
 
 func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...string) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	if len(sil) == 0 {
-		delete(m.silenced, alert)
+		m.setStatus(alert, active, "")
 	} else {
-		m.silenced[alert] = sil[0]
+		m.setStatus(alert, silenced, sil[0])
 	}
 }
 
