@@ -33,9 +33,9 @@ viewMatchers matchers =
         |> List.map viewMatcher
 
 
-onKeydown : Int -> Msg -> Attribute Msg
-onKeydown key msg =
-    on "keydown"
+onKey : String -> Int -> Msg -> Attribute Msg
+onKey event key msg =
+    on event
         (Json.map
             (\k ->
                 if k == key then
@@ -47,8 +47,8 @@ onKeydown key msg =
         )
 
 
-view : List Matcher -> String -> Html Msg
-view matchers matcherText =
+view : List Matcher -> String -> Bool -> Html Msg
+view matchers matcherText backspacePressed =
     let
         className =
             if matcherText == "" then
@@ -64,11 +64,28 @@ view matchers matcherText =
         maybeMatcher =
             Utils.Filter.parseMatcher matcherText
 
-        onKeydownAttr =
+        onKeydown =
+            onKey "keydown" 8 <|
+                case ( matcherText, backspacePressed ) of
+                    ( "", True ) ->
+                        Noop
+
+                    ( "", False ) ->
+                        lastElem matchers
+                            |> Maybe.map (DeleteFilterMatcher True >> MsgForAlertList)
+                            |> Maybe.withDefault Noop
+
+                    _ ->
+                        PressingBackspace True |> MsgForAlertList
+
+        onKeypress =
             maybeMatcher
                 |> Maybe.map (AddFilterMatcher True >> MsgForAlertList)
                 |> Maybe.withDefault Noop
-                |> onKeydown 13
+                |> onKey "keypress" 13
+
+        onKeyup =
+            onKey "keyup" 8 (PressingBackspace False |> MsgForAlertList)
 
         onClickAttr =
             maybeMatcher
@@ -92,7 +109,14 @@ view matchers matcherText =
                         ]
                         [ div [ class "input-group" ]
                             [ input
-                                [ id "custom-matcher", class "form-control", value matcherText, onKeydownAttr, onInput (UpdateMatcherText >> MsgForAlertList) ]
+                                [ id "custom-matcher"
+                                , class "form-control"
+                                , value matcherText
+                                , onKeydown
+                                , onKeyup
+                                , onKeypress
+                                , onInput (UpdateMatcherText >> MsgForAlertList)
+                                ]
                                 []
                             , span
                                 [ class "input-group-btn" ]

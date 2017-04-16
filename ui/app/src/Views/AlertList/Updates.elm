@@ -69,3 +69,6 @@ update msg model filter =
 
         UpdateMatcherText value ->
             ( { model | matcherText = value }, Cmd.none )
+
+        PressingBackspace isPressed ->
+            ( { model | backspacePressed = isPressed }, Cmd.none )

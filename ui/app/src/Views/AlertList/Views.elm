@@ -14,9 +14,9 @@ import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 
 
 view : Model -> Filter -> Html Msg
-view { alertGroups, matchers, matcherText } filter =
+view { alertGroups, matchers, matcherText, backspacePressed } filter =
     div []
-        [ Views.AlertList.FilterBar.view matchers matcherText
+        [ Views.AlertList.FilterBar.view matchers matcherText backspacePressed
         , case alertGroups of
             Success groups ->
                 viewGroups groups filter

@@ -10,12 +10,14 @@ type AlertListMsg
     | FetchAlertGroups
     | AddFilterMatcher Bool Utils.Filter.Matcher
     | DeleteFilterMatcher Bool Utils.Filter.Matcher
+    | PressingBackspace Bool
     | UpdateMatcherText String
 
 
 type alias Model =
     { alertGroups : ApiData (List AlertGroup)
     , matchers : List Utils.Filter.Matcher
+    , backspacePressed : Bool
     , matcherText : String
     }
 
@@ -24,5 +26,6 @@ initAlertList : Model
 initAlertList =
     { alertGroups = Loading
     , matchers = []
+    , backspacePressed = False
     , matcherText = ""
     }
