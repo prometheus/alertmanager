@@ -12,12 +12,18 @@ import Json.Decode as Json
 viewMatcher : Matcher -> Html Msg
 viewMatcher matcher =
     div [ class "col col-auto", style [ ( "padding", "5px" ) ] ]
-        [ button
-            [ class "btn btn-outline-info"
-            , onClick (DeleteFilterMatcher False matcher |> MsgForAlertList)
-            ]
-            [ text <| Utils.Filter.stringifyMatcher matcher
-            , text " ×"
+        [ div [ class "btn-group" ]
+            [ button
+                [ class "btn btn-outline-info"
+                , onClick (DeleteFilterMatcher True matcher |> MsgForAlertList)
+                ]
+                [ text <| Utils.Filter.stringifyMatcher matcher
+                ]
+            , button
+                [ class "btn btn-outline-danger"
+                , onClick (DeleteFilterMatcher False matcher |> MsgForAlertList)
+                ]
+                [ text "×" ]
             ]
         ]
 
