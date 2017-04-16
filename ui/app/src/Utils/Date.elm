@@ -15,7 +15,7 @@ parseDuration =
 durationParser : Parser Time.Time
 durationParser =
     Parser.succeed (List.foldr (+) 0)
-        |= Parser.zeroOrMore term
+        |= Parser.repeat Parser.zeroOrMore term
         |. Parser.end
 
 
@@ -42,7 +42,7 @@ term =
             |> List.map (\( unit, ms ) -> Parser.succeed ms |. Parser.symbol unit)
             |> Parser.oneOf
         )
-        |. Parser.ignoreWhile ((==) ' ')
+        |. Parser.ignore Parser.zeroOrMore ((==) ' ')
 
 
 durationFormat : Time.Time -> String
