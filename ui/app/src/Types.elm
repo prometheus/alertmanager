@@ -1,7 +1,7 @@
 module Types exposing (Model, Msg(..), Route(..))
 
 import Alerts.Types exposing (AlertGroup, Alert)
-import Views.AlertList.Types exposing (AlertListMsg)
+import Views.AlertList.Types as AlertList exposing (AlertListMsg)
 import Views.SilenceList.Types exposing (SilenceListMsg)
 import Views.Silence.Types exposing (SilenceMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
@@ -15,7 +15,7 @@ type alias Model =
     { silences : ApiData (List Silence)
     , silence : ApiData Silence
     , silenceForm : SilenceForm.Model
-    , alertGroups : ApiData (List AlertGroup)
+    , alertList : AlertList.Model
     , route : Route
     , filter : Filter
     , currentTime : Time.Time
@@ -40,8 +40,7 @@ type Msg
     | Noop
     | RedirectAlerts
     | UpdateCurrentTime Time.Time
-    | UpdateFilter Filter String
-    | AddLabel Msg Label
+    | UpdateFilter String
 
 
 type Route

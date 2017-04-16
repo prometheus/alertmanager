@@ -1,44 +1,51 @@
 module Views.AlertList.Views exposing (view)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block)
-import Views.AlertList.Types exposing (AlertListMsg(FilterAlerts))
 import Views.AlertList.Filter exposing (silenced, receiver, matchers)
 import Views.AlertList.FilterBar
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Utils.Date
-import Utils.Types exposing (Filter)
-import Utils.Views exposing (..)
-import Types exposing (Msg(MsgForAlertList, Noop, CreateSilenceFromAlert, UpdateFilter, AddLabel))
+import Utils.Types exposing (ApiResponse(..), Filter)
+import Utils.Filter
+import Utils.Views exposing (buttonLink, onClickMsgButton, listButton)
+import Views.AlertList.Types exposing (AlertListMsg(..), Model)
+import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 
 
-view : List AlertGroup -> Filter -> Html Msg -> Html Msg
-view alertGroups filter errorHtml =
+view : Model -> Filter -> Html Msg
+view { alertGroups, matchers, matcherText } filter =
+    div []
+        [ Views.AlertList.FilterBar.view matchers matcherText
+        , case alertGroups of
+            Success groups ->
+                viewGroups groups filter
+
+            Loading ->
+                Utils.Views.loading
+
+            Failure msg ->
+                Utils.Views.error msg
+        ]
+
+
+viewGroups : List AlertGroup -> Filter -> Html Msg
+viewGroups alertGroups filter =
     let
         filteredGroups =
             receiver filter.receiver alertGroups
                 |> silenced filter.showSilenced
-
-        filterText =
-            Maybe.withDefault "" filter.text
-
-        alertHtml =
-            if List.isEmpty filteredGroups then
-                div [ class "mt2" ] [ text "no alerts found found" ]
-            else
-                ul
-                    [ classList
-                        [ ( "list", True )
-                        , ( "pa0", True )
-                        ]
-                    ]
-                    (List.map alertGroupView filteredGroups)
     in
-        div []
-            [ Views.AlertList.FilterBar.view filterText (Types.UpdateFilter filter) (MsgForAlertList FilterAlerts)
-            , errorHtml
-            , alertHtml
-            ]
+        if List.isEmpty filteredGroups then
+            div [ class "mt2" ] [ text "no alerts found" ]
+        else
+            ul
+                [ classList
+                    [ ( "list", True )
+                    , ( "pa0", True )
+                    ]
+                ]
+                (List.map alertGroupView filteredGroups)
 
 
 alertGroupView : AlertGroup -> Html Msg
@@ -80,10 +87,16 @@ alertView alert =
 
 
 labelButton : ( String, String ) -> Html Msg
-labelButton (( key, value ) as label) =
+labelButton ( key, value ) =
     onClickMsgButton
         (key ++ "=" ++ value)
-        (AddLabel Noop label)
+        (AddFilterMatcher False
+            { key = key
+            , op = Utils.Filter.Eq
+            , value = value
+            }
+            |> MsgForAlertList
+        )
 
 
 alertHeader : ( String, String ) -> Html msg

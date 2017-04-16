@@ -1,22 +1,71 @@
 module Views.AlertList.Updates exposing (..)
 
 import Alerts.Api as Api
-import Views.AlertList.Types exposing (AlertListMsg(..))
-import Alerts.Types exposing (AlertGroup)
+import Views.AlertList.Types exposing (AlertListMsg(..), Model)
 import Navigation
 import Utils.Types exposing (ApiData, ApiResponse(..), Filter)
-import Utils.Filter exposing (generateQueryString)
-import Types exposing (Msg(MsgForAlertList))
+import Utils.Filter exposing (generateQueryString, stringifyFilter, parseFilter)
+import Types exposing (Msg(MsgForAlertList, Noop))
+import Dom
+import Task
 
 
-update : AlertListMsg -> ApiData (List AlertGroup) -> Filter -> ( ApiData (List AlertGroup), Cmd Types.Msg )
-update msg groups filter =
+immediatelyFilter : Filter -> Model -> ( Model, Cmd Types.Msg )
+immediatelyFilter filter model =
+    let
+        newFilter =
+            { filter | text = Just (stringifyFilter model.matchers) }
+    in
+        ( model
+        , Cmd.batch
+            [ Navigation.newUrl ("/#/alerts" ++ generateQueryString newFilter)
+            , Dom.focus "custom-matcher" |> Task.attempt (always Noop)
+            ]
+        )
+
+
+update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
+update msg model filter =
     case msg of
         AlertGroupsFetch alertGroups ->
-            ( alertGroups, Cmd.none )
+            ( { model | alertGroups = alertGroups }, Cmd.none )
 
         FetchAlertGroups ->
-            ( groups, Api.alertGroups filter |> Cmd.map (AlertGroupsFetch >> MsgForAlertList) )
+            ( { model
+                | matchers =
+                    filter.text
+                        |> Maybe.andThen parseFilter
+                        |> Maybe.withDefault []
+                , alertGroups = Loading
+              }
+            , Api.alertGroups filter |> Cmd.map (AlertGroupsFetch >> MsgForAlertList)
+            )
 
-        FilterAlerts ->
-            ( groups, Navigation.newUrl ("/#/alerts" ++ generateQueryString filter) )
+        AddFilterMatcher emptyMatcherText matcher ->
+            immediatelyFilter filter
+                { model
+                    | matchers =
+                        if List.member matcher model.matchers then
+                            model.matchers
+                        else
+                            model.matchers ++ [ matcher ]
+                    , matcherText =
+                        if emptyMatcherText then
+                            ""
+                        else
+                            model.matcherText
+                }
+
+        DeleteFilterMatcher setMatcherText matcher ->
+            immediatelyFilter filter
+                { model
+                    | matchers = List.filter ((/=) matcher) model.matchers
+                    , matcherText =
+                        if setMatcherText then
+                            Utils.Filter.stringifyMatcher matcher
+                        else
+                            model.matcherText
+                }
+
+        UpdateMatcherText value ->
+            ( { model | matcherText = value }, Cmd.none )

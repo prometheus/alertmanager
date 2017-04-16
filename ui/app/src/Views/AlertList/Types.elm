@@ -1,10 +1,28 @@
-module Views.AlertList.Types exposing (AlertListMsg(..))
+module Views.AlertList.Types exposing (AlertListMsg(..), Model, initAlertList)
 
-import Utils.Types exposing (ApiData, Filter)
+import Utils.Types exposing (ApiData, Filter, ApiResponse(Loading))
 import Alerts.Types exposing (Alert, AlertGroup)
+import Utils.Filter
 
 
 type AlertListMsg
     = AlertGroupsFetch (ApiData (List AlertGroup))
     | FetchAlertGroups
-    | FilterAlerts
+    | AddFilterMatcher Bool Utils.Filter.Matcher
+    | DeleteFilterMatcher Bool Utils.Filter.Matcher
+    | UpdateMatcherText String
+
+
+type alias Model =
+    { alertGroups : ApiData (List AlertGroup)
+    , matchers : List Utils.Filter.Matcher
+    , matcherText : String
+    }
+
+
+initAlertList : Model
+initAlertList =
+    { alertGroups = Loading
+    , matchers = []
+    , matcherText = ""
+    }

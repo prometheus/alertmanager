@@ -3,7 +3,6 @@ module Views exposing (..)
 import Html exposing (Html, text, div)
 import Html.Attributes exposing (class)
 import Types exposing (Msg(MsgForSilenceForm), Model, Route(..))
-import Utils.Types exposing (ApiResponse(..))
 import Utils.Views exposing (error, loading)
 import Views.SilenceList.Views as SilenceList
 import Views.SilenceForm.Views as SilenceForm
@@ -33,15 +32,7 @@ currentView model =
             Silence.view model
 
         AlertsRoute filter ->
-            case model.alertGroups of
-                Success alertGroups ->
-                    AlertList.view alertGroups model.filter (text "")
-
-                Loading ->
-                    loading
-
-                Failure msg ->
-                    AlertList.view [] model.filter (error msg)
+            AlertList.view model.alertList filter
 
         SilenceListRoute route ->
             SilenceList.view model.silences model.silence model.currentTime model.filter
