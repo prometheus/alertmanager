@@ -145,8 +145,9 @@ string separator =
 stringContents : Char -> Parser String
 stringContents separator =
     Parser.oneOf
-        [ keepOne (\char -> char == '\\')
-            |> Parser.andThen (\_ -> keepOne (\char -> True))
+        [ Parser.succeed (++)
+            |= keepOne (\char -> char == '\\')
+            |= keepOne (\char -> True)
         , Parser.keep Parser.oneOrMore (\char -> char /= separator && char /= '\\')
         ]
         |> Parser.repeat Parser.oneOrMore
