@@ -22,11 +22,17 @@ message Entry {
   // The receiver that was notified.
   Receiver receiver = 2;
   // Hash over the state of the group at notification time.
+  // Deprecated in favor of FiringAlerts field, but kept for compatibility.
   bytes group_hash = 3;
   // Whether the notification was about a resolved alert.
+  // Deprecated in favor of ResolvedAlerts field, but kept for compatibility.
   bool resolved = 4;
   // Timestamp of the succeeding notification.
   google.protobuf.Timestamp timestamp = 5;
+  // FiringAlerts list of hashes of firing alerts at the last notification time.
+  repeated uint64 firing_alerts = 6;
+  // ResolvedAlerts list of hashes of resolved alerts at the last notification time.
+  repeated uint64 resolved_alerts = 7;
 }
 
 // MeshEntry is a wrapper message to communicate a notify log

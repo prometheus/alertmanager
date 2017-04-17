@@ -334,12 +334,7 @@ func TestResolvedFilter(t *testing.T) {
 	// filtered, have to end up in the SetNotifiesStage, otherwise when an alert
 	// fires again it is ambiguous whether it was resolved in between or not.
 
-	var wg sync.WaitGroup
-	wg.Add(10)
-
-	for i := 0; i < 10; i++ {
-		go func() {
-			conf := `
+	conf := `
 global:
   resolve_timeout: 10s
 
@@ -358,48 +353,52 @@ receivers:
     send_resolved: false
 `
 
-			at := NewAcceptanceTest(t, &AcceptanceOpts{
-				Tolerance: 150 * time.Millisecond,
-			})
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
 
-			co1 := at.Collector("webhook1")
-			wh1 := NewWebhook(co1)
+	co1 := at.Collector("webhook1")
+	wh1 := NewWebhook(co1)
 
-			co2 := at.Collector("webhook2")
-			wh2 := NewWebhook(co2)
+	co2 := at.Collector("webhook2")
+	wh2 := NewWebhook(co2)
 
-			am := at.Alertmanager(fmt.Sprintf(conf, wh1.Address(), wh2.Address()))
+	am := at.Alertmanager(fmt.Sprintf(conf, wh1.Address(), wh2.Address()))
 
-			am.Push(At(1),
-				Alert("alertname", "test", "lbl", "v1"),
-				Alert("alertname", "test", "lbl", "v2"),
-			)
+	am.Push(At(1),
+		Alert("alertname", "test", "lbl", "v1"),
+		Alert("alertname", "test", "lbl", "v2"),
+	)
+	am.Push(At(3),
+		Alert("alertname", "test", "lbl", "v1").Active(1, 4),
+		Alert("alertname", "test", "lbl", "v3"),
+	)
+	am.Push(At(8),
+		Alert("alertname", "test", "lbl", "v3").Active(3),
+	)
 
-			am.Push(At(7),
-				Alert("alertname", "test", "lbl", "v1"),
-			)
+	co1.Want(Between(2, 2.5),
+		Alert("alertname", "test", "lbl", "v1").Active(1),
+		Alert("alertname", "test", "lbl", "v2").Active(1),
+	)
+	co1.Want(Between(7, 7.5),
+		Alert("alertname", "test", "lbl", "v1").Active(1, 4),
+		Alert("alertname", "test", "lbl", "v2").Active(1),
+		Alert("alertname", "test", "lbl", "v3").Active(3),
+	)
+	co1.Want(Between(12, 12.5),
+		Alert("alertname", "test", "lbl", "v2").Active(1, 11),
+		Alert("alertname", "test", "lbl", "v3").Active(3),
+	)
 
-			co1.Want(Between(2, 2.5),
-				Alert("alertname", "test", "lbl", "v1").Active(1),
-				Alert("alertname", "test", "lbl", "v2").Active(1),
-			)
-			co1.Want(Between(12, 13),
-				Alert("alertname", "test", "lbl", "v1").Active(1),
-				Alert("alertname", "test", "lbl", "v2").Active(1, 11),
-			)
+	co2.Want(Between(2, 2.5),
+		Alert("alertname", "test", "lbl", "v1").Active(1),
+		Alert("alertname", "test", "lbl", "v2").Active(1),
+	)
+	co2.Want(Between(7, 7.5),
+		Alert("alertname", "test", "lbl", "v2").Active(1),
+		Alert("alertname", "test", "lbl", "v3").Active(3),
+	)
 
-			co2.Want(Between(2, 2.5),
-				Alert("alertname", "test", "lbl", "v1").Active(1),
-				Alert("alertname", "test", "lbl", "v2").Active(1),
-			)
-			co2.Want(Between(12, 13),
-				Alert("alertname", "test", "lbl", "v1").Active(1),
-			)
-
-			at.Run()
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
+	at.Run()
 }
