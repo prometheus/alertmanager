@@ -238,6 +238,7 @@ func NewWebhook(c *Collector) *MockWebhook {
 	wh := &MockWebhook{
 		listener:  l,
 		collector: c,
+		opts:      c.opts,
 	}
 	go http.Serve(l, wh)
 
