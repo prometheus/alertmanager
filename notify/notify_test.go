@@ -434,7 +434,7 @@ func TestSilenceStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := silences.Create(&silencepb.Silence{
-		EndsAt:   mustTimestampProto(utcNow().Add(time.Hour)),
+		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	}); err != nil {
 		t.Fatal(err)
