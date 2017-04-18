@@ -20,8 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
@@ -78,15 +76,6 @@ func (l *testNflog) GC() (int, error) {
 func (l *testNflog) Snapshot(w io.Writer) (int, error) {
 	return 0, nil
 }
-
-func mustTimestampProto(ts time.Time) *timestamp.Timestamp {
-	tspb, err := ptypes.TimestampProto(ts)
-	if err != nil {
-		panic(err)
-	}
-	return tspb
-}
-
 func TestDedupStageNeedsUpdate(t *testing.T) {
 	now := utcNow()
 
@@ -109,14 +98,14 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		}, {
 			entry: &nflogpb.Entry{
 				GroupHash: []byte{1, 2, 3},
-				Timestamp: nil, // parsing will error
+				Timestamp: time.Time{}, // parsing will error
 			},
 			hash:   []byte{1, 2, 3},
 			resErr: true,
 		}, {
 			entry: &nflogpb.Entry{
 				GroupHash: []byte{1, 2, 3},
-				Timestamp: mustTimestampProto(now.Add(-9 * time.Minute)),
+				Timestamp: now.Add(-9 * time.Minute),
 			},
 			repeat: 10 * time.Minute,
 			hash:   []byte{1, 2, 3},
@@ -124,7 +113,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		}, {
 			entry: &nflogpb.Entry{
 				GroupHash: []byte{1, 2, 3},
-				Timestamp: mustTimestampProto(now.Add(-11 * time.Minute)),
+				Timestamp: now.Add(-11 * time.Minute),
 			},
 			repeat: 10 * time.Minute,
 			hash:   []byte{1, 2, 3},
@@ -413,7 +402,7 @@ func TestSilenceStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := silences.Create(&silencepb.Silence{
-		EndsAt:   mustTimestampProto(utcNow().Add(time.Hour)),
+		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	}); err != nil {
 		t.Fatal(err)

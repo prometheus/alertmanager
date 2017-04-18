@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
@@ -393,7 +392,7 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 	}
 	// Drop start time for new silences so we default to now.
 	if sil.ID == "" && sil.StartsAt.Before(time.Now()) {
-		psil.StartsAt = nil
+		psil.StartsAt = time.Time{}
 	}
 
 	sid, err := api.silences.Create(psil)
@@ -502,23 +501,11 @@ func matchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
 }
 
 func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
-	startsAt, err := ptypes.TimestampProto(s.StartsAt)
-	if err != nil {
-		return nil, err
-	}
-	endsAt, err := ptypes.TimestampProto(s.EndsAt)
-	if err != nil {
-		return nil, err
-	}
-	updatedAt, err := ptypes.TimestampProto(s.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
 	sil := &silencepb.Silence{
 		Id:        s.ID,
-		StartsAt:  startsAt,
-		EndsAt:    endsAt,
-		UpdatedAt: updatedAt,
+		StartsAt:  s.StartsAt,
+		EndsAt:    s.EndsAt,
+		UpdatedAt: s.UpdatedAt,
 	}
 	for _, m := range s.Matchers {
 		matcher := &silencepb.Matcher{
@@ -532,7 +519,7 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 		sil.Matchers = append(sil.Matchers, matcher)
 	}
 	sil.Comments = append(sil.Comments, &silencepb.Comment{
-		Timestamp: updatedAt,
+		Timestamp: s.UpdatedAt,
 		Author:    s.CreatedBy,
 		Comment:   s.Comment,
 	})
@@ -540,23 +527,11 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 }
 
 func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
-	startsAt, err := ptypes.Timestamp(s.StartsAt)
-	if err != nil {
-		return nil, err
-	}
-	endsAt, err := ptypes.Timestamp(s.EndsAt)
-	if err != nil {
-		return nil, err
-	}
-	updatedAt, err := ptypes.Timestamp(s.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
 	sil := &types.Silence{
 		ID:        s.Id,
-		StartsAt:  startsAt,
-		EndsAt:    endsAt,
-		UpdatedAt: updatedAt,
+		StartsAt:  s.StartsAt,
+		EndsAt:    s.EndsAt,
+		UpdatedAt: s.UpdatedAt,
 	}
 	for _, m := range s.Matchers {
 		matcher := &types.Matcher{
