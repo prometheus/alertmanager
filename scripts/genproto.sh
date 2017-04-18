@@ -3,7 +3,7 @@
 # Generate all protobuf bindings.
 # Run from repository root.
 #
-# Initial script take from etcd under the Apache 2.0 license
+# Initial script taken from etcd under the Apache 2.0 license
 # File: https://github.com/coreos/etcd/blob/78a5eb79b510eb497deddd1a76f5153bc4b202d2/scripts/genproto.sh
 
 set -e
