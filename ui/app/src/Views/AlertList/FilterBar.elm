@@ -9,6 +9,16 @@ import Types exposing (Msg(..))
 import Json.Decode as Json
 
 
+keys :
+    { backspace : Int
+    , enter : Int
+    }
+keys =
+    { backspace = 8
+    , enter = 13
+    }
+
+
 viewMatcher : Matcher -> Html Msg
 viewMatcher matcher =
     div [ class "col col-auto", style [ ( "padding", "5px" ) ] ]
@@ -71,7 +81,7 @@ view matchers matcherText backspacePressed =
             Utils.Filter.parseMatcher matcherText
 
         onKeydown =
-            onKey "keydown" 8 <|
+            onKey "keydown" keys.backspace <|
                 case ( matcherText, backspacePressed ) of
                     ( "", True ) ->
                         Noop
@@ -88,10 +98,10 @@ view matchers matcherText backspacePressed =
             maybeMatcher
                 |> Maybe.map (AddFilterMatcher True >> MsgForAlertList)
                 |> Maybe.withDefault Noop
-                |> onKey "keypress" 13
+                |> onKey "keypress" keys.enter
 
         onKeyup =
-            onKey "keyup" 8 (PressingBackspace False |> MsgForAlertList)
+            onKey "keyup" keys.backspace (PressingBackspace False |> MsgForAlertList)
 
         onClickAttr =
             maybeMatcher
