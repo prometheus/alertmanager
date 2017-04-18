@@ -114,14 +114,14 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		}, {
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    nil, // parsing will error
+				Timestamp:    time.Time{}, // zero timestamp should always update
 			},
 			firingAlerts: alertHashSet(1, 2, 3),
-			resErr:       true,
+			res:          true,
 		}, {
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    mustTimestampProto(now.Add(-9 * time.Minute)),
+				Timestamp:    now.Add(-9 * time.Minute),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -129,7 +129,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		}, {
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    mustTimestampProto(now.Add(-11 * time.Minute)),
+				Timestamp:    now.Add(-11 * time.Minute),
 			},
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
@@ -212,7 +212,7 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{0, 1, 2},
-				Timestamp:    mustTimestampProto(now),
+				Timestamp:    now,
 			},
 		},
 	}
@@ -227,7 +227,7 @@ func TestDedupStage(t *testing.T) {
 		qres: []*nflogpb.Entry{
 			{
 				FiringAlerts: []uint64{1, 2, 3, 4},
-				Timestamp:    mustTimestampProto(now),
+				Timestamp:    now,
 			},
 		},
 	}
