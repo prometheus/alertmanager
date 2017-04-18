@@ -117,11 +117,11 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 
 	for _, r := range ih.rules {
 		if r.TargetMatchers.Match(lset) && r.hasEqual(lset) {
-			ih.marker.SetInhibited(fp, true)
+			ih.marker.SetStatus(fp, types.Inhibited)
 			return true
 		}
 	}
-	ih.marker.SetInhibited(fp, false)
+	ih.marker.SetStatus(fp, types.Active)
 	return false
 
 }

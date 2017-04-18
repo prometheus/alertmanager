@@ -353,17 +353,19 @@ func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (contex
 		if err != nil {
 			log.Errorf("Querying silences failed: %s", err)
 		}
+
 		if len(sils) == 0 {
 			// TODO(fabxc): increment muted alerts counter.
 			filtered = append(filtered, a)
-			n.marker.SetSilenced(a.Labels.Fingerprint())
+			n.marker.SetStatus(a.Labels.Fingerprint(), types.Active)
 			// Store whether a previously silenced alert is firing again.
 			a.WasSilenced = ok
 		} else {
-			n.marker.SetSilenced(a.Labels.Fingerprint(), sils[0].Id)
-		}
-		if n.marker.Unprocessed(a.Fingerprint()) {
-			n.marker.SetActive(a.Fingerprint())
+			ids := make([]string, len(sils))
+			for i, s := range sils {
+				ids[i] = s.Id
+			}
+			n.marker.SetStatus(a.Labels.Fingerprint(), types.Silenced, ids...)
 		}
 	}
 
