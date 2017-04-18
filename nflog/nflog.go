@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -340,34 +339,21 @@ func (l *nlog) Log(r *pb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []u
 
 	if prevle, ok := l.st[key]; ok {
 		// Entry already exists, only overwrite if timestamp is newer.
-		// This may with raciness or clock-drift across AM nodes.
-		prevts, err := ptypes.Timestamp(prevle.Entry.Timestamp)
-		if err != nil {
-			return err
-		}
-		if prevts.After(now) {
+		// This may happen with raciness or clock-drift across AM nodes.
+		if prevle.Entry.Timestamp.After(now) {
 			return nil
 		}
-	}
-
-	ts, err := ptypes.TimestampProto(now)
-	if err != nil {
-		return err
-	}
-	expts, err := ptypes.TimestampProto(now.Add(l.retention))
-	if err != nil {
-		return err
 	}
 
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:       r,
 			GroupKey:       gkey,
-			Timestamp:      ts,
+			Timestamp:      now,
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
 		},
-		ExpiresAt: expts,
+		ExpiresAt: now.Add(l.retention),
 	}
 	l.gossip.GossipBroadcast(gossipData{
 		key: e,
@@ -389,9 +375,10 @@ func (l *nlog) GC() (int, error) {
 	defer l.mtx.Unlock()
 
 	for k, le := range l.st {
-		if ets, err := ptypes.Timestamp(le.ExpiresAt); err != nil {
-			return n, err
-		} else if !ets.After(now) {
+		if le.ExpiresAt.IsZero() {
+			return n, errors.New("unexpected zero expiration timestamp")
+		}
+		if !le.ExpiresAt.After(now) {
 			delete(l.st, k)
 			n++
 		}
@@ -589,17 +576,7 @@ func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
 			gd[k] = e
 			continue
 		}
-		pts, err := ptypes.Timestamp(prev.Entry.Timestamp)
-		if err != nil {
-			// TODO(fabxc): log error and skip entry. What can actually error here?
-			panic(err)
-		}
-		ets, err := ptypes.Timestamp(e.Entry.Timestamp)
-		if err != nil {
-			// TODO(fabxc): see above.
-			panic(err)
-		}
-		if pts.Before(ets) {
+		if prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
 			gd[k] = e
 		}
 	}
@@ -617,17 +594,7 @@ func (gd gossipData) mergeDelta(od gossipData) gossipData {
 			delta[k] = e
 			continue
 		}
-		pts, err := ptypes.Timestamp(prev.Entry.Timestamp)
-		if err != nil {
-			// TODO(fabxc): log error and skip entry. What can actually error here?
-			panic(err)
-		}
-		ets, err := ptypes.Timestamp(e.Entry.Timestamp)
-		if err != nil {
-			// TODO(fabxc): see above.
-			panic(err)
-		}
-		if pts.Before(ets) {
+		if prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
 			gd[k] = e
 			delta[k] = e
 		}
