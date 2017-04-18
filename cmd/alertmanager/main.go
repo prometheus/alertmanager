@@ -165,7 +165,7 @@ func main() {
 
 	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
-	alerts, err := mem.NewAlerts(*dataDir)
+	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}

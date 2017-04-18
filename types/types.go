@@ -69,7 +69,8 @@ var statusMap = map[state]string{
 // All methods are goroutine-safe.
 type Marker interface {
 	SetStatus(model.Fingerprint, state, ...string) error
-	Status(alert model.Fingerprint) AlertStatus
+	Status(model.Fingerprint) AlertStatus
+	Delete(model.Fingerprint)
 
 	Unprocessed(model.Fingerprint) bool
 	Active(model.Fingerprint) bool
@@ -148,6 +149,13 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 	}
 	return *s
 
+}
+
+func (m *memMarker) Delete(alert model.Fingerprint) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	delete(m.m, alert)
 }
 
 func (m *memMarker) Unprocessed(alert model.Fingerprint) bool {
