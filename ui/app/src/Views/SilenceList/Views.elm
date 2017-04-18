@@ -47,7 +47,7 @@ silences silences filter errorHtml =
                     (List.map silenceList silences)
     in
         div []
-            [ textField "Filter" filterText (UpdateFilter filter)
+            [ textField "Filter" filterText UpdateFilter
             , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", onClick (MsgForSilenceList FilterSilences) ] [ text "Filter Silences" ]
             , a [ class "f6 link br2 ba ph3 pv2 mr2 dib blue", href "#/silences/new" ] [ text "New Silence" ]
             , errorHtml

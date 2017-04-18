@@ -25,7 +25,6 @@ import Views.SilenceList.Updates
 import Views.Status.Types exposing (StatusMsg(InitStatusView))
 import Views.Status.Updates
 import String exposing (trim)
-import Regex
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -43,10 +42,10 @@ update msg model =
 
         NavigateToAlerts filter ->
             let
-                ( alertGroups, cmd ) =
-                    Views.AlertList.Updates.update FetchAlertGroups model.alertGroups filter
+                ( alertList, cmd ) =
+                    Views.AlertList.Updates.update FetchAlertGroups model.alertList filter
             in
-                ( { model | alertGroups = alertGroups, route = AlertsRoute filter, filter = filter }, cmd )
+                ( { model | alertList = alertList, route = AlertsRoute filter, filter = filter }, cmd )
 
         NavigateToSilenceList filter ->
             let
@@ -87,44 +86,18 @@ update msg model =
         RedirectAlerts ->
             ( model, Navigation.newUrl "/#/alerts" )
 
-        UpdateFilter filter text ->
+        UpdateFilter text ->
             let
                 t =
                     if trim text == "" then
                         Nothing
                     else
                         Just text
-            in
-                ( { model | filter = { filter | text = t } }, Cmd.none )
 
-        AddLabel msg ( key, value ) ->
-            let
-                filter =
+                prevFilter =
                     model.filter
-
-                label =
-                    key ++ "=" ++ toString value
-
-                labels =
-                    Maybe.withDefault "" filter.text
-                        |> Regex.replace Regex.All (Regex.regex "{|}") (\_ -> "")
-                        |> Regex.split Regex.All (Regex.regex "\\s*,\\s*")
-                        |> List.filter (String.isEmpty >> not)
-                        |> (\labels ->
-                                if List.member label labels then
-                                    labels
-                                else
-                                    labels ++ [ label ]
-                           )
-                        |> String.join ", "
-
-                text =
-                    if String.isEmpty labels then
-                        Nothing
-                    else
-                        Just ("{" ++ labels ++ "}")
             in
-                ( { model | filter = { filter | text = text } }, Task.perform identity (Task.succeed msg) )
+                ( { model | filter = { prevFilter | text = t } }, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )
@@ -137,10 +110,10 @@ update msg model =
 
         MsgForAlertList msg ->
             let
-                ( alertGroups, cmd ) =
-                    Views.AlertList.Updates.update msg model.alertGroups model.filter
+                ( alertList, cmd ) =
+                    Views.AlertList.Updates.update msg model.alertList model.filter
             in
-                ( { model | alertGroups = alertGroups }, cmd )
+                ( { model | alertList = alertList }, cmd )
 
         MsgForSilenceList msg ->
             let
