@@ -6,10 +6,10 @@ import Views.AlertList.FilterBar
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Utils.Date
-import Utils.Types exposing (ApiResponse(..), Filter)
+import Utils.Types exposing (ApiResponse(Success, Loading, Failure), Filter)
 import Utils.Filter
 import Utils.Views exposing (buttonLink, onClickMsgButton, listButton)
-import Views.AlertList.Types exposing (AlertListMsg(..), Model)
+import Views.AlertList.Types exposing (AlertListMsg(AddFilterMatcher), Model)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 
 

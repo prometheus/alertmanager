@@ -3,7 +3,7 @@ module Views.AlertList.Updates exposing (..)
 import Alerts.Api as Api
 import Views.AlertList.Types exposing (AlertListMsg(..), Model)
 import Navigation
-import Utils.Types exposing (ApiData, ApiResponse(..), Filter)
+import Utils.Types exposing (ApiData, ApiResponse(Loading), Filter)
 import Utils.Filter exposing (generateQueryString, stringifyFilter, parseFilter)
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Dom

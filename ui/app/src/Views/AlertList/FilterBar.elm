@@ -4,8 +4,8 @@ import Html exposing (Html, Attribute, div, span, input, text, button, i, small)
 import Html.Attributes exposing (value, class, style, disabled, id)
 import Html.Events exposing (onClick, onInput, on, keyCode)
 import Utils.Filter exposing (Matcher)
-import Views.AlertList.Types exposing (AlertListMsg(..))
-import Types exposing (Msg(..))
+import Views.AlertList.Types exposing (AlertListMsg(AddFilterMatcher, DeleteFilterMatcher, PressingBackspace, UpdateMatcherText))
+import Types exposing (Msg(MsgForAlertList, Noop))
 import Json.Decode as Json
 
 
@@ -140,7 +140,11 @@ view matchers matcherText backspacePressed =
                             ]
                         , small [ class "form-text text-muted" ]
                             [ text "Custom matcher, e.g."
-                            , button [ class "btn btn-link btn-sm align-baseline", onClick (UpdateMatcherText "env=\"production\"" |> MsgForAlertList) ] [ text "env=\"production\"" ]
+                            , button
+                                [ class "btn btn-link btn-sm align-baseline"
+                                , onClick (UpdateMatcherText "env=\"production\"" |> MsgForAlertList)
+                                ]
+                                [ text "env=\"production\"" ]
                             ]
                         ]
                    ]
