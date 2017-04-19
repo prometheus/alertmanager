@@ -50,7 +50,6 @@ var queryCmd = &cobra.Command{
 
 func init() {
 	queryCmd.Flags().Bool("expired", false, "Show expired silences as well as active")
-	queryCmd.Flags().BoolP("quiet", "q", false, "Only show ids")
 	queryFlags = queryCmd.Flags()
 }
 
@@ -90,10 +89,7 @@ func query(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	quiet, err := queryFlags.GetBool("quiet")
-	if err != nil {
-		return err
-	}
+	quiet := viper.GetBool("quiet")
 
 	var filterString = ""
 	if len(args) == 1 {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/prometheus/alertmanager/types"
 )
@@ -25,6 +26,8 @@ var silenceCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(silenceCmd)
+	silenceCmd.PersistentFlags().BoolP("quiet", "q", false, "Only show silence ids")
+	viper.BindPFlag("quiet", silenceCmd.PersistentFlags().Lookup("quiet"))
 	silenceCmd.AddCommand(addCmd)
 	silenceCmd.AddCommand(expireCmd)
 	silenceCmd.AddCommand(queryCmd)
