@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"path"
 	"time"
@@ -16,10 +17,23 @@ import (
 // Config is the response type of alertmanager config endpoint
 // Duped in cli/format needs to be moved to common/model
 type Config struct {
-	Config      string            `json:"config"`
-	ConfigJSON  config.Config     `json:configJSON`
-	VersionInfo map[string]string `json:"versionInfo"`
-	Uptime      time.Time         `json:"uptime"`
+	Config      string                 `json:"config"`
+	ConfigJSON  config.Config          `json:configJSON`
+	MeshStatus  map[string]interface{} `json:"meshStatus"`
+	VersionInfo map[string]string      `json:"versionInfo"`
+	Uptime      time.Time              `json:"uptime"`
+}
+
+type MeshStatus struct {
+	Name     string       `json:"name"`
+	NickName string       `json:"nickName"`
+	Peers    []PeerStatus `json:"peerStatus"`
+}
+
+type PeerStatus struct {
+	Name     string `json:"name"`
+	NickName string `json:"nickName"`
+	UID      uint64 `uid`
 }
 
 type alertmanagerStatusResponse struct {
@@ -64,7 +78,12 @@ func fetchConfig() (Config, error) {
 
 	err = decoder.Decode(&configResponse)
 	if err != nil {
+		panic(err)
 		return Config{}, err
+	}
+
+	if configResponse.Status != "success" {
+		return Config{}, fmt.Errorf("[%s] %s", configResponse.ErrorType, configResponse.Error)
 	}
 
 	return configResponse.Data, nil
@@ -81,5 +100,7 @@ func queryConfig(cmd *cobra.Command, args []string) error {
 		return errors.New("Unknown output formatter")
 	}
 
-	return formatter.FormatConfig(format.Config(config))
+	c := format.Config(config)
+
+	return formatter.FormatConfig(c)
 }

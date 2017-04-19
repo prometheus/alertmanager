@@ -483,8 +483,22 @@ func (re *Regexp) MarshalYAML() (interface{}, error) {
 	return nil, nil
 }
 
+// UnmarshalJSON implements the json.Marshaler interface
+func (re *Regexp) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	regex, err := regexp.Compile(s)
+	if err != nil {
+		return err
+	}
+	re.Regexp = regex
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaler interface.
-func (re Regexp) MarshalJSON() ([]byte, error) {
+func (re *Regexp) MarshalJSON() ([]byte, error) {
 	if re.Regexp != nil {
 		return json.Marshal(re.String())
 	}
