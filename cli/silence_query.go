@@ -45,7 +45,7 @@ var queryCmd = &cobra.Command{
   	(similar to prometheus) is used to represent a regex match. Regex matching
   	can be used in combination with a direct match.
 				`,
-	RunE: query,
+	Run: CommandWrapper(query),
 }
 
 func init() {
