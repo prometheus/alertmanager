@@ -39,6 +39,7 @@
 			"revision": "a904159b9206978bb6d53fcc7a769e5cd726c737",
 			"revisionTime": "2016-11-02T19:13:10Z"
     },
+    {
 			"checksumSHA1": "6ZxSmrIx3Jd15aou16oG0HPylP4=",
 			"path": "github.com/gogo/protobuf/proto",
 			"revision": "c0656edd0d9eab7c66d1eb0c568f9039345796f7",
