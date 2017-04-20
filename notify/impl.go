@@ -582,7 +582,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 	}
 
 	req := &hipchatReq{
-		From:          tmplText(n.conf.From),
+		From:          truncate(tmplText(n.conf.From), 64),
 		Notify:        n.conf.Notify,
 		Message:       msg,
 		MessageFormat: n.conf.MessageFormat,
@@ -979,4 +979,11 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
+}
+
+func truncate(s string, l int) string {
+	if l <= 10 {
+		return s[:l]
+	}
+	return fmt.Sprintf("%s...", s[:l-3])
 }
