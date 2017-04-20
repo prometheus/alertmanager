@@ -21,7 +21,7 @@ var silenceCmd = &cobra.Command{
 	Use:   "silence",
 	Short: "Manage silences",
 	Long:  `Add, expire or view silences. For more information and additional flags see query help`,
-	RunE:  query,
+	Run:   CommandWrapper(query),
 }
 
 func init() {
