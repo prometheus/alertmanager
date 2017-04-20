@@ -38,6 +38,23 @@
 			"path": "github.com/fsnotify/fsnotify",
 			"revision": "a904159b9206978bb6d53fcc7a769e5cd726c737",
 			"revisionTime": "2016-11-02T19:13:10Z"
+    },
+			"checksumSHA1": "6ZxSmrIx3Jd15aou16oG0HPylP4=",
+			"path": "github.com/gogo/protobuf/proto",
+			"revision": "c0656edd0d9eab7c66d1eb0c568f9039345796f7",
+			"revisionTime": "2017-03-30T07:10:51Z"
+		},
+		{
+			"checksumSHA1": "HPVQZu059/Rfw2bAWM538bVTcUc=",
+			"path": "github.com/gogo/protobuf/sortkeys",
+			"revision": "c0656edd0d9eab7c66d1eb0c568f9039345796f7",
+			"revisionTime": "2017-03-30T07:10:51Z"
+		},
+		{
+			"checksumSHA1": "b1p91yJ1mx+abXDUtM5UV3xEiaw=",
+			"path": "github.com/gogo/protobuf/types",
+			"revision": "c0656edd0d9eab7c66d1eb0c568f9039345796f7",
+			"revisionTime": "2017-03-30T07:10:51Z"
 		},
 		{
 			"checksumSHA1": "M/1HiQFl2DyE+q3pFf8swvAQ3MY=",
