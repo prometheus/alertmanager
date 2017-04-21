@@ -13,4 +13,6 @@ before_install:
 script:
 - make
 - docker run --rm -t -v "$(pwd):/app" -w /app/ui/app elm-env elm-format --validate src/
-- docker run --rm -t -v "$(pwd):/app" -w /app/ui/app elm-env elm-make --yes src/Main.elm --output /dev/null
+- docker run --rm -t -v "$(pwd):/app" -w /app/ui/app elm-env elm-make --yes src/Main.elm --output script.js
+- docker run --rm -t -v "$(pwd):/usr/src/app" -w /usr/src/app golang make assets
+- git diff --exit-code
