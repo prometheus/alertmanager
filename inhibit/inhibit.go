@@ -121,7 +121,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 			return true
 		}
 	}
-	ih.marker.SetStatus(fp, types.Active)
+	ih.marker.SetStatus(fp, types.Unprocessed)
 	return false
 
 }
