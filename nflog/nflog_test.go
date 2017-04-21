@@ -103,7 +103,7 @@ func TestNlogSnapshot(t *testing.T) {
 		}
 		// Setup internal state manually.
 		for _, e := range c.entries {
-			l1.st[stateKey(e.Entry.GroupKey, e.Entry.Receiver)] = e
+			l1.st[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = e
 		}
 		_, err = l1.Snapshot(f)
 		require.NoError(t, err, "creating snapshot failed")
@@ -253,7 +253,7 @@ func TestGossipDataCoding(t *testing.T) {
 		// Create gossip data from input.
 		in := gossipData{}
 		for _, e := range c.entries {
-			in[stateKey(e.Entry.GroupKey, e.Entry.Receiver)] = e
+			in[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = e
 		}
 		msg := in.Encode()
 		require.Equal(t, 1, len(msg), "expected single message for input")

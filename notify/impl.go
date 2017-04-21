@@ -15,6 +15,7 @@ package notify
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -152,7 +153,7 @@ type WebhookMessage struct {
 
 	// The protocol version.
 	Version  string `json:"version"`
-	GroupKey uint64 `json:"groupKey"`
+	GroupKey string `json:"groupKey"`
 }
 
 // Notify implements the Notifier interface.
@@ -165,9 +166,9 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 	}
 
 	msg := &WebhookMessage{
-		Version:  "3",
+		Version:  "4",
 		Data:     data,
-		GroupKey: uint64(groupKey),
+		GroupKey: groupKey,
 	}
 
 	var buf bytes.Buffer
@@ -372,7 +373,7 @@ const (
 
 type pagerDutyMessage struct {
 	ServiceKey  string            `json:"service_key"`
-	IncidentKey model.Fingerprint `json:"incident_key"`
+	IncidentKey string            `json:"incident_key"`
 	EventType   string            `json:"event_type"`
 	Description string            `json:"description"`
 	Client      string            `json:"client,omitempty"`
@@ -410,7 +411,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	msg := &pagerDutyMessage{
 		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
 		EventType:   eventType,
-		IncidentKey: key,
+		IncidentKey: hashKey(key),
 		Description: tmpl(n.conf.Description),
 		Details:     details,
 	}
@@ -630,8 +631,8 @@ func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template) *OpsGenie {
 }
 
 type opsGenieMessage struct {
-	APIKey string            `json:"apiKey"`
-	Alias  model.Fingerprint `json:"alias"`
+	APIKey string `json:"apiKey"`
+	Alias  string `json:"alias"`
 }
 
 type opsGenieCreateMessage struct {
@@ -679,7 +680,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		apiMsg = opsGenieMessage{
 			APIKey: string(n.conf.APIKey),
-			Alias:  key,
+			Alias:  hashKey(key),
 		}
 		alerts = types.Alerts(as...)
 	)
@@ -763,10 +764,10 @@ const (
 )
 
 type victorOpsMessage struct {
-	MessageType    string            `json:"message_type"`
-	EntityID       model.Fingerprint `json:"entity_id"`
-	StateMessage   string            `json:"state_message"`
-	MonitoringTool string            `json:"monitoring_tool"`
+	MessageType    string `json:"message_type"`
+	EntityID       string `json:"entity_id"`
+	StateMessage   string `json:"state_message"`
+	MonitoringTool string `json:"monitoring_tool"`
 }
 
 type victorOpsErrorResponse struct {
@@ -806,7 +807,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	msg := &victorOpsMessage{
 		MessageType:    messageType,
-		EntityID:       key,
+		EntityID:       hashKey(key),
 		StateMessage:   tmpl(n.conf.StateMessage),
 		MonitoringTool: tmpl(n.conf.MonitoringTool),
 	}
@@ -979,4 +980,12 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
+}
+
+// hashKey returns the sha256 for a group key as integrations may have
+// maximum length requirements on deduplication keys.
+func hashKey(s string) string {
+	h := sha256.New()
+	h.Write([]byte(s))
+	return string(h.Sum(nil))
 }
