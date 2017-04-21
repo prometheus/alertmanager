@@ -67,39 +67,39 @@ func TestAlertStatusMarshal(t *testing.T) {
 	type statusTest struct {
 		alertStatus AlertStatus
 		status      string
-		value       string
+		values      []string
 	}
 
 	tests := []statusTest{
 		statusTest{
 			alertStatus: AlertStatus{},
 			status:      "unprocessed",
-			value:       "",
+			values:      []string{},
 		},
 		statusTest{
 			alertStatus: AlertStatus{status: Unprocessed},
 			status:      "unprocessed",
-			value:       "",
+			values:      []string{},
 		},
 		statusTest{
 			alertStatus: AlertStatus{status: Active},
 			status:      "active",
-			value:       "",
+			values:      []string{},
 		},
 		statusTest{
-			alertStatus: AlertStatus{status: Silenced, value: []string{"123456"}},
+			alertStatus: AlertStatus{status: Silenced, values: []string{"123456"}},
 			status:      "silenced",
-			value:       "123456",
+			values:      []string{"123456"},
 		},
 		statusTest{
 			alertStatus: AlertStatus{status: Inhibited},
 			status:      "inhibited",
-			value:       "",
+			values:      []string{},
 		},
 		statusTest{
 			alertStatus: AlertStatus{status: 255},
 			status:      "unknown",
-			value:       "",
+			values:      []string{},
 		},
 	}
 	for _, asTest := range tests {
@@ -107,9 +107,9 @@ func TestAlertStatusMarshal(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		expectedJSON, _ := json.Marshal(map[string]string{
+		expectedJSON, _ := json.Marshal(map[string]interface{}{
 			"status": asTest.status,
-			"value":  asTest.value,
+			"values": asTest.values,
 		})
 		if string(b) != string(expectedJSON) {
 			t.Errorf("%v serialization failed, expected %s, got %s", asTest.alertStatus, expectedJSON, b)

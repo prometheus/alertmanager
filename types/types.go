@@ -36,7 +36,7 @@ const (
 // allows tracking of the status of an alert (active, silenced, )
 type AlertStatus struct {
 	status state
-	value  []string
+	values []string
 }
 
 // custom serializer for alertStatus that handles providing default value
@@ -47,14 +47,13 @@ func (a *AlertStatus) MarshalJSON() ([]byte, error) {
 		status = "unknown"
 	}
 
-	// TODO: Do we want to return all values?
-	var value string
-	if len(a.value) != 0 {
-		value = a.value[0]
+	values := a.values
+	if values == nil {
+		values = []string{}
 	}
-	return json.Marshal(map[string]string{
+	return json.Marshal(map[string]interface{}{
 		"status": status,
-		"value":  value,
+		"values": values,
 	})
 }
 
@@ -106,7 +105,7 @@ func (m *memMarker) SetStatus(alert model.Fingerprint, s state, v ...string) err
 	if !prs {
 		m.m[alert] = &AlertStatus{
 			status: s,
-			value:  v,
+			values: v,
 		}
 		return nil
 	}
@@ -136,7 +135,7 @@ func (m *memMarker) SetStatus(alert model.Fingerprint, s state, v ...string) err
 
 func setStatus(status *AlertStatus, s state, v ...string) {
 	status.status = s
-	status.value = v
+	status.values = v
 }
 
 func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
@@ -175,7 +174,7 @@ func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
 
 func (m *memMarker) Silenced(alert model.Fingerprint) ([]string, bool) {
 	s := m.Status(alert)
-	return s.value, s.status == Silenced
+	return s.values, s.status == Silenced
 }
 
 // MultiError contains multiple errors and implements the error interface. Its
