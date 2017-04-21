@@ -156,6 +156,9 @@ func TestAlertsGC(t *testing.T) {
 		if err != nil {
 			t.Errorf("error setting status: %v", err)
 		}
+		if !marker.Active(a.Fingerprint()) {
+			t.Errorf("error setting status: %v", a)
+		}
 	}
 
 	time.Sleep(300 * time.Millisecond)
@@ -166,8 +169,8 @@ func TestAlertsGC(t *testing.T) {
 			t.Errorf("alert %d didn't get GC'd", i)
 		}
 
-		s := marker.Status(a.Fingerprint())
-		if !reflect.DeepEqual(s, types.AlertStatus{}) {
+		s, _ := marker.Status(a.Fingerprint())
+		if s != types.Unprocessed {
 			t.Errorf("marker %d didn't get GC'd", i)
 		}
 	}

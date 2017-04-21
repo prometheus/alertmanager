@@ -81,7 +81,8 @@ type AlertBlock struct {
 type APIAlert struct {
 	*model.Alert
 
-	Status types.AlertStatus `json:"status"`
+	Status types.State
+	Values []string
 }
 
 // AlertGroup is a list of alert blocks grouped by the same label set.
@@ -134,9 +135,11 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 					continue
 				}
+				status, values := d.marker.Status(a.Fingerprint())
 				aa := &APIAlert{
 					Alert:  a,
-					Status: d.marker.Status(a.Fingerprint()),
+					Status: status,
+					Values: values,
 				}
 
 				if !matchesFilterLabels(aa, matchers) {

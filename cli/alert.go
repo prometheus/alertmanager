@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/parse"
+	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -157,7 +158,7 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 
 		if !showSilenced {
 			// If any silence mutes this alert don't show it
-			if alert.Silenced != "" {
+			if alert.Status == types.Silenced {
 				continue
 			}
 		}
