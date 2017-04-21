@@ -385,7 +385,11 @@ func listen(listen string, router *route.Router) {
 type stringset map[string]struct{}
 
 func (ss stringset) Set(value string) error {
-	ss[value] = struct{}{}
+	for _, v := range strings.Split(value, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			ss[v] = struct{}{}
+		}
+	}
 	return nil
 }
 
