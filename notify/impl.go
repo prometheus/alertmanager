@@ -372,7 +372,7 @@ const (
 
 type pagerDutyMessage struct {
 	ServiceKey  string            `json:"service_key"`
-	IncidentKey model.Fingerprint `json:"incident_key"`
+	IncidentKey string            `json:"incident_key"`
 	EventType   string            `json:"event_type"`
 	Description string            `json:"description"`
 	Client      string            `json:"client,omitempty"`
@@ -410,7 +410,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	msg := &pagerDutyMessage{
 		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
 		EventType:   eventType,
-		IncidentKey: key,
+		IncidentKey: data,
 		Description: tmpl(n.conf.Description),
 		Details:     details,
 	}
