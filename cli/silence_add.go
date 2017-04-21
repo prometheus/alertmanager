@@ -52,7 +52,7 @@ var addCmd = &cobra.Command{
 	(similar to prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
 	`,
-	RunE: add,
+	Run: CommandWrapper(add),
 }
 
 func init() {

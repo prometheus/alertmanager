@@ -63,7 +63,7 @@ var alertCmd = &cobra.Command{
   	(similar to prometheus) is used to represent a regex match. Regex matching
   	can be used in combination with a direct match.
 	`,
-	RunE: queryAlerts,
+	Run: CommandWrapper(queryAlerts),
 }
 
 var alertQueryCmd = &cobra.Command{

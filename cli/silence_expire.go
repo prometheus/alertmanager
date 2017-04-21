@@ -13,7 +13,7 @@ var expireCmd = &cobra.Command{
 	Use:   "expire",
 	Short: "expire silence",
 	Long:  `expire an alertmanager silence`,
-	RunE:  expire,
+	Run:   CommandWrapper(expire),
 }
 
 func expire(cmd *cobra.Command, args []string) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/prometheus/alertmanager/pkg/parse"
@@ -84,4 +85,13 @@ func TypeMatcher(matcher labels.Matcher) (types.Matcher, error) {
 		return types.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
 	}
 	return *typeMatcher, nil
+}
+
+func CommandWrapper(command func(*cobra.Command, []string) error) func(*cobra.Command, []string) {
+	return func(cmd *cobra.Command, args []string) {
+		err := command(cmd, args)
+		if err != nil {
+			fmt.Printf("Error: %s\n", err)
+		}
+	}
 }
