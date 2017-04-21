@@ -1,4 +1,4 @@
-<div class="alert-item" ng-controller="AlertCtrl" ng-class="{silenced: alert.status.status == 'silenced'}">
+<div class="alert-item" ng-controller="AlertCtrl" ng-class="{silenced: alert.status == 'silenced'}">
 	<div class="overview group">
 		<div class="btn-group details expand">
 			<button ng-show="showDetails" ng-click="toggleDetails()" type="primary" small>–</button>
@@ -15,8 +15,8 @@
 		</div>
 
 		<div class="right">
-			<div ng-show="alert.status.status == 'inhibited'" class="left lbl muted-lbl">inhibited</div>
-			<div ng-show="alert.status.status == 'silenced'" class="left lbl muted-lbl"><a ng-href="/#/silences?hl={{ alert.status.value }}">silenced</a></div>
+			<div ng-show="alert.status == 'inhibited'" class="left lbl muted-lbl">inhibited</div>
+			<div ng-show="alert.status == 'silenced'" class="left lbl muted-lbl"><a ng-href="/#/silences?hl={{ alert.values.first }}">silenced</a></div>
 
 			<button type="black" disabled small>Since {{ alert.startsAt | amCalendar }}</button>
 			<button class="silence-button" type="black" ng-click="toggleSilenceForm()" small upper>Silence</button>
