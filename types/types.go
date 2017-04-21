@@ -58,8 +58,8 @@ func (a *AlertStatus) MarshalJSON() ([]byte, error) {
 const unknown = "unknown"
 
 // MarshalJSON implements the json.Marshaler interface.
-func (s *State) MarshalJSON() ([]byte, error) {
-	status, found := statusMap[*s]
+func (s State) MarshalJSON() ([]byte, error) {
+	status, found := statusMap[s]
 	if !found {
 		status = unknown
 	}
