@@ -90,8 +90,8 @@ type memMarker struct {
 	mtx sync.RWMutex
 }
 
-// helper method for updating status so that Set(Inhibited|Silenced) can focus
-// just on setting right values
+// SetStatus sets the status and provided value on the AlertStatus keyed to the
+// given Fingerprint. The AlertStatus is created if it does not exist.
 func (m *memMarker) SetStatus(alert model.Fingerprint, s state, v ...string) error {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -138,6 +138,7 @@ func setStatus(status *AlertStatus, s state, v ...string) {
 	status.values = v
 }
 
+// Status returns the AlertStatus for the given Fingerprint.
 func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
@@ -150,6 +151,7 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 
 }
 
+// Delete deletes the given Fingerprint from the internal cache.
 func (m *memMarker) Delete(alert model.Fingerprint) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
@@ -157,21 +159,29 @@ func (m *memMarker) Delete(alert model.Fingerprint) {
 	delete(m.m, alert)
 }
 
+// Unprocessed returns whether the alert for the given Fingerprint is in the
+// Unprocessed state.
 func (m *memMarker) Unprocessed(alert model.Fingerprint) bool {
 	s := m.Status(alert)
 	return s.status == Unprocessed
 }
 
+// Active returns whether the alert for the given Fingerprint is in the Active
+// state.
 func (m *memMarker) Active(alert model.Fingerprint) bool {
 	s := m.Status(alert)
 	return s.status == Active
 }
 
+// Inhibited returns whether the alert for the given Fingerprint is in the
+// Inhibited state.
 func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
 	s := m.Status(alert)
 	return s.status == Inhibited
 }
 
+// Silenced returns whether the alert for the given Fingerprint is in the
+// Silenced state.
 func (m *memMarker) Silenced(alert model.Fingerprint) ([]string, bool) {
 	s := m.Status(alert)
 	return s.values, s.status == Silenced
