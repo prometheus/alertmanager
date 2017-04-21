@@ -22,6 +22,7 @@ holds down backspace to remove the text in the input, they won't accidentally ho
 backspace too long and then delete the preceding matcher as well. So, once a user holds
 backspace to clear an input, they have to then lift up the key and press it again to
 proceed to deleting the next matcher.
+
 -}
 type alias Model =
     { alertGroups : ApiData (List AlertGroup)
