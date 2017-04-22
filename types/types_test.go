@@ -77,27 +77,27 @@ func TestAlertStatusMarshal(t *testing.T) {
 			values:      []string{},
 		},
 		statusTest{
-			alertStatus: AlertStatus{status: Unprocessed},
+			alertStatus: AlertStatus{Status: AlertStateUnprocessed},
 			status:      "unprocessed",
 			values:      []string{},
 		},
 		statusTest{
-			alertStatus: AlertStatus{status: Active},
+			alertStatus: AlertStatus{Status: AlertStateActive},
 			status:      "active",
 			values:      []string{},
 		},
 		statusTest{
-			alertStatus: AlertStatus{status: Silenced, values: []string{"123456"}},
+			alertStatus: AlertStatus{Status: AlertStateSuppressed, SilencedBy: []string{"123456"}},
 			status:      "silenced",
 			values:      []string{"123456"},
 		},
 		statusTest{
-			alertStatus: AlertStatus{status: Inhibited},
+			alertStatus: AlertStatus{Status: AlertStateSuppressed},
 			status:      "inhibited",
 			values:      []string{},
 		},
 		statusTest{
-			alertStatus: AlertStatus{status: 255},
+			alertStatus: AlertStatus{Status: 255},
 			status:      "unknown",
 			values:      []string{},
 		},

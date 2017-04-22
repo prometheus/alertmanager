@@ -158,7 +158,7 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 
 		if !showSilenced {
 			// If any silence mutes this alert don't show it
-			if alert.Status == types.Silenced {
+			if alert.Status == types.AlertStateSuppressed && len(alert.SilencedBy) > 0 {
 				continue
 			}
 		}

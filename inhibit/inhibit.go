@@ -117,13 +117,17 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 
 	for _, r := range ih.rules {
 		if r.TargetMatchers.Match(lset) && r.hasEqual(lset) {
-			ih.marker.SetStatus(fp, types.Inhibited)
+			// We set a fake alert ID for now so that we can
+			// distinguish AlertStateSuppressed between silenced
+			// and/or inhibited. In the future there will be unique
+			// identifiers for alerts.
+			ih.marker.SetInhibited(fp, "123")
 			return true
 		}
 	}
-	ih.marker.SetStatus(fp, types.Unprocessed)
-	return false
+	ih.marker.SetInhibited(fp)
 
+	return false
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit

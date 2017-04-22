@@ -469,7 +469,7 @@ func TestSilenceStage(t *testing.T) {
 
 	// Set the second alert as previously silenced. It is expected to have
 	// the WasSilenced flag set to true afterwards.
-	marker.SetStatus(inAlerts[1].Fingerprint(), types.Silenced, "123")
+	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
 
 	_, alerts, err := silencer.Exec(nil, inAlerts...)
 	if err != nil {
@@ -525,7 +525,7 @@ func TestInhibitStage(t *testing.T) {
 
 	// Set the second alert as previously inhibited. It is expected to have
 	// the WasInhibited flag set to true afterwards.
-	marker.SetStatus(inAlerts[1].Fingerprint(), types.Inhibited)
+	marker.SetInhibited(inAlerts[1].Fingerprint(), "123")
 
 	_, alerts, err := inhibitor.Exec(nil, inAlerts...)
 	if err != nil {

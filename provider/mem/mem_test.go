@@ -15,6 +15,7 @@ package mem
 
 import (
 	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -101,6 +102,7 @@ func TestAlertsGC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(dir)
 
 	marker := types.NewMarker()
 	alerts, err := NewAlerts(marker, 200*time.Millisecond, dir)
@@ -152,10 +154,7 @@ func TestAlertsGC(t *testing.T) {
 	}
 
 	for _, a := range insert {
-		err := marker.SetStatus(a.Fingerprint(), types.Active)
-		if err != nil {
-			t.Errorf("error setting status: %v", err)
-		}
+		marker.SetActive(a.Fingerprint())
 		if !marker.Active(a.Fingerprint()) {
 			t.Errorf("error setting status: %v", a)
 		}
@@ -169,8 +168,8 @@ func TestAlertsGC(t *testing.T) {
 			t.Errorf("alert %d didn't get GC'd", i)
 		}
 
-		s, _ := marker.Status(a.Fingerprint())
-		if s != types.Unprocessed {
+		s := marker.Status(a.Fingerprint())
+		if s.Status != types.AlertStateUnprocessed {
 			t.Errorf("marker %d didn't get GC'd", i)
 		}
 	}
