@@ -8,7 +8,8 @@ import Html.Events exposing (onClick, onInput)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 import Views.Shared.SilenceBase
 import Silences.Types exposing (Silence)
-import Utils.Types exposing (Matcher, ApiResponse(..), Filter, ApiData)
+import Utils.Types exposing (Matcher, ApiResponse(..), ApiData)
+import Utils.Filter exposing (Filter)
 import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
 import Time
 import Types exposing (Msg(UpdateFilter, MsgForSilenceList, Noop))

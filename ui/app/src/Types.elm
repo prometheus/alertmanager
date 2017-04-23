@@ -7,7 +7,8 @@ import Views.Silence.Types exposing (SilenceMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.Status.Types exposing (StatusModel, StatusMsg)
 import Silences.Types exposing (Silence)
-import Utils.Types exposing (ApiData, Filter, Label)
+import Utils.Types exposing (ApiData, Label)
+import Utils.Filter exposing (Filter)
 import Time
 
 

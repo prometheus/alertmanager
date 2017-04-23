@@ -5,11 +5,10 @@ import Views.SilenceList.Types exposing (SilenceListMsg(..))
 import Silences.Types exposing (Silence, nullSilence, nullMatcher)
 import Navigation
 import Task
-import Utils.Types exposing (ApiData, ApiResponse(..), Filter, Matchers)
-import Utils.Types as Types exposing (ApiData, ApiResponse(Failure, Loading, Success), Time, Filter, Matchers)
+import Utils.Types as Types exposing (ApiData, ApiResponse(Failure, Loading, Success), Time, Matchers)
 import Time
 import Types exposing (Msg(UpdateCurrentTime, MsgForSilenceList), Route(SilenceListRoute))
-import Utils.Filter exposing (generateQueryString)
+import Utils.Filter exposing (Filter, generateQueryString)
 
 
 update : SilenceListMsg -> ApiData (List Silence) -> ApiData Silence -> Filter -> ( ApiData (List Silence), ApiData Silence, Cmd Types.Msg )

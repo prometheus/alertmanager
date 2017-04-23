@@ -9,7 +9,8 @@ import Navigation
 import Types exposing (Msg(MsgForSilenceForm))
 import Utils.Date
 import Utils.List
-import Utils.Types exposing (ApiResponse(..), nullFilter)
+import Utils.Types exposing (ApiResponse(..))
+import Utils.Filter exposing (nullFilter)
 import Views.SilenceForm.Types
     exposing
         ( Model

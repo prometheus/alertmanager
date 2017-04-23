@@ -2,7 +2,8 @@ module Silences.Api exposing (..)
 
 import Http
 import Silences.Types exposing (Silence)
-import Utils.Types exposing (Filter, ApiResponse(..), ApiData)
+import Utils.Types exposing (ApiResponse(..), ApiData)
+import Utils.Filter exposing (Filter)
 import Silences.Decoders exposing (..)
 import Silences.Encoders
 import Utils.Api exposing (baseUrl)

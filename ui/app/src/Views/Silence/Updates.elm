@@ -5,7 +5,8 @@ import Types exposing (Model, Msg(MsgForSilence))
 import Silences.Api exposing (getSilence)
 import Alerts.Api
 import Utils.List
-import Utils.Types exposing (ApiResponse(..), nullFilter)
+import Utils.Types exposing (ApiResponse(..))
+import Utils.Filter exposing (nullFilter)
 
 
 update : SilenceMsg -> Model -> ( Model, Cmd Msg )

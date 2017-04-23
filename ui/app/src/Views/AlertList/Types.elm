@@ -1,8 +1,8 @@
 module Views.AlertList.Types exposing (AlertListMsg(..), Model, initAlertList)
 
-import Utils.Types exposing (ApiData, Filter, ApiResponse(Loading))
+import Utils.Types exposing (ApiData, ApiResponse(Loading))
 import Alerts.Types exposing (Alert, AlertGroup)
-import Utils.Filter
+import Utils.Filter exposing (Filter)
 
 
 type AlertListMsg

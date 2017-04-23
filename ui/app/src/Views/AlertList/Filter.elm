@@ -2,14 +2,26 @@ module Views.AlertList.Filter exposing (receiver, silenced, matchers)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block)
 import Utils.Types exposing (Matchers)
-import Regex
+import Utils.Filter exposing (Matcher, MatchOperator(Eq, NotEq, RegexMatch, NotRegexMatch))
+import Regex exposing (regex, contains)
 
 
-receiver : Maybe String -> List AlertGroup -> List AlertGroup
+receiver : Maybe Matcher -> List AlertGroup -> List AlertGroup
 receiver maybeReceiver groups =
     case maybeReceiver of
-        Just receiver ->
-            by (filterAlertGroup receiver) groups
+        Just { key, op, value } ->
+            case op of
+                Eq ->
+                    by (filterAlertGroup ((==) value)) groups
+
+                RegexMatch ->
+                    by (filterAlertGroup ((regex >> contains) value)) groups
+
+                NotEq ->
+                    groups
+
+                NotRegexMatch ->
+                    groups
 
         Nothing ->
             groups
@@ -37,11 +49,11 @@ silenced maybeShowSilenced groups =
             by alertGroupsSilenced groups
 
 
-filterAlertGroup : String -> AlertGroup -> Maybe AlertGroup
-filterAlertGroup receiver alertGroup =
+filterAlertGroup : (String -> Bool) -> AlertGroup -> Maybe AlertGroup
+filterAlertGroup fn alertGroup =
     let
         blocks =
-            List.filter (\b -> receiver == b.routeOpts.receiver) alertGroup.blocks
+            List.filter (\b -> fn b.routeOpts.receiver) alertGroup.blocks
     in
         if not <| List.isEmpty blocks then
             Just { alertGroup | blocks = blocks }

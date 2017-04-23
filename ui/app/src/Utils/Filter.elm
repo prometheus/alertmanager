@@ -2,6 +2,8 @@ module Utils.Filter
     exposing
         ( Matcher
         , MatchOperator(..)
+        , Filter
+        , nullFilter
         , generateQueryParam
         , generateQueryString
         , stringifyMatcher
@@ -10,12 +12,26 @@ module Utils.Filter
         , parseMatcher
         )
 
-import Utils.Types exposing (Filter)
 import Http exposing (encodeUri)
 import Parser exposing (Parser, (|.), (|=), zeroOrMore, ignore)
 import Parser.LanguageKit as Parser exposing (Trailing(..))
 import Char
 import Set
+
+
+type alias Filter =
+    { text : Maybe String
+    , receiver : Maybe Matcher
+    , showSilenced : Maybe Bool
+    }
+
+
+nullFilter : Filter
+nullFilter =
+    { text = Nothing
+    , receiver = Nothing
+    , showSilenced = Nothing
+    }
 
 
 generateQueryParam : String -> Maybe String -> Maybe String
@@ -25,8 +41,8 @@ generateQueryParam name =
 
 generateQueryString : Filter -> String
 generateQueryString { receiver, showSilenced, text } =
-    [ ( "receiver", receiver )
-    , ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
+    -- TODO: Re-add receiver once it is parsed on the server side.
+    [ ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
     , ( "filter", text )
     ]
         |> List.filterMap (uncurry generateQueryParam)

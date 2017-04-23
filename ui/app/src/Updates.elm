@@ -12,8 +12,8 @@ import Utils.Types
     exposing
         ( ApiResponse(Loading, Failure, Success)
         , Matcher
-        , nullFilter
         )
+import Utils.Filter exposing (nullFilter)
 import Views.AlertList.Updates
 import Views.AlertList.Types exposing (AlertListMsg(FetchAlertGroups))
 import Views.Silence.Types exposing (SilenceMsg(SilenceFetched, InitSilenceView))

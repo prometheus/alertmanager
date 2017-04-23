@@ -10,21 +10,6 @@ type ApiResponse e a
     | Success a
 
 
-type alias Filter =
-    { text : Maybe String
-    , receiver : Maybe String
-    , showSilenced : Maybe Bool
-    }
-
-
-nullFilter : Filter
-nullFilter =
-    { text = Nothing
-    , receiver = Nothing
-    , showSilenced = Nothing
-    }
-
-
 type alias Matcher =
     { name : String
     , value : String
