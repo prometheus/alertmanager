@@ -65,41 +65,53 @@ func TestAlertMerge(t *testing.T) {
 
 func TestAlertStatusMarshal(t *testing.T) {
 	type statusTest struct {
-		alertStatus AlertStatus
-		status      string
-		values      []string
+		alertStatus             AlertStatus
+		status                  string
+		inhibitedBy, silencedBy []string
 	}
 
 	tests := []statusTest{
 		statusTest{
 			alertStatus: AlertStatus{},
 			status:      "unprocessed",
-			values:      []string{},
+			inhibitedBy: []string{},
+			silencedBy:  []string{},
 		},
 		statusTest{
 			alertStatus: AlertStatus{Status: AlertStateUnprocessed},
 			status:      "unprocessed",
-			values:      []string{},
+			inhibitedBy: []string{},
+			silencedBy:  []string{},
 		},
 		statusTest{
 			alertStatus: AlertStatus{Status: AlertStateActive},
 			status:      "active",
-			values:      []string{},
+			inhibitedBy: []string{},
+			silencedBy:  []string{},
 		},
 		statusTest{
 			alertStatus: AlertStatus{Status: AlertStateSuppressed, SilencedBy: []string{"123456"}},
-			status:      "silenced",
-			values:      []string{"123456"},
+			status:      "suppressed",
+			inhibitedBy: []string{},
+			silencedBy:  []string{"123456"},
+		},
+		statusTest{
+			alertStatus: AlertStatus{Status: AlertStateSuppressed, SilencedBy: []string{"123456"}, InhibitedBy: []string{"123", "456"}},
+			status:      "suppressed",
+			inhibitedBy: []string{"123", "456"},
+			silencedBy:  []string{"123456"},
 		},
 		statusTest{
 			alertStatus: AlertStatus{Status: AlertStateSuppressed},
-			status:      "inhibited",
-			values:      []string{},
+			status:      "suppressed",
+			silencedBy:  []string{},
+			inhibitedBy: []string{},
 		},
 		statusTest{
 			alertStatus: AlertStatus{Status: 255},
 			status:      "unknown",
-			values:      []string{},
+			silencedBy:  []string{},
+			inhibitedBy: []string{},
 		},
 	}
 	for _, asTest := range tests {
@@ -108,8 +120,9 @@ func TestAlertStatusMarshal(t *testing.T) {
 			t.Error(err)
 		}
 		expectedJSON, _ := json.Marshal(map[string]interface{}{
-			"status": asTest.status,
-			"values": asTest.values,
+			"status":      asTest.status,
+			"silencedBy":  asTest.silencedBy,
+			"inhibitedBy": asTest.inhibitedBy,
 		})
 		if string(b) != string(expectedJSON) {
 			t.Errorf("%v serialization failed, expected %s, got %s", asTest.alertStatus, expectedJSON, b)
