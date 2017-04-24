@@ -121,12 +121,12 @@ func (m *memMarker) SetSilenced(alert model.Fingerprint, ids ...string) {
 	// If there are any silence or alert IDs associated with the
 	// fingerprint, it is suppressed. Otherwise, set it to
 	// AlertStateUnprocessed.
-	if len(ids) > 0 || len(s.InhibitedBy) > 0 {
-		s.Status = AlertStateSuppressed
-	} else {
-		s.Status = AlertStateActive
+	if len(ids) == 0 && len(s.InhibitedBy) == 0 {
+		m.SetActive(alert)
+		return
 	}
 
+	s.Status = AlertStateSuppressed
 	s.SilencedBy = ids
 }
 
@@ -144,12 +144,12 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	// If there are any silence or alert IDs associated with the
 	// fingerprint, it is suppressed. Otherwise, set it to
 	// AlertStateUnprocessed.
-	if len(ids) > 0 || len(s.SilencedBy) > 0 {
-		s.Status = AlertStateSuppressed
-	} else {
-		s.Status = AlertStateActive
+	if len(ids) == 0 && len(s.SilencedBy) == 0 {
+		m.SetActive(alert)
+		return
 	}
 
+	s.Status = AlertStateSuppressed
 	s.InhibitedBy = ids
 }
 func (m *memMarker) SetActive(alert model.Fingerprint) {
