@@ -18,10 +18,10 @@ receiver maybeReceiver groups =
                     by (filterAlertGroup ((regex >> contains) value)) groups
 
                 NotEq ->
-                    groups
+                    by (filterAlertGroup ((/=) value)) groups
 
                 NotRegexMatch ->
-                    groups
+                    by (filterAlertGroup (((regex >> contains) value) >> not)) groups
 
         Nothing ->
             groups
