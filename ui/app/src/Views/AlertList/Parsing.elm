@@ -26,15 +26,11 @@ alertsParser =
         (\filter receiver silenced ->
             let
                 parsed =
-                    case receiver of
-                        Nothing ->
-                            Nothing
-
-                        Just receiver ->
-                            if String.startsWith "~" receiver then
-                                Just { key = "receiver", op = RegexMatch, value = String.dropLeft 1 receiver }
-                            else
-                                Just { key = "receiver", op = Eq, value = receiver }
+                    Maybe.map
+                        (\r ->
+                            { key = "receiver", op = RegexMatch, value = "^(?:" ++ r ++ ")$" }
+                        )
+                        receiver
             in
                 Filter filter parsed silenced
         )
