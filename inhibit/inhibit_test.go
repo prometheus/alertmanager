@@ -123,7 +123,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			r.scache[k] = v
 		}
 
-		if have := r.hasEqual(c.input); have != c.result {
+		if _, have := r.hasEqual(c.input); have != c.result {
 			t.Errorf("Unexpected result %t, expected %t", have, c.result)
 		}
 		if !reflect.DeepEqual(r.scache, c.initial) {

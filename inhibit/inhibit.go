@@ -14,6 +14,7 @@
 package inhibit
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -116,12 +117,8 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
 	for _, r := range ih.rules {
-		if r.TargetMatchers.Match(lset) && r.hasEqual(lset) {
-			// We set a fake alert ID for now so that we can
-			// distinguish AlertStateSuppressed between silenced
-			// and/or inhibited. In the future there will be unique
-			// identifiers for alerts.
-			ih.marker.SetInhibited(fp, "123")
+		if inhibitedByFP, eq := r.hasEqual(lset); r.TargetMatchers.Match(lset) && eq {
+			ih.marker.SetInhibited(fp, fmt.Sprintf("%d", inhibitedByFP))
 			return true
 		}
 	}
@@ -195,12 +192,12 @@ func (r *InhibitRule) set(a *types.Alert) {
 
 // hasEqual checks whether the source cache contains alerts matching
 // the equal labels for the given label set.
-func (r *InhibitRule) hasEqual(lset model.LabelSet) bool {
+func (r *InhibitRule) hasEqual(lset model.LabelSet) (model.Fingerprint, bool) {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
 
 Outer:
-	for _, a := range r.scache {
+	for fp, a := range r.scache {
 		// The cache might be stale and contain resolved alerts.
 		if a.Resolved() {
 			continue
@@ -210,9 +207,9 @@ Outer:
 				continue Outer
 			}
 		}
-		return true
+		return fp, true
 	}
-	return false
+	return model.Fingerprint(0), false
 }
 
 // gc clears out resolved alerts from the source cache.
