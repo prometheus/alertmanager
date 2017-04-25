@@ -1,13 +1,16 @@
 {
     "version": "1.0.0",
-    "summary": "Alertmanager UI",
+    "summary": "Elm test for Alertmanager UI",
     "repository": "https://github.com/prometheus/alertmanager.git",
     "license": "Apache-2.0",
     "source-directories": [
-        "src"
+        ".",
+        "../src"
     ],
     "exposed-modules": [],
     "dependencies": {
+        "elm-community/elm-test": "3.0.0 <= v < 4.0.0",
+        "elm-community/json-extra": "2.0.0 <= v < 3.0.0",
         "elm-lang/core": "5.0.0 <= v < 6.0.0",
         "elm-lang/dom": "1.1.1 <= v < 2.0.0",
         "elm-lang/html": "2.0.0 <= v < 3.0.0",
@@ -15,7 +18,9 @@
         "elm-lang/navigation": "2.0.1 <= v < 3.0.0",
         "elm-tools/parser": "2.0.0 <= v < 3.0.0",
         "evancz/url-parser": "2.0.1 <= v < 3.0.0",
-        "jweir/elm-iso8601": "3.0.2 <= v < 4.0.0"
+        "jweir/elm-iso8601": "3.0.2 <= v < 4.0.0",
+        "mgold/elm-random-pcg": "4.0.2 <= v < 5.0.0",
+        "rtfeldman/node-test-runner": "3.0.0 <= v < 4.0.0"
     },
     "elm-version": "0.18.0 <= v < 0.19.0"
 }
