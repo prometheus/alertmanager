@@ -60,6 +60,11 @@ func (m *Matcher) String() string {
 	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 }
 
+// Allow fetching of regex for conversion to internal types
+func (m *Matcher) Regexp() *regexp.Regexp {
+	return m.re
+}
+
 // Matches returns whether the matcher matches the given string value.
 func (m *Matcher) Matches(s string) bool {
 	switch m.Type {
