@@ -88,7 +88,7 @@ type APIAlert struct {
 // AlertGroup is a list of alert blocks grouped by the same label set.
 type AlertGroup struct {
 	Labels   model.LabelSet `json:"labels"`
-	GroupKey uint64         `json:"groupKey"`
+	GroupKey string         `json:"groupKey"`
 	Blocks   []*AlertBlock  `json:"blocks"`
 }
 
@@ -256,7 +256,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// If the group does not exist, create it.
 	ag, ok := groups[fp]
 	if !ok {
-		ag = newAggrGroup(d.ctx, group, &route.RouteOpts, d.timeout)
+		ag = newAggrGroup(d.ctx, group, route, d.timeout)
 		groups[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
@@ -275,10 +275,10 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 // common set of routing options applies.
 // It emits notifications in the specified intervals.
 type aggrGroup struct {
-	labels  model.LabelSet
-	opts    *RouteOpts
-	routeFP model.Fingerprint
-	log     log.Logger
+	labels   model.LabelSet
+	opts     *RouteOpts
+	log      log.Logger
+	routeKey string
 
 	ctx     context.Context
 	cancel  func()
@@ -292,15 +292,16 @@ type aggrGroup struct {
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts, to func(time.Duration) time.Duration) *aggrGroup {
+func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
 	ag := &aggrGroup{
-		labels:  labels,
-		opts:    opts,
-		timeout: to,
-		alerts:  map[model.Fingerprint]*types.Alert{},
+		labels:   labels,
+		routeKey: r.Key(),
+		opts:     &r.RouteOpts,
+		timeout:  to,
+		alerts:   map[model.Fingerprint]*types.Alert{},
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
@@ -313,8 +314,16 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, opts *RouteOpts, t
 	return ag
 }
 
+func (ag *aggrGroup) fingerprint() model.Fingerprint {
+	return ag.labels.Fingerprint()
+}
+
+func (ag *aggrGroup) GroupKey() string {
+	return fmt.Sprintf("%s:%s", ag.routeKey, ag.labels)
+}
+
 func (ag *aggrGroup) String() string {
-	return fmt.Sprint(ag.fingerprint())
+	return ag.GroupKey()
 }
 
 func (ag *aggrGroup) alertSlice() []*types.Alert {
@@ -348,7 +357,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithNow(ctx, now)
 
 			// Populate context with information needed along the pipeline.
-			ctx = notify.WithGroupKey(ctx, model.Fingerprint(ag.GroupKey()))
+			ctx = notify.WithGroupKey(ctx, ag.GroupKey())
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
@@ -375,14 +384,6 @@ func (ag *aggrGroup) stop() {
 	// and the run() loop.
 	ag.cancel()
 	<-ag.done
-}
-
-func (ag *aggrGroup) fingerprint() model.Fingerprint {
-	return ag.labels.Fingerprint()
-}
-
-func (ag *aggrGroup) GroupKey() uint64 {
-	return uint64(ag.labels.Fingerprint() ^ ag.routeFP)
 }
 
 // insert inserts the alert into the aggregation group. If the aggregation group

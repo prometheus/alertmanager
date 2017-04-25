@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	re      = regexp.MustCompile(`(?:\s?)(\w+)(=|=~|!=|!~)\"((?:\W*|\w*)+)\"`)
+	re      = regexp.MustCompile(`(?:\s?)(\w+)(=|=~|!=|!~)(?:\"([^"=~!]+)\"|([^"=~!]+))`)
 	typeMap = map[string]labels.MatchType{
 		"=":  labels.MatchEqual,
 		"!=": labels.MatchNotEqual,
@@ -38,17 +38,9 @@ func Matchers(s string) ([]*labels.Matcher, error) {
 }
 
 func Matcher(s string) (*labels.Matcher, error) {
-	ms := re.FindStringSubmatch(s)
-	if len(ms) < 4 {
-		return nil, fmt.Errorf("bad matcher format")
-	}
-	var (
-		name           = ms[1]
-		value          = ms[3]
-		matchType, prs = typeMap[ms[2]]
-	)
-	if name == "" || value == "" || !prs {
-		return nil, fmt.Errorf("failed to parse")
+	name, value, matchType, err := Input(s)
+	if err != nil {
+		return nil, err
 	}
 
 	m, err := labels.NewMatcher(matchType, name, value)
@@ -56,4 +48,27 @@ func Matcher(s string) (*labels.Matcher, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func Input(s string) (name, value string, matchType labels.MatchType, err error) {
+	ms := re.FindStringSubmatch(s)
+	if len(ms) < 4 {
+		return "", "", labels.MatchEqual, fmt.Errorf("bad matcher format")
+	}
+
+	var prs bool
+	name = ms[1]
+	matchType, prs = typeMap[ms[2]]
+
+	if ms[3] != "" {
+		value = ms[3]
+	} else {
+		value = ms[4]
+	}
+
+	if name == "" || value == "" || !prs {
+		return "", "", labels.MatchEqual, fmt.Errorf("failed to parse")
+	}
+
+	return name, value, matchType, nil
 }
