@@ -115,6 +115,17 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultJiraConfig defines default values for Jira configurations.
+	DefaultJiraConfig = JiraConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Summary:     `{{ template "jira.default.summary" . }}`,
+		Description: `{{ template "jira.default.description" . }}`,
+		IssueType:   `Bug`,
+		Priority:    `Critical`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -391,4 +402,55 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+type JiraConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	Domain   string
+	User     string
+	Password Secret
+
+	Project     string                 `yaml:"project" json:"project"`
+	IssueType   string                 `yaml:"issueType" json:"issueType"`
+	Priority    string                 `yaml:"priority" json:"priority"`
+	Summary     string                 `yaml:"summary" json:"summary"`
+	Description string                 `yaml:"description" json:"description"`
+	Fields      map[string]interface{} `yaml:"fields" json:"fields"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultJiraConfig
+	type plain JiraConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.VSendResolved {
+		return fmt.Errorf("sending resolved notifications to Jira is not supported")
+	}
+	// Check API access fields
+	if c.Domain == "" {
+		return fmt.Errorf("missing domain in Jira config")
+	}
+	if c.User == "" {
+		return fmt.Errorf("missing user in Jira config")
+	}
+	if c.Password == "" {
+		return fmt.Errorf("missing password in Jira config")
+	}
+	// Check required issue fields
+	if c.Project == "" {
+		return fmt.Errorf("missing project in Jira config")
+	}
+	if c.IssueType == "" {
+		return fmt.Errorf("missing issue type in Jira config")
+	}
+	if c.Summary == "" {
+		return fmt.Errorf("missing summary in Jira config")
+	}
+	return checkOverflow(c.XXX, "Jira config")
 }
