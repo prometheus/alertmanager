@@ -130,6 +130,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.MatrixConfigs {
+		n := NewMatrix(c, tmpl)
+		add("matrix", i, n, c)
+	}
 	return integrations
 }
 
@@ -537,6 +541,77 @@ func (n *Slack) retry(statusCode int) (bool, error) {
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
 	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// matrixEvent is the event for sending a matrix notification.
+type matrixEvent struct {
+	MsgType       string `json:"msgtype"`
+	Body          string `json:"body"`
+	FormattedBody string `json:"formatted_body,omitempty"`
+	Format        string `json:"format,omitempty"`
+}
+
+// Matrix implements a Notifier for Matrix notifications.
+type Matrix struct {
+	conf *config.MatrixConfig
+	tmpl *template.Template
+}
+
+// NewMatrix returns a new Matrix notification handler.
+func NewMatrix(conf *config.MatrixConfig, tmpl *template.Template) *Matrix {
+	return &Matrix{
+		conf: conf,
+		tmpl: tmpl,
+	}
+}
+
+// Notify implements the Notifier interface.
+func (n *Matrix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var (
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+		tmplHTML = tmplHTML(n.tmpl, data, &err)
+		url      = fmt.Sprintf("https://matrix.org/_matrix/client/r0/rooms/%s/send/m.room.message/m%d.1?access_token=%s", n.conf.RoomID, time.Now().Unix(), n.conf.AccessToken)
+	)
+
+	event := &matrixEvent{
+		MsgType:       "m.text",
+		Body:          tmplText(n.conf.Text),
+		FormattedBody: tmplHTML(n.conf.HTML),
+	}
+	if event.FormattedBody != "" {
+		event.Format = "org.matrix.custom.html"
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(event); err != nil {
+		return false, err
+	}
+
+	req, errNew := http.NewRequest("PUT", url, &buf)
+	if errNew != nil {
+		return false, errNew
+	}
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Matrix) retry(statusCode int) (bool, error) {
+	// Matrix responds with a 200 response code on a successful
+	// request and 5xx response codes are assumed to be recoverable.
+	// http://matrix.org/docs/spec/client_server/r0.2.0.html#put-matrix-client-r0-rooms-roomid-send-eventtype-txnid
+	if statusCode != 200 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
 

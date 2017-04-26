@@ -115,6 +115,14 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	DefaultMatrixConfig = MatrixConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Text: `{{ template "matrix.default.text" . }}`,
+		HTML: `{{ template "matrix.default.html" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -229,6 +237,37 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	return checkOverflow(c.XXX, "slack config")
+}
+
+type MatrixConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	AccessToken string `yaml:"access_token" json:"access_token"`
+	RoomID      string `yaml:"room_id" json:"room_id"`
+
+	Text string `yaml:"text" json:"text"`
+	HTML string `yaml:"html" json:"html"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *MatrixConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMatrixConfig
+	type plain MatrixConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.RoomID == "" {
+		return fmt.Errorf("missing room id in Matrix config")
+	}
+
+	if c.AccessToken == "" {
+		return fmt.Errorf("missing access token in Matrix config")
+	}
+
+	return checkOverflow(c.XXX, "matrix config")
 }
 
 // HipchatConfig configures notifications via Hipchat.
