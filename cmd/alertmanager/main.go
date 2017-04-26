@@ -249,7 +249,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := route.New(nil)
+	router := route.New()
 
 	webReload := make(chan struct{})
 	ui.Register(router.WithPrefix(amURL.Path), webReload)
