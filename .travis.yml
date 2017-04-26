@@ -5,10 +5,10 @@ services:
   - docker
 
 go:
-- 1.7.3
+- 1.8.1
 
 before_install:
-- docker build -t elm-env ui/.
+- docker build --no-cache -t elm-env ui/.
 
 script:
 - make
