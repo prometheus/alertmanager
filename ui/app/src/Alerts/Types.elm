@@ -4,10 +4,12 @@ import Utils.Types exposing (Labels)
 import Time exposing (Time)
 
 
+-- TODO: Revive inhibited field
+
+
 type alias Alert =
     { annotations : Labels
     , labels : Labels
-    , inhibited : Bool
     , silenceId : Maybe String
     , silenced : Bool
     , startsAt : Time

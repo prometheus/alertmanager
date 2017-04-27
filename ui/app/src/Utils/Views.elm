@@ -6,15 +6,20 @@ import Html.Events exposing (onCheck, onInput, onClick)
 import Http exposing (Error(..))
 
 
-onClickMsgButton : String -> msg -> Html msg
-onClickMsgButton content msg =
-    a [ class "f6 link br1 ba mr1 mb2 dib light-silver hover-black ph3 pv2", onClick msg ]
-        [ text content ]
+labelButton : Maybe msg -> ( String, String ) -> Html msg
+labelButton maybeMsg ( key, value ) =
+    let
+        label =
+            [ span [ class " badge badge-warning" ]
+                [ i [] [], text (key ++ "=" ++ value) ]
+            ]
+    in
+        case maybeMsg of
+            Nothing ->
+                span [ class "pl-2" ] label
 
-
-labelButton : ( String, String ) -> Html msg
-labelButton ( key, value ) =
-    listButton "light-silver hover-black ph3 pv2" ( key, value )
+            Just msg ->
+                span [ class "pl-2", onClick msg ] label
 
 
 listButton : String -> ( String, String ) -> Html msg
@@ -61,8 +66,8 @@ textField labelText content msg =
 
 buttonLink : String -> String -> String -> msg -> Html msg
 buttonLink icon link color msg =
-    a [ class <| "f6 link br1 ba mr1 ph3 pv2 mb2 dib " ++ color, href link, onClick msg ]
-        [ i [ class <| "fa fa-3 " ++ icon ] []
+    a [ class <| "" ++ color, href link, onClick msg ]
+        [ i [ class <| "" ++ icon ] []
         ]
 
 

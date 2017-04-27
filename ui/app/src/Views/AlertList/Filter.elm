@@ -1,52 +1,30 @@
-module Views.AlertList.Filter exposing (receiver, silenced, matchers)
+module Views.AlertList.Filter exposing (silenced, matchers)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block)
 import Utils.Types exposing (Matchers)
-import Utils.Filter exposing (Matcher, MatchOperator(Eq, NotEq, RegexMatch, NotRegexMatch))
 import Regex exposing (regex, contains)
 
 
-receiver : Maybe Matcher -> List AlertGroup -> List AlertGroup
-receiver maybeReceiver groups =
-    case maybeReceiver of
-        Just { key, op, value } ->
-            case op of
-                Eq ->
-                    by (filterAlertGroup ((==) value)) groups
-
-                RegexMatch ->
-                    by (filterAlertGroup ((regex >> contains) value)) groups
-
-                NotEq ->
-                    by (filterAlertGroup ((/=) value)) groups
-
-                NotRegexMatch ->
-                    by (filterAlertGroup (((regex >> contains) value) >> not)) groups
-
-        Nothing ->
-            groups
-
-
 matchers : Maybe Utils.Types.Matchers -> List AlertGroup -> List AlertGroup
-matchers matchers groups =
+matchers matchers alerts =
     case matchers of
         Just ms ->
-            by (filterAlertGroupLabels ms) groups
+            by (filterAlertGroupLabels ms) alerts
 
         Nothing ->
-            groups
+            alerts
 
 
-silenced : Maybe Bool -> List AlertGroup -> List AlertGroup
-silenced maybeShowSilenced groups =
+silenced : Maybe Bool -> List Alert -> List Alert
+silenced maybeShowSilenced alerts =
     let
         showSilenced =
             Maybe.withDefault False maybeShowSilenced
     in
         if showSilenced then
-            groups
+            alerts
         else
-            by alertGroupsSilenced groups
+            List.filter (.silenced >> not) alerts
 
 
 filterAlertGroup : (String -> Bool) -> AlertGroup -> Maybe AlertGroup

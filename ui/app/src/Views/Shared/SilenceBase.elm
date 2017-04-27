@@ -33,9 +33,9 @@ view silence =
                     [ text alertName ]
                 ]
             , div [ class "mb1" ]
-                [ buttonLink "fa-pencil" editUrl "blue" Noop
-                , buttonLink "fa-trash-o" "#/silences" "dark-red" (MsgForSilenceList (DestroySilence silence))
-                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.timeFormat silence.endsAt ]
+                [ buttonLink "fa fa-pencil" editUrl "blue" Noop
+                , buttonLink "fa fa-trash-o" "#/silences" "dark-red" (MsgForSilenceList (DestroySilence silence))
+                , p [ class "dib mr2" ] [ text <| "Until " ++ Utils.Date.dateTimeFormat silence.endsAt ]
                 ]
             , div [ class "mb2 w-80-l w-100-m" ] (List.map matcherButton silence.matchers)
             ]

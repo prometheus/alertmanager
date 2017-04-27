@@ -15,13 +15,13 @@ update msg model =
         FetchSilence id ->
             ( model, getSilence id (SilenceFetched >> MsgForSilence) )
 
-        AlertGroupsPreview alertGroups ->
+        AlertGroupsPreview alerts ->
             case model.silence of
                 Success silence ->
                     ( { model
                         | silence =
                             Success
-                                { silence | silencedAlertGroups = alertGroups }
+                                { silence | silencedAlerts = alerts }
                       }
                     , Cmd.none
                     )
@@ -31,9 +31,9 @@ update msg model =
 
         SilenceFetched (Success silence) ->
             ( { model
-                | silence = Success { silence | silencedAlertGroups = Loading }
+                | silence = Success { silence | silencedAlerts = Loading }
               }
-            , Alerts.Api.alertGroups
+            , Alerts.Api.fetchAlerts
                 ({ nullFilter | text = Just (Utils.List.mjoin silence.matchers) })
                 |> Cmd.map (AlertGroupsPreview >> MsgForSilence)
             )

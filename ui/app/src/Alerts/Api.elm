@@ -7,13 +7,13 @@ import Utils.Types exposing (ApiData)
 import Utils.Filter exposing (Filter, generateQueryString)
 
 
-alertGroups : Filter -> Cmd (ApiData (List AlertGroup))
-alertGroups filter =
+fetchAlerts : Filter -> Cmd (ApiData (List Alert))
+fetchAlerts filter =
     let
         url =
-            String.join "/" [ baseUrl, "alerts", "groups" ++ (generateQueryString filter) ]
+            String.join "/" [ baseUrl, "alerts" ++ (generateQueryString filter) ]
     in
-        Utils.Api.send (Utils.Api.get url alertGroupsDecoder)
+        Utils.Api.send (Utils.Api.get url alertsDecoder)
 
 
 
@@ -22,22 +22,9 @@ alertGroups filter =
 -- re-use the silence decoder.
 
 
-alertGroupsDecoder : Json.Decoder (List AlertGroup)
-alertGroupsDecoder =
-    Json.at [ "data" ] (Json.list alertGroupDecoder)
-
-
-alertGroupDecoder : Json.Decoder AlertGroup
-alertGroupDecoder =
-    Json.map2 AlertGroup
-        (decodeBlocks)
-        (Json.at [ "labels" ] (Json.keyValuePairs Json.string))
-
-
-decodeBlocks : Json.Decoder (List Block)
-decodeBlocks =
-    Json.maybe (field "blocks" (Json.list blockDecoder))
-        |> andThen (unwrapWithDefault [])
+alertsDecoder : Json.Decoder (List Alert)
+alertsDecoder =
+    Json.at [ "data" ] (Json.list alertDecoder)
 
 
 unwrapWithDefault : a -> Maybe a -> Json.Decoder a
@@ -50,25 +37,11 @@ unwrapWithDefault default val =
             Json.succeed default
 
 
-blockDecoder : Json.Decoder Block
-blockDecoder =
-    Json.map2 Block
-        (field "alerts" <| Json.list alertDecoder)
-        (field "routeOpts" routeOptsDecoder)
-
-
-routeOptsDecoder : Json.Decoder RouteOpts
-routeOptsDecoder =
-    Json.map RouteOpts
-        (field "receiver" Json.string)
-
-
 alertDecoder : Json.Decoder Alert
 alertDecoder =
-    Json.map7 Alert
+    Json.map6 Alert
         (Json.maybe (field "annotations" (Json.keyValuePairs Json.string)) |> andThen (unwrapWithDefault []))
         (field "labels" (Json.keyValuePairs Json.string))
-        (field "inhibited" Json.bool)
         (Json.maybe (field "silenced" Json.string))
         (decodeSilenced)
         (field "startsAt" iso8601Time)

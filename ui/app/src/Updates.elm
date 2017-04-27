@@ -13,9 +13,8 @@ import Utils.Types
         ( ApiResponse(Loading, Failure, Success)
         , Matcher
         )
-import Utils.Filter exposing (nullFilter)
 import Views.AlertList.Updates
-import Views.AlertList.Types exposing (AlertListMsg(FetchAlertGroups))
+import Views.AlertList.Types exposing (AlertListMsg(FetchAlerts))
 import Views.Silence.Types exposing (SilenceMsg(SilenceFetched, InitSilenceView))
 import Views.SilenceList.Types exposing (SilenceListMsg(FetchSilences))
 import Views.Silence.Updates
@@ -43,7 +42,7 @@ update msg model =
         NavigateToAlerts filter ->
             let
                 ( alertList, cmd ) =
-                    Views.AlertList.Updates.update FetchAlertGroups model.alertList filter
+                    Views.AlertList.Updates.update FetchAlerts model.alertList filter
             in
                 ( { model | alertList = alertList, route = AlertsRoute filter, filter = filter }, cmd )
 

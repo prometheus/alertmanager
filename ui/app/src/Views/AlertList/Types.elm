@@ -1,13 +1,13 @@
 module Views.AlertList.Types exposing (AlertListMsg(..), Model, initAlertList)
 
 import Utils.Types exposing (ApiData, ApiResponse(Loading))
-import Alerts.Types exposing (Alert, AlertGroup)
+import Alerts.Types exposing (Alert)
 import Utils.Filter exposing (Filter)
 
 
 type AlertListMsg
-    = AlertGroupsFetch (ApiData (List AlertGroup))
-    | FetchAlertGroups
+    = AlertsFetched (ApiData (List Alert))
+    | FetchAlerts
     | AddFilterMatcher Bool Utils.Filter.Matcher
     | DeleteFilterMatcher Bool Utils.Filter.Matcher
     | PressingBackspace Bool
@@ -25,7 +25,7 @@ proceed to deleting the next matcher.
 
 -}
 type alias Model =
-    { alertGroups : ApiData (List AlertGroup)
+    { alerts : ApiData (List Alert)
     , matchers : List Utils.Filter.Matcher
     , backspacePressed : Bool
     , matcherText : String
@@ -34,7 +34,7 @@ type alias Model =
 
 initAlertList : Model
 initAlertList =
-    { alertGroups = Loading
+    { alerts = Loading
     , matchers = []
     , backspacePressed = False
     , matcherText = ""

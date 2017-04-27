@@ -11,7 +11,7 @@ module Views.SilenceForm.Types
         )
 
 import Silences.Types exposing (Silence, SilenceId)
-import Alerts.Types exposing (AlertGroup)
+import Alerts.Types exposing (Alert)
 import Utils.Types exposing (Matcher, ApiData, Duration, ApiResponse(..))
 import Time exposing (Time)
 import Utils.Date exposing (timeToString, timeFromString, durationFormat)
@@ -35,7 +35,7 @@ toSilence { createdBy, comment, startsAt, endsAt, matchers } =
             , endsAt = parsedEndsAt
 
             {- ignored -}
-            , silencedAlertGroups = Success []
+            , silencedAlerts = Success []
 
             {- ignored -}
             , updatedAt = 0
@@ -105,7 +105,7 @@ type SilenceFormMsg
     = UpdateField SilenceFormFieldMsg
     | CreateSilence Silence
     | PreviewSilence Silence
-    | AlertGroupsPreview (ApiData (List AlertGroup))
+    | AlertGroupsPreview (ApiData (List Alert))
     | FetchSilence String
     | NewSilenceFromMatchers (List Matcher)
     | NewSilenceFromMatchersAndTime (List Matcher) Time
