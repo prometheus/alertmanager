@@ -37,7 +37,7 @@ func (m *Matcher) Init() error {
 	if !m.IsRegex {
 		return nil
 	}
-	re, err := regexp.Compile(m.Value)
+	re, err := regexp.Compile("^(?:" + m.Value + ")$")
 	if err == nil {
 		m.regex = re
 	}
