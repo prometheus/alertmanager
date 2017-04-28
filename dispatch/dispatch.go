@@ -81,9 +81,9 @@ type AlertBlock struct {
 type APIAlert struct {
 	*model.Alert
 
-	Status      types.AlertState
-	InhibitedBy []string `json:"inhibitedBy"`
-	SilencedBy  []string `json:"silencedBy"`
+	Status      types.AlertState `json:"status"`
+	InhibitedBy []string         `json:"inhibitedBy"`
+	SilencedBy  []string         `json:"silencedBy"`
 }
 
 // AlertGroup is a list of alert blocks grouped by the same label set.
