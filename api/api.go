@@ -80,21 +80,24 @@ type API struct {
 	uptime         time.Time
 	mrouter        *mesh.Router
 
-	groups groupsFn
+	groups         groupsFn
+	getAlertStatus getAlertStatusFn
 
 	mtx sync.RWMutex
 }
 
 type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
+type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
 
 // New returns a new API.
-func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, router *mesh.Router) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, sf getAlertStatusFn, router *mesh.Router) *API {
 	return &API{
-		alerts:   alerts,
-		silences: silences,
-		groups:   gf,
-		uptime:   time.Now(),
-		mrouter:  router,
+		alerts:         alerts,
+		silences:       silences,
+		groups:         gf,
+		getAlertStatus: sf,
+		uptime:         time.Now(),
+		mrouter:        router,
 	}
 }
 
@@ -242,20 +245,55 @@ func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
 	respond(w, groups)
 }
 
+type APIAlert struct {
+	*model.Alert
+
+	Status      types.AlertState `json:"status"`
+	InhibitedBy []string         `json:"inhibitedBy"`
+	SilencedBy  []string         `json:"silencedBy"`
+}
+
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
+	var (
+		err error
+		res []*APIAlert
+	)
+
+	matchers := []*labels.Matcher{}
+	if filter := r.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
-	var (
-		err error
-		res []*types.Alert
-	)
 	// TODO(fabxc): enforce a sensible timeout.
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
 			break
 		}
-		res = append(res, a)
+
+		if !alertMatchesFilterLabels(&a.Alert, matchers) {
+			continue
+		}
+
+		status := api.getAlertStatus(a.Fingerprint())
+
+		apiAlert := &APIAlert{
+			Alert:       &a.Alert,
+			Status:      status.Status,
+			SilencedBy:  status.SilencedBy,
+			InhibitedBy: status.InhibitedBy,
+		}
+
+		res = append(res, apiAlert)
 	}
 
 	if err != nil {
@@ -265,7 +303,17 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
-	respond(w, types.Alerts(res...))
+	respond(w, res)
+}
+
+func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {
+	for _, m := range matchers {
+		if v, prs := a.Labels[model.LabelName(m.Name)]; !prs || !m.Matches(string(v)) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {

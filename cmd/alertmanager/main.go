@@ -184,9 +184,15 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(alerts, silences, func(matchers []*labels.Matcher) dispatch.AlertOverview {
-		return disp.Groups(matchers)
-	}, mrouter)
+	apiv := api.New(
+		alerts,
+		silences,
+		func(matchers []*labels.Matcher) dispatch.AlertOverview {
+			return disp.Groups(matchers)
+		},
+		marker.Status,
+		mrouter,
+	)
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
