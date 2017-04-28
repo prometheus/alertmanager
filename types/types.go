@@ -109,8 +109,7 @@ type memMarker struct {
 
 // SetSilenced sets the AlertStatus to suppressed and stores the associated silence IDs.
 func (m *memMarker) SetSilenced(alert model.Fingerprint, ids ...string) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+	m.mtx.Lock()
 
 	s, found := m.m[alert]
 	if !found {
@@ -122,18 +121,20 @@ func (m *memMarker) SetSilenced(alert model.Fingerprint, ids ...string) {
 	// fingerprint, it is suppressed. Otherwise, set it to
 	// AlertStateUnprocessed.
 	if len(ids) == 0 && len(s.InhibitedBy) == 0 {
+		m.mtx.Unlock()
 		m.SetActive(alert)
 		return
 	}
 
 	s.Status = AlertStateSuppressed
 	s.SilencedBy = ids
+
+	m.mtx.Unlock()
 }
 
 // SetInhibited sets the AlertStatus to suppressed and stores the associated alert IDs.
 func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+	m.mtx.Lock()
 
 	s, found := m.m[alert]
 	if !found {
@@ -145,16 +146,19 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 	// fingerprint, it is suppressed. Otherwise, set it to
 	// AlertStateUnprocessed.
 	if len(ids) == 0 && len(s.SilencedBy) == 0 {
+		m.mtx.Unlock()
 		m.SetActive(alert)
 		return
 	}
 
 	s.Status = AlertStateSuppressed
 	s.InhibitedBy = ids
+
+	m.mtx.Unlock()
 }
 func (m *memMarker) SetActive(alert model.Fingerprint) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	s, found := m.m[alert]
 	if !found {
@@ -175,7 +179,6 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 	s, found := m.m[alert]
 	if !found {
 		s = &AlertStatus{}
-		m.m[alert] = s
 	}
 
 	return *s
@@ -183,8 +186,8 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 
 // Delete deletes the given Fingerprint from the internal cache.
 func (m *memMarker) Delete(alert model.Fingerprint) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
 	delete(m.m, alert)
 }
