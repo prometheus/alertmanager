@@ -26,7 +26,6 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -83,9 +82,7 @@ type API struct {
 
 	groups groupsFn
 
-	// context is an indirection for testing.
-	context func(r *http.Request) context.Context
-	mtx     sync.RWMutex
+	mtx sync.RWMutex
 }
 
 type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
@@ -93,7 +90,6 @@ type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
 // New returns a new API.
 func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, router *mesh.Router) *API {
 	return &API{
-		context:  route.Context,
 		alerts:   alerts,
 		silences: silences,
 		groups:   gf,
@@ -412,7 +408,7 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
-	sid := route.Param(api.context(r), "sid")
+	sid := route.Param(r.Context(), "sid")
 
 	sils, err := api.silences.Query(silence.QIDs(sid))
 	if err != nil || len(sils) == 0 {
@@ -432,7 +428,7 @@ func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
-	sid := route.Param(api.context(r), "sid")
+	sid := route.Param(r.Context(), "sid")
 
 	if err := api.silences.Expire(sid); err != nil {
 		respondError(w, apiError{

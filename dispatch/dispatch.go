@@ -81,8 +81,9 @@ type AlertBlock struct {
 type APIAlert struct {
 	*model.Alert
 
-	Inhibited bool   `json:"inhibited"`
-	Silenced  string `json:"silenced,omitempty"`
+	Status      types.AlertState
+	InhibitedBy []string `json:"inhibitedBy"`
+	SilencedBy  []string `json:"silencedBy"`
 }
 
 // AlertGroup is a list of alert blocks grouped by the same label set.
@@ -135,18 +136,18 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 					continue
 				}
+				status := d.marker.Status(a.Fingerprint())
 				aa := &APIAlert{
-					Alert:     a,
-					Inhibited: d.marker.Inhibited(a.Fingerprint()),
+					Alert:       a,
+					Status:      status.Status,
+					SilencedBy:  status.SilencedBy,
+					InhibitedBy: status.InhibitedBy,
 				}
 
 				if !matchesFilterLabels(aa, matchers) {
 					continue
 				}
 
-				if sid, ok := d.marker.Silenced(a.Fingerprint()); ok {
-					aa.Silenced = sid
-				}
 				apiAlerts = append(apiAlerts, aa)
 			}
 			if len(apiAlerts) == 0 {

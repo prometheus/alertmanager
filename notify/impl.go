@@ -987,5 +987,5 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 func hashKey(s string) string {
 	h := sha256.New()
 	h.Write([]byte(s))
-	return string(h.Sum(nil))
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
