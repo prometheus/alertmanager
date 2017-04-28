@@ -14,6 +14,8 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -52,21 +54,24 @@ import (
 )
 
 var (
+	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_config_hash",
+		Help: "Hash of the currently loaded alertmanager configuration.",
+	})
 	configSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "alertmanager",
-		Name:      "config_last_reload_successful",
-		Help:      "Whether the last configuration reload attempt was successful.",
+		Name: "alertmanager_config_last_reload_successful",
+		Help: "Whether the last configuration reload attempt was successful.",
 	})
 	configSuccessTime = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "alertmanager",
-		Name:      "config_last_reload_success_timestamp_seconds",
-		Help:      "Timestamp of the last successful configuration reload.",
+		Name: "alertmanager_config_last_reload_success_timestamp_seconds",
+		Help: "Timestamp of the last successful configuration reload.",
 	})
 )
 
 func init() {
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
+	prometheus.MustRegister(configHash)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -165,7 +170,7 @@ func main() {
 
 	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
-	alerts, err := mem.NewAlerts(*dataDir)
+	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -196,6 +201,7 @@ func main() {
 		return d + waitFunc()
 	}
 
+	var hash float64
 	reload := func() (err error) {
 		log.With("file", *configFile).Infof("Loading configuration file")
 		defer func() {
@@ -205,6 +211,7 @@ func main() {
 			} else {
 				configSuccess.Set(1)
 				configSuccessTime.Set(float64(time.Now().Unix()))
+				configHash.Set(hash)
 			}
 		}()
 
@@ -212,6 +219,8 @@ func main() {
 		if err != nil {
 			return err
 		}
+
+		hash = md5HashAsMetricValue([]byte(conf.String()))
 
 		err = apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
 		if err != nil {
@@ -249,7 +258,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := route.New(nil)
+	router := route.New()
 
 	webReload := make(chan struct{})
 	ui.Register(router.WithPrefix(amURL.Path), webReload)
@@ -426,4 +435,13 @@ func mustHostname() string {
 		panic(err)
 	}
 	return hostname
+}
+
+func md5HashAsMetricValue(data []byte) float64 {
+	sum := md5.Sum(data)
+	// We only want 48 bits as a float64 only has a 53 bit mantissa.
+	smallSum := sum[0:6]
+	var bytes = make([]byte, 8)
+	copy(bytes, smallSum)
+	return float64(binary.LittleEndian.Uint64(bytes))
 }
