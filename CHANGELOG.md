@@ -1,3 +1,9 @@
+## v0.6.1 / 2017-04-28
+
+- [BUGFIX] Fix incorrectly serialized hash for notification providers.
+- [ENHANCEMENT] Add config hash metric.
+- [ENHANCEMENT] Add processing status field to alerts.
+
 ## v0.6.0 / 2017-04-25
 
 - [BUGFIX] Add `groupKey` to `alerts/groups` endpoint https://github.com/prometheus/alertmanager/pull/576
