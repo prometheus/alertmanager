@@ -26,7 +26,7 @@ currentView : Model -> Html Msg
 currentView model =
     case model.route of
         StatusRoute ->
-            Status.view model
+            Status.view model.status
 
         SilenceRoute silenceId ->
             Silence.view model
