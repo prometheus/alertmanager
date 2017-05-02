@@ -130,17 +130,16 @@ func main() {
 	wg.Add(1)
 
 	notificationLogOpts := []nflog.Option{
-		nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
-			return mrouter.NewGossip("nflog", g)
-		}),
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
 		nflog.WithLogger(logger.With("component", "nflog")),
 	}
-	if *meshListen == "" {
-		notificationLogOpts = append(notificationLogOpts[:0], notificationLogOpts[1:]...)
+	if *meshListen != "" {
+		notificationLogOpts = append(notificationLogOpts, nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
+			return mrouter.NewGossip("nflog", g)
+		}))
 	}
 	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
