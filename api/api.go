@@ -256,10 +256,12 @@ type APIAlert struct {
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	var (
 		err error
-		res []*APIAlert
+		// Initialize result slice to prevent api returning `null` when there
+		// are no alerts present
+		res      = []*APIAlert{}
+		matchers = []*labels.Matcher{}
 	)
 
-	matchers := []*labels.Matcher{}
 	if filter := r.FormValue("filter"); filter != "" {
 		matchers, err = parse.Matchers(filter)
 		if err != nil {
