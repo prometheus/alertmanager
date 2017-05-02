@@ -129,7 +129,7 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	notificationLog, err := nflog.New(
+	notificationLogOpts := []nflog.Option{
 		nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
 			return mrouter.NewGossip("nflog", g)
 		}),
@@ -138,22 +138,29 @@ func main() {
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
 		nflog.WithLogger(logger.With("component", "nflog")),
-	)
+	}
+	if *meshListen == "" {
+		notificationLogOpts = append(notificationLogOpts[:0], notificationLogOpts[1:]...)
+	}
+	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	marker := types.NewMarker()
 
-	silences, err := silence.New(silence.Options{
+	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
 		Logger:       logger.With("component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
-		Gossip: func(g mesh.Gossiper) mesh.Gossip {
+	}
+	if *meshListen != "" {
+		silenceOpts.Gossip = func(g mesh.Gossiper) mesh.Gossip {
 			return mrouter.NewGossip("silences", g)
-		},
-	})
+		}
+	}
+	silences, err := silence.New(silenceOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
