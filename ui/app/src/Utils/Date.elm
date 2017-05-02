@@ -5,6 +5,9 @@ import Parser exposing (Parser, (|.), (|=))
 import Time
 import Utils.Types as Types
 import Tuple
+import Date
+import Date.Extra.Format
+import Date.Extra.Config.Config_en_us exposing (config)
 
 
 parseDuration : String -> Maybe Time.Time
@@ -62,14 +65,19 @@ durationFormat time =
         |> String.trim
 
 
-dateFormat : ISO8601.Time -> String
-dateFormat t =
-    String.join "/" <| List.map toString [ ISO8601.year t, ISO8601.month t, ISO8601.day t ]
+dateFormat : Time.Time -> String
+dateFormat =
+    Date.fromTime >> (Date.Extra.Format.format config Date.Extra.Format.isoDateFormat)
 
 
 timeFormat : Time.Time -> String
 timeFormat =
-    round >> ISO8601.fromTime >> dateFormat
+    Date.fromTime >> (Date.Extra.Format.format config Date.Extra.Format.isoTimeFormat)
+
+
+dateTimeFormat : Time.Time -> String
+dateTimeFormat t =
+    (dateFormat t) ++ " " ++ (timeFormat t)
 
 
 encode : Time.Time -> String

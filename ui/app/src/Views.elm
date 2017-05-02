@@ -17,7 +17,7 @@ view : Model -> Html Msg
 view model =
     div []
         [ navBar model.route
-        , div [ class "container" ]
+        , div [ class "container pb-4" ]
             [ currentView model ]
         ]
 

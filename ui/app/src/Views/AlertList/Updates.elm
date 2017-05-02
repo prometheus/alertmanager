@@ -27,18 +27,18 @@ immediatelyFilter filter model =
 update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
 update msg model filter =
     case msg of
-        AlertGroupsFetch alertGroups ->
-            ( { model | alertGroups = alertGroups }, Cmd.none )
+        AlertsFetched listOfAlerts ->
+            ( { model | alerts = listOfAlerts }, Cmd.none )
 
-        FetchAlertGroups ->
+        FetchAlerts ->
             ( { model
                 | matchers =
                     filter.text
                         |> Maybe.andThen parseFilter
                         |> Maybe.withDefault []
-                , alertGroups = Loading
+                , alerts = Loading
               }
-            , Api.alertGroups filter |> Cmd.map (AlertGroupsFetch >> MsgForAlertList)
+            , Api.fetchAlerts filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
             )
 
         AddFilterMatcher emptyMatcherText matcher ->

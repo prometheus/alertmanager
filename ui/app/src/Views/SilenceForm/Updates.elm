@@ -152,8 +152,8 @@ update msg model =
             ( model, Cmd.none )
 
         PreviewSilence silence ->
-            ( { model | silence = Ok { silence | silencedAlertGroups = Loading } }
-            , Alerts.Api.alertGroups
+            ( { model | silence = Ok { silence | silencedAlerts = Loading } }
+            , Alerts.Api.fetchAlerts
                 { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
                 |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
             )
@@ -161,7 +161,7 @@ update msg model =
         AlertGroupsPreview alertGroups ->
             case model.silence of
                 Ok sil ->
-                    ( { model | silence = Ok { sil | silencedAlertGroups = alertGroups } }
+                    ( { model | silence = Ok { sil | silencedAlerts = alertGroups } }
                     , Cmd.none
                     )
 

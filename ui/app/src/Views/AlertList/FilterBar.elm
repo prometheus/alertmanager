@@ -113,7 +113,7 @@ view matchers matcherText backspacePressed =
             maybeMatcher == Nothing
     in
         div
-            [ class "row no-gutters align-items-start" ]
+            [ class "row no-gutters align-items-start pb-4" ]
             (viewMatchers matchers
                 ++ [ div
                         [ class ("col form-group " ++ className)

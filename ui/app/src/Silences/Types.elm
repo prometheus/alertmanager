@@ -1,6 +1,6 @@
 module Silences.Types exposing (Silence, nullSilence, nullMatcher, nullTime, SilenceId)
 
-import Alerts.Types exposing (AlertGroup)
+import Alerts.Types exposing (Alert)
 import Utils.Types exposing (Matcher, ApiData, ApiResponse(Success))
 import Time exposing (Time)
 
@@ -14,7 +14,7 @@ nullSilence =
     , endsAt = 0
     , updatedAt = 0
     , matchers = [ nullMatcher ]
-    , silencedAlertGroups = Success []
+    , silencedAlerts = Success []
     }
 
 
@@ -36,7 +36,7 @@ type alias Silence =
     , endsAt : Time
     , updatedAt : Time
     , matchers : List Matcher
-    , silencedAlertGroups : ApiData (List AlertGroup)
+    , silencedAlerts : ApiData (List Alert)
     }
 
 
