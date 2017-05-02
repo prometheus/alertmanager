@@ -87,7 +87,7 @@ func main() {
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
-		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
+		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable")
 		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
 		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
 		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
@@ -119,9 +119,7 @@ func main() {
 	logger := log.NewLogger(os.Stderr)
 
 	var mrouter *mesh.Router
-	if *meshListen == "" {
-		mrouter = initMesh(*flag.String("flag-name", "0.0.0.0:0", "flag-msg"), *hwaddr, *nickname, *password)
-	} else {
+	if *meshListen != "" {
 		mrouter = initMesh(*meshListen, *hwaddr, *nickname, *password)
 	}
 
@@ -174,6 +172,7 @@ func main() {
 	// Disable mesh if empty string passed for mesh.listen-address flag
 	if *meshListen != "" {
 		mrouter.Start()
+		mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 	}
 
 	defer func() {
@@ -182,8 +181,6 @@ func main() {
 		mrouter.Stop()
 		wg.Wait()
 	}()
-
-	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
 	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
 	if err != nil {
