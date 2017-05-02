@@ -34,8 +34,9 @@ currentView model =
         AlertsRoute filter ->
             AlertList.view model.alertList filter
 
-        SilenceListRoute route ->
-            SilenceList.view model.silences model.silence model.currentTime model.filter
+        SilenceListRoute filter ->
+            -- Is this filter needed???
+            SilenceList.view model.silences model.currentTime
 
         SilenceFormNewRoute keep ->
             SilenceForm.view Nothing model.silenceForm |> Html.map MsgForSilenceForm
