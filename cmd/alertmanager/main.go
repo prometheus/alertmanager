@@ -117,7 +117,13 @@ func main() {
 	}
 
 	logger := log.NewLogger(os.Stderr)
-	mrouter := initMesh(*meshListen, *hwaddr, *nickname, *password)
+
+	var mrouter *mesh.Router
+	if *meshListen == "" {
+		mrouter = initMesh(*flag.String("flag-name", "0.0.0.0:0", "flag-msg"), *hwaddr, *nickname, *password)
+	} else {
+		mrouter = initMesh(*meshListen, *hwaddr, *nickname, *password)
+	}
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
@@ -159,7 +165,10 @@ func main() {
 		wg.Done()
 	}()
 
-	mrouter.Start()
+	// Disable mesh if empty string passed for mesh.listen-address flag
+	if *meshListen != "" {
+		mrouter.Start()
+	}
 
 	defer func() {
 		close(stopc)
