@@ -53,10 +53,10 @@ receivers:
 	expected := "cannot have continue in root route"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%v", expected)
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
 	}
 	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
 
 }
