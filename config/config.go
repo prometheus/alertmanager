@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"encoding/json"
+
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 )
@@ -49,6 +50,10 @@ func Load(s string) (*Config, error) {
 	// (e.g. the config file is empty or only contains whitespace).
 	if cfg.Route == nil {
 		return nil, errors.New("no route provided in config")
+	}
+
+	if cfg.Route.Continue {
+		return nil, errors.New("cannot have continue in root route")
 	}
 
 	cfg.original = s
