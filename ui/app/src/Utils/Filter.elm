@@ -43,12 +43,21 @@ generateQueryString : Filter -> String
 generateQueryString { receiver, showSilenced, text } =
     -- TODO: Re-add receiver once it is parsed on the server side.
     [ ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
-    , ( "filter", text )
+    , ( "filter", emptyToNothing text )
     ]
-        |> List.filter (Tuple.second >> Maybe.withDefault "" >> String.isEmpty >> not)
         |> List.filterMap (uncurry generateQueryParam)
         |> String.join "&"
         |> (++) "?"
+
+
+emptyToNothing : Maybe String -> Maybe String
+emptyToNothing str =
+    case str of
+        Just "" ->
+            Nothing
+
+        _ ->
+            str
 
 
 type alias Matcher =
