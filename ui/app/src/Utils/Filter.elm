@@ -45,6 +45,7 @@ generateQueryString { receiver, showSilenced, text } =
     [ ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
     , ( "filter", text )
     ]
+        |> List.filter (Tuple.second >> Maybe.withDefault "" >> String.isEmpty >> not)
         |> List.filterMap (uncurry generateQueryParam)
         |> String.join "&"
         |> (++) "?"
