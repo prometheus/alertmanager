@@ -46,8 +46,7 @@ Alerts Resolved:
 {{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
 
 
-{{ define "victorops.default.state_message" }}{{ template "__alertmanager" . }}: {{ template "__alertmanagerURL" . }}
-
+{{ define "victorops.default.state_message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 -}}
 Alerts Firing:
 {{ template "__text_alert_list" .Alerts.Firing }}
