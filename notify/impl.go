@@ -777,10 +777,11 @@ const (
 )
 
 type victorOpsMessage struct {
-	MessageType    string `json:"message_type"`
-	EntityID       string `json:"entity_id"`
-	StateMessage   string `json:"state_message"`
-	MonitoringTool string `json:"monitoring_tool"`
+	MessageType       string `json:"message_type"`
+	EntityID          string `json:"entity_id"`
+	EntityDisplayName string `json:"entity_display_name"`
+	StateMessage      string `json:"state_message"`
+	MonitoringTool    string `json:"monitoring_tool"`
 }
 
 type victorOpsErrorResponse struct {
@@ -819,10 +820,11 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	}
 
 	msg := &victorOpsMessage{
-		MessageType:    messageType,
-		EntityID:       hashKey(key),
-		StateMessage:   tmpl(n.conf.StateMessage),
-		MonitoringTool: tmpl(n.conf.MonitoringTool),
+		MessageType:       messageType,
+		EntityID:          hashKey(key),
+		EntityDisplayName: tmpl(n.conf.EntityDisplayName),
+		StateMessage:      tmpl(n.conf.StateMessage),
+		MonitoringTool:    tmpl(n.conf.MonitoringTool),
 	}
 
 	if err != nil {
