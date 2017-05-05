@@ -68,7 +68,7 @@ labelButton ( key, value ) =
                     [ i [] [], text value ]
                 ]
         else
-            Utils.Views.labelButton (Just msg) ( key, value )
+            Utils.Views.labelButton (Just msg) (key ++ "=" ++ value)
 
 
 silenceButton : Alert -> Html Msg

@@ -6,7 +6,7 @@ import Silences.Types exposing (Silence)
 import Types exposing (Msg(Noop, MsgForSilenceList))
 import Views.SilenceList.Types exposing (SilenceListMsg(DestroySilence, MsgForFilterBar))
 import Utils.Date
-import Utils.Views exposing (buttonLink, onClickMsgButton)
+import Utils.Views exposing (buttonLink)
 import Utils.Types exposing (Matcher)
 import Utils.Filter
 import Utils.List
@@ -51,9 +51,8 @@ matcherButton matcher =
                 Utils.Filter.RegexMatch
             else
                 Utils.Filter.Eq
-    in
-        onClickMsgButton
-            (Utils.List.mstring matcher)
+
+        msg =
             (FilterBarTypes.AddFilterMatcher False
                 { key = matcher.name
                 , op = op
@@ -62,3 +61,5 @@ matcherButton matcher =
                 |> MsgForFilterBar
                 |> MsgForSilenceList
             )
+    in
+        Utils.Views.labelButton (Just msg) (Utils.List.mstring matcher)
