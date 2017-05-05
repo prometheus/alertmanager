@@ -41,13 +41,20 @@ generateQueryParam name =
 
 generateQueryString : Filter -> String
 generateQueryString { receiver, showSilenced, text } =
-    -- TODO: Re-add receiver once it is parsed on the server side.
-    [ ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
-    , ( "filter", emptyToNothing text )
-    ]
-        |> List.filterMap (uncurry generateQueryParam)
-        |> String.join "&"
-        |> (++) "?"
+    let
+        -- TODO: Re-add receiver once it is parsed on the server side.
+        parts =
+            [ ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
+            , ( "filter", emptyToNothing text )
+            ]
+                |> List.filterMap (uncurry generateQueryParam)
+    in
+        if List.length parts > 0 then
+            parts
+                |> String.join "&"
+                |> (++) "?"
+        else
+            ""
 
 
 emptyToNothing : Maybe String -> Maybe String

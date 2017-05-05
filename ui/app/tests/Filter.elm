@@ -40,11 +40,11 @@ generateQueryString =
     describe "generateQueryString"
         [ test "should not render keys with Nothing value" <|
             \() ->
-                Expect.equal "?"
+                Expect.equal ""
                     (Utils.Filter.generateQueryString { receiver = Nothing, text = Nothing, showSilenced = Nothing })
         , test "should not render filter key with empty value" <|
             \() ->
-                Expect.equal "?"
+                Expect.equal ""
                     (Utils.Filter.generateQueryString { receiver = Nothing, text = Just "", showSilenced = Nothing })
         , test "should render filter key with values" <|
             \() ->
