@@ -48,10 +48,10 @@ update msg model =
 
         NavigateToSilenceList filter ->
             let
-                ( silences, silence, cmd ) =
-                    Views.SilenceList.Updates.update FetchSilences model.silences model.silence filter
+                ( silenceList, silence, cmd ) =
+                    Views.SilenceList.Updates.update FetchSilences model.silenceList model.silence filter
             in
-                ( { model | silence = silence, silences = silences, route = SilenceListRoute filter, filter = filter }
+                ( { model | silence = silence, silenceList = silenceList, route = SilenceListRoute filter, filter = filter }
                 , cmd
                 )
 
@@ -116,10 +116,10 @@ update msg model =
 
         MsgForSilenceList msg ->
             let
-                ( silences, silence, cmd ) =
-                    Views.SilenceList.Updates.update msg model.silences model.silence model.filter
+                ( silenceList, silence, cmd ) =
+                    Views.SilenceList.Updates.update msg model.silenceList model.silence model.filter
             in
-                ( { model | silences = silences, silence = silence }, cmd )
+                ( { model | silenceList = silenceList, silence = silence }, cmd )
 
         MsgForSilence msg ->
             Views.Silence.Updates.update msg model

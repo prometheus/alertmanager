@@ -13,7 +13,7 @@ import Time
 
 
 type alias Model =
-    { silences : SilenceList.Model
+    { silenceList : SilenceList.Model
     , silence : ApiData Silence
     , silenceForm : SilenceForm.Model
     , alertList : AlertList.Model

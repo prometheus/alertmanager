@@ -141,10 +141,15 @@ view { matchers, matcherText, backspacePressed } =
                             [ text "Custom matcher, e.g."
                             , button
                                 [ class "btn btn-link btn-sm align-baseline"
-                                , onClick (UpdateMatcherText "env=\"production\"")
+                                , onClick (UpdateMatcherText exampleMatcher)
                                 ]
-                                [ text "env=\"production\"" ]
+                                [ text exampleMatcher ]
                             ]
                         ]
                    ]
             )
+
+
+exampleMatcher : String
+exampleMatcher =
+    "env=\"production\""
