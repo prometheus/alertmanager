@@ -50,6 +50,10 @@ generateQueryString =
             \() ->
                 Expect.equal "?filter=%7Bfoo%3D%22bar%22%2C%20baz%3D~%22quux.*%22%7D"
                     (Utils.Filter.generateQueryString { receiver = Nothing, text = Just "{foo=\"bar\", baz=~\"quux.*\"}", showSilenced = Nothing })
+        , test "should render silenced key with bool" <|
+            \() ->
+                Expect.equal "?silenced=true"
+                    (Utils.Filter.generateQueryString { receiver = Nothing, text = Nothing, showSilenced = Just True })
         ]
 
 
