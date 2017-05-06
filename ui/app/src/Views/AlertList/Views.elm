@@ -12,14 +12,16 @@ import Utils.Views exposing (buttonLink, listButton)
 import Views.AlertList.AlertView as AlertView
 import Views.AlertList.Filter exposing (silenced, matchers)
 import Utils.Views exposing (buttonLink, listButton)
-import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar), Model)
+import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForAutoComplete), Model)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
+import Views.AutoComplete.Views as AutoComplete
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, filterBar } filter =
+view { alerts, autoComplete, filterBar } filter =
     div []
         [ Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
+        , Html.map (MsgForAutoComplete >> MsgForAlertList) (AutoComplete.view autoComplete)
         , case alerts of
             Success groups ->
                 alertList groups filter

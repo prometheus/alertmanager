@@ -10,6 +10,7 @@ import Types exposing (Msg(MsgForAlertList, Noop))
 import Dom
 import Task
 import Set
+import Views.AutoComplete.Updates as AutoComplete
 
 
 update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
@@ -18,18 +19,22 @@ update msg model filter =
         AlertsFetched listOfAlerts ->
             ( { model
                 | alerts = listOfAlerts
-                , labelKeys =
+                , autoComplete =
                     case listOfAlerts of
                         Success alerts ->
-                            List.concatMap .labels alerts
-                                |> List.map Tuple.first
-                                |> Set.fromList
+                            { list =
+                                List.concatMap .labels alerts
+                                    |> List.map Tuple.first
+                                    |> Set.fromList
+                            , fieldText = ""
+                            , fields = []
+                            }
 
                         Loading ->
-                            model.labelKeys
+                            model.autoComplete
 
                         Failure _ ->
-                            model.labelKeys
+                            model.autoComplete
               }
             , Cmd.none
             )
@@ -48,3 +53,10 @@ update msg model filter =
                     FilterBar.update "/#/alerts" filter msg model.filterBar
             in
                 ( { model | filterBar = filterBar }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
+
+        MsgForAutoComplete msg ->
+            let
+                ( autoComplete, cmd ) =
+                    AutoComplete.update msg model.autoComplete
+            in
+                ( { model | autoComplete = autoComplete }, Cmd.map (MsgForAutoComplete >> MsgForAlertList) cmd )
