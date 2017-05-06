@@ -7,6 +7,7 @@ type alias Model =
     { list : Set String
     , fieldText : String
     , fields : List String
+    , matches : List String
     }
 
 
@@ -23,4 +24,5 @@ initAutoComplete =
     { list = Set.empty
     , fieldText = ""
     , fields = []
+    , matches = []
     }

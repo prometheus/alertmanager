@@ -124,7 +124,7 @@ view { matchers, matcherText, backspacePressed } =
                         ]
                         [ div [ class "input-group" ]
                             [ input
-                                [ id "custom-matcher"
+                                [ id "filter-bar-matcher"
                                 , class "form-control"
                                 , value matcherText
                                 , onKeydown

@@ -57,7 +57,7 @@ immediatelyFilter url filter model =
         ( model
         , Cmd.batch
             [ Navigation.newUrl (url ++ generateQueryString newFilter)
-            , Dom.focus "custom-matcher" |> Task.attempt (always Noop)
+            , Dom.focus "filter-bar-matcher" |> Task.attempt (always Noop)
             ]
         )
 

@@ -28,6 +28,7 @@ update msg model filter =
                                     |> Set.fromList
                             , fieldText = ""
                             , fields = []
+                            , matches = []
                             }
 
                         Loading ->
