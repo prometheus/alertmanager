@@ -5,17 +5,34 @@ import Views.AlertList.Types exposing (AlertListMsg(..), Model)
 import Views.FilterBar.Updates as FilterBar
 import Navigation
 import Utils.Filter exposing (Filter, parseFilter)
-import Utils.Types exposing (ApiData, ApiResponse(Loading))
+import Utils.Types exposing (ApiData, ApiResponse(Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Dom
 import Task
+import Set
 
 
 update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
 update msg model filter =
     case msg of
         AlertsFetched listOfAlerts ->
-            ( { model | alerts = listOfAlerts }, Cmd.none )
+            ( { model
+                | alerts = listOfAlerts
+                , labelKeys =
+                    case listOfAlerts of
+                        Success alerts ->
+                            List.concatMap .labels alerts
+                                |> List.map Tuple.first
+                                |> Set.fromList
+
+                        Loading ->
+                            model.labelKeys
+
+                        Failure _ ->
+                            model.labelKeys
+              }
+            , Cmd.none
+            )
 
         FetchAlerts ->
             ( { model
