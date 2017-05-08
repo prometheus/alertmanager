@@ -1,11 +1,10 @@
-module Views.AlertList.FilterBar exposing (view)
+module Views.FilterBar.Views exposing (view)
 
 import Html exposing (Html, Attribute, div, span, input, text, button, i, small)
 import Html.Attributes exposing (value, class, style, disabled, id)
 import Html.Events exposing (onClick, onInput, on, keyCode)
 import Utils.Filter exposing (Matcher)
-import Views.AlertList.Types exposing (AlertListMsg(AddFilterMatcher, DeleteFilterMatcher, PressingBackspace, UpdateMatcherText))
-import Types exposing (Msg(MsgForAlertList, Noop))
+import Views.FilterBar.Types exposing (Msg(..), Model)
 import Json.Decode as Json
 
 
@@ -25,13 +24,13 @@ viewMatcher matcher =
         [ div [ class "btn-group" ]
             [ button
                 [ class "btn btn-outline-info"
-                , onClick (DeleteFilterMatcher True matcher |> MsgForAlertList)
+                , onClick (DeleteFilterMatcher True matcher)
                 ]
                 [ text <| Utils.Filter.stringifyMatcher matcher
                 ]
             , button
                 [ class "btn btn-outline-danger"
-                , onClick (DeleteFilterMatcher False matcher |> MsgForAlertList)
+                , onClick (DeleteFilterMatcher False matcher)
                 ]
                 [ text "×" ]
             ]
@@ -63,8 +62,8 @@ onKey event key msg =
         )
 
 
-view : List Matcher -> String -> Bool -> Html Msg
-view matchers matcherText backspacePressed =
+view : Model -> Html Msg
+view { matchers, matcherText, backspacePressed } =
     let
         className =
             if matcherText == "" then
@@ -88,24 +87,24 @@ view matchers matcherText backspacePressed =
 
                     ( "", False ) ->
                         lastElem matchers
-                            |> Maybe.map (DeleteFilterMatcher True >> MsgForAlertList)
+                            |> Maybe.map (DeleteFilterMatcher True)
                             |> Maybe.withDefault Noop
 
                     _ ->
-                        PressingBackspace True |> MsgForAlertList
+                        PressingBackspace True
 
         onKeypress =
             maybeMatcher
-                |> Maybe.map (AddFilterMatcher True >> MsgForAlertList)
+                |> Maybe.map (AddFilterMatcher True)
                 |> Maybe.withDefault Noop
                 |> onKey "keypress" keys.enter
 
         onKeyup =
-            onKey "keyup" keys.backspace (PressingBackspace False |> MsgForAlertList)
+            onKey "keyup" keys.backspace (PressingBackspace False)
 
         onClickAttr =
             maybeMatcher
-                |> Maybe.map (AddFilterMatcher True >> MsgForAlertList)
+                |> Maybe.map (AddFilterMatcher True)
                 |> Maybe.withDefault Noop
                 |> onClick
 
@@ -131,7 +130,7 @@ view matchers matcherText backspacePressed =
                                 , onKeydown
                                 , onKeyup
                                 , onKeypress
-                                , onInput (UpdateMatcherText >> MsgForAlertList)
+                                , onInput (UpdateMatcherText)
                                 ]
                                 []
                             , span
@@ -142,10 +141,15 @@ view matchers matcherText backspacePressed =
                             [ text "Custom matcher, e.g."
                             , button
                                 [ class "btn btn-link btn-sm align-baseline"
-                                , onClick (UpdateMatcherText "env=\"production\"" |> MsgForAlertList)
+                                , onClick (UpdateMatcherText exampleMatcher)
                                 ]
-                                [ text "env=\"production\"" ]
+                                [ text exampleMatcher ]
                             ]
                         ]
                    ]
             )
+
+
+exampleMatcher : String
+exampleMatcher =
+    "env=\"production\""

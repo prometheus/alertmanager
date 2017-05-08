@@ -6,7 +6,8 @@ import Html.Attributes exposing (class, style, href)
 import Html.Events exposing (onClick)
 import Types exposing (Msg(CreateSilenceFromAlert, Noop, MsgForAlertList))
 import Utils.Date
-import Views.AlertList.Types exposing (AlertListMsg(AddFilterMatcher))
+import Views.FilterBar.Types as FilterBarTypes
+import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar))
 import Utils.Views exposing (buttonLink)
 import Utils.Filter
 import Time exposing (Time)
@@ -51,12 +52,14 @@ labelButton : ( String, String ) -> Html Msg
 labelButton ( key, value ) =
     let
         msg =
-            AddFilterMatcher False
+            (FilterBarTypes.AddFilterMatcher False
                 { key = key
                 , op = Utils.Filter.Eq
                 , value = value
                 }
+                |> MsgForFilterBar
                 |> MsgForAlertList
+            )
     in
         -- Hide "alertname" key if label is the alertname label
         if key == "alertname" then
@@ -65,7 +68,7 @@ labelButton ( key, value ) =
                     [ i [] [], text value ]
                 ]
         else
-            Utils.Views.labelButton (Just msg) ( key, value )
+            Utils.Views.labelButton (Just msg) (key ++ "=" ++ value)
 
 
 silenceButton : Alert -> Html Msg

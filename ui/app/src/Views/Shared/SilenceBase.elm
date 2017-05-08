@@ -4,11 +4,13 @@ import Html exposing (Html, div, a, p, text, b)
 import Html.Attributes exposing (class, href)
 import Silences.Types exposing (Silence)
 import Types exposing (Msg(Noop, MsgForSilenceList))
-import Views.SilenceList.Types exposing (SilenceListMsg(DestroySilence))
+import Views.SilenceList.Types exposing (SilenceListMsg(DestroySilence, MsgForFilterBar))
 import Utils.Date
 import Utils.Views exposing (buttonLink)
 import Utils.Types exposing (Matcher)
+import Utils.Filter
 import Utils.List
+import Views.FilterBar.Types as FilterBarTypes
 
 
 view : Silence -> Html Msg
@@ -41,6 +43,23 @@ view silence =
             ]
 
 
-matcherButton : Matcher -> Html msg
+matcherButton : Matcher -> Html Msg
 matcherButton matcher =
-    Utils.Views.button "light-silver hover-black ph3 pv2" <| Utils.List.mstring matcher
+    let
+        op =
+            if matcher.isRegex then
+                Utils.Filter.RegexMatch
+            else
+                Utils.Filter.Eq
+
+        msg =
+            (FilterBarTypes.AddFilterMatcher False
+                { key = matcher.name
+                , op = op
+                , value = matcher.value
+                }
+                |> MsgForFilterBar
+                |> MsgForSilenceList
+            )
+    in
+        Utils.Views.labelButton (Just msg) (Utils.List.mstring matcher)

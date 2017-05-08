@@ -9,4 +9,8 @@ import Utils.Views exposing (labelButton)
 view : Alert -> Html msg
 view alert =
     li [ class "mb2 w-80-l w-100-m" ] <|
-        List.map (labelButton Nothing) alert.labels
+        List.map
+            (\( key, value ) ->
+                labelButton Nothing (key ++ "=" ++ value)
+            )
+            alert.labels
