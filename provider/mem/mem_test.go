@@ -169,8 +169,8 @@ func TestAlertsGC(t *testing.T) {
 		}
 
 		s := marker.Status(a.Fingerprint())
-		if s.Status != types.AlertStateUnprocessed {
-			t.Errorf("marker %d didn't get GC'd", i)
+		if s.State != types.AlertStateUnprocessed {
+			t.Errorf("marker %d didn't get GC'd: %v", i, s)
 		}
 	}
 }

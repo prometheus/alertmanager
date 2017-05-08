@@ -14,7 +14,6 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -24,58 +23,19 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-type AlertState uint8
+type AlertState string
 
 const (
-	AlertStateUnprocessed AlertState = iota
-	AlertStateActive
-	AlertStateSuppressed
+	AlertStateUnprocessed AlertState = "unprocessed"
+	AlertStateActive                 = "active"
+	AlertStateSuppressed             = "suppressed"
 )
 
 // AlertStatus stores the state and values associated with an Alert.
 type AlertStatus struct {
-	Status      AlertState
-	SilencedBy  []string
-	InhibitedBy []string
-}
-
-// Save an allocation when serializing an empty string slice.
-var emptyVals = []string{}
-
-// MarshalJSON implements the json.Marshaler interface.
-func (a *AlertStatus) MarshalJSON() ([]byte, error) {
-	silencedBy := a.SilencedBy
-	if silencedBy == nil {
-		silencedBy = emptyVals
-	}
-	inhibitedBy := a.InhibitedBy
-	if inhibitedBy == nil {
-		inhibitedBy = emptyVals
-	}
-	return json.Marshal(map[string]interface{}{
-		"status":      a.Status,
-		"silencedBy":  silencedBy,
-		"inhibitedBy": inhibitedBy,
-	})
-}
-
-// Save an allocation when serializing the unknown response.
-const unknown = "unknown"
-
-// MarshalJSON implements the json.Marshaler interface.
-func (s AlertState) MarshalJSON() ([]byte, error) {
-	status, found := statusMap[s]
-	if !found {
-		status = unknown
-	}
-
-	return json.Marshal(status)
-}
-
-var statusMap = map[AlertState]string{
-	AlertStateUnprocessed: "unprocessed",
-	AlertStateActive:      "active",
-	AlertStateSuppressed:  "suppressed",
+	State       AlertState `json:"state"`
+	SilencedBy  []string   `json:"silencedBy"`
+	InhibitedBy []string   `json:"inhibitedBy"`
 }
 
 // Marker helps to mark alerts as silenced and/or inhibited.
@@ -126,7 +86,7 @@ func (m *memMarker) SetSilenced(alert model.Fingerprint, ids ...string) {
 		return
 	}
 
-	s.Status = AlertStateSuppressed
+	s.State = AlertStateSuppressed
 	s.SilencedBy = ids
 
 	m.mtx.Unlock()
@@ -151,22 +111,26 @@ func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
 		return
 	}
 
-	s.Status = AlertStateSuppressed
+	s.State = AlertStateSuppressed
 	s.InhibitedBy = ids
 
 	m.mtx.Unlock()
 }
+
 func (m *memMarker) SetActive(alert model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
 	s, found := m.m[alert]
 	if !found {
-		s = &AlertStatus{}
+		s = &AlertStatus{
+			SilencedBy:  []string{},
+			InhibitedBy: []string{},
+		}
 		m.m[alert] = s
 	}
 
-	s.Status = AlertStateActive
+	s.State = AlertStateActive
 	s.SilencedBy = []string{}
 	s.InhibitedBy = []string{}
 }
@@ -178,9 +142,12 @@ func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
 
 	s, found := m.m[alert]
 	if !found {
-		s = &AlertStatus{}
+		s = &AlertStatus{
+			State:       AlertStateUnprocessed,
+			SilencedBy:  []string{},
+			InhibitedBy: []string{},
+		}
 	}
-
 	return *s
 }
 
@@ -195,13 +162,13 @@ func (m *memMarker) Delete(alert model.Fingerprint) {
 // Unprocessed returns whether the alert for the given Fingerprint is in the
 // Unprocessed state.
 func (m *memMarker) Unprocessed(alert model.Fingerprint) bool {
-	return m.Status(alert).Status == AlertStateUnprocessed
+	return m.Status(alert).State == AlertStateUnprocessed
 }
 
 // Active returns whether the alert for the given Fingerprint is in the Active
 // state.
 func (m *memMarker) Active(alert model.Fingerprint) bool {
-	return m.Status(alert).Status == AlertStateActive
+	return m.Status(alert).State == AlertStateActive
 }
 
 // Inhibited returns whether the alert for the given Fingerprint is in the
@@ -209,7 +176,7 @@ func (m *memMarker) Active(alert model.Fingerprint) bool {
 func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
 	s := m.Status(alert)
 	return s.InhibitedBy,
-		s.Status == AlertStateSuppressed && len(s.InhibitedBy) > 0
+		s.State == AlertStateSuppressed && len(s.InhibitedBy) > 0
 }
 
 // Silenced returns whether the alert for the given Fingerprint is in the
@@ -217,7 +184,7 @@ func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
 func (m *memMarker) Silenced(alert model.Fingerprint) ([]string, bool) {
 	s := m.Status(alert)
 	return s.SilencedBy,
-		s.Status == AlertStateSuppressed && len(s.SilencedBy) > 0
+		s.State == AlertStateSuppressed && len(s.SilencedBy) > 0
 }
 
 // MultiError contains multiple errors and implements the error interface. Its
