@@ -4,28 +4,37 @@ import Views.AutoComplete.Types exposing (Msg(..), Model)
 import Html exposing (Html, Attribute, div, span, input, text, button, i, small, ul, li, a)
 import Html.Attributes exposing (value, class, style, disabled, id, href)
 import Html.Events exposing (onClick, onInput, on, keyCode)
+import Set
 
 
 view : Model -> Html Msg
 view { list, fieldText, fields, matches } =
     let
-        className =
-            "has-success"
-
         isDisabled =
-            False
+            (list
+                |> Set.toList
+                |> List.member fieldText
+                |> not
+            )
+                || (List.member fieldText fields)
 
         -- TODO: Interacting with autocomplete box
-        -- * Clicking autocomplete suggestion
         -- * Scrolling with keyboard
         -- * Scrolling with keyboard + hitting enter
-        -- * Creating autocomplete box
         -- TODO: Text needs to match one autocomplete field exactly
-        onClickAttr =
-            Just fieldText
-                |> Maybe.map (AddField True)
-                |> Maybe.withDefault Noop
-                |> onClick
+        onClickMsg =
+            if isDisabled then
+                Noop
+            else
+                AddField True fieldText
+
+        className =
+            if String.isEmpty fieldText then
+                ""
+            else if isDisabled then
+                "has-danger"
+            else
+                "has-success"
     in
         div
             [ class "row no-gutters align-items-start pb-4" ]
@@ -48,7 +57,7 @@ view { list, fieldText, fields, matches } =
                                 []
                             , span
                                 [ class "input-group-btn" ]
-                                [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "Add" ] ]
+                                [ button [ class "btn btn-primary", disabled isDisabled, onClick onClickMsg ] [ text "Add" ] ]
                             ]
                         , small [ class "form-text text-muted" ]
                             [ text "Label keys for grouping alerts"
