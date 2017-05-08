@@ -503,7 +503,7 @@ func (re *Regexp) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-func (re *Regexp) MarshalJSON() ([]byte, error) {
+func (re Regexp) MarshalJSON() ([]byte, error) {
 	if re.Regexp != nil {
 		return json.Marshal(re.String())
 	}
