@@ -6,12 +6,12 @@ import Html.Events exposing (onCheck, onInput, onClick)
 import Http exposing (Error(..))
 
 
-labelButton : Maybe msg -> ( String, String ) -> Html msg
-labelButton maybeMsg ( key, value ) =
+labelButton : Maybe msg -> String -> Html msg
+labelButton maybeMsg labelText =
     let
         label =
             [ span [ class " badge badge-warning" ]
-                [ i [] [], text (key ++ "=" ++ value) ]
+                [ i [] [], text labelText ]
             ]
     in
         case maybeMsg of

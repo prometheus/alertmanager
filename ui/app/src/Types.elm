@@ -2,7 +2,7 @@ module Types exposing (Model, Msg(..), Route(..))
 
 import Alerts.Types exposing (AlertGroup, Alert)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
-import Views.SilenceList.Types exposing (SilenceListMsg)
+import Views.SilenceList.Types as SilenceList exposing (SilenceListMsg)
 import Views.Silence.Types exposing (SilenceMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.Status.Types exposing (StatusModel, StatusMsg)
@@ -13,7 +13,7 @@ import Time
 
 
 type alias Model =
-    { silences : ApiData (List Silence)
+    { silenceList : SilenceList.Model
     , silence : ApiData Silence
     , silenceForm : SilenceForm.Model
     , alertList : AlertList.Model

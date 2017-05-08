@@ -1,7 +1,7 @@
 module Views.SilenceList.Updates exposing (..)
 
 import Silences.Api as Api
-import Views.SilenceList.Types exposing (SilenceListMsg(..))
+import Views.SilenceList.Types exposing (SilenceListMsg(..), Model)
 import Silences.Types exposing (Silence, nullSilence, nullMatcher)
 import Navigation
 import Task
@@ -9,28 +9,39 @@ import Utils.Types as Types exposing (ApiData, ApiResponse(Failure, Loading, Suc
 import Time
 import Types exposing (Msg(UpdateCurrentTime, MsgForSilenceList), Route(SilenceListRoute))
 import Utils.Filter exposing (Filter, generateQueryString)
+import Views.FilterBar.Updates as FilterBar
 
 
-update : SilenceListMsg -> ApiData (List Silence) -> ApiData Silence -> Filter -> ( ApiData (List Silence), ApiData Silence, Cmd Types.Msg )
-update msg silences silence filter =
+update : SilenceListMsg -> Model -> ApiData Silence -> Filter -> ( Model, ApiData Silence, Cmd Types.Msg )
+update msg model silence filter =
     case msg of
         SilencesFetch sils ->
-            ( sils, silence, Task.perform UpdateCurrentTime Time.now )
+            ( { model | silences = sils }, silence, Task.perform UpdateCurrentTime Time.now )
 
         FetchSilences ->
-            ( silences, silence, Api.getSilences filter (SilencesFetch >> MsgForSilenceList) )
+            ( { model
+                | filterBar = FilterBar.setMatchers filter model.filterBar
+                , silences = Loading
+              }
+            , silence
+            , Api.getSilences filter (SilencesFetch >> MsgForSilenceList)
+            )
 
         DestroySilence silence ->
-            ( silences, Loading, Api.destroy silence (SilenceDestroy >> MsgForSilenceList) )
+            ( model, Loading, Api.destroy silence (SilenceDestroy >> MsgForSilenceList) )
 
         SilenceDestroy silence ->
             -- TODO: "Deleted id: ID" growl
             -- TODO: Add DELETE to accepted CORS methods in alertmanager
             -- TODO: Check why POST isn't there but is accepted
-            ( silences, Loading, Navigation.newUrl "/#/silences" )
+            ( model, Loading, Navigation.newUrl "/#/silences" )
 
-        FilterSilences ->
-            ( silences, silence, Navigation.newUrl ("/#/silences" ++ generateQueryString filter) )
+        MsgForFilterBar msg ->
+            let
+                ( filterBar, cmd ) =
+                    FilterBar.update "/#/silences" filter msg model.filterBar
+            in
+                ( { model | filterBar = filterBar }, silence, Cmd.map (MsgForFilterBar >> MsgForSilenceList) cmd )
 
 
 urlUpdate : Maybe String -> ( SilenceListMsg, Filter )

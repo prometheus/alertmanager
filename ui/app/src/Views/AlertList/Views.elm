@@ -5,18 +5,21 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Utils.Filter exposing (Filter)
+import Views.FilterBar.Views as FilterBar
+import Views.FilterBar.Types as FilterBarTypes
 import Utils.Types exposing (ApiResponse(Success, Loading, Failure))
 import Utils.Views exposing (buttonLink, listButton)
 import Views.AlertList.AlertView as AlertView
 import Views.AlertList.Filter exposing (silenced, matchers)
-import Views.AlertList.FilterBar
-import Views.AlertList.Types exposing (AlertListMsg(AddFilterMatcher), Model)
+import Utils.Views exposing (buttonLink, listButton)
+import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar), Model)
+import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, matchers, matcherText, backspacePressed } filter =
+view { alerts, filterBar } filter =
     div []
-        [ Views.AlertList.FilterBar.view matchers matcherText backspacePressed
+        [ Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
         , case alerts of
             Success groups ->
                 alertList groups filter
