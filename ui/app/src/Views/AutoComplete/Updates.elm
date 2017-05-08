@@ -59,7 +59,7 @@ updateAutoComplete model =
                 -- there are no spaces.
                 -- TODO: How many matches do we want to show?
                 Set.toList model.list
-                    |> List.sortBy (levenshteinFromStrings model.fieldText)
+                    |> List.sortBy (levenshteinFromStrings False model.fieldText)
                     |> List.take 10
       }
     , Cmd.batch
