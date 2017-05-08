@@ -48,12 +48,12 @@ jaro s1 s2 =
                 toFloat ml / toFloat l2
 
             mtm =
-                if ml == 0 then
-                    0
-                else
-                    (toFloat ml - t) / toFloat ml
+                (toFloat ml - t) / toFloat ml
         in
-            (1 / 3) * (ml1 + ml2 + mtm)
+            if ml == 0 then
+                0
+            else
+                (1 / 3) * (ml1 + ml2 + mtm)
 
 
 winkler : String -> String -> Float -> Float
