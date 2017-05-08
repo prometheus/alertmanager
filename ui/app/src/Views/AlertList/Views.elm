@@ -72,12 +72,12 @@ alertList : Labels -> List Alert -> Filter -> Html Msg
 alertList labels alerts filter =
     (List.map
         (\( key, value ) ->
-            li [] [ text (key ++ ":" ++ value) ]
+            span [ class "badge badge-info mr-1 mb-1" ] [ text (key ++ ":" ++ value) ]
         )
         labels
     )
         ++ [ if List.isEmpty alerts then
-                div [ class "mt2" ] [ text "no alerts found" ]
+                div [] [ text "no alerts found" ]
              else
                 ul [ class "list-group" ] (List.map AlertView.view alerts)
            ]

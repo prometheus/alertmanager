@@ -53,7 +53,7 @@ view { list, fieldText, fields, matches } =
                         , small [ class "form-text text-muted" ]
                             [ text "Label keys for grouping alerts"
                             ]
-                        , ul [ class "list-group" ] (matchedFields matches)
+                        , div [ class "autocomplete-menu list-group" ] (matchedFields matches)
                         ]
                    ]
             )
@@ -67,8 +67,8 @@ matchedFields fields =
 
 matchedField : String -> Html Msg
 matchedField field =
-    li
-        [ class "list-group-item"
+    button
+        [ class "list-group-item list-group-item-action"
         , onClick (AddField True field)
         ]
         [ text field ]
