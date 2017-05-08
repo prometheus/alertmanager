@@ -63,3 +63,8 @@ groupBy keyfn list =
         )
         Dict.empty
         list
+
+
+zip : List a -> List b -> List ( a, b )
+zip a b =
+    List.map2 (,) a b

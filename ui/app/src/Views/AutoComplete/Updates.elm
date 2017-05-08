@@ -1,7 +1,7 @@
 module Views.AutoComplete.Updates exposing (update)
 
 import Views.AutoComplete.Types exposing (Model, Msg(..))
-import Views.AutoComplete.Match exposing (levenshteinFromStrings)
+import Views.AutoComplete.Match exposing (jaroWinkler)
 import Task
 import Dom
 import Set
@@ -58,9 +58,13 @@ updateAutoComplete model =
                 -- TODO: Disallow adding spaces, or only check distance if
                 -- there are no spaces.
                 -- TODO: How many matches do we want to show?
+                -- NOTE: List.reverse is used because our scale is (0.0, 1.0),
+                -- but we want the higher values to be in the front of the
+                -- list.
                 Set.toList model.list
                     |> List.filter ((flip List.member model.fields) >> not)
-                    |> List.sortBy (levenshteinFromStrings False model.fieldText)
+                    |> List.sortBy (jaroWinkler model.fieldText)
+                    |> List.reverse
                     |> List.take 10
       }
     , Cmd.batch
