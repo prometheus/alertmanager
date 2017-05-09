@@ -43,7 +43,7 @@ jaro s1 s2 =
 
             t =
                 m
-                    |> List.map (transposition z2 >> toFloat >> (flip (/) 2.0))
+                    |> List.map (transposition z2 >> toFloat >> ((*) 0.5))
                     |> List.sum
 
             ml1 =
