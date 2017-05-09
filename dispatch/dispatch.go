@@ -80,10 +80,7 @@ type AlertBlock struct {
 // annotated with silencing and inhibition info.
 type APIAlert struct {
 	*model.Alert
-
-	Status      types.AlertState `json:"status"`
-	InhibitedBy []string         `json:"inhibitedBy"`
-	SilencedBy  []string         `json:"silencedBy"`
+	Status types.AlertStatus `json:"status"`
 }
 
 // AlertGroup is a list of alert blocks grouped by the same label set.
@@ -138,10 +135,8 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 				}
 				status := d.marker.Status(a.Fingerprint())
 				aa := &APIAlert{
-					Alert:       a,
-					Status:      status.Status,
-					SilencedBy:  status.SilencedBy,
-					InhibitedBy: status.InhibitedBy,
+					Alert:  a,
+					Status: status,
 				}
 
 				if !matchesFilterLabels(aa, matchers) {
