@@ -28,6 +28,10 @@ testJaroWinkler =
             \() ->
                 Expect.equal 1.0
                     (jaroWinkler "zone" "zone")
+        , test "should find the right values" <|
+            \() ->
+                Expect.greaterThan 0.688
+                    (jaroWinkler "atleio3tefdoisahdf" "attributefdoiashfoihfeowfh9w8f9afaw9fahw")
         ]
 
 

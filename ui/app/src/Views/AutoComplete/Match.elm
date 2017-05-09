@@ -124,14 +124,20 @@ cp l1 l2 acc =
 
 
 charMatch : Int -> List ( Int, Int ) -> ( Int, Int ) -> List ( Int, Int )
-charMatch far list ( p, q ) =
+charMatch matchRange list ( p, q ) =
     -- TODO(w0rm): Is there a way to define this so it's not so strictly bound
     -- to type Int?
-    list
-        |> List.filter
-            (\( x, y ) ->
-                x >= p - far && x <= p + far && y == q
-            )
+    let
+        sliced =
+            list
+                |> List.drop (p - matchRange)
+                |> List.take (p + matchRange)
+    in
+        sliced
+            |> List.filter
+                (\( x, y ) ->
+                    y == q
+                )
 
 
 transposition : List ( Int, Int ) -> ( Int, Int ) -> Int
