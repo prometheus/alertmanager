@@ -117,7 +117,10 @@ func main() {
 	}
 
 	logger := log.NewLogger(os.Stderr)
-	mrouter := initMesh(*meshListen, *hwaddr, *nickname, *password)
+	mrouter, err := initMesh(*meshListen, *hwaddr, *nickname, *password)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
@@ -125,7 +128,11 @@ func main() {
 
 	notificationLog, err := nflog.New(
 		nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
-			return mrouter.NewGossip("nflog", g)
+			res, err := mrouter.NewGossip("nflog", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
 		}),
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
@@ -145,7 +152,11 @@ func main() {
 		Logger:       logger.With("component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
 		Gossip: func(g mesh.Gossiper) mesh.Gossip {
-			return mrouter.NewGossip("silences", g)
+			res, err := mrouter.NewGossip("silences", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
 		},
 	})
 	if err != nil {
@@ -187,7 +198,7 @@ func main() {
 	apiv := api.New(alerts, silences, func(matchers []*labels.Matcher) dispatch.AlertOverview {
 		return disp.Groups(matchers)
 	}, mrouter)
-
+	q
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
 		log.Fatal(err)
@@ -322,7 +333,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func initMesh(addr, hwaddr, nickname, pw string) *mesh.Router {
+func initMesh(addr, hwaddr, nickname, pw string) (*mesh.Router, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 
 	if err != nil {
