@@ -40,7 +40,7 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
 		return
 	}
 
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	http.ServeContent(w, req, info.Name(), info.ModTime(), bytes.NewReader(file))
 }
 
