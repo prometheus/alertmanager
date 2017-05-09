@@ -52,6 +52,7 @@ func Load(s string) (*Config, error) {
 		return nil, errors.New("no route provided in config")
 	}
 
+	// Check if continue in root route.
 	if cfg.Route.Continue {
 		return nil, errors.New("cannot have continue in root route")
 	}
