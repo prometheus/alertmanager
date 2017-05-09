@@ -18,8 +18,12 @@ testJaroWinkler =
     describe "jaroWinkler"
         [ test "should find the right values" <|
             \() ->
-                Expect.greaterThan (jaroWinkler "z" "zone")
+                Expect.greaterThan (jaroWinkler "zi" "zone")
                     (jaroWinkler "zo" "zone")
+        , test "should find the right values" <|
+            \() ->
+                Expect.greaterThan (jaroWinkler "de" "alertname")
+                    (jaroWinkler "de" "dev")
         , test "should find the right values" <|
             \() ->
                 Expect.equal 0.0

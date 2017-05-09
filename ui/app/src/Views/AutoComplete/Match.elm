@@ -130,7 +130,7 @@ charMatch matchRange list ( p, q ) =
     let
         sliced =
             list
-                |> List.drop (p - matchRange)
+                |> List.drop (p - matchRange - 1)
                 |> List.take (p + matchRange)
     in
         sliced
