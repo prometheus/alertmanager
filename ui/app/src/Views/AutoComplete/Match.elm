@@ -25,7 +25,12 @@ jaro s1 s2 =
                     |> List.map (Tuple.mapSecond Char.toCode)
 
             searchLength =
-                ((max l1 l2) % 2)
+                -- A character must be within searchLength spaces of the
+                -- character we are matching against in order to be considered
+                -- a match.
+                -- (//) is integer division, which removes the need to floor
+                -- the result.
+                ((max l1 l2) // 2) - 1
 
             m =
                 zip (List.range 1 l1) (String.toList s1)
