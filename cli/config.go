@@ -74,12 +74,10 @@ func fetchConfig() (Config, error) {
 	}
 
 	defer res.Body.Close()
-	decoder := json.NewDecoder(res.Body)
 
-	err = decoder.Decode(&configResponse)
+	err = json.NewDecoder(res.Body).Decode(&configResponse)
 	if err != nil {
-		panic(err)
-		return Config{}, err
+		return configResponse.Data, err
 	}
 
 	if configResponse.Status != "success" {
