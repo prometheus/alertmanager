@@ -4,6 +4,24 @@ import Utils.Types exposing (Matchers, Matcher)
 import Dict exposing (Dict)
 
 
+nextElem : a -> List a -> Maybe a
+nextElem el list =
+    case list of
+        curr :: rest ->
+            if curr == el then
+                List.head rest
+            else
+                nextElem el rest
+
+        [] ->
+            Nothing
+
+
+lastElem : List a -> Maybe a
+lastElem =
+    List.foldl (Just >> always) Nothing
+
+
 replaceIf : (a -> Bool) -> a -> List a -> List a
 replaceIf predicate replacement list =
     List.map

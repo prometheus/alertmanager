@@ -24,11 +24,12 @@
              background: #f7f7f9;
          }
          .autocomplete-menu {
-             position:absolute;
-             top: 100%;
-             left: 0;
-             z-index: 1000;
-             float: left;
+             visibility: hidden;
+             /* allow to click the items immediately after blur */
+             transition: visibility 0s linear 0.5s;
+         }
+         .autocomplete-menu.show {
+             visibility: visible;
          }
         </style>
     </head>

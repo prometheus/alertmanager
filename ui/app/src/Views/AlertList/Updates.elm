@@ -3,14 +3,12 @@ module Views.AlertList.Updates exposing (..)
 import Alerts.Api as Api
 import Views.AlertList.Types exposing (AlertListMsg(..), Model)
 import Views.FilterBar.Updates as FilterBar
-import Navigation
 import Utils.Filter exposing (Filter, parseFilter)
 import Utils.Types exposing (ApiData, ApiResponse(Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
-import Dom
-import Task
 import Set
 import Views.AutoComplete.Updates as AutoComplete
+import Views.AutoComplete.Types exposing (initAutoComplete)
 
 
 update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
@@ -22,13 +20,11 @@ update msg model filter =
                 , autoComplete =
                     case listOfAlerts of
                         Success alerts ->
-                            { list =
-                                List.concatMap .labels alerts
-                                    |> List.map Tuple.first
-                                    |> Set.fromList
-                            , fieldText = ""
-                            , fields = []
-                            , matches = []
+                            { initAutoComplete
+                                | list =
+                                    List.concatMap .labels alerts
+                                        |> List.map Tuple.first
+                                        |> Set.fromList
                             }
 
                         Loading ->

@@ -3,6 +3,8 @@ module Views.AutoComplete.Updates exposing (update)
 import Views.AutoComplete.Types exposing (Model, Msg(..))
 import Views.AutoComplete.Match exposing (jaroWinkler)
 import Task
+import Time
+import Process
 import Dom
 import Set
 
@@ -36,11 +38,25 @@ update msg model =
             , Dom.focus "auto-complete-field" |> Task.attempt (always Noop)
             )
 
+        Select maybeSelectedMatch ->
+            ( { model | maybeSelectedMatch = maybeSelectedMatch }, Cmd.none )
+
+        Focus focused ->
+            ( { model
+                | focused = focused
+                , maybeSelectedMatch = Nothing
+              }
+            , Cmd.none
+            )
+
         PressingBackspace pressed ->
-            ( model, Cmd.none )
+            ( { model | backspacePressed = pressed }, Cmd.none )
 
         UpdateFieldText text ->
-            updateAutoComplete { model | fieldText = text }
+            updateAutoComplete
+                { model
+                    | fieldText = text
+                }
 
         Noop ->
             ( model, Cmd.none )
@@ -66,6 +82,7 @@ updateAutoComplete model =
                     |> List.sortBy (jaroWinkler model.fieldText)
                     |> List.reverse
                     |> List.take 10
+        , maybeSelectedMatch = Nothing
       }
     , Cmd.batch
         [ Cmd.none ]

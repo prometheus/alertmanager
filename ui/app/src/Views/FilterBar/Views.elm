@@ -4,8 +4,9 @@ import Html exposing (Html, Attribute, div, span, input, text, button, i, small)
 import Html.Attributes exposing (value, class, style, disabled, id)
 import Html.Events exposing (onClick, onInput, on, keyCode)
 import Utils.Filter exposing (Matcher)
+import Utils.List
+import Utils.Keyboard exposing (keys, onKeyUp, onKeyDown)
 import Views.FilterBar.Types exposing (Msg(..), Model)
-import Json.Decode as Json
 
 
 keys :
@@ -37,34 +38,21 @@ viewMatcher matcher =
         ]
 
 
-lastElem : List a -> Maybe a
-lastElem =
-    List.foldl (Just >> always) Nothing
-
-
 viewMatchers : List Matcher -> List (Html Msg)
 viewMatchers matchers =
     matchers
         |> List.map viewMatcher
 
 
-onKey : String -> Int -> Msg -> Attribute Msg
-onKey event key msg =
-    on event
-        (Json.map
-            (\k ->
-                if k == key then
-                    msg
-                else
-                    Noop
-            )
-            keyCode
-        )
-
-
 view : Model -> Html Msg
 view { matchers, matcherText, backspacePressed } =
     let
+        maybeMatcher =
+            Utils.Filter.parseMatcher matcherText
+
+        maybeLastMatcher =
+            Utils.List.lastElem matchers
+
         className =
             if matcherText == "" then
                 ""
@@ -76,31 +64,29 @@ view { matchers, matcherText, backspacePressed } =
                     Nothing ->
                         "has-danger"
 
-        maybeMatcher =
-            Utils.Filter.parseMatcher matcherText
+        keyDown key =
+            if key == keys.enter then
+                maybeMatcher
+                    |> Maybe.map (AddFilterMatcher True)
+                    |> Maybe.withDefault Noop
+            else if key == keys.backspace then
+                if matcherText == "" then
+                    case ( backspacePressed, maybeLastMatcher ) of
+                        ( False, Just lastMatcher ) ->
+                            DeleteFilterMatcher True lastMatcher
 
-        onKeydown =
-            onKey "keydown" keys.backspace <|
-                case ( matcherText, backspacePressed ) of
-                    ( "", True ) ->
-                        Noop
+                        _ ->
+                            Noop
+                else
+                    PressingBackspace True
+            else
+                Noop
 
-                    ( "", False ) ->
-                        lastElem matchers
-                            |> Maybe.map (DeleteFilterMatcher True)
-                            |> Maybe.withDefault Noop
-
-                    _ ->
-                        PressingBackspace True
-
-        onKeypress =
-            maybeMatcher
-                |> Maybe.map (AddFilterMatcher True)
-                |> Maybe.withDefault Noop
-                |> onKey "keypress" keys.enter
-
-        onKeyup =
-            onKey "keyup" keys.backspace (PressingBackspace False)
+        keyUp key =
+            if key == keys.backspace then
+                PressingBackspace False
+            else
+                Noop
 
         onClickAttr =
             maybeMatcher
@@ -127,10 +113,9 @@ view { matchers, matcherText, backspacePressed } =
                                 [ id "filter-bar-matcher"
                                 , class "form-control"
                                 , value matcherText
-                                , onKeydown
-                                , onKeyup
-                                , onKeypress
-                                , onInput (UpdateMatcherText)
+                                , onKeyDown keyDown
+                                , onKeyUp keyUp
+                                , onInput UpdateMatcherText
                                 ]
                                 []
                             , span
