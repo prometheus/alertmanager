@@ -18,8 +18,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
@@ -117,7 +115,7 @@ func main() {
 	}
 
 	logger := log.NewLogger(os.Stderr)
-	mrouter, err := initMesh(*meshListen, *hwaddr, *nickname, *password)
+	mrouter, err := initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -198,7 +196,7 @@ func main() {
 	apiv := api.New(alerts, silences, func(matchers []*labels.Matcher) dispatch.AlertOverview {
 		return disp.Groups(matchers)
 	}, mrouter)
-	q
+
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
 		log.Fatal(err)
@@ -333,7 +331,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func initMesh(addr, hwaddr, nickname, pw string) (*mesh.Router, error) {
+func initMesh(addr, hwaddr, nickname, pw string, logger log.Logger) (*mesh.Router, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 
 	if err != nil {
@@ -364,8 +362,15 @@ func initMesh(addr, hwaddr, nickname, pw string) (*mesh.Router, error) {
 		ConnLimit:          64,
 		PeerDiscovery:      true,
 		TrustedSubnets:     []*net.IPNet{},
-	}, name, nickname, mesh.NullOverlay{}, stdlog.New(ioutil.Discard, "", 0))
+	}, name, nickname, mesh.NullOverlay{}, printfLogger{logger})
+}
 
+type printfLogger struct {
+	log.Logger
+}
+
+func (l printfLogger) Printf(f string, args ...interface{}) {
+	l.Debugf(f, args...)
 }
 
 func extURL(listen, external string) (*url.URL, error) {
