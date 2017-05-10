@@ -574,6 +574,9 @@ func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
 		StartsAt:  s.StartsAt,
 		EndsAt:    s.EndsAt,
 		UpdatedAt: s.UpdatedAt,
+		Status: types.SilenceStatus{
+			State: types.CalcSilenceState(s.StartsAt, s.EndsAt),
+		},
 	}
 	for _, m := range s.Matchers {
 		matcher := &types.Matcher{
