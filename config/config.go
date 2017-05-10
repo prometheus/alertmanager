@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"encoding/json"
+
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 )
@@ -49,6 +50,11 @@ func Load(s string) (*Config, error) {
 	// (e.g. the config file is empty or only contains whitespace).
 	if cfg.Route == nil {
 		return nil, errors.New("no route provided in config")
+	}
+
+	// Check if continue in root route.
+	if cfg.Route.Continue {
+		return nil, errors.New("cannot have continue in root route")
 	}
 
 	cfg.original = s
@@ -498,7 +504,7 @@ func (re *Regexp) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-func (re *Regexp) MarshalJSON() ([]byte, error) {
+func (re Regexp) MarshalJSON() ([]byte, error) {
 	if re.Regexp != nil {
 		return json.Marshal(re.String())
 	}

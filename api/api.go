@@ -248,9 +248,7 @@ func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
 type APIAlert struct {
 	*model.Alert
 
-	Status      types.AlertState `json:"status"`
-	InhibitedBy []string         `json:"inhibitedBy"`
-	SilencedBy  []string         `json:"silencedBy"`
+	Status types.AlertStatus `json:"status"`
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
@@ -289,10 +287,8 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		status := api.getAlertStatus(a.Fingerprint())
 
 		apiAlert := &APIAlert{
-			Alert:       &a.Alert,
-			Status:      status.Status,
-			SilencedBy:  status.SilencedBy,
-			InhibitedBy: status.InhibitedBy,
+			Alert:  &a.Alert,
+			Status: status,
 		}
 
 		res = append(res, apiAlert)
