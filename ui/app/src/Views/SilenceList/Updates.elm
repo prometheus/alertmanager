@@ -28,11 +28,10 @@ update msg model silence filter =
             )
 
         DestroySilence silence ->
-            ( model, Loading, Api.destroy silence (SilenceDestroy >> MsgForSilenceList) )
+            ( model, Loading, Api.destroy silence (SilenceDestroyed >> MsgForSilenceList) )
 
-        SilenceDestroy silence ->
+        SilenceDestroyed statusCode ->
             -- TODO: "Deleted id: ID" growl
-            -- TODO: Add DELETE to accepted CORS methods in alertmanager
             -- TODO: Check why POST isn't there but is accepted
             ( model, Loading, Navigation.newUrl "/#/silences" )
 
