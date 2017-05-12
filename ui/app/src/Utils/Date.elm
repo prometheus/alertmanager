@@ -67,12 +67,12 @@ durationFormat time =
 
 dateFormat : Time.Time -> String
 dateFormat =
-    Date.fromTime >> (Date.Extra.Format.format config Date.Extra.Format.isoDateFormat)
+    Date.fromTime >> (Date.Extra.Format.formatUtc config Date.Extra.Format.isoDateFormat)
 
 
 timeFormat : Time.Time -> String
 timeFormat =
-    Date.fromTime >> (Date.Extra.Format.format config Date.Extra.Format.isoTimeFormat)
+    Date.fromTime >> (Date.Extra.Format.formatUtc config Date.Extra.Format.isoTimeFormat)
 
 
 dateTimeFormat : Time.Time -> String

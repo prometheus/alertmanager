@@ -1,4 +1,15 @@
-module Silences.Types exposing (Silence, nullSilence, nullMatcher, nullTime, SilenceId)
+module Silences.Types
+    exposing
+        ( Silence
+        , SilenceId
+        , Status
+        , State(Active, Pending, Expired)
+        , nullSilence
+        , nullSilenceStatus
+        , nullMatcher
+        , nullTime
+        , stateToString
+        )
 
 import Alerts.Types exposing (Alert)
 import Utils.Types exposing (Matcher, ApiData, ApiResponse(Success))
@@ -15,6 +26,13 @@ nullSilence =
     , updatedAt = 0
     , matchers = [ nullMatcher ]
     , silencedAlerts = Success []
+    , status = nullSilenceStatus
+    }
+
+
+nullSilenceStatus : Status
+nullSilenceStatus =
+    { state = Expired
     }
 
 
@@ -37,7 +55,32 @@ type alias Silence =
     , updatedAt : Time
     , matchers : List Matcher
     , silencedAlerts : ApiData (List Alert)
+    , status : Status
     }
+
+
+type alias Status =
+    { state : State
+    }
+
+
+type State
+    = Active
+    | Pending
+    | Expired
+
+
+stateToString : State -> String
+stateToString state =
+    case state of
+        Active ->
+            "active"
+
+        Pending ->
+            "pending"
+
+        Expired ->
+            "expired"
 
 
 type alias SilenceId =

@@ -4,7 +4,7 @@ import Http
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (ApiResponse(..), ApiData)
 import Utils.Filter exposing (Filter)
-import Silences.Decoders exposing (..)
+import Silences.Decoders exposing (show, list, create, destroy)
 import Silences.Encoders
 import Utils.Api exposing (baseUrl)
 import Utils.Filter exposing (generateQueryString)

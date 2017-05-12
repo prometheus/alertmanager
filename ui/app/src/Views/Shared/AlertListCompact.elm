@@ -9,4 +9,4 @@ import Views.Shared.AlertCompact
 view : List Alert -> Html msg
 view alerts =
     List.map Views.Shared.AlertCompact.view alerts
-        |> ol [ class "list pa0" ]
+        |> ol [ class "list pa0 w-100" ]

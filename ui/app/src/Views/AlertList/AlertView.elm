@@ -16,7 +16,7 @@ import Time exposing (Time)
 view : Alert -> Html Msg
 view alert =
     li
-        [ class "align-items-center list-group-item alert-list-item p-0 d-inline-flex justify-content-start"
+        [ class "align-items-center list-group-item list-item p-0 d-inline-flex justify-content-start"
         ]
         [ dateView alert.startsAt
         , labelButtons alert.labels

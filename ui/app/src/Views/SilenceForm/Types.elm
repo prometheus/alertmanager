@@ -10,7 +10,7 @@ module Views.SilenceForm.Types
         , initSilenceForm
         )
 
-import Silences.Types exposing (Silence, SilenceId)
+import Silences.Types exposing (Silence, SilenceId, nullSilenceStatus)
 import Alerts.Types exposing (Alert)
 import Utils.Types exposing (Matcher, ApiData, Duration, ApiResponse(..))
 import Time exposing (Time)
@@ -42,6 +42,9 @@ toSilence { createdBy, comment, startsAt, endsAt, matchers } =
 
             {- ignored -}
             , id = ""
+
+            {- ignored -}
+            , status = nullSilenceStatus
             }
         )
         (timeFromString startsAt)
