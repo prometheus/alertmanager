@@ -201,9 +201,11 @@ Start your prometheus like this, for example:
 
 > Note: make sure to have a valid `prometheus.yml` in your current directory
 
+> Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
+
 ## Contributing to the Front-End
 
-Refer to [ui/app/CONTRIBUTING.md](https://github.com/prometheus/alertmanager/blob/master/ui/app/CONTRIBUTING.md).
+Refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
 ## Architecture
 
