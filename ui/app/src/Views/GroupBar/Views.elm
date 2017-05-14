@@ -24,24 +24,38 @@ view ({ list, fieldText, fields } as model) =
                 "has-success"
     in
         div
-            [ class "row no-gutters align-items-start pb-4" ]
+            [ class "row no-gutters align-items-start" ]
             (List.map viewField fields
                 ++ [ div
-                        [ class ("col form-group " ++ className)
+                        [ class ("col " ++ className)
                         , style
                             [ ( "padding", "5px" )
                             , ( "min-width", "200px" )
-                            , ( "max-width", "500px" )
                             ]
                         ]
                         [ textInputField isDisabled model
-                        , small [ class "form-text text-muted" ]
-                            [ text "Label keys for grouping alerts"
-                            ]
+                        , exampleField fields
                         , autoCompleteResults model
                         ]
                    ]
             )
+
+
+exampleField : List String -> Html Msg
+exampleField fields =
+    if List.member "alertname" fields then
+        small [ class "form-text text-muted" ]
+            [ text "Label key for grouping alerts"
+            ]
+    else
+        small [ class "form-text text-muted" ]
+            [ text "Label key for grouping alerts, e.g."
+            , button
+                [ class "btn btn-link btn-sm align-baseline"
+                , onClick (UpdateFieldText "alertname")
+                ]
+                [ text "alertname" ]
+            ]
 
 
 textInputField : Bool -> Model -> Html Msg

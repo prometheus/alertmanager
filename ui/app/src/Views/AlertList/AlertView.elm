@@ -43,19 +43,10 @@ dateView time =
         ]
 
 
-nameLabelButton : ( String, String ) -> Html Msg
-nameLabelButton ( key, value ) =
-    button
-        [ class "btn btn-outline-info mr-2"
-        , onClick (addLabelMsg ( key, value ))
-        ]
-        [ text value ]
-
-
 labelButton : ( String, String ) -> Html Msg
 labelButton ( key, value ) =
     button
-        [ class "btn btn-sm bg-faded btn-secondary border-0 mr-2 mb-2"
+        [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
         , onClick (addLabelMsg ( key, value ))
         ]
         [ span [ class "text-muted" ] [ text (key ++ "=\"" ++ value ++ "\"") ] ]

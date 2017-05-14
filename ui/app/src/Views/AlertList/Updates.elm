@@ -1,12 +1,14 @@
 module Views.AlertList.Updates exposing (..)
 
 import Alerts.Api as Api
-import Views.AlertList.Types exposing (AlertListMsg(..), Model)
+import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(FilterTab, GroupTab))
 import Views.FilterBar.Updates as FilterBar
 import Utils.Filter exposing (Filter, parseFilter)
 import Utils.Types exposing (ApiData, ApiResponse(Initial, Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Set
+import Navigation
+import Utils.Filter exposing (generateQueryString)
 import Views.GroupBar.Updates as GroupBar
 
 
@@ -51,12 +53,20 @@ update msg ({ groupBar, filterBar } as model) filter =
                 else
                     ( newModel, Cmd.none )
 
+        ToggleSilenced showSilenced ->
+            ( { model | alerts = Initial }
+            , Navigation.newUrl ("/#/alerts" ++ generateQueryString { filter | showSilenced = Just showSilenced })
+            )
+
+        SetTab tab ->
+            ( { model | tab = tab }, Cmd.none )
+
         MsgForFilterBar msg ->
             let
                 ( newFilterBar, cmd ) =
                     FilterBar.update "/#/alerts" filter msg filterBar
             in
-                ( { model | filterBar = newFilterBar }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
+                ( { model | filterBar = newFilterBar, tab = FilterTab }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
 
         MsgForGroupBar msg ->
             let

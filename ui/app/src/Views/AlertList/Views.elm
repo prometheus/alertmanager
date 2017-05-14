@@ -3,6 +3,7 @@ module Views.AlertList.Views exposing (view)
 import Alerts.Types exposing (Alert, AlertGroup, Block)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Events exposing (..)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Utils.Filter exposing (Filter)
 import Views.FilterBar.Views as FilterBar
@@ -12,21 +13,59 @@ import Utils.List
 import Views.AlertList.AlertView as AlertView
 import Views.AlertList.Filter exposing (silenced, matchers)
 import Utils.Views exposing (buttonLink, listButton)
-import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForGroupBar), Model)
+import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForGroupBar, SetTab, ToggleSilenced), Model, Tab(..))
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
 
 
-view : Model -> Filter -> Html Msg
-view { alerts, groupBar, filterBar } filter =
-    div []
-        [ div [ class "row" ]
-            [ div [ class "col" ]
-                [ Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
+renderTab : String -> Tab -> Tab -> Html Msg
+renderTab title tab currentTab =
+    li [ class "nav-item" ]
+        [ (if tab == currentTab then
+            span
+                [ class "nav-link active" ]
+           else
+            a
+                [ class "nav-link"
+                , onClick (SetTab tab |> MsgForAlertList)
                 ]
-            , div [ class "col" ]
-                [ Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar)
+          )
+            [ text title ]
+        ]
+
+
+view : Model -> Filter -> Html Msg
+view { alerts, groupBar, filterBar, tab } filter =
+    div []
+        [ div
+            [ class "card mb-5" ]
+            [ div [ class "card-header" ]
+                [ ul [ class "nav nav-tabs card-header-tabs" ]
+                    [ renderTab "Filter" FilterTab tab
+                    , renderTab "Group" GroupTab tab
+                    , li [ class "nav-item ml-auto " ]
+                        [ label [ class "mt-1 custom-control custom-checkbox" ]
+                            [ input
+                                [ type_ "checkbox"
+                                , class "custom-control-input"
+                                , checked (Maybe.withDefault False filter.showSilenced)
+                                , onCheck (ToggleSilenced >> MsgForAlertList)
+                                ]
+                                []
+                            , span [ class "custom-control-indicator" ] []
+                            , span [ class "custom-control-description" ] [ text "Show Silenced" ]
+                            ]
+                        ]
+                    ]
+                ]
+            , div [ class "card-block" ]
+                [ case tab of
+                    FilterTab ->
+                        Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
+
+                    GroupTab ->
+                        Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar)
                 ]
             ]
         , case alerts of

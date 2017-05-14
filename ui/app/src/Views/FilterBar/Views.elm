@@ -98,14 +98,13 @@ view { matchers, matcherText, backspacePressed } =
             maybeMatcher == Nothing
     in
         div
-            [ class "row no-gutters align-items-start pb-4" ]
+            [ class "row no-gutters align-items-start" ]
             (viewMatchers matchers
                 ++ [ div
-                        [ class ("col form-group " ++ className)
+                        [ class ("col " ++ className)
                         , style
                             [ ( "padding", "5px" )
                             , ( "min-width", "200px" )
-                            , ( "max-width", "500px" )
                             ]
                         ]
                         [ div [ class "input-group" ]
