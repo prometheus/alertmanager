@@ -16,13 +16,15 @@ import Time exposing (Time)
 view : Alert -> Html Msg
 view alert =
     li
-        [ class "align-items-center list-group-item list-item p-0 d-inline-flex justify-content-start"
+        [ class "align-items-center list-group-item alert-list-item p-0"
         ]
-        [ dateView alert.startsAt
-        , labelButtons alert.labels
-        , div [ class "ml-auto d-inline-flex align-self-stretch p-2", style [ ( "border-left", "1px solid #ccc" ) ] ]
-            [ generatorUrlButton alert.generatorUrl
-            , silenceButton alert
+        [ div [ class "d-flex w-100 justify-content-stretch" ]
+            [ dateView alert.startsAt
+            , labelButtons alert.labels
+            , div [ class "d-flex ml-auto" ]
+                [ generatorUrlButton alert.generatorUrl
+                , silenceButton alert
+                ]
             ]
         ]
 
@@ -30,8 +32,10 @@ view alert =
 dateView : Time -> Html Msg
 dateView time =
     i
-        [ class "h-100  d-flex flex-column justify-content-center p-2 text-muted"
-        , style [ ( "border-right", "1px solid #ccc" ), ( "font-family", "monospace" ) ]
+        [ class "d-flex flex-column p-2 text-muted"
+        , style
+            [ ( "font-family", "monospace" )
+            ]
         ]
         [ span [] [ text <| Utils.Date.timeFormat time ]
         , small [] [ text <| Utils.Date.dateFormat time ]
@@ -46,7 +50,7 @@ labelButtons labels =
             List.partition (Tuple.first >> (==) "alertname")
         |> uncurry (++)
         |> List.map labelButton
-        |> div []
+        |> div [ class "p-2" ]
 
 
 labelButton : ( String, String ) -> Html Msg
@@ -81,13 +85,18 @@ silenceButton alert =
         if alert.silenced then
             buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" Noop
         else
-            a [ class "h-100 btn btn-warning rounded-0", style [], href "#/silences/new?keep=1", onClick (CreateSilenceFromAlert alert) ] [ span [ class "fa fa-bell-slash-o" ] [] ]
+            a
+                [ class "btn btn-warning rounded-0 d-flex align-items-center"
+                , href "#/silences/new?keep=1"
+                , onClick (CreateSilenceFromAlert alert)
+                ]
+                [ span [ class "fa fa-bell-slash-o" ] [] ]
 
 
 generatorUrlButton : String -> Html Msg
 generatorUrlButton url =
     a
-        [ class "h-100 btn btn-primary rounded-0 align-items-center d-inline-flex border-right-0"
+        [ class "btn btn-primary rounded-0 d-flex align-items-center"
         , href url
         ]
         [ i [ class "fa fa-line-chart" ] [] ]
