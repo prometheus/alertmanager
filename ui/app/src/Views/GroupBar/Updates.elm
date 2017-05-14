@@ -20,7 +20,7 @@ update msg model =
                     else
                         model.fieldText
               }
-            , Dom.focus "auto-complete-field" |> Task.attempt (always Noop)
+            , Dom.focus "group-by-field" |> Task.attempt (always Noop)
             )
 
         DeleteField setFieldText text ->
