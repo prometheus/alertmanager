@@ -3,8 +3,6 @@ module Views.AutoComplete.Updates exposing (update)
 import Views.AutoComplete.Types exposing (Model, Msg(..))
 import Views.AutoComplete.Match exposing (jaroWinkler)
 import Task
-import Time
-import Process
 import Dom
 import Set
 
@@ -45,6 +43,13 @@ update msg model =
             ( { model
                 | focused = focused
                 , maybeSelectedMatch = Nothing
+              }
+            , Cmd.none
+            )
+
+        ResultsHovered resultsHovered ->
+            ( { model
+                | resultsHovered = resultsHovered
               }
             , Cmd.none
             )

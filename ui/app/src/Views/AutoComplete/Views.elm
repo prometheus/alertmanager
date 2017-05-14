@@ -3,14 +3,14 @@ module Views.AutoComplete.Views exposing (view)
 import Views.AutoComplete.Types exposing (Msg(..), Model)
 import Html exposing (Html, Attribute, div, span, input, text, button, i, small, ul, li, a)
 import Html.Attributes exposing (value, class, style, disabled, id, href)
-import Html.Events exposing (onClick, onInput, on, keyCode, onFocus, onBlur)
+import Html.Events exposing (onClick, onInput, on, keyCode, onFocus, onBlur, onMouseEnter, onMouseLeave)
 import Set
 import Utils.List
 import Utils.Keyboard exposing (keys, onKeyUp, onKeyDown)
 
 
 view : Model -> Html Msg
-view { list, fieldText, fields, matches, maybeSelectedMatch, backspacePressed, focused } =
+view { list, fieldText, fields, matches, maybeSelectedMatch, backspacePressed, focused, resultsHovered } =
     let
         isDisabled =
             (list
@@ -64,10 +64,6 @@ view { list, fieldText, fields, matches, maybeSelectedMatch, backspacePressed, f
             else
                 Noop
 
-        -- TODO: Interacting with autocomplete box
-        -- * Scrolling with keyboard
-        -- * Scrolling with keyboard + hitting enter
-        -- TODO: Text needs to match one autocomplete field exactly
         onClickMsg =
             if isDisabled then
                 Noop
@@ -83,7 +79,7 @@ view { list, fieldText, fields, matches, maybeSelectedMatch, backspacePressed, f
                 "has-success"
 
         autoCompleteClass =
-            if focused && not (List.isEmpty matches) then
+            if (focused || resultsHovered) && not (List.isEmpty matches) then
                 "show"
             else
                 ""
@@ -118,7 +114,11 @@ view { list, fieldText, fields, matches, maybeSelectedMatch, backspacePressed, f
                         , small [ class "form-text text-muted" ]
                             [ text "Label keys for grouping alerts"
                             ]
-                        , div [ class ("autocomplete-menu " ++ autoCompleteClass) ]
+                        , div
+                            [ class ("autocomplete-menu " ++ autoCompleteClass)
+                            , onMouseEnter (ResultsHovered True)
+                            , onMouseLeave (ResultsHovered False)
+                            ]
                             [ matches
                                 |> List.map (matchedField maybeSelectedMatch)
                                 |> div [ class "dropdown-menu" ]

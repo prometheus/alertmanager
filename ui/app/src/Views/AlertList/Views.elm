@@ -6,7 +6,6 @@ import Html.Attributes exposing (..)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Utils.Filter exposing (Filter)
 import Views.FilterBar.Views as FilterBar
-import Views.FilterBar.Types as FilterBarTypes
 import Utils.Types exposing (ApiResponse(Success, Loading, Failure), Labels)
 import Utils.Views exposing (buttonLink, listButton)
 import Utils.List
@@ -22,8 +21,14 @@ import Dict exposing (Dict)
 view : Model -> Filter -> Html Msg
 view { alerts, autoComplete, filterBar } filter =
     div []
-        [ Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
-        , Html.map (MsgForAutoComplete >> MsgForAlertList) (AutoComplete.view autoComplete)
+        [ div [ class "row" ]
+            [ div [ class "col" ]
+                [ Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
+                ]
+            , div [ class "col" ]
+                [ Html.map (MsgForAutoComplete >> MsgForAlertList) (AutoComplete.view autoComplete)
+                ]
+            ]
         , case alerts of
             Success groups ->
                 let

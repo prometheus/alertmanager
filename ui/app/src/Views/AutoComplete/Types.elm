@@ -10,6 +10,7 @@ type alias Model =
     , matches : List String
     , backspacePressed : Bool
     , focused : Bool
+    , resultsHovered : Bool
     , maybeSelectedMatch : Maybe String
     }
 
@@ -20,6 +21,7 @@ type Msg
     | Select (Maybe String)
     | PressingBackspace Bool
     | Focus Bool
+    | ResultsHovered Bool
     | UpdateFieldText String
     | Noop
 
@@ -31,6 +33,7 @@ initAutoComplete =
     , fields = []
     , matches = []
     , focused = False
+    , resultsHovered = False
     , backspacePressed = False
     , maybeSelectedMatch = Nothing
     }
