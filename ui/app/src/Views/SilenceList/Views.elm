@@ -23,6 +23,9 @@ view model currentTime =
                 , silenceListView sils
                 ]
 
+        Initial ->
+            loading
+
         Loading ->
             loading
 

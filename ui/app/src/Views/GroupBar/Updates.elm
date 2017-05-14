@@ -1,40 +1,42 @@
-module Views.GroupBar.Updates exposing (update)
+module Views.GroupBar.Updates exposing (update, setFields)
 
 import Views.GroupBar.Types exposing (Model, Msg(..))
 import Views.GroupBar.Match exposing (jaroWinkler)
 import Task
 import Dom
 import Set
+import Utils.Filter exposing (Filter, generateQueryString, stringifyGroup, parseGroup)
+import Navigation
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
+update url filter msg model =
     case msg of
         AddField emptyFieldText text ->
-            ( { model
-                | fields = model.fields ++ [ text ]
-                , matches = []
-                , fieldText =
-                    if emptyFieldText then
-                        ""
-                    else
-                        model.fieldText
-              }
-            , Dom.focus "group-by-field" |> Task.attempt (always Noop)
-            )
+            immediatelyFilter url
+                filter
+                { model
+                    | fields = model.fields ++ [ text ]
+                    , matches = []
+                    , fieldText =
+                        if emptyFieldText then
+                            ""
+                        else
+                            model.fieldText
+                }
 
         DeleteField setFieldText text ->
-            ( { model
-                | fields = List.filter ((/=) text) model.fields
-                , matches = []
-                , fieldText =
-                    if setFieldText then
-                        text
-                    else
-                        model.fieldText
-              }
-            , Dom.focus "auto-complete-field" |> Task.attempt (always Noop)
-            )
+            immediatelyFilter url
+                filter
+                { model
+                    | fields = List.filter ((/=) text) model.fields
+                    , matches = []
+                    , fieldText =
+                        if setFieldText then
+                            text
+                        else
+                            model.fieldText
+                }
 
         Select maybeSelectedMatch ->
             ( { model | maybeSelectedMatch = maybeSelectedMatch }, Cmd.none )
@@ -67,6 +69,28 @@ update msg model =
             ( model, Cmd.none )
 
 
+immediatelyFilter : String -> Filter -> Model -> ( Model, Cmd Msg )
+immediatelyFilter url filter model =
+    let
+        newFilter =
+            { filter | group = stringifyGroup model.fields }
+    in
+        ( model
+        , Cmd.batch
+            [ Navigation.newUrl (url ++ generateQueryString newFilter)
+            , Dom.focus "group-by-field" |> Task.attempt (always Noop)
+            ]
+        )
+
+
+setFields : Filter -> Model -> Model
+setFields filter model =
+    { model
+        | fields =
+            parseGroup filter.group
+    }
+
+
 updateAutoComplete : Model -> ( Model, Cmd Msg )
 updateAutoComplete model =
     ( { model
@@ -89,6 +113,5 @@ updateAutoComplete model =
                     |> List.take 10
         , maybeSelectedMatch = Nothing
       }
-    , Cmd.batch
-        [ Cmd.none ]
+    , Cmd.none
     )

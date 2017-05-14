@@ -8,6 +8,8 @@ module Utils.Filter
         , generateQueryString
         , stringifyMatcher
         , stringifyFilter
+        , stringifyGroup
+        , parseGroup
         , parseFilter
         , parseMatcher
         )
@@ -21,6 +23,7 @@ import Set
 
 type alias Filter =
     { text : Maybe String
+    , group : Maybe String
     , receiver : Maybe Matcher
     , showSilenced : Maybe Bool
     }
@@ -29,6 +32,7 @@ type alias Filter =
 nullFilter : Filter
 nullFilter =
     { text = Nothing
+    , group = Nothing
     , receiver = Nothing
     , showSilenced = Nothing
     }
@@ -40,12 +44,13 @@ generateQueryParam name =
 
 
 generateQueryString : Filter -> String
-generateQueryString { receiver, showSilenced, text } =
+generateQueryString { receiver, showSilenced, text, group } =
     let
         -- TODO: Re-add receiver once it is parsed on the server side.
         parts =
             [ ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
             , ( "filter", emptyToNothing text )
+            , ( "group", group )
             ]
                 |> List.filterMap (uncurry generateQueryParam)
     in
@@ -100,6 +105,27 @@ parseMatcher : String -> Maybe Matcher
 parseMatcher =
     Parser.run matcher
         >> Result.toMaybe
+
+
+stringifyGroup : List String -> Maybe String
+stringifyGroup list =
+    if List.isEmpty list then
+        Just ""
+    else if list == [ "alertname" ] then
+        Nothing
+    else
+        Just (String.join "," list)
+
+
+parseGroup : Maybe String -> List String
+parseGroup maybeGroup =
+    case maybeGroup of
+        Nothing ->
+            [ "alertname" ]
+
+        Just something ->
+            String.split "," something
+                |> List.filter (String.length >> (<) 0)
 
 
 stringifyFilter : List Matcher -> String

@@ -1,7 +1,7 @@
 module Views.Status.Types exposing (StatusMsg(..), StatusModel, initStatusModel)
 
 import Status.Types exposing (StatusResponse)
-import Utils.Types exposing (ApiData, ApiResponse(Loading))
+import Utils.Types exposing (ApiData, ApiResponse(Initial))
 
 
 type StatusMsg
@@ -16,4 +16,4 @@ type alias StatusModel =
 
 initStatusModel : StatusModel
 initStatusModel =
-    { statusInfo = Loading }
+    { statusInfo = Initial }

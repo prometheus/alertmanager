@@ -6,7 +6,7 @@ import Html.Attributes exposing (..)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Utils.Filter exposing (Filter)
 import Views.FilterBar.Views as FilterBar
-import Utils.Types exposing (ApiResponse(Success, Loading, Failure), Labels)
+import Utils.Types exposing (ApiResponse(Initial, Success, Loading, Failure), Labels)
 import Utils.Views exposing (buttonLink, listButton)
 import Utils.List
 import Views.AlertList.AlertView as AlertView
@@ -19,14 +19,14 @@ import Dict exposing (Dict)
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, autoComplete, filterBar } filter =
+view { alerts, groupBar, filterBar } filter =
     div []
         [ div [ class "row" ]
             [ div [ class "col" ]
                 [ Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
                 ]
             , div [ class "col" ]
-                [ Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view autoComplete)
+                [ Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar)
                 ]
             ]
         , case alerts of
@@ -40,7 +40,7 @@ view { alerts, autoComplete, filterBar } filter =
                                         (\( key, value ) ->
                                             -- Find the correct keys and return
                                             -- their values
-                                            if List.member key autoComplete.fields then
+                                            if List.member key groupBar.fields then
                                                 Just ( key, value )
                                             else
                                                 Nothing
@@ -62,10 +62,16 @@ view { alerts, autoComplete, filterBar } filter =
                                         Nothing ->
                                             Nothing
                             )
-                            (Dict.keys g)
+                            (Dict.keys g
+                                |> List.partition ((/=) [])
+                                |> uncurry (++)
+                            )
                         )
 
             Loading ->
+                Utils.Views.loading
+
+            Initial ->
                 Utils.Views.loading
 
             Failure msg ->
@@ -75,15 +81,22 @@ view { alerts, autoComplete, filterBar } filter =
 
 alertList : Labels -> List Alert -> Filter -> Html Msg
 alertList labels alerts filter =
-    (List.map
-        (\( key, value ) ->
-            span [ class "badge badge-info mr-1 mb-1" ] [ text (key ++ ":" ++ value) ]
-        )
-        labels
-    )
-        ++ [ if List.isEmpty alerts then
-                div [] [ text "no alerts found" ]
-             else
-                ul [ class "list-group" ] (List.map AlertView.view alerts)
-           ]
-        |> div []
+    div []
+        [ div []
+            (case labels of
+                [] ->
+                    [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
+
+                _ ->
+                    List.map
+                        (\( key, value ) ->
+                            span [ class "btn btn-info mr-1 mb-3" ]
+                                [ text (key ++ "=\"" ++ value ++ "\"") ]
+                        )
+                        labels
+            )
+        , if List.isEmpty alerts then
+            div [] [ text "no alerts found" ]
+          else
+            ul [ class "list-group mb-4" ] (List.map (AlertView.view labels) alerts)
+        ]

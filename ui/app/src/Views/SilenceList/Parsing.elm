@@ -8,6 +8,6 @@ silenceListParser : Parser (Filter -> a) a
 silenceListParser =
     map
         (\t ->
-            Filter t Nothing Nothing
+            Filter t Nothing Nothing Nothing
         )
         (s "silences" <?> stringParam "filter")

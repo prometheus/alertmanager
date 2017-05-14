@@ -4,7 +4,7 @@ import Silences.Types exposing (Silence, stateToString)
 import Html exposing (Html, div, h2, p, text, label, b, h1)
 import Html.Attributes exposing (class)
 import Types exposing (Model, Msg)
-import Utils.Types exposing (ApiResponse(Success, Loading, Failure))
+import Utils.Types exposing (ApiResponse(Initial, Success, Loading, Failure))
 import Utils.Views exposing (loading, error)
 import Views.Shared.SilencePreview
 import Utils.Date exposing (dateTimeFormat)
@@ -16,6 +16,9 @@ view model =
     case model.silence of
         Success sil ->
             silence2 sil
+
+        Initial ->
+            loading
 
         Loading ->
             loading

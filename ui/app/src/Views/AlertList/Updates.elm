@@ -4,56 +4,63 @@ import Alerts.Api as Api
 import Views.AlertList.Types exposing (AlertListMsg(..), Model)
 import Views.FilterBar.Updates as FilterBar
 import Utils.Filter exposing (Filter, parseFilter)
-import Utils.Types exposing (ApiData, ApiResponse(Loading, Success, Failure))
+import Utils.Types exposing (ApiData, ApiResponse(Initial, Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Set
 import Views.GroupBar.Updates as GroupBar
-import Views.GroupBar.Types exposing (initGroupBar)
 
 
 update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
-update msg model filter =
+update msg ({ groupBar, filterBar } as model) filter =
     case msg of
         AlertsFetched listOfAlerts ->
             ( { model
                 | alerts = listOfAlerts
-                , autoComplete =
+                , groupBar =
                     case listOfAlerts of
                         Success alerts ->
-                            { initGroupBar
+                            { groupBar
                                 | list =
                                     List.concatMap .labels alerts
                                         |> List.map Tuple.first
                                         |> Set.fromList
                             }
 
-                        Loading ->
-                            model.autoComplete
-
-                        Failure _ ->
-                            model.autoComplete
+                        _ ->
+                            groupBar
               }
             , Cmd.none
             )
 
         FetchAlerts ->
-            ( { model
-                | filterBar = FilterBar.setMatchers filter model.filterBar
-                , alerts = Loading
-              }
-            , Api.fetchAlerts filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
-            )
+            let
+                newGroupBar =
+                    GroupBar.setFields filter groupBar
+
+                newFilterBar =
+                    FilterBar.setMatchers filter filterBar
+
+                newModel =
+                    { model | filterBar = newFilterBar, groupBar = newGroupBar }
+            in
+                -- only fetch when filter changed
+                if newFilterBar /= model.filterBar || model.alerts == Initial then
+                    ( { newModel | alerts = Loading }
+                    , Api.fetchAlerts filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                    )
+                else
+                    ( newModel, Cmd.none )
 
         MsgForFilterBar msg ->
             let
-                ( filterBar, cmd ) =
-                    FilterBar.update "/#/alerts" filter msg model.filterBar
+                ( newFilterBar, cmd ) =
+                    FilterBar.update "/#/alerts" filter msg filterBar
             in
-                ( { model | filterBar = filterBar }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
+                ( { model | filterBar = newFilterBar }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
 
         MsgForGroupBar msg ->
             let
-                ( autoComplete, cmd ) =
-                    GroupBar.update msg model.autoComplete
+                ( newGroupBar, cmd ) =
+                    GroupBar.update "/#/alerts" filter msg groupBar
             in
-                ( { model | autoComplete = autoComplete }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )
+                ( { model | groupBar = newGroupBar }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )

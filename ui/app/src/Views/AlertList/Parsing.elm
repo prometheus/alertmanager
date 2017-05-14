@@ -23,7 +23,7 @@ boolParam name =
 alertsParser : Parser (Filter -> a) a
 alertsParser =
     map
-        (\filter receiver silenced ->
+        (\filter group receiver silenced ->
             let
                 parsed =
                     Maybe.map
@@ -32,6 +32,6 @@ alertsParser =
                         )
                         receiver
             in
-                Filter filter parsed silenced
+                Filter filter group parsed silenced
         )
-        (s "alerts" <?> stringParam "filter" <?> stringParam "receiver" <?> boolParam "silenced")
+        (s "alerts" <?> stringParam "filter" <?> stringParam "group" <?> stringParam "receiver" <?> boolParam "silenced")

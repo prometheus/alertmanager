@@ -8,18 +8,12 @@ import Http exposing (Error(..))
 
 labelButton : Maybe msg -> String -> Html msg
 labelButton maybeMsg labelText =
-    let
-        label =
-            [ span [ class " badge badge-warning" ]
-                [ i [] [], text labelText ]
-            ]
-    in
-        case maybeMsg of
-            Nothing ->
-                span [ class "pl-2" ] label
+    case maybeMsg of
+        Nothing ->
+            Html.button [ class "btn btn-sm btn-outline-info ml-2 mb-2", disabled True ] [ text labelText ]
 
-            Just msg ->
-                span [ class "pl-2", onClick msg ] label
+        Just msg ->
+            Html.button [ class "btn btn-sm btn-outline-info ml-2 mb-2", onClick msg ] [ text labelText ]
 
 
 listButton : String -> ( String, String ) -> Html msg
