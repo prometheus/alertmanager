@@ -1,6 +1,6 @@
-module Views.AutoComplete.Views exposing (view)
+module Views.GroupBar.Views exposing (view)
 
-import Views.AutoComplete.Types exposing (Msg(..), Model)
+import Views.GroupBar.Types exposing (Msg(..), Model)
 import Html exposing (Html, Attribute, div, span, input, text, button, i, small, ul, li, a)
 import Html.Attributes exposing (value, class, style, disabled, id, href)
 import Html.Events exposing (onClick, onInput, on, keyCode, onFocus, onBlur, onMouseEnter, onMouseLeave)

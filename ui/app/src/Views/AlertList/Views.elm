@@ -12,9 +12,9 @@ import Utils.List
 import Views.AlertList.AlertView as AlertView
 import Views.AlertList.Filter exposing (silenced, matchers)
 import Utils.Views exposing (buttonLink, listButton)
-import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForAutoComplete), Model)
+import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForGroupBar), Model)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
-import Views.AutoComplete.Views as AutoComplete
+import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
 
 
@@ -26,7 +26,7 @@ view { alerts, autoComplete, filterBar } filter =
                 [ Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
                 ]
             , div [ class "col" ]
-                [ Html.map (MsgForAutoComplete >> MsgForAlertList) (AutoComplete.view autoComplete)
+                [ Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view autoComplete)
                 ]
             ]
         , case alerts of

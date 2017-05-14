@@ -3,21 +3,19 @@ module Views.AlertList.Types exposing (AlertListMsg(..), Model, initAlertList)
 import Utils.Types exposing (ApiData, ApiResponse(Loading))
 import Alerts.Types exposing (Alert)
 import Views.FilterBar.Types as FilterBar
-import Utils.Filter exposing (Filter)
-import Set exposing (Set)
-import Views.AutoComplete.Types as AutoComplete
+import Views.GroupBar.Types as GroupBar
 
 
 type AlertListMsg
     = AlertsFetched (ApiData (List Alert))
     | FetchAlerts
     | MsgForFilterBar FilterBar.Msg
-    | MsgForAutoComplete AutoComplete.Msg
+    | MsgForGroupBar GroupBar.Msg
 
 
 type alias Model =
     { alerts : ApiData (List Alert)
-    , autoComplete : AutoComplete.Model
+    , autoComplete : GroupBar.Model
     , filterBar : FilterBar.Model
     }
 
@@ -25,6 +23,6 @@ type alias Model =
 initAlertList : Model
 initAlertList =
     { alerts = Loading
-    , autoComplete = AutoComplete.initAutoComplete
+    , autoComplete = GroupBar.initGroupBar
     , filterBar = FilterBar.initFilterBar
     }

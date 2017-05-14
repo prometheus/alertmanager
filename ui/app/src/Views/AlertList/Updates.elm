@@ -7,8 +7,8 @@ import Utils.Filter exposing (Filter, parseFilter)
 import Utils.Types exposing (ApiData, ApiResponse(Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Set
-import Views.AutoComplete.Updates as AutoComplete
-import Views.AutoComplete.Types exposing (initAutoComplete)
+import Views.GroupBar.Updates as GroupBar
+import Views.GroupBar.Types exposing (initGroupBar)
 
 
 update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
@@ -20,7 +20,7 @@ update msg model filter =
                 , autoComplete =
                     case listOfAlerts of
                         Success alerts ->
-                            { initAutoComplete
+                            { initGroupBar
                                 | list =
                                     List.concatMap .labels alerts
                                         |> List.map Tuple.first
@@ -51,9 +51,9 @@ update msg model filter =
             in
                 ( { model | filterBar = filterBar }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
 
-        MsgForAutoComplete msg ->
+        MsgForGroupBar msg ->
             let
                 ( autoComplete, cmd ) =
-                    AutoComplete.update msg model.autoComplete
+                    GroupBar.update msg model.autoComplete
             in
-                ( { model | autoComplete = autoComplete }, Cmd.map (MsgForAutoComplete >> MsgForAlertList) cmd )
+                ( { model | autoComplete = autoComplete }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )

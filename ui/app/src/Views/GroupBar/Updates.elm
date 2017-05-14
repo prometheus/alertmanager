@@ -1,7 +1,7 @@
-module Views.AutoComplete.Updates exposing (update)
+module Views.GroupBar.Updates exposing (update)
 
-import Views.AutoComplete.Types exposing (Model, Msg(..))
-import Views.AutoComplete.Match exposing (jaroWinkler)
+import Views.GroupBar.Types exposing (Model, Msg(..))
+import Views.GroupBar.Match exposing (jaroWinkler)
 import Task
 import Dom
 import Set

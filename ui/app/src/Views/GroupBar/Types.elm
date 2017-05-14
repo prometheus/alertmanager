@@ -1,4 +1,4 @@
-module Views.AutoComplete.Types exposing (Model, Msg(..), initAutoComplete)
+module Views.GroupBar.Types exposing (Model, Msg(..), initGroupBar)
 
 import Set exposing (Set)
 
@@ -26,8 +26,8 @@ type Msg
     | Noop
 
 
-initAutoComplete : Model
-initAutoComplete =
+initGroupBar : Model
+initGroupBar =
     { list = Set.empty
     , fieldText = ""
     , fields = []

@@ -42,7 +42,8 @@ labelButtons : List ( String, String ) -> Html Msg
 labelButtons labels =
     labels
         -- the alertname label should be first
-        |> List.partition (Tuple.first >> (==) "alertname")
+        |>
+            List.partition (Tuple.first >> (==) "alertname")
         |> uncurry (++)
         |> List.map labelButton
         |> div []

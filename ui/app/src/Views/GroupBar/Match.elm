@@ -1,4 +1,4 @@
-module Views.AutoComplete.Match exposing (jaro, jaroWinkler, commonPrefix)
+module Views.GroupBar.Match exposing (jaro, jaroWinkler, commonPrefix)
 
 import Utils.List exposing (zip)
 import Char
