@@ -86,7 +86,7 @@ silenceButton alert =
             buttonLink "fa-deaf" ("#/silences/" ++ id) "blue" Noop
         else
             a
-                [ class "btn btn-warning rounded-0 d-flex align-items-center"
+                [ class "btn btn-outline-warning rounded-0 border-0 d-flex align-items-center"
                 , href "#/silences/new?keep=1"
                 , onClick (CreateSilenceFromAlert alert)
                 ]
@@ -96,7 +96,7 @@ silenceButton alert =
 generatorUrlButton : String -> Html Msg
 generatorUrlButton url =
     a
-        [ class "btn btn-primary rounded-0 d-flex align-items-center"
+        [ class "btn d-flex btn-outline-primary rounded-0 border-0 align-items-center"
         , href url
         ]
         [ i [ class "fa fa-line-chart" ] [] ]
