@@ -2,7 +2,7 @@ module Match exposing (all)
 
 import Test exposing (..)
 import Expect
-import Views.AutoComplete.Match exposing (jaroWinkler, commonPrefix)
+import Views.GroupBar.Match exposing (jaroWinkler, commonPrefix)
 
 
 all : Test
