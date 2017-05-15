@@ -100,8 +100,6 @@ updateAutoComplete model =
             else if String.contains " " model.fieldText then
                 model.matches
             else
-                -- TODO: Disallow adding spaces, or only check distance if
-                -- there are no spaces.
                 -- TODO: How many matches do we want to show?
                 -- NOTE: List.reverse is used because our scale is (0.0, 1.0),
                 -- but we want the higher values to be in the front of the
