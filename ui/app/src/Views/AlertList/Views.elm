@@ -36,8 +36,6 @@ renderTab title tab currentTab =
         ]
 
 
-{-| TODO: integrate this into the filter when this is implemented on the backend
--}
 renderSilenced : Maybe Bool -> Html Msg
 renderSilenced maybeShowSilenced =
     li [ class "nav-item ml-auto " ]
@@ -64,6 +62,7 @@ view { alerts, groupBar, filterBar, tab } filter =
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ renderTab "Filter" FilterTab tab
                     , renderTab "Group" GroupTab tab
+                    , renderSilenced filter.showSilenced
                     ]
                 ]
             , div [ class "card-block" ]
