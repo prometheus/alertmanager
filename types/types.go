@@ -333,6 +333,31 @@ type Silence struct {
 	// timeFunc provides the time against which to evaluate
 	// the silence. Used for test injection.
 	now func() time.Time
+
+	Status SilenceStatus `json:"status"`
+}
+
+type SilenceStatus struct {
+	State SilenceState `json:"state"`
+}
+
+type SilenceState string
+
+const (
+	SilenceStateExpired SilenceState = "expired"
+	SilenceStateActive  SilenceState = "active"
+	SilenceStatePending SilenceState = "pending"
+)
+
+func CalcSilenceState(start, end time.Time) SilenceState {
+	current := time.Now()
+	if current.Before(start) {
+		return SilenceStatePending
+	}
+	if current.Before(end) {
+		return SilenceStateActive
+	}
+	return SilenceStateExpired
 }
 
 // Validate returns true iff all fields of the silence have valid values.
