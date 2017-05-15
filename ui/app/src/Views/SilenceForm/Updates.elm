@@ -126,10 +126,7 @@ update msg model =
                 Success id ->
                     ( model, Navigation.newUrl ("/#/silences/" ++ id) )
 
-                Failure err ->
-                    ( model, Navigation.newUrl "/#/silences" )
-
-                Loading ->
+                _ ->
                     ( model, Navigation.newUrl "/#/silences" )
 
         NewSilenceFromMatchers matchers ->

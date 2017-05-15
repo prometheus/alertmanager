@@ -4,7 +4,7 @@ import Html exposing (..)
 import Html.Attributes exposing (class, style)
 import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer)
 import Types exposing (Msg(MsgForStatus))
-import Utils.Types exposing (ApiResponse(Failure, Success, Loading), ApiData)
+import Utils.Types exposing (ApiResponse(Failure, Success, Loading, Initial), ApiData)
 import Views.Status.Types exposing (StatusModel)
 import Utils.Views
 
@@ -14,6 +14,9 @@ view { statusInfo } =
     case statusInfo of
         Success info ->
             viewStatusInfo info
+
+        Initial ->
+            Utils.Views.loading
 
         Loading ->
             Utils.Views.loading

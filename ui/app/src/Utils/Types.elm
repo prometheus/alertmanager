@@ -5,7 +5,8 @@ import Time
 
 
 type ApiResponse e a
-    = Loading
+    = Initial
+    | Loading
     | Failure e
     | Success a
 

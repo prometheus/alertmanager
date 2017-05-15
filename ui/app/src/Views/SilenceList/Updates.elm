@@ -52,5 +52,6 @@ updateFilter : Maybe String -> Filter
 updateFilter maybeFilter =
     { receiver = Nothing
     , showSilenced = Nothing
+    , group = Nothing
     , text = maybeFilter
     }

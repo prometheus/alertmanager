@@ -54,10 +54,10 @@ immediatelyFilter url filter model =
         newFilter =
             { filter | text = Just (stringifyFilter model.matchers) }
     in
-        ( model
+        ( { model | matchers = [] }
         , Cmd.batch
             [ Navigation.newUrl (url ++ generateQueryString newFilter)
-            , Dom.focus "custom-matcher" |> Task.attempt (always Noop)
+            , Dom.focus "filter-bar-matcher" |> Task.attempt (always Noop)
             ]
         )
 

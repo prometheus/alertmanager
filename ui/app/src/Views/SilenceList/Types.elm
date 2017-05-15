@@ -1,6 +1,6 @@
 module Views.SilenceList.Types exposing (SilenceListMsg(..), Model, initSilenceList)
 
-import Utils.Types exposing (ApiData, ApiResponse(Loading))
+import Utils.Types exposing (ApiData, ApiResponse(Initial))
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (ApiData)
 import Views.FilterBar.Types as FilterBar
@@ -22,6 +22,6 @@ type alias Model =
 
 initSilenceList : Model
 initSilenceList =
-    { silences = Loading
+    { silences = Initial
     , filterBar = FilterBar.initFilterBar
     }

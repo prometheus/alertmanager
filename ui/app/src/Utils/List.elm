@@ -1,6 +1,25 @@
 module Utils.List exposing (..)
 
 import Utils.Types exposing (Matchers, Matcher)
+import Dict exposing (Dict)
+
+
+nextElem : a -> List a -> Maybe a
+nextElem el list =
+    case list of
+        curr :: rest ->
+            if curr == el then
+                List.head rest
+            else
+                nextElem el rest
+
+        [] ->
+            Nothing
+
+
+lastElem : List a -> Maybe a
+lastElem =
+    List.foldl (Just >> always) Nothing
 
 
 replaceIf : (a -> Bool) -> a -> List a -> List a
@@ -42,3 +61,28 @@ mstring m =
                 "="
     in
         String.join sep [ m.name, toString m.value ]
+
+
+{-| Takes a key-fn and a list.
+Creates a `Dict` which maps the key to a list of matching elements.
+mary = {id=1, name="Mary"}
+jack = {id=2, name="Jack"}
+jill = {id=1, name="Jill"}
+groupBy .id [mary, jack, jill] == Dict.fromList [(1, [mary, jill]), (2, [jack])]
+
+Copied from <https://github.com/elm-community/dict-extra/blob/2.0.0/src/Dict/Extra.elm>
+
+-}
+groupBy : (a -> comparable) -> List a -> Dict comparable (List a)
+groupBy keyfn list =
+    List.foldr
+        (\x acc ->
+            Dict.update (keyfn x) (Maybe.map ((::) x) >> Maybe.withDefault [ x ] >> Just) acc
+        )
+        Dict.empty
+        list
+
+
+zip : List a -> List b -> List ( a, b )
+zip a b =
+    List.map2 (,) a b
