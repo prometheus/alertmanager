@@ -107,40 +107,26 @@ cp l1 l2 acc =
     if List.length acc == 4 then
         acc
     else
-        case l1 of
-            [] ->
+        case ( l1, l2 ) of
+            ( x :: xs, y :: ys ) ->
+                if x == y then
+                    x :: cp xs ys acc
+                else
+                    acc
+
+            _ ->
                 acc
 
-            x :: xs ->
-                case l2 of
-                    [] ->
-                        acc
 
-                    y :: ys ->
-                        if x == y then
-                            x :: cp xs ys acc
-                        else
-                            acc
-
-
-charMatch : Int -> List ( Int, Int ) -> ( Int, Int ) -> List ( Int, Int )
+charMatch : number -> List ( number, number ) -> ( number, number ) -> List ( number, number )
 charMatch matchRange list ( p, q ) =
-    -- TODO(w0rm): Is there a way to define this so it's not so strictly bound
-    -- to type Int?
-    let
-        sliced =
-            list
-                |> List.drop (p - matchRange - 1)
-                |> List.take (p + matchRange)
-    in
-        sliced
-            |> List.filter
-                (\( x, y ) ->
-                    y == q
-                )
+    list
+        |> List.drop (p - matchRange - 1)
+        |> List.take (p + matchRange)
+        |> List.filter (Tuple.second >> (==) q)
 
 
-transposition : List ( Int, Int ) -> ( Int, Int ) -> Int
+transposition : List ( number, number ) -> ( number, number ) -> Int
 transposition list ( p, q ) =
     list
         |> List.filter
