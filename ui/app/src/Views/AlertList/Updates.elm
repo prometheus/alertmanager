@@ -41,20 +41,13 @@ update msg ({ groupBar, filterBar } as model) filter =
 
                 newFilterBar =
                     FilterBar.setMatchers filter filterBar
-
-                newModel =
-                    { model | filterBar = newFilterBar, groupBar = newGroupBar }
             in
-                -- only fetch when filter changed
-                if newFilterBar /= model.filterBar || model.alerts == Initial then
-                    ( { newModel | alerts = Loading }
-                    , Api.fetchAlerts filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
-                    )
-                else
-                    ( newModel, Cmd.none )
+                ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar }
+                , Api.fetchAlerts filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                )
 
         ToggleSilenced showSilenced ->
-            ( { model | alerts = Initial }
+            ( model
             , Navigation.newUrl ("/#/alerts" ++ generateQueryString { filter | showSilenced = Just showSilenced })
             )
 
