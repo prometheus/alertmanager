@@ -1,4 +1,4 @@
-module Match exposing (all)
+module GroupBar exposing (all)
 
 import Test exposing (..)
 import Expect

@@ -2,14 +2,14 @@ module Tests exposing (..)
 
 import Test exposing (..)
 import Filter
-import Match
+import GroupBar
 
 
 all : Test
 all =
     describe "Tests"
         [ utils
-        , match
+        , groupBar
         ]
 
 
@@ -20,8 +20,8 @@ utils =
         ]
 
 
-match : Test
-match =
-    describe "Match"
-        [ Match.all
+groupBar : Test
+groupBar =
+    describe "GroupBar"
+        [ GroupBar.all
         ]
