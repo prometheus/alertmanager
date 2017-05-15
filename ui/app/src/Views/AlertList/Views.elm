@@ -12,6 +12,7 @@ import Utils.Views exposing (buttonLink, listButton)
 import Utils.List
 import Views.AlertList.AlertView as AlertView
 import Views.AlertList.Filter exposing (silenced, matchers)
+import Views.GroupBar.Types as GroupBar
 import Utils.Views exposing (buttonLink, listButton)
 import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForGroupBar, SetTab, ToggleSilenced), Model, Tab(..))
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
@@ -75,43 +76,8 @@ view { alerts, groupBar, filterBar, tab } filter =
                 ]
             ]
         , case alerts of
-            Success groups ->
-                let
-                    g =
-                        silenced filter.showSilenced groups
-                            |> Utils.List.groupBy
-                                (\alert ->
-                                    List.filterMap
-                                        (\( key, value ) ->
-                                            -- Find the correct keys and return
-                                            -- their values
-                                            if List.member key groupBar.fields then
-                                                Just ( key, value )
-                                            else
-                                                Nothing
-                                        )
-                                        alert.labels
-                                )
-                in
-                    div []
-                        (List.filterMap
-                            (\k ->
-                                let
-                                    alerts =
-                                        (Dict.get k g)
-                                in
-                                    case alerts of
-                                        Just alts ->
-                                            Just (alertList k alts filter)
-
-                                        Nothing ->
-                                            Nothing
-                            )
-                            (Dict.keys g
-                                |> List.partition ((/=) [])
-                                |> uncurry (++)
-                            )
-                        )
+            Success alerts ->
+                alertGroups filter groupBar alerts
 
             Loading ->
                 Utils.Views.loading
@@ -124,8 +90,30 @@ view { alerts, groupBar, filterBar, tab } filter =
         ]
 
 
-alertList : Labels -> List Alert -> Filter -> Html Msg
-alertList labels alerts filter =
+alertGroups : Filter -> GroupBar.Model -> List Alert -> Html Msg
+alertGroups filter groupBar alerts =
+    let
+        grouped =
+            alerts
+                |> silenced filter.showSilenced
+                |> Utils.List.groupBy
+                    (.labels >> List.filter (\( key, _ ) -> List.member key groupBar.fields))
+    in
+        grouped
+            |> Dict.keys
+            |> List.partition ((/=) [])
+            |> uncurry (++)
+            |> List.filterMap
+                (\labels ->
+                    Maybe.map
+                        (alertList labels filter)
+                        (Dict.get labels grouped)
+                )
+            |> div []
+
+
+alertList : Labels -> Filter -> List Alert -> Html Msg
+alertList labels filter alerts =
     div []
         [ div []
             (case labels of
