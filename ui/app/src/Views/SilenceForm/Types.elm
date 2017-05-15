@@ -25,10 +25,11 @@ initSilenceForm =
 
 
 toSilence : SilenceForm -> Result String Silence
-toSilence { createdBy, comment, startsAt, endsAt, matchers } =
+toSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     Maybe.map2
         (\parsedStartsAt parsedEndsAt ->
-            { comment = comment
+            { id = id
+            , comment = comment
             , matchers = matchers
             , createdBy = createdBy
             , startsAt = parsedStartsAt
@@ -41,9 +42,6 @@ toSilence { createdBy, comment, startsAt, endsAt, matchers } =
             , updatedAt = 0
 
             {- ignored -}
-            , id = ""
-
-            {- ignored -}
             , status = nullSilenceStatus
             }
         )
@@ -53,8 +51,9 @@ toSilence { createdBy, comment, startsAt, endsAt, matchers } =
 
 
 fromSilence : Silence -> SilenceForm
-fromSilence { createdBy, comment, startsAt, endsAt, matchers } =
-    { createdBy = createdBy
+fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
+    { id = id
+    , createdBy = createdBy
     , comment = comment
     , startsAt = timeToString startsAt
     , endsAt = timeToString endsAt
@@ -65,7 +64,8 @@ fromSilence { createdBy, comment, startsAt, endsAt, matchers } =
 
 empty : SilenceForm
 empty =
-    { createdBy = ""
+    { id = ""
+    , createdBy = ""
     , comment = ""
     , startsAt = ""
     , endsAt = ""
@@ -95,7 +95,8 @@ type alias Model =
 
 
 type alias SilenceForm =
-    { createdBy : String
+    { id : String
+    , createdBy : String
     , comment : String
     , startsAt : String
     , endsAt : String

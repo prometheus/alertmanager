@@ -44,7 +44,7 @@ view maybeId { silence, form } =
                     , formField "Creator" form.createdBy (UpdateCreatedBy >> UpdateField)
                     , textField "Comment" form.comment (UpdateComment >> UpdateField)
                     , div [ class "mt3" ]
-                        [ createSilence silence
+                        [ createSilence maybeId silence
                         , a
                             [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red"
                             , onClick resetClick
@@ -53,24 +53,46 @@ view maybeId { silence, form } =
                         ]
                     ]
                 , preview silence
+                , displayError silence
                 ]
             ]
 
 
-createSilence : Result String Silence -> Html SilenceFormMsg
-createSilence silenceResult =
-    case silenceResult of
-        Ok silence ->
-            a
-                [ class "f6 link br2 ba ph3 pv2 mr2 dib blue"
-                , onClick (CreateSilence silence)
-                ]
-                [ text "Create" ]
-
+displayError : Result String Silence -> Html SilenceFormMsg
+displayError silence =
+    case silence of
         Err msg ->
-            span
-                [ class "f6 link br2 ba ph3 pv2 mr2 dib red" ]
-                [ text "Create" ]
+            div
+                [ class "alert alert-danger" ]
+                [ text msg ]
+
+        Ok _ ->
+            text ""
+
+
+createSilence : Maybe String -> Result String Silence -> Html SilenceFormMsg
+createSilence maybeId silenceResult =
+    let
+        btnTxt =
+            case maybeId of
+                Just _ ->
+                    "Update"
+
+                Nothing ->
+                    "Create"
+    in
+        case silenceResult of
+            Ok silence ->
+                a
+                    [ class "btn btn-primary"
+                    , onClick (CreateSilence silence)
+                    ]
+                    [ text btnTxt ]
+
+            Err msg ->
+                span
+                    [ class "btn btn-danger" ]
+                    [ text btnTxt ]
 
 
 preview : Result String Silence -> Html SilenceFormMsg

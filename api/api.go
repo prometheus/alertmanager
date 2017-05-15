@@ -436,7 +436,7 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 	sid, err := api.silences.Set(psil)
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorInternal,
+			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
