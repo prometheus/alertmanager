@@ -27,7 +27,7 @@ message Matcher {
   string pattern = 3;
 }
 
-// A comment can be attached to a silence.
+// DEPRECATED: A comment can be attached to a silence.
 message Comment {
   string author = 1;
   string comment = 2;
@@ -51,8 +51,11 @@ message Silence {
   // The last motification made to the silence.
   google.protobuf.Timestamp updated_at = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 
-  // A set of comments made on the silence.
+  // DEPRECATED: A set of comments made on the silence.
   repeated Comment comments = 7;
+  // Comment for the silence.
+  string created_by = 8;
+  string comment = 9;
 }
 
 // MeshSilence wraps a regular silence with an expiration timestamp

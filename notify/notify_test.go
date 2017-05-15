@@ -433,7 +433,7 @@ func TestSilenceStage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := silences.Create(&silencepb.Silence{
+	if _, err := silences.Set(&silencepb.Silence{
 		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	}); err != nil {
