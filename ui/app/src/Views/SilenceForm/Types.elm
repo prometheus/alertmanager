@@ -32,10 +32,18 @@ toSilence { createdBy, comment, startsAt, endsAt, matchers } =
             , matchers = matchers
             , createdBy = createdBy
             , startsAt = parsedStartsAt
-            , endsAt = parsedEndsAt {- ignored -}
-            , silencedAlerts = Success [] {- ignored -}
-            , updatedAt = 0 {- ignored -}
-            , id = "" {- ignored -}
+            , endsAt = parsedEndsAt
+
+            {- ignored -}
+            , silencedAlerts = Success []
+
+            {- ignored -}
+            , updatedAt = 0
+
+            {- ignored -}
+            , id = ""
+
+            {- ignored -}
             , status = nullSilenceStatus
             }
         )
