@@ -82,7 +82,7 @@ func PeerNameFromBin(nameByte []byte) PeerName {
 	return PeerName(macint(net.HardwareAddr(nameByte)))
 }
 
-// Bin encodes PeerName as a byte slice.
+// bytes encodes PeerName as a byte slice.
 func (name PeerName) bytes() []byte {
 	return intmac(uint64(name))
 }

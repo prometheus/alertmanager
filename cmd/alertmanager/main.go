@@ -18,8 +18,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
@@ -117,7 +115,10 @@ func main() {
 	}
 
 	logger := log.NewLogger(os.Stderr)
-	mrouter := initMesh(*meshListen, *hwaddr, *nickname, *password)
+	mrouter, err := initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
@@ -125,7 +126,11 @@ func main() {
 
 	notificationLog, err := nflog.New(
 		nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
-			return mrouter.NewGossip("nflog", g)
+			res, err := mrouter.NewGossip("nflog", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
 		}),
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
@@ -145,7 +150,11 @@ func main() {
 		Logger:       logger.With("component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
 		Gossip: func(g mesh.Gossiper) mesh.Gossip {
-			return mrouter.NewGossip("silences", g)
+			res, err := mrouter.NewGossip("silences", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
 		},
 	})
 	if err != nil {
@@ -322,7 +331,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func initMesh(addr, hwaddr, nickname, pw string) *mesh.Router {
+func initMesh(addr, hwaddr, nickname, pw string, logger log.Logger) (*mesh.Router, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 
 	if err != nil {
@@ -353,8 +362,15 @@ func initMesh(addr, hwaddr, nickname, pw string) *mesh.Router {
 		ConnLimit:          64,
 		PeerDiscovery:      true,
 		TrustedSubnets:     []*net.IPNet{},
-	}, name, nickname, mesh.NullOverlay{}, stdlog.New(ioutil.Discard, "", 0))
+	}, name, nickname, mesh.NullOverlay{}, printfLogger{logger})
+}
 
+type printfLogger struct {
+	log.Logger
+}
+
+func (l printfLogger) Printf(f string, args ...interface{}) {
+	l.Debugf(f, args...)
 }
 
 func extURL(listen, external string) (*url.URL, error) {
