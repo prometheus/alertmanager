@@ -20,6 +20,7 @@ import Views.SilenceForm.Types
         , fromMatchersAndTime
         , fromSilence
         , toSilence
+        , initSilenceForm
         )
 
 
@@ -116,7 +117,7 @@ update : SilenceFormMsg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         CreateSilence silence ->
-            ( model
+            ( initSilenceForm
             , Silences.Api.create silence
                 |> Cmd.map (SilenceCreate >> MsgForSilenceForm)
             )
