@@ -35,6 +35,25 @@ renderTab title tab currentTab =
         ]
 
 
+{-| TODO: integrate this into the filter when this is implemented on the backend
+-}
+renderSilenced : Maybe Bool -> Html Msg
+renderSilenced maybeShowSilenced =
+    li [ class "nav-item ml-auto " ]
+        [ label [ class "mt-1 custom-control custom-checkbox" ]
+            [ input
+                [ type_ "checkbox"
+                , class "custom-control-input"
+                , checked (Maybe.withDefault False maybeShowSilenced)
+                , onCheck (ToggleSilenced >> MsgForAlertList)
+                ]
+                []
+            , span [ class "custom-control-indicator" ] []
+            , span [ class "custom-control-description" ] [ text "Show Silenced" ]
+            ]
+        ]
+
+
 view : Model -> Filter -> Html Msg
 view { alerts, groupBar, filterBar, tab } filter =
     div []
@@ -44,19 +63,6 @@ view { alerts, groupBar, filterBar, tab } filter =
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ renderTab "Filter" FilterTab tab
                     , renderTab "Group" GroupTab tab
-                    , li [ class "nav-item ml-auto " ]
-                        [ label [ class "mt-1 custom-control custom-checkbox" ]
-                            [ input
-                                [ type_ "checkbox"
-                                , class "custom-control-input"
-                                , checked (Maybe.withDefault False filter.showSilenced)
-                                , onCheck (ToggleSilenced >> MsgForAlertList)
-                                ]
-                                []
-                            , span [ class "custom-control-indicator" ] []
-                            , span [ class "custom-control-description" ] [ text "Show Silenced" ]
-                            ]
-                        ]
                     ]
                 ]
             , div [ class "card-block" ]
