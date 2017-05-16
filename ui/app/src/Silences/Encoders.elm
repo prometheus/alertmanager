@@ -9,7 +9,8 @@ import Utils.Date
 silence : Silence -> Encode.Value
 silence silence =
     Encode.object
-        [ ( "createdBy", Encode.string silence.createdBy )
+        [ ( "id", Encode.string silence.id )
+        , ( "createdBy", Encode.string silence.createdBy )
         , ( "comment", Encode.string silence.comment )
         , ( "startsAt", Encode.string (Utils.Date.encode silence.startsAt) )
         , ( "endsAt", Encode.string (Utils.Date.encode silence.endsAt) )

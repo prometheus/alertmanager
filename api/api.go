@@ -126,7 +126,7 @@ func (api *API) Register(r *route.Router) {
 	r.Post("/alerts", ihf("add_alerts", api.addAlerts))
 
 	r.Get("/silences", ihf("list_silences", api.listSilences))
-	r.Post("/silences", ihf("add_silence", api.addSilence))
+	r.Post("/silences", ihf("add_silence", api.setSilence))
 	r.Get("/silence/:sid", ihf("get_silence", api.getSilence))
 	r.Del("/silence/:sid", ihf("del_silence", api.delSilence))
 }
@@ -415,7 +415,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	respond(w, nil)
 }
 
-func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
+func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 	var sil types.Silence
 	if err := receive(r, &sil); err != nil {
 		respondError(w, apiError{
@@ -432,15 +432,11 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
-	// Drop start time for new silences so we default to now.
-	if sil.ID == "" && sil.StartsAt.Before(time.Now()) {
-		psil.StartsAt = time.Time{}
-	}
 
-	sid, err := api.silences.Create(psil)
+	sid, err := api.silences.Set(psil)
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorInternal,
+			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
@@ -548,6 +544,8 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 		StartsAt:  s.StartsAt,
 		EndsAt:    s.EndsAt,
 		UpdatedAt: s.UpdatedAt,
+		Comment:   s.Comment,
+		CreatedBy: s.CreatedBy,
 	}
 	for _, m := range s.Matchers {
 		matcher := &silencepb.Matcher{
@@ -560,11 +558,6 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 		}
 		sil.Matchers = append(sil.Matchers, matcher)
 	}
-	sil.Comments = append(sil.Comments, &silencepb.Comment{
-		Timestamp: s.UpdatedAt,
-		Author:    s.CreatedBy,
-		Comment:   s.Comment,
-	})
 	return sil, nil
 }
 
@@ -577,6 +570,8 @@ func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
 		Status: types.SilenceStatus{
 			State: types.CalcSilenceState(s.StartsAt, s.EndsAt),
 		},
+		Comment:   s.Comment,
+		CreatedBy: s.CreatedBy,
 	}
 	for _, m := range s.Matchers {
 		matcher := &types.Matcher{
@@ -591,10 +586,6 @@ func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
 			return nil, fmt.Errorf("unknown matcher type")
 		}
 		sil.Matchers = append(sil.Matchers, matcher)
-	}
-	if len(s.Comments) > 0 {
-		sil.CreatedBy = s.Comments[0].Author
-		sil.Comment = s.Comments[0].Comment
 	}
 
 	return sil, nil
