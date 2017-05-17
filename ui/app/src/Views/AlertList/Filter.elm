@@ -1,4 +1,4 @@
-module Views.AlertList.Filter exposing (silenced, matchers)
+module Views.AlertList.Filter exposing (matchers)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block)
 import Utils.Types exposing (Matchers)
@@ -13,30 +13,6 @@ matchers matchers alerts =
 
         Nothing ->
             alerts
-
-
-silenced : Maybe Bool -> List Alert -> List Alert
-silenced maybeShowSilenced alerts =
-    let
-        showSilenced =
-            Maybe.withDefault False maybeShowSilenced
-    in
-        if showSilenced then
-            alerts
-        else
-            List.filter (.silenced >> not) alerts
-
-
-filterAlertGroup : (String -> Bool) -> AlertGroup -> Maybe AlertGroup
-filterAlertGroup fn alertGroup =
-    let
-        blocks =
-            List.filter (\b -> fn b.routeOpts.receiver) alertGroup.blocks
-    in
-        if not <| List.isEmpty blocks then
-            Just { alertGroup | blocks = blocks }
-        else
-            Nothing
 
 
 alertsFromBlock : (Alert -> Bool) -> Block -> Maybe Block
@@ -93,28 +69,6 @@ filterAlertGroupLabels matchers alertGroup =
             Just { alertGroup | blocks = blocks }
         else
             Nothing
-
-
-matchersToLabels : Utils.Types.Matchers -> Utils.Types.Labels
-matchersToLabels matchers =
-    List.map (\m -> ( m.name, m.value )) matchers
-
-
-alertGroupsSilenced : AlertGroup -> Maybe AlertGroup
-alertGroupsSilenced alertGroup =
-    let
-        blocks =
-            List.filterMap filterSilencedAlerts alertGroup.blocks
-    in
-        if not <| List.isEmpty blocks then
-            Just { alertGroup | blocks = blocks }
-        else
-            Nothing
-
-
-filterSilencedAlerts : Block -> Maybe Block
-filterSilencedAlerts block =
-    alertsFromBlock (.silenced >> not) block
 
 
 by : (a -> Maybe a) -> List a -> List a

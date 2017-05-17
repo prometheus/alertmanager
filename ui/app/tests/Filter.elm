@@ -38,17 +38,21 @@ parseMatcher =
 generateQueryString : Test
 generateQueryString =
     describe "generateQueryString"
-        [ test "should not render keys with Nothing value" <|
+        [ test "should default silenced parameter to false if showSilenced is Nothing" <| 
             \() ->
-                Expect.equal ""
+                Expect.equal "?silenced=false"
+                    (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, text = Nothing, showSilenced = Nothing })
+        , test "should not render keys with Nothing value except the silenced parameter" <|
+            \() ->
+                Expect.equal "?silenced=false"
                     (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, text = Nothing, showSilenced = Nothing })
         , test "should not render filter key with empty value" <|
             \() ->
-                Expect.equal ""
+                Expect.equal "?silenced=false"
                     (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, text = Just "", showSilenced = Nothing })
         , test "should render filter key with values" <|
             \() ->
-                Expect.equal "?filter=%7Bfoo%3D%22bar%22%2C%20baz%3D~%22quux.*%22%7D"
+                Expect.equal "?silenced=false&filter=%7Bfoo%3D%22bar%22%2C%20baz%3D~%22quux.*%22%7D"
                     (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, text = Just "{foo=\"bar\", baz=~\"quux.*\"}", showSilenced = Nothing })
         , test "should render silenced key with bool" <|
             \() ->

@@ -34,7 +34,7 @@ update msg model =
                 | silence = Success { silence | silencedAlerts = Loading }
               }
             , Alerts.Api.fetchAlerts
-                ({ nullFilter | text = Just (Utils.List.mjoin silence.matchers) })
+                ({ nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True })
                 |> Cmd.map (AlertGroupsPreview >> MsgForSilence)
             )
 

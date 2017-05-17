@@ -11,7 +11,7 @@ import Utils.Types exposing (ApiResponse(Initial, Success, Loading, Failure), La
 import Utils.Views exposing (buttonLink, listButton)
 import Utils.List
 import Views.AlertList.AlertView as AlertView
-import Views.AlertList.Filter exposing (silenced, matchers)
+import Views.AlertList.Filter exposing (matchers)
 import Views.GroupBar.Types as GroupBar
 import Utils.Views exposing (buttonLink, listButton)
 import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForGroupBar, SetTab, ToggleSilenced), Model, Tab(..))
@@ -94,7 +94,6 @@ alertGroups filter groupBar alerts =
     let
         grouped =
             alerts
-                |> silenced filter.showSilenced
                 |> Utils.List.groupBy
                     (.labels >> List.filter (\( key, _ ) -> List.member key groupBar.fields))
     in
