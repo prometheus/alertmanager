@@ -582,8 +582,13 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		msg = tmplText(n.conf.Message)
 	}
 
+	from := tmplText(n.conf.From)
+	if len(from) > 64 {
+		from = from[:64]
+	}
+
 	req := &hipchatReq{
-		From:          tmplText(n.conf.From),
+		From:          from,
 		Notify:        n.conf.Notify,
 		Message:       msg,
 		MessageFormat: n.conf.MessageFormat,
