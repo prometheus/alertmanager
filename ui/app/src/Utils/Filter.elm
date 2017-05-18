@@ -48,7 +48,7 @@ generateQueryString { receiver, showSilenced, text, group } =
     let
         -- TODO: Re-add receiver once it is parsed on the server side.
         parts =
-            [ ( "silenced", Maybe.map (toString >> String.toLower) showSilenced )
+            [ ( "silenced", Maybe.withDefault False showSilenced |> toString |> String.toLower |> Just )
             , ( "filter", emptyToNothing text )
             , ( "group", group )
             ]

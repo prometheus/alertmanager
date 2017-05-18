@@ -256,8 +256,9 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		err error
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res      = []*APIAlert{}
-		matchers = []*labels.Matcher{}
+		res          = []*APIAlert{}
+		matchers     = []*labels.Matcher{}
+		showSilenced = true
 	)
 
 	if filter := r.FormValue("filter"); filter != "" {
@@ -266,6 +267,21 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 			respondError(w, apiError{
 				typ: errorBadData,
 				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	if silencedParam := r.FormValue("silenced"); silencedParam != "" {
+		if silencedParam == "false" {
+			showSilenced = false
+		} else if silencedParam != "true" {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: fmt.Errorf(
+					"parameter 'silenced' can either be 'true' or 'false', not '%v'",
+					silencedParam,
+				),
 			}, nil)
 			return
 		}
@@ -285,6 +301,10 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		status := api.getAlertStatus(a.Fingerprint())
+
+		if !showSilenced && len(status.SilencedBy) != 0 {
+			continue
+		}
 
 		apiAlert := &APIAlert{
 			Alert:  &a.Alert,
