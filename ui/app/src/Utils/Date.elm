@@ -85,11 +85,10 @@ encode =
     round >> ISO8601.fromTime >> ISO8601.toString
 
 
-timeFromString : String -> Maybe Time.Time
+timeFromString : String -> Result String Time.Time
 timeFromString =
     ISO8601.fromString
-        >> Result.toMaybe
-        >> Maybe.map (ISO8601.toTime >> toFloat)
+        >> Result.map (ISO8601.toTime >> toFloat)
 
 
 fromTime : Time.Time -> Types.Time

@@ -35,32 +35,66 @@ button classes content =
 
 iconButtonMsg : String -> String -> msg -> Html msg
 iconButtonMsg classString icon msg =
-    a [ class <| "f6 link br1 ba mr1 ph2 pv2 mb2 dib " ++ classString, onClick msg ]
+    a [ class classString, onClick msg ]
         [ i [ class <| "fa fa-3 " ++ icon ] []
         ]
 
 
 checkbox : String -> Bool -> (Bool -> msg) -> Html msg
 checkbox name status msg =
-    label [ class "f6 dib mb2 mr2" ]
+    label [ class "f6 dib mb2 mr2 d-flex align-items-center" ]
         [ input [ type_ "checkbox", checked status, onCheck msg ] []
-        , text <| " " ++ name
+        , span [ class "pl-2" ] [ text <| " " ++ name ]
         ]
 
 
-formField : String -> String -> (String -> msg) -> Html msg
-formField labelText content msg =
-    div [ class "mt3" ]
-        [ label [ class "f6 b db mb2" ] [ text labelText ]
-        , input [ class "input-reset ba br1 b--black-20 pa2 mb2 db w-100", value content, onInput msg ] []
+validatedFormField : String -> Result ( String, String ) String -> String -> (String -> msg) -> Html msg
+validatedFormField labelText validatedString classes msg =
+    case validatedString of
+        Ok inputValue ->
+            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , input [ value inputValue, onInput msg, class "form-control form-control-success" ] []
+                ]
+
+        Err ( inputValue, error ) ->
+            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , input [ value inputValue, onInput msg, class "form-control form-control-danger" ] []
+                , div [ class "form-control-feedback" ] [ text error ]
+                ]
+
+
+formField : String -> String -> String -> (String -> msg) -> Html msg
+formField labelText content classes msg =
+    div [ class <| "d-flex flex-column " ++ classes ]
+        [ label [] [ strong [] [ text labelText ] ]
+        , input [ value content, onInput msg ] []
         ]
 
 
-textField : String -> String -> (String -> msg) -> Html msg
-textField labelText content msg =
-    div [ class "mt3" ]
-        [ label [ class "f6 b db mb2" ] [ text labelText ]
-        , textarea [ class "db border-box hover-black w-100 ba b--black-20 pa2 br1 mb2", value content, onInput msg ] []
+validatedTextField : String -> Result ( String, String ) String -> String -> (String -> msg) -> Html msg
+validatedTextField labelText validatedString classes msg =
+    case validatedString of
+        Ok inputValue ->
+            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea [ value inputValue, onInput msg, class "form-control form-control-success" ] []
+                ]
+
+        Err ( inputValue, error ) ->
+            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea [ value inputValue, onInput msg, class "form-control form-control-danger" ] []
+                , div [ class "form-control-feedback" ] [ text error ]
+                ]
+
+
+textField : String -> String -> String -> (String -> msg) -> Html msg
+textField labelText content classes msg =
+    div [ class <| "d-flex flex-column " ++ classes ]
+        [ label [] [ strong [] [ text labelText ] ]
+        , textarea [ value content, onInput msg ] []
         ]
 
 
@@ -71,9 +105,9 @@ buttonLink icon link color msg =
         ]
 
 
-formInput : String -> (String -> msg) -> Html msg
-formInput inputValue msg =
-    Html.input [ class "input-reset ba br1 b--black-20 pa2 mb2 mr2 dib w-40", value inputValue, onInput msg ] []
+formInput : String -> String -> (String -> msg) -> Html msg
+formInput inputValue classes msg =
+    Html.input [ class <| "w-100 " ++ classes, value inputValue, onInput msg ] []
 
 
 loading : Html msg

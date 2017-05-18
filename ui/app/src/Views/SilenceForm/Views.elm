@@ -1,16 +1,16 @@
 module Views.SilenceForm.Views exposing (view)
 
-import Html exposing (Html, a, div, fieldset, label, legend, span, text)
+import Html exposing (Html, a, div, fieldset, label, legend, span, text, h1, strong, button)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
 import Silences.Types exposing (Silence, SilenceId)
-import Utils.Types exposing (ApiData, ApiResponse(..), Matcher)
-import Utils.Views exposing (checkbox, error, formField, formInput, iconButtonMsg, textField)
 import Views.Shared.SilencePreview
 import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..))
-import Utils.Views exposing (checkbox, formField, formInput, iconButtonMsg, textField)
+import Utils.FormValidation exposing (ValidatedMatcher)
+import Utils.Views exposing (checkbox, error, formInput, iconButtonMsg, textField, validatedFormField, validatedTextField)
 import Views.Shared.SilencePreview
-import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..))
+import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..), SilenceForm)
+import Tuple exposing (first)
 
 
 view : Maybe SilenceId -> Model -> Html SilenceFormMsg
@@ -25,53 +25,62 @@ view maybeId { silence, form } =
                     ( "New Silence", NewSilenceFromMatchers [] )
     in
         div []
-            [ div [ class "pa4 black-80" ]
-                [ fieldset [ class "ba b--transparent ph0 mh0" ]
-                    [ legend [ class "ph0 mh0 fw6" ] [ text title ]
-                    , (formField "Start" form.startsAt (UpdateStartsAt >> UpdateField))
-                    , div [ class "dib mb2 mr2 w-40" ] [ formField "End" form.endsAt (UpdateEndsAt >> UpdateField) ]
-                    , div [ class "dib mb2 mr2 w-40" ] [ formField "Duration" form.duration (UpdateDuration >> UpdateField) ]
-                    , div [ class "mt3" ]
-                        [ label [ class "f6 b db mb2" ]
-                            [ text "Matchers "
-                            , span [ class "normal black-60" ] [ text "Alerts affected by this silence. Format: name=value" ]
-                            ]
-                        , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Name" ]
-                        , label [ class "f6 dib mb2 mr2 w-40" ] [ text "Value" ]
-                        ]
-                    , div [] (List.indexedMap matcherForm form.matchers)
-                    , iconButtonMsg "blue" "fa-plus" (AddMatcher |> UpdateField)
-                    , formField "Creator" form.createdBy (UpdateCreatedBy >> UpdateField)
-                    , textField "Comment" form.comment (UpdateComment >> UpdateField)
-                    , div [ class "mt3" ]
-                        [ createSilence maybeId silence
-                        , a
-                            [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-red"
-                            , onClick resetClick
-                            ]
-                            [ text "Reset" ]
-                        ]
-                    ]
+            [ div []
+                [ h1 [] [ text title ]
+                , timeInput form.startsAt form.endsAt form.duration
+                , matcherInput form.matchers
+                , validatedFormField "Creator" form.createdBy inputSectionPadding (UpdateCreatedBy >> UpdateField)
+                , validatedTextField "Comment" form.comment inputSectionPadding (UpdateComment >> UpdateField)
                 , preview silence
-                , displayError silence
+                , silenceActionButtons maybeId silence form resetClick
                 ]
             ]
 
 
-displayError : Result String Silence -> Html SilenceFormMsg
-displayError silence =
-    case silence of
-        Err msg ->
-            div
-                [ class "alert alert-danger" ]
-                [ text msg ]
-
-        Ok _ ->
-            text ""
+inputSectionPadding : String
+inputSectionPadding =
+    "mt-5"
 
 
-createSilence : Maybe String -> Result String Silence -> Html SilenceFormMsg
-createSilence maybeId silenceResult =
+timeInput : Result ( String, String ) ( String, x ) -> Result ( String, String ) ( String, x ) -> Result ( String, String ) ( String, x ) -> Html SilenceFormMsg
+timeInput startsAt endsAt duration =
+    div [ class <| "row " ++ inputSectionPadding ]
+        [ (validatedFormField "Start" (Result.map first startsAt) "col-5" (UpdateStartsAt >> UpdateField))
+        , (validatedFormField "Duration" (Result.map first duration) "col-2" (UpdateDuration >> UpdateField))
+        , (validatedFormField "End" (Result.map first endsAt) "col-5" (UpdateEndsAt >> UpdateField))
+        ]
+
+
+matcherInput : List ValidatedMatcher -> Html SilenceFormMsg
+matcherInput matchers =
+    div [ class inputSectionPadding ]
+        [ div []
+            [ label []
+                [ strong [] [ text "Matchers " ]
+                , span [ class "" ] [ text "Alerts affected by this silence." ]
+                ]
+            , div [ class "row" ]
+                [ label [ class "col-5" ] [ text "Name" ]
+                , label [ class "col-5" ] [ text "Value" ]
+                ]
+            ]
+        , div [] (List.indexedMap matcherForm matchers)
+        , iconButtonMsg "btn btn-secondary" "fa-plus" (AddMatcher |> UpdateField)
+        ]
+
+
+silenceActionButtons : Maybe String -> Result String Silence -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
+silenceActionButtons maybeId silence form resetClick =
+    div [ class inputSectionPadding ]
+        [ createSilenceBtn maybeId silence form
+        , button
+            [ class "ml-2 btn btn-danger", onClick resetClick ]
+            [ text "Reset" ]
+        ]
+
+
+createSilenceBtn : Maybe String -> Result String Silence -> SilenceForm -> Html SilenceFormMsg
+createSilenceBtn maybeId silenceResult form =
     let
         btnTxt =
             case maybeId of
@@ -81,45 +90,41 @@ createSilence maybeId silenceResult =
                 Nothing ->
                     "Create"
     in
-        case silenceResult of
+        case (silenceResult) of
             Ok silence ->
-                a
+                button
                     [ class "btn btn-primary"
                     , onClick (CreateSilence silence)
                     ]
                     [ text btnTxt ]
 
-            Err msg ->
+            _ ->
                 span
-                    [ class "btn btn-danger" ]
+                    [ class "btn btn-secondary disabled" ]
                     [ text btnTxt ]
 
 
 preview : Result String Silence -> Html SilenceFormMsg
 preview silenceResult =
-    case silenceResult of
-        Ok silence ->
-            div []
-                [ div [ class "mt3" ]
-                    [ a
-                        [ class "f6 link br2 ba ph3 pv2 mr2 dib dark-green"
-                        , onClick (PreviewSilence silence)
-                        ]
-                        [ text "Show Affected Alerts" ]
-                    ]
+    div [ class inputSectionPadding ] <|
+        case silenceResult of
+            Ok silence ->
+                [ button [ class "btn btn-outline-success", onClick (PreviewSilence silence) ] [ text "Load affected Alerts" ]
                 , Views.Shared.SilencePreview.view silence
                 ]
 
-        Err message ->
-            text message
+            Err _ ->
+                [ div [ class "alert alert-warning" ] [ text "Can not display affected Alerts, Silence is not yet valid." ] ]
 
 
-matcherForm : Int -> Matcher -> Html SilenceFormMsg
+matcherForm : Int -> ValidatedMatcher -> Html SilenceFormMsg
 matcherForm index { name, value, isRegex } =
-    div []
-        [ formInput name (UpdateMatcherName index)
-        , formInput value (UpdateMatcherValue index)
-        , checkbox "Regex" isRegex (UpdateMatcherRegex index)
-        , iconButtonMsg "dark-red" "fa-trash-o" (DeleteMatcher index)
+    div [ class "row" ]
+        [ div [ class "col-5" ] [ validatedFormField "" name "" (UpdateMatcherName index) ]
+        , div [ class "col-5" ] [ validatedFormField "" value "" (UpdateMatcherValue index) ]
+        , div [ class "col-2 d-flex align-items-center" ]
+            [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
+            , iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)
+            ]
         ]
         |> Html.map UpdateField
