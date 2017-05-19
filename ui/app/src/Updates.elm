@@ -48,11 +48,11 @@ update msg model =
 
         NavigateToSilenceList filter ->
             let
-                ( silenceList, silence, cmd ) =
-                    Views.SilenceList.Updates.update FetchSilences model.silenceList model.silence filter
+                ( silenceList, cmd ) =
+                    Views.SilenceList.Updates.update FetchSilences model.silenceList filter
             in
-                ( { model | silence = silence, silenceList = silenceList, route = SilenceListRoute filter, filter = filter }
-                , cmd
+                ( { model | silenceList = silenceList, route = SilenceListRoute filter, filter = filter }
+                , Cmd.map MsgForSilenceList cmd
                 )
 
         NavigateToStatus ->
@@ -101,9 +101,6 @@ update msg model =
         Noop ->
             ( model, Cmd.none )
 
-        UpdateCurrentTime time ->
-            ( { model | currentTime = time }, Cmd.none )
-
         MsgForStatus msg ->
             Views.Status.Updates.update msg model
 
@@ -116,10 +113,10 @@ update msg model =
 
         MsgForSilenceList msg ->
             let
-                ( silenceList, silence, cmd ) =
-                    Views.SilenceList.Updates.update msg model.silenceList model.silence model.filter
+                ( silenceList, cmd ) =
+                    Views.SilenceList.Updates.update msg model.silenceList model.filter
             in
-                ( { model | silenceList = silenceList, silence = silence }, cmd )
+                ( { model | silenceList = silenceList }, Cmd.map MsgForSilenceList cmd )
 
         MsgForSilence msg ->
             Views.Silence.Updates.update msg model

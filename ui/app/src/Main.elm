@@ -1,8 +1,6 @@
 module Main exposing (main)
 
 import Navigation
-import Task
-import Time
 import Parsing
 import Views
 import Types
@@ -16,7 +14,6 @@ import Types
             , NavigateToAlerts
             , NavigateToNotFound
             , NavigateToStatus
-            , UpdateCurrentTime
             , RedirectAlerts
             )
         , Model
@@ -56,11 +53,8 @@ init location =
 
                 _ ->
                     nullFilter
-
-        ( model, msg ) =
-            update (urlUpdate location) (Model initSilenceList Loading initSilenceForm initAlertList route filter 0 initStatusModel)
     in
-        model ! [ msg, Task.perform UpdateCurrentTime Time.now ]
+        update (urlUpdate location) (Model initSilenceList Loading initSilenceForm initAlertList route filter initStatusModel)
 
 
 urlUpdate : Navigation.Location -> Msg

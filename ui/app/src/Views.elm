@@ -35,7 +35,7 @@ currentView model =
             AlertList.view model.alertList filter
 
         SilenceListRoute _ ->
-            SilenceList.view model.silenceList model.currentTime
+            SilenceList.view model.silenceList
 
         SilenceFormNewRoute keep ->
             SilenceForm.view Nothing model.silenceForm |> Html.map MsgForSilenceForm

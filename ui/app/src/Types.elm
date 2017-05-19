@@ -9,7 +9,6 @@ import Views.Status.Types exposing (StatusModel, StatusMsg)
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (ApiData, Label)
 import Utils.Filter exposing (Filter)
-import Time
 
 
 type alias Model =
@@ -19,7 +18,6 @@ type alias Model =
     , alertList : AlertList.Model
     , route : Route
     , filter : Filter
-    , currentTime : Time.Time
     , status : StatusModel
     }
 
@@ -40,7 +38,6 @@ type Msg
     | NavigateToStatus
     | Noop
     | RedirectAlerts
-    | UpdateCurrentTime Time.Time
     | UpdateFilter String
 
 
