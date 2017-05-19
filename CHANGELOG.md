@@ -1,3 +1,13 @@
+## v0.7.0-rc.0 / 2017-05-19
+
+* [CHANGE] Rewrite UI from scratch improving UX
+* [FEATURE] Add ability to update a silence on `api/v1/silences` POST endpoint (See #765)
+* [FEATURE] Return alert status on `api/v1/alerts` GET endpoint
+* [FEATURE] Serve silence state on `api/v1/silences` GET endpoint
+* [ENHANCEMENT] Add ability to specify `filter` string and `silenced` flag on `api/v1/alerts` GET endpoint
+* [ENHANCEMENT] Update `cache-control` to prevent caching for web assets in general.
+* [BUGFIX] Enable builds for Solaris/Illumos
+
 ## v0.6.2 / 2017-05-09
 
 * [BUGFIX] Correctly link to silences from alert again
