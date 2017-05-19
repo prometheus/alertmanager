@@ -55,11 +55,11 @@ iso8601Time =
     Json.andThen
         (\strTime ->
             case Utils.Date.timeFromString strTime of
-                Just time ->
+                Ok time ->
                     Json.succeed time
 
-                Nothing ->
-                    Json.fail ("Could not decode time " ++ strTime)
+                Err err ->
+                    Json.fail ("Could not decode time " ++ strTime ++ ": " ++ err)
         )
         Json.string
 

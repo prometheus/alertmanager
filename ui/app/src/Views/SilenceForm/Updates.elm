@@ -11,6 +11,7 @@ import Utils.Date
 import Utils.List
 import Utils.Types exposing (ApiResponse(..))
 import Utils.Filter exposing (nullFilter)
+import Tuple exposing (second)
 import Views.SilenceForm.Types
     exposing
         ( Model
@@ -20,6 +21,14 @@ import Views.SilenceForm.Types
         , fromMatchersAndTime
         , fromSilence
         , toSilence
+        , validateComment
+        , validateCreatedBy
+        , validateDuration
+        , validateEndsAt
+        , validateMatcher
+        , validateStartsAt
+        , validateMatcherName
+        , validateMatcherValue
         )
 
 
@@ -27,7 +36,7 @@ updateForm : SilenceFormFieldMsg -> SilenceForm -> SilenceForm
 updateForm msg form =
     case msg of
         AddMatcher ->
-            { form | matchers = form.matchers ++ [ nullMatcher ] }
+            { form | matchers = (form.matchers ++ [ validateMatcher nullMatcher ]) }
 
         UpdateStartsAt time ->
             -- TODO:
@@ -36,80 +45,74 @@ updateForm msg form =
             -- it in anyway.
             let
                 startsAt =
-                    Utils.Date.timeFromString time
-
-                endsAt =
-                    Utils.Date.timeFromString form.endsAt
+                    validateStartsAt time
 
                 duration =
-                    Maybe.map2 (-) endsAt startsAt
-                        |> Maybe.map Utils.Date.durationFormat
-                        |> Maybe.withDefault ""
+                    Result.map2 (-) (Result.map second form.endsAt) (Result.map second startsAt)
+                        |> Result.map Utils.Date.durationFormat
+                        |> Result.andThen validateDuration
             in
-                { form | startsAt = time, duration = duration }
+                { form | startsAt = startsAt, duration = duration }
 
         UpdateEndsAt time ->
             let
-                startsAt =
-                    Utils.Date.timeFromString form.startsAt
-
                 endsAt =
-                    Utils.Date.timeFromString time
+                    validateEndsAt time
 
                 duration =
-                    Maybe.map2 (-) endsAt startsAt
-                        |> Maybe.map Utils.Date.durationFormat
-                        |> Maybe.withDefault ""
+                    Result.map2 (-) (Result.map second endsAt) (Result.map second form.startsAt)
+                        |> Result.map Utils.Date.durationFormat
+                        |> Result.andThen validateDuration
             in
-                { form | endsAt = time, duration = duration }
+                { form | endsAt = endsAt, duration = duration }
 
         UpdateDuration time ->
             let
-                startsAt =
-                    Utils.Date.timeFromString form.startsAt
-
                 duration =
-                    Utils.Date.parseDuration time
+                    validateDuration time
 
                 endsAt =
-                    Maybe.map2 (+) startsAt duration
-                        |> Maybe.map Utils.Date.timeToString
-                        |> Maybe.withDefault form.endsAt
+                    Result.map2 (+) (Result.map second form.startsAt) (Result.map second duration)
+                        |> Result.map Utils.Date.timeToString
+                        |> Result.andThen validateEndsAt
             in
-                { form | endsAt = endsAt, duration = time }
+                { form | endsAt = endsAt, duration = duration }
 
         UpdateCreatedBy createdBy ->
-            { form | createdBy = createdBy }
+            { form | createdBy = validateCreatedBy createdBy }
 
         UpdateComment comment ->
-            { form | comment = comment }
+            { form | comment = validateComment comment }
 
         DeleteMatcher index ->
             { form | matchers = List.take index form.matchers ++ List.drop (index + 1) form.matchers }
 
         UpdateMatcherName index name ->
-            { form
-                | matchers =
+            let
+                matchers =
                     Utils.List.replaceIndex index
-                        (\matcher -> { matcher | name = name })
+                        (\matcher -> { matcher | name = validateMatcherName name })
                         form.matchers
-            }
+            in
+                { form | matchers = matchers }
 
         UpdateMatcherValue index value ->
-            { form
-                | matchers =
+            let
+                matchers =
                     Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = value })
+                        (\matcher -> { matcher | value = validateMatcherValue value })
                         form.matchers
-            }
+            in
+                { form | matchers = matchers }
 
         UpdateMatcherRegex index isRegex ->
-            { form
-                | matchers =
+            let
+                matchers =
                     Utils.List.replaceIndex index
                         (\matcher -> { matcher | isRegex = isRegex })
                         form.matchers
-            }
+            in
+                { form | matchers = matchers }
 
 
 update : SilenceFormMsg -> Model -> ( Model, Cmd Msg )
@@ -133,9 +136,16 @@ update msg model =
             ( model, Task.perform (NewSilenceFromMatchersAndTime matchers >> MsgForSilenceForm) Time.now )
 
         NewSilenceFromMatchersAndTime matchers time ->
-            ( { model | form = fromMatchersAndTime matchers time }
-            , Cmd.none
-            )
+            let
+                form =
+                    fromMatchersAndTime matchers time
+
+                silence =
+                    toSilence form
+            in
+                ( Model silence form
+                , Cmd.none
+                )
 
         FetchSilence silenceId ->
             ( model, Silences.Api.getSilence silenceId (SilenceFetch >> MsgForSilenceForm) )
