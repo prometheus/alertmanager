@@ -9,16 +9,16 @@ import Utils.Views exposing (error, loading)
 
 
 view : Silence -> Html msg
-view s =
-    case s.silencedAlerts of
+view { silencedAlerts } =
+    case silencedAlerts of
         Success alerts ->
             if List.isEmpty alerts then
-                div [] [ text "No matches" ]
+                div [ class "w-100 mt-3" ] [ text "No matches" ]
             else
-                div [ class "w-100" ] [ Views.Shared.AlertListCompact.view alerts ]
+                div [ class "w-100 mt-3" ] [ Views.Shared.AlertListCompact.view alerts ]
 
         Initial ->
-            loading
+            text ""
 
         Loading ->
             loading

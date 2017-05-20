@@ -1,9 +1,9 @@
-module Views.Shared.SilenceBase exposing (view)
+module Views.SilenceList.SilenceView exposing (view)
 
-import Html exposing (Html, div, a, p, text, b, i, span, small, button)
+import Html exposing (Html, div, a, p, text, b, i, span, small, button, li)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence, State(Expired))
+import Silences.Types exposing (Silence, State(Expired, Active, Pending))
 import Types exposing (Msg(Noop, MsgForSilenceList, MsgForSilenceForm))
 import Views.SilenceList.Types exposing (SilenceListMsg(DestroySilence, MsgForFilterBar))
 import Utils.Date
@@ -18,34 +18,31 @@ import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers))
 
 view : Silence -> Html Msg
 view silence =
-    div [ class "d-inline-flex align-items-center justify-content-start w-100" ]
-        [ datesView silence.startsAt silence.endsAt
-        , div [ class "" ] (List.map matcherButton silence.matchers)
-        , div [ class "ml-auto d-inline-flex align-self-stretch p-2", style [ ( "border-left", "1px solid #ccc" ) ] ]
-            [ editButton silence
-            , deleteButton silence
+    li [ class "align-items-start list-group-item border-0 alert-list-item p-0 mb-4" ]
+        [ div [ class "w-100 mb-2 d-flex align-items-start" ]
+            [ case silence.status.state of
+                Active ->
+                    dateView "Ends" silence.endsAt
+
+                Pending ->
+                    dateView "Starts" silence.startsAt
+
+                Expired ->
+                    dateView "Expired" silence.endsAt
             , detailsButton silence.id
+            , editButton silence
+            , deleteButton silence
             ]
+        , div [ class "" ] (List.map matcherButton silence.matchers)
         ]
 
 
-datesView : Time -> Time -> Html Msg
-datesView start end =
-    i [ class "d-inline-flex align-items-center", style [ ( "border-right", "1px solid #ccc" ) ] ]
-        [ dateView start
-        , i [ class "text-muted" ] [ text "-" ]
-        , dateView end
+dateView : String -> Time -> Html Msg
+dateView string time =
+    span
+        [ class "text-muted align-self-center mr-2"
         ]
-
-
-dateView : Time -> Html Msg
-dateView time =
-    i
-        [ class "h-100 p-2 d-flex flex-column justify-content-center, text-muted"
-        , style [ ( "font-family", "monospace" ) ]
-        ]
-        [ span [] [ text <| Utils.Date.timeFormat time ]
-        , small [] [ text <| Utils.Date.dateFormat time ]
+        [ text (string ++ " " ++ Utils.Date.timeFormat time ++ ", " ++ Utils.Date.dateFormat time)
         ]
 
 
@@ -78,37 +75,48 @@ editButton silence =
         -- one with the old matchers
         Expired ->
             a
-                [ class "h-100 btn btn-success rounded-0"
+                [ class "btn btn-outline-info border-0"
                 , href ("#/silences/new?keep=1")
                 , onClick (NewSilenceFromMatchers silence.matchers |> MsgForSilenceForm)
                 ]
-                [ span [ class "fa fa-pencil" ] [] ]
+                [ text "Recreate"
+                ]
 
         _ ->
             let
                 editUrl =
                     String.join "/" [ "#/silences", silence.id, "edit" ]
             in
-                a [ class "h-100 btn btn-success rounded-0", href editUrl ]
-                    [ span [ class "fa fa-pencil" ] [] ]
+                a [ class "btn btn-outline-info border-0", href editUrl ]
+                    [ text "Edit"
+                    ]
 
 
 deleteButton : Silence -> Html Msg
 deleteButton silence =
-    if silence.status.state == Expired then
-        text ""
-    else
-        a
-            [ class "h-100 btn btn-danger rounded-0"
-            , onClick (MsgForSilenceList (DestroySilence silence))
-            , href "#/silences"
-            ]
-            [ span [ class "fa fa-trash" ] []
-            ]
+    case silence.status.state of
+        Expired ->
+            text ""
+
+        Active ->
+            button
+                [ class "btn btn-outline-danger border-0"
+                , onClick (MsgForSilenceList (DestroySilence silence))
+                ]
+                [ text "Expire"
+                ]
+
+        Pending ->
+            button
+                [ class "btn btn-outline-danger border-0"
+                , onClick (MsgForSilenceList (DestroySilence silence))
+                ]
+                [ text "Delete"
+                ]
 
 
 detailsButton : String -> Html Msg
 detailsButton silenceId =
-    a [ class "h-100 btn btn-primary rounded-0", href ("#/silences/" ++ silenceId) ]
-        [ span [ class "fa fa-info" ] []
+    a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ silenceId) ]
+        [ text "View"
         ]

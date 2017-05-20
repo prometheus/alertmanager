@@ -6,31 +6,30 @@ import Html.Events exposing (onCheck, onInput, onClick)
 import Http exposing (Error(..))
 
 
+tab : tab -> tab -> (tab -> msg) -> List (Html msg) -> Html msg
+tab tab currentTab msg content =
+    li [ class "nav-item" ]
+        [ if tab == currentTab then
+            span [ class "nav-link active" ] content
+          else
+            a [ class "nav-link", onClick (msg tab) ] content
+        ]
+
+
 labelButton : Maybe msg -> String -> Html msg
 labelButton maybeMsg labelText =
-    let
-        label =
-            [ span [ class " badge badge-warning" ]
-                [ i [] [], text labelText ]
-            ]
-    in
-        case maybeMsg of
-            Nothing ->
-                span [ class "pl-2" ] label
+    case maybeMsg of
+        Nothing ->
+            span
+                [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2" ]
+                [ text labelText ]
 
-            Just msg ->
-                span [ class "pl-2", onClick msg ] label
-
-
-listButton : String -> ( String, String ) -> Html msg
-listButton classString ( key, value ) =
-    button classString (String.join "=" [ key, value ])
-
-
-button : String -> String -> Html msg
-button classes content =
-    a [ class <| "f6 link br1 ba mr1 mb2 dib " ++ classes ]
-        [ text content ]
+        Just msg ->
+            button
+                [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
+                , onClick msg
+                ]
+                [ span [ class "text-muted" ] [ text labelText ] ]
 
 
 iconButtonMsg : String -> String -> msg -> Html msg

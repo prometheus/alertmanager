@@ -1,6 +1,6 @@
 module Views.NavBar.Views exposing (navBar)
 
-import Html exposing (Html, header, text, a, nav, ul, li)
+import Html exposing (Html, header, text, a, nav, ul, li, div)
 import Html.Attributes exposing (class, href, title, style)
 import Types exposing (Route(..))
 import Views.NavBar.Types exposing (Tab, alertsTab, silencesTab, statusTab, noneTab, tabs)
@@ -9,12 +9,27 @@ import Views.NavBar.Types exposing (Tab, alertsTab, silencesTab, statusTab, none
 navBar : Route -> Html msg
 navBar currentRoute =
     header
-        [ class "navbar navbar-toggleable-md navbar-light "
-        , style [ ( "margin-bottom", "3rem" ), ( "border-bottom", "1px solid rgba(0,0,0,.15)" ) ]
+        [ class "navbar navbar-toggleable-md navbar-light bg-faded mb-5 pt-3 pb-3"
+        , style [ ( "border-bottom", "1px solid rgba(0, 0, 0, .125)" ) ]
         ]
         [ nav [ class "container" ]
-            [ a [ class "navbar-brand", href "#" ] [ text "AlertManager" ]
+            [ a [ class "navbar-brand", href "#" ] [ text "Alertmanager" ]
             , ul [ class "navbar-nav" ] (navBarItems currentRoute)
+            , case currentRoute of
+                SilenceFormEditRoute _ ->
+                    text ""
+
+                SilenceFormNewRoute _ ->
+                    text ""
+
+                _ ->
+                    div [ class "form-inline ml-auto" ]
+                        [ a
+                            [ class "btn btn-outline-info"
+                            , href "#/silences/new"
+                            ]
+                            [ text "New Silence" ]
+                        ]
             ]
         ]
 

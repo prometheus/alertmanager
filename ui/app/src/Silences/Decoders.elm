@@ -3,7 +3,7 @@ module Silences.Decoders exposing (show, list, create, destroy)
 import Json.Decode as Json exposing (field, succeed, fail)
 import Utils.Api exposing (iso8601Time, (|:))
 import Silences.Types exposing (Silence, Status, State(Active, Pending, Expired))
-import Utils.Types exposing (Matcher, Time, ApiResponse(Success))
+import Utils.Types exposing (Matcher, Time, ApiResponse(Initial))
 
 
 show : Json.Decoder Silence
@@ -40,7 +40,7 @@ silenceDecoder =
         |: (field "endsAt" iso8601Time)
         |: (field "updatedAt" iso8601Time)
         |: (field "matchers" (Json.list matcherDecoder))
-        |: (Json.succeed <| Success [])
+        |: (Json.succeed Initial)
         |: (field "status" statusDecoder)
 
 

@@ -21,8 +21,8 @@ keys =
 
 viewMatcher : Matcher -> Html Msg
 viewMatcher matcher =
-    div [ class "col col-auto", style [ ( "padding", "5px" ) ] ]
-        [ div [ class "btn-group" ]
+    div [ class "col col-auto" ]
+        [ div [ class "btn-group mr-2 mb-2" ]
             [ button
                 [ class "btn btn-outline-info"
                 , onClick (DeleteFilterMatcher True matcher)
@@ -102,10 +102,7 @@ view { matchers, matcherText, backspacePressed } =
             (viewMatchers matchers
                 ++ [ div
                         [ class ("col " ++ className)
-                        , style
-                            [ ( "padding", "5px" )
-                            , ( "min-width", "200px" )
-                            ]
+                        , style [ ( "min-width", "200px" ) ]
                         ]
                         [ div [ class "input-group" ]
                             [ input

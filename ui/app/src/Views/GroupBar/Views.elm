@@ -28,10 +28,7 @@ view ({ list, fieldText, fields } as model) =
             (List.map viewField fields
                 ++ [ div
                         [ class ("col " ++ className)
-                        , style
-                            [ ( "padding", "5px" )
-                            , ( "min-width", "200px" )
-                            ]
+                        , style [ ( "min-width", "200px" ) ]
                         ]
                         [ textInputField isDisabled model
                         , exampleField fields
@@ -164,8 +161,8 @@ matchedField maybeSelectedMatch field =
 
 viewField : String -> Html Msg
 viewField field =
-    div [ class "col col-auto", style [ ( "padding", "5px" ) ] ]
-        [ div [ class "btn-group" ]
+    div [ class "col col-auto" ]
+        [ div [ class "btn-group mr-2 mb-2" ]
             [ button
                 [ class "btn btn-outline-info"
                 , onClick (DeleteField True field)
