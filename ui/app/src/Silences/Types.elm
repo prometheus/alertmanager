@@ -38,7 +38,7 @@ nullSilenceStatus =
 
 nullMatcher : Matcher
 nullMatcher =
-    Matcher "" "" False
+    Matcher False "" ""
 
 
 nullTime : Time

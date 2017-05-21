@@ -1,60 +1,49 @@
 module Utils.FormValidation
     exposing
-        ( validateDate
-        , ValidatedMatcher
-        , validatedMatcherToMatcher
-        , validatedMatchersToMatchers
+        ( initialField
+        , validField
+        , ValidationState(..)
+        , ValidatedField
+        , validate
+        , stringNotEmpty
         )
 
-import Utils.Date exposing (timeFromString)
-import Utils.Types exposing (Matcher)
-import Time exposing (Time)
-import Tuple exposing (second)
+
+type ValidationState
+    = Initial
+    | Invalid String
 
 
-validateDate : String -> Result ( String, String ) ( String, Time )
-validateDate dateString =
-    let
-        parsedDate =
-            timeFromString dateString
-    in
-        case parsedDate of
-            Ok date ->
-                Ok ( dateString, date )
-
-            Err err ->
-                Err ( dateString, err )
+type alias ValidatedField a =
+    { value : String
+    , validationResult : Result ValidationState a
+    }
 
 
-type alias ValidatedMatcher =
-    { name : Result ( String, String ) String, value : Result ( String, String ) String, isRegex : Bool }
+initialField : ValidatedField a
+initialField =
+    { value = ""
+    , validationResult = Err Initial
+    }
 
 
-validatedMatchersToMatchers : List ValidatedMatcher -> Result String (List Matcher)
-validatedMatchersToMatchers matchers =
-    fold matchers (Ok [])
+validField : a -> (a -> String) -> ValidatedField a
+validField result resultToValue =
+    { value = resultToValue result
+    , validationResult = Ok result
+    }
 
 
-fold : List ValidatedMatcher -> Result String (List Matcher) -> Result String (List Matcher)
-fold matchers agg =
-    case matchers of
-        [] ->
-            agg
-
-        m :: list ->
-            fold list (aggregateValidatedMatchers agg m)
+validate : (String -> Result String a) -> String -> ValidatedField a
+validate validate input =
+    { value = input
+    , validationResult = validate input |> Result.mapError Invalid
+    }
 
 
-aggregateValidatedMatchers : Result String (List Matcher) -> ValidatedMatcher -> Result String (List Matcher)
-aggregateValidatedMatchers agg matcher =
-    Result.andThen
-        (\matchers ->
-            Result.map (\m -> m :: matchers) (validatedMatcherToMatcher matcher)
-        )
-        agg
-
-
-validatedMatcherToMatcher : ValidatedMatcher -> Result String Matcher
-validatedMatcherToMatcher matcher =
-    Result.map2 (\n v -> Matcher n v matcher.isRegex) matcher.name matcher.value
-        |> Result.mapError second
+stringNotEmpty : String -> Result String String
+stringNotEmpty string =
+    if String.isEmpty string then
+        Err "Should not be empty"
+    else
+        Ok string

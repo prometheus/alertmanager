@@ -1,16 +1,14 @@
 module Views.SilenceForm.Views exposing (view)
 
-import Html exposing (Html, a, div, fieldset, label, legend, span, text, h1, strong, button)
+import Html exposing (Html, a, div, fieldset, label, legend, span, text, h1, strong, button, input, textarea)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
 import Silences.Types exposing (Silence, SilenceId)
 import Views.Shared.SilencePreview
-import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..))
-import Utils.FormValidation exposing (ValidatedMatcher)
-import Utils.Views exposing (checkbox, error, formInput, iconButtonMsg, textField, validatedFormField, validatedTextField)
-import Views.Shared.SilencePreview
+import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), MatcherForm)
+import Utils.Views exposing (checkbox, error, iconButtonMsg, validatedField)
+import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..), SilenceForm)
-import Tuple exposing (first)
 
 
 view : Maybe SilenceId -> Model -> Html SilenceFormMsg
@@ -29,8 +27,8 @@ view maybeId { silence, form } =
                 [ h1 [] [ text title ]
                 , timeInput form.startsAt form.endsAt form.duration
                 , matcherInput form.matchers
-                , validatedFormField "Creator" form.createdBy inputSectionPadding (UpdateCreatedBy >> UpdateField)
-                , validatedTextField "Comment" form.comment inputSectionPadding (UpdateComment >> UpdateField)
+                , validatedField input "Creator" inputSectionPadding (UpdateCreatedBy >> UpdateField) form.createdBy
+                , validatedField textarea "Comment" inputSectionPadding (UpdateComment >> UpdateField) form.comment
                 , preview silence
                 , silenceActionButtons maybeId silence form resetClick
                 ]
@@ -42,16 +40,16 @@ inputSectionPadding =
     "mt-5"
 
 
-timeInput : Result ( String, String ) ( String, x ) -> Result ( String, String ) ( String, x ) -> Result ( String, String ) ( String, x ) -> Html SilenceFormMsg
+timeInput : ValidatedField a -> ValidatedField b -> ValidatedField c -> Html SilenceFormMsg
 timeInput startsAt endsAt duration =
     div [ class <| "row " ++ inputSectionPadding ]
-        [ (validatedFormField "Start" (Result.map first startsAt) "col-5" (UpdateStartsAt >> UpdateField))
-        , (validatedFormField "Duration" (Result.map first duration) "col-2" (UpdateDuration >> UpdateField))
-        , (validatedFormField "End" (Result.map first endsAt) "col-5" (UpdateEndsAt >> UpdateField))
+        [ validatedField input "Start" "col-5" (UpdateStartsAt >> UpdateField) startsAt
+        , validatedField input "Duration" "col-2" (UpdateDuration >> UpdateField) duration
+        , validatedField input "End" "col-5" (UpdateEndsAt >> UpdateField) endsAt
         ]
 
 
-matcherInput : List ValidatedMatcher -> Html SilenceFormMsg
+matcherInput : List MatcherForm -> Html SilenceFormMsg
 matcherInput matchers =
     div [ class inputSectionPadding ]
         [ div []
@@ -69,7 +67,7 @@ matcherInput matchers =
         ]
 
 
-silenceActionButtons : Maybe String -> Result String Silence -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
+silenceActionButtons : Maybe String -> Result ValidationState Silence -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
 silenceActionButtons maybeId silence form resetClick =
     div [ class inputSectionPadding ]
         [ createSilenceBtn maybeId silence form
@@ -79,7 +77,7 @@ silenceActionButtons maybeId silence form resetClick =
         ]
 
 
-createSilenceBtn : Maybe String -> Result String Silence -> SilenceForm -> Html SilenceFormMsg
+createSilenceBtn : Maybe String -> Result ValidationState Silence -> SilenceForm -> Html SilenceFormMsg
 createSilenceBtn maybeId silenceResult form =
     let
         btnTxt =
@@ -104,7 +102,7 @@ createSilenceBtn maybeId silenceResult form =
                     [ text btnTxt ]
 
 
-preview : Result String Silence -> Html SilenceFormMsg
+preview : Result ValidationState Silence -> Html SilenceFormMsg
 preview silenceResult =
     div [ class inputSectionPadding ] <|
         case silenceResult of
@@ -117,11 +115,11 @@ preview silenceResult =
                 [ div [ class "alert alert-warning" ] [ text "Can not display affected Alerts, Silence is not yet valid." ] ]
 
 
-matcherForm : Int -> ValidatedMatcher -> Html SilenceFormMsg
+matcherForm : Int -> MatcherForm -> Html SilenceFormMsg
 matcherForm index { name, value, isRegex } =
     div [ class "row" ]
-        [ div [ class "col-5" ] [ validatedFormField "" name "" (UpdateMatcherName index) ]
-        , div [ class "col-5" ] [ validatedFormField "" value "" (UpdateMatcherValue index) ]
+        [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) name ]
+        , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) value ]
         , div [ class "col-2 d-flex align-items-center" ]
             [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
             , iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)

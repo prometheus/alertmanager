@@ -12,9 +12,9 @@ type ApiResponse e a
 
 
 type alias Matcher =
-    { name : String
+    { isRegex : Bool
+    , name : String
     , value : String
-    , isRegex : Bool
     }
 
 

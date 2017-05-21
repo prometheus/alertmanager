@@ -4,32 +4,29 @@ module Views.SilenceForm.Types
         , SilenceFormFieldMsg(..)
         , Model
         , SilenceForm
+        , MatcherForm
         , fromMatchersAndTime
         , fromSilence
         , toSilence
         , initSilenceForm
-        , validateComment
-        , validateCreatedBy
-        , validateDuration
-        , validateEndsAt
-        , validateMatcher
-        , validateStartsAt
-        , validateMatcherName
-        , validateMatcherValue
+        , validMatcher
+        , emptyMatcher
         )
 
 import Silences.Types exposing (Silence, SilenceId, nullSilenceStatus)
 import Alerts.Types exposing (Alert)
 import Utils.Types exposing (Matcher, ApiData, Duration, ApiResponse(..))
 import Time exposing (Time)
-import Utils.Date exposing (timeToString, timeFromString, durationFormat, parseDuration)
-import Tuple exposing (second)
+import Utils.Date exposing (timeToString, durationFormat)
 import Time exposing (Time)
 import Utils.FormValidation
     exposing
-        ( validateDate
-        , ValidatedMatcher
-        , validatedMatchersToMatchers
+        ( initialField
+        , validField
+        , ValidationState(..)
+        , ValidatedField
+        , validate
+        , stringNotEmpty
         )
 
 
@@ -40,7 +37,7 @@ initSilenceForm =
     }
 
 
-toSilence : SilenceForm -> Result String Silence
+toSilence : SilenceForm -> Result ValidationState Silence
 toSilence form =
     Result.map5
         (\comment matchers createdBy parsedStartsAt parsedEndsAt ->
@@ -61,34 +58,42 @@ toSilence form =
             , status = nullSilenceStatus
             }
         )
-        (Result.mapError second form.comment)
-        (validatedMatchersToMatchers form.matchers)
-        (Result.mapError second form.createdBy)
-        (Result.map second <| Result.mapError second form.startsAt)
-        (Result.map second <| Result.mapError second form.endsAt)
+        form.comment.validationResult
+        (List.foldr appendMatcher (Ok []) form.matchers)
+        form.createdBy.validationResult
+        form.startsAt.validationResult
+        form.endsAt.validationResult
 
 
 fromSilence : Silence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     { id = id
-    , createdBy = validateCreatedBy createdBy
-    , comment = validateComment comment
-    , startsAt = validateStartsAt (timeToString startsAt)
-    , endsAt = validateEndsAt (timeToString endsAt)
-    , duration = validateDuration (durationFormat (endsAt - startsAt))
-    , matchers = List.map validateMatcher matchers
+    , createdBy = validField createdBy identity
+    , comment = validField comment identity
+    , startsAt = validField startsAt timeToString
+    , endsAt = validField endsAt timeToString
+    , duration = validField (endsAt - startsAt) durationFormat
+    , matchers = List.map validMatcher matchers
     }
 
 
 empty : SilenceForm
 empty =
     { id = ""
-    , createdBy = validateCreatedBy ""
-    , comment = validateComment ""
-    , startsAt = validateStartsAt ""
-    , endsAt = validateEndsAt ""
-    , duration = validateDuration ""
+    , createdBy = validate stringNotEmpty ""
+    , comment = validate stringNotEmpty ""
+    , startsAt = initialField
+    , endsAt = initialField
+    , duration = initialField
     , matchers = []
+    }
+
+
+emptyMatcher : MatcherForm
+emptyMatcher =
+    { isRegex = False
+    , name = initialField
+    , value = initialField
     }
 
 
@@ -101,32 +106,45 @@ fromMatchersAndTime matchers now =
         -- If no matchers were specified, show a sample matcher
         enrichedMatchers =
             if List.length matchers == 0 then
-                [ Matcher "env" "production" False ]
+                [ Matcher False "env" "production" ]
             else
                 matchers
     in
         { empty
-            | startsAt = validateStartsAt <| timeToString now
-            , endsAt = validateEndsAt <| timeToString (now + duration)
-            , duration = validateDuration <| durationFormat duration
-            , matchers = List.map validateMatcher enrichedMatchers
+            | startsAt = validField now timeToString
+            , endsAt = validField (now + duration) timeToString
+            , duration = validField duration durationFormat
+            , matchers = List.map validMatcher enrichedMatchers
         }
 
 
 type alias Model =
-    { silence : Result String Silence
+    { silence : Result ValidationState Silence
     , form : SilenceForm
     }
 
 
+type alias MatcherForm =
+    { name : ValidatedField String
+    , value : ValidatedField String
+    , isRegex : Bool
+    }
+
+
+appendMatcher : MatcherForm -> Result ValidationState (List Matcher) -> Result ValidationState (List Matcher)
+appendMatcher { isRegex, name, value } =
+    Result.map2 (::)
+        (Result.map2 (Matcher isRegex) name.validationResult value.validationResult)
+
+
 type alias SilenceForm =
     { id : String
-    , createdBy : Result ( String, String ) String
-    , comment : Result ( String, String ) String
-    , startsAt : Result ( String, String ) ( String, Time )
-    , endsAt : Result ( String, String ) ( String, Time )
-    , duration : Result ( String, String ) ( String, Time )
-    , matchers : List ValidatedMatcher
+    , createdBy : ValidatedField String
+    , comment : ValidatedField String
+    , startsAt : ValidatedField Time
+    , endsAt : ValidatedField Time
+    , duration : ValidatedField Time
+    , matchers : List MatcherForm
     }
 
 
@@ -155,58 +173,9 @@ type SilenceFormFieldMsg
     | UpdateMatcherRegex Int Bool
 
 
-validateCreatedBy : String -> Result ( String, String ) String
-validateCreatedBy =
-    stringNotEmpty
-
-
-stringNotEmpty : String -> Result ( String, String ) String
-stringNotEmpty string =
-    if String.isEmpty string then
-        Err ( string, "Should not be empty" )
-    else
-        Ok string
-
-
-validateComment : String -> Result ( String, String ) String
-validateComment =
-    stringNotEmpty
-
-
-validateMatcher : Matcher -> ValidatedMatcher
-validateMatcher matcher =
-    { name = validateMatcherName matcher.name, value = validateMatcherValue matcher.value, isRegex = matcher.isRegex }
-
-
-validateMatcherName : String -> Result ( String, String ) String
-validateMatcherName =
-    stringNotEmpty
-
-
-validateMatcherValue : String -> Result ( String, String ) String
-validateMatcherValue =
-    stringNotEmpty
-
-
-validateDuration : String -> Result ( String, String ) ( String, Time )
-validateDuration durationString =
-    let
-        parsedDuration =
-            parseDuration durationString
-    in
-        case parsedDuration of
-            Just d ->
-                Ok ( durationString, d )
-
-            Nothing ->
-                Err ( durationString, "Invalid duration" )
-
-
-validateStartsAt : String -> Result ( String, String ) ( String, Time )
-validateStartsAt =
-    validateDate
-
-
-validateEndsAt : String -> Result ( String, String ) ( String, Time )
-validateEndsAt =
-    validateDate
+validMatcher : Matcher -> MatcherForm
+validMatcher matcher =
+    { name = validField matcher.name identity
+    , value = validField matcher.value identity
+    , isRegex = matcher.isRegex
+    }

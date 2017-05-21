@@ -32,7 +32,7 @@ update msg model =
         CreateSilenceFromAlert { labels } ->
             let
                 matchers =
-                    List.map (\( k, v ) -> Matcher k v False) labels
+                    List.map (\( k, v ) -> Matcher False k v) labels
 
                 ( silenceForm, cmd ) =
                     Views.SilenceForm.Updates.update (NewSilenceFromMatchers matchers) model.silenceForm

@@ -10,9 +10,9 @@ import Date.Extra.Format
 import Date.Extra.Config.Config_en_us exposing (config)
 
 
-parseDuration : String -> Maybe Time.Time
+parseDuration : String -> Result String Time.Time
 parseDuration =
-    Parser.run durationParser >> Result.toMaybe
+    Parser.run durationParser >> Result.mapError (always "Wrong duration format")
 
 
 durationParser : Parser Time.Time
@@ -89,6 +89,7 @@ timeFromString : String -> Result String Time.Time
 timeFromString =
     ISO8601.fromString
         >> Result.map (ISO8601.toTime >> toFloat)
+        >> Result.mapError (always "Wrong ISO8601 format")
 
 
 fromTime : Time.Time -> Types.Time

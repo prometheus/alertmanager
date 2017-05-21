@@ -72,6 +72,6 @@ stateDecoder state =
 matcherDecoder : Json.Decoder Matcher
 matcherDecoder =
     Json.map3 Matcher
+        (field "isRegex" Json.bool)
         (field "name" Json.string)
         (field "value" Json.string)
-        (field "isRegex" Json.bool)

@@ -2,7 +2,6 @@ module Views.SilenceForm.Updates exposing (update)
 
 import Alerts.Api
 import Silences.Api
-import Silences.Types exposing (nullMatcher, nullSilence)
 import Task
 import Time
 import Navigation
@@ -11,7 +10,7 @@ import Utils.Date
 import Utils.List
 import Utils.Types exposing (ApiResponse(..))
 import Utils.Filter exposing (nullFilter)
-import Tuple exposing (second)
+import Utils.FormValidation exposing (validate, stringNotEmpty)
 import Views.SilenceForm.Types
     exposing
         ( Model
@@ -21,14 +20,7 @@ import Views.SilenceForm.Types
         , fromMatchersAndTime
         , fromSilence
         , toSilence
-        , validateComment
-        , validateCreatedBy
-        , validateDuration
-        , validateEndsAt
-        , validateMatcher
-        , validateStartsAt
-        , validateMatcherName
-        , validateMatcherValue
+        , emptyMatcher
         )
 
 
@@ -36,7 +28,7 @@ updateForm : SilenceFormFieldMsg -> SilenceForm -> SilenceForm
 updateForm msg form =
     case msg of
         AddMatcher ->
-            { form | matchers = (form.matchers ++ [ validateMatcher nullMatcher ]) }
+            { form | matchers = (form.matchers ++ [ emptyMatcher ]) }
 
         UpdateStartsAt time ->
             -- TODO:
@@ -45,44 +37,68 @@ updateForm msg form =
             -- it in anyway.
             let
                 startsAt =
-                    validateStartsAt time
+                    validate Utils.Date.timeFromString time
 
-                duration =
-                    Result.map2 (-) (Result.map second form.endsAt) (Result.map second startsAt)
-                        |> Result.map Utils.Date.durationFormat
-                        |> Result.andThen validateDuration
+                durationResult =
+                    Result.map2 (-) form.endsAt.validationResult startsAt.validationResult
+                        |> Result.mapError (always Utils.FormValidation.Initial)
+
+                durationValue =
+                    case durationResult of
+                        Ok duration ->
+                            Utils.Date.durationFormat duration
+
+                        Err _ ->
+                            form.duration.value
             in
-                { form | startsAt = startsAt, duration = duration }
+                { form
+                    | startsAt = startsAt
+                    , duration = { value = durationValue, validationResult = durationResult }
+                }
 
         UpdateEndsAt time ->
             let
                 endsAt =
-                    validateEndsAt time
+                    validate Utils.Date.timeFromString time
 
-                duration =
-                    Result.map2 (-) (Result.map second endsAt) (Result.map second form.startsAt)
-                        |> Result.map Utils.Date.durationFormat
-                        |> Result.andThen validateDuration
+                durationResult =
+                    Result.map2 (-) endsAt.validationResult form.startsAt.validationResult
+                        |> Result.mapError (always Utils.FormValidation.Initial)
+
+                durationValue =
+                    case durationResult of
+                        Ok duration ->
+                            Utils.Date.durationFormat duration
+
+                        Err _ ->
+                            form.duration.value
             in
-                { form | endsAt = endsAt, duration = duration }
+                { form | endsAt = endsAt, duration = { value = durationValue, validationResult = durationResult } }
 
         UpdateDuration time ->
             let
                 duration =
-                    validateDuration time
+                    validate Utils.Date.parseDuration time
 
-                endsAt =
-                    Result.map2 (+) (Result.map second form.startsAt) (Result.map second duration)
-                        |> Result.map Utils.Date.timeToString
-                        |> Result.andThen validateEndsAt
+                endsAtResult =
+                    Result.map2 (+) form.startsAt.validationResult duration.validationResult
+                        |> Result.mapError (always Utils.FormValidation.Initial)
+
+                endsAtValue =
+                    case endsAtResult of
+                        Ok endsAt ->
+                            Utils.Date.timeToString endsAt
+
+                        Err _ ->
+                            form.endsAt.value
             in
-                { form | endsAt = endsAt, duration = duration }
+                { form | endsAt = { value = endsAtValue, validationResult = endsAtResult }, duration = duration }
 
         UpdateCreatedBy createdBy ->
-            { form | createdBy = validateCreatedBy createdBy }
+            { form | createdBy = validate stringNotEmpty createdBy }
 
         UpdateComment comment ->
-            { form | comment = validateComment comment }
+            { form | comment = validate stringNotEmpty comment }
 
         DeleteMatcher index ->
             { form | matchers = List.take index form.matchers ++ List.drop (index + 1) form.matchers }
@@ -91,7 +107,7 @@ updateForm msg form =
             let
                 matchers =
                     Utils.List.replaceIndex index
-                        (\matcher -> { matcher | name = validateMatcherName name })
+                        (\matcher -> { matcher | name = validate stringNotEmpty name })
                         form.matchers
             in
                 { form | matchers = matchers }
@@ -100,7 +116,7 @@ updateForm msg form =
             let
                 matchers =
                     Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = validateMatcherValue value })
+                        (\matcher -> { matcher | value = validate stringNotEmpty value })
                         form.matchers
             in
                 { form | matchers = matchers }
