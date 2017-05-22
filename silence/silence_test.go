@@ -707,6 +707,77 @@ func TestSilenceCanUpdate(t *testing.T) {
 	}
 }
 
+func TestSilenceExpire(t *testing.T) {
+	s, err := New(Options{})
+	require.NoError(t, err)
+
+	now := time.Now()
+	s.now = func() time.Time { return now }
+
+	m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
+
+	s.st = gossipData{
+		"pending": &pb.MeshSilence{Silence: &pb.Silence{
+			Id:        "pending",
+			Matchers:  []*pb.Matcher{m},
+			StartsAt:  now.Add(time.Minute),
+			EndsAt:    now.Add(time.Hour),
+			UpdatedAt: now.Add(-time.Hour),
+		}},
+		"active": &pb.MeshSilence{Silence: &pb.Silence{
+			Id:        "active",
+			Matchers:  []*pb.Matcher{m},
+			StartsAt:  now.Add(-time.Minute),
+			EndsAt:    now.Add(time.Hour),
+			UpdatedAt: now.Add(-time.Hour),
+		}},
+		"expired": &pb.MeshSilence{Silence: &pb.Silence{
+			Id:        "expired",
+			Matchers:  []*pb.Matcher{m},
+			StartsAt:  now.Add(-time.Hour),
+			EndsAt:    now.Add(-time.Minute),
+			UpdatedAt: now.Add(-time.Hour),
+		}},
+	}
+
+	require.NoError(t, s.expire("pending"))
+	require.NoError(t, s.expire("active"))
+
+	err = s.expire("expired")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already expired")
+
+	sil, err := s.QueryOne(QIDs("pending"))
+	require.NoError(t, err)
+	require.Equal(t, &pb.Silence{
+		Id:        "pending",
+		Matchers:  []*pb.Matcher{m},
+		StartsAt:  now.Add(time.Minute),
+		EndsAt:    now.Add(time.Minute),
+		UpdatedAt: now,
+	}, sil)
+
+	sil, err = s.QueryOne(QIDs("active"))
+	require.NoError(t, err)
+	require.Equal(t, &pb.Silence{
+		Id:        "active",
+		Matchers:  []*pb.Matcher{m},
+		StartsAt:  now.Add(-time.Minute),
+		EndsAt:    now,
+		UpdatedAt: now,
+	}, sil)
+
+	sil, err = s.QueryOne(QIDs("expired"))
+	require.NoError(t, err)
+	require.Equal(t, &pb.Silence{
+		Id:        "expired",
+		Matchers:  []*pb.Matcher{m},
+		StartsAt:  now.Add(-time.Hour),
+		EndsAt:    now.Add(-time.Minute),
+		UpdatedAt: now.Add(-time.Hour),
+	}, sil)
+}
+
 func TestValidateMatcher(t *testing.T) {
 	cases := []struct {
 		m   *pb.Matcher

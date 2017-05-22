@@ -446,12 +446,17 @@ func (s *Silences) expire(id string) error {
 	if !ok {
 		return ErrNotFound
 	}
-	if getState(sil, s.now()) == StateExpired {
-		return errors.Errorf("silence %s already expired", id)
-	}
-
 	sil = cloneSilence(sil)
-	sil.EndsAt = s.now()
+	now := s.now()
+
+	switch getState(sil, now) {
+	case StateExpired:
+		return errors.Errorf("silence %s already expired", id)
+	case StateActive:
+		sil.EndsAt = now
+	case StatePending:
+		sil.EndsAt = sil.StartsAt
+	}
 
 	return s.setSilence(sil)
 }
