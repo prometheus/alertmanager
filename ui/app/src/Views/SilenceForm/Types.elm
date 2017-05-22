@@ -52,7 +52,7 @@ toSilence form =
             , endsAt = parsedEndsAt
 
             {- ignored -}
-            , silencedAlerts = Success []
+            , silencedAlerts = Initial
 
             {- ignored -}
             , updatedAt = 0

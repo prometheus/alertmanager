@@ -7,6 +7,16 @@ import Utils.Date
 import Utils.Types exposing (ApiData, ApiResponse(..))
 
 
+withDefault : a -> ApiResponse e a -> a
+withDefault default response =
+    case response of
+        Success value ->
+            value
+
+        _ ->
+            default
+
+
 fromResult : Result e a -> ApiResponse e a
 fromResult result =
     case result of

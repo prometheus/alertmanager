@@ -8,32 +8,14 @@ import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Utils.Filter exposing (Filter)
 import Views.FilterBar.Views as FilterBar
 import Utils.Types exposing (ApiResponse(Initial, Success, Loading, Failure), Labels)
-import Utils.Views exposing (buttonLink, listButton)
+import Utils.Views
 import Utils.List
 import Views.AlertList.AlertView as AlertView
-import Views.AlertList.Filter exposing (matchers)
 import Views.GroupBar.Types as GroupBar
-import Utils.Views exposing (buttonLink, listButton)
 import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForGroupBar, SetTab, ToggleSilenced), Model, Tab(..))
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
-
-
-renderTab : String -> Tab -> Tab -> Html Msg
-renderTab title tab currentTab =
-    li [ class "nav-item" ]
-        [ (if tab == currentTab then
-            span
-                [ class "nav-link active" ]
-           else
-            a
-                [ class "nav-link"
-                , onClick (SetTab tab |> MsgForAlertList)
-                ]
-          )
-            [ text title ]
-        ]
 
 
 renderSilenced : Maybe Bool -> Html Msg
@@ -60,8 +42,8 @@ view { alerts, groupBar, filterBar, tab } filter =
             [ class "card mb-5" ]
             [ div [ class "card-header" ]
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
-                    [ renderTab "Filter" FilterTab tab
-                    , renderTab "Group" GroupTab tab
+                    [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
+                    , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ text "Group" ]
                     , renderSilenced filter.showSilenced
                     ]
                 ]
