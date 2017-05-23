@@ -300,6 +300,11 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Continue if alert is resolved
+		if !a.Alert.EndsAt.IsZero() && a.Alert.EndsAt.Before(time.Now()) {
+			continue
+		}
+
 		status := api.getAlertStatus(a.Fingerprint())
 
 		if !showSilenced && len(status.SilencedBy) != 0 {
