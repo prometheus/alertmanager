@@ -9,20 +9,18 @@ module Views.SilenceForm.Types
         , fromSilence
         , toSilence
         , initSilenceForm
-        , validMatcher
         , emptyMatcher
         )
 
-import Silences.Types exposing (Silence, SilenceId, nullSilenceStatus)
+import Silences.Types exposing (Silence, SilenceId, nullSilence)
 import Alerts.Types exposing (Alert)
 import Utils.Types exposing (Matcher, ApiData, Duration, ApiResponse(..))
 import Time exposing (Time)
-import Utils.Date exposing (timeToString, durationFormat)
+import Utils.Date exposing (timeFromString, timeToString, durationFormat, parseDuration)
 import Time exposing (Time)
 import Utils.FormValidation
     exposing
         ( initialField
-        , validField
         , ValidationState(..)
         , ValidatedField
         , validate
@@ -30,121 +28,27 @@ import Utils.FormValidation
         )
 
 
-initSilenceForm : Model
-initSilenceForm =
-    { form = empty
-    , silence = toSilence empty
-    }
-
-
-toSilence : SilenceForm -> Result ValidationState Silence
-toSilence form =
-    Result.map5
-        (\comment matchers createdBy parsedStartsAt parsedEndsAt ->
-            { id = form.id
-            , comment = comment
-            , matchers = matchers
-            , createdBy = createdBy
-            , startsAt = parsedStartsAt
-            , endsAt = parsedEndsAt
-
-            {- ignored -}
-            , silencedAlerts = Initial
-
-            {- ignored -}
-            , updatedAt = 0
-
-            {- ignored -}
-            , status = nullSilenceStatus
-            }
-        )
-        form.comment.validationResult
-        (List.foldr appendMatcher (Ok []) form.matchers)
-        form.createdBy.validationResult
-        form.startsAt.validationResult
-        form.endsAt.validationResult
-
-
-fromSilence : Silence -> SilenceForm
-fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
-    { id = id
-    , createdBy = validField createdBy identity
-    , comment = validField comment identity
-    , startsAt = validField startsAt timeToString
-    , endsAt = validField endsAt timeToString
-    , duration = validField (endsAt - startsAt) durationFormat
-    , matchers = List.map validMatcher matchers
-    }
-
-
-empty : SilenceForm
-empty =
-    { id = ""
-    , createdBy = validate stringNotEmpty ""
-    , comment = validate stringNotEmpty ""
-    , startsAt = initialField
-    , endsAt = initialField
-    , duration = initialField
-    , matchers = []
-    }
-
-
-emptyMatcher : MatcherForm
-emptyMatcher =
-    { isRegex = False
-    , name = initialField
-    , value = initialField
-    }
-
-
-fromMatchersAndTime : List Matcher -> Time -> SilenceForm
-fromMatchersAndTime matchers now =
-    let
-        duration =
-            2 * Time.hour
-
-        -- If no matchers were specified, show a sample matcher
-        enrichedMatchers =
-            if List.length matchers == 0 then
-                [ Matcher False "env" "production" ]
-            else
-                matchers
-    in
-        { empty
-            | startsAt = validField now timeToString
-            , endsAt = validField (now + duration) timeToString
-            , duration = validField duration durationFormat
-            , matchers = List.map validMatcher enrichedMatchers
-        }
-
-
 type alias Model =
-    { silence : Result ValidationState Silence
-    , form : SilenceForm
+    { form : SilenceForm
+    , silence : Maybe Silence
     }
-
-
-type alias MatcherForm =
-    { name : ValidatedField String
-    , value : ValidatedField String
-    , isRegex : Bool
-    }
-
-
-appendMatcher : MatcherForm -> Result ValidationState (List Matcher) -> Result ValidationState (List Matcher)
-appendMatcher { isRegex, name, value } =
-    Result.map2 (::)
-        (Result.map2 (Matcher isRegex) name.validationResult value.validationResult)
 
 
 type alias SilenceForm =
     { id : String
-    , createdBy : ValidatedField String
-    , comment : ValidatedField String
-    , startsAt : ValidatedField Time
-    , endsAt : ValidatedField Time
-    , duration : ValidatedField Time
+    , createdBy : ValidatedField
+    , comment : ValidatedField
+    , startsAt : ValidatedField
+    , endsAt : ValidatedField
+    , duration : ValidatedField
     , matchers : List MatcherForm
+    }
+
+
+type alias MatcherForm =
+    { name : ValidatedField
+    , value : ValidatedField
+    , isRegex : Bool
     }
 
 
@@ -162,20 +66,113 @@ type SilenceFormMsg
 
 type SilenceFormFieldMsg
     = AddMatcher
-    | UpdateStartsAt String
-    | UpdateEndsAt String
-    | UpdateDuration String
-    | UpdateCreatedBy String
-    | UpdateComment String
     | DeleteMatcher Int
+    | UpdateStartsAt String
+    | ValidateStartsAt
+    | UpdateEndsAt String
+    | ValidateEndsAt
+    | UpdateDuration String
+    | ValidateDuration
+    | UpdateCreatedBy String
+    | ValidateCreatedBy
+    | UpdateComment String
+    | ValidateComment
     | UpdateMatcherName Int String
+    | ValidateMatcherName Int
     | UpdateMatcherValue Int String
+    | ValidateMatcherValue Int
     | UpdateMatcherRegex Int Bool
 
 
-validMatcher : Matcher -> MatcherForm
-validMatcher matcher =
-    { name = validField matcher.name identity
-    , value = validField matcher.value identity
-    , isRegex = matcher.isRegex
+initSilenceForm : Model
+initSilenceForm =
+    { form = empty
+    , silence = Nothing
+    }
+
+
+toSilence : SilenceForm -> Maybe Silence
+toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
+    Result.map5
+        (\nonEmptyComment validMatchers nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
+            { nullSilence
+                | id = id
+                , comment = nonEmptyComment
+                , matchers = validMatchers
+                , createdBy = nonEmptyCreatedBy
+                , startsAt = parsedStartsAt
+                , endsAt = parsedEndsAt
+            }
+        )
+        (stringNotEmpty comment.value)
+        (List.foldr appendMatcher (Ok []) matchers)
+        (stringNotEmpty createdBy.value)
+        (timeFromString startsAt.value)
+        (timeFromString endsAt.value)
+        |> Result.toMaybe
+
+
+fromSilence : Silence -> SilenceForm
+fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
+    { id = id
+    , createdBy = initialField createdBy
+    , comment = initialField comment
+    , startsAt = initialField (timeToString startsAt)
+    , endsAt = initialField (timeToString endsAt)
+    , duration = initialField (durationFormat (endsAt - startsAt))
+    , matchers = List.map fromMatcher matchers
+    }
+
+
+empty : SilenceForm
+empty =
+    { id = ""
+    , createdBy = initialField ""
+    , comment = initialField ""
+    , startsAt = initialField ""
+    , endsAt = initialField ""
+    , duration = initialField ""
+    , matchers = []
+    }
+
+
+emptyMatcher : MatcherForm
+emptyMatcher =
+    { isRegex = False
+    , name = initialField ""
+    , value = initialField ""
+    }
+
+
+defaultDuration : Time
+defaultDuration =
+    2 * Time.hour
+
+
+fromMatchersAndTime : List Matcher -> Time -> SilenceForm
+fromMatchersAndTime matchers now =
+    { empty
+        | startsAt = initialField (timeToString now)
+        , endsAt = initialField (timeToString (now + defaultDuration))
+        , duration = initialField (durationFormat defaultDuration)
+        , matchers =
+            -- If no matchers were specified, add an empty row
+            if List.isEmpty matchers then
+                [ emptyMatcher ]
+            else
+                List.map fromMatcher matchers
+    }
+
+
+appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (List Matcher)
+appendMatcher { isRegex, name, value } =
+    Result.map2 (::)
+        (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (stringNotEmpty value.value))
+
+
+fromMatcher : Matcher -> MatcherForm
+fromMatcher { name, value, isRegex } =
+    { name = initialField name
+    , value = initialField value
+    , isRegex = isRegex
     }

@@ -27,8 +27,18 @@ view maybeId { silence, form } =
                 [ h1 [] [ text title ]
                 , timeInput form.startsAt form.endsAt form.duration
                 , matcherInput form.matchers
-                , validatedField input "Creator" inputSectionPadding (UpdateCreatedBy >> UpdateField) form.createdBy
-                , validatedField textarea "Comment" inputSectionPadding (UpdateComment >> UpdateField) form.comment
+                , validatedField input
+                    "Creator"
+                    inputSectionPadding
+                    (UpdateCreatedBy >> UpdateField)
+                    (ValidateCreatedBy |> UpdateField)
+                    form.createdBy
+                , validatedField textarea
+                    "Comment"
+                    inputSectionPadding
+                    (UpdateComment >> UpdateField)
+                    (ValidateComment |> UpdateField)
+                    form.comment
                 , preview silence
                 , silenceActionButtons maybeId silence form resetClick
                 ]
@@ -40,12 +50,27 @@ inputSectionPadding =
     "mt-5"
 
 
-timeInput : ValidatedField a -> ValidatedField b -> ValidatedField c -> Html SilenceFormMsg
+timeInput : ValidatedField -> ValidatedField -> ValidatedField -> Html SilenceFormMsg
 timeInput startsAt endsAt duration =
     div [ class <| "row " ++ inputSectionPadding ]
-        [ validatedField input "Start" "col-5" (UpdateStartsAt >> UpdateField) startsAt
-        , validatedField input "Duration" "col-2" (UpdateDuration >> UpdateField) duration
-        , validatedField input "End" "col-5" (UpdateEndsAt >> UpdateField) endsAt
+        [ validatedField input
+            "Start"
+            "col-5"
+            (UpdateStartsAt >> UpdateField)
+            (ValidateStartsAt |> UpdateField)
+            startsAt
+        , validatedField input
+            "Duration"
+            "col-2"
+            (UpdateDuration >> UpdateField)
+            (ValidateDuration |> UpdateField)
+            duration
+        , validatedField input
+            "End"
+            "col-5"
+            (UpdateEndsAt >> UpdateField)
+            (ValidateEndsAt |> UpdateField)
+            endsAt
         ]
 
 
@@ -67,7 +92,7 @@ matcherInput matchers =
         ]
 
 
-silenceActionButtons : Maybe String -> Result ValidationState Silence -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
+silenceActionButtons : Maybe String -> Maybe Silence -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
 silenceActionButtons maybeId silence form resetClick =
     div [ class inputSectionPadding ]
         [ createSilenceBtn maybeId silence form
@@ -77,8 +102,8 @@ silenceActionButtons maybeId silence form resetClick =
         ]
 
 
-createSilenceBtn : Maybe String -> Result ValidationState Silence -> SilenceForm -> Html SilenceFormMsg
-createSilenceBtn maybeId silenceResult form =
+createSilenceBtn : Maybe String -> Maybe Silence -> SilenceForm -> Html SilenceFormMsg
+createSilenceBtn maybeId maybeSilence form =
     let
         btnTxt =
             case maybeId of
@@ -88,38 +113,38 @@ createSilenceBtn maybeId silenceResult form =
                 Nothing ->
                     "Create"
     in
-        case (silenceResult) of
-            Ok silence ->
+        case maybeSilence of
+            Just silence ->
                 button
                     [ class "btn btn-primary"
                     , onClick (CreateSilence silence)
                     ]
                     [ text btnTxt ]
 
-            _ ->
+            Nothing ->
                 span
                     [ class "btn btn-secondary disabled" ]
                     [ text btnTxt ]
 
 
-preview : Result ValidationState Silence -> Html SilenceFormMsg
-preview silenceResult =
+preview : Maybe Silence -> Html SilenceFormMsg
+preview maybeSilence =
     div [ class inputSectionPadding ] <|
-        case silenceResult of
-            Ok silence ->
+        case maybeSilence of
+            Just silence ->
                 [ button [ class "btn btn-outline-success", onClick (PreviewSilence silence) ] [ text "Load affected Alerts" ]
-                , Views.Shared.SilencePreview.view silence
+                , Views.Shared.SilencePreview.view silence.silencedAlerts
                 ]
 
-            Err _ ->
+            Nothing ->
                 [ div [ class "alert alert-warning" ] [ text "Can not display affected Alerts, Silence is not yet valid." ] ]
 
 
 matcherForm : Int -> MatcherForm -> Html SilenceFormMsg
 matcherForm index { name, value, isRegex } =
     div [ class "row" ]
-        [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) name ]
-        , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) value ]
+        [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) (ValidateMatcherName index) name ]
+        , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) (ValidateMatcherValue index) value ]
         , div [ class "col-2 d-flex align-items-center" ]
             [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
             , iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)

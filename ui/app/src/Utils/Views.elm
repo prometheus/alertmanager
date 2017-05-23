@@ -2,7 +2,7 @@ module Utils.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onCheck, onInput, onClick)
+import Html.Events exposing (onCheck, onInput, onClick, onBlur)
 import Http exposing (Error(..))
 import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 
@@ -48,25 +48,43 @@ checkbox name status msg =
         ]
 
 
-validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> ValidatedField a -> Html msg
-validatedField htmlField labelText classes msg field =
-    case field.validationResult of
-        Ok _ ->
+validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
+validatedField htmlField labelText classes inputMsg blurMsg field =
+    case field.validationState of
+        Valid ->
             div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , htmlField [ value field.value, onInput msg, class "form-control form-control-success" ] []
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-success"
+                    ]
+                    []
                 ]
 
-        Err Initial ->
+        Initial ->
             div [ class <| "d-flex flex-column form-group " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , htmlField [ value field.value, onInput msg, class "form-control" ] []
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control"
+                    ]
+                    []
                 ]
 
-        Err (Invalid error) ->
+        Invalid error ->
             div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , htmlField [ value field.value, onInput msg, class "form-control form-control-danger" ] []
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-danger"
+                    ]
+                    []
                 , div [ class "form-control-feedback" ] [ text error ]
                 ]
 

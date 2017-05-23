@@ -5,12 +5,11 @@ import Silences.Api
 import Task
 import Time
 import Navigation
-import Types exposing (Msg(MsgForSilenceForm))
-import Utils.Date
+import Utils.Date exposing (timeFromString)
 import Utils.List
 import Utils.Types exposing (ApiResponse(..))
 import Utils.Filter exposing (nullFilter)
-import Utils.FormValidation exposing (validate, stringNotEmpty)
+import Utils.FormValidation exposing (updateValue, validate, stringNotEmpty, fromResult)
 import Views.SilenceForm.Types
     exposing
         ( Model
@@ -28,23 +27,18 @@ updateForm : SilenceFormFieldMsg -> SilenceForm -> SilenceForm
 updateForm msg form =
     case msg of
         AddMatcher ->
-            { form | matchers = (form.matchers ++ [ emptyMatcher ]) }
+            { form | matchers = form.matchers ++ [ emptyMatcher ] }
 
         UpdateStartsAt time ->
-            -- TODO:
-            -- Update silence to hold datetime as string, on each pass through
-            -- here update an error message "this is invalid", but let them put
-            -- it in anyway.
             let
                 startsAt =
-                    validate Utils.Date.timeFromString time
+                    Utils.Date.timeFromString time
 
-                durationResult =
-                    Result.map2 (-) form.endsAt.validationResult startsAt.validationResult
-                        |> Result.mapError (always Utils.FormValidation.Initial)
+                endsAt =
+                    Utils.Date.timeFromString form.endsAt.value
 
                 durationValue =
-                    case durationResult of
+                    case Result.map2 (-) endsAt startsAt of
                         Ok duration ->
                             Utils.Date.durationFormat duration
 
@@ -52,53 +46,78 @@ updateForm msg form =
                             form.duration.value
             in
                 { form
-                    | startsAt = startsAt
-                    , duration = { value = durationValue, validationResult = durationResult }
+                    | startsAt = updateValue time form.startsAt
+                    , duration = updateValue durationValue form.duration
                 }
+
+        ValidateStartsAt ->
+            { form
+                | startsAt = validate Utils.Date.timeFromString form.startsAt
+            }
 
         UpdateEndsAt time ->
             let
                 endsAt =
-                    validate Utils.Date.timeFromString time
+                    Utils.Date.timeFromString time
 
-                durationResult =
-                    Result.map2 (-) endsAt.validationResult form.startsAt.validationResult
-                        |> Result.mapError (always Utils.FormValidation.Initial)
+                startsAt =
+                    Utils.Date.timeFromString form.startsAt.value
 
                 durationValue =
-                    case durationResult of
+                    case Result.map2 (-) endsAt startsAt of
                         Ok duration ->
                             Utils.Date.durationFormat duration
 
                         Err _ ->
                             form.duration.value
             in
-                { form | endsAt = endsAt, duration = { value = durationValue, validationResult = durationResult } }
+                { form
+                    | endsAt = updateValue time form.endsAt
+                    , duration = updateValue durationValue form.duration
+                }
+
+        ValidateEndsAt ->
+            { form
+                | endsAt = validate Utils.Date.timeFromString form.endsAt
+            }
 
         UpdateDuration time ->
             let
                 duration =
-                    validate Utils.Date.parseDuration time
+                    Utils.Date.parseDuration time
 
-                endsAtResult =
-                    Result.map2 (+) form.startsAt.validationResult duration.validationResult
-                        |> Result.mapError (always Utils.FormValidation.Initial)
+                startsAt =
+                    Utils.Date.timeFromString form.startsAt.value
 
                 endsAtValue =
-                    case endsAtResult of
+                    case Result.map2 (+) startsAt duration of
                         Ok endsAt ->
                             Utils.Date.timeToString endsAt
 
                         Err _ ->
                             form.endsAt.value
             in
-                { form | endsAt = { value = endsAtValue, validationResult = endsAtResult }, duration = duration }
+                { form
+                    | endsAt = updateValue endsAtValue form.endsAt
+                    , duration = updateValue time form.duration
+                }
+
+        ValidateDuration ->
+            { form
+                | duration = validate Utils.Date.parseDuration form.duration
+            }
 
         UpdateCreatedBy createdBy ->
-            { form | createdBy = validate stringNotEmpty createdBy }
+            { form | createdBy = updateValue createdBy form.createdBy }
+
+        ValidateCreatedBy ->
+            { form | createdBy = validate stringNotEmpty form.createdBy }
 
         UpdateComment comment ->
-            { form | comment = validate stringNotEmpty comment }
+            { form | comment = updateValue comment form.comment }
+
+        ValidateComment ->
+            { form | comment = validate stringNotEmpty form.comment }
 
         DeleteMatcher index ->
             { form | matchers = List.take index form.matchers ++ List.drop (index + 1) form.matchers }
@@ -107,7 +126,16 @@ updateForm msg form =
             let
                 matchers =
                     Utils.List.replaceIndex index
-                        (\matcher -> { matcher | name = validate stringNotEmpty name })
+                        (\matcher -> { matcher | name = updateValue name matcher.name })
+                        form.matchers
+            in
+                { form | matchers = matchers }
+
+        ValidateMatcherName index ->
+            let
+                matchers =
+                    Utils.List.replaceIndex index
+                        (\matcher -> { matcher | name = validate stringNotEmpty matcher.name })
                         form.matchers
             in
                 { form | matchers = matchers }
@@ -116,7 +144,16 @@ updateForm msg form =
             let
                 matchers =
                     Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = validate stringNotEmpty value })
+                        (\matcher -> { matcher | value = updateValue value matcher.value })
+                        form.matchers
+            in
+                { form | matchers = matchers }
+
+        ValidateMatcherValue index ->
+            let
+                matchers =
+                    Utils.List.replaceIndex index
+                        (\matcher -> { matcher | value = validate stringNotEmpty matcher.value })
                         form.matchers
             in
                 { form | matchers = matchers }
@@ -131,13 +168,13 @@ updateForm msg form =
                 { form | matchers = matchers }
 
 
-update : SilenceFormMsg -> Model -> ( Model, Cmd Msg )
+update : SilenceFormMsg -> Model -> ( Model, Cmd SilenceFormMsg )
 update msg model =
     case msg of
         CreateSilence silence ->
             ( model
             , Silences.Api.create silence
-                |> Cmd.map (SilenceCreate >> MsgForSilenceForm)
+                |> Cmd.map (SilenceCreate)
             )
 
         SilenceCreate silence ->
@@ -149,7 +186,7 @@ update msg model =
                     ( model, Navigation.newUrl "/#/silences" )
 
         NewSilenceFromMatchers matchers ->
-            ( model, Task.perform (NewSilenceFromMatchersAndTime matchers >> MsgForSilenceForm) Time.now )
+            ( model, Task.perform (NewSilenceFromMatchersAndTime matchers) Time.now )
 
         NewSilenceFromMatchersAndTime matchers time ->
             let
@@ -159,36 +196,36 @@ update msg model =
                 silence =
                     toSilence form
             in
-                ( Model silence form
+                ( Model form silence
                 , Cmd.none
                 )
 
         FetchSilence silenceId ->
-            ( model, Silences.Api.getSilence silenceId (SilenceFetch >> MsgForSilenceForm) )
+            ( model, Silences.Api.getSilence silenceId SilenceFetch )
 
         SilenceFetch (Success silence) ->
-            ( { model | form = fromSilence silence, silence = Ok silence }
-            , Task.perform (PreviewSilence >> MsgForSilenceForm) (Task.succeed silence)
+            ( { model | form = fromSilence silence, silence = Just silence }
+            , Task.perform PreviewSilence (Task.succeed silence)
             )
 
         SilenceFetch _ ->
             ( model, Cmd.none )
 
         PreviewSilence silence ->
-            ( { model | silence = Ok { silence | silencedAlerts = Loading } }
+            ( { model | silence = Just { silence | silencedAlerts = Loading } }
             , Alerts.Api.fetchAlerts
                 { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
-                |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
+                |> Cmd.map AlertGroupsPreview
             )
 
         AlertGroupsPreview alertGroups ->
             case model.silence of
-                Ok sil ->
-                    ( { model | silence = Ok { sil | silencedAlerts = alertGroups } }
+                Just sil ->
+                    ( { model | silence = Just { sil | silencedAlerts = alertGroups } }
                     , Cmd.none
                     )
 
-                Err _ ->
+                Nothing ->
                     ( model, Cmd.none )
 
         UpdateField fieldMsg ->

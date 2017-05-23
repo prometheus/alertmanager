@@ -37,7 +37,7 @@ update msg model =
                 ( silenceForm, cmd ) =
                     Views.SilenceForm.Updates.update (NewSilenceFromMatchers matchers) model.silenceForm
             in
-                ( { model | silenceForm = silenceForm }, cmd )
+                ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )
 
         NavigateToAlerts filter ->
             let
@@ -126,4 +126,4 @@ update msg model =
                 ( silenceForm, cmd ) =
                     Views.SilenceForm.Updates.update msg model.silenceForm
             in
-                ( { model | silenceForm = silenceForm }, cmd )
+                ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )

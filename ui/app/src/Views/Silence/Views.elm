@@ -41,7 +41,7 @@ silence2 silence =
         , formGroup "Matchers" <|
             div [] <|
                 List.map (Utils.List.mstring >> Utils.Views.labelButton Nothing) silence.matchers
-        , formGroup "Affected alerts" <| Views.Shared.SilencePreview.view silence
+        , formGroup "Affected alerts" <| Views.Shared.SilencePreview.view silence.silencedAlerts
         ]
 
 

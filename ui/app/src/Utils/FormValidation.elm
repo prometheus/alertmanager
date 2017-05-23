@@ -1,44 +1,52 @@
 module Utils.FormValidation
     exposing
         ( initialField
-        , validField
         , ValidationState(..)
         , ValidatedField
         , validate
+        , fromResult
         , stringNotEmpty
+        , updateValue
         )
 
 
 type ValidationState
     = Initial
+    | Valid
     | Invalid String
 
 
-type alias ValidatedField a =
+fromResult : Result String a -> ValidationState
+fromResult result =
+    case result of
+        Ok _ ->
+            Valid
+
+        Err str ->
+            Invalid str
+
+
+type alias ValidatedField =
     { value : String
-    , validationResult : Result ValidationState a
+    , validationState : ValidationState
     }
 
 
-initialField : ValidatedField a
-initialField =
-    { value = ""
-    , validationResult = Err Initial
+initialField : String -> ValidatedField
+initialField value =
+    { value = value
+    , validationState = Initial
     }
 
 
-validField : a -> (a -> String) -> ValidatedField a
-validField result resultToValue =
-    { value = resultToValue result
-    , validationResult = Ok result
-    }
+updateValue : String -> ValidatedField -> ValidatedField
+updateValue value field =
+    { field | value = value, validationState = Initial }
 
 
-validate : (String -> Result String a) -> String -> ValidatedField a
-validate validate input =
-    { value = input
-    , validationResult = validate input |> Result.mapError Invalid
-    }
+validate : (String -> Result String a) -> ValidatedField -> ValidatedField
+validate validate field =
+    { field | validationState = fromResult (validate field.value) }
 
 
 stringNotEmpty : String -> Result String String
