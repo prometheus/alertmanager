@@ -28,6 +28,7 @@ import Views.Status.Types exposing (StatusModel, initStatusModel)
 import Views.AlertList.Types exposing (initAlertList)
 import Views.SilenceList.Types exposing (initSilenceList)
 import Updates exposing (update)
+import Subscriptions exposing (subscriptions)
 
 
 main : Program Never Model Msg
