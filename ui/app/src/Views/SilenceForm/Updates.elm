@@ -171,10 +171,13 @@ updateForm msg form =
 update : SilenceFormMsg -> Model -> ( Model, Cmd SilenceFormMsg )
 update msg model =
     case msg of
-        CreateSilence silence ->
-            ( model
-            , Silences.Api.create silence |> Cmd.map SilenceCreate
-            )
+        CreateSilence ->
+            case toSilence model.form of
+                Just silence ->
+                    ( model, Silences.Api.create silence |> Cmd.map SilenceCreate )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         SilenceCreate silence ->
             case silence of
@@ -195,7 +198,7 @@ update msg model =
                 silence =
                     toSilence form
             in
-                ( { form = form, alerts = Initial, silence = silence }
+                ( { form = form, alerts = Initial }
                 , Cmd.none
                 )
 
@@ -203,19 +206,26 @@ update msg model =
             ( model, Silences.Api.getSilence silenceId SilenceFetch )
 
         SilenceFetch (Success silence) ->
-            ( { model | form = fromSilence silence, silence = Just silence }
-            , Task.perform PreviewSilence (Task.succeed silence)
+            ( { model | form = fromSilence silence }
+            , Task.perform identity (Task.succeed PreviewSilence)
             )
 
         SilenceFetch _ ->
             ( model, Cmd.none )
 
-        PreviewSilence silence ->
-            ( { model | alerts = Loading }
-            , Alerts.Api.fetchAlerts
-                { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
-                |> Cmd.map AlertGroupsPreview
-            )
+        PreviewSilence ->
+            case toSilence model.form of
+                Just silence ->
+                    ( { model | alerts = Loading }
+                    , Alerts.Api.fetchAlerts
+                        { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
+                        |> Cmd.map AlertGroupsPreview
+                    )
+
+                Nothing ->
+                    ( { model | alerts = Failure "Can not display affected Alerts, Silence is not yet valid." }
+                    , Cmd.none
+                    )
 
         AlertGroupsPreview alerts ->
             ( { model | alerts = alerts }
@@ -223,11 +233,4 @@ update msg model =
             )
 
         UpdateField fieldMsg ->
-            let
-                newForm =
-                    updateForm fieldMsg model.form
-
-                newSilence =
-                    toSilence newForm
-            in
-                ( { form = newForm, alerts = Initial, silence = newSilence }, Cmd.none )
+            ( { form = updateForm fieldMsg model.form, alerts = Initial }, Cmd.none )

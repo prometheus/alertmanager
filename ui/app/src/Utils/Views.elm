@@ -3,7 +3,6 @@ module Utils.Views exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onCheck, onInput, onClick, onBlur)
-import Http exposing (Error(..))
 import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 
 
@@ -125,27 +124,8 @@ loading =
         ]
 
 
-error : Http.Error -> Html msg
+error : String -> Html msg
 error err =
-    let
-        msg =
-            case err of
-                Timeout ->
-                    "timeout exceeded"
-
-                NetworkError ->
-                    "network error"
-
-                BadStatus resp ->
-                    resp.status.message ++ " " ++ resp.body
-
-                BadPayload err resp ->
-                    -- OK status, unexpected payload
-                    "unexpected response from api" ++ err
-
-                BadUrl url ->
-                    "malformed url: " ++ url
-    in
-        div []
-            [ p [] [ text <| "Error: " ++ msg ]
-            ]
+    div []
+        [ p [] [ text <| "Error: " ++ err ]
+        ]

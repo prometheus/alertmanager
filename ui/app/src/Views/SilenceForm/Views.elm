@@ -14,7 +14,7 @@ import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormF
 
 
 view : Maybe SilenceId -> Model -> Html SilenceFormMsg
-view maybeId { silence, form, alerts } =
+view maybeId { form, alerts } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -41,8 +41,8 @@ view maybeId { silence, form, alerts } =
                     (UpdateComment >> UpdateField)
                     (ValidateComment |> UpdateField)
                     form.comment
-                , preview silence alerts
-                , silenceActionButtons maybeId silence form resetClick
+                , preview alerts
+                , silenceActionButtons maybeId form resetClick
                 ]
             ]
 
@@ -94,18 +94,18 @@ matcherInput matchers =
         ]
 
 
-silenceActionButtons : Maybe String -> Maybe Silence -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
-silenceActionButtons maybeId silence form resetClick =
+silenceActionButtons : Maybe String -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
+silenceActionButtons maybeId form resetClick =
     div [ class inputSectionPadding ]
-        [ createSilenceBtn maybeId silence form
+        [ createSilenceBtn maybeId form
         , button
             [ class "ml-2 btn btn-danger", onClick resetClick ]
             [ text "Reset" ]
         ]
 
 
-createSilenceBtn : Maybe String -> Maybe Silence -> SilenceForm -> Html SilenceFormMsg
-createSilenceBtn maybeId maybeSilence form =
+createSilenceBtn : Maybe String -> SilenceForm -> Html SilenceFormMsg
+createSilenceBtn maybeId form =
     let
         btnTxt =
             case maybeId of
@@ -115,31 +115,19 @@ createSilenceBtn maybeId maybeSilence form =
                 Nothing ->
                     "Create"
     in
-        case maybeSilence of
-            Just silence ->
-                button
-                    [ class "btn btn-primary"
-                    , onClick (CreateSilence silence)
-                    ]
-                    [ text btnTxt ]
-
-            Nothing ->
-                span
-                    [ class "btn btn-secondary disabled" ]
-                    [ text btnTxt ]
+        button
+            [ class "btn btn-primary"
+            , onClick CreateSilence
+            ]
+            [ text btnTxt ]
 
 
-preview : Maybe Silence -> ApiData (List Alert) -> Html SilenceFormMsg
-preview maybeSilence alerts =
-    div [ class inputSectionPadding ] <|
-        case maybeSilence of
-            Just silence ->
-                [ button [ class "btn btn-outline-success", onClick (PreviewSilence silence) ] [ text "Load affected Alerts" ]
-                , Views.Shared.SilencePreview.view alerts
-                ]
-
-            Nothing ->
-                [ div [ class "alert alert-warning" ] [ text "Can not display affected Alerts, Silence is not yet valid." ] ]
+preview : ApiData (List Alert) -> Html SilenceFormMsg
+preview alerts =
+    div [ class inputSectionPadding ]
+        [ button [ class "btn btn-outline-success", onClick PreviewSilence ] [ text "Load affected Alerts" ]
+        , Views.Shared.SilencePreview.view alerts
+        ]
 
 
 matcherForm : Int -> MatcherForm -> Html SilenceFormMsg

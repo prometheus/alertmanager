@@ -31,7 +31,6 @@ import Utils.FormValidation
 type alias Model =
     { form : SilenceForm
     , alerts : ApiData (List Alert)
-    , silence : Maybe Silence
     }
 
 
@@ -55,8 +54,8 @@ type alias MatcherForm =
 
 type SilenceFormMsg
     = UpdateField SilenceFormFieldMsg
-    | CreateSilence Silence
-    | PreviewSilence Silence
+    | CreateSilence
+    | PreviewSilence
     | AlertGroupsPreview (ApiData (List Alert))
     | FetchSilence String
     | NewSilenceFromMatchers (List Matcher)
@@ -89,7 +88,6 @@ initSilenceForm : Model
 initSilenceForm =
     { form = empty
     , alerts = Utils.Types.Initial
-    , silence = Nothing
     }
 
 

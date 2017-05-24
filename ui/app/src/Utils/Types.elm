@@ -1,6 +1,5 @@
 module Utils.Types exposing (..)
 
-import Http
 import Time
 
 
@@ -31,7 +30,7 @@ type alias Label =
 
 
 type alias ApiData a =
-    ApiResponse Http.Error a
+    ApiResponse String a
 
 
 type alias Time =

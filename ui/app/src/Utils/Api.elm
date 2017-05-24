@@ -1,6 +1,6 @@
 module Utils.Api exposing (..)
 
-import Http
+import Http exposing (Error(..))
 import Json.Decode as Json exposing (field)
 import Time exposing (Time)
 import Utils.Date
@@ -17,11 +17,31 @@ withDefault default response =
             default
 
 
-fromResult : Result e a -> ApiResponse e a
+errorToString : Http.Error -> String
+errorToString err =
+    case err of
+        Timeout ->
+            "timeout exceeded"
+
+        NetworkError ->
+            "network error"
+
+        BadStatus resp ->
+            resp.status.message ++ " " ++ resp.body
+
+        BadPayload err resp ->
+            -- OK status, unexpected payload
+            "unexpected response from api" ++ err
+
+        BadUrl url ->
+            "malformed url: " ++ url
+
+
+fromResult : Result Http.Error a -> ApiData a
 fromResult result =
     case result of
         Err e ->
-            Failure e
+            Failure (errorToString e)
 
         Ok x ->
             Success x
