@@ -5,7 +5,7 @@ import Html.Attributes exposing (..)
 import Views.SilenceList.Types exposing (SilenceListMsg(..), Model)
 import Views.SilenceList.SilenceView
 import Silences.Types exposing (Silence, State(..), stateToString)
-import Utils.Types exposing (Matcher, ApiResponse(..), ApiData)
+import Utils.Types exposing (Matcher, ApiData(..))
 import Utils.Api exposing (withDefault)
 import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
 import Types exposing (Msg(UpdateFilter, MsgForSilenceList, Noop))

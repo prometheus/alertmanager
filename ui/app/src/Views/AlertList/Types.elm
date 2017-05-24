@@ -1,6 +1,6 @@
 module Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..), initAlertList)
 
-import Utils.Types exposing (ApiData, ApiResponse(Initial))
+import Utils.Types exposing (ApiData(Initial))
 import Alerts.Types exposing (Alert)
 import Views.FilterBar.Types as FilterBar
 import Views.GroupBar.Types as GroupBar

@@ -2,7 +2,7 @@ module Views.SilenceView.Types exposing (SilenceViewMsg(..), Model, initSilenceV
 
 import Silences.Types exposing (Silence, SilenceId)
 import Alerts.Types exposing (Alert)
-import Utils.Types exposing (ApiData, ApiResponse(Initial))
+import Utils.Types exposing (ApiData(Initial))
 
 
 type SilenceViewMsg

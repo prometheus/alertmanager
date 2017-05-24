@@ -4,7 +4,7 @@ import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
 import Silences.Api exposing (getSilence)
 import Alerts.Api
 import Utils.List
-import Utils.Types exposing (ApiResponse(..))
+import Utils.Types exposing (ApiData(..))
 import Utils.Filter exposing (nullFilter)
 
 

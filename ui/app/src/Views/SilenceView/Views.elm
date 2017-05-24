@@ -4,7 +4,7 @@ import Silences.Types exposing (Silence, stateToString)
 import Alerts.Types exposing (Alert)
 import Html exposing (Html, div, h2, p, text, label, b, h1)
 import Html.Attributes exposing (class)
-import Utils.Types exposing (ApiData, ApiResponse(Initial, Success, Loading, Failure))
+import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure))
 import Utils.Views exposing (loading, error)
 import Views.Shared.SilencePreview
 import Views.SilenceView.Types exposing (Model, SilenceViewMsg)

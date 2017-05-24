@@ -3,7 +3,7 @@ module Silences.Decoders exposing (show, list, create, destroy)
 import Json.Decode as Json exposing (field, succeed, fail)
 import Utils.Api exposing (iso8601Time, (|:))
 import Silences.Types exposing (Silence, Status, State(Active, Pending, Expired))
-import Utils.Types exposing (Matcher, Time, ApiResponse(Initial))
+import Utils.Types exposing (Matcher, Time, ApiData(Initial))
 
 
 show : Json.Decoder Silence

@@ -7,7 +7,7 @@ import Time
 import Navigation
 import Utils.Date exposing (timeFromString)
 import Utils.List
-import Utils.Types exposing (ApiResponse(..))
+import Utils.Types exposing (ApiData(..))
 import Utils.Filter exposing (nullFilter)
 import Utils.FormValidation exposing (updateValue, validate, stringNotEmpty, fromResult)
 import Views.SilenceForm.Types

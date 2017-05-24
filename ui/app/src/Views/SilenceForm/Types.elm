@@ -14,7 +14,7 @@ module Views.SilenceForm.Types
 
 import Silences.Types exposing (Silence, SilenceId, nullSilence)
 import Alerts.Types exposing (Alert)
-import Utils.Types exposing (Matcher, ApiData, Duration, ApiResponse(..))
+import Utils.Types exposing (Matcher, Duration, ApiData(..))
 import Time exposing (Time)
 import Utils.Date exposing (timeFromString, timeToString, durationFormat, parseDuration)
 import Time exposing (Time)

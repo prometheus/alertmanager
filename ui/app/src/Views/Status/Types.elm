@@ -1,7 +1,7 @@
 module Views.Status.Types exposing (StatusMsg(..), StatusModel, initStatusModel)
 
 import Status.Types exposing (StatusResponse)
-import Utils.Types exposing (ApiData, ApiResponse(Initial))
+import Utils.Types exposing (ApiData(Initial))
 
 
 type StatusMsg

@@ -3,10 +3,10 @@ module Utils.Types exposing (..)
 import Time
 
 
-type ApiResponse e a
+type ApiData a
     = Initial
     | Loading
-    | Failure e
+    | Failure String
     | Success a
 
 
@@ -27,10 +27,6 @@ type alias Labels =
 
 type alias Label =
     ( String, String )
-
-
-type alias ApiData a =
-    ApiResponse String a
 
 
 type alias Time =

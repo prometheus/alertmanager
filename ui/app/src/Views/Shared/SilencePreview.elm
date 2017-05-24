@@ -3,7 +3,7 @@ module Views.Shared.SilencePreview exposing (view)
 import Alerts.Types exposing (Alert)
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (class)
-import Utils.Types exposing (ApiData, ApiResponse(Initial, Success, Loading, Failure))
+import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure))
 import Views.Shared.AlertListCompact
 import Utils.Views exposing (error, loading)
 

@@ -8,11 +8,7 @@ import Types
         , Model
         , Route(NotFoundRoute, SilenceFormEditRoute, SilenceFormNewRoute, SilenceViewRoute, StatusRoute, SilenceListRoute, AlertsRoute)
         )
-import Utils.Types
-    exposing
-        ( ApiResponse(Loading, Failure, Success)
-        , Matcher
-        )
+import Utils.Types exposing (ApiData(Loading, Failure, Success), Matcher)
 import Views.AlertList.Updates
 import Views.AlertList.Types exposing (AlertListMsg(FetchAlerts))
 import Views.SilenceView.Types exposing (SilenceViewMsg(SilenceFetched, InitSilenceView))

@@ -4,10 +4,10 @@ import Http exposing (Error(..))
 import Json.Decode as Json exposing (field)
 import Time exposing (Time)
 import Utils.Date
-import Utils.Types exposing (ApiData, ApiResponse(..))
+import Utils.Types exposing (ApiData(..))
 
 
-withDefault : a -> ApiResponse e a -> a
+withDefault : a -> ApiData a -> a
 withDefault default response =
     case response of
         Success value ->
@@ -21,20 +21,20 @@ errorToString : Http.Error -> String
 errorToString err =
     case err of
         Timeout ->
-            "timeout exceeded"
+            "Timeout exceeded"
 
         NetworkError ->
-            "network error"
+            "Network error"
 
         BadStatus resp ->
             resp.status.message ++ " " ++ resp.body
 
         BadPayload err resp ->
             -- OK status, unexpected payload
-            "unexpected response from api" ++ err
+            "Unexpected response from api" ++ err
 
         BadUrl url ->
-            "malformed url: " ++ url
+            "Malformed url: " ++ url
 
 
 fromResult : Result Http.Error a -> ApiData a
