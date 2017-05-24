@@ -45,13 +45,13 @@ updateValue value field =
 
 
 validate : (String -> Result String a) -> ValidatedField -> ValidatedField
-validate validate field =
-    { field | validationState = fromResult (validate field.value) }
+validate validator field =
+    { field | validationState = fromResult (validator field.value) }
 
 
 stringNotEmpty : String -> Result String String
 stringNotEmpty string =
-    if String.isEmpty string then
+    if String.isEmpty (String.trim string) then
         Err "Should not be empty"
     else
         Ok string
