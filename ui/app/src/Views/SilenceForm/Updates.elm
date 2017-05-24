@@ -195,7 +195,7 @@ update msg model =
                             Navigation.newUrl ("/#/silences/" ++ id)
 
                         _ ->
-                            Navigation.newUrl "/#/silences"
+                            Cmd.none
             in
                 ( { model | silenceId = silenceId }, cmd )
 
