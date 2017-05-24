@@ -4,15 +4,17 @@ import Html exposing (Html, a, div, fieldset, label, legend, span, text, h1, str
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
 import Silences.Types exposing (Silence, SilenceId)
+import Alerts.Types exposing (Alert)
 import Views.Shared.SilencePreview
 import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), MatcherForm)
+import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, error, iconButtonMsg, validatedField)
 import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..), SilenceForm)
 
 
 view : Maybe SilenceId -> Model -> Html SilenceFormMsg
-view maybeId { silence, form } =
+view maybeId { silence, form, alerts } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -39,7 +41,7 @@ view maybeId { silence, form } =
                     (UpdateComment >> UpdateField)
                     (ValidateComment |> UpdateField)
                     form.comment
-                , preview silence
+                , preview silence alerts
                 , silenceActionButtons maybeId silence form resetClick
                 ]
             ]
@@ -127,13 +129,13 @@ createSilenceBtn maybeId maybeSilence form =
                     [ text btnTxt ]
 
 
-preview : Maybe Silence -> Html SilenceFormMsg
-preview maybeSilence =
+preview : Maybe Silence -> ApiData (List Alert) -> Html SilenceFormMsg
+preview maybeSilence alerts =
     div [ class inputSectionPadding ] <|
         case maybeSilence of
             Just silence ->
                 [ button [ class "btn btn-outline-success", onClick (PreviewSilence silence) ] [ text "Load affected Alerts" ]
-                , Views.Shared.SilencePreview.view silence.silencedAlerts
+                , Views.Shared.SilencePreview.view alerts
                 ]
 
             Nothing ->

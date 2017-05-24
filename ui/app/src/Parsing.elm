@@ -2,7 +2,7 @@ module Parsing exposing (..)
 
 import Views.AlertList.Parsing exposing (alertsParser)
 import Views.SilenceList.Parsing exposing (silenceListParser)
-import Views.Silence.Parsing exposing (silenceParser)
+import Views.SilenceView.Parsing exposing (silenceViewParser)
 import Views.SilenceForm.Parsing exposing (silenceFormNewParser, silenceFormEditParser)
 import Views.Status.Parsing exposing (statusParser)
 import Navigation
@@ -52,7 +52,7 @@ routeParser =
         [ map SilenceListRoute silenceListParser
         , map StatusRoute statusParser
         , map SilenceFormNewRoute silenceFormNewParser
-        , map SilenceRoute silenceParser
+        , map SilenceViewRoute silenceViewParser
         , map SilenceFormEditRoute silenceFormEditParser
         , map AlertsRoute alertsParser
         , map TopLevelRoute top

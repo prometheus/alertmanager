@@ -30,6 +30,7 @@ import Utils.FormValidation
 
 type alias Model =
     { form : SilenceForm
+    , alerts : ApiData (List Alert)
     , silence : Maybe Silence
     }
 
@@ -87,6 +88,7 @@ type SilenceFormFieldMsg
 initSilenceForm : Model
 initSilenceForm =
     { form = empty
+    , alerts = Utils.Types.Initial
     , silence = Nothing
     }
 

@@ -173,8 +173,7 @@ update msg model =
     case msg of
         CreateSilence silence ->
             ( model
-            , Silences.Api.create silence
-                |> Cmd.map (SilenceCreate)
+            , Silences.Api.create silence |> Cmd.map SilenceCreate
             )
 
         SilenceCreate silence ->
@@ -196,7 +195,7 @@ update msg model =
                 silence =
                     toSilence form
             in
-                ( Model form silence
+                ( { form = form, alerts = Initial, silence = silence }
                 , Cmd.none
                 )
 
@@ -212,21 +211,16 @@ update msg model =
             ( model, Cmd.none )
 
         PreviewSilence silence ->
-            ( { model | silence = Just { silence | silencedAlerts = Loading } }
+            ( { model | alerts = Loading }
             , Alerts.Api.fetchAlerts
                 { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
                 |> Cmd.map AlertGroupsPreview
             )
 
-        AlertGroupsPreview alertGroups ->
-            case model.silence of
-                Just sil ->
-                    ( { model | silence = Just { sil | silencedAlerts = alertGroups } }
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    ( model, Cmd.none )
+        AlertGroupsPreview alerts ->
+            ( { model | alerts = alerts }
+            , Cmd.none
+            )
 
         UpdateField fieldMsg ->
             let
@@ -236,4 +230,4 @@ update msg model =
                 newSilence =
                     toSilence newForm
             in
-                ( { form = newForm, silence = newSilence }, Cmd.none )
+                ( { form = newForm, alerts = Initial, silence = newSilence }, Cmd.none )

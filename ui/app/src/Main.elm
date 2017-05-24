@@ -8,7 +8,7 @@ import Types
         ( Route(..)
         , Msg
             ( NavigateToSilenceList
-            , NavigateToSilence
+            , NavigateToSilenceView
             , NavigateToSilenceFormEdit
             , NavigateToSilenceFormNew
             , NavigateToAlerts
@@ -18,12 +18,12 @@ import Types
             )
         , Model
         )
-import Utils.Types exposing (..)
 import Utils.Filter exposing (nullFilter)
 import Views.SilenceForm.Types exposing (initSilenceForm)
 import Views.Status.Types exposing (StatusModel, initStatusModel)
 import Views.AlertList.Types exposing (initAlertList)
 import Views.SilenceList.Types exposing (initSilenceList)
+import Views.SilenceView.Types exposing (initSilenceView)
 import Updates exposing (update)
 
 
@@ -54,7 +54,7 @@ init location =
                 _ ->
                     nullFilter
     in
-        update (urlUpdate location) (Model initSilenceList Loading initSilenceForm initAlertList route filter initStatusModel)
+        update (urlUpdate location) (Model initSilenceList initSilenceView initSilenceForm initAlertList route filter initStatusModel)
 
 
 urlUpdate : Navigation.Location -> Msg
@@ -67,8 +67,8 @@ urlUpdate location =
             SilenceListRoute maybeFilter ->
                 NavigateToSilenceList maybeFilter
 
-            SilenceRoute silenceId ->
-                NavigateToSilence silenceId
+            SilenceViewRoute silenceId ->
+                NavigateToSilenceView silenceId
 
             SilenceFormEditRoute silenceId ->
                 NavigateToSilenceFormEdit silenceId

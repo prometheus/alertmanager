@@ -40,7 +40,6 @@ silenceDecoder =
         |: (field "endsAt" iso8601Time)
         |: (field "updatedAt" iso8601Time)
         |: (field "matchers" (Json.list matcherDecoder))
-        |: (Json.succeed Initial)
         |: (field "status" statusDecoder)
 
 
