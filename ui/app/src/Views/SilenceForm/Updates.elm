@@ -18,6 +18,7 @@ import Views.SilenceForm.Types
         , SilenceFormFieldMsg(..)
         , fromMatchersAndTime
         , fromSilence
+        , validateForm
         , toSilence
         , emptyMatcher
         )
@@ -174,33 +175,40 @@ update msg model =
         CreateSilence ->
             case toSilence model.form of
                 Just silence ->
-                    ( model, Silences.Api.create silence |> Cmd.map SilenceCreate )
+                    ( { model | silenceId = Loading }
+                    , Silences.Api.create silence |> Cmd.map SilenceCreate
+                    )
 
                 Nothing ->
-                    ( model, Cmd.none )
+                    ( { model
+                        | silenceId = Failure "Could not submit the form, Silence is not yet valid."
+                        , form = validateForm model.form
+                      }
+                    , Cmd.none
+                    )
 
-        SilenceCreate silence ->
-            case silence of
-                Success id ->
-                    ( model, Navigation.newUrl ("/#/silences/" ++ id) )
+        SilenceCreate silenceId ->
+            let
+                cmd =
+                    case silenceId of
+                        Success id ->
+                            Navigation.newUrl ("/#/silences/" ++ id)
 
-                _ ->
-                    ( model, Navigation.newUrl "/#/silences" )
+                        _ ->
+                            Navigation.newUrl "/#/silences"
+            in
+                ( { model | silenceId = silenceId }, cmd )
 
         NewSilenceFromMatchers matchers ->
             ( model, Task.perform (NewSilenceFromMatchersAndTime matchers) Time.now )
 
         NewSilenceFromMatchersAndTime matchers time ->
-            let
-                form =
-                    fromMatchersAndTime matchers time
-
-                silence =
-                    toSilence form
-            in
-                ( { form = form, alerts = Initial }
-                , Cmd.none
-                )
+            ( { form = fromMatchersAndTime matchers time
+              , alerts = Initial
+              , silenceId = Initial
+              }
+            , Cmd.none
+            )
 
         FetchSilence silenceId ->
             ( model, Silences.Api.getSilence silenceId SilenceFetch )
@@ -223,7 +231,10 @@ update msg model =
                     )
 
                 Nothing ->
-                    ( { model | alerts = Failure "Can not display affected Alerts, Silence is not yet valid." }
+                    ( { model
+                        | alerts = Failure "Can not display affected Alerts, Silence is not yet valid."
+                        , form = validateForm model.form
+                      }
                     , Cmd.none
                     )
 
@@ -233,4 +244,9 @@ update msg model =
             )
 
         UpdateField fieldMsg ->
-            ( { form = updateForm fieldMsg model.form, alerts = Initial }, Cmd.none )
+            ( { form = updateForm fieldMsg model.form
+              , alerts = Initial
+              , silenceId = Initial
+              }
+            , Cmd.none
+            )

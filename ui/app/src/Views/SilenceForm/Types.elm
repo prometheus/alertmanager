@@ -10,6 +10,7 @@ module Views.SilenceForm.Types
         , toSilence
         , initSilenceForm
         , emptyMatcher
+        , validateForm
         )
 
 import Silences.Types exposing (Silence, SilenceId, nullSilence)
@@ -30,6 +31,7 @@ import Utils.FormValidation
 
 type alias Model =
     { form : SilenceForm
+    , silenceId : ApiData String
     , alerts : ApiData (List Alert)
     }
 
@@ -61,7 +63,7 @@ type SilenceFormMsg
     | NewSilenceFromMatchers (List Matcher)
     | NewSilenceFromMatchersAndTime (List Matcher) Time
     | SilenceFetch (ApiData Silence)
-    | SilenceCreate (ApiData String)
+    | SilenceCreate (ApiData SilenceId)
 
 
 type SilenceFormFieldMsg
@@ -87,6 +89,7 @@ type SilenceFormFieldMsg
 initSilenceForm : Model
 initSilenceForm =
     { form = empty
+    , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     }
 
@@ -121,6 +124,26 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (endsAt - startsAt))
     , matchers = List.map fromMatcher matchers
+    }
+
+
+validateForm : SilenceForm -> SilenceForm
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
+    { id = id
+    , createdBy = validate stringNotEmpty createdBy
+    , comment = validate stringNotEmpty comment
+    , startsAt = validate timeFromString startsAt
+    , endsAt = validate timeFromString endsAt
+    , duration = validate parseDuration duration
+    , matchers = List.map validateMatcherForm matchers
+    }
+
+
+validateMatcherForm : MatcherForm -> MatcherForm
+validateMatcherForm { name, value, isRegex } =
+    { name = validate stringNotEmpty name
+    , value = validate stringNotEmpty value
+    , isRegex = isRegex
     }
 
 
