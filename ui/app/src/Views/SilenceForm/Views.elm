@@ -89,7 +89,7 @@ matcherInput matchers =
                 , label [ class "col-5" ] [ text "Value" ]
                 ]
             ]
-        , div [] (List.indexedMap matcherForm matchers)
+        , div [] (List.indexedMap (matcherForm (List.length matchers > 1)) matchers)
         , iconButtonMsg "btn btn-secondary" "fa-plus" (AddMatcher |> UpdateField)
         ]
 
@@ -148,14 +148,17 @@ previewSilenceBtn =
         [ text "Preview Alerts" ]
 
 
-matcherForm : Int -> MatcherForm -> Html SilenceFormMsg
-matcherForm index { name, value, isRegex } =
+matcherForm : Bool -> Int -> MatcherForm -> Html SilenceFormMsg
+matcherForm showDeleteButton index { name, value, isRegex } =
     div [ class "row" ]
         [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) (ValidateMatcherName index) name ]
         , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) (ValidateMatcherValue index) value ]
         , div [ class "col-2 d-flex align-items-center" ]
             [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
-            , iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)
+            , if True then
+                iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)
+              else
+                text ""
             ]
         ]
         |> Html.map UpdateField
