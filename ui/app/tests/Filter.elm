@@ -1,19 +1,10 @@
-module Filter exposing (all)
+module Filter exposing (..)
 
 import Test exposing (..)
 import Expect
 import Fuzz exposing (list, int, tuple, string)
 import Utils.Filter exposing (Matcher, MatchOperator(Eq, RegexMatch))
 import Helpers exposing (isNotEmptyTrimmedAlphabetWord)
-
-
-all : Test
-all =
-    describe "Filter"
-        [ parseMatcher
-        , generateQueryString
-        , stringifyFilter
-        ]
 
 
 parseMatcher : Test
@@ -38,7 +29,7 @@ parseMatcher =
 generateQueryString : Test
 generateQueryString =
     describe "generateQueryString"
-        [ test "should default silenced parameter to false if showSilenced is Nothing" <| 
+        [ test "should default silenced parameter to false if showSilenced is Nothing" <|
             \() ->
                 Expect.equal "?silenced=false"
                     (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, text = Nothing, showSilenced = Nothing })
