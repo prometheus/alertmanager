@@ -16,7 +16,7 @@ view : Model -> Html SilenceViewMsg
 view { silence, alerts } =
     case silence of
         Success sil ->
-            silence2 alerts sil
+            viewSilence alerts sil
 
         Initial ->
             loading
@@ -28,8 +28,8 @@ view { silence, alerts } =
             error msg
 
 
-silence2 : ApiData (List Alert) -> Silence -> Html SilenceViewMsg
-silence2 alerts silence =
+viewSilence : ApiData (List Alert) -> Silence -> Html SilenceViewMsg
+viewSilence alerts silence =
     div []
         [ h1 [] [ text "Silence" ]
         , formGroup "ID" <| text silence.id
