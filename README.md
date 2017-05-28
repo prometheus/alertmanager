@@ -1,4 +1,4 @@
-# Alertmanager [![Build Status](https://travis-ci.org/prometheus/alertmanager.svg)][travis]
+# Alertmanager [![Build Status](https://travis-ci.org/prometheus/alertmanager.svg?branch=master)][travis]
 
 [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status)][quay]
