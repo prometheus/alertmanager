@@ -73,7 +73,7 @@ routeToTab currentRoute =
         SilenceListRoute _ ->
             silencesTab
 
-        SilenceRoute _ ->
+        SilenceViewRoute _ ->
             silencesTab
 
         StatusRoute ->

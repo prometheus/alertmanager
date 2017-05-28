@@ -6,18 +6,14 @@ import Types
     exposing
         ( Msg(..)
         , Model
-        , Route(NotFoundRoute, SilenceFormEditRoute, SilenceFormNewRoute, SilenceRoute, StatusRoute, SilenceListRoute, AlertsRoute)
+        , Route(NotFoundRoute, SilenceFormEditRoute, SilenceFormNewRoute, SilenceViewRoute, StatusRoute, SilenceListRoute, AlertsRoute)
         )
-import Utils.Types
-    exposing
-        ( ApiResponse(Loading, Failure, Success)
-        , Matcher
-        )
+import Utils.Types exposing (ApiData(Loading, Failure, Success), Matcher)
 import Views.AlertList.Updates
 import Views.AlertList.Types exposing (AlertListMsg(FetchAlerts))
-import Views.Silence.Types exposing (SilenceMsg(SilenceFetched, InitSilenceView))
+import Views.SilenceView.Types exposing (SilenceViewMsg(SilenceFetched, InitSilenceView))
 import Views.SilenceList.Types exposing (SilenceListMsg(FetchSilences))
-import Views.Silence.Updates
+import Views.SilenceView.Updates
 import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers, FetchSilence))
 import Views.SilenceForm.Updates
 import Views.SilenceList.Updates
@@ -32,12 +28,12 @@ update msg model =
         CreateSilenceFromAlert { labels } ->
             let
                 matchers =
-                    List.map (\( k, v ) -> Matcher k v False) labels
+                    List.map (\( k, v ) -> Matcher False k v) labels
 
                 ( silenceForm, cmd ) =
                     Views.SilenceForm.Updates.update (NewSilenceFromMatchers matchers) model.silenceForm
             in
-                ( { model | silenceForm = silenceForm }, cmd )
+                ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )
 
         NavigateToAlerts filter ->
             let
@@ -58,15 +54,14 @@ update msg model =
         NavigateToStatus ->
             ( { model | route = StatusRoute }, Task.perform identity (Task.succeed <| (MsgForStatus InitStatusView)) )
 
-        NavigateToSilence silenceId ->
+        NavigateToSilenceView silenceId ->
             let
-                silenceMsg =
-                    InitSilenceView silenceId
-
-                cmd =
-                    Task.perform identity (Task.succeed <| (MsgForSilence silenceMsg))
+                ( silenceView, cmd ) =
+                    Views.SilenceView.Updates.update (InitSilenceView silenceId) model.silenceView
             in
-                ( { model | route = (SilenceRoute silenceId) }, cmd )
+                ( { model | route = SilenceViewRoute silenceId, silenceView = silenceView }
+                , Cmd.map MsgForSilenceView cmd
+                )
 
         NavigateToSilenceFormNew keep ->
             ( { model | route = SilenceFormNewRoute keep }
@@ -118,12 +113,16 @@ update msg model =
             in
                 ( { model | silenceList = silenceList }, Cmd.map MsgForSilenceList cmd )
 
-        MsgForSilence msg ->
-            Views.Silence.Updates.update msg model
+        MsgForSilenceView msg ->
+            let
+                ( silenceView, cmd ) =
+                    Views.SilenceView.Updates.update msg model.silenceView
+            in
+                ( { model | silenceView = silenceView }, Cmd.map MsgForSilenceView cmd )
 
         MsgForSilenceForm msg ->
             let
                 ( silenceForm, cmd ) =
                     Views.SilenceForm.Updates.update msg model.silenceForm
             in
-                ( { model | silenceForm = silenceForm }, cmd )
+                ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )

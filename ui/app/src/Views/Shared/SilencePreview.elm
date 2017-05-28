@@ -1,21 +1,25 @@
 module Views.Shared.SilencePreview exposing (view)
 
-import Silences.Types exposing (Silence)
-import Html exposing (Html, div, text)
+import Alerts.Types exposing (Alert)
+import Html exposing (Html, div, text, strong, p)
 import Html.Attributes exposing (class)
-import Utils.Types exposing (ApiResponse(Initial, Success, Loading, Failure))
+import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure))
 import Views.Shared.AlertListCompact
-import Utils.Views exposing (error, loading)
+import Utils.Views exposing (loading)
 
 
-view : Silence -> Html msg
-view { silencedAlerts } =
-    case silencedAlerts of
+view : ApiData (List Alert) -> Html msg
+view alertsResponse =
+    case alertsResponse of
         Success alerts ->
             if List.isEmpty alerts then
-                div [ class "w-100 mt-3" ] [ text "No matches" ]
+                div [ class "w-100" ]
+                    [ p [] [ strong [] [ text "No silenced alerts" ] ] ]
             else
-                div [ class "w-100 mt-3" ] [ Views.Shared.AlertListCompact.view alerts ]
+                div [ class "w-100" ]
+                    [ p [] [ strong [] [ text "Silenced alerts:" ] ]
+                    , Views.Shared.AlertListCompact.view alerts
+                    ]
 
         Initial ->
             text ""
@@ -24,4 +28,4 @@ view { silencedAlerts } =
             loading
 
         Failure e ->
-            error e
+            div [ class "alert alert-warning" ] [ text e ]

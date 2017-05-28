@@ -4,209 +4,198 @@ module Views.SilenceForm.Types
         , SilenceFormFieldMsg(..)
         , Model
         , SilenceForm
+        , MatcherForm
         , fromMatchersAndTime
         , fromSilence
         , toSilence
         , initSilenceForm
-        , validateComment
-        , validateCreatedBy
-        , validateDuration
-        , validateEndsAt
-        , validateMatcher
-        , validateStartsAt
-        , validateMatcherName
-        , validateMatcherValue
+        , emptyMatcher
+        , validateForm
         )
 
-import Silences.Types exposing (Silence, SilenceId, nullSilenceStatus)
+import Silences.Types exposing (Silence, SilenceId, nullSilence)
 import Alerts.Types exposing (Alert)
-import Utils.Types exposing (Matcher, ApiData, Duration, ApiResponse(..))
+import Utils.Types exposing (Matcher, Duration, ApiData(..))
 import Time exposing (Time)
-import Utils.Date exposing (timeToString, timeFromString, durationFormat, parseDuration)
-import Tuple exposing (second)
+import Utils.Date exposing (timeFromString, timeToString, durationFormat, parseDuration)
 import Time exposing (Time)
 import Utils.FormValidation
     exposing
-        ( validateDate
-        , ValidatedMatcher
-        , validatedMatchersToMatchers
+        ( initialField
+        , ValidationState(..)
+        , ValidatedField
+        , validate
+        , stringNotEmpty
         )
+
+
+type alias Model =
+    { form : SilenceForm
+    , silenceId : ApiData String
+    , alerts : ApiData (List Alert)
+    }
+
+
+type alias SilenceForm =
+    { id : String
+    , createdBy : ValidatedField
+    , comment : ValidatedField
+    , startsAt : ValidatedField
+    , endsAt : ValidatedField
+    , duration : ValidatedField
+    , matchers : List MatcherForm
+    }
+
+
+type alias MatcherForm =
+    { name : ValidatedField
+    , value : ValidatedField
+    , isRegex : Bool
+    }
+
+
+type SilenceFormMsg
+    = UpdateField SilenceFormFieldMsg
+    | CreateSilence
+    | PreviewSilence
+    | AlertGroupsPreview (ApiData (List Alert))
+    | FetchSilence String
+    | NewSilenceFromMatchers (List Matcher)
+    | NewSilenceFromMatchersAndTime (List Matcher) Time
+    | SilenceFetch (ApiData Silence)
+    | SilenceCreate (ApiData SilenceId)
+
+
+type SilenceFormFieldMsg
+    = AddMatcher
+    | DeleteMatcher Int
+    | UpdateStartsAt String
+    | ValidateStartsAt
+    | UpdateEndsAt String
+    | ValidateEndsAt
+    | UpdateDuration String
+    | ValidateDuration
+    | UpdateCreatedBy String
+    | ValidateCreatedBy
+    | UpdateComment String
+    | ValidateComment
+    | UpdateMatcherName Int String
+    | ValidateMatcherName Int
+    | UpdateMatcherValue Int String
+    | ValidateMatcherValue Int
+    | UpdateMatcherRegex Int Bool
 
 
 initSilenceForm : Model
 initSilenceForm =
     { form = empty
-    , silence = toSilence empty
+    , silenceId = Utils.Types.Initial
+    , alerts = Utils.Types.Initial
     }
 
 
-toSilence : SilenceForm -> Result String Silence
-toSilence form =
+toSilence : SilenceForm -> Maybe Silence
+toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
     Result.map5
-        (\comment matchers createdBy parsedStartsAt parsedEndsAt ->
-            { id = form.id
-            , comment = comment
-            , matchers = matchers
-            , createdBy = createdBy
-            , startsAt = parsedStartsAt
-            , endsAt = parsedEndsAt
-
-            {- ignored -}
-            , silencedAlerts = Initial
-
-            {- ignored -}
-            , updatedAt = 0
-
-            {- ignored -}
-            , status = nullSilenceStatus
+        (\nonEmptyComment validMatchers nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
+            { nullSilence
+                | id = id
+                , comment = nonEmptyComment
+                , matchers = validMatchers
+                , createdBy = nonEmptyCreatedBy
+                , startsAt = parsedStartsAt
+                , endsAt = parsedEndsAt
             }
         )
-        (Result.mapError second form.comment)
-        (validatedMatchersToMatchers form.matchers)
-        (Result.mapError second form.createdBy)
-        (Result.map second <| Result.mapError second form.startsAt)
-        (Result.map second <| Result.mapError second form.endsAt)
+        (stringNotEmpty comment.value)
+        (List.foldr appendMatcher (Ok []) matchers)
+        (stringNotEmpty createdBy.value)
+        (timeFromString startsAt.value)
+        (timeFromString endsAt.value)
+        |> Result.toMaybe
 
 
 fromSilence : Silence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     { id = id
-    , createdBy = validateCreatedBy createdBy
-    , comment = validateComment comment
-    , startsAt = validateStartsAt (timeToString startsAt)
-    , endsAt = validateEndsAt (timeToString endsAt)
-    , duration = validateDuration (durationFormat (endsAt - startsAt))
-    , matchers = List.map validateMatcher matchers
+    , createdBy = initialField createdBy
+    , comment = initialField comment
+    , startsAt = initialField (timeToString startsAt)
+    , endsAt = initialField (timeToString endsAt)
+    , duration = initialField (durationFormat (endsAt - startsAt))
+    , matchers = List.map fromMatcher matchers
+    }
+
+
+validateForm : SilenceForm -> SilenceForm
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
+    { id = id
+    , createdBy = validate stringNotEmpty createdBy
+    , comment = validate stringNotEmpty comment
+    , startsAt = validate timeFromString startsAt
+    , endsAt = validate timeFromString endsAt
+    , duration = validate parseDuration duration
+    , matchers = List.map validateMatcherForm matchers
+    }
+
+
+validateMatcherForm : MatcherForm -> MatcherForm
+validateMatcherForm { name, value, isRegex } =
+    { name = validate stringNotEmpty name
+    , value = validate stringNotEmpty value
+    , isRegex = isRegex
     }
 
 
 empty : SilenceForm
 empty =
     { id = ""
-    , createdBy = validateCreatedBy ""
-    , comment = validateComment ""
-    , startsAt = validateStartsAt ""
-    , endsAt = validateEndsAt ""
-    , duration = validateDuration ""
+    , createdBy = initialField ""
+    , comment = initialField ""
+    , startsAt = initialField ""
+    , endsAt = initialField ""
+    , duration = initialField ""
     , matchers = []
     }
 
 
+emptyMatcher : MatcherForm
+emptyMatcher =
+    { isRegex = False
+    , name = initialField ""
+    , value = initialField ""
+    }
+
+
+defaultDuration : Time
+defaultDuration =
+    2 * Time.hour
+
+
 fromMatchersAndTime : List Matcher -> Time -> SilenceForm
 fromMatchersAndTime matchers now =
-    let
-        duration =
-            2 * Time.hour
-
-        -- If no matchers were specified, show a sample matcher
-        enrichedMatchers =
-            if List.length matchers == 0 then
-                [ Matcher "env" "production" False ]
+    { empty
+        | startsAt = initialField (timeToString now)
+        , endsAt = initialField (timeToString (now + defaultDuration))
+        , duration = initialField (durationFormat defaultDuration)
+        , matchers =
+            -- If no matchers were specified, add an empty row
+            if List.isEmpty matchers then
+                [ emptyMatcher ]
             else
-                matchers
-    in
-        { empty
-            | startsAt = validateStartsAt <| timeToString now
-            , endsAt = validateEndsAt <| timeToString (now + duration)
-            , duration = validateDuration <| durationFormat duration
-            , matchers = List.map validateMatcher enrichedMatchers
-        }
-
-
-type alias Model =
-    { silence : Result String Silence
-    , form : SilenceForm
+                List.map fromMatcher matchers
     }
 
 
-type alias SilenceForm =
-    { id : String
-    , createdBy : Result ( String, String ) String
-    , comment : Result ( String, String ) String
-    , startsAt : Result ( String, String ) ( String, Time )
-    , endsAt : Result ( String, String ) ( String, Time )
-    , duration : Result ( String, String ) ( String, Time )
-    , matchers : List ValidatedMatcher
+appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (List Matcher)
+appendMatcher { isRegex, name, value } =
+    Result.map2 (::)
+        (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (stringNotEmpty value.value))
+
+
+fromMatcher : Matcher -> MatcherForm
+fromMatcher { name, value, isRegex } =
+    { name = initialField name
+    , value = initialField value
+    , isRegex = isRegex
     }
-
-
-type SilenceFormMsg
-    = UpdateField SilenceFormFieldMsg
-    | CreateSilence Silence
-    | PreviewSilence Silence
-    | AlertGroupsPreview (ApiData (List Alert))
-    | FetchSilence String
-    | NewSilenceFromMatchers (List Matcher)
-    | NewSilenceFromMatchersAndTime (List Matcher) Time
-    | SilenceFetch (ApiData Silence)
-    | SilenceCreate (ApiData String)
-
-
-type SilenceFormFieldMsg
-    = AddMatcher
-    | UpdateStartsAt String
-    | UpdateEndsAt String
-    | UpdateDuration String
-    | UpdateCreatedBy String
-    | UpdateComment String
-    | DeleteMatcher Int
-    | UpdateMatcherName Int String
-    | UpdateMatcherValue Int String
-    | UpdateMatcherRegex Int Bool
-
-
-validateCreatedBy : String -> Result ( String, String ) String
-validateCreatedBy =
-    stringNotEmpty
-
-
-stringNotEmpty : String -> Result ( String, String ) String
-stringNotEmpty string =
-    if String.isEmpty string then
-        Err ( string, "Should not be empty" )
-    else
-        Ok string
-
-
-validateComment : String -> Result ( String, String ) String
-validateComment =
-    stringNotEmpty
-
-
-validateMatcher : Matcher -> ValidatedMatcher
-validateMatcher matcher =
-    { name = validateMatcherName matcher.name, value = validateMatcherValue matcher.value, isRegex = matcher.isRegex }
-
-
-validateMatcherName : String -> Result ( String, String ) String
-validateMatcherName =
-    stringNotEmpty
-
-
-validateMatcherValue : String -> Result ( String, String ) String
-validateMatcherValue =
-    stringNotEmpty
-
-
-validateDuration : String -> Result ( String, String ) ( String, Time )
-validateDuration durationString =
-    let
-        parsedDuration =
-            parseDuration durationString
-    in
-        case parsedDuration of
-            Just d ->
-                Ok ( durationString, d )
-
-            Nothing ->
-                Err ( durationString, "Invalid duration" )
-
-
-validateStartsAt : String -> Result ( String, String ) ( String, Time )
-validateStartsAt =
-    validateDate
-
-
-validateEndsAt : String -> Result ( String, String ) ( String, Time )
-validateEndsAt =
-    validateDate

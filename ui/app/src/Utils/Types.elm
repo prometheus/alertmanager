@@ -1,20 +1,19 @@
 module Utils.Types exposing (..)
 
-import Http
 import Time
 
 
-type ApiResponse e a
+type ApiData a
     = Initial
     | Loading
-    | Failure e
+    | Failure String
     | Success a
 
 
 type alias Matcher =
-    { name : String
+    { isRegex : Bool
+    , name : String
     , value : String
-    , isRegex : Bool
     }
 
 
@@ -28,10 +27,6 @@ type alias Labels =
 
 type alias Label =
     ( String, String )
-
-
-type alias ApiData a =
-    ApiResponse Http.Error a
 
 
 type alias Time =

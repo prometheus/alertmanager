@@ -1,21 +1,22 @@
-module Views.Silence.Views exposing (view)
+module Views.SilenceView.Views exposing (view)
 
 import Silences.Types exposing (Silence, stateToString)
+import Alerts.Types exposing (Alert)
 import Html exposing (Html, div, h2, p, text, label, b, h1)
 import Html.Attributes exposing (class)
-import Types exposing (Model, Msg)
-import Utils.Types exposing (ApiResponse(Initial, Success, Loading, Failure))
+import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure))
 import Utils.Views exposing (loading, error)
 import Views.Shared.SilencePreview
+import Views.SilenceView.Types exposing (Model, SilenceViewMsg)
 import Utils.Date exposing (dateTimeFormat)
 import Utils.List
 
 
-view : Model -> Html Msg
-view model =
-    case model.silence of
+view : Model -> Html SilenceViewMsg
+view { silence, alerts } =
+    case silence of
         Success sil ->
-            silence2 sil
+            viewSilence alerts sil
 
         Initial ->
             loading
@@ -27,8 +28,8 @@ view model =
             error msg
 
 
-silence2 : Silence -> Html Msg
-silence2 silence =
+viewSilence : ApiData (List Alert) -> Silence -> Html SilenceViewMsg
+viewSilence alerts silence =
     div []
         [ h1 [] [ text "Silence" ]
         , formGroup "ID" <| text silence.id
@@ -41,11 +42,11 @@ silence2 silence =
         , formGroup "Matchers" <|
             div [] <|
                 List.map (Utils.List.mstring >> Utils.Views.labelButton Nothing) silence.matchers
-        , formGroup "Affected alerts" <| Views.Shared.SilencePreview.view silence
+        , formGroup "Affected alerts" <| Views.Shared.SilencePreview.view alerts
         ]
 
 
-formGroup : String -> Html Msg -> Html Msg
+formGroup : String -> Html SilenceViewMsg -> Html SilenceViewMsg
 formGroup key content =
     div [ class "form-group row" ]
         [ label [ class "col-2 col-form-label" ] [ b [] [ text key ] ]

@@ -2,7 +2,7 @@ module Views.SilenceList.Updates exposing (update, urlUpdate)
 
 import Silences.Api as Api
 import Views.SilenceList.Types exposing (SilenceListMsg(..), Model)
-import Utils.Types as Types exposing (ApiData, ApiResponse(Failure, Loading, Success), Time, Matchers)
+import Utils.Types as Types exposing (ApiData(Failure, Loading, Success), Time, Matchers)
 import Utils.Filter exposing (Filter, generateQueryString)
 import Views.FilterBar.Updates as FilterBar
 

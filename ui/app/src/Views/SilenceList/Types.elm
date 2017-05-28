@@ -1,6 +1,6 @@
 module Views.SilenceList.Types exposing (SilenceListMsg(..), Model, initSilenceList)
 
-import Utils.Types exposing (ApiData, ApiResponse(Initial))
+import Utils.Types exposing (ApiData(Initial))
 import Silences.Types exposing (Silence, State(Active))
 import Utils.Types exposing (ApiData)
 import Views.FilterBar.Types as FilterBar

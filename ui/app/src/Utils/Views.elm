@@ -2,8 +2,8 @@ module Utils.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onCheck, onInput, onClick)
-import Http exposing (Error(..))
+import Html.Events exposing (onCheck, onInput, onClick, onBlur)
+import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 
 
 tab : tab -> tab -> (tab -> msg) -> List (Html msg) -> Html msg
@@ -47,19 +47,43 @@ checkbox name status msg =
         ]
 
 
-validatedFormField : String -> Result ( String, String ) String -> String -> (String -> msg) -> Html msg
-validatedFormField labelText validatedString classes msg =
-    case validatedString of
-        Ok inputValue ->
+validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
+validatedField htmlField labelText classes inputMsg blurMsg field =
+    case field.validationState of
+        Valid ->
             div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , input [ value inputValue, onInput msg, class "form-control form-control-success" ] []
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-success"
+                    ]
+                    []
                 ]
 
-        Err ( inputValue, error ) ->
+        Initial ->
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control"
+                    ]
+                    []
+                ]
+
+        Invalid error ->
             div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , input [ value inputValue, onInput msg, class "form-control form-control-danger" ] []
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-danger"
+                    ]
+                    []
                 , div [ class "form-control-feedback" ] [ text error ]
                 ]
 
@@ -70,23 +94,6 @@ formField labelText content classes msg =
         [ label [] [ strong [] [ text labelText ] ]
         , input [ value content, onInput msg ] []
         ]
-
-
-validatedTextField : String -> Result ( String, String ) String -> String -> (String -> msg) -> Html msg
-validatedTextField labelText validatedString classes msg =
-    case validatedString of
-        Ok inputValue ->
-            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
-                [ label [] [ strong [] [ text labelText ] ]
-                , textarea [ value inputValue, onInput msg, class "form-control form-control-success" ] []
-                ]
-
-        Err ( inputValue, error ) ->
-            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
-                [ label [] [ strong [] [ text labelText ] ]
-                , textarea [ value inputValue, onInput msg, class "form-control form-control-danger" ] []
-                , div [ class "form-control-feedback" ] [ text error ]
-                ]
 
 
 textField : String -> String -> String -> (String -> msg) -> Html msg
@@ -117,27 +124,8 @@ loading =
         ]
 
 
-error : Http.Error -> Html msg
+error : String -> Html msg
 error err =
-    let
-        msg =
-            case err of
-                Timeout ->
-                    "timeout exceeded"
-
-                NetworkError ->
-                    "network error"
-
-                BadStatus resp ->
-                    resp.status.message ++ " " ++ resp.body
-
-                BadPayload err resp ->
-                    -- OK status, unexpected payload
-                    "unexpected response from api" ++ err
-
-                BadUrl url ->
-                    "malformed url: " ++ url
-    in
-        div []
-            [ p [] [ text <| "Error: " ++ msg ]
-            ]
+    div []
+        [ p [] [ text <| "Error: " ++ err ]
+        ]

@@ -11,8 +11,7 @@ module Silences.Types
         , stateToString
         )
 
-import Alerts.Types exposing (Alert)
-import Utils.Types exposing (Matcher, ApiData, ApiResponse(Success))
+import Utils.Types exposing (Matcher)
 import Time exposing (Time)
 
 
@@ -25,7 +24,6 @@ nullSilence =
     , endsAt = 0
     , updatedAt = 0
     , matchers = [ nullMatcher ]
-    , silencedAlerts = Success []
     , status = nullSilenceStatus
     }
 
@@ -38,7 +36,7 @@ nullSilenceStatus =
 
 nullMatcher : Matcher
 nullMatcher =
-    Matcher "" "" False
+    Matcher False "" ""
 
 
 nullTime : Time
@@ -54,7 +52,6 @@ type alias Silence =
     , endsAt : Time
     , updatedAt : Time
     , matchers : List Matcher
-    , silencedAlerts : ApiData (List Alert)
     , status : Status
     }
 

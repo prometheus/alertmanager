@@ -7,7 +7,7 @@ import Html.Events exposing (..)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Utils.Filter exposing (Filter)
 import Views.FilterBar.Views as FilterBar
-import Utils.Types exposing (ApiResponse(Initial, Success, Loading, Failure), Labels)
+import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure), Labels)
 import Utils.Views
 import Utils.List
 import Views.AlertList.AlertView as AlertView

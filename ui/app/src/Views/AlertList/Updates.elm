@@ -4,7 +4,7 @@ import Alerts.Api as Api
 import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(FilterTab, GroupTab))
 import Views.FilterBar.Updates as FilterBar
 import Utils.Filter exposing (Filter, parseFilter)
-import Utils.Types exposing (ApiData, ApiResponse(Initial, Loading, Success, Failure))
+import Utils.Types exposing (ApiData(Initial, Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Set
 import Navigation

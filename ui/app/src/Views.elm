@@ -2,12 +2,12 @@ module Views exposing (..)
 
 import Html exposing (Html, text, div)
 import Html.Attributes exposing (class)
-import Types exposing (Msg(MsgForSilenceForm), Model, Route(..))
+import Types exposing (Msg(MsgForSilenceForm, MsgForSilenceView), Model, Route(..))
 import Utils.Views exposing (error, loading)
 import Views.SilenceList.Views as SilenceList
 import Views.SilenceForm.Views as SilenceForm
 import Views.AlertList.Views as AlertList
-import Views.Silence.Views as Silence
+import Views.SilenceView.Views as SilenceView
 import Views.NotFound.Views as NotFound
 import Views.Status.Views as Status
 import Views.NavBar.Views exposing (navBar)
@@ -28,8 +28,8 @@ currentView model =
         StatusRoute ->
             Status.view model.status
 
-        SilenceRoute silenceId ->
-            Silence.view model
+        SilenceViewRoute silenceId ->
+            SilenceView.view model.silenceView |> Html.map MsgForSilenceView
 
         AlertsRoute filter ->
             AlertList.view model.alertList filter
