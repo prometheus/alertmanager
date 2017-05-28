@@ -155,7 +155,7 @@ matcherForm showDeleteButton index { name, value, isRegex } =
         , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) (ValidateMatcherValue index) value ]
         , div [ class "col-2 d-flex align-items-center" ]
             [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
-            , if True then
+            , if showDeleteButton then
                 iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)
               else
                 text ""
