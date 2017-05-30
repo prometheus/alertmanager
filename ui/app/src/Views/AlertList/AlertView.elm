@@ -7,13 +7,13 @@ import Html.Events exposing (onClick)
 import Types exposing (Msg(CreateSilenceFromAlert, Noop, MsgForAlertList))
 import Utils.Date
 import Views.FilterBar.Types as FilterBarTypes
-import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar))
+import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, SetActive))
 import Utils.Filter
 import Time exposing (Time)
 
 
-view : List ( String, String ) -> Alert -> Html Msg
-view labels alert =
+view : List ( String, String ) -> Maybe String -> Alert -> Html Msg
+view labels maybeActiveId alert =
     let
         -- remove the grouping labels, and bring the alertname to front
         ungroupedLabels =
@@ -25,11 +25,20 @@ view labels alert =
         li
             [ class "align-items-start list-group-item border-0 alert-list-item p-0 mb-4"
             ]
-            [ div [ class "w-100 mb-2 d-flex align-items-start" ]
+            [ div
+                [ class "w-100 mb-2 d-flex align-items-start" ]
                 [ dateView alert.startsAt
+                , if List.length alert.annotations > 0 then
+                    annotationsButton maybeActiveId alert
+                  else
+                    text ""
                 , generatorUrlButton alert.generatorUrl
                 , silenceButton alert
                 ]
+            , if maybeActiveId == Just alert.id then
+                table [ class "table w-100 mb-1" ] (List.map annotation alert.annotations)
+              else
+                text ""
             , div [] (List.map labelButton ungroupedLabels)
             ]
 
@@ -40,6 +49,30 @@ dateView time =
         [ class "text-muted align-self-center mr-2"
         ]
         [ text (Utils.Date.timeFormat time ++ ", " ++ Utils.Date.dateFormat time)
+        ]
+
+
+annotationsButton : Maybe String -> Alert -> Html Msg
+annotationsButton maybeActiveId alert =
+    if maybeActiveId == Just alert.id then
+        button
+            [ onClick (SetActive Nothing |> MsgForAlertList)
+            , class "btn btn-outline-info border-0 active"
+            ]
+            [ i [ class "fa fa-minus mr-2" ] [], text "Info" ]
+    else
+        button
+            [ onClick (SetActive (Just alert.id) |> MsgForAlertList)
+            , class "btn btn-outline-info border-0"
+            ]
+            [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
+
+
+annotation : ( String, String ) -> Html Msg
+annotation ( key, value ) =
+    tr []
+        [ th [ class "text-nowrap" ] [ text (key ++ ":") ]
+        , td [ class "w-100" ] [ text value ]
         ]
 
 

@@ -12,6 +12,7 @@ type AlertListMsg
     | MsgForFilterBar FilterBar.Msg
     | MsgForGroupBar GroupBar.Msg
     | ToggleSilenced Bool
+    | SetActive (Maybe String)
     | SetTab Tab
 
 
@@ -25,6 +26,7 @@ type alias Model =
     , groupBar : GroupBar.Model
     , filterBar : FilterBar.Model
     , tab : Tab
+    , activeId : Maybe String
     }
 
 
@@ -34,4 +36,5 @@ initAlertList =
     , groupBar = GroupBar.initGroupBar
     , filterBar = FilterBar.initFilterBar
     , tab = FilterTab
+    , activeId = Nothing
     }

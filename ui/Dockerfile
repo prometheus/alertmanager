@@ -1,3 +1,3 @@
 FROM node:latest
 
-RUN npm install -g elm elm-format elm-test
+RUN npm install -g elm@0.18.0 elm-format@0.6.1-alpha elm-test@0.18.3
