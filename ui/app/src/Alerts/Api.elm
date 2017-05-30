@@ -16,47 +16,23 @@ fetchAlerts filter =
         Utils.Api.send (Utils.Api.get url alertsDecoder)
 
 
-
--- Decoders
--- Once the API returns the newly created silence, this can go away and we
--- re-use the silence decoder.
-
-
 alertsDecoder : Json.Decoder (List Alert)
 alertsDecoder =
-    Json.at [ "data" ] (Json.list alertDecoder)
+    Json.list alertDecoder
+        -- populate alerts with ids:
+        |> Json.map (List.indexedMap (toString >> (|>)))
+        |> field "data"
 
 
-unwrapWithDefault : a -> Maybe a -> Json.Decoder a
-unwrapWithDefault default val =
-    case val of
-        Just a ->
-            Json.succeed a
-
-        Nothing ->
-            Json.succeed default
-
-
-alertDecoder : Json.Decoder Alert
+{-| TODO: decode alert id when provided
+-}
+alertDecoder : Json.Decoder (String -> Alert)
 alertDecoder =
-    Json.map6 Alert
-        (Json.maybe (field "annotations" (Json.keyValuePairs Json.string)) |> andThen (unwrapWithDefault []))
+    Json.map5 Alert
+        (Json.maybe (field "annotations" (Json.keyValuePairs Json.string))
+            |> andThen (Maybe.withDefault [] >> Json.succeed)
+        )
         (field "labels" (Json.keyValuePairs Json.string))
-        (Json.maybe (field "silenced" Json.string))
-        (decodeSilenced)
+        (Json.maybe (Json.at [ "status", "silencedBy", "0" ] Json.string))
         (field "startsAt" iso8601Time)
         (field "generatorURL" Json.string)
-
-
-decodeSilenced : Decoder Bool
-decodeSilenced =
-    Json.maybe (field "silenced" Json.string)
-        |> andThen
-            (\val ->
-                case val of
-                    Just _ ->
-                        Json.succeed True
-
-                    Nothing ->
-                        Json.succeed False
-            )

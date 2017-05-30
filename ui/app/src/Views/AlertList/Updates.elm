@@ -42,7 +42,7 @@ update msg ({ groupBar, filterBar } as model) filter =
                 newFilterBar =
                     FilterBar.setMatchers filter filterBar
             in
-                ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar }
+                ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
                 , Api.fetchAlerts filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
                 )
 
@@ -67,3 +67,6 @@ update msg ({ groupBar, filterBar } as model) filter =
                     GroupBar.update "/#/alerts" filter msg groupBar
             in
                 ( { model | groupBar = newGroupBar }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )
+
+        SetActive maybeId ->
+            ( { model | activeId = maybeId }, Cmd.none )

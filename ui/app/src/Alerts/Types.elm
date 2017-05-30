@@ -11,9 +11,9 @@ type alias Alert =
     { annotations : Labels
     , labels : Labels
     , silenceId : Maybe String
-    , silenced : Bool
     , startsAt : Time
     , generatorUrl : String
+    , id : String
     }
 
 

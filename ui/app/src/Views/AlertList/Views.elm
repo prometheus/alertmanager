@@ -36,7 +36,7 @@ renderSilenced maybeShowSilenced =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, groupBar, filterBar, tab } filter =
+view { alerts, groupBar, filterBar, tab, activeId } filter =
     div []
         [ div
             [ class "card mb-5" ]
@@ -58,7 +58,7 @@ view { alerts, groupBar, filterBar, tab } filter =
             ]
         , case alerts of
             Success alerts ->
-                alertGroups filter groupBar alerts
+                alertGroups activeId filter groupBar alerts
 
             Loading ->
                 Utils.Views.loading
@@ -71,8 +71,8 @@ view { alerts, groupBar, filterBar, tab } filter =
         ]
 
 
-alertGroups : Filter -> GroupBar.Model -> List Alert -> Html Msg
-alertGroups filter groupBar alerts =
+alertGroups : Maybe String -> Filter -> GroupBar.Model -> List Alert -> Html Msg
+alertGroups activeId filter groupBar alerts =
     let
         grouped =
             alerts
@@ -86,14 +86,14 @@ alertGroups filter groupBar alerts =
             |> List.filterMap
                 (\labels ->
                     Maybe.map
-                        (alertList labels filter)
+                        (alertList activeId labels filter)
                         (Dict.get labels grouped)
                 )
             |> div []
 
 
-alertList : Labels -> Filter -> List Alert -> Html Msg
-alertList labels filter alerts =
+alertList : Maybe String -> Labels -> Filter -> List Alert -> Html Msg
+alertList activeId labels filter alerts =
     div []
         [ div []
             (case labels of
@@ -111,5 +111,5 @@ alertList labels filter alerts =
         , if List.isEmpty alerts then
             div [] [ text "no alerts found" ]
           else
-            ul [ class "list-group mb-4" ] (List.map (AlertView.view labels) alerts)
+            ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
         ]
