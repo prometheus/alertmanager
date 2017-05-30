@@ -85,7 +85,7 @@ func main() {
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
-		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable")
+		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable.")
 		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
 		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
 		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
@@ -118,16 +118,15 @@ func main() {
 
 	var mrouter *mesh.Router
 	if *meshListen != "" {
-  	mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
-	  if err != nil {
-		  log.Fatal(err)
-    }
+		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
-
 
 	notificationLogOpts := []nflog.Option{
 		nflog.WithRetention(*retention),
@@ -180,7 +179,7 @@ func main() {
 		wg.Done()
 	}()
 
-	// Disable mesh if empty string passed for mesh.listen-address flag
+	// Disable mesh if empty string passed for mesh.listen-address flag.
 	if *meshListen != "" {
 		mrouter.Start()
 		mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
