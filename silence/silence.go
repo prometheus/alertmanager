@@ -455,7 +455,9 @@ func (s *Silences) expire(id string) error {
 	case StateActive:
 		sil.EndsAt = now
 	case StatePending:
-		sil.EndsAt = sil.StartsAt
+		// Set both to now to make Silence move to "expired" state
+		sil.StartsAt = now
+		sil.EndsAt = now
 	}
 
 	return s.setSilence(sil)

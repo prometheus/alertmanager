@@ -23,6 +23,7 @@ import (
 	"time"
 
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/mesh"
@@ -752,10 +753,14 @@ func TestSilenceExpire(t *testing.T) {
 	require.Equal(t, &pb.Silence{
 		Id:        "pending",
 		Matchers:  []*pb.Matcher{m},
-		StartsAt:  now.Add(time.Minute),
-		EndsAt:    now.Add(time.Minute),
+		StartsAt:  now,
+		EndsAt:    now,
 		UpdatedAt: now,
 	}, sil)
+	// Expiring a pending Silence should make the API return the
+	// SilenceStateExpired Silence state.
+	silenceState := types.CalcSilenceState(sil.StartsAt, sil.EndsAt)
+	require.Equal(t, silenceState, types.SilenceStateExpired)
 
 	sil, err = s.QueryOne(QIDs("active"))
 	require.NoError(t, err)
