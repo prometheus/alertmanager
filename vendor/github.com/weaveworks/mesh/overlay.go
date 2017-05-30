@@ -15,6 +15,9 @@ type Overlay interface {
 
 	// Obtain diagnostic information specific to the overlay.
 	Diagnostics() interface{}
+
+	// Stop the overlay.
+	Stop()
 }
 
 // OverlayConnectionParams are used to set up overlay connections.
@@ -82,8 +85,9 @@ type OverlayConnection interface {
 	// non-sleeve overlays.
 	ControlMessage(tag byte, msg []byte)
 
-	// DisplayName returns the user-facing overlay name.
-	DisplayName() string
+	// Attrs returns the user-facing overlay name plus any other
+	// data that users may wish to check or monitor
+	Attrs() map[string]interface{}
 }
 
 // NullOverlay implements Overlay and OverlayConnection with no-ops.
@@ -115,5 +119,5 @@ func (NullOverlay) Stop() {}
 // ControlMessage implements OverlayConnection.
 func (NullOverlay) ControlMessage(byte, []byte) {}
 
-// DisplayName implements OverlayConnection.
-func (NullOverlay) DisplayName() string { return "null" }
+// Attrs implements OverlayConnection.
+func (NullOverlay) Attrs() map[string]interface{} { return nil }

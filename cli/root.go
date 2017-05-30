@@ -17,7 +17,7 @@ var RootCmd = &cobra.Command{
 
 [Config File]
 
-The alertmanger tool will read a config file from the --config cli argument, AMTOOL_CONFIG environment variable,
+The alertmanager tool will read a config file from the --config cli argument, AMTOOL_CONFIG environment variable,
 $HOME/.amtool.yml or /etc/amtool.yml the options are as follows
 
 	alertmanager.url

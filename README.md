@@ -1,4 +1,4 @@
-# Alertmanager [![Build Status](https://travis-ci.org/prometheus/alertmanager.svg)][travis]
+# Alertmanager [![Build Status](https://travis-ci.org/prometheus/alertmanager.svg?branch=master)][travis]
 
 [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status)][quay]
@@ -200,6 +200,12 @@ Start your prometheus like this, for example:
 	./prometheus -config.file=prometheus.yml -alertmanager.url http://localhost:9095,http://localhost:9094,http://localhost:9093
 
 > Note: make sure to have a valid `prometheus.yml` in your current directory
+
+> Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
+
+## Contributing to the Front-End
+
+Refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
 ## Architecture
 

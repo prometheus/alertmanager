@@ -1,19 +1,46 @@
+## v0.7.0-rc.0 / 2017-05-19
+
+* [CHANGE] Rewrite UI from scratch improving UX
+* [FEATURE] Add ability to update a silence on `api/v1/silences` POST endpoint (See #765)
+* [FEATURE] Return alert status on `api/v1/alerts` GET endpoint
+* [FEATURE] Serve silence state on `api/v1/silences` GET endpoint
+* [ENHANCEMENT] Add ability to specify `filter` string and `silenced` flag on `api/v1/alerts` GET endpoint
+* [ENHANCEMENT] Update `cache-control` to prevent caching for web assets in general.
+* [BUGFIX] Enable builds for Solaris/Illumos
+
+## v0.6.2 / 2017-05-09
+
+* [BUGFIX] Correctly link to silences from alert again
+* [BUGFIX] Correctly hide silenced/show active alerts in UI again
+* [BUGFIX] Fix regression of alerts not being displayed until first processing
+* [BUGFIX] Fix internal usage of wrong lock for silence markers
+* [BUGFIX] Adapt amtool's API parsing to recent API changes
+* [BUGFIX] Correctly marshal regexes in config JSON response
+* [CHANGE] Anchor silence regex matchers to be consistent with Prometheus
+* [ENHANCEMENT] Error if root route is using `continue` keyword
+
+## v0.6.1 / 2017-04-28
+
+* [BUGFIX] Fix incorrectly serialized hash for notification providers.
+* [ENHANCEMENT] Add processing status field to alerts.
+* [FEATURE] Add config hash metric.
+
 ## v0.6.0 / 2017-04-25
 
-- [BUGFIX] Add `groupKey` to `alerts/groups` endpoint https://github.com/prometheus/alertmanager/pull/576
-- [BUGFIX] Only notify on firing alerts https://github.com/prometheus/alertmanager/pull/595
-- [BUGFIX] Correctly marshal regex's in config for routing tree https://github.com/prometheus/alertmanager/pull/602
-- [BUGFIX] Prevent panic when failing to load config https://github.com/prometheus/alertmanager/pull/607
-- [BUGFIX] Prevent panic when alertmanager is started with an empty `-mesh.peer` https://github.com/prometheus/alertmanager/pull/726
-- [CHANGE] Add `DELETE` as accepted CORS method https://github.com/prometheus/alertmanager/pull/641
-- [CHANGE] Rename VictorOps config variables https://github.com/prometheus/alertmanager/pull/667
-- [CHANGE] Switch to using `gogoproto` for protobuf https://github.com/prometheus/alertmanager/pull/715
-- [CHANGE] No longer generate releases for openbsd/arm https://github.com/prometheus/alertmanager/pull/732
-- [ENHANCEMENT] Add `reReplaceAll` template function https://github.com/prometheus/alertmanager/pull/639
-- [ENHANCEMENT] Expose mesh peers on status page https://github.com/prometheus/alertmanager/pull/644
-- [ENHANCEMENT] Allow label-based filtering alerts/silences through API https://github.com/prometheus/alertmanager/pull/633
-- [ENHANCEMENT] Include notifier type in logs and errors https://github.com/prometheus/alertmanager/pull/702
-- [ENHANCEMENT] Add commandline tool for interacting with alertmanager https://github.com/prometheus/alertmanager/pull/636
+* [BUGFIX] Add `groupKey` to `alerts/groups` endpoint https://github.com/prometheus/alertmanager/pull/576
+* [BUGFIX] Only notify on firing alerts https://github.com/prometheus/alertmanager/pull/595
+* [BUGFIX] Correctly marshal regex's in config for routing tree https://github.com/prometheus/alertmanager/pull/602
+* [BUGFIX] Prevent panic when failing to load config https://github.com/prometheus/alertmanager/pull/607
+* [BUGFIX] Prevent panic when alertmanager is started with an empty `-mesh.peer` https://github.com/prometheus/alertmanager/pull/726
+* [CHANGE] Rename VictorOps config variables https://github.com/prometheus/alertmanager/pull/667
+* [CHANGE] No longer generate releases for openbsd/arm https://github.com/prometheus/alertmanager/pull/732
+* [ENHANCEMENT] Add `DELETE` as accepted CORS method https://github.com/prometheus/alertmanager/commit/0ecc59076ca6b4cbb63252fa7720a3d89d1c81d3
+* [ENHANCEMENT] Switch to using `gogoproto` for protobuf https://github.com/prometheus/alertmanager/pull/715
+* [ENHANCEMENT] Include notifier type in logs and errors https://github.com/prometheus/alertmanager/pull/702
+* [FEATURE] Expose mesh peers on status page https://github.com/prometheus/alertmanager/pull/644
+* [FEATURE] Add `reReplaceAll` template function https://github.com/prometheus/alertmanager/pull/639
+* [FEATURE] Allow label-based filtering alerts/silences through API https://github.com/prometheus/alertmanager/pull/633
+* [FEATURE] Add commandline tool for interacting with alertmanager https://github.com/prometheus/alertmanager/pull/636
 
 ## v0.5.1 / 2016-11-24
 

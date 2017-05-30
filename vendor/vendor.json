@@ -3,10 +3,10 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "vwpCebe1/Uw4IVvhoCEzrsBoA+E=",
+			"checksumSHA1": "DYv6Q1+VfnUVxMwvk5IshAClLvw=",
 			"path": "github.com/Sirupsen/logrus",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "5e5dc898656f695e2a086b8e12559febbfc01562",
+			"revisionTime": "2017-05-15T10:45:16Z"
 		},
 		{
 			"checksumSHA1": "4QnLdmB1kG3N+KlDd1N+G9TWAGQ=",
@@ -196,6 +196,12 @@
 			"revisionTime": "2017-02-17T01:27:36Z"
 		},
 		{
+			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
+			"path": "github.com/pkg/errors",
+			"revision": "ff09b135c25aae272398c51a07235b90a75aa4f0",
+			"revisionTime": "2017-03-16T20:15:38Z"
+		},
+		{
 			"checksumSHA1": "zKKp5SZ3d3ycKe4EKMNT0BqAWBw=",
 			"origin": "github.com/stretchr/testify/vendor/github.com/pmezard/go-difflib/difflib",
 			"path": "github.com/pmezard/go-difflib/difflib",
@@ -347,10 +353,10 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-			"checksumSHA1": "5Mp3StwCS5WeyvZwYTY1gU+lJ4k=",
+			"checksumSHA1": "+1NPoqykxnLbKqqEc976ZMoUrYo=",
 			"path": "github.com/weaveworks/mesh",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "dc2e7af5ffd76e17b2d76fdbbc55a047aa6ec93c",
+			"revisionTime": "2017-04-26T10:48:21Z"
 		},
 		{
 			"checksumSHA1": "h+pFYiRHBogczS8/F1NoN3Ata44=",

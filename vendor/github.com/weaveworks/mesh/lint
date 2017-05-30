@@ -7,7 +7,7 @@ set -o pipefail
 if [ ! $(command -v gometalinter) ]
 then
 	go get github.com/alecthomas/gometalinter
-	gometalinter --update --install
+	gometalinter --install --vendor
 fi
 
 gometalinter \
@@ -16,6 +16,7 @@ gometalinter \
 	--exclude='duplicate of.*_test.go.*\(dupl\)$' \
 	--disable=aligncheck \
 	--disable=gotype \
+	--disable=gas \
 	--cyclo-over=20 \
 	--tests \
-	--deadline=10s
+	--deadline=20s
