@@ -85,7 +85,7 @@ func main() {
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
-		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
+		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable.")
 		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
 		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
 		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
@@ -115,48 +115,59 @@ func main() {
 	}
 
 	logger := log.NewLogger(os.Stderr)
-	mrouter, err := initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
-	if err != nil {
-		log.Fatal(err)
+
+	var mrouter *mesh.Router
+	if *meshListen != "" {
+		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	notificationLog, err := nflog.New(
-		nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
-			res, err := mrouter.NewGossip("nflog", g)
-			if err != nil {
-				log.Fatal(err)
-			}
-			return res
-		}),
+	notificationLogOpts := []nflog.Option{
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
 		nflog.WithLogger(logger.With("component", "nflog")),
-	)
+	}
+	if *meshListen != "" {
+		notificationLogOpts = append(notificationLogOpts, nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
+			res, err := mrouter.NewGossip("nflog", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
+		}))
+	}
+	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	marker := types.NewMarker()
 
-	silences, err := silence.New(silence.Options{
+	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
 		Logger:       logger.With("component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
-		Gossip: func(g mesh.Gossiper) mesh.Gossip {
+	}
+	if *meshListen != "" {
+		silenceOpts.Gossip = func(g mesh.Gossiper) mesh.Gossip {
 			res, err := mrouter.NewGossip("silences", g)
 			if err != nil {
 				log.Fatal(err)
 			}
 			return res
-		},
-	})
+		}
+	}
+	silences, err := silence.New(silenceOpts)
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -168,7 +179,11 @@ func main() {
 		wg.Done()
 	}()
 
-	mrouter.Start()
+	// Disable mesh if empty string passed for mesh.listen-address flag.
+	if *meshListen != "" {
+		mrouter.Start()
+		mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
+	}
 
 	defer func() {
 		close(stopc)
@@ -176,8 +191,6 @@ func main() {
 		mrouter.Stop()
 		wg.Wait()
 	}()
-
-	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
 	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
 	if err != nil {
