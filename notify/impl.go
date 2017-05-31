@@ -15,6 +15,7 @@ package notify
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -30,7 +31,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
@@ -41,113 +41,96 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	numNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_total",
-		Help:      "The total number of attempted notifications.",
-	}, []string{"integration"})
-
-	numFailedNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_failed_total",
-		Help:      "The total number of failed notifications.",
-	}, []string{"integration"})
-)
-
-func init() {
-	prometheus.Register(numNotifications)
-	prometheus.Register(numFailedNotifications)
-}
-
 type notifierConfig interface {
 	SendResolved() bool
 }
 
-type NotifierFunc func(context.Context, ...*types.Alert) error
-
-func (f NotifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	return f(ctx, alerts...)
+// A Notifier notifies about alerts under constraints of the given context.
+// It returns an error if unsuccessful and a flag whether the error is
+// recoverable. This information is useful for a retry logic.
+type Notifier interface {
+	Notify(context.Context, ...*types.Alert) (bool, error)
 }
 
-type integration interface {
-	Notifier
-	name() string
+// An Integration wraps a notifier and its config to be uniquely identified by
+// name and index from its origin in the configuration.
+type Integration struct {
+	notifier Notifier
+	conf     notifierConfig
+	name     string
+	idx      int
 }
 
-// Build creates a fanout notifier for each receiver.
-func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout {
-	res := map[string]Fanout{}
+// Notify implements the Notifier interface.
+func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	var res []*types.Alert
 
-	filter := func(n integration, c notifierConfig) Notifier {
-		return NotifierFunc(func(ctx context.Context, alerts ...*types.Alert) error {
-			var res []*types.Alert
-
-			if c.SendResolved() {
-				res = alerts
-			} else {
-				for _, a := range alerts {
-					if a.Status() != model.AlertResolved {
-						res = append(res, a)
-					}
-				}
+	// Resolved alerts have to be filtered only at this point, because they need
+	// to end up unfiltered in the SetNotifiesStage.
+	if i.conf.SendResolved() {
+		res = alerts
+	} else {
+		for _, a := range alerts {
+			if a.Status() != model.AlertResolved {
+				res = append(res, a)
 			}
-			if len(res) == 0 {
-				return nil
-			}
-
-			err := n.Notify(ctx, res...)
-			if err != nil {
-				numFailedNotifications.WithLabelValues(n.name()).Inc()
-			}
-			numNotifications.WithLabelValues(n.name()).Inc()
-
-			return err
-		})
+		}
+	}
+	if len(res) == 0 {
+		return false, nil
 	}
 
-	for _, nc := range confs {
-		var (
-			fo  = Fanout{}
-			add = func(i int, on integration, n Notifier) { fo[fmt.Sprintf("%s/%d", on.name(), i)] = n }
-		)
+	return i.notifier.Notify(ctx, res...)
+}
 
-		for i, c := range nc.WebhookConfigs {
-			n := NewWebhook(c, tmpl)
-			add(i, n, filter(n, c))
+// BuildReceiverIntegrations builds a list of integration notifiers off of a
+// receivers config.
+func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []Integration {
+	var (
+		integrations []Integration
+		add          = func(name string, i int, n Notifier, nc notifierConfig) {
+			integrations = append(integrations, Integration{
+				notifier: n,
+				conf:     nc,
+				name:     name,
+				idx:      i,
+			})
 		}
-		for i, c := range nc.EmailConfigs {
-			n := NewEmail(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.PagerdutyConfigs {
-			n := NewPagerDuty(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.OpsGenieConfigs {
-			n := NewOpsGenie(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.SlackConfigs {
-			n := NewSlack(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.HipchatConfigs {
-			n := NewHipchat(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.VictorOpsConfigs {
-			n := NewVictorOps(c, tmpl)
-			add(i, n, filter(n, c))
-		}
-		for i, c := range nc.PushoverConfigs {
-			n := NewPushover(c, tmpl)
-			add(i, n, filter(n, c))
-		}
+	)
 
-		res[nc.Name] = fo
+	for i, c := range nc.WebhookConfigs {
+		n := NewWebhook(c, tmpl)
+		add("webhook", i, n, c)
 	}
-	return res
+	for i, c := range nc.EmailConfigs {
+		n := NewEmail(c, tmpl)
+		add("email", i, n, c)
+	}
+	for i, c := range nc.PagerdutyConfigs {
+		n := NewPagerDuty(c, tmpl)
+		add("pagerduty", i, n, c)
+	}
+	for i, c := range nc.OpsGenieConfigs {
+		n := NewOpsGenie(c, tmpl)
+		add("opsgenie", i, n, c)
+	}
+	for i, c := range nc.SlackConfigs {
+		n := NewSlack(c, tmpl)
+		add("slack", i, n, c)
+	}
+	for i, c := range nc.HipchatConfigs {
+		n := NewHipchat(c, tmpl)
+		add("hipchat", i, n, c)
+	}
+	for i, c := range nc.VictorOpsConfigs {
+		n := NewVictorOps(c, tmpl)
+		add("victorops", i, n, c)
+	}
+	for i, c := range nc.PushoverConfigs {
+		n := NewPushover(c, tmpl)
+		add("pushover", i, n, c)
+	}
+	return integrations
 }
 
 const contentTypeJSON = "application/json"
@@ -164,20 +147,18 @@ func NewWebhook(conf *config.WebhookConfig, t *template.Template) *Webhook {
 	return &Webhook{URL: conf.URL, tmpl: t}
 }
 
-func (*Webhook) name() string { return "webhook" }
-
 // WebhookMessage defines the JSON object send to webhook endpoints.
 type WebhookMessage struct {
 	*template.Data
 
 	// The protocol version.
 	Version  string `json:"version"`
-	GroupKey uint64 `json:"groupKey"`
+	GroupKey string `json:"groupKey"`
 }
 
 // Notify implements the Notifier interface.
-func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
-	data := w.tmpl.Data(receiver(ctx), groupLabels(ctx), alerts...)
+func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
 
 	groupKey, ok := GroupKey(ctx)
 	if !ok {
@@ -185,27 +166,33 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) error {
 	}
 
 	msg := &WebhookMessage{
-		Version:  "3",
+		Version:  "4",
 		Data:     data,
-		GroupKey: uint64(groupKey),
+		GroupKey: groupKey,
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return err
+		return false, err
 	}
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, w.URL, contentTypeJSON, &buf)
 	if err != nil {
-		return err
+		return true, err
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("unexpected status code %v from %s", resp.StatusCode, w.URL)
+	return w.retry(resp.StatusCode)
+}
+
+func (w *Webhook) retry(statusCode int) (bool, error) {
+	// Webhooks are assumed to respond with 2xx response codes on a successful
+	// request and 5xx response codes are assumed to be recoverable.
+	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.URL)
 	}
 
-	return nil
+	return false, nil
 }
 
 // Email implements a Notifier for email notifications.
@@ -227,8 +214,6 @@ func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
 	}
 	return &Email{conf: c, tmpl: t}
 }
-
-func (*Email) name() string { return "email" }
 
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
@@ -268,83 +253,84 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 }
 
 // Notify implements the Notifier interface.
-func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	// Connect to the SMTP smarthost.
 	c, err := smtp.Dial(n.conf.Smarthost)
 	if err != nil {
-		return err
+		return true, err
 	}
 	defer c.Quit()
 
 	// We need to know the hostname for both auth and TLS.
 	host, _, err := net.SplitHostPort(n.conf.Smarthost)
 	if err != nil {
-		return fmt.Errorf("invalid address: %s", err)
+		return false, fmt.Errorf("invalid address: %s", err)
 	}
 
-	if n.conf.RequireTLS {
+	// Global Config guarantees RequireTLS is not nil
+	if *n.conf.RequireTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
-			return fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
+			return true, fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
 		tlsConf := &tls.Config{ServerName: host}
 		if err := c.StartTLS(tlsConf); err != nil {
-			return fmt.Errorf("starttls failed: %s", err)
+			return true, fmt.Errorf("starttls failed: %s", err)
 		}
 	}
 
 	if ok, mech := c.Extension("AUTH"); ok {
 		auth, err := n.auth(mech)
 		if err != nil {
-			return err
+			return true, err
 		}
 		if auth != nil {
 			if err := c.Auth(auth); err != nil {
-				return fmt.Errorf("%T failed: %s", auth, err)
+				return true, fmt.Errorf("%T failed: %s", auth, err)
 			}
 		}
 	}
 
 	var (
-		data = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmpl = tmplText(n.tmpl, data, &err)
 		from = tmpl(n.conf.From)
 		to   = tmpl(n.conf.To)
 	)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
-		return fmt.Errorf("parsing from addresses: %s", err)
+		return false, fmt.Errorf("parsing from addresses: %s", err)
 	}
 	if len(addrs) != 1 {
-		return fmt.Errorf("must be exactly one from address")
+		return false, fmt.Errorf("must be exactly one from address")
 	}
 	if err := c.Mail(addrs[0].Address); err != nil {
-		return fmt.Errorf("sending mail from: %s", err)
+		return true, fmt.Errorf("sending mail from: %s", err)
 	}
 	addrs, err = mail.ParseAddressList(to)
 	if err != nil {
-		return fmt.Errorf("parsing to addresses: %s", err)
+		return false, fmt.Errorf("parsing to addresses: %s", err)
 	}
 	for _, addr := range addrs {
 		if err := c.Rcpt(addr.Address); err != nil {
-			return fmt.Errorf("sending rcpt to: %s", err)
+			return true, fmt.Errorf("sending rcpt to: %s", err)
 		}
 	}
 
 	// Send the email body.
 	wc, err := c.Data()
 	if err != nil {
-		return err
+		return true, err
 	}
 	defer wc.Close()
 
 	for header, t := range n.conf.Headers {
 		value, err := n.tmpl.ExecuteTextString(t, data)
 		if err != nil {
-			return fmt.Errorf("executing %q header template: %s", header, err)
+			return false, fmt.Errorf("executing %q header template: %s", header, err)
 		}
 		fmt.Fprintf(wc, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
@@ -359,11 +345,14 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) error {
 	// TODO(fabxc): do a multipart write that considers the plain template.
 	body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
 	if err != nil {
-		return fmt.Errorf("executing email html template: %s", err)
+		return false, fmt.Errorf("executing email html template: %s", err)
 	}
 	_, err = io.WriteString(wc, body)
+	if err != nil {
+		return true, err
+	}
 
-	return err
+	return false, nil
 }
 
 // PagerDuty implements a Notifier for PagerDuty notifications.
@@ -377,8 +366,6 @@ func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template) *PagerDuty {
 	return &PagerDuty{conf: c, tmpl: t}
 }
 
-func (*PagerDuty) name() string { return "pagerduty" }
-
 const (
 	pagerDutyEventTrigger = "trigger"
 	pagerDutyEventResolve = "resolve"
@@ -386,7 +373,7 @@ const (
 
 type pagerDutyMessage struct {
 	ServiceKey  string            `json:"service_key"`
-	IncidentKey model.Fingerprint `json:"incident_key"`
+	IncidentKey string            `json:"incident_key"`
 	EventType   string            `json:"event_type"`
 	Description string            `json:"description"`
 	Client      string            `json:"client,omitempty"`
@@ -397,16 +384,16 @@ type pagerDutyMessage struct {
 // Notify implements the Notifier interface.
 //
 // http://developer.pagerduty.com/documentation/integration/events/trigger
-func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return fmt.Errorf("group key missing")
+		return false, fmt.Errorf("group key missing")
 	}
 
 	var err error
 	var (
 		alerts    = types.Alerts(as...)
-		data      = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data      = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmpl      = tmplText(n.tmpl, data, &err)
 		eventType = pagerDutyEventTrigger
 	)
@@ -424,7 +411,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 	msg := &pagerDutyMessage{
 		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
 		EventType:   eventType,
-		IncidentKey: key,
+		IncidentKey: hashKey(key),
 		Description: tmpl(n.conf.Description),
 		Details:     details,
 	}
@@ -433,24 +420,32 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) error {
 		msg.ClientURL = tmpl(n.conf.ClientURL)
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return err
+		return false, err
 	}
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
 	if err != nil {
-		return err
+		return true, err
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	return n.retry(resp.StatusCode)
+}
+
+func (n *PagerDuty) retry(statusCode int) (bool, error) {
+	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
+	// 2xx response codes indicate a successful request.
+	// https://v2.developer.pagerduty.com/docs/trigger-events
+	if statusCode/100 != 2 {
+		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
-	return nil
+
+	return false, nil
 }
 
 // Slack implements a Notifier for Slack notifications.
@@ -466,8 +461,6 @@ func NewSlack(conf *config.SlackConfig, tmpl *template.Template) *Slack {
 		tmpl: tmpl,
 	}
 }
-
-func (*Slack) name() string { return "slack" }
 
 // slackReq is the request for sending a slack notification.
 type slackReq struct {
@@ -498,10 +491,10 @@ type slackAttachmentField struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
 	var (
-		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 	)
 
@@ -522,26 +515,32 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) error {
 		Attachments: []slackAttachment{*attachment},
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return err
+		return false, err
 	}
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, string(n.conf.APIURL), contentTypeJSON, &buf)
 	if err != nil {
-		return err
+		return true, err
 	}
-	// TODO(fabxc): is 2xx status code really indicator for success for Slack API?
 	resp.Body.Close()
 
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Slack) retry(statusCode int) (bool, error) {
+	// Only 5xx response codes are recoverable and 2xx codes are successful.
+	// https://api.slack.com/incoming-webhooks#handling_errors
+	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
+	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
-	return nil
+	return false, nil
 }
 
 // Hipchat implements a Notifier for Hipchat notifications.
@@ -558,8 +557,6 @@ func NewHipchat(conf *config.HipchatConfig, tmpl *template.Template) *Hipchat {
 	}
 }
 
-func (*Hipchat) name() string { return "hipchat" }
-
 type hipchatReq struct {
 	From          string `json:"from"`
 	Notify        bool   `json:"notify"`
@@ -569,11 +566,11 @@ type hipchatReq struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
 	var msg string
 	var (
-		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 		url      = fmt.Sprintf("%sv2/room/%s/notification?auth_token=%s", n.conf.APIURL, n.conf.RoomID, n.conf.AuthToken)
@@ -593,26 +590,33 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) error {
 		Color:         tmplText(n.conf.Color),
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return err
+		return false, err
 	}
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, url, contentTypeJSON, &buf)
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Hipchat) retry(statusCode int) (bool, error) {
+	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
+	// responce codes indicate successful requests.
+	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
+	if statusCode/100 != 2 {
+		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
-	return nil
+	return false, nil
 }
 
 // OpsGenie implements a Notifier for OpsGenie notifications.
@@ -626,11 +630,9 @@ func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template) *OpsGenie {
 	return &OpsGenie{conf: c, tmpl: t}
 }
 
-func (*OpsGenie) name() string { return "opsgenie" }
-
 type opsGenieMessage struct {
-	APIKey string            `json:"apiKey"`
-	Alias  model.Fingerprint `json:"alias"`
+	APIKey string `json:"apiKey"`
+	Alias  string `json:"alias"`
 }
 
 type opsGenieCreateMessage struct {
@@ -655,12 +657,12 @@ type opsGenieErrorResponse struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return fmt.Errorf("group key missing")
+		return false, fmt.Errorf("group key missing")
 	}
-	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 
 	log.With("incident", key).Debugln("notifying OpsGenie")
 
@@ -678,7 +680,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 
 		apiMsg = opsGenieMessage{
 			APIKey: string(n.conf.APIKey),
-			Alias:  key,
+			Alias:  hashKey(key),
 		}
 		alerts = types.Alerts(as...)
 	)
@@ -700,40 +702,46 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) error {
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("templating error: %s", err)
+		return false, fmt.Errorf("templating error: %s", err)
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return err
+		return false, err
 	}
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
 	if err != nil {
-		return err
+		return true, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 400 && alerts.Status() == model.AlertResolved {
+	// Missing documentation therefore assuming only 5xx response codes are
+	// recoverable.
+	if resp.StatusCode/100 == 5 {
+		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	} else if resp.StatusCode == 400 && alerts.Status() == model.AlertResolved {
 		body, _ := ioutil.ReadAll(resp.Body)
 
 		var responseMessage opsGenieErrorResponse
 		if err := json.Unmarshal(body, &responseMessage); err != nil {
-			return fmt.Errorf("could not parse error response %q", body)
+			return false, fmt.Errorf("could not parse error response %q", body)
 		}
 		const alreadyClosedError = 5
 		if responseMessage.Code == alreadyClosedError {
-			return nil
+			return false, nil
 		}
-		return fmt.Errorf("error when closing alert: code %d, error %q",
+		return false, fmt.Errorf("error when closing alert: code %d, error %q",
 			responseMessage.Code, responseMessage.Error)
+	} else if resp.StatusCode/100 == 4 {
+		return false, fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	} else if resp.StatusCode/100 != 2 {
 		body, _ := ioutil.ReadAll(resp.Body)
 		log.With("incident", key).Debugf("unexpected OpsGenie response from %s (POSTed %s), %s: %s",
 			apiURL, msg, resp.Status, body)
-		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+		return false, fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	}
-	return nil
+	return false, nil
 }
 
 // VictorOps implements a Notifier for VictorOps notifications.
@@ -750,18 +758,16 @@ func NewVictorOps(c *config.VictorOpsConfig, t *template.Template) *VictorOps {
 	}
 }
 
-func (*VictorOps) name() string { return "victorops" }
-
 const (
 	victorOpsEventTrigger = "CRITICAL"
 	victorOpsEventResolve = "RECOVERY"
 )
 
 type victorOpsMessage struct {
-	MessageType  string            `json:"message_type"`
-	EntityID     model.Fingerprint `json:"entity_id"`
-	StateMessage string            `json:"state_message"`
-	From         string            `json:"monitoring_tool"`
+	MessageType    string `json:"message_type"`
+	EntityID       string `json:"entity_id"`
+	StateMessage   string `json:"state_message"`
+	MonitoringTool string `json:"monitoring_tool"`
 }
 
 type victorOpsErrorResponse struct {
@@ -770,7 +776,7 @@ type victorOpsErrorResponse struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,
 		"WARNING":  true,
@@ -779,13 +785,13 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) error {
 
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return fmt.Errorf("group key missing")
+		return false, fmt.Errorf("group key missing")
 	}
 
 	var err error
 	var (
 		alerts      = types.Alerts(as...)
-		data        = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		data        = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 		tmpl        = tmplText(n.tmpl, data, &err)
 		apiURL      = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
 		messageType = n.conf.MessageType
@@ -800,42 +806,49 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 
 	msg := &victorOpsMessage{
-		MessageType:  messageType,
-		EntityID:     key,
-		StateMessage: tmpl(n.conf.StateMessage),
-		From:         tmpl(n.conf.From),
+		MessageType:    messageType,
+		EntityID:       hashKey(key),
+		StateMessage:   tmpl(n.conf.StateMessage),
+		MonitoringTool: tmpl(n.conf.MonitoringTool),
 	}
 
 	if err != nil {
-		return fmt.Errorf("templating error: %s", err)
+		return false, fmt.Errorf("templating error: %s", err)
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return err
+		return false, err
 	}
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	defer resp.Body.Close()
+
+	// Missing documentation therefore assuming only 5xx response codes are
+	// recoverable.
+	if resp.StatusCode/100 == 5 {
+		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
 
 	if resp.StatusCode/100 != 2 {
 		body, _ := ioutil.ReadAll(resp.Body)
 
 		var responseMessage victorOpsErrorResponse
 		if err := json.Unmarshal(body, &responseMessage); err != nil {
-			return fmt.Errorf("could not parse error response %q", body)
+			return false, fmt.Errorf("could not parse error response %q", body)
 		}
 
 		log.With("incident", key).Debugf("unexpected VictorOps response from %s (POSTed %s), %s: %s", apiURL, msg, resp.Status, body)
 
-		return fmt.Errorf("error when posting alert: result %q, message %q",
+		return false, fmt.Errorf("error when posting alert: result %q, message %q",
 			responseMessage.Result, responseMessage.Message)
 	}
-	return nil
+
+	return false, nil
 }
 
 // Pushover implements a Notifier for Pushover notifications.
@@ -849,15 +862,13 @@ func NewPushover(c *config.PushoverConfig, t *template.Template) *Pushover {
 	return &Pushover{conf: c, tmpl: t}
 }
 
-func (*Pushover) name() string { return "pushover" }
-
 // Notify implements the Notifier interface.
-func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
+func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return fmt.Errorf("group key missing")
+		return false, fmt.Errorf("group key missing")
 	}
-	data := n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
 
 	log.With("incident", key).Debugln("notifying Pushover")
 
@@ -888,29 +899,40 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) error {
 	parameters.Add("priority", tmpl(n.conf.Priority))
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
+	if err != nil {
+		return false, err
+	}
 
 	apiURL := "https://api.pushover.net/1/messages.json"
 	u, err := url.Parse(apiURL)
 	if err != nil {
-		return err
+		return false, err
 	}
 	u.RawQuery = parameters.Encode()
 	log.With("incident", key).Debugf("Pushover URL = %q", u.String())
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, u.String(), "text/plain", nil)
 	if err != nil {
-		return err
+		return true, err
 	}
 	defer resp.Body.Close()
+
+	// Only documented behaviour is that 2xx response codes are successful and
+	// 4xx are unsuccessful, therefore assuming only 5xx are recoverable.
+	// https://pushover.net/api#response
+	if resp.StatusCode/100 == 5 {
+		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
 
 	if resp.StatusCode/100 != 2 {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+		return false, fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
 	}
-	return nil
+
+	return false, nil
 }
 
 func tmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
@@ -958,4 +980,12 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
+}
+
+// hashKey returns the sha256 for a group key as integrations may have
+// maximum length requirements on deduplication keys.
+func hashKey(s string) string {
+	h := sha256.New()
+	h.Write([]byte(s))
+	return fmt.Sprintf("%x", h.Sum(nil))
 }

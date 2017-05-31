@@ -14,10 +14,10 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
@@ -32,40 +32,44 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
-	"github.com/prometheus/common/route"
-	"github.com/prometheus/common/version"
-	"github.com/weaveworks/mesh"
-
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
-	meshprov "github.com/prometheus/alertmanager/provider/mesh"
+	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/route"
+	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/weaveworks/mesh"
 )
 
 var (
+	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_config_hash",
+		Help: "Hash of the currently loaded alertmanager configuration.",
+	})
 	configSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "alertmanager",
-		Name:      "config_last_reload_successful",
-		Help:      "Whether the last configuration reload attempt was successful.",
+		Name: "alertmanager_config_last_reload_successful",
+		Help: "Whether the last configuration reload attempt was successful.",
 	})
 	configSuccessTime = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "alertmanager",
-		Name:      "config_last_reload_success_timestamp_seconds",
-		Help:      "Timestamp of the last successful configuration reload.",
+		Name: "alertmanager_config_last_reload_success_timestamp_seconds",
+		Help: "Timestamp of the last successful configuration reload.",
 	})
 )
 
 func init() {
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
+	prometheus.MustRegister(configHash)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -81,12 +85,21 @@ func main() {
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
-		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
-		hwaddr     = flag.String("mesh.hardware-address", mustHardwareAddr(), "MAC address, i.e. mesh peer ID")
-		nickname   = flag.String("mesh.nickname", mustHostname(), "peer nickname")
+		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable.")
+		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
+		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
+		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
 	)
 	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
 	flag.Parse()
+
+	if *hwaddr == "" {
+		*hwaddr = mustHardwareAddr()
+	}
+
+	if len(flag.Args()) > 0 {
+		log.Fatalln("Received unexpected and unparsed arguments: ", strings.Join(flag.Args(), ", "))
+	}
 
 	if *showVersion {
 		fmt.Fprintln(os.Stdout, version.Print("alertmanager"))
@@ -101,47 +114,85 @@ func main() {
 		log.Fatal(err)
 	}
 
-	mrouter := initMesh(*meshListen, *hwaddr, *nickname)
+	logger := log.NewLogger(os.Stderr)
 
-	ni, err := meshprov.NewNotificationInfos(log.Base(), *retention, filepath.Join(*dataDir, "notification_infos"))
+	var mrouter *mesh.Router
+	if *meshListen != "" {
+		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	stopc := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	notificationLogOpts := []nflog.Option{
+		nflog.WithRetention(*retention),
+		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
+		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
+		nflog.WithMetrics(prometheus.DefaultRegisterer),
+		nflog.WithLogger(logger.With("component", "nflog")),
+	}
+	if *meshListen != "" {
+		notificationLogOpts = append(notificationLogOpts, nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
+			res, err := mrouter.NewGossip("nflog", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
+		}))
+	}
+	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ni.Register(mrouter.NewGossip("notify_info", ni))
 
 	marker := types.NewMarker()
 
-	silences, err := meshprov.NewSilences(marker, log.Base(), *retention, filepath.Join(*dataDir, "silences"))
+	silenceOpts := silence.Options{
+		SnapshotFile: filepath.Join(*dataDir, "silences"),
+		Retention:    *retention,
+		Logger:       logger.With("component", "silences"),
+		Metrics:      prometheus.DefaultRegisterer,
+	}
+	if *meshListen != "" {
+		silenceOpts.Gossip = func(g mesh.Gossiper) mesh.Gossip {
+			res, err := mrouter.NewGossip("silences", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
+		}
+	}
+	silences, err := silence.New(silenceOpts)
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	silences.Register(mrouter.NewGossip("silences", silences))
 
 	// Start providers before router potentially sends updates.
-	go ni.Run()
-	go silences.Run()
-	mrouter.Start()
+	wg.Add(1)
+	go func() {
+		silences.Maintenance(15*time.Minute, filepath.Join(*dataDir, "silences"), stopc)
+		wg.Done()
+	}()
+
+	// Disable mesh if empty string passed for mesh.listen-address flag.
+	if *meshListen != "" {
+		mrouter.Start()
+		mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
+	}
 
 	defer func() {
+		close(stopc)
 		// Stop receiving updates from router before shutting down.
 		mrouter.Stop()
-
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			silences.Stop()
-			wg.Done()
-		}()
-		go func() {
-			ni.Stop()
-			wg.Done()
-		}()
 		wg.Wait()
 	}()
 
-	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
-
-	alerts, err := mem.NewAlerts(*dataDir)
+	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -150,48 +201,35 @@ func main() {
 	var (
 		inhibitor *inhibit.Inhibitor
 		tmpl      *template.Template
+		pipeline  notify.Stage
 		disp      *dispatch.Dispatcher
 	)
 	defer disp.Stop()
 
-	apiv := api.New(alerts, silences, func() dispatch.AlertOverview {
-		return disp.Groups()
-	})
-
-	build := func(rcvs []*config.Receiver) notify.Notifier {
-		var (
-			router  = notify.Router{}
-			fanouts = notify.Build(rcvs, tmpl)
-		)
-		for name, fo := range fanouts {
-			for i, n := range fo {
-				n = notify.Retry(n)
-				n = notify.Log(n, log.With("step", "retry"))
-				n = notify.Dedup(ni, n)
-				n = notify.Log(n, log.With("step", "dedup"))
-				n = notify.Wait(meshWait(mrouter, 5*time.Second), n)
-				n = notify.Log(n, log.With("step", "wait"))
-
-				fo[i] = n
-			}
-			router[name] = fo
-		}
-		n := notify.Notifier(router)
-
-		n = notify.Log(n, log.With("step", "route"))
-		n = notify.Silence(silences, n, marker)
-		n = notify.Log(n, log.With("step", "silence"))
-		n = notify.Inhibit(inhibitor, n, marker)
-		n = notify.Log(n, log.With("step", "inhibit"))
-
-		return n
-	}
+	apiv := api.New(
+		alerts,
+		silences,
+		func(matchers []*labels.Matcher) dispatch.AlertOverview {
+			return disp.Groups(matchers)
+		},
+		marker.Status,
+		mrouter,
+	)
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	waitFunc := meshWait(mrouter, 5*time.Second)
+	timeoutFunc := func(d time.Duration) time.Duration {
+		if d < notify.MinTimeout {
+			d = notify.MinTimeout
+		}
+		return d + waitFunc()
+	}
+
+	var hash float64
 	reload := func() (err error) {
 		log.With("file", *configFile).Infof("Loading configuration file")
 		defer func() {
@@ -201,6 +239,7 @@ func main() {
 			} else {
 				configSuccess.Set(1)
 				configSuccessTime.Set(float64(time.Now().Unix()))
+				configHash.Set(hash)
 			}
 		}()
 
@@ -209,7 +248,12 @@ func main() {
 			return err
 		}
 
-		apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		hash = md5HashAsMetricValue([]byte(conf.String()))
+
+		err = apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		if err != nil {
+			return err
+		}
 
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
@@ -221,7 +265,16 @@ func main() {
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker)
-		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), build(conf.Receivers), marker)
+		pipeline = notify.BuildPipeline(
+			conf.Receivers,
+			tmpl,
+			waitFunc,
+			inhibitor,
+			silences,
+			notificationLog,
+			marker,
+		)
+		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc)
 
 		go disp.Run()
 		go inhibitor.Run()
@@ -297,7 +350,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func initMesh(addr, hwaddr, nickname string) *mesh.Router {
+func initMesh(addr, hwaddr, nickname, pw string, logger log.Logger) (*mesh.Router, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 
 	if err != nil {
@@ -313,16 +366,30 @@ func initMesh(addr, hwaddr, nickname string) *mesh.Router {
 		log.Fatalf("invalid hardware address %q: %v", hwaddr, err)
 	}
 
+	password := []byte(pw)
+	if len(password) == 0 {
+		// Emtpy password is used to disable secure communication. Using a nil
+		// password disables encryption in mesh.
+		password = nil
+	}
+
 	return mesh.NewRouter(mesh.Config{
 		Host:               host,
 		Port:               port,
 		ProtocolMinVersion: mesh.ProtocolMinVersion,
-		Password:           []byte(""),
+		Password:           password,
 		ConnLimit:          64,
 		PeerDiscovery:      true,
 		TrustedSubnets:     []*net.IPNet{},
-	}, name, nickname, mesh.NullOverlay{}, stdlog.New(ioutil.Discard, "", 0))
+	}, name, nickname, mesh.NullOverlay{}, printfLogger{logger})
+}
 
+type printfLogger struct {
+	log.Logger
+}
+
+func (l printfLogger) Printf(f string, args ...interface{}) {
+	l.Debugf(f, args...)
 }
 
 func extURL(listen, external string) (*url.URL, error) {
@@ -362,7 +429,11 @@ func listen(listen string, router *route.Router) {
 type stringset map[string]struct{}
 
 func (ss stringset) Set(value string) error {
-	ss[value] = struct{}{}
+	for _, v := range strings.Split(value, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			ss[v] = struct{}{}
+		}
+	}
 	return nil
 }
 
@@ -399,4 +470,13 @@ func mustHostname() string {
 		panic(err)
 	}
 	return hostname
+}
+
+func md5HashAsMetricValue(data []byte) float64 {
+	sum := md5.Sum(data)
+	// We only want 48 bits as a float64 only has a 53 bit mantissa.
+	smallSum := sum[0:6]
+	var bytes = make([]byte, 8)
+	copy(bytes, smallSum)
+	return float64(binary.LittleEndian.Uint64(bytes))
 }

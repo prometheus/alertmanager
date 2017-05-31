@@ -30,7 +30,6 @@ import (
 
 	"github.com/prometheus/client_golang/api/alertmanager"
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
 	"golang.org/x/net/context"
 )
 
@@ -246,7 +245,7 @@ func (am *Alertmanager) Start() {
 		"-web.listen-address", am.addr,
 		"-storage.path", am.dir,
 		"-mesh.listen-address", am.mesh,
-		"-mesh.hardware-address", am.hwaddr,
+		"-mesh.peer-id", am.hwaddr,
 		"-mesh.nickname", am.nickname,
 	)
 
@@ -271,6 +270,19 @@ func (am *Alertmanager) Start() {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		resp, err := http.Get(fmt.Sprintf("http://%s/status", am.addr))
+		if err == nil {
+			_, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				am.t.Fatalf("Starting alertmanager failed: %s", err)
+			}
+			resp.Body.Close()
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	am.t.Fatalf("Starting alertmanager failed: timeout")
 }
 
 // Terminate kills the underlying Alertmanager process and remove intermediate
@@ -329,10 +341,10 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 		var v struct {
 			Status string `json:"status"`
 			Data   struct {
-				SilenceID uuid.UUID `json:"silenceId"`
+				SilenceID string `json:"silenceId"`
 			} `json:"data"`
 		}
-		if err := json.Unmarshal(b, &v); err != nil {
+		if err := json.Unmarshal(b, &v); err != nil || resp.StatusCode/100 != 2 {
 			am.t.Errorf("error setting silence %v: %s", sil, err)
 			return
 		}
@@ -349,8 +361,8 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 			return
 		}
 
-		_, err = http.DefaultClient.Do(req)
-		if err != nil {
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil || resp.StatusCode/100 != 2 {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 			return
 		}

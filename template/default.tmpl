@@ -1,5 +1,5 @@
 {{ define "__alertmanager" }}AlertManager{{ end }}
-{{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
+{{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts{{ end }}
 
 {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
 {{ define "__description" }}{{ end }}
@@ -46,8 +46,8 @@ Alerts Resolved:
 {{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
 
 
-{{ define "victorops.default.message" }}{{ template "__subject" . }} | {{ template "__alertmanagerURL" . }}{{ end }}
-{{ define "victorops.default.from" }}{{ template "__alertmanager" . }}{{ end }}
+{{ define "victorops.default.state_message" }}{{ template "__subject" . }} | {{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "victorops.default.monitoring_tool" }}{{ template "__alertmanager" . }}{{ end }}
 
 
 {{ define "email.default.subject" }}{{ template "__subject" . }}{{ end }}

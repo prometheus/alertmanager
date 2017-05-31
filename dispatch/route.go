@@ -130,8 +130,7 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 		}
 	}
 
-	// If no child nodes were matches, the current node itself is
-	// a match.
+	// If no child nodes were matches, the current node itself is a match.
 	if len(all) == 0 {
 		all = append(all, r)
 	}
@@ -139,32 +138,15 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 	return all
 }
 
-// SquashMatchers returns the total set of matchers on the path of the tree
-// that have to apply to reach the route.
-func (r *Route) SquashMatchers() types.Matchers {
-	var res types.Matchers
-	res = append(res, r.Matchers...)
+// Key returns a key for the route. It does not uniquely identify a the route in general.
+func (r *Route) Key() string {
+	b := make([]byte, 0, 1024)
 
-	if r.parent == nil {
-		return res
+	if r.parent != nil {
+		b = append(b, r.parent.Key()...)
+		b = append(b, '/')
 	}
-
-	pm := r.parent.SquashMatchers()
-	res = append(pm, res...)
-
-	return res
-}
-
-// Fingerprint returns a hash of the Route based on its grouping labels,
-// routing options and the total set of matchers necessary to reach this route.
-func (r *Route) Fingerprint() model.Fingerprint {
-	lset := make(model.LabelSet, len(r.RouteOpts.GroupBy))
-
-	for ln := range r.RouteOpts.GroupBy {
-		lset[ln] = ""
-	}
-
-	return r.SquashMatchers().Fingerprint() ^ lset.Fingerprint()
+	return string(append(b, r.Matchers.String()...))
 }
 
 // RouteOpts holds various routing options necessary for processing alerts

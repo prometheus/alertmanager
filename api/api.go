@@ -25,12 +25,16 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
-	"github.com/satori/go.uuid"
-	"golang.org/x/net/context"
+	"github.com/prometheus/prometheus/pkg/labels"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/weaveworks/mesh"
 )
 
 var (
@@ -52,36 +56,62 @@ func init() {
 	prometheus.Register(numInvalidAlerts)
 }
 
+var corsHeaders = map[string]string{
+	"Access-Control-Allow-Headers":  "Accept, Authorization, Content-Type, Origin",
+	"Access-Control-Allow-Methods":  "GET, DELETE, OPTIONS",
+	"Access-Control-Allow-Origin":   "*",
+	"Access-Control-Expose-Headers": "Date",
+}
+
+// Enables cross-site script calls.
+func setCORS(w http.ResponseWriter) {
+	for h, v := range corsHeaders {
+		w.Header().Set(h, v)
+	}
+}
+
 // API provides registration of handlers for API routes.
 type API struct {
 	alerts         provider.Alerts
-	silences       provider.Silences
+	silences       *silence.Silences
 	config         string
+	configJSON     config.Config
 	resolveTimeout time.Duration
 	uptime         time.Time
+	mrouter        *mesh.Router
 
-	groups func() dispatch.AlertOverview
+	groups         groupsFn
+	getAlertStatus getAlertStatusFn
 
-	// context is an indirection for testing.
-	context func(r *http.Request) context.Context
-	mtx     sync.RWMutex
+	mtx sync.RWMutex
 }
 
+type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
+type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
+
 // New returns a new API.
-func New(alerts provider.Alerts, silences provider.Silences, gf func() dispatch.AlertOverview) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, sf getAlertStatusFn, router *mesh.Router) *API {
 	return &API{
-		context:  route.Context,
-		alerts:   alerts,
-		silences: silences,
-		groups:   gf,
-		uptime:   time.Now(),
+		alerts:         alerts,
+		silences:       silences,
+		groups:         gf,
+		getAlertStatus: sf,
+		uptime:         time.Now(),
+		mrouter:        router,
 	}
 }
 
 // Register registers the API handlers under their correct routes
 // in the given router.
 func (api *API) Register(r *route.Router) {
-	ihf := prometheus.InstrumentHandlerFunc
+	ihf := func(name string, f http.HandlerFunc) http.HandlerFunc {
+		return prometheus.InstrumentHandlerFunc(name, func(w http.ResponseWriter, r *http.Request) {
+			setCORS(w)
+			f(w, r)
+		})
+	}
+
+	r.Options("/*path", ihf("options", func(w http.ResponseWriter, r *http.Request) {}))
 
 	// Register legacy forwarder for alert pushing.
 	r.Post("/alerts", ihf("legacy_add_alerts", api.legacyAddAlerts))
@@ -96,18 +126,27 @@ func (api *API) Register(r *route.Router) {
 	r.Post("/alerts", ihf("add_alerts", api.addAlerts))
 
 	r.Get("/silences", ihf("list_silences", api.listSilences))
-	r.Post("/silences", ihf("add_silence", api.addSilence))
+	r.Post("/silences", ihf("add_silence", api.setSilence))
 	r.Get("/silence/:sid", ihf("get_silence", api.getSilence))
 	r.Del("/silence/:sid", ihf("del_silence", api.delSilence))
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(config string, resolveTimeout time.Duration) {
+func (api *API) Update(cfg string, resolveTimeout time.Duration) error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
-	api.config = config
+	api.config = cfg
 	api.resolveTimeout = resolveTimeout
+
+	configJSON, err := config.Load(cfg)
+	if err != nil {
+		log.Errorf("error: %v", err)
+		return err
+	}
+
+	api.configJSON = *configJSON
+	return nil
 }
 
 type errorType string
@@ -132,10 +171,13 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 
 	var status = struct {
 		Config      string            `json:"config"`
+		ConfigJSON  config.Config     `json:"configJSON"`
 		VersionInfo map[string]string `json:"versionInfo"`
 		Uptime      time.Time         `json:"uptime"`
+		MeshStatus  meshStatus        `json:"meshStatus"`
 	}{
-		Config: api.config,
+		Config:     api.config,
+		ConfigJSON: api.configJSON,
 		VersionInfo: map[string]string{
 			"version":   version.Version,
 			"revision":  version.Revision,
@@ -144,7 +186,8 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 			"buildDate": version.BuildDate,
 			"goVersion": version.GoVersion,
 		},
-		Uptime: api.uptime,
+		Uptime:     api.uptime,
+		MeshStatus: getMeshStatus(api),
 	}
 
 	api.mtx.RUnlock()
@@ -152,24 +195,128 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	respond(w, status)
 }
 
+type meshStatus struct {
+	Name     string       `json:"name"`
+	NickName string       `json:"nickName"`
+	Peers    []peerStatus `json:"peers"`
+}
+
+type peerStatus struct {
+	Name     string `json:"name"`     // e.g. "00:00:00:00:00:01"
+	NickName string `json:"nickName"` // e.g. "a"
+	UID      uint64 `json:"uid"`      // e.g. "14015114173033265000"
+}
+
+func getMeshStatus(api *API) meshStatus {
+	status := mesh.NewStatus(api.mrouter)
+	strippedStatus := meshStatus{
+		Name:     status.Name,
+		NickName: status.NickName,
+		Peers:    make([]peerStatus, len(status.Peers)),
+	}
+
+	for i := 0; i < len(status.Peers); i++ {
+		strippedStatus.Peers[i] = peerStatus{
+			Name:     status.Peers[i].Name,
+			NickName: status.Peers[i].NickName,
+			UID:      uint64(status.Peers[i].UID),
+		}
+	}
+
+	return strippedStatus
+}
+
 func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
-	respond(w, api.groups())
+	var err error
+	matchers := []*labels.Matcher{}
+	if filter := req.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	groups := api.groups(matchers)
+
+	respond(w, groups)
+}
+
+type APIAlert struct {
+	*model.Alert
+
+	Status types.AlertStatus `json:"status"`
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
+	var (
+		err error
+		// Initialize result slice to prevent api returning `null` when there
+		// are no alerts present
+		res          = []*APIAlert{}
+		matchers     = []*labels.Matcher{}
+		showSilenced = true
+	)
+
+	if filter := r.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	if silencedParam := r.FormValue("silenced"); silencedParam != "" {
+		if silencedParam == "false" {
+			showSilenced = false
+		} else if silencedParam != "true" {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: fmt.Errorf(
+					"parameter 'silenced' can either be 'true' or 'false', not '%v'",
+					silencedParam,
+				),
+			}, nil)
+			return
+		}
+	}
+
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
-	var (
-		err error
-		res []*types.Alert
-	)
 	// TODO(fabxc): enforce a sensible timeout.
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
 			break
 		}
-		res = append(res, a)
+
+		if !alertMatchesFilterLabels(&a.Alert, matchers) {
+			continue
+		}
+
+		// Continue if alert is resolved
+		if !a.Alert.EndsAt.IsZero() && a.Alert.EndsAt.Before(time.Now()) {
+			continue
+		}
+
+		status := api.getAlertStatus(a.Fingerprint())
+
+		if !showSilenced && len(status.SilencedBy) != 0 {
+			continue
+		}
+
+		apiAlert := &APIAlert{
+			Alert:  &a.Alert,
+			Status: status,
+		}
+
+		res = append(res, apiAlert)
 	}
 
 	if err != nil {
@@ -179,7 +326,17 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
-	respond(w, types.Alerts(res...))
+	respond(w, res)
+}
+
+func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {
+	for _, m := range matchers {
+		if v, prs := a.Labels[model.LabelName(m.Name)]; !prs || !m.Matches(string(v)) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
@@ -283,7 +440,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	respond(w, nil)
 }
 
-func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
+func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 	var sil types.Silence
 	if err := receive(r, &sil); err != nil {
 		respondError(w, apiError{
@@ -292,8 +449,8 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
-
-	if err := sil.Init(); err != nil {
+	psil, err := silenceToProto(&sil)
+	if err != nil {
 		respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
@@ -301,56 +458,48 @@ func (api *API) addSilence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sid, err := api.silences.Set(&sil)
+	sid, err := api.silences.Set(psil)
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorInternal,
+			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
 	}
 
 	respond(w, struct {
-		SilenceID uuid.UUID `json:"silenceId"`
+		SilenceID string `json:"silenceId"`
 	}{
 		SilenceID: sid,
 	})
 }
 
 func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
-	sids := route.Param(api.context(r), "sid")
-	sid, err := uuid.FromString(sids)
-	if err != nil {
-		respondError(w, apiError{
-			typ: errorBadData,
-			err: err,
-		}, nil)
-		return
-	}
+	sid := route.Param(r.Context(), "sid")
 
-	sil, err := api.silences.Get(sid)
-	if err != nil {
+	sils, err := api.silences.Query(silence.QIDs(sid))
+	if err != nil || len(sils) == 0 {
 		http.Error(w, fmt.Sprint("Error getting silence: ", err), http.StatusNotFound)
 		return
 	}
-
-	respond(w, &sil)
-}
-
-func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
-	sids := route.Param(api.context(r), "sid")
-	sid, err := uuid.FromString(sids)
+	sil, err := silenceFromProto(sils[0])
 	if err != nil {
 		respondError(w, apiError{
-			typ: errorBadData,
+			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
 	}
 
-	if err := api.silences.Del(sid); err != nil {
+	respond(w, sil)
+}
+
+func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
+	sid := route.Param(r.Context(), "sid")
+
+	if err := api.silences.Expire(sid); err != nil {
 		respondError(w, apiError{
-			typ: errorInternal,
+			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
@@ -359,7 +508,7 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	sils, err := api.silences.All()
+	psils, err := api.silences.Query()
 	if err != nil {
 		respondError(w, apiError{
 			typ: errorInternal,
@@ -367,7 +516,104 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
+
+	matchers := []*labels.Matcher{}
+	if filter := r.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	sils := []*types.Silence{}
+	for _, ps := range psils {
+		s, err := silenceFromProto(ps)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorInternal,
+				err: err,
+			}, nil)
+			return
+		}
+
+		if !matchesFilterLabels(s, matchers) {
+			continue
+		}
+		sils = append(sils, s)
+	}
+
 	respond(w, sils)
+}
+
+func matchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
+	sms := map[string]string{}
+	for _, m := range s.Matchers {
+		sms[m.Name] = m.Value
+	}
+	for _, m := range matchers {
+		if v, prs := sms[m.Name]; !prs || !m.Matches(v) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
+	sil := &silencepb.Silence{
+		Id:        s.ID,
+		StartsAt:  s.StartsAt,
+		EndsAt:    s.EndsAt,
+		UpdatedAt: s.UpdatedAt,
+		Comment:   s.Comment,
+		CreatedBy: s.CreatedBy,
+	}
+	for _, m := range s.Matchers {
+		matcher := &silencepb.Matcher{
+			Name:    m.Name,
+			Pattern: m.Value,
+			Type:    silencepb.Matcher_EQUAL,
+		}
+		if m.IsRegex {
+			matcher.Type = silencepb.Matcher_REGEXP
+		}
+		sil.Matchers = append(sil.Matchers, matcher)
+	}
+	return sil, nil
+}
+
+func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
+	sil := &types.Silence{
+		ID:        s.Id,
+		StartsAt:  s.StartsAt,
+		EndsAt:    s.EndsAt,
+		UpdatedAt: s.UpdatedAt,
+		Status: types.SilenceStatus{
+			State: types.CalcSilenceState(s.StartsAt, s.EndsAt),
+		},
+		Comment:   s.Comment,
+		CreatedBy: s.CreatedBy,
+	}
+	for _, m := range s.Matchers {
+		matcher := &types.Matcher{
+			Name:  m.Name,
+			Value: m.Pattern,
+		}
+		switch m.Type {
+		case silencepb.Matcher_EQUAL:
+		case silencepb.Matcher_REGEXP:
+			matcher.IsRegex = true
+		default:
+			return nil, fmt.Errorf("unknown matcher type")
+		}
+		sil.Matchers = append(sil.Matchers, matcher)
+	}
+
+	return sil, nil
 }
 
 type status string
@@ -393,6 +639,7 @@ func respond(w http.ResponseWriter, data interface{}) {
 		Data:   data,
 	})
 	if err != nil {
+		log.Errorf("errorr: %v", err)
 		return
 	}
 	w.Write(b)
@@ -419,7 +666,7 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	if err != nil {
 		return
 	}
-	log.Errorf("api error: %s", apiErr)
+	log.Errorf("api error: %v", apiErr.Error())
 
 	w.Write(b)
 }

@@ -37,3 +37,26 @@ route:
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
+
+func TestContinueErrorInRouteRoot(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-mails
+    continue: true
+
+receivers:
+- name: 'team-X-mails'
+`
+
+	_, err := Load(in)
+
+	expected := "cannot have continue in root route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}

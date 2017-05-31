@@ -13,7 +13,7 @@
 
 GO    := GO15VENDOREXPERIMENT=1 go
 PROMU := $(GOPATH)/bin/promu
-pkgs   = $(shell $(GO) list ./... | grep -v /vendor/)
+pkgs   = $(shell $(GO) list ./... | grep -v -E '/vendor/|/ui')
 
 PREFIX                  ?= $(shell pwd)
 BIN_DIR                 ?= $(shell pwd)
@@ -58,13 +58,17 @@ docker:
 assets:
 	@echo ">> writing assets"
 	-@$(GO) get -u github.com/jteeuwen/go-bindata/...
-	@go-bindata $(bindata_flags) -pkg ui -o ui/bindata.go ui/...
-	@go-bindata $(bindata_flags) -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
+# Using "-mode 420" and "-modtime 1" to make assets make target deterministic.
+# It sets all file permissions and time stamps to 420 and 1
+	@go-bindata $(bindata_flags) -mode 420 -modtime 1 -pkg ui -o ui/bindata.go ui/app/index.html ui/app/script.js
+	@go-bindata $(bindata_flags) -mode 420 -modtime 1 -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
 
 promu:
 	@GOOS=$(shell uname -s | tr A-Z a-z) \
 	GOARCH=$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))) \
 	$(GO) get -u github.com/prometheus/promu
 
+proto:
+	scripts/genproto.sh
 
-.PHONY: all style format build test vet assets tarball docker promu
+.PHONY: all style format build test vet assets tarball docker promu proto

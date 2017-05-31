@@ -15,11 +15,13 @@ package mem
 
 import (
 	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
@@ -34,7 +36,8 @@ func TestAlertsPut(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	alerts, err := NewAlerts(dir)
+	marker := types.NewMarker()
+	alerts, err := NewAlerts(marker, 30*time.Minute, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,6 +93,84 @@ func TestAlertsPut(t *testing.T) {
 		if !alertsEqual(res, a) {
 			t.Errorf("Unexpected alert: %d", i)
 			t.Fatalf(pretty.Compare(res, a))
+		}
+	}
+}
+
+func TestAlertsGC(t *testing.T) {
+	dir, err := ioutil.TempDir("", "alerts_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	marker := types.NewMarker()
+	alerts, err := NewAlerts(marker, 200*time.Millisecond, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var (
+		t0 = time.Now()
+		t1 = t0.Add(100 * time.Millisecond)
+	)
+
+	insert := []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"bar": "foo"},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		}, {
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"bar": "foo2"},
+				Annotations:  model.LabelSet{"foo": "bar2"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		}, {
+			Alert: model.Alert{
+				Labels:       model.LabelSet{"bar": "foo3"},
+				Annotations:  model.LabelSet{"foo": "bar3"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		},
+	}
+
+	if err := alerts.Put(insert...); err != nil {
+		t.Fatalf("Insert failed: %s", err)
+	}
+
+	for _, a := range insert {
+		marker.SetActive(a.Fingerprint())
+		if !marker.Active(a.Fingerprint()) {
+			t.Errorf("error setting status: %v", a)
+		}
+	}
+
+	time.Sleep(300 * time.Millisecond)
+
+	for i, a := range insert {
+		_, err := alerts.Get(a.Fingerprint())
+		if err != provider.ErrNotFound {
+			t.Errorf("alert %d didn't get GC'd", i)
+		}
+
+		s := marker.Status(a.Fingerprint())
+		if s.State != types.AlertStateUnprocessed {
+			t.Errorf("marker %d didn't get GC'd: %v", i, s)
 		}
 	}
 }

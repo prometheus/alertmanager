@@ -13,297 +13,435 @@
 package notify
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/nflog"
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/satori/go.uuid"
 )
 
-type recordNotifier struct {
-	ctx    context.Context
-	alerts []*types.Alert
+type notifierConfigFunc func() bool
+
+func (f notifierConfigFunc) SendResolved() bool {
+	return f()
 }
 
-func (n *recordNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
-	n.ctx = ctx
-	n.alerts = append(n.alerts, as...)
-	return nil
+type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
+
+func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	return f(ctx, alerts...)
 }
 
-type failNotifier struct{}
+type failStage struct{}
 
-func (n *failNotifier) Notify(ctx context.Context, as ...*types.Alert) error {
-	return fmt.Errorf("some error")
+func (s failStage) Exec(ctx context.Context, as ...*types.Alert) (context.Context, []*types.Alert, error) {
+	return ctx, nil, fmt.Errorf("some error")
 }
 
-func TestDedupingNotifierHasUpdate(t *testing.T) {
-	var (
-		n        = &DedupingNotifier{}
-		now      = time.Now()
-		interval = 100 * time.Minute
-	)
+type testNflog struct {
+	qres []*nflogpb.Entry
+	qerr error
+
+	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error
+}
+
+func (l *testNflog) Query(p ...nflog.QueryParam) ([]*nflogpb.Entry, error) {
+	return l.qres, l.qerr
+}
+
+func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
+	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts)
+}
+
+func (l *testNflog) GC() (int, error) {
+	return 0, nil
+}
+
+func (l *testNflog) Snapshot(w io.Writer) (int, error) {
+	return 0, nil
+}
+
+func mustTimestampProto(ts time.Time) *timestamp.Timestamp {
+	tspb, err := ptypes.TimestampProto(ts)
+	if err != nil {
+		panic(err)
+	}
+	return tspb
+}
+
+func alertHashSet(hashes ...uint64) map[uint64]struct{} {
+	res := map[uint64]struct{}{}
+
+	for _, h := range hashes {
+		res[h] = struct{}{}
+	}
+
+	return res
+}
+
+func TestDedupStageNeedsUpdate(t *testing.T) {
+	now := utcNow()
+
 	cases := []struct {
-		inAlert      *types.Alert
-		inNotifyInfo *types.NotificationInfo
-		result       bool
+		entry        *nflogpb.Entry
+		firingAlerts map[uint64]struct{}
+		repeat       time.Duration
+
+		res    bool
+		resErr bool
 	}{
-		// A new alert about which there's no previous notification information.
 		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-				},
+			entry:        nil,
+			firingAlerts: alertHashSet(2, 3, 4),
+			res:          true,
+		}, {
+			entry:        &nflogpb.Entry{FiringAlerts: []uint64{1, 2, 3}},
+			firingAlerts: alertHashSet(2, 3, 4),
+			res:          true,
+		}, {
+			entry: &nflogpb.Entry{
+				FiringAlerts: []uint64{1, 2, 3},
+				Timestamp:    time.Time{}, // zero timestamp should always update
 			},
-			inNotifyInfo: nil,
-			result:       true,
-		},
-		// A new alert about which there's no previous notification information.
-		// It is already resolved, so there's no use in sending a notification.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-					EndsAt:   now,
-				},
+			firingAlerts: alertHashSet(1, 2, 3),
+			res:          true,
+		}, {
+			entry: &nflogpb.Entry{
+				FiringAlerts: []uint64{1, 2, 3},
+				Timestamp:    now.Add(-9 * time.Minute),
 			},
-			inNotifyInfo: nil,
-			result:       false,
-		},
-		// An alert that has been firing is now resolved for the first time.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-					EndsAt:   now,
-				},
+			repeat:       10 * time.Minute,
+			firingAlerts: alertHashSet(1, 2, 3),
+			res:          false,
+		}, {
+			entry: &nflogpb.Entry{
+				FiringAlerts: []uint64{1, 2, 3},
+				Timestamp:    now.Add(-11 * time.Minute),
 			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  false,
-				Timestamp: now.Add(-time.Minute),
-			},
-			result: true,
-		},
-		// A resolved alert for which we have already sent a resolved notification.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-					EndsAt:   now,
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  true,
-				Timestamp: now.Add(-time.Minute),
-			},
-			result: false,
-		},
-		// An alert that was resolved last time but is now firing again.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-3 * time.Minute),
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  true,
-				Timestamp: now.Add(-4 * time.Minute),
-			},
-			result: true,
-		},
-		// A firing alert about which we already notified. The last notification
-		// is less than the repeat interval ago.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  false,
-				Timestamp: now.Add(-15 * time.Minute),
-			},
-			result: false,
-		},
-		// A firing alert about which we already notified. The last notification
-		// is more than the repeat interval ago.
-		{
-			inAlert: &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"alertname": "a"},
-					StartsAt: now.Add(-10 * time.Minute),
-				},
-			},
-			inNotifyInfo: &types.NotificationInfo{
-				Alert:     model.LabelSet{"alertname": "a"}.Fingerprint(),
-				Resolved:  false,
-				Timestamp: now.Add(-115 * time.Minute),
-			},
-			result: true,
+			repeat:       10 * time.Minute,
+			firingAlerts: alertHashSet(1, 2, 3),
+			res:          true,
 		},
 	}
-
 	for i, c := range cases {
-		if n.hasUpdate(c.inAlert, c.inNotifyInfo, now, interval) != c.result {
-			t.Errorf("unexpected hasUpdates result for case %d", i)
+		t.Log("case", i)
+
+		s := &DedupStage{
+			now: func() time.Time { return now },
 		}
+		ok, err := s.needsUpdate(c.entry, c.firingAlerts, nil, c.repeat)
+		if c.resErr {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+		require.Equal(t, c.res, ok)
 	}
 }
 
-func TestDedupingNotifier(t *testing.T) {
-	var (
-		record   = &recordNotifier{}
-		notifies = newTestInfos()
-		deduper  = Dedup(notifies, record)
-		ctx      = context.Background()
-	)
-	now := time.Now()
+func TestDedupStage(t *testing.T) {
+	i := 0
+	now := utcNow()
+	s := &DedupStage{
+		hash: func(a *types.Alert) uint64 {
+			res := uint64(i)
+			i++
+			return res
+		},
+		now: func() time.Time {
+			return now
+		},
+	}
 
-	ctx = WithReceiver(ctx, "name")
-	ctx = WithRepeatInterval(ctx, time.Duration(100*time.Minute))
-	ctx = WithNow(ctx, now)
+	ctx := context.Background()
+
+	_, _, err := s.Exec(ctx)
+	require.EqualError(t, err, "group key missing")
+
+	ctx = WithGroupKey(ctx, "1")
+
+	_, _, err = s.Exec(ctx)
+	require.EqualError(t, err, "repeat interval missing")
+
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	alerts := []*types.Alert{{}, {}, {}}
+
+	// Must catch notification log query errors.
+	s.nflog = &testNflog{
+		qerr: errors.New("bad things"),
+	}
+	ctx, res, err := s.Exec(ctx, alerts...)
+	require.EqualError(t, err, "bad things")
+
+	// ... but skip ErrNotFound.
+	s.nflog = &testNflog{
+		qerr: nflog.ErrNotFound,
+	}
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.NoError(t, err, "unexpected error on not found log entry")
+	require.Equal(t, alerts, res, "input alerts differ from result alerts")
+
+	s.nflog = &testNflog{
+		qerr: nil,
+		qres: []*nflogpb.Entry{
+			{FiringAlerts: []uint64{0, 1, 2}},
+			{FiringAlerts: []uint64{1, 2, 3}},
+		},
+	}
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.Contains(t, err.Error(), "result size")
+
+	// Must return no error and no alerts no need to update.
+	i = 0
+	s.nflog = &testNflog{
+		qerr: nflog.ErrNotFound,
+		qres: []*nflogpb.Entry{
+			{
+				FiringAlerts: []uint64{0, 1, 2},
+				Timestamp:    now,
+			},
+		},
+	}
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.NoError(t, err)
+	require.Nil(t, res, "unexpected alerts returned")
+
+	// Must return no error and all input alerts on changes.
+	i = 0
+	s.nflog = &testNflog{
+		qerr: nil,
+		qres: []*nflogpb.Entry{
+			{
+				FiringAlerts: []uint64{1, 2, 3, 4},
+				Timestamp:    now,
+			},
+		},
+	}
+	ctx, res, err = s.Exec(ctx, alerts...)
+	require.NoError(t, err)
+	require.Equal(t, alerts, res, "unexpected alerts returned")
+}
+
+func TestMultiStage(t *testing.T) {
+	var (
+		alerts1 = []*types.Alert{{}}
+		alerts2 = []*types.Alert{{}, {}}
+		alerts3 = []*types.Alert{{}, {}, {}}
+	)
+
+	stage := MultiStage{
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts1) {
+				t.Fatal("Input not equal to input of MultiStage")
+			}
+			ctx = context.WithValue(ctx, "key", "value")
+			return ctx, alerts2, nil
+		}),
+		StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts2) {
+				t.Fatal("Input not equal to output of previous stage")
+			}
+			v, ok := ctx.Value("key").(string)
+			if !ok || v != "value" {
+				t.Fatalf("Expected value %q for key %q but got %q", "value", "key", v)
+			}
+			return ctx, alerts3, nil
+		}),
+	}
+
+	_, alerts, err := stage.Exec(context.Background(), alerts1...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(alerts, alerts3) {
+		t.Fatal("Output of MultiStage is not equal to the output of the last stage")
+	}
+}
+
+func TestMultiStageFailure(t *testing.T) {
+	var (
+		ctx   = context.Background()
+		s1    = failStage{}
+		stage = MultiStage{s1}
+	)
+
+	_, _, err := stage.Exec(ctx, nil)
+	if err.Error() != "some error" {
+		t.Fatal("Errors were not propagated correctly by MultiStage")
+	}
+}
+
+func TestRoutingStage(t *testing.T) {
+	var (
+		alerts1 = []*types.Alert{{}}
+		alerts2 = []*types.Alert{{}, {}}
+	)
+
+	stage := RoutingStage{
+		"name": StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+			if !reflect.DeepEqual(alerts, alerts1) {
+				t.Fatal("Input not equal to input of RoutingStage")
+			}
+			return ctx, alerts2, nil
+		}),
+		"not": failStage{},
+	}
+
+	ctx := WithReceiverName(context.Background(), "name")
+
+	_, alerts, err := stage.Exec(ctx, alerts1...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(alerts, alerts2) {
+		t.Fatal("Output of RoutingStage is not equal to the output of the inner stage")
+	}
+}
+
+func TestIntegrationNoResolved(t *testing.T) {
+	res := []*types.Alert{}
+	r := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		res = append(res, alerts...)
+
+		return false, nil
+	})
+	i := Integration{
+		notifier: r,
+		conf:     notifierConfigFunc(func() bool { return false }),
+	}
 
 	alerts := []*types.Alert{
-		{
+		&types.Alert{
 			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "0"},
-			},
-		}, {
-			Alert: model.Alert{
-				Labels: model.LabelSet{"alertname": "1"},
-				EndsAt: now.Add(-5 * time.Minute),
+				EndsAt: time.Now().Add(-time.Hour),
 			},
 		},
-	}
-
-	// Set an initial NotifyInfo to ensure that on notification failure
-	// nothing changes.
-	nsBefore := []*types.NotificationInfo{
-		nil,
-		{
-			Alert:     alerts[1].Fingerprint(),
-			Receiver:  "name",
-			Resolved:  false,
-			Timestamp: now.Add(-10 * time.Minute),
+		&types.Alert{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(time.Hour),
+			},
 		},
 	}
 
-	if err := notifies.Set(nsBefore...); err != nil {
-		t.Fatalf("Setting notifies failed: %s", err)
-	}
+	i.Notify(nil, alerts...)
 
-	deduper.notifier = &failNotifier{}
-	if err := deduper.Notify(ctx, alerts...); err == nil {
-		t.Fatalf("Fail notifier did not fail")
-	}
-	// After a failing notify the notifies data must be unchanged.
-	nsCur, err := notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
-	if err != nil {
-		t.Fatalf("Error getting notify info: %s", err)
-	}
-	if !reflect.DeepEqual(nsBefore, nsCur) {
-		t.Fatalf("Notify info data has changed unexpectedly")
-	}
-
-	deduper.notifier = record
-	if err := deduper.Notify(ctx, alerts...); err != nil {
-		t.Fatalf("Notify failed: %s", err)
-	}
-
-	if !reflect.DeepEqual(record.alerts, alerts) {
-		t.Fatalf("Expected alerts %v, got %v", alerts, record.alerts)
-	}
-	nsCur, err = notifies.Get("name", alerts[0].Fingerprint(), alerts[1].Fingerprint())
-	if err != nil {
-		t.Fatalf("Error getting notifies: %s", err)
-	}
-
-	nsAfter := []*types.NotificationInfo{
-		{
-			Alert:     alerts[0].Fingerprint(),
-			Receiver:  "name",
-			Resolved:  false,
-			Timestamp: now,
-		},
-		{
-			Alert:     alerts[1].Fingerprint(),
-			Receiver:  "name",
-			Resolved:  true,
-			Timestamp: now,
-		},
-	}
-
-	for i, after := range nsAfter {
-		cur := nsCur[i]
-
-		// Hack correct timestamps back in if they are sane.
-		if cur != nil && after.Timestamp.IsZero() {
-			if cur.Timestamp.Before(now) {
-				t.Fatalf("Wrong timestamp for notify %v", cur)
-			}
-			after.Timestamp = cur.Timestamp
-		}
-
-		if !reflect.DeepEqual(after, cur) {
-			t.Errorf("Unexpected notifies, expected: %v, got: %v", after, cur)
-		}
-	}
+	require.Equal(t, len(res), 1)
 }
 
-func TestRoutedNotifier(t *testing.T) {
-	router := Router{
-		"1": &recordNotifier{},
-		"2": &recordNotifier{},
-		"3": &recordNotifier{},
-	}
+func TestIntegrationSendResolved(t *testing.T) {
+	res := []*types.Alert{}
+	r := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		res = append(res, alerts...)
 
-	for _, route := range []string{"3", "2", "1"} {
-		var (
-			ctx   = WithReceiver(context.Background(), route)
-			alert = &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{"route": model.LabelValue(route)},
-				},
-			}
-		)
-		err := router.Notify(ctx, alert)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		rn := router[route].(*recordNotifier)
-		if len(rn.alerts) != 1 && alert != rn.alerts[0] {
-			t.Fatalf("Expeceted alert %v, got %v", alert, rn.alerts)
-		}
-	}
-}
-
-func TestSilenceNotifier(t *testing.T) {
-	// Mute all label sets that have a "mute" key.
-	muter := types.MuteFunc(func(lset model.LabelSet) bool {
-		_, ok := lset["mute"]
-		return ok
+		return false, nil
 	})
+	i := Integration{
+		notifier: r,
+		conf:     notifierConfigFunc(func() bool { return true }),
+	}
+
+	alerts := []*types.Alert{
+		&types.Alert{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(-time.Hour),
+			},
+		},
+	}
+
+	i.Notify(nil, alerts...)
+
+	require.Equal(t, len(res), 1)
+	require.Equal(t, res, alerts)
+}
+
+func TestSetNotifiesStage(t *testing.T) {
+	tnflog := &testNflog{}
+	s := &SetNotifiesStage{
+		recv:  &nflogpb.Receiver{GroupName: "test"},
+		nflog: tnflog,
+	}
+	alerts := []*types.Alert{{}, {}, {}}
+	ctx := context.Background()
+
+	resctx, res, err := s.Exec(ctx, alerts...)
+	require.EqualError(t, err, "group key missing")
+	require.Nil(t, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithGroupKey(ctx, "1")
+
+	resctx, res, err = s.Exec(ctx, alerts...)
+	require.EqualError(t, err, "firing alerts missing")
+	require.Nil(t, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithFiringAlerts(ctx, []uint64{0, 1, 2})
+
+	resctx, res, err = s.Exec(ctx, alerts...)
+	require.EqualError(t, err, "resolved alerts missing")
+	require.Nil(t, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithResolvedAlerts(ctx, []uint64{})
+
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
+		require.Equal(t, s.recv, r)
+		require.Equal(t, "1", gkey)
+		require.Equal(t, []uint64{0, 1, 2}, firingAlerts)
+		require.Equal(t, []uint64{}, resolvedAlerts)
+		return nil
+	}
+	resctx, res, err = s.Exec(ctx, alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithFiringAlerts(ctx, []uint64{})
+	ctx = WithResolvedAlerts(ctx, []uint64{0, 1, 2})
+
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
+		require.Equal(t, s.recv, r)
+		require.Equal(t, "1", gkey)
+		require.Equal(t, []uint64{}, firingAlerts)
+		require.Equal(t, []uint64{0, 1, 2}, resolvedAlerts)
+		return nil
+	}
+	resctx, res, err = s.Exec(ctx, alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.NotNil(t, resctx)
+}
+
+func TestSilenceStage(t *testing.T) {
+	silences, err := silence.New(silence.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := silences.Set(&silencepb.Silence{
+		EndsAt:   utcNow().Add(time.Hour),
+		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	marker := types.NewMarker()
-	record := &recordNotifier{}
-	silenceNotifer := Silence(muter, record, marker)
+	silencer := NewSilenceStage(silences, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -329,16 +467,17 @@ func TestSilenceNotifier(t *testing.T) {
 		})
 	}
 
-	// Set the second alert als previously silenced. It is expected to have
+	// Set the second alert as previously silenced. It is expected to have
 	// the WasSilenced flag set to true afterwards.
-	marker.SetSilenced(inAlerts[1].Fingerprint(), uuid.NewV4())
+	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
 
-	if err := silenceNotifer.Notify(nil, inAlerts...); err != nil {
-		t.Fatalf("Notifying failed: %s", err)
+	_, alerts, err := silencer.Exec(nil, inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
 	}
 
 	var got []model.LabelSet
-	for i, a := range record.alerts {
+	for i, a := range alerts {
 		got = append(got, a.Labels)
 		if a.WasSilenced != (i == 1) {
 			t.Errorf("Expected WasSilenced to be %v for %d, was %v", i == 1, i, a.WasSilenced)
@@ -350,7 +489,7 @@ func TestSilenceNotifier(t *testing.T) {
 	}
 }
 
-func TestInhibitNotifier(t *testing.T) {
+func TestInhibitStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
 	muter := types.MuteFunc(func(lset model.LabelSet) bool {
 		_, ok := lset["mute"]
@@ -358,8 +497,7 @@ func TestInhibitNotifier(t *testing.T) {
 	})
 
 	marker := types.NewMarker()
-	record := &recordNotifier{}
-	inhibitNotifer := Inhibit(muter, record, marker)
+	inhibitor := NewInhibitStage(muter, marker)
 
 	in := []model.LabelSet{
 		{},
@@ -387,14 +525,15 @@ func TestInhibitNotifier(t *testing.T) {
 
 	// Set the second alert as previously inhibited. It is expected to have
 	// the WasInhibited flag set to true afterwards.
-	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
+	marker.SetInhibited(inAlerts[1].Fingerprint(), "123")
 
-	if err := inhibitNotifer.Notify(nil, inAlerts...); err != nil {
-		t.Fatalf("Notifying failed: %s", err)
+	_, alerts, err := inhibitor.Exec(nil, inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
 	}
 
 	var got []model.LabelSet
-	for i, a := range record.alerts {
+	for i, a := range alerts {
 		got = append(got, a.Labels)
 		if a.WasInhibited != (i == 1) {
 			t.Errorf("Expected WasInhibited to be %v for %d, was %v", i == 1, i, a.WasInhibited)
@@ -404,54 +543,4 @@ func TestInhibitNotifier(t *testing.T) {
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
 	}
-}
-
-type testInfos struct {
-	mtx sync.RWMutex
-	m   map[string]map[model.Fingerprint]*types.NotificationInfo
-}
-
-func newTestInfos() *testInfos {
-	return &testInfos{
-		m: map[string]map[model.Fingerprint]*types.NotificationInfo{},
-	}
-}
-
-// Set implements the Notifies interface.
-func (n *testInfos) Set(ns ...*types.NotificationInfo) error {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
-
-	for _, v := range ns {
-
-		if v == nil {
-			continue
-		}
-		am, ok := n.m[v.Receiver]
-		if !ok {
-			am = map[model.Fingerprint]*types.NotificationInfo{}
-			n.m[v.Receiver] = am
-		}
-		am[v.Alert] = v
-	}
-	return nil
-}
-
-// Get implements the Notifies interface.
-func (n *testInfos) Get(dest string, fps ...model.Fingerprint) ([]*types.NotificationInfo, error) {
-	n.mtx.RLock()
-	defer n.mtx.RUnlock()
-
-	res := make([]*types.NotificationInfo, len(fps))
-
-	ns, ok := n.m[dest]
-	if !ok {
-		return res, nil
-	}
-
-	for i, fp := range fps {
-		res[i] = ns[fp]
-	}
-
-	return res, nil
 }

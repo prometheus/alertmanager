@@ -18,6 +18,8 @@ import (
 	"regexp"
 	"sort"
 
+	"bytes"
+
 	"github.com/prometheus/common/model"
 )
 
@@ -35,7 +37,7 @@ func (m *Matcher) Init() error {
 	if !m.IsRegex {
 		return nil
 	}
-	re, err := regexp.Compile(m.Value)
+	re, err := regexp.Compile("^(?:" + m.Value + ")$")
 	if err == nil {
 		m.regex = re
 	}
@@ -44,9 +46,24 @@ func (m *Matcher) Init() error {
 
 func (m *Matcher) String() string {
 	if m.IsRegex {
-		return fmt.Sprintf("<RegexMatcher %s:%q>", m.Name, m.Value)
+		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
 	}
-	return fmt.Sprintf("<Matcher %s:%q>", m.Name, m.Value)
+	return fmt.Sprintf("%s=%q", m.Name, m.Value)
+}
+
+// Validate returns true iff all fields of the matcher have valid values.
+func (m *Matcher) Validate() error {
+	if !model.LabelName(m.Name).IsValid() {
+		return fmt.Errorf("invalid name %q", m.Name)
+	}
+	if m.IsRegex {
+		if _, err := regexp.Compile(m.Value); err != nil {
+			return fmt.Errorf("invalid regular expression %q", m.Value)
+		}
+	} else if !model.LabelValue(m.Value).IsValid() || len(m.Value) == 0 {
+		return fmt.Errorf("invalid value %q", m.Value)
+	}
+	return nil
 }
 
 // Match checks whether the label of the matcher has the specified
@@ -139,28 +156,17 @@ func (ms Matchers) Match(lset model.LabelSet) bool {
 	return true
 }
 
-// Validate returns true iff all fields of the matcher have valid values.
-func (m *Matcher) Validate() error {
-	if !model.LabelName(m.Name).IsValid() {
-		return fmt.Errorf("invalid name %q", m.Name)
-	}
-	if m.IsRegex {
-		if _, err := regexp.Compile(m.Value); err != nil {
-			return fmt.Errorf("invalid regular expression %q", m.Value)
+func (ms Matchers) String() string {
+	var buf bytes.Buffer
+
+	buf.WriteByte('{')
+	for i, m := range ms {
+		if i > 0 {
+			buf.WriteByte(',')
 		}
-	} else if !model.LabelValue(m.Value).IsValid() || len(m.Value) == 0 {
-		return fmt.Errorf("invalid value %q", m.Value)
+		buf.WriteString(m.String())
 	}
-	return nil
-}
+	buf.WriteByte('}')
 
-// Fingerprint returns a quasi-unique fingerprint for the matchers.
-func (ms Matchers) Fingerprint() model.Fingerprint {
-	lset := make(model.LabelSet, 3*len(ms))
-
-	for _, m := range ms {
-		lset[model.LabelName(fmt.Sprintf("%s-%s-%v", m.Name, m.Value, m.IsRegex))] = ""
-	}
-
-	return lset.Fingerprint()
+	return buf.String()
 }
