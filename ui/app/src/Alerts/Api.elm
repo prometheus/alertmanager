@@ -28,11 +28,14 @@ alertsDecoder =
 -}
 alertDecoder : Json.Decoder (String -> Alert)
 alertDecoder =
-    Json.map5 Alert
+    Json.map6 Alert
         (Json.maybe (field "annotations" (Json.keyValuePairs Json.string))
             |> andThen (Maybe.withDefault [] >> Json.succeed)
         )
         (field "labels" (Json.keyValuePairs Json.string))
         (Json.maybe (Json.at [ "status", "silencedBy", "0" ] Json.string))
+        (Json.maybe (Json.at [ "status", "inhibitedBy", "0" ] Json.string)
+            |> Json.map ((/=) Nothing)
+        )
         (field "startsAt" iso8601Time)
         (field "generatorURL" Json.string)

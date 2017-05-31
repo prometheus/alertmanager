@@ -9,7 +9,6 @@ import Utils.Date
 import Views.FilterBar.Types as FilterBarTypes
 import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, SetActive))
 import Utils.Filter
-import Time exposing (Time)
 
 
 view : List ( String, String ) -> Maybe String -> Alert -> Html Msg
@@ -27,7 +26,7 @@ view labels maybeActiveId alert =
             ]
             [ div
                 [ class "w-100 mb-2 d-flex align-items-start" ]
-                [ dateView alert.startsAt
+                [ titleView alert
                 , if List.length alert.annotations > 0 then
                     annotationsButton maybeActiveId alert
                   else
@@ -43,13 +42,24 @@ view labels maybeActiveId alert =
             ]
 
 
-dateView : Time -> Html Msg
-dateView time =
-    span
-        [ class "text-muted align-self-center mr-2"
-        ]
-        [ text (Utils.Date.timeFormat time ++ ", " ++ Utils.Date.dateFormat time)
-        ]
+titleView : Alert -> Html Msg
+titleView { startsAt, isInhibited } =
+    let
+        ( className, inhibited ) =
+            if isInhibited then
+                ( "text-muted", " (inhibited)" )
+            else
+                ( "", "" )
+    in
+        span
+            [ class ("align-self-center mr-2 " ++ className) ]
+            [ text
+                (Utils.Date.timeFormat startsAt
+                    ++ ", "
+                    ++ Utils.Date.dateFormat startsAt
+                    ++ inhibited
+                )
+            ]
 
 
 annotationsButton : Maybe String -> Alert -> Html Msg
