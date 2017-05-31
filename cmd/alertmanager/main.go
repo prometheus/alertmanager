@@ -289,7 +289,7 @@ func main() {
 	router := route.New()
 
 	webReload := make(chan struct{})
-	ui.Register(router.WithPrefix(amURL.Path), webReload)
+	ui.Register(router.WithPrefix(amURL.Path), amURL.Path, webReload)
 	apiv.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
 
 	log.Infoln("Listening on", *listenAddress)

@@ -12,8 +12,8 @@ import Utils.Filter exposing (generateQueryString)
 import Views.GroupBar.Updates as GroupBar
 
 
-update : AlertListMsg -> Model -> Filter -> ( Model, Cmd Types.Msg )
-update msg ({ groupBar, filterBar } as model) filter =
+update : AlertListMsg -> Model -> Filter -> String -> ( Model, Cmd Types.Msg )
+update msg ({ groupBar, filterBar } as model) filter baseUrl =
     case msg of
         AlertsFetched listOfAlerts ->
             ( { model
@@ -43,7 +43,7 @@ update msg ({ groupBar, filterBar } as model) filter =
                     FilterBar.setMatchers filter filterBar
             in
                 ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
-                , Api.fetchAlerts filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                , Api.fetchAlerts baseUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
                 )
 
         ToggleSilenced showSilenced ->

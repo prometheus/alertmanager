@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+package ui
+
+const indexTmpl = `<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="utf-8">
@@ -9,7 +11,7 @@
     </head>
     <body>
         <!-- Your source after making -->
-        <script src="{{ .ExternalUrl }}/script.js"></script>
-        <script>Elm.Main.embed(document.body, { externalUrl: '{{ .ExternalUrl }}' })</script>
+        <script src="{{ .ExternalURL }}/script.js"></script>
+        <script>Elm.Main.embed(document.body, { baseUrl: '{{ .ExternalURL }}' })</script>
     </body>
-</html>
+</html>`

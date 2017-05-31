@@ -4,14 +4,14 @@ import Http
 import Silences.Types exposing (Silence)
 import Utils.Types exposing (ApiData(..))
 import Utils.Filter exposing (Filter)
+import Utils.Api
 import Silences.Decoders exposing (show, list, create, destroy)
 import Silences.Encoders
-import Utils.Api exposing (baseUrl)
 import Utils.Filter exposing (generateQueryString)
 
 
-getSilences : Filter -> (ApiData (List Silence) -> msg) -> Cmd msg
-getSilences filter msg =
+getSilences : String -> Filter -> (ApiData (List Silence) -> msg) -> Cmd msg
+getSilences baseUrl filter msg =
     let
         url =
             String.join "/" [ baseUrl, "silences" ++ (generateQueryString filter) ]
@@ -20,8 +20,8 @@ getSilences filter msg =
             |> Cmd.map msg
 
 
-getSilence : String -> (ApiData Silence -> msg) -> Cmd msg
-getSilence uuid msg =
+getSilence : String -> String -> (ApiData Silence -> msg) -> Cmd msg
+getSilence baseUrl uuid msg =
     let
         url =
             String.join "/" [ baseUrl, "silence", uuid ]
@@ -30,8 +30,8 @@ getSilence uuid msg =
             |> Cmd.map msg
 
 
-create : Silence -> Cmd (ApiData String)
-create silence =
+create : String -> Silence -> Cmd (ApiData String)
+create baseUrl silence =
     let
         url =
             String.join "/" [ baseUrl, "silences" ]
@@ -45,8 +45,8 @@ create silence =
             (Utils.Api.post url body Silences.Decoders.create)
 
 
-destroy : Silence -> (ApiData String -> msg) -> Cmd msg
-destroy silence msg =
+destroy : String -> Silence -> (ApiData String -> msg) -> Cmd msg
+destroy baseUrl silence msg =
     -- The incorrect route using "silences" receives a 405. The route seems to
     -- be matching on /silences and ignoring the :sid, should be getting a 404.
     let
