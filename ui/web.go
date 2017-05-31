@@ -58,6 +58,10 @@ func Register(r *route.Router, reloadCh chan<- struct{}) {
 		serveAsset(w, req, "ui/app/script.js")
 	}))
 
+	r.Get("/favicon.ico", ihf("app", func(w http.ResponseWriter, req *http.Request) {
+		serveAsset(w, req, "ui/app/favicon.ico")
+	}))
+
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("Reloading configuration file..."))
 		reloadCh <- struct{}{}
