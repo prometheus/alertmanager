@@ -45,7 +45,7 @@ update msg ({ baseUrl, apiUrl } as model) =
         NavigateToSilenceList filter ->
             let
                 ( silenceList, cmd ) =
-                    Views.SilenceList.Updates.update FetchSilences model.silenceList filter apiUrl
+                    Views.SilenceList.Updates.update FetchSilences model.silenceList filter baseUrl apiUrl
             in
                 ( { model | silenceList = silenceList, route = SilenceListRoute filter, filter = filter }
                 , Cmd.map MsgForSilenceList cmd
@@ -109,7 +109,7 @@ update msg ({ baseUrl, apiUrl } as model) =
         MsgForSilenceList msg ->
             let
                 ( silenceList, cmd ) =
-                    Views.SilenceList.Updates.update msg model.silenceList model.filter apiUrl
+                    Views.SilenceList.Updates.update msg model.silenceList model.filter baseUrl apiUrl
             in
                 ( { model | silenceList = silenceList }, Cmd.map MsgForSilenceList cmd )
 

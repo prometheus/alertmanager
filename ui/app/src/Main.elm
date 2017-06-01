@@ -17,7 +17,6 @@ import Types
             , RedirectAlerts
             )
         , Model
-        , Flags
         )
 import Utils.Filter exposing (nullFilter)
 import Views.SilenceForm.Types exposing (initSilenceForm)
@@ -29,9 +28,9 @@ import Updates exposing (update)
 import Utils.Api as Api
 
 
-main : Program Flags Model Msg
+main : Program Never Model Msg
 main =
-    Navigation.programWithFlags urlUpdate
+    Navigation.program urlUpdate
         { init = init
         , update = update
         , view = Views.view
@@ -39,8 +38,8 @@ main =
         }
 
 
-init : Flags -> Navigation.Location -> ( Model, Cmd Msg )
-init { baseUrl } location =
+init : Navigation.Location -> ( Model, Cmd Msg )
+init location =
     let
         route =
             Parsing.urlParser location
@@ -55,6 +54,9 @@ init { baseUrl } location =
 
                 _ ->
                     nullFilter
+
+        baseUrl =
+            String.dropRight 1 location.pathname
 
         apiUrl =
             Api.makeApiUrl baseUrl

@@ -1,7 +1,7 @@
 module Views exposing (..)
 
-import Html exposing (Html, text, div)
-import Html.Attributes exposing (class)
+import Html exposing (Html, node, text, div)
+import Html.Attributes exposing (class, rel, href, src)
 import Types exposing (Msg(MsgForSilenceForm, MsgForSilenceView), Model, Route(..))
 import Utils.Views exposing (error, loading)
 import Views.SilenceList.Views as SilenceList
@@ -16,10 +16,29 @@ import Views.NavBar.Views exposing (navBar)
 view : Model -> Html Msg
 view model =
     div []
-        [ navBar model.route
+        [ renderLink
+        , fontAwesome
+        , navBar model.route
         , div [ class "container pb-4" ]
             [ currentView model ]
         ]
+
+
+renderLink : Html msg
+renderLink =
+    node "link"
+        [ href "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css"
+        , rel "stylesheet"
+        ]
+        []
+
+
+fontAwesome : Html msg
+fontAwesome =
+    node "script"
+        [ src "https://use.fontawesome.com/b7508bb100.js"
+        ]
+        []
 
 
 currentView : Model -> Html Msg

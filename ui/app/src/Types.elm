@@ -1,4 +1,4 @@
-module Types exposing (Model, Msg(..), Route(..), Flags)
+module Types exposing (Model, Msg(..), Route(..))
 
 import Alerts.Types exposing (AlertGroup, Alert)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
@@ -20,10 +20,6 @@ type alias Model =
     , baseUrl : String
     , apiUrl : String
     }
-
-
-type alias Flags =
-    { baseUrl : String }
 
 
 type Msg

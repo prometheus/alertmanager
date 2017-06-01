@@ -7,8 +7,8 @@ import Utils.Filter exposing (Filter, generateQueryString)
 import Views.FilterBar.Updates as FilterBar
 
 
-update : SilenceListMsg -> Model -> Filter -> String -> ( Model, Cmd SilenceListMsg )
-update msg model filter baseUrl =
+update : SilenceListMsg -> Model -> Filter -> String -> String -> ( Model, Cmd SilenceListMsg )
+update msg model filter baseUrl apiUrl =
     case msg of
         SilencesFetch sils ->
             ( { model | silences = sils }, Cmd.none )
@@ -18,7 +18,7 @@ update msg model filter baseUrl =
                 | filterBar = FilterBar.setMatchers filter model.filterBar
                 , silences = Loading
               }
-            , Api.getSilences baseUrl filter SilencesFetch
+            , Api.getSilences apiUrl filter SilencesFetch
             )
 
         DestroySilence silence ->
