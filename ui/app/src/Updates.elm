@@ -38,7 +38,7 @@ update msg ({ baseUrl, apiUrl } as model) =
         NavigateToAlerts filter ->
             let
                 ( alertList, cmd ) =
-                    Views.AlertList.Updates.update FetchAlerts model.alertList filter apiUrl
+                    Views.AlertList.Updates.update FetchAlerts model.alertList filter apiUrl baseUrl
             in
                 ( { model | alertList = alertList, route = AlertsRoute filter, filter = filter }, cmd )
 
@@ -102,7 +102,7 @@ update msg ({ baseUrl, apiUrl } as model) =
         MsgForAlertList msg ->
             let
                 ( alertList, cmd ) =
-                    Views.AlertList.Updates.update msg model.alertList model.filter apiUrl
+                    Views.AlertList.Updates.update msg model.alertList model.filter apiUrl baseUrl
             in
                 ( { model | alertList = alertList }, cmd )
 

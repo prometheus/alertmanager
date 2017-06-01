@@ -12,61 +12,65 @@ import Utils.Filter exposing (generateQueryString)
 import Views.GroupBar.Updates as GroupBar
 
 
-update : AlertListMsg -> Model -> Filter -> String -> ( Model, Cmd Types.Msg )
-update msg ({ groupBar, filterBar } as model) filter baseUrl =
-    case msg of
-        AlertsFetched listOfAlerts ->
-            ( { model
-                | alerts = listOfAlerts
-                , groupBar =
-                    case listOfAlerts of
-                        Success alerts ->
-                            { groupBar
-                                | list =
-                                    List.concatMap .labels alerts
-                                        |> List.map Tuple.first
-                                        |> Set.fromList
-                            }
+update : AlertListMsg -> Model -> Filter -> String -> String -> ( Model, Cmd Types.Msg )
+update msg ({ groupBar, filterBar } as model) filter apiUrl baseUrl =
+    let
+        alertsUrl =
+            baseUrl ++ "/#/alerts"
+    in
+        case msg of
+            AlertsFetched listOfAlerts ->
+                ( { model
+                    | alerts = listOfAlerts
+                    , groupBar =
+                        case listOfAlerts of
+                            Success alerts ->
+                                { groupBar
+                                    | list =
+                                        List.concatMap .labels alerts
+                                            |> List.map Tuple.first
+                                            |> Set.fromList
+                                }
 
-                        _ ->
-                            groupBar
-              }
-            , Cmd.none
-            )
-
-        FetchAlerts ->
-            let
-                newGroupBar =
-                    GroupBar.setFields filter groupBar
-
-                newFilterBar =
-                    FilterBar.setMatchers filter filterBar
-            in
-                ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
-                , Api.fetchAlerts baseUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                            _ ->
+                                groupBar
+                  }
+                , Cmd.none
                 )
 
-        ToggleSilenced showSilenced ->
-            ( model
-            , Navigation.newUrl ("/#/alerts" ++ generateQueryString { filter | showSilenced = Just showSilenced })
-            )
+            FetchAlerts ->
+                let
+                    newGroupBar =
+                        GroupBar.setFields filter groupBar
 
-        SetTab tab ->
-            ( { model | tab = tab }, Cmd.none )
+                    newFilterBar =
+                        FilterBar.setMatchers filter filterBar
+                in
+                    ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
+                    , Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                    )
 
-        MsgForFilterBar msg ->
-            let
-                ( newFilterBar, cmd ) =
-                    FilterBar.update "/#/alerts" filter msg filterBar
-            in
-                ( { model | filterBar = newFilterBar, tab = FilterTab }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
+            ToggleSilenced showSilenced ->
+                ( model
+                , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | showSilenced = Just showSilenced })
+                )
 
-        MsgForGroupBar msg ->
-            let
-                ( newGroupBar, cmd ) =
-                    GroupBar.update "/#/alerts" filter msg groupBar
-            in
-                ( { model | groupBar = newGroupBar }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )
+            SetTab tab ->
+                ( { model | tab = tab }, Cmd.none )
 
-        SetActive maybeId ->
-            ( { model | activeId = maybeId }, Cmd.none )
+            MsgForFilterBar msg ->
+                let
+                    ( newFilterBar, cmd ) =
+                        FilterBar.update alertsUrl filter msg filterBar
+                in
+                    ( { model | filterBar = newFilterBar, tab = FilterTab }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
+
+            MsgForGroupBar msg ->
+                let
+                    ( newGroupBar, cmd ) =
+                        GroupBar.update alertsUrl filter msg groupBar
+                in
+                    ( { model | groupBar = newGroupBar }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )
+
+            SetActive maybeId ->
+                ( { model | activeId = maybeId }, Cmd.none )
