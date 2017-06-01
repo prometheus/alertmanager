@@ -47,7 +47,16 @@ alerts1='[
     "labels": {
        "alertname": "DiskRunningFull",
        "dev": "sda1",
-       "instance": "example3"
+       "instance": "example3",
+       "severity": "critical"
+     }
+  },
+  {
+    "labels": {
+       "alertname": "DiskRunningFull",
+       "dev": "sda1",
+       "instance": "example3",
+       "severity": "warning"
      }
   }
 ]'
