@@ -25,7 +25,7 @@ update msg model filter basePath apiUrl =
             -- TODO: "Deleted id: ID" growl
             -- TODO: Check why POST isn't there but is accepted
             ( { model | silences = Loading }
-            , Api.destroy basePath silence (always FetchSilences)
+            , Api.destroy apiUrl silence (always FetchSilences)
             )
 
         MsgForFilterBar msg ->
