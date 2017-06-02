@@ -15,6 +15,7 @@ package ui
 
 import (
 	"bytes"
+	"html/template"
 	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
@@ -45,13 +46,28 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string) {
 }
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- struct{}) {
+func Register(r *route.Router, prefix string, reloadCh chan<- struct{}) {
 	ihf := prometheus.InstrumentHandlerFunc
 
 	r.Get("/metrics", prometheus.Handler().ServeHTTP)
 
+	tmpl, err := template.New("index").Parse(indexTmpl)
+	if err != nil {
+		panic("failed to parse index template")
+	}
+
+	b := struct {
+		ExternalURL string
+	}{
+		ExternalURL: prefix,
+	}
+
 	r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
-		serveAsset(w, req, "ui/app/index.html")
+		tmpl.Execute(w, b)
+	}))
+
+	r.Get("/script.js", ihf("app", func(w http.ResponseWriter, req *http.Request) {
+		serveAsset(w, req, "ui/app/script.js")
 	}))
 
 	r.Get("/favicon.ico", ihf("app", func(w http.ResponseWriter, req *http.Request) {

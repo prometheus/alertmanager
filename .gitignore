@@ -7,6 +7,8 @@
 /.release
 /.tarballs
 
+.vimlocal
+
 !/doc/examples/simple.yml
 !/circle.yml
 !/.travis.yml

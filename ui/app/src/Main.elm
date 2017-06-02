@@ -26,11 +26,12 @@ import Views.SilenceList.Types exposing (initSilenceList)
 import Views.SilenceView.Types exposing (initSilenceView)
 import Updates exposing (update)
 import Utils.Api as Api
+import Json.Decode as Json
 
 
-main : Program Never Model Msg
+main : Program Json.Value Model Msg
 main =
-    Navigation.program urlUpdate
+    Navigation.programWithFlags urlUpdate
         { init = init
         , update = update
         , view = Views.view
@@ -38,9 +39,12 @@ main =
         }
 
 
-init : Navigation.Location -> ( Model, Cmd Msg )
-init location =
+init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
+init flags location =
     let
+        baseUrl =
+            location.pathname
+
         route =
             Parsing.urlParser location
 
@@ -55,11 +59,17 @@ init location =
                 _ ->
                     nullFilter
 
-        baseUrl =
-            String.dropRight 1 location.pathname
-
         apiUrl =
-            Api.makeApiUrl baseUrl
+            flags
+                |> Json.decodeValue (Json.field "externalUrl" Json.string)
+                |> Result.withDefault "http://localhost:9093"
+                |> (\x ->
+                        if String.endsWith "/" x then
+                            String.dropRight 1 x
+                        else
+                            x
+                   )
+                |> Api.makeApiUrl
     in
         update (urlUpdate location) (Model initSilenceList initSilenceView initSilenceForm initAlertList route filter initStatusModel baseUrl apiUrl)
 
