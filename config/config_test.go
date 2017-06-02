@@ -14,6 +14,9 @@
 package config
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -57,6 +60,24 @@ receivers:
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestHideConfigSecrets(t *testing.T) {
+
+	c, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
+	}
+
+	// String method must not reveal authentication credentials.
+	s := c.String()
+	secretRe := regexp.MustCompile("<secret>")
+	matches := secretRe.FindAllStringIndex(s, -1)
+	fmt.Println(len(matches))
+	if len(matches) != 14 || strings.Contains(s, "mysecret") {
+		t.Fatalf("config's String method reveals authentication credentials.")
 	}
 
 }

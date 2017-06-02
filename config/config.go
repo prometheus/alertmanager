@@ -28,14 +28,21 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var patAuthLine = regexp.MustCompile(`((?:api_key|service_key|api_url|token|user_key|password|secret):\s+)(".+"|'.+'|[^\s]+)`)
-
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
 
 // MarshalYAML implements the yaml.Marshaler interface.
 func (s Secret) MarshalYAML() (interface{}, error) {
-	return "<hidden>", nil
+	if s != "" {
+		return "<secret>", nil
+	}
+	return nil, nil
+}
+
+//UnmarshalYAML implements the yaml.Unmarshaler interface for Secrets.
+func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Secret
+	return unmarshal((*plain)(s))
 }
 
 // Load parses the YAML input s into a Config.
@@ -118,17 +125,11 @@ func checkOverflow(m map[string]interface{}, ctx string) error {
 }
 
 func (c Config) String() string {
-	var s string
-	if c.original != "" {
-		s = c.original
-	} else {
-		b, err := yaml.Marshal(c)
-		if err != nil {
-			return fmt.Sprintf("<error creating config string: %s>", err)
-		}
-		s = string(b)
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Sprintf("<error creating config string: %s>", err)
 	}
-	return patAuthLine.ReplaceAllString(s, "${1}<hidden>")
+	return string(b)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
