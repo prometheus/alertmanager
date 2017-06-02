@@ -64,12 +64,6 @@ init flags location =
             flags
                 |> Json.decodeValue (Json.field "externalUrl" Json.string)
                 |> Result.withDefault "http://localhost:9093"
-                |> (\x ->
-                        if String.endsWith "/" x then
-                            String.dropRight 1 x
-                        else
-                            x
-                   )
                 |> Api.makeApiUrl
     in
         update (urlUpdate location)
