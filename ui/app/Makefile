@@ -6,4 +6,4 @@ test:
 	elm-test
 
 dev-server:
-	go run main.go --debug
+	elm-reactor

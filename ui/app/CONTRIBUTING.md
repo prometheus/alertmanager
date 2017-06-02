@@ -8,8 +8,6 @@ This document describes how to:
 
 ## Dev Environment Setup
 
-- Go installed (https://golang.org/dl/)
-- This repo is cloned into your `$GOPATH`
 - Elm is [installed](https://guide.elm-lang.org/install.html#install)
 - Your editor is [configured](https://guide.elm-lang.org/install.html#configure-your-editor)
 - [elm-format](https://github.com/avh4/elm-format) is installed
@@ -48,15 +46,15 @@ Once you've installed Elm, install the dependencies listed in
 
 ## Local development workflow
 
-TODO: Add instructions for running against local AlertManager.
-
-For now, the easiest way to get started is to point your front-end to a running
-version of AlertManager. Update `baseUrl` in  `src/Utils/Api.elm` with the
-correct address. Don't commit this and send it in as part of a pull request!
+At the top level of this repo, follow the HA AlertManager instructions. Compile
+the binary, then run with `goreman`. Add example alerts with the file provided
+in the HA example folder.
 
 ```
 # cd ui/app
-# go run main.go --port 5000 --debug
+# elm-reactor -p <port>
 ```
 
-Your app should be available at `http://localhost:5000`, and automatically recompiled on file change.
+Your app should be available at `http://localhost:<port>`. Navigate to
+`src/Main.elm`. Any changes to the file system are detected automatically,
+triggering a recompile of the project.
