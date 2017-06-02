@@ -17,8 +17,13 @@ var RootCmd = &cobra.Command{
 
 [Config File]
 
-The alertmanager tool will read a config file from the --config cli argument, AMTOOL_CONFIG environment variable,
-$HOME/.amtool.yml or /etc/amtool.yml the options are as follows
+The alertmanager tool will read a config file from the --config cli argument, AMTOOL_CONFIG environment variable or
+from one of two default config locations. Valid config file formats are JSON, TOML, YAML, HCL and Java Properties, use
+whatever makes sense for your project.
+
+The default config file paths are $HOME/.config/amtool/config.yml or /etc/amtool/config.yml
+
+The accepted config options are as follows:
 
 	alertmanager.url
 		Set a default alertmanager url for each request
@@ -58,9 +63,9 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	viper.SetConfigName(".amtool") // name of config file (without extension)
-	viper.AddConfigPath("/etc")
-	viper.AddConfigPath("$HOME")
+	viper.SetConfigName("config") // name of config file (without extension)
+	viper.AddConfigPath("/etc/amtool")
+	viper.AddConfigPath("$HOME/.config/amtool")
 	viper.SetEnvPrefix("AMTOOL")
 	viper.AutomaticEnv() // read in environment variables that match
 
