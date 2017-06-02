@@ -44,7 +44,9 @@ init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
 init flags location =
     let
         baseUrl =
-            location.pathname
+            flags
+                |> Json.decodeValue (Json.field "externalUrl" Json.string)
+                |> Result.withDefault location.pathname
 
         route =
             Parsing.urlParser location
