@@ -100,6 +100,9 @@ func TestAggrGroup(t *testing.T) {
 		GroupInterval:  300 * time.Millisecond,
 		RepeatInterval: 1 * time.Hour,
 	}
+	route := &Route{
+		RouteOpts: *opts,
+	}
 
 	var (
 		a1 = &types.Alert{
@@ -173,7 +176,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, opts, nil)
+	ag := newAggrGroup(context.Background(), lset, route, nil)
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -221,7 +224,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, opts, nil)
+	ag = newAggrGroup(context.Background(), lset, route, nil)
 	go ag.run(ntfy)
 
 	ag.insert(a1)

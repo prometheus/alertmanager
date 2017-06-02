@@ -43,10 +43,12 @@ func PeerNameFromBin(nameByte []byte) PeerName {
 	return PeerName(hex.EncodeToString(nameByte))
 }
 
-// Bin encodes PeerName as a byte slice.
-func (name PeerName) Bin() []byte {
+// bytes encodes PeerName as a byte slice.
+func (name PeerName) bytes() []byte {
 	res, err := hex.DecodeString(string(name))
-	checkFatal(err)
+	if err != nil {
+		panic("unable to decode name to bytes: " + name)
+	}
 	return res
 }
 

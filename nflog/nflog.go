@@ -43,7 +43,7 @@ type Log interface {
 	// The Log* methods store a notification log entry for
 	// a fully qualified receiver and a given IDs identifying the
 	// alert object.
-	Log(r *pb.Receiver, key []byte, firing, resolved []uint64) error
+	Log(r *pb.Receiver, key string, firing, resolved []uint64) error
 
 	// Query the log along the given Paramteres.
 	//
@@ -67,7 +67,7 @@ type Log interface {
 // group or a given time interval.
 type query struct {
 	recv     *pb.Receiver
-	groupKey []byte
+	groupKey string
 }
 
 // QueryParam is a function that modifies a query to incorporate
@@ -84,7 +84,7 @@ func QReceiver(r *pb.Receiver) QueryParam {
 }
 
 // QGroupKey adds a group key as querying argument.
-func QGroupKey(gk []byte) QueryParam {
+func QGroupKey(gk string) QueryParam {
 	return func(q *query) error {
 		q.groupKey = gk
 		return nil
@@ -323,13 +323,17 @@ Loop:
 	}
 }
 
-// stateKey returns a string key for a log entry consisting of the group key
-// and receiver.
-func stateKey(k []byte, r *pb.Receiver) string {
-	return fmt.Sprintf("%s:%s", k, r)
+func receiverKey(r *pb.Receiver) string {
+	return fmt.Sprintf("%s/%s/%d", r.GroupName, r.Integration, r.Idx)
 }
 
-func (l *nlog) Log(r *pb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []uint64) error {
+// stateKey returns a string key for a log entry consisting of the group key
+// and receiver.
+func stateKey(k string, r *pb.Receiver) string {
+	return fmt.Sprintf("%s:%s", k, receiverKey(r))
+}
+
+func (l *nlog) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -348,7 +352,7 @@ func (l *nlog) Log(r *pb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []u
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:       r,
-			GroupKey:       gkey,
+			GroupKey:       []byte(gkey),
 			Timestamp:      now,
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
@@ -401,7 +405,7 @@ func (l *nlog) Query(params ...QueryParam) ([]*pb.Entry, error) {
 		}
 		// TODO(fabxc): For now our only query mode is the most recent entry for a
 		// receiver/group_key combination.
-		if q.recv == nil || q.groupKey == nil {
+		if q.recv == nil || q.groupKey == "" {
 			// TODO(fabxc): allow more complex queries in the future.
 			// How to enable pagination?
 			return nil, errors.New("no query parameters specified")
@@ -437,7 +441,7 @@ func (l *nlog) loadSnapshot(r io.Reader) error {
 			}
 			return err
 		}
-		st[stateKey(e.Entry.GroupKey, e.Entry.Receiver)] = &e
+		st[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = &e
 	}
 	l.st = st
 
@@ -523,7 +527,7 @@ func decodeGossipData(msg []byte) (gossipData, error) {
 			}
 			return gd, err
 		}
-		gd[stateKey(e.Entry.GroupKey, e.Entry.Receiver)] = &e
+		gd[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = &e
 	}
 
 	return gd, nil

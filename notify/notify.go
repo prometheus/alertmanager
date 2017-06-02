@@ -14,7 +14,6 @@
 package notify
 
 import (
-	"encoding/binary"
 	"fmt"
 	"sort"
 	"sync"
@@ -79,8 +78,8 @@ func WithReceiverName(ctx context.Context, rcv string) context.Context {
 }
 
 // WithGroupKey populates a context with a group key.
-func WithGroupKey(ctx context.Context, fp model.Fingerprint) context.Context {
-	return context.WithValue(ctx, keyGroupKey, fp)
+func WithGroupKey(ctx context.Context, s string) context.Context {
+	return context.WithValue(ctx, keyGroupKey, s)
 }
 
 // WithFiringAlerts populates a context with a slice of firing alerts.
@@ -132,8 +131,8 @@ func receiverName(ctx context.Context) string {
 
 // GroupKey extracts a group key from the context. Iff none exists, the
 // second argument is false.
-func GroupKey(ctx context.Context) (model.Fingerprint, bool) {
-	v, ok := ctx.Value(keyGroupKey).(model.Fingerprint)
+func GroupKey(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(keyGroupKey).(string)
 	return v, ok
 }
 
@@ -312,7 +311,7 @@ func NewInhibitStage(m types.Muter, mk types.Marker) *InhibitStage {
 func (n *InhibitStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
-		ok := n.marker.Inhibited(a.Fingerprint())
+		_, ok := n.marker.Inhibited(a.Fingerprint())
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if the silencer mutes it.
 		if !n.muter.Mutes(a.Labels) {
@@ -354,6 +353,7 @@ func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (contex
 		if err != nil {
 			log.Errorf("Querying silences failed: %s", err)
 		}
+
 		if len(sils) == 0 {
 			// TODO(fabxc): increment muted alerts counter.
 			filtered = append(filtered, a)
@@ -361,7 +361,11 @@ func (n *SilenceStage) Exec(ctx context.Context, alerts ...*types.Alert) (contex
 			// Store whether a previously silenced alert is firing again.
 			a.WasSilenced = ok
 		} else {
-			n.marker.SetSilenced(a.Labels.Fingerprint(), sils[0].Id)
+			ids := make([]string, len(sils))
+			for i, s := range sils {
+				ids[i] = s.Id
+			}
+			n.marker.SetSilenced(a.Labels.Fingerprint(), ids...)
 		}
 	}
 
@@ -434,23 +438,25 @@ func putHashBuffer(b []byte) {
 
 func hashAlert(a *types.Alert) uint64 {
 	const sep = '\xff'
+
 	b := getHashBuffer()
-	labelNames := make(model.LabelNames, 0, len(a.Labels))
+	defer putHashBuffer(b)
 
-	for labelName, _ := range a.Labels {
-		labelNames = append(labelNames, labelName)
+	names := make(model.LabelNames, 0, len(a.Labels))
+
+	for ln, _ := range a.Labels {
+		names = append(names, ln)
 	}
-	sort.Sort(labelNames)
+	sort.Sort(names)
 
-	for _, labelName := range labelNames {
-		b = append(b, string(labelName)...)
+	for _, ln := range names {
+		b = append(b, string(ln)...)
 		b = append(b, sep)
-		b = append(b, string(a.Labels[labelName])...)
+		b = append(b, string(a.Labels[ln])...)
 		b = append(b, sep)
 	}
 
 	hash := xxhash.Sum64(b)
-	putHashBuffer(b)
 
 	return hash
 }
@@ -468,7 +474,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
-		return ((len(firing) > 0) || (n.sendResolved && len(resolved) > 0)), nil
+		return len(firing) > 0, nil
 	}
 
 	if !entry.IsFiringSubset(firing) {
@@ -485,13 +491,10 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 
 // Exec implements the Stage interface.
 func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	// TODO(fabxc): GroupKey will turn into []byte eventually.
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, fmt.Errorf("group key missing")
 	}
-	gkeyb := make([]byte, 8)
-	binary.BigEndian.PutUint64(gkeyb, uint64(gkey))
 
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
@@ -518,7 +521,7 @@ func (n *DedupStage) Exec(ctx context.Context, alerts ...*types.Alert) (context.
 	ctx = WithFiringAlerts(ctx, firing)
 	ctx = WithResolvedAlerts(ctx, resolved)
 
-	entries, err := n.nflog.Query(nflog.QGroupKey(gkeyb), nflog.QReceiver(n.recv))
+	entries, err := n.nflog.Query(nflog.QGroupKey(gkey), nflog.QReceiver(n.recv))
 
 	if err != nil && err != nflog.ErrNotFound {
 		return ctx, nil, err
@@ -622,8 +625,6 @@ func (n SetNotifiesStage) Exec(ctx context.Context, alerts ...*types.Alert) (con
 	if !ok {
 		return ctx, nil, fmt.Errorf("group key missing")
 	}
-	gkeyb := make([]byte, 8)
-	binary.BigEndian.PutUint64(gkeyb, uint64(gkey))
 
 	firing, ok := FiringAlerts(ctx)
 	if !ok {
@@ -635,5 +636,5 @@ func (n SetNotifiesStage) Exec(ctx context.Context, alerts ...*types.Alert) (con
 		return ctx, nil, fmt.Errorf("resolved alerts missing")
 	}
 
-	return ctx, alerts, n.nflog.Log(n.recv, gkeyb, firing, resolved)
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved)
 }

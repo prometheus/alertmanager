@@ -55,14 +55,14 @@ type testNflog struct {
 	qres []*nflogpb.Entry
 	qerr error
 
-	logFunc func(r *nflogpb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []uint64) error
+	logFunc func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error
 }
 
 func (l *testNflog) Query(p ...nflog.QueryParam) ([]*nflogpb.Entry, error) {
 	return l.qres, l.qerr
 }
 
-func (l *testNflog) Log(r *nflogpb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []uint64) error {
+func (l *testNflog) Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
 	return l.logFunc(r, gkey, firingAlerts, resolvedAlerts)
 }
 
@@ -171,7 +171,7 @@ func TestDedupStage(t *testing.T) {
 	_, _, err := s.Exec(ctx)
 	require.EqualError(t, err, "group key missing")
 
-	ctx = WithGroupKey(ctx, 1)
+	ctx = WithGroupKey(ctx, "1")
 
 	_, _, err = s.Exec(ctx)
 	require.EqualError(t, err, "repeat interval missing")
@@ -384,7 +384,7 @@ func TestSetNotifiesStage(t *testing.T) {
 	require.Nil(t, res)
 	require.NotNil(t, resctx)
 
-	ctx = WithGroupKey(ctx, 1)
+	ctx = WithGroupKey(ctx, "1")
 
 	resctx, res, err = s.Exec(ctx, alerts...)
 	require.EqualError(t, err, "firing alerts missing")
@@ -400,9 +400,9 @@ func TestSetNotifiesStage(t *testing.T) {
 
 	ctx = WithResolvedAlerts(ctx, []uint64{})
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []uint64) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
 		require.Equal(t, s.recv, r)
-		require.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 1}, gkey)
+		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{0, 1, 2}, firingAlerts)
 		require.Equal(t, []uint64{}, resolvedAlerts)
 		return nil
@@ -415,9 +415,9 @@ func TestSetNotifiesStage(t *testing.T) {
 	ctx = WithFiringAlerts(ctx, []uint64{})
 	ctx = WithResolvedAlerts(ctx, []uint64{0, 1, 2})
 
-	tnflog.logFunc = func(r *nflogpb.Receiver, gkey []byte, firingAlerts, resolvedAlerts []uint64) error {
+	tnflog.logFunc = func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
 		require.Equal(t, s.recv, r)
-		require.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 1}, gkey)
+		require.Equal(t, "1", gkey)
 		require.Equal(t, []uint64{}, firingAlerts)
 		require.Equal(t, []uint64{0, 1, 2}, resolvedAlerts)
 		return nil
@@ -433,7 +433,7 @@ func TestSilenceStage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := silences.Create(&silencepb.Silence{
+	if _, err := silences.Set(&silencepb.Silence{
 		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	}); err != nil {
@@ -467,7 +467,7 @@ func TestSilenceStage(t *testing.T) {
 		})
 	}
 
-	// Set the second alert als previously silenced. It is expected to have
+	// Set the second alert as previously silenced. It is expected to have
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
 
@@ -525,7 +525,7 @@ func TestInhibitStage(t *testing.T) {
 
 	// Set the second alert as previously inhibited. It is expected to have
 	// the WasInhibited flag set to true afterwards.
-	marker.SetInhibited(inAlerts[1].Fingerprint(), true)
+	marker.SetInhibited(inAlerts[1].Fingerprint(), "123")
 
 	_, alerts, err := inhibitor.Exec(nil, inAlerts...)
 	if err != nil {

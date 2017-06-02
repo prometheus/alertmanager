@@ -23,67 +23,168 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+type AlertState string
+
+const (
+	AlertStateUnprocessed AlertState = "unprocessed"
+	AlertStateActive                 = "active"
+	AlertStateSuppressed             = "suppressed"
+)
+
+// AlertStatus stores the state and values associated with an Alert.
+type AlertStatus struct {
+	State       AlertState `json:"state"`
+	SilencedBy  []string   `json:"silencedBy"`
+	InhibitedBy []string   `json:"inhibitedBy"`
+}
+
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {
-	SetInhibited(alert model.Fingerprint, b bool)
-	SetSilenced(alert model.Fingerprint, sil ...string)
+	SetActive(alert model.Fingerprint)
+	SetInhibited(alert model.Fingerprint, ids ...string)
+	SetSilenced(alert model.Fingerprint, ids ...string)
 
-	Silenced(alert model.Fingerprint) (string, bool)
-	Inhibited(alert model.Fingerprint) bool
+	Status(model.Fingerprint) AlertStatus
+	Delete(model.Fingerprint)
+
+	Unprocessed(model.Fingerprint) bool
+	Active(model.Fingerprint) bool
+	Silenced(model.Fingerprint) ([]string, bool)
+	Inhibited(model.Fingerprint) ([]string, bool)
 }
 
 // NewMarker returns an instance of a Marker implementation.
 func NewMarker() Marker {
 	return &memMarker{
-		inhibited: map[model.Fingerprint]struct{}{},
-		silenced:  map[model.Fingerprint]string{},
+		m: map[model.Fingerprint]*AlertStatus{},
 	}
 }
 
 type memMarker struct {
-	inhibited map[model.Fingerprint]struct{}
-	silenced  map[model.Fingerprint]string
+	m map[model.Fingerprint]*AlertStatus
 
 	mtx sync.RWMutex
 }
 
-func (m *memMarker) Inhibited(alert model.Fingerprint) bool {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+// SetSilenced sets the AlertStatus to suppressed and stores the associated silence IDs.
+func (m *memMarker) SetSilenced(alert model.Fingerprint, ids ...string) {
+	m.mtx.Lock()
 
-	_, ok := m.inhibited[alert]
-	return ok
+	s, found := m.m[alert]
+	if !found {
+		s = &AlertStatus{}
+		m.m[alert] = s
+	}
+
+	// If there are any silence or alert IDs associated with the
+	// fingerprint, it is suppressed. Otherwise, set it to
+	// AlertStateUnprocessed.
+	if len(ids) == 0 && len(s.InhibitedBy) == 0 {
+		m.mtx.Unlock()
+		m.SetActive(alert)
+		return
+	}
+
+	s.State = AlertStateSuppressed
+	s.SilencedBy = ids
+
+	m.mtx.Unlock()
 }
 
-func (m *memMarker) Silenced(alert model.Fingerprint) (string, bool) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+// SetInhibited sets the AlertStatus to suppressed and stores the associated alert IDs.
+func (m *memMarker) SetInhibited(alert model.Fingerprint, ids ...string) {
+	m.mtx.Lock()
 
-	sid, ok := m.silenced[alert]
-	return sid, ok
+	s, found := m.m[alert]
+	if !found {
+		s = &AlertStatus{}
+		m.m[alert] = s
+	}
+
+	// If there are any silence or alert IDs associated with the
+	// fingerprint, it is suppressed. Otherwise, set it to
+	// AlertStateUnprocessed.
+	if len(ids) == 0 && len(s.SilencedBy) == 0 {
+		m.mtx.Unlock()
+		m.SetActive(alert)
+		return
+	}
+
+	s.State = AlertStateSuppressed
+	s.InhibitedBy = ids
+
+	m.mtx.Unlock()
 }
 
-func (m *memMarker) SetInhibited(alert model.Fingerprint, b bool) {
+func (m *memMarker) SetActive(alert model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if !b {
-		delete(m.inhibited, alert)
-	} else {
-		m.inhibited[alert] = struct{}{}
+	s, found := m.m[alert]
+	if !found {
+		s = &AlertStatus{
+			SilencedBy:  []string{},
+			InhibitedBy: []string{},
+		}
+		m.m[alert] = s
 	}
+
+	s.State = AlertStateActive
+	s.SilencedBy = []string{}
+	s.InhibitedBy = []string{}
 }
 
-func (m *memMarker) SetSilenced(alert model.Fingerprint, sil ...string) {
+// Status returns the AlertStatus for the given Fingerprint.
+func (m *memMarker) Status(alert model.Fingerprint) AlertStatus {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	s, found := m.m[alert]
+	if !found {
+		s = &AlertStatus{
+			State:       AlertStateUnprocessed,
+			SilencedBy:  []string{},
+			InhibitedBy: []string{},
+		}
+	}
+	return *s
+}
+
+// Delete deletes the given Fingerprint from the internal cache.
+func (m *memMarker) Delete(alert model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if len(sil) == 0 {
-		delete(m.silenced, alert)
-	} else {
-		m.silenced[alert] = sil[0]
-	}
+	delete(m.m, alert)
+}
+
+// Unprocessed returns whether the alert for the given Fingerprint is in the
+// Unprocessed state.
+func (m *memMarker) Unprocessed(alert model.Fingerprint) bool {
+	return m.Status(alert).State == AlertStateUnprocessed
+}
+
+// Active returns whether the alert for the given Fingerprint is in the Active
+// state.
+func (m *memMarker) Active(alert model.Fingerprint) bool {
+	return m.Status(alert).State == AlertStateActive
+}
+
+// Inhibited returns whether the alert for the given Fingerprint is in the
+// Inhibited state and any associated alert IDs.
+func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
+	s := m.Status(alert)
+	return s.InhibitedBy,
+		s.State == AlertStateSuppressed && len(s.InhibitedBy) > 0
+}
+
+// Silenced returns whether the alert for the given Fingerprint is in the
+// Silenced state and any associated silence IDs.
+func (m *memMarker) Silenced(alert model.Fingerprint) ([]string, bool) {
+	s := m.Status(alert)
+	return s.SilencedBy,
+		s.State == AlertStateSuppressed && len(s.SilencedBy) > 0
 }
 
 // MultiError contains multiple errors and implements the error interface. Its
@@ -232,6 +333,31 @@ type Silence struct {
 	// timeFunc provides the time against which to evaluate
 	// the silence. Used for test injection.
 	now func() time.Time
+
+	Status SilenceStatus `json:"status"`
+}
+
+type SilenceStatus struct {
+	State SilenceState `json:"state"`
+}
+
+type SilenceState string
+
+const (
+	SilenceStateExpired SilenceState = "expired"
+	SilenceStateActive  SilenceState = "active"
+	SilenceStatePending SilenceState = "pending"
+)
+
+func CalcSilenceState(start, end time.Time) SilenceState {
+	current := time.Now()
+	if current.Before(start) {
+		return SilenceStatePending
+	}
+	if current.Before(end) {
+		return SilenceStateActive
+	}
+	return SilenceStateExpired
 }
 
 // Validate returns true iff all fields of the silence have valid values.

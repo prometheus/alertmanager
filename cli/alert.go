@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/parse"
+	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -27,7 +28,7 @@ type alertmanagerAlertResponse struct {
 
 type alertGroup struct {
 	Labels   model.LabelSet `json:"labels"`
-	GroupKey uint64         `json:"groupKey"`
+	GroupKey string         `json:"groupKey"`
 	Blocks   []*alertBlock  `json:"blocks"`
 }
 
@@ -102,7 +103,7 @@ func fetchAlerts(filter string) ([]*dispatch.APIAlert, error) {
 
 	err = json.NewDecoder(res.Body).Decode(&alertResponse)
 	if err != nil {
-		return []*dispatch.APIAlert{}, errors.New("Unable to decode json response")
+		return []*dispatch.APIAlert{}, fmt.Errorf("Unable to decode json response: %s", err)
 	}
 
 	if alertResponse.Status != "success" {
@@ -157,7 +158,7 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 
 		if !showSilenced {
 			// If any silence mutes this alert don't show it
-			if alert.Silenced != "" {
+			if alert.Status.State == types.AlertStateSuppressed && len(alert.Status.SilencedBy) > 0 {
 				continue
 			}
 		}

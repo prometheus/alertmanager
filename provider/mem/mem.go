@@ -24,21 +24,25 @@ import (
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
-	mtx    sync.RWMutex
-	alerts map[model.Fingerprint]*types.Alert
-	stopGC chan struct{}
+	mtx        sync.RWMutex
+	alerts     map[model.Fingerprint]*types.Alert
+	marker     types.Marker
+	intervalGC time.Duration
+	stopGC     chan struct{}
 
 	listeners map[int]chan *types.Alert
 	next      int
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(path string) (*Alerts, error) {
+func NewAlerts(m types.Marker, intervalGC time.Duration, path string) (*Alerts, error) {
 	a := &Alerts{
-		alerts:    map[model.Fingerprint]*types.Alert{},
-		stopGC:    make(chan struct{}),
-		listeners: map[int]chan *types.Alert{},
-		next:      0,
+		alerts:     map[model.Fingerprint]*types.Alert{},
+		marker:     m,
+		intervalGC: intervalGC,
+		stopGC:     make(chan struct{}),
+		listeners:  map[int]chan *types.Alert{},
+		next:       0,
 	}
 	go a.runGC()
 
@@ -50,7 +54,7 @@ func (a *Alerts) runGC() {
 		select {
 		case <-a.stopGC:
 			return
-		case <-time.After(30 * time.Minute):
+		case <-time.After(a.intervalGC):
 		}
 
 		a.mtx.Lock()
@@ -61,6 +65,7 @@ func (a *Alerts) runGC() {
 			// held in memory in aggregation groups redundantly.
 			if alert.EndsAt.Before(time.Now()) {
 				delete(a.alerts, fp)
+				a.marker.Delete(fp)
 			}
 		}
 
