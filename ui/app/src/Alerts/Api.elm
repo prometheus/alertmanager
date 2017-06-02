@@ -8,10 +8,10 @@ import Utils.Filter exposing (Filter, generateQueryString)
 
 
 fetchAlerts : String -> Filter -> Cmd (ApiData (List Alert))
-fetchAlerts baseUrl filter =
+fetchAlerts apiUrl filter =
     let
         url =
-            String.join "/" [ baseUrl, "alerts" ++ (generateQueryString filter) ]
+            String.join "/" [ apiUrl, "alerts" ++ (generateQueryString filter) ]
     in
         Utils.Api.send (Utils.Api.get url alertsDecoder)
 

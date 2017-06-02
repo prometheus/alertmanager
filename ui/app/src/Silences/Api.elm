@@ -11,30 +11,30 @@ import Utils.Filter exposing (generateQueryString)
 
 
 getSilences : String -> Filter -> (ApiData (List Silence) -> msg) -> Cmd msg
-getSilences baseUrl filter msg =
+getSilences apiUrl filter msg =
     let
         url =
-            String.join "/" [ baseUrl, "silences" ++ (generateQueryString filter) ]
+            String.join "/" [ apiUrl, "silences" ++ (generateQueryString filter) ]
     in
         Utils.Api.send (Utils.Api.get url list)
             |> Cmd.map msg
 
 
 getSilence : String -> String -> (ApiData Silence -> msg) -> Cmd msg
-getSilence baseUrl uuid msg =
+getSilence apiUrl uuid msg =
     let
         url =
-            String.join "/" [ baseUrl, "silence", uuid ]
+            String.join "/" [ apiUrl, "silence", uuid ]
     in
         Utils.Api.send (Utils.Api.get url show)
             |> Cmd.map msg
 
 
 create : String -> Silence -> Cmd (ApiData String)
-create baseUrl silence =
+create apiUrl silence =
     let
         url =
-            String.join "/" [ baseUrl, "silences" ]
+            String.join "/" [ apiUrl, "silences" ]
 
         body =
             Http.jsonBody <| Silences.Encoders.silence silence
@@ -46,12 +46,12 @@ create baseUrl silence =
 
 
 destroy : String -> Silence -> (ApiData String -> msg) -> Cmd msg
-destroy baseUrl silence msg =
+destroy apiUrl silence msg =
     -- The incorrect route using "silences" receives a 405. The route seems to
     -- be matching on /silences and ignoring the :sid, should be getting a 404.
     let
         url =
-            String.join "/" [ baseUrl, "silence", silence.id ]
+            String.join "/" [ apiUrl, "silence", silence.id ]
 
         responseDecoder =
             -- Silences.Encoders.silence silence

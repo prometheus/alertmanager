@@ -7,10 +7,10 @@ import Json.Decode exposing (Decoder, map2, string, field, at, list, int)
 
 
 getStatus : String -> (ApiData StatusResponse -> msg) -> Cmd msg
-getStatus baseUrl msg =
+getStatus apiUrl msg =
     let
         url =
-            String.join "/" [ baseUrl, "status" ]
+            String.join "/" [ apiUrl, "status" ]
 
         request =
             get url decodeStatusResponse
