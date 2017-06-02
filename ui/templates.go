@@ -12,6 +12,6 @@ const indexTmpl = `<!DOCTYPE html>
     <body>
         <!-- Your source after making -->
         <script src="{{ .ExternalURL }}/script.js"></script>
-        <script>Elm.Main.embed(document.body, { externalUrl: '{{ .ExternalURL }}' })</script>
+        <script>Elm.Main.embed(document.body, { production: true })</script>
     </body>
 </html>`

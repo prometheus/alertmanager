@@ -44,9 +44,10 @@ init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
 init flags location =
     let
         basePath =
-            flags
-                |> Json.decodeValue (Json.field "externalUrl" Json.string)
-                |> Result.withDefault location.pathname
+            if location.pathname == "/" then
+                ""
+            else
+                location.pathname
 
         route =
             Parsing.urlParser location
@@ -62,11 +63,16 @@ init flags location =
                 _ ->
                     nullFilter
 
-        apiUrl =
+        prod =
             flags
-                |> Json.decodeValue (Json.field "externalUrl" Json.string)
-                |> Result.withDefault "http://localhost:9093"
-                |> Api.makeApiUrl
+                |> Json.decodeValue (Json.field "production" Json.bool)
+                |> Result.withDefault False
+
+        apiUrl =
+            if prod then
+                Api.makeApiUrl basePath
+            else
+                Api.makeApiUrl "http://localhost:9093"
     in
         update (urlUpdate location)
             (Model
