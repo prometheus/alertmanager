@@ -126,3 +126,6 @@ update msg ({ baseUrl, apiUrl } as model) =
                     Views.SilenceForm.Updates.update msg model.silenceForm baseUrl apiUrl
             in
                 ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )
+
+        BootstrapCSSLoaded css ->
+            ( { model | bootstrapCSS = css }, Cmd.none )

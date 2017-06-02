@@ -26,6 +26,7 @@ import Views.SilenceList.Types exposing (initSilenceList)
 import Views.SilenceView.Types exposing (initSilenceView)
 import Updates exposing (update)
 import Utils.Api as Api
+import Utils.Types exposing (ApiData(Loading))
 import Json.Decode as Json
 
 
@@ -71,7 +72,19 @@ init flags location =
                    )
                 |> Api.makeApiUrl
     in
-        update (urlUpdate location) (Model initSilenceList initSilenceView initSilenceForm initAlertList route filter initStatusModel baseUrl apiUrl)
+        update (urlUpdate location)
+            (Model
+                initSilenceList
+                initSilenceView
+                initSilenceForm
+                initAlertList
+                route
+                filter
+                initStatusModel
+                baseUrl
+                apiUrl
+                Loading
+            )
 
 
 urlUpdate : Navigation.Location -> Msg
