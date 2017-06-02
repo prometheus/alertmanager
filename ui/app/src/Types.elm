@@ -18,7 +18,7 @@ type alias Model =
     , route : Route
     , filter : Filter
     , status : StatusModel
-    , baseUrl : String
+    , basePath : String
     , apiUrl : String
     , bootstrapCSS : ApiData String
     }

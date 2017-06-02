@@ -170,7 +170,7 @@ updateForm msg form =
 
 
 update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd SilenceFormMsg )
-update msg model baseUrl apiUrl =
+update msg model basePath apiUrl =
     case msg of
         CreateSilence ->
             case toSilence model.form of
@@ -192,7 +192,7 @@ update msg model baseUrl apiUrl =
                 cmd =
                     case silenceId of
                         Success id ->
-                            Navigation.newUrl (baseUrl ++ "/#/silences/" ++ id)
+                            Navigation.newUrl (basePath ++ "/#/silences/" ++ id)
 
                         _ ->
                             Cmd.none

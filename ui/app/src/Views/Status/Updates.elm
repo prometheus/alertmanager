@@ -6,10 +6,10 @@ import Status.Api exposing (getStatus)
 
 
 update : StatusMsg -> Model -> String -> ( Model, Cmd Msg )
-update msg model baseUrl =
+update msg model basePath =
     case msg of
         NewStatus apiResponse ->
             ( { model | status = { statusInfo = apiResponse } }, Cmd.none )
 
         InitStatusView ->
-            ( model, getStatus baseUrl (NewStatus >> MsgForStatus) )
+            ( model, getStatus basePath (NewStatus >> MsgForStatus) )

@@ -43,7 +43,7 @@ main =
 init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
 init flags location =
     let
-        baseUrl =
+        basePath =
             flags
                 |> Json.decodeValue (Json.field "externalUrl" Json.string)
                 |> Result.withDefault location.pathname
@@ -77,7 +77,7 @@ init flags location =
                 route
                 filter
                 initStatusModel
-                baseUrl
+                basePath
                 apiUrl
                 Loading
             )

@@ -23,7 +23,7 @@ import String exposing (trim)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg ({ baseUrl, apiUrl } as model) =
+update msg ({ basePath, apiUrl } as model) =
     case msg of
         CreateSilenceFromAlert { labels } ->
             let
@@ -31,21 +31,21 @@ update msg ({ baseUrl, apiUrl } as model) =
                     List.map (\( k, v ) -> Matcher False k v) labels
 
                 ( silenceForm, cmd ) =
-                    Views.SilenceForm.Updates.update (NewSilenceFromMatchers matchers) model.silenceForm baseUrl apiUrl
+                    Views.SilenceForm.Updates.update (NewSilenceFromMatchers matchers) model.silenceForm basePath apiUrl
             in
                 ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )
 
         NavigateToAlerts filter ->
             let
                 ( alertList, cmd ) =
-                    Views.AlertList.Updates.update FetchAlerts model.alertList filter apiUrl baseUrl
+                    Views.AlertList.Updates.update FetchAlerts model.alertList filter apiUrl basePath
             in
                 ( { model | alertList = alertList, route = AlertsRoute filter, filter = filter }, cmd )
 
         NavigateToSilenceList filter ->
             let
                 ( silenceList, cmd ) =
-                    Views.SilenceList.Updates.update FetchSilences model.silenceList filter baseUrl apiUrl
+                    Views.SilenceList.Updates.update FetchSilences model.silenceList filter basePath apiUrl
             in
                 ( { model | silenceList = silenceList, route = SilenceListRoute filter, filter = filter }
                 , Cmd.map MsgForSilenceList cmd
@@ -78,7 +78,7 @@ update msg ({ baseUrl, apiUrl } as model) =
             ( { model | route = NotFoundRoute }, Cmd.none )
 
         RedirectAlerts ->
-            ( model, Navigation.newUrl (baseUrl ++ "/#/alerts") )
+            ( model, Navigation.newUrl (basePath ++ "/#/alerts") )
 
         UpdateFilter text ->
             let
@@ -102,14 +102,14 @@ update msg ({ baseUrl, apiUrl } as model) =
         MsgForAlertList msg ->
             let
                 ( alertList, cmd ) =
-                    Views.AlertList.Updates.update msg model.alertList model.filter apiUrl baseUrl
+                    Views.AlertList.Updates.update msg model.alertList model.filter apiUrl basePath
             in
                 ( { model | alertList = alertList }, cmd )
 
         MsgForSilenceList msg ->
             let
                 ( silenceList, cmd ) =
-                    Views.SilenceList.Updates.update msg model.silenceList model.filter baseUrl apiUrl
+                    Views.SilenceList.Updates.update msg model.silenceList model.filter basePath apiUrl
             in
                 ( { model | silenceList = silenceList }, Cmd.map MsgForSilenceList cmd )
 
@@ -123,7 +123,7 @@ update msg ({ baseUrl, apiUrl } as model) =
         MsgForSilenceForm msg ->
             let
                 ( silenceForm, cmd ) =
-                    Views.SilenceForm.Updates.update msg model.silenceForm baseUrl apiUrl
+                    Views.SilenceForm.Updates.update msg model.silenceForm basePath apiUrl
             in
                 ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )
 

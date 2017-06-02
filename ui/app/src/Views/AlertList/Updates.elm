@@ -13,10 +13,10 @@ import Views.GroupBar.Updates as GroupBar
 
 
 update : AlertListMsg -> Model -> Filter -> String -> String -> ( Model, Cmd Types.Msg )
-update msg ({ groupBar, filterBar } as model) filter apiUrl baseUrl =
+update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
     let
         alertsUrl =
-            baseUrl ++ "/#/alerts"
+            basePath ++ "/#/alerts"
     in
         case msg of
             AlertsFetched listOfAlerts ->
