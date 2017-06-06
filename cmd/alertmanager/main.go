@@ -83,6 +83,7 @@ func main() {
 		retention  = flag.Duration("data.retention", 5*24*time.Hour, "How long to keep data for.")
 
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
+		alertURL      = flag.String("web.alert-url", "", "The URL which is prefixed to the Alertmanager alert URLs, for example when accessing via a reverse proxy.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
 		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable.")
@@ -92,6 +93,10 @@ func main() {
 	)
 	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
 	flag.Parse()
+
+	if *alertURL == "" {
+		alertURL = externalURL
+	}
 
 	if *hwaddr == "" {
 		*hwaddr = mustHardwareAddr()
@@ -259,7 +264,11 @@ func main() {
 		if err != nil {
 			return err
 		}
-		tmpl.ExternalURL = amURL
+		alertingURL, err := extURL(*listenAddress, *alertURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		tmpl.ExternalURL = alertingURL
 
 		inhibitor.Stop()
 		disp.Stop()
