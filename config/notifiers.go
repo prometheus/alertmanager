@@ -90,6 +90,8 @@ var (
 		Message:     `{{ template "opsgenie.default.message" . }}`,
 		Description: `{{ template "opsgenie.default.description" . }}`,
 		Source:      `{{ template "opsgenie.default.source" . }}`,
+		Teams:       `{{ template "opsgenie.default.teams" . }}`,
+		Tags:        `{{ template "opsgenie.default.tags" . }}`,
 		// TODO: Add a details field with all the alerts.
 	}
 

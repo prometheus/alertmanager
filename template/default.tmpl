@@ -44,6 +44,8 @@ Alerts Resolved:
 {{- end }}
 {{- end }}
 {{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "opsgenie.default.tags" }}{{ end }}
+{{ define "opsgenie.default.teams" }}{{ end }}
 
 
 {{ define "victorops.default.state_message" }}{{ template "__subject" . }} | {{ template "__alertmanagerURL" . }}{{ end }}
