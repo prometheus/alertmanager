@@ -66,7 +66,13 @@ init flags location =
             if prod then
                 Api.makeApiUrl location.pathname
             else
-                Api.makeApiUrl "http://localhost:9093"
+                Api.makeApiUrl "http://localhost:9093/"
+
+        libUrl =
+            if prod then
+                location.pathname
+            else
+                "http://localhost:9093/"
     in
         update (urlUpdate location)
             (Model
@@ -79,6 +85,8 @@ init flags location =
                 initStatusModel
                 location.pathname
                 apiUrl
+                libUrl
+                Loading
                 Loading
             )
 

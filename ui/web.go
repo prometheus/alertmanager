@@ -18,6 +18,7 @@ import (
 	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
+	"path/filepath"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
@@ -61,6 +62,13 @@ func Register(r *route.Router, reloadCh chan<- struct{}) {
 	r.Get("/favicon.ico", ihf("app", func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/favicon.ico")
 	}))
+
+	r.Get("/lib/*filepath", ihf("lib_files",
+		func(w http.ResponseWriter, req *http.Request) {
+			fp := route.Param(req.Context(), "filepath")
+			serveAsset(w, req, filepath.Join("ui/lib", fp))
+		},
+	))
 
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("Reloading configuration file..."))
