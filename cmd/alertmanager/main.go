@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -288,16 +287,23 @@ func main() {
 	}
 
 	// Make routePrefix default to externalURL path if empty string.
-	routePrefixWithDefault := amURL.Path
-	if routePrefix != nil && *routePrefix != "" {
-		routePrefixWithDefault = *routePrefix
+	if routePrefix == nil || *routePrefix == "" {
+		*routePrefix = amURL.Path
 	}
+
+	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
 
 	router := route.New()
 
+	if *routePrefix != "/" {
+		router = router.WithPrefix(*routePrefix)
+	}
+
 	webReload := make(chan struct{})
-	ui.Register(router.WithPrefix(routePrefixWithDefault), webReload)
-	apiv.Register(router.WithPrefix(path.Join(routePrefixWithDefault, "/api")))
+
+	ui.Register(router, webReload)
+
+	apiv.Register(router.WithPrefix("/api"))
 
 	log.Infoln("Listening on", *listenAddress)
 	go listen(*listenAddress, router)
