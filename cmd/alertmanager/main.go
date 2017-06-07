@@ -288,10 +288,8 @@ func main() {
 	}
 
 	// Make routePrefix default to externalURL path if empty string.
-	var routePrefixWithDefault string
-	if routePrefix == nil || *routePrefix == "" {
-		routePrefixWithDefault = amURL.Path
-	} else {
+	routePrefixWithDefault := amURL.Path
+	if routePrefix != nil && *routePrefix != "" {
 		routePrefixWithDefault = *routePrefix
 	}
 
