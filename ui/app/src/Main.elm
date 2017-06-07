@@ -25,11 +25,14 @@ import Views.AlertList.Types exposing (initAlertList)
 import Views.SilenceList.Types exposing (initSilenceList)
 import Views.SilenceView.Types exposing (initSilenceView)
 import Updates exposing (update)
+import Utils.Api as Api
+import Utils.Types exposing (ApiData(Loading))
+import Json.Decode as Json
 
 
-main : Program Never Model Msg
+main : Program Json.Value Model Msg
 main =
-    Navigation.program urlUpdate
+    Navigation.programWithFlags urlUpdate
         { init = init
         , update = update
         , view = Views.view
@@ -37,8 +40,8 @@ main =
         }
 
 
-init : Navigation.Location -> ( Model, Cmd Msg )
-init location =
+init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
+init flags location =
     let
         route =
             Parsing.urlParser location
@@ -53,8 +56,31 @@ init location =
 
                 _ ->
                     nullFilter
+
+        prod =
+            flags
+                |> Json.decodeValue (Json.field "production" Json.bool)
+                |> Result.withDefault False
+
+        apiUrl =
+            if prod then
+                Api.makeApiUrl location.pathname
+            else
+                Api.makeApiUrl "http://localhost:9093"
     in
-        update (urlUpdate location) (Model initSilenceList initSilenceView initSilenceForm initAlertList route filter initStatusModel)
+        update (urlUpdate location)
+            (Model
+                initSilenceList
+                initSilenceView
+                initSilenceForm
+                initAlertList
+                route
+                filter
+                initStatusModel
+                location.pathname
+                apiUrl
+                Loading
+            )
 
 
 urlUpdate : Navigation.Location -> Msg

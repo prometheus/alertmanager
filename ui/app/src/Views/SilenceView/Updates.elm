@@ -8,11 +8,11 @@ import Utils.Types exposing (ApiData(..))
 import Utils.Filter exposing (nullFilter)
 
 
-update : SilenceViewMsg -> Model -> ( Model, Cmd SilenceViewMsg )
-update msg model =
+update : SilenceViewMsg -> Model -> String -> ( Model, Cmd SilenceViewMsg )
+update msg model basePath =
     case msg of
         FetchSilence id ->
-            ( model, getSilence id SilenceFetched )
+            ( model, getSilence basePath id SilenceFetched )
 
         AlertGroupsPreview alerts ->
             ( { model | alerts = alerts }
@@ -25,6 +25,7 @@ update msg model =
                 , alerts = Loading
               }
             , Alerts.Api.fetchAlerts
+                basePath
                 ({ nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True })
                 |> Cmd.map AlertGroupsPreview
             )
@@ -33,4 +34,4 @@ update msg model =
             ( { model | silence = silence, alerts = Initial }, Cmd.none )
 
         InitSilenceView silenceId ->
-            ( model, getSilence silenceId SilenceFetched )
+            ( model, getSilence basePath silenceId SilenceFetched )

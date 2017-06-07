@@ -7,6 +7,7 @@ import Views.SilenceView.Types as SilenceView exposing (SilenceViewMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.Status.Types exposing (StatusModel, StatusMsg)
 import Utils.Filter exposing (Filter)
+import Utils.Types exposing (ApiData)
 
 
 type alias Model =
@@ -17,6 +18,9 @@ type alias Model =
     , route : Route
     , filter : Filter
     , status : StatusModel
+    , basePath : String
+    , apiUrl : String
+    , bootstrapCSS : ApiData String
     }
 
 
@@ -37,6 +41,7 @@ type Msg
     | Noop
     | RedirectAlerts
     | UpdateFilter String
+    | BootstrapCSSLoaded (ApiData String)
 
 
 type Route

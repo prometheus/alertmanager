@@ -169,14 +169,14 @@ updateForm msg form =
                 { form | matchers = matchers }
 
 
-update : SilenceFormMsg -> Model -> ( Model, Cmd SilenceFormMsg )
-update msg model =
+update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd SilenceFormMsg )
+update msg model basePath apiUrl =
     case msg of
         CreateSilence ->
             case toSilence model.form of
                 Just silence ->
                     ( { model | silenceId = Loading }
-                    , Silences.Api.create silence |> Cmd.map SilenceCreate
+                    , Silences.Api.create apiUrl silence |> Cmd.map SilenceCreate
                     )
 
                 Nothing ->
@@ -192,7 +192,7 @@ update msg model =
                 cmd =
                     case silenceId of
                         Success id ->
-                            Navigation.newUrl ("/#/silences/" ++ id)
+                            Navigation.newUrl (basePath ++ "#/silences/" ++ id)
 
                         _ ->
                             Cmd.none
@@ -211,7 +211,7 @@ update msg model =
             )
 
         FetchSilence silenceId ->
-            ( model, Silences.Api.getSilence silenceId SilenceFetch )
+            ( model, Silences.Api.getSilence apiUrl silenceId SilenceFetch )
 
         SilenceFetch (Success silence) ->
             ( { model | form = fromSilence silence }
@@ -226,6 +226,7 @@ update msg model =
                 Just silence ->
                     ( { model | alerts = Loading }
                     , Alerts.Api.fetchAlerts
+                        apiUrl
                         { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
                         |> Cmd.map AlertGroupsPreview
                     )

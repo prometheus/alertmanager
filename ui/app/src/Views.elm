@@ -1,9 +1,12 @@
 module Views exposing (..)
 
-import Html exposing (Html, text, div)
-import Html.Attributes exposing (class)
-import Types exposing (Msg(MsgForSilenceForm, MsgForSilenceView), Model, Route(..))
+import Html exposing (Html, node, text, div)
+import Html.Attributes exposing (class, rel, href, src, style)
+import Html.Events exposing (on)
+import Json.Decode exposing (succeed)
+import Types exposing (Msg(MsgForSilenceForm, MsgForSilenceView, BootstrapCSSLoaded), Model, Route(..))
 import Utils.Views exposing (error, loading)
+import Utils.Types exposing (ApiData(Failure, Success))
 import Views.SilenceList.Views as SilenceList
 import Views.SilenceForm.Views as SilenceForm
 import Views.AlertList.Views as AlertList
@@ -16,10 +19,44 @@ import Views.NavBar.Views exposing (navBar)
 view : Model -> Html Msg
 view model =
     div []
-        [ navBar model.route
-        , div [ class "container pb-4" ]
-            [ currentView model ]
+        [ renderLink "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css"
+        , fontAwesome
+        , case model.bootstrapCSS of
+            Success _ ->
+                div []
+                    [ navBar model.route
+                    , div [ class "container pb-4" ] [ currentView model ]
+                    ]
+
+            Failure err ->
+                div []
+                    [ div [ style [ ( "padding", "40px" ), ( "color", "red" ) ] ] [ text err ]
+                    , navBar model.route
+                    , div [ class "container pb-4" ] [ currentView model ]
+                    ]
+
+            _ ->
+                text ""
         ]
+
+
+renderLink : String -> Html Msg
+renderLink url =
+    node "link"
+        [ href url
+        , rel "stylesheet"
+        , on "load" (succeed (BootstrapCSSLoaded (Success url)))
+        , on "error" (succeed (BootstrapCSSLoaded (Failure ("Failed to load Bootstrap CSS from: " ++ url))))
+        ]
+        []
+
+
+fontAwesome : Html msg
+fontAwesome =
+    node "script"
+        [ src "https://use.fontawesome.com/b7508bb100.js"
+        ]
+        []
 
 
 currentView : Model -> Html Msg

@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -83,6 +82,7 @@ func main() {
 		retention  = flag.Duration("data.retention", 5*24*time.Hour, "How long to keep data for.")
 
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
+		routePrefix   = flag.String("web.route-prefix", "", "Prefix for the internal routes of web endpoints. Defaults to path of -web.external-url.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
 		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable.")
@@ -286,11 +286,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Make routePrefix default to externalURL path if empty string.
+	if routePrefix == nil || *routePrefix == "" {
+		*routePrefix = amURL.Path
+	}
+
+	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
+
 	router := route.New()
 
+	if *routePrefix != "/" {
+		router = router.WithPrefix(*routePrefix)
+	}
+
 	webReload := make(chan struct{})
-	ui.Register(router.WithPrefix(amURL.Path), webReload)
-	apiv.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
+
+	ui.Register(router, webReload)
+
+	apiv.Register(router.WithPrefix("/api"))
 
 	log.Infoln("Listening on", *listenAddress)
 	go listen(*listenAddress, router)

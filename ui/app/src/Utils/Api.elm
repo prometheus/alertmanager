@@ -94,9 +94,16 @@ iso8601Time =
         Json.string
 
 
-baseUrl : String
-baseUrl =
-    "/api/v1"
+makeApiUrl : String -> String
+makeApiUrl externalUrl =
+    let
+        url =
+            if String.endsWith "/" externalUrl then
+                String.dropRight 1 externalUrl
+            else
+                externalUrl
+    in
+        url ++ "/api/v1"
 
 
 defaultTimeout : Time.Time
@@ -108,7 +115,3 @@ defaultTimeout =
 (|:) =
     -- Taken from elm-community/json-extra
     flip (Json.map2 (|>))
-
-
-
--- "http://localhost:9093/api/v1"
