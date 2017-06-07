@@ -43,12 +43,6 @@ main =
 init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
 init flags location =
     let
-        basePath =
-            if location.pathname == "/" then
-                ""
-            else
-                location.pathname
-
         route =
             Parsing.urlParser location
 
@@ -70,7 +64,7 @@ init flags location =
 
         apiUrl =
             if prod then
-                Api.makeApiUrl basePath
+                Api.makeApiUrl location.pathname
             else
                 Api.makeApiUrl "http://localhost:9093"
     in
@@ -83,7 +77,7 @@ init flags location =
                 route
                 filter
                 initStatusModel
-                basePath
+                location.pathname
                 apiUrl
                 Loading
             )

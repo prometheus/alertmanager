@@ -78,7 +78,7 @@ update msg ({ basePath, apiUrl } as model) =
             ( { model | route = NotFoundRoute }, Cmd.none )
 
         RedirectAlerts ->
-            ( model, Navigation.newUrl (basePath ++ "/#/alerts") )
+            ( model, Navigation.newUrl (basePath ++ "#/alerts") )
 
         UpdateFilter text ->
             let

@@ -192,7 +192,7 @@ update msg model basePath apiUrl =
                 cmd =
                     case silenceId of
                         Success id ->
-                            Navigation.newUrl (basePath ++ "/#/silences/" ++ id)
+                            Navigation.newUrl (basePath ++ "#/silences/" ++ id)
 
                         _ ->
                             Cmd.none
