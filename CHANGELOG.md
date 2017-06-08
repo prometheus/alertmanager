@@ -1,6 +1,7 @@
 ## 0.7.0 / 2017-06-08
 
 * [CHANGE] Rewrite UI from scratch improving UX
+* [CHANGE] Rename `config` to `configYAML` on `api/v1/status`
 * [FEATURE] Add ability to update a silence on `api/v1/silences` POST endpoint (See #765)
 * [FEATURE] Return alert status on `api/v1/alerts` GET endpoint
 * [FEATURE] Serve silence state on `api/v1/silences` GET endpoint
