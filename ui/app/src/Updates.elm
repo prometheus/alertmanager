@@ -129,3 +129,6 @@ update msg ({ basePath, apiUrl } as model) =
 
         BootstrapCSSLoaded css ->
             ( { model | bootstrapCSS = css }, Cmd.none )
+
+        FontAwesomeCSSLoaded css ->
+            ( { model | fontAwesomeCSS = css }, Cmd.none )

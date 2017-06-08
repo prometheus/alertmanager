@@ -20,7 +20,9 @@ type alias Model =
     , status : StatusModel
     , basePath : String
     , apiUrl : String
+    , libUrl : String
     , bootstrapCSS : ApiData String
+    , fontAwesomeCSS : ApiData String
     }
 
 
@@ -42,6 +44,7 @@ type Msg
     | RedirectAlerts
     | UpdateFilter String
     | BootstrapCSSLoaded (ApiData String)
+    | FontAwesomeCSSLoaded (ApiData String)
 
 
 type Route
