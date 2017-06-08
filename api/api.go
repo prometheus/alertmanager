@@ -74,8 +74,7 @@ func setCORS(w http.ResponseWriter) {
 type API struct {
 	alerts         provider.Alerts
 	silences       *silence.Silences
-	config         string
-	configJSON     config.Config
+	config         *config.Config
 	resolveTimeout time.Duration
 	uptime         time.Time
 	mrouter        *mesh.Router
@@ -132,20 +131,12 @@ func (api *API) Register(r *route.Router) {
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(cfg string, resolveTimeout time.Duration) error {
+func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
-	api.config = cfg
 	api.resolveTimeout = resolveTimeout
-
-	configJSON, err := config.Load(cfg)
-	if err != nil {
-		log.Errorf("error: %v", err)
-		return err
-	}
-
-	api.configJSON = *configJSON
+	api.config = cfg
 	return nil
 }
 
@@ -170,14 +161,14 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	api.mtx.RLock()
 
 	var status = struct {
-		Config      string            `json:"config"`
-		ConfigJSON  config.Config     `json:"configJSON"`
+		ConfigYAML  string            `json:"configYAML"`
+		ConfigJSON  *config.Config    `json:"configJSON"`
 		VersionInfo map[string]string `json:"versionInfo"`
 		Uptime      time.Time         `json:"uptime"`
 		MeshStatus  meshStatus        `json:"meshStatus"`
 	}{
-		Config:     api.config,
-		ConfigJSON: api.configJSON,
+		ConfigYAML: api.config.String(),
+		ConfigJSON: api.config,
 		VersionInfo: map[string]string{
 			"version":   version.Version,
 			"revision":  version.Revision,

@@ -45,6 +45,11 @@ func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return unmarshal((*plain)(s))
 }
 
+// MarshalJSON implements the json.Marshaler interface.
+func (s Secret) MarshalJSON() ([]byte, error) {
+	return json.Marshal("<secret>")
+}
+
 // Load parses the YAML input s into a Config.
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
@@ -69,18 +74,18 @@ func Load(s string) (*Config, error) {
 }
 
 // LoadFile parses the given YAML file into a Config.
-func LoadFile(filename string) (*Config, error) {
+func LoadFile(filename string) (*Config, []byte, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cfg, err := Load(string(content))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	resolveFilepaths(filepath.Dir(filename), cfg)
-	return cfg, nil
+	return cfg, content, nil
 }
 
 // resolveFilepaths joins all relative paths in a configuration
@@ -496,7 +501,7 @@ func (re *Regexp) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
-	regex, err := regexp.Compile(s)
+	regex, err := regexp.Compile("^(?:" + s + ")$")
 	if err != nil {
 		return err
 	}

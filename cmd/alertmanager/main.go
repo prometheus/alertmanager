@@ -243,14 +243,14 @@ func main() {
 			}
 		}()
 
-		conf, err := config.LoadFile(*configFile)
+		conf, plainCfg, err := config.LoadFile(*configFile)
 		if err != nil {
 			return err
 		}
 
-		hash = md5HashAsMetricValue([]byte(conf.String()))
+		hash = md5HashAsMetricValue(plainCfg)
 
-		err = apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		err = apiv.Update(conf, time.Duration(conf.Global.ResolveTimeout))
 		if err != nil {
 			return err
 		}

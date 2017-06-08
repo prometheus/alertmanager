@@ -26,7 +26,7 @@ decodeStatusResponse =
 decodeData : Decoder StatusResponse
 decodeData =
     Json.Decode.map4 StatusResponse
-        (field "config" string)
+        (field "configYAML" string)
         (field "uptime" string)
         (field "versionInfo" decodeVersionInfo)
         (field "meshStatus" decodeMeshStatus)
