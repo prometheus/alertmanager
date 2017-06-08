@@ -166,6 +166,40 @@ receivers:
   - service_key: <team-DB-key>
 ```
 
+## Amtool
+
+> Warning: amtool is available since the 0.6.0
+
+A cli tool for interacting with an alertmanager instance from cli
+
+This is an example configuration for am tool:
+```yaml
+alertmanager.url: http://localhost:9093
+author: user@domain.tld
+comment_required: true
+output: json
+```
+
+- `alertmanager.url`: set a default alertmanager url for each request
+- `author`: set a default author value for new silences. If this argument is not specified then the username will be used
+- `comment_required`: require a comment on silence creation
+- `output`: set a default output type. Options are (simple, extended, json)
+
+
+```
+$ ./amtool silence query severity=page`
+ID                                    Matchers                                                                               Ends At                  Created By           Comment
+e2bc87c7-ec4b-42c1-84eb-e53e14649d43  alertname=PrometheusDown env=preprod perimeter=meta severity=page                      2017-04-28 14:00:00 UTC  user@domain.tld      This is a silence
+
+$ ./amtool silence
+ID                                    Matchers                                                                               Ends At                  Created By           Comment
+e2bc87c7-ec4b-42c1-84eb-e53e14649d43  alertname=PrometheusDown env=preprod perimeter=meta severity=page                      2017-04-28 14:00:00 UTC  user@domain.tld  	   This is a silence
+468fa033-db3a-49ad-b9be-cbb4ee7cbe62  alertname=PrometheusDown env=preprod perimeter=meta severity=interrupts source_dc=nyc  2017-04-28 15:50:00 UTC  user@domain.tld      This is a silence
+
+$ ./amtool alert query
+Alertname  Starts At  Summary
+```
+
 ## High Availability
 
 > Warning: High Availablility is under active development
