@@ -1,8 +1,8 @@
 FROM        prom/busybox:latest
 MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
 
-COPY alertmanager               /bin/alertmanager
-COPY doc/examples/simple.yml    /etc/alertmanager/config.yml
+COPY alertmanager                  /bin/alertmanager
+COPY doc/examples/alertmanager.yml /etc/alertmanager/config.yml
 
 EXPOSE     9093
 VOLUME     [ "/alertmanager" ]
