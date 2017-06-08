@@ -346,6 +346,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 			Alert:     &a.Alert,
 			Status:    status,
 			Receivers: receivers,
+			ID:        fmt.Sprintf("%x", a.Fingerprint()),
 		}
 
 		res = append(res, apiAlert)
