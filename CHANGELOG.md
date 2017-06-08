@@ -1,14 +1,20 @@
-## v0.7.0-rc.0 / 2017-05-19
+## 0.7.0 / 2017-06-08
 
 * [CHANGE] Rewrite UI from scratch improving UX
 * [FEATURE] Add ability to update a silence on `api/v1/silences` POST endpoint (See #765)
 * [FEATURE] Return alert status on `api/v1/alerts` GET endpoint
 * [FEATURE] Serve silence state on `api/v1/silences` GET endpoint
+* [FEATURE] Add ability to specify a route prefix
+* [FEATURE] Add option to disable AM listening on mesh port
 * [ENHANCEMENT] Add ability to specify `filter` string and `silenced` flag on `api/v1/alerts` GET endpoint
 * [ENHANCEMENT] Update `cache-control` to prevent caching for web assets in general.
+* [ENHANCEMENT] Serve web assets by alertmanager instead of external CDN (See #846)
+* [ENHANCEMENT] Elide secrets in alertmanager config (See #840)
+* [ENHANCEMENT] AMTool: Move config file to a more consistent location (See #843)
 * [BUGFIX] Enable builds for Solaris/Illumos
+* [BUGFIX] Load web assets based on url path (See #323)
 
-## v0.6.2 / 2017-05-09
+## 0.6.2 / 2017-05-09
 
 * [BUGFIX] Correctly link to silences from alert again
 * [BUGFIX] Correctly hide silenced/show active alerts in UI again
@@ -19,13 +25,13 @@
 * [CHANGE] Anchor silence regex matchers to be consistent with Prometheus
 * [ENHANCEMENT] Error if root route is using `continue` keyword
 
-## v0.6.1 / 2017-04-28
+## 0.6.1 / 2017-04-28
 
 * [BUGFIX] Fix incorrectly serialized hash for notification providers.
 * [ENHANCEMENT] Add processing status field to alerts.
 * [FEATURE] Add config hash metric.
 
-## v0.6.0 / 2017-04-25
+## 0.6.0 / 2017-04-25
 
 * [BUGFIX] Add `groupKey` to `alerts/groups` endpoint https://github.com/prometheus/alertmanager/pull/576
 * [BUGFIX] Only notify on firing alerts https://github.com/prometheus/alertmanager/pull/595
@@ -42,13 +48,13 @@
 * [FEATURE] Allow label-based filtering alerts/silences through API https://github.com/prometheus/alertmanager/pull/633
 * [FEATURE] Add commandline tool for interacting with alertmanager https://github.com/prometheus/alertmanager/pull/636
 
-## v0.5.1 / 2016-11-24
+## 0.5.1 / 2016-11-24
 
 * [BUGFIX] Fix crash caused by race condition in silencing
 * [ENHANCEMENT] Improve logging of API errors
 * [ENHANCEMENT] Add metrics for the notification log
 
-## v0.5.0 / 2016-11-01
+## 0.5.0 / 2016-11-01
 
 This release requires a storage wipe. It contains fundamental internal
 changes that came with implementing the high availability mode.
@@ -58,12 +64,12 @@ changes that came with implementing the high availability mode.
 * [CHANGE] New storage format
 * [CHANGE] Stricter silence semantics for consistent historical view
 
-## v0.4.2 / 2016-09-02
+## 0.4.2 / 2016-09-02
 
 * [BUGFIX] Fix broken regex checkbox in silence form
 * [BUGFIX] Simplify inconsistent silence update behavior
 
-## v0.4.1 / 2016-08-31
+## 0.4.1 / 2016-08-31
 
 * [BUGFIX] Wait for silence query to finish instead of showing error
 * [BUGFIX] Fix sorting of silences
@@ -71,7 +77,7 @@ changes that came with implementing the high availability mode.
 * [BUGFIX] Fix styling of silences
 * [ENHANCEMENT] Provide cleaner API silence interface
 
-## v0.4.0 / 2016-08-23
+## 0.4.0 / 2016-08-23
 
 * [FEATURE] Silences are now paginated in the web ui
 * [CHANGE] Failure to start on unparsed flags
