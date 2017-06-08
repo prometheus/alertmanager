@@ -240,6 +240,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIURL += "/"
 			}
 		}
+		for _, tg := range rcv.TelegramConfigs {
+			if tg.APIURL == "" {
+				if c.Global.TelegramURL == "" {
+					return fmt.Errorf("no global Telegram API URL set")
+				}
+				tg.APIURL = c.Global.TelegramURL
+			}
+			if !strings.HasSuffix(tg.APIURL, "/") {
+				tg.APIURL += "/"
+			}
+			if tg.Token == "" {
+				if c.Global.TelegramToken == "" {
+					return fmt.Errorf("no global Telegram Token set")
+				}
+				tg.Token = c.Global.TelegramToken
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -289,6 +306,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	HipchatURL:      "https://api.hipchat.com/",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
+	TelegramURL:     "https://api.telegram.org/",
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -311,6 +329,8 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token" json:"hipchat_auth_token"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host" json:"opsgenie_api_host"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url" json:"victorops_api_url"`
+	TelegramToken    Secret `yaml:"telegram_token" json:"telegram_token"`
+	TelegramURL      string `yaml:"telegram_api_url" json:"telegram_api_url"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -446,6 +466,7 @@ type Receiver struct {
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
