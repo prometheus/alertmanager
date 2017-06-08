@@ -28,7 +28,10 @@ import (
 	"net/mail"
 	"net/smtp"
 	"net/url"
+	"os"
+	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/prometheus/common/log"
@@ -129,6 +132,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 	for i, c := range nc.PushoverConfigs {
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
+	}
+	for i, c := range nc.RunCommandConfigs {
+		n := NewRunCommand(c, tmpl)
+		add("runcommand", i, n, c)
 	}
 	return integrations
 }
@@ -930,6 +937,78 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			return false, err
 		}
 		return false, fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+	}
+
+	return false, nil
+}
+
+// RunCommand implements a Notifier for RunCommand notifications.
+type RunCommand struct {
+	conf *config.RunCommandConfig
+	tmpl *template.Template
+}
+
+// NewRunCommand returns a new RunCommand notification handler.
+func NewRunCommand(c *config.RunCommandConfig, t *template.Template) *RunCommand {
+	return &RunCommand{
+		conf: c,
+		tmpl: t,
+	}
+}
+
+// RunCommandConf is the request for sending a RunCommand notification.
+type RunCommandConf struct {
+	Script string `json:"script"`
+}
+
+// Notify implements the Notifier interface.
+func (n *RunCommand) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+
+	var err error
+
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+	tmplText := tmplText(n.tmpl, data, &err)
+
+	runCommandConf := &RunCommandConf{
+		Script: tmplText(n.conf.Script),
+	}
+
+	runCommandWithArgs := strings.Fields(runCommandConf.Script)
+	command := runCommandWithArgs[0]
+	args := runCommandWithArgs[1:len(runCommandWithArgs)]
+
+	cmd := exec.Command(command, args...)
+
+	env := os.Environ()
+
+	for k, v := range data.CommonAnnotations {
+		env = append(env, fmt.Sprintf("PROMETHEUS_ANNOTATIONS_%s=%s", strings.ToUpper(k), v))
+	}
+	for k, v := range data.CommonLabels {
+		env = append(env, fmt.Sprintf("PROMETHEUS_COMMONLABEL_%s=%s", strings.ToUpper(k), v))
+	}
+	for k, v := range data.GroupLabels {
+		env = append(env, fmt.Sprintf("PROMETHEUS_GROUPLABEL_%s=%s", strings.ToUpper(k), v))
+	}
+
+	env = append(env, fmt.Sprintf("PROMETHEUS_RECEIVER=%s", data.Receiver))
+	env = append(env, fmt.Sprintf("PROMETHEUS_STATUS=%s", data.Status))
+	env = append(env, fmt.Sprintf("PROMETHEUS_EXTERNALURL=%s", data.ExternalURL))
+
+	cmd.Env = env
+
+	if err := cmd.Start(); err != nil {
+		return false, fmt.Errorf("cmd.Start error: %v", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// The command has exited with an exit code != 0
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				return false, fmt.Errorf("exit status code: %v", status.ExitStatus())
+			}
+		} else {
+			return false, fmt.Errorf("cmd.Wait error: %v", err)
+		}
 	}
 
 	return false, nil

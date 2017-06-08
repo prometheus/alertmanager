@@ -35,6 +35,13 @@ var (
 		HTML: `{{ template "email.default.html" . }}`,
 	}
 
+	// DefaultRunCommandConfig defines default values for RunCommand configurations.
+	DefaultRunCommandConfig = RunCommandConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+	}
+
 	// DefaultEmailSubject defines the default Subject header of an Email.
 	DefaultEmailSubject = `{{ template "email.default.subject" . }}`
 
@@ -284,6 +291,27 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing URL in webhook config")
 	}
 	return checkOverflow(c.XXX, "webhook config")
+}
+
+// RunCommandConfig configures notifications via a generic webhook.
+type RunCommandConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	// Script to execute.
+	Script string `yaml:"script" json:"script"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *RunCommandConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultRunCommandConfig
+	type plain RunCommandConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	return checkOverflow(c.XXX, "runcommand config")
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
