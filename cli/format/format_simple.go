@@ -61,7 +61,7 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*dispatch.APIAlert) erro
 }
 
 func (formatter *SimpleFormatter) FormatConfig(config Config) error {
-	fmt.Fprintln(formatter.writer, config.Config)
+	fmt.Fprintln(formatter.writer, config.ConfigYAML)
 	return nil
 }
 

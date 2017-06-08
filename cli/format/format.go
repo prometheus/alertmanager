@@ -15,8 +15,8 @@ const DefaultDateFormat = "2006-01-02 15:04:05 MST"
 // Config representation
 // Need to get this moved to the prometheus/common/model repo having is duplicated here is smelly
 type Config struct {
-	Config      string                 `json:"config"`
-	ConfigJSON  config.Config          `json:configJSON`
+	ConfigYAML  string                 `json:"configYAML"`
+	ConfigJSON  config.Config          `json:"configJSON"`
 	MeshStatus  map[string]interface{} `json:"meshStatus"`
 	VersionInfo map[string]string      `json:"versionInfo"`
 	Uptime      time.Time              `json:"uptime"`

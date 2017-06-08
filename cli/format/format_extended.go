@@ -66,7 +66,7 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts []*dispatch.APIAlert) er
 }
 
 func (formatter *ExtendedFormatter) FormatConfig(config Config) error {
-	fmt.Fprintln(formatter.writer, config.Config)
+	fmt.Fprintln(formatter.writer, config.ConfigYAML)
 	fmt.Fprintln(formatter.writer, "buildUser", config.VersionInfo["buildUser"])
 	fmt.Fprintln(formatter.writer, "goVersion", config.VersionInfo["goVersion"])
 	fmt.Fprintln(formatter.writer, "revision", config.VersionInfo["revision"])

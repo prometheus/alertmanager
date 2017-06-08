@@ -17,8 +17,8 @@ import (
 // Config is the response type of alertmanager config endpoint
 // Duped in cli/format needs to be moved to common/model
 type Config struct {
-	Config      string                 `json:"config"`
-	ConfigJSON  config.Config          `json:configJSON`
+	ConfigYAML  string                 `json:"configYAML"`
+	ConfigJSON  config.Config          `json:"configJSON"`
 	MeshStatus  map[string]interface{} `json:"meshStatus"`
 	VersionInfo map[string]string      `json:"versionInfo"`
 	Uptime      time.Time              `json:"uptime"`

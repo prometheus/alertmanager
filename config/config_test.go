@@ -14,11 +14,13 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
 
@@ -65,8 +67,7 @@ receivers:
 }
 
 func TestHideConfigSecrets(t *testing.T) {
-
-	c, err := LoadFile("testdata/conf.good.yml")
+	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
 	}
@@ -77,7 +78,53 @@ func TestHideConfigSecrets(t *testing.T) {
 	matches := secretRe.FindAllStringIndex(s, -1)
 	fmt.Println(len(matches))
 	if len(matches) != 14 || strings.Contains(s, "mysecret") {
-		t.Fatalf("config's String method reveals authentication credentials.")
+		t.Fatal("config's String method reveals authentication credentials.")
+	}
+}
+
+func TestJSONMarshal(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
 	}
 
+	_, err = json.Marshal(c)
+	if err != nil {
+		t.Fatal("JSON Marshaling failed:", err)
+	}
+}
+
+func TestJSONMarshalSecret(t *testing.T) {
+	test := struct {
+		S Secret
+	}{
+		S: Secret("test"),
+	}
+
+	c, err := json.Marshal(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// u003c -> "<"
+	// u003e -> ">"
+	require.Equal(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
+}
+
+func TestJSONUnmarshalMarshaled(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
+	}
+
+	plainCfg, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal("JSON Marshaling failed:", err)
+	}
+
+	cfg := Config{}
+	err = json.Unmarshal(plainCfg, &cfg)
+	if err != nil {
+		t.Fatal("JSON Unmarshaling failed:", err)
+	}
 }
