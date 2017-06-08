@@ -16,7 +16,7 @@ update : AlertListMsg -> Model -> Filter -> String -> String -> ( Model, Cmd Typ
 update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
     let
         alertsUrl =
-            basePath ++ "/#/alerts"
+            basePath ++ "#/alerts"
     in
         case msg of
             AlertsFetched listOfAlerts ->
