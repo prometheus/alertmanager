@@ -1,3 +1,7 @@
+## 0.7.1 / 2017-06-09
+
+* [BUGFIX] Fix filtering by label on Alert list and Silence list page
+
 ## 0.7.0 / 2017-06-08
 
 * [CHANGE] Rewrite UI from scratch improving UX
