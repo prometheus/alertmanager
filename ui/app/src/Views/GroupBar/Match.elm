@@ -35,8 +35,7 @@ jaro s1 s2 =
             m =
                 zip (List.range 1 l1) (String.toList s1)
                     |> List.map (Tuple.mapSecond Char.toCode)
-                    |> List.map (charMatch searchLength z2)
-                    |> List.foldl (++) []
+                    |> List.concatMap (charMatch searchLength z2)
 
             ml =
                 List.length m
