@@ -31,7 +31,7 @@ update msg model filter basePath apiUrl =
         MsgForFilterBar msg ->
             let
                 ( filterBar, cmd ) =
-                    FilterBar.update (basePath ++ "/#/silences") filter msg model.filterBar
+                    FilterBar.update (basePath ++ "#/silences") filter msg model.filterBar
             in
                 ( { model | filterBar = filterBar }, Cmd.map MsgForFilterBar cmd )
 
