@@ -15,10 +15,13 @@ package config
 
 import (
 	"encoding/json"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -68,7 +71,7 @@ receivers:
 func TestHideConfigSecrets(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	// String method must not reveal authentication credentials.
@@ -83,7 +86,7 @@ func TestHideConfigSecrets(t *testing.T) {
 func TestJSONMarshal(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	_, err = json.Marshal(c)
@@ -112,7 +115,7 @@ func TestJSONMarshalSecret(t *testing.T) {
 func TestJSONUnmarshalMarshaled(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	plainCfg, err := json.Marshal(c)
@@ -124,5 +127,81 @@ func TestJSONUnmarshalMarshaled(t *testing.T) {
 	err = json.Unmarshal(plainCfg, &cfg)
 	if err != nil {
 		t.Fatal("JSON Unmarshaling failed:", err)
+	}
+}
+
+func TestEmptyFieldsAndRegex(t *testing.T) {
+
+	boolFoo := true
+	var regexpFoo Regexp
+	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
+
+	var expectedConf = Config{
+
+		Global: &GlobalConfig{
+			ResolveTimeout:   model.Duration(5 * time.Minute),
+			SMTPSmarthost:    "localhost:25",
+			SMTPFrom:         "alertmanager@example.org",
+			HipchatAuthToken: "mysecret",
+			HipchatURL:       "https://hipchat.foobar.org/",
+			SlackAPIURL:      "mysecret",
+			SMTPRequireTLS:   true,
+			PagerdutyURL:     "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+			OpsGenieAPIHost:  "https://api.opsgenie.com/",
+			VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
+		},
+
+		Templates: []string{
+			"/etc/alertmanager/template/*.tmpl",
+		},
+		Route: &Route{
+			Receiver: "team-X-mails",
+			GroupBy: []model.LabelName{
+				"alertname",
+				"cluster",
+				"service",
+			},
+			Routes: []*Route{
+				{
+					Receiver: "team-X-mails",
+					MatchRE: map[string]Regexp{
+						"service": regexpFoo,
+					},
+				},
+			},
+		},
+		Receivers: []*Receiver{
+			{
+				Name: "team-X-mails",
+				EmailConfigs: []*EmailConfig{
+					{
+						To:         "team-X+alerts@example.org",
+						From:       "alertmanager@example.org",
+						Smarthost:  "localhost:25",
+						HTML:       "{{ template \"email.default.html\" . }}",
+						RequireTLS: &boolFoo,
+					},
+				},
+			},
+		},
+	}
+
+	config, _, err := LoadFile("testdata/conf.empty-fields.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.empty-fields.yml", err)
+	}
+
+	configGot, err := yaml.Marshal(config)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	configExp, err := yaml.Marshal(expectedConf)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	if !reflect.DeepEqual(configGot, configExp) {
+		t.Fatalf("%s: unexpected config result: \n\n%s\n expected\n\n%s", "testdata/conf.empty-fields.yml", configGot, configExp)
 	}
 }
