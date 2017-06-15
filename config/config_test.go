@@ -15,7 +15,6 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -76,7 +75,6 @@ func TestHideConfigSecrets(t *testing.T) {
 	s := c.String()
 	secretRe := regexp.MustCompile("<secret>")
 	matches := secretRe.FindAllStringIndex(s, -1)
-	fmt.Println(len(matches))
 	if len(matches) != 14 || strings.Contains(s, "mysecret") {
 		t.Fatal("config's String method reveals authentication credentials.")
 	}
