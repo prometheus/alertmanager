@@ -128,3 +128,33 @@ func TestJSONUnmarshalMarshaled(t *testing.T) {
 		t.Fatal("JSON Unmarshaling failed:", err)
 	}
 }
+
+func TestConfigToString(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
+	}
+
+	_ = c.String()
+	if err != nil {
+		t.Fatal("String conversion failed:", err)
+	}
+}
+
+func TestYAMLUnmarshalMarshaled(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/good.yml", err)
+	}
+
+	plainCfg, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	cfg := Config{}
+	err = yaml.Unmarshal(plainCfg, &cfg)
+	if err != nil {
+		t.Fatal("YAML Unmarshaling failed:", err)
+	}
+}
