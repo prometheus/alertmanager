@@ -104,7 +104,7 @@ informationBlock silence alerts =
             Views.Shared.SilencePreview.view alerts
 
         Utils.Types.Failure error ->
-            div [ class "alert alert-warning" ] [ text error ]
+            Utils.Views.error error
 
         Utils.Types.Loading ->
             loading

@@ -17,6 +17,11 @@ withDefault default response =
             default
 
 
+parseError : String -> Maybe String
+parseError =
+    Json.decodeString (field "error" Json.string) >> Result.toMaybe
+
+
 errorToString : Http.Error -> String
 errorToString err =
     case err of
@@ -27,11 +32,12 @@ errorToString err =
             "Network error"
 
         BadStatus resp ->
-            resp.status.message ++ " " ++ resp.body
+            parseError resp.body
+                |> Maybe.withDefault (resp.status.message ++ " " ++ resp.body)
 
         BadPayload err resp ->
             -- OK status, unexpected payload
-            "Unexpected response from api" ++ err
+            "Unexpected response from api: " ++ err
 
         BadUrl url ->
             "Malformed url: " ++ url
