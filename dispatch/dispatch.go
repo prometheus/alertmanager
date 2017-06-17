@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -108,7 +109,7 @@ func matchesFilterLabels(a *APIAlert, matchers []*labels.Matcher) bool {
 }
 
 // Groups populates an AlertOverview from the dispatcher's internal state.
-func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
+func (d *Dispatcher) Groups(matchers []*labels.Matcher, showSilenced bool, re *regexp.Regexp) AlertOverview {
 	overview := AlertOverview{}
 
 	d.mtx.RLock()
@@ -117,6 +118,10 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 	seen := map[model.Fingerprint]*AlertGroup{}
 
 	for route, ags := range d.aggrGroups {
+		if !re.MatchString(route.RouteOpts.Receiver) {
+			continue
+		}
+
 		for _, ag := range ags {
 			alertGroup, ok := seen[ag.fingerprint()]
 			if !ok {
@@ -133,7 +138,13 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 					continue
 				}
+
 				status := d.marker.Status(a.Fingerprint())
+
+				if !showSilenced && len(status.SilencedBy) != 0 {
+					continue
+				}
+
 				aa := &APIAlert{
 					Alert:  a,
 					Status: status,
