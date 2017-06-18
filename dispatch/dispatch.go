@@ -118,7 +118,7 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher, showSilenced bool, re *r
 	seen := map[model.Fingerprint]*AlertGroup{}
 
 	for route, ags := range d.aggrGroups {
-		if !re.MatchString(route.RouteOpts.Receiver) {
+		if re != nil && !re.MatchString(route.RouteOpts.Receiver) {
 			continue
 		}
 
