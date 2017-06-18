@@ -59,15 +59,17 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
-		Username:  `{{ template "slack.default.username" . }}`,
-		Title:     `{{ template "slack.default.title" . }}`,
-		TitleLink: `{{ template "slack.default.titlelink" . }}`,
-		IconEmoji: `{{ template "slack.default.iconemoji" . }}`,
-		IconURL:   `{{ template "slack.default.iconurl" . }}`,
-		Pretext:   `{{ template "slack.default.pretext" . }}`,
-		Text:      `{{ template "slack.default.text" . }}`,
-		Fallback:  `{{ template "slack.default.fallback" . }}`,
+		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:   `{{ template "slack.default.username" . }}`,
+		Title:      `{{ template "slack.default.title" . }}`,
+		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
+		Author:     `{{ template "slack.default.author" . }}`,
+		AuthorLink: `{{ template "slack.default.authorlink" . }}`,
+		IconEmoji:  `{{ template "slack.default.iconemoji" . }}`,
+		IconURL:    `{{ template "slack.default.iconurl" . }}`,
+		Pretext:    `{{ template "slack.default.pretext" . }}`,
+		Text:       `{{ template "slack.default.text" . }}`,
+		Fallback:   `{{ template "slack.default.fallback" . }}`,
 	}
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
@@ -205,9 +207,11 @@ type SlackConfig struct {
 	APIURL Secret `yaml:"api_url" json:"api_url"`
 
 	// Slack channel override, (like #other-channel or @username).
-	Channel  string `yaml:"channel" json:"channel"`
-	Username string `yaml:"username" json:"username"`
-	Color    string `yaml:"color" json:"color"`
+	Channel    string `yaml:"channel" json:"channel"`
+	Username   string `yaml:"username" json:"username"`
+	Color      string `yaml:"color" json:"color"`
+	Author     string `yaml:"author" json:"author"`
+	AuthorLink string `yaml:"author_link" json:"author_link"`
 
 	Title     string `yaml:"title" json:"title"`
 	TitleLink string `yaml:"title_link" json:"title_link"`
@@ -216,6 +220,7 @@ type SlackConfig struct {
 	Fallback  string `yaml:"fallback" json:"fallback"`
 	IconEmoji string `yaml:"icon_emoji" json:"icon_emoji"`
 	IconURL   string `yaml:"icon_url" json:"icon_url"`
+	Footer    string `yaml:"footer" json:"footer"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
