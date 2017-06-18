@@ -266,9 +266,7 @@ func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	groups := api.groups(matchers, showSilenced, re)
-
-	respond(w, groups)
+	respond(w, api.groups(matchers, showSilenced, re))
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
@@ -277,7 +275,6 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		re  *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res          = []*dispatch.APIAlert{}
 		matchers     = []*labels.Matcher{}
 		showSilenced = true
 	)
@@ -322,16 +319,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	res = flattenGroups(api.groups(matchers, showSilenced, re))
-
-	if err != nil {
-		respondError(w, apiError{
-			typ: errorInternal,
-			err: err,
-		}, nil)
-		return
-	}
-	respond(w, res)
+	respond(w, flattenGroups(api.groups(matchers, showSilenced, re)))
 }
 
 func flattenGroups(groups dispatch.AlertOverview) []*dispatch.APIAlert {
