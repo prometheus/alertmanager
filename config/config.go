@@ -488,11 +488,8 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface.
-func (re *Regexp) MarshalYAML() (interface{}, error) {
-	if re != nil {
-		return re.String(), nil
-	}
-	return nil, nil
+func (re Regexp) MarshalYAML() (interface{}, error) {
+	return re.Regexp.String(), nil
 }
 
 // UnmarshalJSON implements the json.Marshaler interface
