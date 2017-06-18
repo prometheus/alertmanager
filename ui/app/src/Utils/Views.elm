@@ -4,6 +4,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onCheck, onInput, onClick, onBlur)
 import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
+import Utils.String
 
 
 tab : tab -> tab -> (tab -> msg) -> List (Html msg) -> Html msg
@@ -126,6 +127,5 @@ loading =
 
 error : String -> Html msg
 error err =
-    div []
-        [ p [] [ text <| "Error: " ++ err ]
-        ]
+    div [ class "alert alert-warning" ]
+        [ text (Utils.String.capitalizeFirst err) ]
