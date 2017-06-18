@@ -145,6 +145,10 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher, showSilenced bool, re *r
 					continue
 				}
 
+				a.Annotations = a.Annotations.Merge(
+					model.LabelSet{"receiver": model.LabelValue(route.RouteOpts.Receiver)},
+				)
+
 				aa := &APIAlert{
 					Alert:  a,
 					Status: status,
