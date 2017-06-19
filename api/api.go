@@ -120,6 +120,7 @@ func (api *API) Register(r *route.Router) {
 	r = r.WithPrefix("/v1")
 
 	r.Get("/status", ihf("status", api.status))
+	r.Get("/receivers", ihf("receivers", api.receivers))
 	r.Get("/alerts/groups", ihf("alert_groups", api.alertGroups))
 
 	r.Get("/alerts", ihf("list_alerts", api.listAlerts))
@@ -156,6 +157,18 @@ type apiError struct {
 
 func (e *apiError) Error() string {
 	return fmt.Sprintf("%s: %s", e.typ, e.err)
+}
+
+func (api *API) receivers(w http.ResponseWriter, req *http.Request) {
+	api.mtx.RLock()
+	defer api.mtx.RUnlock()
+
+	receivers := make([]string, 0, len(api.config.Receivers))
+	for _, r := range api.config.Receivers {
+		receivers = append(receivers, r.Name)
+	}
+
+	respond(w, receivers)
 }
 
 func (api *API) status(w http.ResponseWriter, req *http.Request) {
