@@ -22,7 +22,7 @@ fetchAlerts apiUrl filter =
         url =
             String.join "/" [ apiUrl, "alerts" ++ generateQueryString filter ]
     in
-    Utils.Api.send (Utils.Api.get url alertsDecoder)
+        Utils.Api.send (Utils.Api.get url alertsDecoder)
 
 
 alertsDecoder : Json.Decoder (List Alert)
