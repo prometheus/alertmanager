@@ -1,19 +1,28 @@
 module Alerts.Api exposing (..)
 
-import Alerts.Types exposing (Alert, RouteOpts, Block, AlertGroup)
+import Alerts.Types exposing (Alert, AlertGroup, Block, RouteOpts)
 import Json.Decode as Json exposing (..)
 import Utils.Api exposing (iso8601Time)
-import Utils.Types exposing (ApiData)
 import Utils.Filter exposing (Filter, generateQueryString)
+import Utils.Types exposing (ApiData)
+
+
+fetchReceivers : String -> Cmd (ApiData (List String))
+fetchReceivers apiUrl =
+    Utils.Api.send
+        (Utils.Api.get
+            (apiUrl ++ "/receivers")
+            (field "data" (list string))
+        )
 
 
 fetchAlerts : String -> Filter -> Cmd (ApiData (List Alert))
 fetchAlerts apiUrl filter =
     let
         url =
-            String.join "/" [ apiUrl, "alerts" ++ (generateQueryString filter) ]
+            String.join "/" [ apiUrl, "alerts" ++ generateQueryString filter ]
     in
-        Utils.Api.send (Utils.Api.get url alertsDecoder)
+    Utils.Api.send (Utils.Api.get url alertsDecoder)
 
 
 alertsDecoder : Json.Decoder (List Alert)

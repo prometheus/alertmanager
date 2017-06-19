@@ -12,7 +12,7 @@ import Utils.Views
 import Utils.List
 import Views.AlertList.AlertView as AlertView
 import Views.GroupBar.Types as GroupBar
-import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, MsgForGroupBar, SetTab, ToggleSilenced), Model, Tab(..))
+import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
@@ -20,7 +20,7 @@ import Dict exposing (Dict)
 
 renderSilenced : Maybe Bool -> Html Msg
 renderSilenced maybeShowSilenced =
-    li [ class "nav-item ml-auto " ]
+    li [ class "nav-item" ]
         [ label [ class "mt-1 custom-control custom-checkbox" ]
             [ input
                 [ type_ "checkbox"
@@ -36,7 +36,7 @@ renderSilenced maybeShowSilenced =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, groupBar, filterBar, tab, activeId } filter =
+view { alerts, groupBar, filterBar, receivers, showRecievers, tab, activeId } filter =
     div []
         [ div
             [ class "card mb-5" ]
@@ -44,6 +44,7 @@ view { alerts, groupBar, filterBar, tab, activeId } filter =
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
                     , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ text "Group" ]
+                    , renderReceivers filter.receiver receivers showRecievers
                     , renderSilenced filter.showSilenced
                     ]
                 ]
@@ -113,3 +114,58 @@ alertList activeId labels filter alerts =
           else
             ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
         ]
+
+
+renderReceivers : Maybe String -> List String -> Bool -> Html Msg
+renderReceivers receiver receivers opened =
+    let
+        autoCompleteClass =
+            if opened then
+                "show"
+            else
+                ""
+
+        navLinkClass =
+            if opened then
+                "active"
+            else
+                ""
+    in
+        li
+            [ class ("nav-item ml-auto autocomplete-menu " ++ autoCompleteClass)
+            , onBlur (ToggleReceivers False |> MsgForAlertList)
+            , tabindex 1
+            , style
+                [ ( "position", "relative" )
+                , ( "outline", "none" )
+                ]
+            ]
+            [ div
+                [ onClick (ToggleReceivers (not opened) |> MsgForAlertList)
+                , class "mt-1 mr-4"
+                , style [ ( "cursor", "pointer" ) ]
+                ]
+                [ text ("Receiver: " ++ Maybe.withDefault "All" receiver) ]
+            , receivers
+                |> List.map Just
+                |> (::) Nothing
+                |> List.map (receiverField receiver)
+                |> div [ class "dropdown-menu dropdown-menu-right" ]
+            ]
+
+
+receiverField : Maybe String -> Maybe String -> Html Msg
+receiverField selected maybeReceiver =
+    let
+        attrs =
+            if selected == maybeReceiver then
+                [ class "dropdown-item active" ]
+            else
+                [ class "dropdown-item"
+                , style [ ( "cursor", "pointer" ) ]
+                , onClick (SelectReceiver maybeReceiver |> MsgForAlertList)
+                ]
+    in
+        div
+            attrs
+            [ text (Maybe.withDefault "All" maybeReceiver) ]

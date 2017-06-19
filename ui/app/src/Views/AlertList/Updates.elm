@@ -47,8 +47,25 @@ update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
                         FilterBar.setMatchers filter filterBar
                 in
                     ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
-                    , Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                    , Cmd.batch
+                        [ Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                        , Api.fetchReceivers apiUrl |> Cmd.map (ReceiversFetched >> MsgForAlertList)
+                        ]
                     )
+
+            ReceiversFetched (Success receivers) ->
+                ( { model | receivers = receivers }, Cmd.none )
+
+            ToggleReceivers show ->
+                ( { model | showRecievers = show }, Cmd.none )
+
+            ReceiversFetched _ ->
+                ( model, Cmd.none )
+
+            SelectReceiver receiver ->
+                ( { model | showRecievers = False }
+                , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | receiver = receiver })
+                )
 
             ToggleSilenced showSilenced ->
                 ( model
