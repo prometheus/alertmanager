@@ -131,15 +131,15 @@ type EmailConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	// Email address to notify.
-	To           string            `yaml:"to" json:"to"`
-	From         string            `yaml:"from" json:"from"`
+	To           string            `yaml:"to,omitempty" json:"to,omitempty"`
+	From         string            `yaml:"from,omitempty" json:"from,omitempty"`
 	Smarthost    string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
-	AuthUsername string            `yaml:"auth_username" json:"auth_username"`
-	AuthPassword Secret            `yaml:"auth_password" json:"auth_password"`
-	AuthSecret   Secret            `yaml:"auth_secret" json:"auth_secret"`
-	AuthIdentity string            `yaml:"auth_identity" json:"auth_identity"`
-	Headers      map[string]string `yaml:"headers" json:"headers"`
-	HTML         string            `yaml:"html" json:"html"`
+	AuthUsername string            `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
+	AuthPassword Secret            `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
+	AuthSecret   Secret            `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
+	AuthIdentity string            `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
+	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+	HTML         string            `yaml:"html,omitempty" json:"html,omitempty"`
 	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
@@ -174,12 +174,12 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	ServiceKey  Secret            `yaml:"service_key" json:"service_key"`
-	URL         string            `yaml:"url" json:"url"`
-	Client      string            `yaml:"client" json:"client"`
-	ClientURL   string            `yaml:"client_url" json:"client_url"`
-	Description string            `yaml:"description" json:"description"`
-	Details     map[string]string `yaml:"details" json:"details"`
+	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
+	URL         string            `yaml:"url,omitempty" json:"url,omitempty"`
+	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
+	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
+	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -202,20 +202,20 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 type SlackConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIURL Secret `yaml:"api_url" json:"api_url"`
+	APIURL Secret `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
-	Channel  string `yaml:"channel" json:"channel"`
-	Username string `yaml:"username" json:"username"`
-	Color    string `yaml:"color" json:"color"`
+	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+	Color    string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Title     string `yaml:"title" json:"title"`
-	TitleLink string `yaml:"title_link" json:"title_link"`
-	Pretext   string `yaml:"pretext" json:"pretext"`
-	Text      string `yaml:"text" json:"text"`
-	Fallback  string `yaml:"fallback" json:"fallback"`
-	IconEmoji string `yaml:"icon_emoji" json:"icon_emoji"`
-	IconURL   string `yaml:"icon_url" json:"icon_url"`
+	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink string `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Pretext   string `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Text      string `yaml:"text,omitempty" json:"text,omitempty"`
+	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -235,17 +235,17 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type HipchatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIURL        string `yaml:"api_url" json:"api_url"`
-	AuthToken     Secret `yaml:"auth_token" json:"auth_token"`
-	RoomID        string `yaml:"room_id" json:"room_id"`
-	From          string `yaml:"from" json:"from"`
-	Notify        bool   `yaml:"notify" json:"notify"`
-	Message       string `yaml:"message" json:"message"`
-	MessageFormat string `yaml:"message_format" json:"message_format"`
-	Color         string `yaml:"color" json:"color"`
+	APIURL        string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
+	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
+	From          string `yaml:"from,omitempty" json:"from,omitempty"`
+	Notify        bool   `yaml:"notify,omitempty" json:"notify,omitempty"`
+	Message       string `yaml:"message,omitempty" json:"message,omitempty"`
+	MessageFormat string `yaml:"message_format,omitempty" json:"message_format,omitempty"`
+	Color         string `yaml:"color,omitempty" json:"color,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline" json:"-"`
+	XXX map[string]interface{} `yaml:",inline" ,json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -290,15 +290,15 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type OpsGenieConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIKey      Secret            `yaml:"api_key" json:"api_key"`
-	APIHost     string            `yaml:"api_host" json:"api_host"`
-	Message     string            `yaml:"message" json:"message"`
-	Description string            `yaml:"description" json:"description"`
-	Source      string            `yaml:"source" json:"source"`
-	Details     map[string]string `yaml:"details" json:"details"`
-	Teams       string            `yaml:"teams" json:"teams"`
-	Tags        string            `yaml:"tags" json:"tags"`
-	Note        string            `yaml:"note" json:"note"`
+	APIKey      Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIHost     string            `yaml:"api_host,omitempty" json:"api_host,omitempty"`
+	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
+	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Source      string            `yaml:"source,omitempty" json:"source,omitempty"`
+	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+	Teams       string            `yaml:"teams,omitempty" json:"teams,omitempty"`
+	Tags        string            `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Note        string            `yaml:"note,omitempty" json:"note,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -321,12 +321,12 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 type VictorOpsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIKey         Secret `yaml:"api_key" json:"api_key"`
-	APIURL         string `yaml:"api_url" json:"api_url"`
-	RoutingKey     string `yaml:"routing_key" json:"routing_key"`
-	MessageType    string `yaml:"message_type" json:"message_type"`
-	StateMessage   string `yaml:"state_message" json:"state_message"`
-	MonitoringTool string `yaml:"monitoring_tool" json:"monitoring_tool"`
+	APIKey         Secret `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIURL         string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	RoutingKey     string `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
+	MessageType    string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	StateMessage   string `yaml:"state_message,omitempty" json:"state_message,omitempty"`
+	MonitoringTool string `yaml:"monitoring_tool,omitempty" json:"monitoring_tool,omitempty"`
 
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
@@ -364,14 +364,14 @@ func (d duration) MarshalText() ([]byte, error) {
 type PushoverConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	UserKey  Secret   `yaml:"user_key" json:"user_key"`
-	Token    Secret   `yaml:"token" json:"token"`
-	Title    string   `yaml:"title" json:"title"`
-	Message  string   `yaml:"message" json:"message"`
-	URL      string   `yaml:"url" json:"url"`
-	Priority string   `yaml:"priority" json:"priority"`
-	Retry    duration `yaml:"retry" json:"retry"`
-	Expire   duration `yaml:"expire" json:"expire"`
+	UserKey  Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
+	Token    Secret   `yaml:"token,omitempty" json:"token,omitempty"`
+	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
+	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
+	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
+	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Expire   duration `yaml:"expire,omitempty" json:"expire,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`

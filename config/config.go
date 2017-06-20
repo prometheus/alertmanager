@@ -303,19 +303,19 @@ type GlobalConfig struct {
 	// if it has not been updated.
 	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
 
-	SMTPFrom         string `yaml:"smtp_from" json:"smtp_from"`
-	SMTPSmarthost    string `yaml:"smtp_smarthost" json:"smtp_smarthost"`
-	SMTPAuthUsername string `yaml:"smtp_auth_username" json:"smtp_auth_username"`
-	SMTPAuthPassword Secret `yaml:"smtp_auth_password" json:"smtp_auth_password"`
-	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret" json:"smtp_auth_secret"`
-	SMTPAuthIdentity string `yaml:"smtp_auth_identity" json:"smtp_auth_identity"`
-	SMTPRequireTLS   bool   `yaml:"smtp_require_tls" json:"smtp_require_tls"`
-	SlackAPIURL      Secret `yaml:"slack_api_url" json:"slack_api_url"`
-	PagerdutyURL     string `yaml:"pagerduty_url" json:"pagerduty_url"`
-	HipchatURL       string `yaml:"hipchat_url" json:"hipchat_url"`
-	HipchatAuthToken Secret `yaml:"hipchat_auth_token" json:"hipchat_auth_token"`
-	OpsGenieAPIHost  string `yaml:"opsgenie_api_host" json:"opsgenie_api_host"`
-	VictorOpsAPIURL  string `yaml:"victorops_api_url" json:"victorops_api_url"`
+	SMTPFrom         string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPSmarthost    string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS   bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
+	SlackAPIURL      Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	HipchatURL       string `yaml:"hipchat_url,omitempty" json:"hipchat_url,omitempty"`
+	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
+	OpsGenieAPIHost  string `yaml:"opsgenie_api_host,omitempty" json:"opsgenie_api_host,omitempty"`
+	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -386,19 +386,19 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type InhibitRule struct {
 	// SourceMatch defines a set of labels that have to equal the given
 	// value for source alerts.
-	SourceMatch map[string]string `yaml:"source_match" json:"source_match"`
+	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
 	// SourceMatchRE defines pairs like SourceMatch but does regular expression
 	// matching.
-	SourceMatchRE map[string]Regexp `yaml:"source_match_re" json:"source_match_re"`
+	SourceMatchRE map[string]Regexp `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts.
-	TargetMatch map[string]string `yaml:"target_match" json:"target_match"`
+	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
 	// TargetMatchRE defines pairs like TargetMatch but does regular expression
 	// matching.
-	TargetMatchRE map[string]Regexp `yaml:"target_match_re" json:"target_match_re"`
+	TargetMatchRE map[string]Regexp `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
-	Equal model.LabelNames `yaml:"equal" json:"equal"`
+	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -488,8 +488,8 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface.
-func (re *Regexp) MarshalYAML() (interface{}, error) {
-	if re != nil {
+func (re Regexp) MarshalYAML() (interface{}, error) {
+	if re.Regexp != nil {
 		return re.String(), nil
 	}
 	return nil, nil
