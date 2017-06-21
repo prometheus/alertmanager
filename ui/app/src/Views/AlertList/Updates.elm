@@ -7,6 +7,7 @@ import Utils.Filter exposing (Filter, parseFilter)
 import Utils.Types exposing (ApiData(Initial, Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Set
+import Regex
 import Navigation
 import Utils.Filter exposing (generateQueryString)
 import Views.GroupBar.Updates as GroupBar
@@ -64,7 +65,7 @@ update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
 
             SelectReceiver receiver ->
                 ( { model | showRecievers = False }
-                , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | receiver = receiver })
+                , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | receiver = Maybe.map Regex.escape receiver })
                 )
 
             ToggleSilenced showSilenced ->

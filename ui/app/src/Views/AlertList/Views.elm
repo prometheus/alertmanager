@@ -16,6 +16,7 @@ import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
+import Regex
 
 
 renderSilenced : Maybe Bool -> Html Msg
@@ -130,6 +131,14 @@ renderReceivers receiver receivers opened =
                 "active"
             else
                 ""
+
+        -- Try to find the regex-escaped receiver in the list of unescaped receivers:
+        unescapedReceiver =
+            receivers
+                |> List.filter (Regex.escape >> Just >> (==) receiver)
+                |> List.map Just
+                |> List.head
+                |> Maybe.withDefault receiver
     in
         li
             [ class ("nav-item ml-auto autocomplete-menu " ++ autoCompleteClass)
@@ -145,11 +154,11 @@ renderReceivers receiver receivers opened =
                 , class "mt-1 mr-4"
                 , style [ ( "cursor", "pointer" ) ]
                 ]
-                [ text ("Receiver: " ++ Maybe.withDefault "All" receiver) ]
+                [ text ("Receiver: " ++ Maybe.withDefault "All" unescapedReceiver) ]
             , receivers
                 |> List.map Just
                 |> (::) Nothing
-                |> List.map (receiverField receiver)
+                |> List.map (receiverField unescapedReceiver)
                 |> div [ class "dropdown-menu dropdown-menu-right" ]
             ]
 
