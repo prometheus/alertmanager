@@ -16,6 +16,7 @@ package dispatch
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -89,6 +90,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	for ln, lv := range cr.MatchRE {
 		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
+	sort.Sort(matchers)
 
 	route := &Route{
 		parent:    parent,
