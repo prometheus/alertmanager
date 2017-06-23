@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -210,8 +209,8 @@ func main() {
 	apiv := api.New(
 		alerts,
 		silences,
-		func(matchers []*labels.Matcher, showSilenced bool, re *regexp.Regexp) dispatch.AlertOverview {
-			return disp.Groups(matchers, showSilenced, re)
+		func(matchers []*labels.Matcher) dispatch.AlertOverview {
+			return disp.Groups(matchers)
 		},
 		marker.Status,
 		mrouter,

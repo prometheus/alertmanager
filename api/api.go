@@ -87,7 +87,7 @@ type API struct {
 	mtx sync.RWMutex
 }
 
-type groupsFn func([]*labels.Matcher, bool, *regexp.Regexp) dispatch.AlertOverview
+type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
 type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
 
 // New returns a new API.
@@ -234,12 +234,8 @@ func getMeshStatus(api *API) meshStatus {
 }
 
 func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
-	var (
-		err          error
-		re           *regexp.Regexp
-		matchers     = []*labels.Matcher{}
-		showSilenced = true
-	)
+	var err error
+	matchers := []*labels.Matcher{}
 
 	if filter := r.FormValue("filter"); filter != "" {
 		matchers, err = parse.Matchers(filter)
@@ -252,36 +248,9 @@ func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if silencedParam := r.FormValue("silenced"); silencedParam != "" {
-		if silencedParam == "false" {
-			showSilenced = false
-		} else if silencedParam != "true" {
-			respondError(w, apiError{
-				typ: errorBadData,
-				err: fmt.Errorf(
-					"parameter 'silenced' can either be 'true' or 'false', not '%v'",
-					silencedParam,
-				),
-			}, nil)
-			return
-		}
-	}
+	groups := api.groups(matchers)
 
-	if receiverParam := r.FormValue("receiver"); receiverParam != "" {
-		re, err = regexp.Compile("^(?:" + receiverParam + ")$")
-		if err != nil {
-			respondError(w, apiError{
-				typ: errorBadData,
-				err: fmt.Errorf(
-					"failed to parse receiver param: %s",
-					receiverParam,
-				),
-			}, nil)
-			return
-		}
-	}
-
-	respond(w, api.groups(matchers, showSilenced, re))
+	respond(w, groups)
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
