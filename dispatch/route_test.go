@@ -51,6 +51,7 @@ routes:
 
   - match_re:
       env: "produ.*"
+      job: ".*"
 
     receiver: 'notify-productionB'
     group_wait: 30s
@@ -99,6 +100,7 @@ routes:
 	tests := []struct {
 		input  model.LabelSet
 		result []*RouteOpts
+		keys   []string
 	}{
 		{
 			input: model.LabelSet{
@@ -113,6 +115,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
+			keys: []string{"{}/{owner=\"team-A\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -128,6 +131,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
+			keys: []string{"{}/{owner=\"team-A\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -142,6 +146,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
+			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -157,6 +162,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
+			keys: []string{"{}/{owner=\"team-A\"}/{env=\"testing\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -179,6 +185,10 @@ routes:
 					RepeatInterval: 1 * time.Hour,
 				},
 			},
+			keys: []string{
+				"{}/{owner=\"team-A\"}/{env=\"production\"}",
+				"{}/{owner=\"team-A\"}/{env=~\"^(?:produ.*)$\",job=~\"^(?:.*)$\"}",
+			},
 		},
 		{
 			input: model.LabelSet{
@@ -193,6 +203,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
+			keys: []string{"{}/{group_by=\"role\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -208,6 +219,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
+			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -224,17 +236,25 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
+			keys: []string{"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}"},
 		},
 	}
 
 	for _, test := range tests {
 		var matches []*RouteOpts
+		var keys []string
+
 		for _, r := range tree.Match(test.input) {
 			matches = append(matches, &r.RouteOpts)
+			keys = append(keys, r.Key())
 		}
 
 		if !reflect.DeepEqual(matches, test.result) {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", test.result, matches)
+		}
+
+		if !reflect.DeepEqual(keys, test.keys) {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", test.keys, keys)
 		}
 	}
 }

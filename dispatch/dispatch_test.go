@@ -286,7 +286,7 @@ func TestAggrGroup(t *testing.T) {
 		}
 
 		if !ag.empty() {
-			t.Fatalf("Expected aggregation group to be empty after resolving alerts")
+			t.Fatalf("Expected aggregation group to be empty after resolving alerts: %v", ag)
 		}
 	}
 
