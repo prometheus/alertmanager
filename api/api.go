@@ -76,6 +76,7 @@ type API struct {
 	alerts         provider.Alerts
 	silences       *silence.Silences
 	config         *config.Config
+	route          *dispatch.Route
 	resolveTimeout time.Duration
 	uptime         time.Time
 	mrouter        *mesh.Router
@@ -139,6 +140,7 @@ func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
 
 	api.resolveTimeout = resolveTimeout
 	api.config = cfg
+	api.route = dispatch.NewRoute(cfg.Route, nil)
 	return nil
 }
 
@@ -288,6 +290,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		re  *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
+		res          = []*dispatch.APIAlert{}
 		matchers     = []*labels.Matcher{}
 		showSilenced = true
 	)
@@ -332,18 +335,67 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	respond(w, flattenGroups(api.groups(matchers, showSilenced, re)))
+	alerts := api.alerts.GetPending()
+	defer alerts.Close()
+
+	// TODO(fabxc): enforce a sensible timeout.
+	for a := range alerts.Next() {
+		if err = alerts.Err(); err != nil {
+			break
+		}
+
+		routes := api.route.Match(a.Labels)
+		receivers := make([]string, 0, len(routes))
+		for _, r := range routes {
+			receivers = append(receivers, r.RouteOpts.Receiver)
+		}
+
+		if re != nil && !regexpAny(re, receivers) {
+			continue
+		}
+
+		if !alertMatchesFilterLabels(&a.Alert, matchers) {
+			continue
+		}
+
+		// Continue if alert is resolved
+		if !a.Alert.EndsAt.IsZero() && a.Alert.EndsAt.Before(time.Now()) {
+			continue
+		}
+
+		status := api.getAlertStatus(a.Fingerprint())
+
+		if !showSilenced && len(status.SilencedBy) != 0 {
+			continue
+		}
+
+		apiAlert := &dispatch.APIAlert{
+			Alert:     &a.Alert,
+			Status:    status,
+			Receivers: receivers,
+		}
+
+		res = append(res, apiAlert)
+	}
+
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorInternal,
+			err: err,
+		}, nil)
+		return
+	}
+	respond(w, res)
 }
 
-func flattenGroups(groups dispatch.AlertOverview) []*dispatch.APIAlert {
-	apiAlerts := []*dispatch.APIAlert{}
-	for _, ag := range groups {
-		for _, blk := range ag.Blocks {
-			apiAlerts = append(apiAlerts, blk.Alerts...)
+func regexpAny(re *regexp.Regexp, ss []string) bool {
+	for _, s := range ss {
+		if re.MatchString(s) {
+			return true
 		}
 	}
 
-	return apiAlerts
+	return false
 }
 
 func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {

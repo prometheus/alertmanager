@@ -81,7 +81,8 @@ type AlertBlock struct {
 // annotated with silencing and inhibition info.
 type APIAlert struct {
 	*model.Alert
-	Status types.AlertStatus `json:"status"`
+	Status    types.AlertStatus `json:"status"`
+	Receivers []string          `json:"receivers"`
 }
 
 // AlertGroup is a list of alert blocks grouped by the same label set.
@@ -145,13 +146,10 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher, showSilenced bool, re *r
 					continue
 				}
 
-				a.Annotations = a.Annotations.Merge(
-					model.LabelSet{"receiver": model.LabelValue(route.RouteOpts.Receiver)},
-				)
-
 				aa := &APIAlert{
-					Alert:  a,
-					Status: status,
+					Alert:     a,
+					Status:    status,
+					Receivers: []string{route.RouteOpts.Receiver},
 				}
 
 				if !matchesFilterLabels(aa, matchers) {
