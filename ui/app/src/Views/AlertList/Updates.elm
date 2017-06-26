@@ -7,6 +7,7 @@ import Utils.Filter exposing (Filter, parseFilter)
 import Utils.Types exposing (ApiData(Initial, Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Set
+import Regex
 import Navigation
 import Utils.Filter exposing (generateQueryString)
 import Views.GroupBar.Updates as GroupBar
@@ -47,8 +48,25 @@ update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
                         FilterBar.setMatchers filter filterBar
                 in
                     ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
-                    , Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                    , Cmd.batch
+                        [ Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                        , Api.fetchReceivers apiUrl |> Cmd.map (ReceiversFetched >> MsgForAlertList)
+                        ]
                     )
+
+            ReceiversFetched (Success receivers) ->
+                ( { model | receivers = receivers }, Cmd.none )
+
+            ReceiversFetched _ ->
+                ( model, Cmd.none )
+
+            ToggleReceivers show ->
+                ( { model | showRecievers = show }, Cmd.none )
+
+            SelectReceiver receiver ->
+                ( { model | showRecievers = False }
+                , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | receiver = Maybe.map Regex.escape receiver })
+                )
 
             ToggleSilenced showSilenced ->
                 ( model

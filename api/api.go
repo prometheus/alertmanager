@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -75,6 +76,7 @@ type API struct {
 	alerts         provider.Alerts
 	silences       *silence.Silences
 	config         *config.Config
+	route          *dispatch.Route
 	resolveTimeout time.Duration
 	uptime         time.Time
 	mrouter        *mesh.Router
@@ -119,6 +121,7 @@ func (api *API) Register(r *route.Router) {
 	r = r.WithPrefix("/v1")
 
 	r.Get("/status", ihf("status", api.status))
+	r.Get("/receivers", ihf("receivers", api.receivers))
 	r.Get("/alerts/groups", ihf("alert_groups", api.alertGroups))
 
 	r.Get("/alerts", ihf("list_alerts", api.listAlerts))
@@ -137,6 +140,7 @@ func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
 
 	api.resolveTimeout = resolveTimeout
 	api.config = cfg
+	api.route = dispatch.NewRoute(cfg.Route, nil)
 	return nil
 }
 
@@ -155,6 +159,18 @@ type apiError struct {
 
 func (e *apiError) Error() string {
 	return fmt.Sprintf("%s: %s", e.typ, e.err)
+}
+
+func (api *API) receivers(w http.ResponseWriter, req *http.Request) {
+	api.mtx.RLock()
+	defer api.mtx.RUnlock()
+
+	receivers := make([]string, 0, len(api.config.Receivers))
+	for _, r := range api.config.Receivers {
+		receivers = append(receivers, r.Name)
+	}
+
+	respond(w, receivers)
 }
 
 func (api *API) status(w http.ResponseWriter, req *http.Request) {
@@ -217,10 +233,11 @@ func getMeshStatus(api *API) meshStatus {
 	return strippedStatus
 }
 
-func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
+func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
 	var err error
 	matchers := []*labels.Matcher{}
-	if filter := req.FormValue("filter"); filter != "" {
+
+	if filter := r.FormValue("filter"); filter != "" {
 		matchers, err = parse.Matchers(filter)
 		if err != nil {
 			respondError(w, apiError{
@@ -236,18 +253,13 @@ func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
 	respond(w, groups)
 }
 
-type APIAlert struct {
-	*model.Alert
-
-	Status types.AlertStatus `json:"status"`
-}
-
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	var (
 		err error
+		re  *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res          = []*APIAlert{}
+		res          = []*dispatch.APIAlert{}
 		matchers     = []*labels.Matcher{}
 		showSilenced = true
 	)
@@ -278,6 +290,20 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if receiverParam := r.FormValue("receiver"); receiverParam != "" {
+		re, err = regexp.Compile("^(?:" + receiverParam + ")$")
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: fmt.Errorf(
+					"failed to parse receiver param: %s",
+					receiverParam,
+				),
+			}, nil)
+			return
+		}
+	}
+
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
@@ -285,6 +311,16 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
 			break
+		}
+
+		routes := api.route.Match(a.Labels)
+		receivers := make([]string, 0, len(routes))
+		for _, r := range routes {
+			receivers = append(receivers, r.RouteOpts.Receiver)
+		}
+
+		if re != nil && !regexpAny(re, receivers) {
+			continue
 		}
 
 		if !alertMatchesFilterLabels(&a.Alert, matchers) {
@@ -302,9 +338,10 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		apiAlert := &APIAlert{
-			Alert:  &a.Alert,
-			Status: status,
+		apiAlert := &dispatch.APIAlert{
+			Alert:     &a.Alert,
+			Status:    status,
+			Receivers: receivers,
 		}
 
 		res = append(res, apiAlert)
@@ -318,6 +355,16 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, res)
+}
+
+func regexpAny(re *regexp.Regexp, ss []string) bool {
+	for _, s := range ss {
+		if re.MatchString(s) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {

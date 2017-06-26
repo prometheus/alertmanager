@@ -269,7 +269,7 @@ func (as Alerts) Resolved() []Alert {
 // Data assembles data for template expansion.
 func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*types.Alert) *Data {
 	data := &Data{
-		Receiver:          strings.SplitN(recv, "/", 2)[0],
+		Receiver:          regexp.QuoteMeta(strings.SplitN(recv, "/", 2)[0]),
 		Status:            string(types.Alerts(alerts...).Status()),
 		Alerts:            make(Alerts, 0, len(alerts)),
 		GroupLabels:       KV{},
