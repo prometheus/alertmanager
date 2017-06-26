@@ -57,11 +57,11 @@ update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
             ReceiversFetched (Success receivers) ->
                 ( { model | receivers = receivers }, Cmd.none )
 
-            ToggleReceivers show ->
-                ( { model | showRecievers = show }, Cmd.none )
-
             ReceiversFetched _ ->
                 ( model, Cmd.none )
+
+            ToggleReceivers show ->
+                ( { model | showRecievers = show }, Cmd.none )
 
             SelectReceiver receiver ->
                 ( { model | showRecievers = False }
