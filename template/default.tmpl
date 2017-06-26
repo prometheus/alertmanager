@@ -26,6 +26,9 @@
 {{ define "hipchat.default.message" }}{{ template "__subject" . }}{{ end }}
 
 
+{{ define "chatwork.default.message" }}{{ template "__subject" . }}{{ end }}
+
+
 {{ define "pagerduty.default.description" }}{{ template "__subject" . }}{{ end }}
 {{ define "pagerduty.default.client" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "pagerduty.default.clientURL" }}{{ template "__alertmanagerURL" . }}{{ end }}

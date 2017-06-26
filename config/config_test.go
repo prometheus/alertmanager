@@ -139,16 +139,18 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	var expectedConf = Config{
 
 		Global: &GlobalConfig{
-			ResolveTimeout:   model.Duration(5 * time.Minute),
-			SMTPSmarthost:    "localhost:25",
-			SMTPFrom:         "alertmanager@example.org",
-			HipchatAuthToken: "mysecret",
-			HipchatURL:       "https://hipchat.foobar.org/",
-			SlackAPIURL:      "mysecret",
-			SMTPRequireTLS:   true,
-			PagerdutyURL:     "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
-			OpsGenieAPIHost:  "https://api.opsgenie.com/",
-			VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
+			ResolveTimeout:    model.Duration(5 * time.Minute),
+			SMTPSmarthost:     "localhost:25",
+			SMTPFrom:          "alertmanager@example.org",
+			HipchatAuthToken:  "mysecret",
+			HipchatURL:        "https://hipchat.foobar.org/",
+			ChatWorkAuthToken: "mysecret",
+			ChatWorkURL:       "https://api.chatwork.com/v2",
+			SlackAPIURL:       "mysecret",
+			SMTPRequireTLS:    true,
+			PagerdutyURL:      "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+			OpsGenieAPIHost:   "https://api.opsgenie.com/",
+			VictorOpsAPIURL:   "https://alert.victorops.com/integrations/generic/20131114/alert/",
 		},
 
 		Templates: []string{
