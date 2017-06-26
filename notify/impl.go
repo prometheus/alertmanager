@@ -122,6 +122,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewHipchat(c, tmpl)
 		add("hipchat", i, n, c)
 	}
+	for i, c := range nc.ChatWorkConfigs {
+		n := NewChatWork(c, tmpl)
+		add("chatwork", i, n, c)
+	}
 	for i, c := range nc.VictorOpsConfigs {
 		n := NewVictorOps(c, tmpl)
 		add("victorops", i, n, c)
@@ -625,6 +629,67 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
 	// responce codes indicate successful requests.
 	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
+	if statusCode/100 != 2 {
+		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// ChatWork implements a Notifier for ChatWork notifications.
+type ChatWork struct {
+	conf *config.ChatWorkConfig
+	tmpl *template.Template
+}
+
+// NewChatWork returns a new ChatWork notification handler.
+func NewChatWork(conf *config.ChatWorkConfig, tmpl *template.Template) *ChatWork {
+	return &ChatWork{
+		conf: conf,
+		tmpl: tmpl,
+	}
+}
+
+// Notify implements the Notifier interface.
+func (n *ChatWork) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var (
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+		urlStr   = fmt.Sprintf("%srooms/%s/messages", n.conf.APIURL, n.conf.RoomID)
+	)
+
+	if err != nil {
+		return false, err
+	}
+
+	msg := tmplText(n.conf.Message)
+	body := url.Values{}
+	body.Add("body", msg)
+
+	request, err := http.NewRequest("POST", urlStr, strings.NewReader(body.Encode()))
+	if err != nil {
+		return false, err
+	}
+
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	token := n.conf.AuthToken
+	tokenStr := string(token)
+	request.Header.Add("X-ChatWorkToken", tokenStr)
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, request)
+	if err != nil {
+		return true, err
+	}
+
+	defer resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+func (n *ChatWork) retry(statusCode int) (bool, error) {
+	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
+	// responce codes indicate successful requests.
 	if statusCode/100 != 2 {
 		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}

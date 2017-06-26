@@ -82,6 +82,14 @@ var (
 		MessageFormat: `text`,
 	}
 
+	// DefaultChatWorkConfig defines default values for ChatWork configurations.
+	DefaultChatWorkConfig = ChatWorkConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Message: `{{ template "chatwork.default.message" . }}`,
+	}
+
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		NotifierConfig: NotifierConfig{
@@ -260,6 +268,34 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkOverflow(c.XXX, "hipchat config")
+}
+
+// ChatWorkConfig configures notifications via ChatWork.
+type ChatWorkConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	APIURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	AuthToken Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
+	RoomID    string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" ,json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *ChatWorkConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+
+	*c = DefaultChatWorkConfig
+	type plain ChatWorkConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.RoomID == "" {
+		return fmt.Errorf("missing room id in ChatWork config")
+	}
+
+	return checkOverflow(c.XXX, "chatwork config")
 }
 
 // WebhookConfig configures notifications via a generic webhook.

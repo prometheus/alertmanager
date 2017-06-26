@@ -215,6 +215,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				hc.AuthToken = c.Global.HipchatAuthToken
 			}
 		}
+		for _, cw := range rcv.ChatWorkConfigs {
+			if cw.APIURL == "" {
+				if c.Global.ChatWorkURL == "" {
+					return fmt.Errorf("no global ChatWork API URL set")
+				}
+				cw.APIURL = c.Global.ChatWorkURL
+			}
+			if !strings.HasSuffix(cw.APIURL, "/") {
+				cw.APIURL += "/"
+			}
+			if cw.AuthToken == "" {
+				if c.Global.ChatWorkAuthToken == "" {
+					return fmt.Errorf("no global ChatWork Auth Token set")
+				}
+				cw.AuthToken = c.Global.ChatWorkAuthToken
+			}
+		}
 		for _, pdc := range rcv.PagerdutyConfigs {
 			if pdc.URL == "" {
 				if c.Global.PagerdutyURL == "" {
@@ -292,6 +309,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	SMTPRequireTLS:  true,
 	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
 	HipchatURL:      "https://api.hipchat.com/",
+	ChatWorkURL:     "https://api.chatwork.com/v2",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
@@ -303,19 +321,21 @@ type GlobalConfig struct {
 	// if it has not been updated.
 	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
 
-	SMTPFrom         string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPSmarthost    string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS   bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL      Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	HipchatURL       string `yaml:"hipchat_url,omitempty" json:"hipchat_url,omitempty"`
-	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
-	OpsGenieAPIHost  string `yaml:"opsgenie_api_host,omitempty" json:"opsgenie_api_host,omitempty"`
-	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	SMTPFrom          string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPSmarthost     string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername  string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword  Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret    Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity  string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS    bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
+	SlackAPIURL       Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	PagerdutyURL      string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	HipchatURL        string `yaml:"hipchat_url,omitempty" json:"hipchat_url,omitempty"`
+	HipchatAuthToken  Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
+	ChatWorkURL       string `yaml:"chatwork_url,omitempty" json:"chatwork_url,omitempty"`
+	ChatWorkAuthToken Secret `yaml:"chatwork_auth_token,omitempty" json:"chatwork_auth_token,omitempty"`
+	OpsGenieAPIHost   string `yaml:"opsgenie_api_host,omitempty" json:"opsgenie_api_host,omitempty"`
+	VictorOpsAPIURL   string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -446,6 +466,7 @@ type Receiver struct {
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
+	ChatWorkConfigs  []*ChatWorkConfig  `yaml:"chatwork_configs,omitempty" json:"chatwork_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
