@@ -46,9 +46,18 @@ Alerts Resolved:
 {{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
 
 
-{{ define "victorops.default.state_message" }}{{ template "__subject" . }} | {{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "victorops.default.state_message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
+{{ if gt (len .Alerts.Firing) 0 -}}
+Alerts Firing:
+{{ template "__text_alert_list" .Alerts.Firing }}
+{{- end }}
+{{ if gt (len .Alerts.Resolved) 0 -}}
+Alerts Resolved:
+{{ template "__text_alert_list" .Alerts.Resolved }}
+{{- end }}
+{{- end }}
+{{ define "victorops.default.entity_display_name" }}{{ template "__subject" . }}{{ end }}
 {{ define "victorops.default.monitoring_tool" }}{{ template "__alertmanager" . }}{{ end }}
-
 
 {{ define "email.default.subject" }}{{ template "__subject" . }}{{ end }}
 {{ define "email.default.html" }}

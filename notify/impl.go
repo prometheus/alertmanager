@@ -777,10 +777,11 @@ const (
 )
 
 type victorOpsMessage struct {
-	MessageType    string `json:"message_type"`
-	EntityID       string `json:"entity_id"`
-	StateMessage   string `json:"state_message"`
-	MonitoringTool string `json:"monitoring_tool"`
+	MessageType       string `json:"message_type"`
+	EntityID          string `json:"entity_id"`
+	EntityDisplayName string `json:"entity_display_name"`
+	StateMessage      string `json:"state_message"`
+	MonitoringTool    string `json:"monitoring_tool"`
 }
 
 type victorOpsErrorResponse struct {
@@ -803,11 +804,12 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	var err error
 	var (
-		alerts      = types.Alerts(as...)
-		data        = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
-		tmpl        = tmplText(n.tmpl, data, &err)
-		apiURL      = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
-		messageType = n.conf.MessageType
+		alerts       = types.Alerts(as...)
+		data         = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		tmpl         = tmplText(n.tmpl, data, &err)
+		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
+		messageType  = n.conf.MessageType
+		stateMessage = tmpl(n.conf.StateMessage)
 	)
 
 	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
@@ -818,11 +820,16 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		messageType = victorOpsEventResolve
 	}
 
+	if len(stateMessage) > 20480 {
+		stateMessage = stateMessage[0:20475] + "\n..."
+	}
+
 	msg := &victorOpsMessage{
-		MessageType:    messageType,
-		EntityID:       hashKey(key),
-		StateMessage:   tmpl(n.conf.StateMessage),
-		MonitoringTool: tmpl(n.conf.MonitoringTool),
+		MessageType:       messageType,
+		EntityID:          hashKey(key),
+		EntityDisplayName: tmpl(n.conf.EntityDisplayName),
+		StateMessage:      stateMessage,
+		MonitoringTool:    tmpl(n.conf.MonitoringTool),
 	}
 
 	if err != nil {

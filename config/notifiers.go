@@ -98,9 +98,10 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		MessageType:    `CRITICAL`,
-		StateMessage:   `{{ template "victorops.default.state_message" . }}`,
-		MonitoringTool: `{{ template "victorops.default.monitoring_tool" . }}`,
+		MessageType:       `CRITICAL`,
+		StateMessage:      `{{ template "victorops.default.state_message" . }}`,
+		EntityDisplayName: `{{ template "victorops.default.entity_display_name" . }}`,
+		MonitoringTool:    `{{ template "victorops.default.monitoring_tool" . }}`,
 	}
 
 	// DefaultPushoverConfig defines default values for Pushover configurations.
@@ -321,12 +322,13 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 type VictorOpsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIKey         Secret `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIURL         string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	RoutingKey     string `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
-	MessageType    string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
-	StateMessage   string `yaml:"state_message,omitempty" json:"state_message,omitempty"`
-	MonitoringTool string `yaml:"monitoring_tool,omitempty" json:"monitoring_tool,omitempty"`
+	APIKey            Secret `yaml:"api_key" json:"api_key"`
+	APIURL            string `yaml:"api_url" json:"api_url"`
+	RoutingKey        string `yaml:"routing_key" json:"routing_key"`
+	MessageType       string `yaml:"message_type" json:"message_type"`
+	StateMessage      string `yaml:"state_message" json:"state_message"`
+	EntityDisplayName string `yaml:"entity_display_name" json:"entity_display_name"`
+	MonitoringTool    string `yaml:"monitoring_tool" json:"monitoring_tool"`
 
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
