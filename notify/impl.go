@@ -290,6 +290,13 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 	defer c.Quit()
 
+	if n.conf.Hello != "" {
+		err := c.Hello(n.conf.Hello)
+		if err != nil {
+			return true, err
+		}
+	}
+
 	// Global Config guarantees RequireTLS is not nil
 	if *n.conf.RequireTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {

@@ -134,6 +134,7 @@ type EmailConfig struct {
 	// Email address to notify.
 	To           string            `yaml:"to,omitempty" json:"to,omitempty"`
 	From         string            `yaml:"from,omitempty" json:"from,omitempty"`
+	Hello        string            `yaml:"hello,omitempty" json:"hello,omitempty"`
 	Smarthost    string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername string            `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
 	AuthPassword Secret            `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
