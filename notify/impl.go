@@ -33,6 +33,7 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
@@ -135,6 +136,8 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 
 const contentTypeJSON = "application/json"
 
+var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
+
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
 	// The URL to which notifications are sent.
@@ -176,7 +179,14 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, w.URL, contentTypeJSON, &buf)
+	req, err := http.NewRequest("POST", w.URL, &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("User-Agent", userAgentHeader)
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
 	if err != nil {
 		return true, err
 	}
