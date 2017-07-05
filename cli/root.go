@@ -50,7 +50,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	RootCmd.PersistentFlags().String("config", "", "config file (default is $HOME/.amtool.yml)")
+	RootCmd.PersistentFlags().String("config", "", "config file (default is $HOME/.config/amtool/config.yml)")
 	viper.BindPFlag("config", RootCmd.PersistentFlags().Lookup("config"))
 	RootCmd.PersistentFlags().String("alertmanager.url", "", "Alertmanager to talk to")
 	viper.BindPFlag("alertmanager.url", RootCmd.PersistentFlags().Lookup("alertmanager.url"))
