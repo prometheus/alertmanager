@@ -244,6 +244,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if !strings.HasSuffix(voc.APIURL, "/") {
 				voc.APIURL += "/"
 			}
+			if voc.APIKey == "" {
+				if c.Global.VictorOpsAPIKey == "" {
+					return fmt.Errorf("no global VictorOps API Key set")
+				}
+				voc.APIKey = c.Global.VictorOpsAPIKey
+			}
 		}
 		names[rcv.Name] = struct{}{}
 	}
@@ -316,6 +322,7 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host,omitempty" json:"opsgenie_api_host,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
