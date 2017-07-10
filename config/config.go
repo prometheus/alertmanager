@@ -14,6 +14,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -21,8 +22,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"encoding/json"
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
