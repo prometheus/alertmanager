@@ -1,8 +1,8 @@
-module GroupBar exposing (..)
+module Match exposing (..)
 
 import Test exposing (..)
 import Expect
-import Views.GroupBar.Match exposing (jaroWinkler, commonPrefix)
+import Utils.Match exposing (jaroWinkler, commonPrefix)
 
 
 testJaroWinkler : Test

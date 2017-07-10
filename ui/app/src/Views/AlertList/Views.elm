@@ -74,12 +74,12 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
 
 
 alertGroups : Maybe String -> Filter -> GroupBar.Model -> List Alert -> Html Msg
-alertGroups activeId filter groupBar alerts =
+alertGroups activeId filter { fields } alerts =
     let
         grouped =
             alerts
                 |> Utils.List.groupBy
-                    (.labels >> List.filter (\( key, _ ) -> List.member key groupBar.fields))
+                    (.labels >> List.filter (\( key, _ ) -> List.member key fields))
     in
         grouped
             |> Dict.keys
@@ -91,6 +91,12 @@ alertGroups activeId filter groupBar alerts =
                         (alertList activeId labels filter)
                         (Dict.get labels grouped)
                 )
+            |> (\list ->
+                    if List.isEmpty list then
+                        [ Utils.Views.error "No alerts found" ]
+                    else
+                        list
+               )
             |> div []
 
 
@@ -110,8 +116,5 @@ alertList activeId labels filter alerts =
                         )
                         labels
             )
-        , if List.isEmpty alerts then
-            div [] [ text "no alerts found" ]
-          else
-            ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
+        , ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
         ]
