@@ -7,6 +7,7 @@ import Html.Events exposing (..)
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Utils.Filter exposing (Filter)
 import Views.FilterBar.Views as FilterBar
+import Views.ReceiverBar.Views as ReceiverBar
 import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure), Labels)
 import Utils.Views
 import Utils.List
@@ -16,7 +17,6 @@ import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
 import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
 import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
-import Regex
 
 
 renderSilenced : Maybe Bool -> Html Msg
@@ -37,7 +37,7 @@ renderSilenced maybeShowSilenced =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, groupBar, filterBar, receivers, showRecievers, tab, activeId } filter =
+view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
     div []
         [ div
             [ class "card mb-5" ]
@@ -45,7 +45,7 @@ view { alerts, groupBar, filterBar, receivers, showRecievers, tab, activeId } fi
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
                     , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ text "Group" ]
-                    , renderReceivers filter.receiver receivers showRecievers
+                    , ReceiverBar.view filter.receiver receiverBar |> Html.map (MsgForReceiverBar >> MsgForAlertList)
                     , renderSilenced filter.showSilenced
                     ]
                 ]
@@ -115,66 +115,3 @@ alertList activeId labels filter alerts =
           else
             ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
         ]
-
-
-renderReceivers : Maybe String -> List String -> Bool -> Html Msg
-renderReceivers receiver receivers opened =
-    let
-        autoCompleteClass =
-            if opened then
-                "show"
-            else
-                ""
-
-        navLinkClass =
-            if opened then
-                "active"
-            else
-                ""
-
-        -- Try to find the regex-escaped receiver in the list of unescaped receivers:
-        unescapedReceiver =
-            receivers
-                |> List.filter (Regex.escape >> Just >> (==) receiver)
-                |> List.map Just
-                |> List.head
-                |> Maybe.withDefault receiver
-    in
-        li
-            [ class ("nav-item ml-auto autocomplete-menu " ++ autoCompleteClass)
-            , onBlur (ToggleReceivers False |> MsgForAlertList)
-            , tabindex 1
-            , style
-                [ ( "position", "relative" )
-                , ( "outline", "none" )
-                ]
-            ]
-            [ div
-                [ onClick (ToggleReceivers (not opened) |> MsgForAlertList)
-                , class "mt-1 mr-4"
-                , style [ ( "cursor", "pointer" ) ]
-                ]
-                [ text ("Receiver: " ++ Maybe.withDefault "All" unescapedReceiver) ]
-            , receivers
-                |> List.map Just
-                |> (::) Nothing
-                |> List.map (receiverField unescapedReceiver)
-                |> div [ class "dropdown-menu dropdown-menu-right" ]
-            ]
-
-
-receiverField : Maybe String -> Maybe String -> Html Msg
-receiverField selected maybeReceiver =
-    let
-        attrs =
-            if selected == maybeReceiver then
-                [ class "dropdown-item active" ]
-            else
-                [ class "dropdown-item"
-                , style [ ( "cursor", "pointer" ) ]
-                , onClick (SelectReceiver maybeReceiver |> MsgForAlertList)
-                ]
-    in
-        div
-            attrs
-            [ text (Maybe.withDefault "All" maybeReceiver) ]
