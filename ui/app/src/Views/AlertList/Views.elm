@@ -1,6 +1,6 @@
 module Views.AlertList.Views exposing (view)
 
-import Alerts.Types exposing (Alert, AlertGroup, Block)
+import Alerts.Types exposing (Alert)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)

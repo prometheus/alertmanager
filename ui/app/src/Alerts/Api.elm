@@ -1,18 +1,19 @@
 module Alerts.Api exposing (..)
 
-import Alerts.Types exposing (Alert, AlertGroup, Block, RouteOpts)
+import Alerts.Types exposing (Alert, Receiver)
 import Json.Decode as Json exposing (..)
 import Utils.Api exposing (iso8601Time)
 import Utils.Filter exposing (Filter, generateQueryString)
 import Utils.Types exposing (ApiData)
+import Regex
 
 
-fetchReceivers : String -> Cmd (ApiData (List String))
+fetchReceivers : String -> Cmd (ApiData (List Receiver))
 fetchReceivers apiUrl =
     Utils.Api.send
         (Utils.Api.get
             (apiUrl ++ "/receivers")
-            (field "data" (list string))
+            (field "data" (list (Json.map (\receiver -> Receiver receiver (Regex.escape receiver)) string)))
         )
 
 
