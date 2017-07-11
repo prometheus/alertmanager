@@ -1,7 +1,7 @@
 module Views.GroupBar.Updates exposing (update, setFields)
 
 import Views.GroupBar.Types exposing (Model, Msg(..))
-import Views.GroupBar.Match exposing (jaroWinkler)
+import Utils.Match exposing (jaroWinkler)
 import Task
 import Dom
 import Set

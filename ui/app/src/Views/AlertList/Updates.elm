@@ -7,14 +7,14 @@ import Utils.Filter exposing (Filter, parseFilter)
 import Utils.Types exposing (ApiData(Initial, Loading, Success, Failure))
 import Types exposing (Msg(MsgForAlertList, Noop))
 import Set
-import Regex
 import Navigation
 import Utils.Filter exposing (generateQueryString)
 import Views.GroupBar.Updates as GroupBar
+import Views.ReceiverBar.Updates as ReceiverBar
 
 
 update : AlertListMsg -> Model -> Filter -> String -> String -> ( Model, Cmd Types.Msg )
-update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
+update msg ({ groupBar, filterBar, receiverBar } as model) filter apiUrl basePath =
     let
         alertsUrl =
             basePath ++ "#/alerts"
@@ -50,23 +50,9 @@ update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
                     ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
                     , Cmd.batch
                         [ Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
-                        , Api.fetchReceivers apiUrl |> Cmd.map (ReceiversFetched >> MsgForAlertList)
+                        , ReceiverBar.fetchReceivers apiUrl |> Cmd.map (MsgForReceiverBar >> MsgForAlertList)
                         ]
                     )
-
-            ReceiversFetched (Success receivers) ->
-                ( { model | receivers = receivers }, Cmd.none )
-
-            ReceiversFetched _ ->
-                ( model, Cmd.none )
-
-            ToggleReceivers show ->
-                ( { model | showRecievers = show }, Cmd.none )
-
-            SelectReceiver receiver ->
-                ( { model | showRecievers = False }
-                , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | receiver = Maybe.map Regex.escape receiver })
-                )
 
             ToggleSilenced showSilenced ->
                 ( model
@@ -89,6 +75,13 @@ update msg ({ groupBar, filterBar } as model) filter apiUrl basePath =
                         GroupBar.update alertsUrl filter msg groupBar
                 in
                     ( { model | groupBar = newGroupBar }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )
+
+            MsgForReceiverBar msg ->
+                let
+                    ( newReceiverBar, cmd ) =
+                        ReceiverBar.update alertsUrl filter msg receiverBar
+                in
+                    ( { model | receiverBar = newReceiverBar }, Cmd.map (MsgForReceiverBar >> MsgForAlertList) cmd )
 
             SetActive maybeId ->
                 ( { model | activeId = maybeId }, Cmd.none )
