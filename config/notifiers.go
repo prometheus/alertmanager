@@ -340,9 +340,6 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.APIKey == "" {
-		return fmt.Errorf("missing API key in VictorOps config")
-	}
 	if c.RoutingKey == "" {
 		return fmt.Errorf("missing Routing key in VictorOps config")
 	}
