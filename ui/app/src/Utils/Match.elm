@@ -74,7 +74,7 @@ winkler s1 s2 jaro =
                     |> toFloat
 
             p =
-                0.1
+                0.25
         in
             jaro + ((l * p) * (1.0 - jaro))
 
