@@ -1,4 +1,4 @@
-module Utils.Match exposing (jaro, jaroWinkler, commonPrefix)
+module Utils.Match exposing (jaro, jaroWinkler, consecutiveChars)
 
 import Utils.List exposing (zip)
 import Char
@@ -69,7 +69,7 @@ winkler s1 s2 jaro =
     else
         let
             l =
-                commonPrefix s1 s2
+                consecutiveChars s1 s2
                     |> String.length
                     |> toFloat
 
@@ -90,12 +90,12 @@ jaroWinkler s1 s2 =
             |> winkler s1 s2
 
 
-commonPrefix : String -> String -> String
-commonPrefix s1 s2 =
+consecutiveChars : String -> String -> String
+consecutiveChars s1 s2 =
     if s1 == "" || s2 == "" then
         ""
     else if s1 == s2 then
-        String.left 4 s1
+        s1
     else
         cp (String.toList s1) (String.toList s2) []
             |> String.fromList
@@ -103,18 +103,21 @@ commonPrefix s1 s2 =
 
 cp : List Char -> List Char -> List Char -> List Char
 cp l1 l2 acc =
-    if List.length acc == 4 then
-        acc
-    else
-        case ( l1, l2 ) of
-            ( x :: xs, y :: ys ) ->
-                if x == y then
-                    x :: cp xs ys acc
-                else
-                    acc
-
-            _ ->
+    case ( l1, l2 ) of
+        ( x :: xs, y :: ys ) ->
+            if x == y then
+                cp xs ys (acc ++ [ x ])
+            else if List.length acc > 0 then
+                -- If we have already found matches, we bail. We only want
+                -- consecutive matches.
                 acc
+            else
+                -- Go through every character in l1 until it matches the first
+                -- character in l2, and then start counting from there.
+                cp l1 ys acc
+
+        _ ->
+            acc
 
 
 charMatch : number -> List ( number, number ) -> ( number, number ) -> List ( number, number )

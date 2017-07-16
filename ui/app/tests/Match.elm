@@ -2,7 +2,7 @@ module Match exposing (..)
 
 import Test exposing (..)
 import Expect
-import Utils.Match exposing (jaroWinkler, commonPrefix)
+import Utils.Match exposing (jaroWinkler, consecutiveChars)
 
 
 testJaroWinkler : Test
@@ -14,7 +14,7 @@ testJaroWinkler =
                     (jaroWinkler "zo" "zone")
         , test "should find the right values 2" <|
             \() ->
-                Expect.greaterThan (jaroWinkler "de" "alertname")
+                Expect.greaterThan (jaroWinkler "hook" "alertname")
                     (jaroWinkler "de" "dev")
         , test "should find the right values 3" <|
             \() ->
@@ -31,23 +31,23 @@ testJaroWinkler =
         ]
 
 
-testCommonPrefix : Test
-testCommonPrefix =
-    describe "commonPrefix"
-        [ test "should find the commonPrefix 1" <|
+testConsecutiveChars : Test
+testConsecutiveChars =
+    describe "consecutiveChars"
+        [ test "should find the consecutiveChars 1" <|
             \() ->
                 Expect.equal "zo"
-                    (commonPrefix "zo" "zone")
-        , test "should find the commonPrefix 2" <|
+                    (consecutiveChars "zo" "bozo")
+        , test "should find the consecutiveChars 2" <|
             \() ->
                 Expect.equal "zo"
-                    (commonPrefix "zol" "zone")
-        , test "should find the commonPrefix 3" <|
+                    (consecutiveChars "zol" "zone")
+        , test "should find the consecutiveChars 3" <|
             \() ->
-                Expect.equal ""
-                    (commonPrefix "oon" "zone")
-        , test "should find the commonPrefix 4" <|
+                Expect.equal "oon"
+                    (consecutiveChars "oon" "baboone")
+        , test "should find the consecutiveChars 4" <|
             \() ->
-                Expect.equal "zone"
-                    (commonPrefix "zone123" "zone123")
+                Expect.equal "dom"
+                    (consecutiveChars "dom" "random")
         ]
