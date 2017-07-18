@@ -172,6 +172,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				ec.From = c.Global.SMTPFrom
 			}
+			if ec.Hello == "" {
+				ec.Hello = c.Global.SMTPHello
+			}
 			if ec.AuthUsername == "" {
 				ec.AuthUsername = c.Global.SMTPAuthUsername
 			}
@@ -309,6 +312,7 @@ type GlobalConfig struct {
 	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
 
 	SMTPFrom         string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello        string `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost    string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
 	SMTPAuthPassword Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`

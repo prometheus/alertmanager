@@ -205,6 +205,19 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	}
 }
 
+func TestSMTPHello(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	const refValue = "host.example.org"
+	var hostName = c.Global.SMTPHello
+	if hostName != refValue {
+		t.Errorf("Invalid SMTP Hello hostname: %s\nExpected: %s", hostName, refValue)
+	}
+}
+
 func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	conf, _, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
 	if err != nil {
