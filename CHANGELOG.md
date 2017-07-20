@@ -1,3 +1,18 @@
+## 0.8.0 / 2017-07-20
+
+* [FEATURE] Add ability to filter alerts by receiver in the UI (#890)
+* [FEATURE] Add User-Agent for webhook requests (#893)
+* [ENHANCEMENT] Add possibility to have a global victorops api_key (#897)
+* [ENHANCEMENT] Add EntityDisplayName and improve StateMessage for Victorops
+  (#769)
+* [ENHANCEMENT] Omit empty config fields and show regex upon re-marshalling to
+  elide secrets (#864)
+* [ENHANCEMENT] Parse API error messages in UI (#866)
+* [ENHANCEMENT] Enable sending mail via smtp port 465 (#704)
+* [BUGFIX] Prevent duplicate notifications by sorting matchers (#882)
+* [BUGFIX] Remove timeout for UI requests (#890)
+* [BUGFIX] Update config file location of CLI in flag usage text (#895)
+
 ## 0.7.1 / 2017-06-09
 
 * [BUGFIX] Fix filtering by label on Alert list and Silence list page
