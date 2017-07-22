@@ -5,7 +5,7 @@ type alias StatusResponse =
     { config : String
     , uptime : String
     , versionInfo : VersionInfo
-    , meshStatus : MeshStatus
+    , meshStatus : Maybe MeshStatus
     }
 
 
