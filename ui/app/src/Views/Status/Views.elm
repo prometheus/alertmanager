@@ -51,24 +51,34 @@ viewConfig config =
         ]
 
 
-viewMeshStatus : MeshStatus -> Html Types.Msg
+viewMeshStatus : Maybe MeshStatus -> Html Types.Msg
 viewMeshStatus meshStatus =
-    span []
-        [ h2 [] [ text "Mesh Status" ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Name:" ]
-            , div [ class "col-sm-10" ] [ text meshStatus.name ]
-            ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Nick Name:" ]
-            , div [ class "col-sm-10" ] [ text meshStatus.nickName ]
-            ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Peers:" ]
-            , ul [ class "col-sm-10" ] <|
-                List.map viewMeshPeer meshStatus.peers
-            ]
-        ]
+    case meshStatus of
+        Just meshStatus ->
+            span []
+                [ h2 [] [ text "Mesh Status" ]
+                , div [ class "form-group row" ]
+                    [ b [ class "col-sm-2" ] [ text "Name:" ]
+                    , div [ class "col-sm-10" ] [ text meshStatus.name ]
+                    ]
+                , div [ class "form-group row" ]
+                    [ b [ class "col-sm-2" ] [ text "Nick Name:" ]
+                    , div [ class "col-sm-10" ] [ text meshStatus.nickName ]
+                    ]
+                , div [ class "form-group row" ]
+                    [ b [ class "col-sm-2" ] [ text "Peers:" ]
+                    , ul [ class "col-sm-10" ] <|
+                        List.map viewMeshPeer meshStatus.peers
+                    ]
+                ]
+
+        Nothing ->
+            span []
+                [ h2 [] [ text "Mesh Status" ]
+                , div [ class "form-group row" ]
+                    [ div [ class "col-sm-10" ] [ text "Mesh not configured" ]
+                    ]
+                ]
 
 
 viewMeshPeer : MeshPeer -> Html Types.Msg
