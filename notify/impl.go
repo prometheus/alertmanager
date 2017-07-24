@@ -498,7 +498,7 @@ type slackReq struct {
 	Username    string            `json:"username,omitempty"`
 	IconEmoji   string            `json:"icon_emoji,omitempty"`
 	IconURL     string            `json:"icon_url,omitempty"`
-	LinkNames   string            `json:"link_names,omitempty"`
+	LinkNames   bool              `json:"link_names,omitempty"`
 	Attachments []slackAttachment `json:"attachments"`
 }
 
@@ -543,7 +543,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
-		LinkNames:   tmplText(n.conf.LinkNames),
+		LinkNames:   n.conf.LinkNames,
 		Attachments: []slackAttachment{*attachment},
 	}
 	if err != nil {
