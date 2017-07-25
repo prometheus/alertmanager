@@ -218,6 +218,7 @@ type SlackConfig struct {
 	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	LinkNames bool   `yaml:"link_names,omitempty" json:"link_names,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
