@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -138,6 +139,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	var expectedConf = Config{
 
 		Global: &GlobalConfig{
+			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			ResolveTimeout:   model.Duration(5 * time.Minute),
 			SMTPSmarthost:    "localhost:25",
 			SMTPFrom:         "alertmanager@example.org",
