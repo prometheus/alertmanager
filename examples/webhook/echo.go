@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -19,6 +19,6 @@ func main() {
 		if err := json.Indent(&buf, b, " >", "  "); err != nil {
 			panic(err)
 		}
-		fmt.Println(buf.String())
+		log.Println(buf.String())
 	}))
 }
