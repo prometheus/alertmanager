@@ -2,16 +2,15 @@ package notify
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
-
-	"io/ioutil"
-	"net/url"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
@@ -20,7 +19,7 @@ import (
 )
 
 func TestWebhookRetry(t *testing.T) {
-	notifier := new(Webhook)
+	notifier := &Webhook{conf: &config.WebhookConfig{URL: "http://example.com/"}}
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
