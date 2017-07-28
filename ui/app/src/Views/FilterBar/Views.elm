@@ -116,7 +116,7 @@ view { matchers, matcherText, backspacePressed } =
                                 []
                             , span
                                 [ class "input-group-btn" ]
-                                [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "Add" ] ]
+                                [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
                             ]
                         , small [ class "form-text text-muted" ]
                             [ text "Custom matcher, e.g."

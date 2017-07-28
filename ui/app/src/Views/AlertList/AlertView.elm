@@ -1,8 +1,8 @@
-module Views.AlertList.AlertView exposing (view)
+module Views.AlertList.AlertView exposing (view, addLabelMsg)
 
 import Alerts.Types exposing (Alert)
 import Html exposing (..)
-import Html.Attributes exposing (class, style, href)
+import Html.Attributes exposing (class, style, href, value, readonly, title)
 import Html.Events exposing (onClick)
 import Types exposing (Msg(CreateSilenceFromAlert, Noop, MsgForAlertList))
 import Utils.Date
@@ -87,24 +87,39 @@ annotation ( key, value ) =
 
 
 labelButton : ( String, String ) -> Html Msg
-labelButton ( key, value ) =
-    button
-        [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
-        , onClick (addLabelMsg ( key, value ))
+labelButton ( key, val ) =
+    div
+        [ class "btn-group mr-2 mb-2" ]
+        [ span
+            [ class "btn btn-sm border-right-0 text-muted"
+
+            -- have to reset bootstrap button styles to make the text selectable
+            , style
+                [ ( "user-select", "initial" )
+                , ( "-moz-user-select", "initial" )
+                , ( "-webkit-user-select", "initial" )
+                , ( "border-color", "#ccc" )
+                ]
+            ]
+            [ text (key ++ "=\"" ++ val ++ "\"") ]
+        , button
+            [ class "btn btn-sm bg-faded btn-outline-secondary"
+            , onClick (addLabelMsg ( key, val ))
+            , title "Filter by this label"
+            ]
+            [ text "+" ]
         ]
-        [ span [ class "text-muted" ] [ text (key ++ "=\"" ++ value ++ "\"") ] ]
 
 
 addLabelMsg : ( String, String ) -> Msg
 addLabelMsg ( key, value ) =
-    (FilterBarTypes.AddFilterMatcher False
+    FilterBarTypes.AddFilterMatcher False
         { key = key
         , op = Utils.Filter.Eq
         , value = value
         }
         |> MsgForFilterBar
         |> MsgForAlertList
-    )
 
 
 silenceButton : Alert -> Html Msg

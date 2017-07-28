@@ -111,8 +111,24 @@ alertList activeId labels filter alerts =
                 _ ->
                     List.map
                         (\( key, value ) ->
-                            span [ class "btn btn-info mr-1 mb-3" ]
-                                [ text (key ++ "=\"" ++ value ++ "\"") ]
+                            div [ class "btn-group mr-1 mb-3" ]
+                                [ span
+                                    [ class "btn text-muted"
+                                    , style
+                                        [ ( "user-select", "initial" )
+                                        , ( "-moz-user-select", "initial" )
+                                        , ( "-webkit-user-select", "initial" )
+                                        , ( "border-color", "#5bc0de" )
+                                        ]
+                                    ]
+                                    [ text (key ++ "=\"" ++ value ++ "\"") ]
+                                , button
+                                    [ class "btn btn-outline-info"
+                                    , onClick (AlertView.addLabelMsg ( key, value ))
+                                    , title "Filter by this label"
+                                    ]
+                                    [ text "+" ]
+                                ]
                         )
                         labels
             )
