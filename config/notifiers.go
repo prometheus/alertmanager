@@ -33,6 +33,7 @@ var (
 			VSendResolved: false,
 		},
 		HTML: `{{ template "email.default.html" . }}`,
+		TEXT: ``,
 	}
 
 	// DefaultEmailSubject defines the default Subject header of an Email.
@@ -142,6 +143,7 @@ type EmailConfig struct {
 	AuthIdentity string            `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
 	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
 	HTML         string            `yaml:"html,omitempty" json:"html,omitempty"`
+	TEXT         string            `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
