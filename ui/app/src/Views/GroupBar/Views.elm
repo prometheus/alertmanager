@@ -119,7 +119,7 @@ textInputField isDisabled { fieldText, matches, maybeSelectedMatch, fields, back
                 []
             , span
                 [ class "input-group-btn" ]
-                [ button [ class "btn btn-primary", disabled isDisabled, onClick onClickMsg ] [ text "Add" ] ]
+                [ button [ class "btn btn-primary", disabled isDisabled, onClick onClickMsg ] [ text "+" ] ]
             ]
 
 
