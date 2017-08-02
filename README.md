@@ -168,7 +168,7 @@ receivers:
 
 ## Amtool
 
-`amtool` is a cli tool for interacting with the alertmanager api. It is bundled with all releases of alertmanager,
+`amtool` is a cli tool for interacting with the alertmanager api. It is bundled with all releases of alertmanager.
 
 ### Install
 
@@ -220,6 +220,9 @@ Silence an alert
 ```
 $ amtool silence add alertname=Test_Alert
 b3ede22e-ca14-4aa0-932c-ca2f3445f926
+
+$ amtool silence add alertname="Test_Alert" instance=~".+0"
+e48cb58a-0b17-49ba-b734-3585139b1d25
 ```
 
 View silences
@@ -227,6 +230,10 @@ View silences
 $ amtool silence query
 ID                                    Matchers              Ends At                  Created By  Comment
 b3ede22e-ca14-4aa0-932c-ca2f3445f926  alertname=Test_Alert  2017-08-02 19:54:50 UTC  kellel
+
+$ amtool silence query instance=~".+0"
+ID                                    Matchers                            Ends At                  Created By  Comment
+e48cb58a-0b17-49ba-b734-3585139b1d25  alertname=Test_Alert instance=~.+0  2017-08-02 22:41:39 UTC  kellel
 ```
 
 Expire a silence
@@ -234,23 +241,40 @@ Expire a silence
 $ amtool silence expire b3ede22e-ca14-4aa0-932c-ca2f3445f926
 ```
 
+Expire all silences matching a query
+```
+$ amtool silence query instance=~".+0"
+ID                                    Matchers                            Ends At                  Created By  Comment
+e48cb58a-0b17-49ba-b734-3585139b1d25  alertname=Test_Alert instance=~.+0  2017-08-02 22:41:39 UTC  kellel
+
+$ amtool silence expire $(amtool silence -q query instance=~".+0")
+
+$ amtool silence query instance=~".+0"
+
+```
+
+Expire all silences
+```
+$ amtool silence expire $(amtool silence query -q)
+```
+
 ### Config
 
 Amtool allows a config file to specify some options for convenience. The default config file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
 
-The accepted config options are as follows:
+An example configfile might look like the following:
 ```
-    alertmanager.url
-            Set a default alertmanager url for each request
+# Define the path that amtool can find your `alertmanager` instance at
+alertmanager.url: "http://localhost:9093"
 
-    author
-            Set a default author value for new silences. If this argument is not specified then the username will be used
+# Override the default author. (unset defaults to your username)
+author: me@example.com
 
-    comment_required
-            Require a comment on silence creation
+# Force amtool to give you an error if you don't include a comment on a silence
+comment_require: true
 
-    output
-            Set a default output type. Options are (simple, extended, json)
+# Set a default output format. (unset defaults to simple)
+output: extended
 ```
 
 ## High Availability
