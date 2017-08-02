@@ -166,9 +166,96 @@ receivers:
   - service_key: <team-DB-key>
 ```
 
+## Amtool
+
+`amtool` is a cli tool for interacting with the alertmanager api. It is bundled with all releases of alertmanager,
+
+### Install
+
+Alternatively you can install with:
+```
+go get github.com/prometheus/alertmanager/cmd/amtool
+```
+
+### Examples
+
+View all currently firing alerts
+```
+$ amtool alert
+Alertname        Starts At                Summary
+Test_Alert       2017-08-02 18:30:18 UTC  This is a testing alert!
+Test_Alert       2017-08-02 18:30:18 UTC  This is a testing alert!
+Check_Foo_Fails  2017-08-02 18:30:18 UTC  This is a testing alert!
+Check_Foo_Fails  2017-08-02 18:30:18 UTC  This is a testing alert!
+```
+
+View all currently firing alerts with extended output
+```
+$ amtool -o extended alert
+Labels                                        Annotations                                                    Starts At                Ends At                  Generator URL
+alertname="Test_Alert" instance="node0"       link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+alertname="Test_Alert" instance="node1"       link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+alertname="Check_Foo_Fails" instance="node0"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+alertname="Check_Foo_Fails" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+```
+
+In addition to viewing alerts you can use the rich query syntax provided by alertmanager
+```
+$ amtool -o extended alert query alertname="Test_Alert"
+Labels                                   Annotations                                                    Starts At                Ends At                  Generator URL
+alertname="Test_Alert" instance="node0"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+alertname="Test_Alert" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+
+$ amtool -o extended alert query instance=~".+1"
+Labels                                        Annotations                                                    Starts At                Ends At                  Generator URL
+alertname="Test_Alert" instance="node1"       link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+alertname="Check_Foo_Fails" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+
+$ amtool -o extended alert query alertname=~"Test.*" instance=~".+1"
+Labels                                   Annotations                                                    Starts At                Ends At                  Generator URL
+alertname="Test_Alert" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
+```
+
+Silence an alert
+```
+$ amtool silence add alertname=Test_Alert
+b3ede22e-ca14-4aa0-932c-ca2f3445f926
+```
+
+View silences
+```
+$ amtool silence query
+ID                                    Matchers              Ends At                  Created By  Comment
+b3ede22e-ca14-4aa0-932c-ca2f3445f926  alertname=Test_Alert  2017-08-02 19:54:50 UTC  kellel
+```
+
+Expire a silence
+```
+$ amtool silence expire b3ede22e-ca14-4aa0-932c-ca2f3445f926
+```
+
+### Config
+
+Amtool allows a config file to specify some options for convenience. The default config file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
+
+The accepted config options are as follows:
+```
+    alertmanager.url
+            Set a default alertmanager url for each request
+
+    author
+            Set a default author value for new silences. If this argument is not specified then the username will be used
+
+    comment_required
+            Require a comment on silence creation
+
+    output
+            Set a default output type. Options are (simple, extended, json)
+```
+
 ## High Availability
 
-> Warning: High Availablility is under active development
+> Warning: High Availability is under active development
 
 To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
