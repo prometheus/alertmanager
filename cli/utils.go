@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -92,6 +93,7 @@ func CommandWrapper(command func(*cobra.Command, []string) error) func(*cobra.Co
 		err := command(cmd, args)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
+			os.Exit(1)
 		}
 	}
 }
