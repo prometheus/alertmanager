@@ -365,6 +365,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		fmt.Fprintf(wc, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
 
+	//TODO refactor to use standard multipart library https://godoc.org/mime/multipart (awaragi)
 	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	boundary := "=_NextPart_57bb889e057d551696ff582664f96f502da361c88cdc32a9e603f0af4b1c2b17" // SHA-256 of random string
 	fmt.Fprintf(wc, "Content-Type: multipart/alternative;  boundary=\"%s\"\r\n", boundary)
@@ -391,7 +392,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	// https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
 	fmt.Fprintf(wc, "--%s\r\n", boundary)
 	fmt.Fprintf(wc, "Content-Type: text/plain; charset=UTF-8\r\n\r\n")
-	body, err = n.tmpl.ExecuteTextString(n.conf.TEXT, data)
+	body, err = n.tmpl.ExecuteTextString(n.conf.Text, data)
 	if err != nil {
 		return false, fmt.Errorf("executing email text template: %s", err)
 	}
