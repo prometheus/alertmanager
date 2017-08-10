@@ -20,9 +20,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/mail"
@@ -40,6 +40,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"net/textproto"
 )
 
 type notifierConfig interface {
@@ -365,10 +366,11 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		fmt.Fprintf(wc, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
 
-	//TODO refactor to use standard multipart library https://godoc.org/mime/multipart (awaragi)
+	buffer := &bytes.Buffer{}
+	multipartWriter := multipart.NewWriter(buffer)
+
 	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
-	boundary := "=_NextPart_57bb889e057d551696ff582664f96f502da361c88cdc32a9e603f0af4b1c2b17" // SHA-256 of random string
-	fmt.Fprintf(wc, "Content-Type: multipart/alternative;  boundary=\"%s\"\r\n", boundary)
+	fmt.Fprintf(wc, "Content-Type: multipart/alternative;  boundary=\"%s\"\r\n", multipartWriter.Boundary())
 
 
 	// TODO: Add some useful headers here, such as URL of the alertmanager
@@ -376,33 +378,34 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	fmt.Fprintf(wc, "\r\n")
 
 	// Html template
-	fmt.Fprintf(wc, "--%s\r\n", boundary)
-	fmt.Fprintf(wc, "Content-Type: text/html; charset=UTF-8\r\n")
+	multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/html; charset=UTF-8"}})
 	body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
 	if err != nil {
 		return false, fmt.Errorf("executing email html template: %s", err)
 	}
-	_, err = io.WriteString(wc, body)
+	_, err = buffer.WriteString(body)
 	if err != nil {
 		return true, err
 	}
 
 	// Text template
-	// Last alternative based on recommendation in section 7.2.3
+	// Last alternative based on recommendation in section 7.2.3 of w3 rfc1341 protocol
 	// https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
-	fmt.Fprintf(wc, "--%s\r\n", boundary)
-	fmt.Fprintf(wc, "Content-Type: text/plain; charset=UTF-8\r\n\r\n")
+	multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/plain; charset=UTF-8"}})
 	body, err = n.tmpl.ExecuteTextString(n.conf.Text, data)
 	if err != nil {
 		return false, fmt.Errorf("executing email text template: %s", err)
 	}
-	_, err = io.WriteString(wc, body)
+	_, err = buffer.WriteString(body)
 	if err != nil {
 		return true, err
 	}
 
 	// closing multi-part content
-	fmt.Fprintf(wc, "--%s--\r\n", boundary)
+	multipartWriter.Close()
+
+	// writing multipart content
+	wc.Write(buffer.Bytes())
 
 	return false, nil
 }
