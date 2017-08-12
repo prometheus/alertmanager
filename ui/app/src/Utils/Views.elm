@@ -33,6 +33,20 @@ labelButton maybeMsg labelText =
                 [ span [ class "text-muted" ] [ text labelText ] ]
 
 
+linkifyText : String -> List (Html msg)
+linkifyText str =
+    List.map
+        (\result ->
+            case result of
+                Ok link ->
+                    a [ href link ] [ text link ]
+
+                Err txt ->
+                    text txt
+        )
+        (Utils.String.linkify str)
+
+
 iconButtonMsg : String -> String -> msg -> Html msg
 iconButtonMsg classString icon msg =
     a [ class classString, onClick msg ]
