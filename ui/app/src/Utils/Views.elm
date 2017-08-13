@@ -39,7 +39,7 @@ linkifyText str =
         (\result ->
             case result of
                 Ok link ->
-                    a [ href link ] [ text link ]
+                    a [ href link, target "_blank" ] [ text link ]
 
                 Err txt ->
                     text txt
