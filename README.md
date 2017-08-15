@@ -31,7 +31,7 @@ You can either `go get` it:
 ```
 $ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager/cmd/...
 # cd $GOPATH/src/github.com/prometheus/alertmanager
-$ alertmanager -config.file=<your_file>
+$ alertmanager --config.file=<your_file>
 ```
 
 Or checkout the source code and build manually:
@@ -42,7 +42,7 @@ $ cd $GOPATH/src/github.com/prometheus
 $ git clone https://github.com/prometheus/alertmanager.git
 $ cd alertmanager
 $ make build
-$ ./alertmanager -config.file=<your_file>
+$ ./alertmanager --config.file=<your_file>
 ```
 
 You can also build just one of the binaries in this repo by passing a name to the build function:
@@ -290,10 +290,10 @@ To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
 `-mesh.*` flags.
 
-- `-mesh.peer-id` string: mesh peer ID (default "&lt;hardware-mac-address&gt;")
-- `-mesh.listen-address` string: mesh listen address (default "0.0.0.0:6783")
-- `-mesh.nickname` string: mesh peer nickname (default "&lt;machine-hostname&gt;")
-- `-mesh.peer` value: initial peers (repeat flag for each additional peer)
+- `--mesh.peer-id` string: mesh peer ID (default "&lt;hardware-mac-address&gt;")
+- `--mesh.listen-address` string: mesh listen address (default "0.0.0.0:6783")
+- `--mesh.nickname` string: mesh peer nickname (default "&lt;machine-hostname&gt;")
+- `--mesh.peer` value: initial peers (repeat flag for each additional peer)
 
 The `mesh.peer-id` flag is used as a unique ID among the peers. It defaults to
 the MAC address, therefore the default value should typically be a good option.
