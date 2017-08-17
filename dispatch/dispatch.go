@@ -139,7 +139,7 @@ func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 				aa := &APIAlert{
 					Alert:       a,
 					Status:      status,
-					Fingerprint: fmt.Sprintf("%x", a.Fingerprint()),
+					Fingerprint: a.Fingerprint().String(),
 				}
 
 				if !matchesFilterLabels(aa, matchers) {
