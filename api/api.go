@@ -343,9 +343,10 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		apiAlert := &dispatch.APIAlert{
-			Alert:     &a.Alert,
-			Status:    status,
-			Receivers: receivers,
+			Alert:       &a.Alert,
+			Status:      status,
+			Receivers:   receivers,
+			Fingerprint: a.Fingerprint().String(),
 		}
 
 		res = append(res, apiAlert)
