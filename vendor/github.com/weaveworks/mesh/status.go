@@ -176,7 +176,9 @@ func makeLocalConnectionStatusSlice(cm *connectionMaker) []LocalConnectionStatus
 			if lc.router.usingPassword() {
 				if lc.untrusted() {
 					info = fmt.Sprintf("%-11v %v", "encrypted", info)
-					attrs["encrypted"] = true
+					if attrs != nil {
+						attrs["encrypted"] = true
+					}
 				} else {
 					info = fmt.Sprintf("%-11v %v", "unencrypted", info)
 				}
