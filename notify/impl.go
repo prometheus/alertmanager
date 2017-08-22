@@ -131,6 +131,11 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewPushover(c, tmpl)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.XMattersConfigs {
+		n := NewxMatters(c, tmpl)
+		add("xmatters", i, n, c)
+	}
+
 	return integrations
 }
 
@@ -973,6 +978,80 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	return false, nil
 }
+
+
+
+// XMattersNotifier implements a Notifier for xMatters, based on webhooks. 
+type XMattersNotifier struct {
+	conf *config.XMattersConfig
+	tmpl *template.Template
+}
+
+// NewxMatters returns a new XMattersNotifier.
+func NewxMatters(conf *config.XMattersConfig, t *template.Template) *XMattersNotifier {
+	return &XMattersNotifier {
+		 conf: conf, 
+		 tmpl: t,
+	}
+}
+
+// XMattersMessage defines the JSON object send to the xMatters endpoint.
+type XMattersMessage struct {
+	*template.Data
+
+	// The protocol version.
+	GroupKey string `json:"groupKey"`
+	Priority string `json:"priority"`
+}
+
+// Notify implements the Notifier interface.
+func (x *XMattersNotifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	data := x.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
+
+	groupKey, ok := GroupKey(ctx)
+	if !ok {
+		log.Errorf("group key missing")
+	}
+
+	var err error
+	tmpl := tmplText(x.tmpl, data, &err)
+
+	msg := &XMattersMessage{
+		Data:     data,
+		GroupKey: hashKey(groupKey),
+		Priority: tmpl(x.conf.Priority),
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequest("POST", x.conf.URL, &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	if err != nil {
+		return true, err
+	}
+	resp.Body.Close()
+
+	return x.retry(resp.StatusCode)
+}
+
+func (x *XMattersNotifier) retry(statusCode int) (bool, error) {
+	// Webhooks are assumed to respond with 2xx response codes on a successful
+	// request and 5xx response codes are assumed to be recoverable.
+	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, x.conf.URL)
+	}
+
+	return false, nil
+}
+
 
 func tmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {

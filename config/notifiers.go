@@ -116,6 +116,13 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultxMattersConfig defines default values for xMatters configurations.
+	DefaultxMattersConfig = XMattersConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -392,4 +399,30 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+
+// XMattersConfig configures notifications based on a generic webhook.
+type XMattersConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	// URL to send POST request to.
+	URL      string `yaml:"url" json:"url"`
+	Priority string `yaml:"priority,omitempty" json:"priority,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *XMattersConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultxMattersConfig
+	type plain XMattersConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == "" {
+		return fmt.Errorf("missing URL in xmatters config")
+	}
+	return checkOverflow(c.XXX, "xmatters config")
 }

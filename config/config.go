@@ -253,6 +253,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIKey = c.Global.VictorOpsAPIKey
 			}
 		}
+		for _, xmc := range rcv.XMattersConfigs {
+			if xmc.URL == "" {
+				return fmt.Errorf("no xMatters URL set")
+			}
+		}
+
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -461,6 +467,7 @@ type Receiver struct {
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	XMattersConfigs  []*XMattersConfig  `yaml:"xmatters_configs,omitempty" json:"xmatters_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
