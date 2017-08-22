@@ -1,4 +1,4 @@
-module Utils.String exposing (capitalizeFirst)
+module Utils.String exposing (capitalizeFirst, linkify)
 
 import String
 import Char
@@ -12,3 +12,46 @@ capitalizeFirst string =
 
         Just ( char, rest ) ->
             String.cons (Char.toUpper char) rest
+
+
+linkify : String -> List (Result String String)
+linkify string =
+    List.reverse (linkifyHelp (String.words string) [])
+
+
+linkifyHelp : List String -> List (Result String String) -> List (Result String String)
+linkifyHelp words linkified =
+    case words of
+        [] ->
+            linkified
+
+        word :: restWords ->
+            if isUrl word then
+                case linkified of
+                    (Err lastWord) :: restLinkified ->
+                        -- append space to last word
+                        linkifyHelp restWords (Ok word :: Err (lastWord ++ " ") :: restLinkified)
+
+                    (Ok lastWord) :: restLinkified ->
+                        -- insert space between two links
+                        linkifyHelp restWords (Ok word :: Err " " :: linkified)
+
+                    _ ->
+                        linkifyHelp restWords (Ok word :: linkified)
+            else
+                case linkified of
+                    (Err lastWord) :: restLinkified ->
+                        -- concatenate with last word
+                        linkifyHelp restWords (Err (lastWord ++ " " ++ word) :: restLinkified)
+
+                    (Ok lastWord) :: restLinkified ->
+                        -- insert space after the link
+                        linkifyHelp restWords (Err (" " ++ word) :: linkified)
+
+                    _ ->
+                        linkifyHelp restWords (Err word :: linkified)
+
+
+isUrl : String -> Bool
+isUrl =
+    flip String.startsWith >> (flip List.any) [ "http://", "https://" ]

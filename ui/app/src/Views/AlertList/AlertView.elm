@@ -9,6 +9,7 @@ import Utils.Date
 import Views.FilterBar.Types as FilterBarTypes
 import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, SetActive))
 import Utils.Filter
+import Utils.Views
 
 
 view : List ( String, String ) -> Maybe String -> Alert -> Html Msg
@@ -82,7 +83,7 @@ annotation : ( String, String ) -> Html Msg
 annotation ( key, value ) =
     tr []
         [ th [ class "text-nowrap" ] [ text (key ++ ":") ]
-        , td [ class "w-100" ] [ text value ]
+        , td [ class "w-100" ] (Utils.Views.linkifyText value)
         ]
 
 
