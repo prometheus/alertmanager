@@ -407,10 +407,8 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return true, err
 	}
 
-	// closing multi-part content
 	multipartWriter.Close()
 
-	// writing multipart content
 	wc.Write(buffer.Bytes())
 
 	return false, nil
