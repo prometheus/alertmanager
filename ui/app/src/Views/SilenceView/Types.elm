@@ -7,8 +7,6 @@ import Utils.Types exposing (ApiData(Initial))
 
 type SilenceViewMsg
     = FetchSilence String
-    | DestroySilence Silence
-    | RedirectSilences
     | SilenceFetched (ApiData Silence)
     | AlertGroupsPreview (ApiData (List Alert))
     | InitSilenceView SilenceId

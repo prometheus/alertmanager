@@ -1,18 +1,19 @@
 module Views.SilenceView.Views exposing (view)
 
-import Silences.Types exposing (Silence, stateToString, State(Expired, Active, Pending))
+import Silences.Types exposing (Silence, stateToString)
 import Alerts.Types exposing (Alert)
-import Html exposing (Html, div, h2, p, text, label, b, h1, a, button, span)
+import Html exposing (Html, div, h2, p, text, label, b, h1, span)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
-import Types exposing (Msg(Noop, MsgForSilenceView, MsgForSilenceForm))
+import Types exposing (Msg)
 import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers))
 import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure))
 import Utils.Views exposing (loading, error)
 import Views.Shared.SilencePreview
-import Views.SilenceView.Types exposing (Model, SilenceViewMsg(DestroySilence))
+import Views.SilenceView.Types exposing (Model)
 import Utils.Date exposing (dateTimeFormat)
 import Utils.List
+import Views.SilenceList.SilenceView exposing (deleteButton, editButton)
 
 
 view : Model -> Html Msg
@@ -37,7 +38,7 @@ viewSilence alerts silence =
         [ h1 [ class "d-inline-block" ] [ text "Silence" ]
         , span []
             [ editButton silence
-            , deleteButton silence
+            , deleteButton silence True
             ]
         , formGroup "ID" <| text silence.id
         , formGroup "Starts at" <| text <| dateTimeFormat silence.startsAt
@@ -61,50 +62,3 @@ formGroup key content =
             [ content
             ]
         ]
-
-
-editButton : Silence -> Html Msg
-editButton silence =
-    case silence.status.state of
-        -- If the silence is expired, do not edit it, but instead create a new
-        -- one with the old matchers
-        Expired ->
-            a
-                [ class "btn btn-outline-info border-0"
-                , href ("#/silences/new?keep=1")
-                , onClick (NewSilenceFromMatchers silence.matchers |> MsgForSilenceForm)
-                ]
-                [ text "Recreate"
-                ]
-
-        _ ->
-            let
-                editUrl =
-                    String.join "/" [ "#/silences", silence.id, "edit" ]
-            in
-                a [ class "btn btn-outline-info border-0", href editUrl ]
-                    [ text "Edit"
-                    ]
-
-
-deleteButton : Silence -> Html Msg
-deleteButton silence =
-    case silence.status.state of
-        Expired ->
-            text ""
-
-        Active ->
-            button
-                [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceView (DestroySilence silence))
-                ]
-                [ text "Expire"
-                ]
-
-        Pending ->
-            button
-                [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceView (DestroySilence silence))
-                ]
-                [ text "Delete"
-                ]

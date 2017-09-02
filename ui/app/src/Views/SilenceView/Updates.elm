@@ -1,29 +1,16 @@
 module Views.SilenceView.Updates exposing (update)
 
 import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
-import Silences.Api as Api exposing (getSilence)
+import Silences.Api exposing (getSilence)
 import Alerts.Api
 import Utils.List
 import Utils.Types exposing (ApiData(..))
 import Utils.Filter exposing (nullFilter)
-import Navigation
 
 
 update : SilenceViewMsg -> Model -> String -> String -> ( Model, Cmd SilenceViewMsg )
 update msg model basePath apiUrl =
     case msg of
-        DestroySilence silence ->
-            -- TODO: "Deleted id: ID" growl
-            -- TODO: Check why POST isn't there but is accepted
-            ( model
-            , Api.destroy apiUrl silence (always RedirectSilences)
-            )
-
-        RedirectSilences ->
-            ( model
-            , Navigation.newUrl (basePath ++ "#/silences")
-            )
-
         FetchSilence id ->
             ( model, getSilence apiUrl id SilenceFetched )
 
