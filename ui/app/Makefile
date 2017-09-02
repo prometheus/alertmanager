@@ -1,7 +1,10 @@
 ELM_FILES := $(shell find src -iname *.elm)
 DOCKER_IMG :=elm-env
 DOCKER_CMD := docker run --rm -t -v $(PWD):/app -w /app $(DOCKER_IMG)
+# macOS requires mktemp template to be at the end of the filename.
 TEMPFILE := $(shell mktemp ./elm-XXXXXXXXXX)
+# --output flag for elm make must end in .js or .html.
+TEMPFILE_JS := "$(TEMPFILE).js"
 
 ifeq ($(NO_DOCKER), true)
   DOCKER_CMD=
@@ -28,9 +31,9 @@ dev-server:
 
 script.js: elm-env format $(ELM_FILES)
 	@echo ">> building script.js"
-	@$(DOCKER_CMD) elm make src/Main.elm --yes --output $(TEMPFILE)
-	@$(DOCKER_CMD)	uglifyjs $(TEMPFILE) --compress unused --mangle --output $(@)
-	@rm $(TEMPFILE)
+	@$(DOCKER_CMD) elm make src/Main.elm --yes --output $(TEMPFILE_JS)
+	@$(DOCKER_CMD)	uglifyjs $(TEMPFILE_JS) --compress unused --mangle --output $(@)
+	@rm $(TEMPFILE_JS) $(TEMPFILE)
 
 clean:
 	- @rm script.js
