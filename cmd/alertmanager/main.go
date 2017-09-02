@@ -114,8 +114,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	logger := log.NewLogger(os.Stderr)
-
 	var mrouter *mesh.Router
 	if *meshListen != "" {
 		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
@@ -133,7 +131,7 @@ func main() {
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
-		nflog.WithLogger(logger.With("component", "nflog")),
+		nflog.WithLogger(log.Base().With("component", "nflog")),
 	}
 	if *meshListen != "" {
 		notificationLogOpts = append(notificationLogOpts, nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
@@ -154,7 +152,7 @@ func main() {
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
-		Logger:       logger.With("component", "silences"),
+		Logger:       log.Base().With("component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
 	}
 	if *meshListen != "" {
