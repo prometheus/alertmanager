@@ -33,7 +33,7 @@ script.js: elm-env format $(ELM_FILES)
 	@echo ">> building script.js"
 	@$(DOCKER_CMD) elm make src/Main.elm --yes --output $(TEMPFILE_JS)
 	@$(DOCKER_CMD)	uglifyjs $(TEMPFILE_JS) --compress unused --mangle --output $(@)
-	@rm $(TEMPFILE_JS) $(TEMPFILE)
+	@rm -rf $(TEMPFILE_JS) $(TEMPFILE)
 
 clean:
 	- @rm script.js
