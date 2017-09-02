@@ -1,7 +1,7 @@
 ELM_FILES := $(shell find src -iname *.elm)
 DOCKER_IMG :=elm-env
 DOCKER_CMD := docker run --rm -t -v $(PWD):/app -w /app $(DOCKER_IMG)
-TEMPFILE := $(shell mktemp ./elm-XXXXXXXXXX.js)
+TEMPFILE := $(shell mktemp ./elm-XXXXXXXXXX)
 
 ifeq ($(NO_DOCKER), true)
   DOCKER_CMD=
