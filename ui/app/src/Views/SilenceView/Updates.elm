@@ -8,8 +8,8 @@ import Utils.Types exposing (ApiData(..))
 import Utils.Filter exposing (nullFilter)
 
 
-update : SilenceViewMsg -> Model -> String -> String -> ( Model, Cmd SilenceViewMsg )
-update msg model basePath apiUrl =
+update : SilenceViewMsg -> Model -> String -> ( Model, Cmd SilenceViewMsg )
+update msg model apiUrl =
     case msg of
         FetchSilence id ->
             ( model, getSilence apiUrl id SilenceFetched )
