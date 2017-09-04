@@ -6,24 +6,28 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/spf13/cobra"
-	flag "github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
-var queryFlags *flag.FlagSet
-var queryCmd = &cobra.Command{
-	Use:   "query",
-	Short: "Query silences",
-	Long: `Query Alertmanager silences.
+var (
+	queryCmd     = silenceCmd.Command("query", "Query Alertmanager silences.").Default()
+	queryExpired = queryCmd.Flag("expired", "Show expired silences as well as active").Bool()
+	silenceQuery = queryCmd.Arg("matcher-groups", "Query filter").Strings()
+	queryWithin  = queryCmd.Flag("within", "Show silences that will expire within a duration").Duration()
+)
+
+func init() {
+	queryCmd.Action(query)
+}
+
+/*
+	Query Alertmanager silences.
 
   Amtool has a simplified prometheus query syntax, but contains robust support for
   bash variable expansions. The non-option section of arguments constructs a list
@@ -55,25 +59,12 @@ var queryCmd = &cobra.Command{
 
   gives all the silences due to expire within the next 8 hours. This syntax can
   also be combined with the label based filtering above for more flexibility.
-				`,
-	Run: CommandWrapper(query),
-}
-
-func init() {
-	queryCmd.Flags().Bool("expired", false, "Show expired silences as well as active")
-	queryCmd.Flags().String("within", "", "Show silences that will expire within a duration")
-	queryFlags = queryCmd.Flags()
-}
+*/
 
 func fetchSilences(filter string) ([]types.Silence, error) {
 	silenceResponse := alertmanagerSilenceResponse{}
 
-	u, err := GetAlertmanagerURL()
-	if err != nil {
-		return []types.Silence{}, err
-	}
-
-	u.Path = path.Join(u.Path, "/api/v1/silences")
+	u := GetAlertmanagerURL("/api/v1/silences")
 	u.RawQuery = "filter=" + url.QueryEscape(filter)
 
 	res, err := http.Get(u.String())
@@ -95,40 +86,20 @@ func fetchSilences(filter string) ([]types.Silence, error) {
 	return silenceResponse.Data, nil
 }
 
-func query(cmd *cobra.Command, args []string) error {
-	expired, err := queryFlags.GetBool("expired")
-	if err != nil {
-		return err
-	}
-
-	within, err := queryFlags.GetString("within")
-	if err != nil {
-		return err
-	}
-
-	var duration model.Duration
-	if within != "" {
-		duration, err = model.ParseDuration(within)
-		if err != nil {
-			return err
-		}
-	}
-
-	quiet := viper.GetBool("quiet")
-
+func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	var filterString = ""
-	if len(args) == 1 {
+	if len(*silenceQuery) == 1 {
 		// If we only have one argument then it's possible that the user wants me to assume alertname=<arg>
 		// Attempt to use the parser to pare the argument
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets prepend `alertname=` to the front
-		_, err := parse.Matcher(args[0])
+		_, err := parse.Matcher((*silenceQuery)[0])
 		if err != nil {
-			filterString = fmt.Sprintf("{alertname=%s}", args[0])
+			filterString = fmt.Sprintf("{alertname=%s}", (*silenceQuery)[0])
 		} else {
-			filterString = fmt.Sprintf("{%s}", strings.Join(args, ","))
+			filterString = fmt.Sprintf("{%s}", strings.Join(*silenceQuery, ","))
 		}
-	} else if len(args) > 1 {
-		filterString = fmt.Sprintf("{%s}", strings.Join(args, ","))
+	} else if len(*silenceQuery) > 1 {
+		filterString = fmt.Sprintf("{%s}", strings.Join(*silenceQuery, ","))
 	}
 
 	fetchedSilences, err := fetchSilences(filterString)
@@ -139,23 +110,23 @@ func query(cmd *cobra.Command, args []string) error {
 	displaySilences := []types.Silence{}
 	for _, silence := range fetchedSilences {
 		// If we are only returning current silences and this one has already expired skip it
-		if !expired && silence.EndsAt.Before(time.Now()) {
+		if !*queryExpired && silence.EndsAt.Before(time.Now()) {
 			continue
 		}
 
-		if int64(duration) > 0 && silence.EndsAt.After(time.Now().UTC().Add(time.Duration(duration))) {
+		if int64(*queryWithin) > 0 && silence.EndsAt.After(time.Now().UTC().Add(*queryWithin)) {
 			continue
 		}
 
 		displaySilences = append(displaySilences, silence)
 	}
 
-	if quiet {
+	if *silenceQuiet {
 		for _, silence := range displaySilences {
 			fmt.Println(silence.ID)
 		}
 	} else {
-		formatter, found := format.Formatters[viper.GetString("output")]
+		formatter, found := format.Formatters[*output]
 		if !found {
 			return errors.New("unknown output formatter")
 		}

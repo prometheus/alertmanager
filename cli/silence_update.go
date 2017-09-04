@@ -9,11 +9,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/spf13/cobra"
-	flag "github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 type getResponse struct {
@@ -23,36 +21,31 @@ type getResponse struct {
 	Error     string        `json:"error,omitempty"`
 }
 
-var updateFlags *flag.FlagSet
-var updateCmd = &cobra.Command{
-	Use:     "update <id> ...",
-	Aliases: []string{"extend"},
-	Args:    cobra.MinimumNArgs(1),
-	Short:   "Update silences",
-	Long:    `Extend or update existing silence in Alertmanager.`,
-	Run:     CommandWrapper(update),
-}
+var (
+	updateCmd       = silenceCmd.Command("update", "Update silences")
+	updateExpires   = updateCmd.Flag("expires", "Duration of silence").Short('e').Duration()
+	updateExpiresOn = updateCmd.Flag("expire-on", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00").Time(time.RFC3339)
+	updateComment   = updateCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
+	updateIds       = updateCmd.Arg("update-ids", "Silence IDs to update").Strings()
+)
+
+/*
+Extend or update existing silence in Alertmanager.
+*/
 
 func init() {
-	updateCmd.Flags().StringP("expires", "e", "", "Duration of silence (100h)")
-	updateCmd.Flags().String("expire-on", "", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00")
-	updateCmd.Flags().StringP("comment", "c", "", "A comment to help describe the silence")
-	updateFlags = updateCmd.Flags()
+	updateCmd.Action(update)
 }
 
-func update(cmd *cobra.Command, args []string) error {
-	if len(args) < 1 {
+func update(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+	if len(*updateIds) < 1 {
 		return fmt.Errorf("no silence IDs specified")
 	}
 
-	alertmanagerUrl, err := GetAlertmanagerURL()
-	if err != nil {
-		return err
-	}
-
+	alertmanagerUrl := GetAlertmanagerURL("/api/v1/silence")
 	var updatedSilences []types.Silence
-	for _, silenceId := range args {
-		silence, err := getSilenceById(silenceId, *alertmanagerUrl)
+	for _, silenceId := range *updateIds {
+		silence, err := getSilenceById(silenceId, alertmanagerUrl)
 		if err != nil {
 			return err
 		}
@@ -63,13 +56,12 @@ func update(cmd *cobra.Command, args []string) error {
 		updatedSilences = append(updatedSilences, *silence)
 	}
 
-	quiet := viper.GetBool("quiet")
-	if quiet {
+	if *silenceQuiet {
 		for _, silence := range updatedSilences {
 			fmt.Println(silence.ID)
 		}
 	} else {
-		formatter, found := format.Formatters[viper.GetString("output")]
+		formatter, found := format.Formatters[*output]
 		if !found {
 			return fmt.Errorf("unknown output formatter")
 		}
@@ -80,7 +72,7 @@ func update(cmd *cobra.Command, args []string) error {
 
 // This takes an url.URL and not a pointer as we will modify it for our API call.
 func getSilenceById(silenceId string, baseUrl url.URL) (*types.Silence, error) {
-	baseUrl.Path = path.Join(baseUrl.Path, "/api/v1/silence", silenceId)
+	baseUrl.Path = path.Join(baseUrl.Path, silenceId)
 	res, err := http.Get(baseUrl.String())
 	if err != nil {
 		return nil, err
@@ -105,37 +97,17 @@ func getSilenceById(silenceId string, baseUrl url.URL) (*types.Silence, error) {
 }
 
 func updateSilence(silence *types.Silence) (*types.Silence, error) {
-	if updateFlags.Changed("expires") {
-		expires, err := updateFlags.GetString("expires")
-		if err != nil {
-			return nil, err
-		}
-		duration, err := time.ParseDuration(expires)
-		if err != nil {
-			return nil, err
-		}
-		silence.EndsAt = time.Now().UTC().Add(duration)
+	if *updateExpires != 0 {
+		silence.EndsAt = time.Now().UTC().Add(*updateExpires)
 	}
 
 	// expire-on will override expires value if both are specified
-	if updateFlags.Changed("expire-on") {
-		expireOn, err := updateFlags.GetString("expire-on")
-		if err != nil {
-			return nil, err
-		}
-		endsAt, err := time.Parse(time.RFC3339, expireOn)
-		if err != nil {
-			return nil, err
-		}
-		silence.EndsAt = endsAt
+	if !(*updateExpiresOn).IsZero() {
+		silence.EndsAt = *updateExpiresOn
 	}
 
-	if updateFlags.Changed("comment") {
-		comment, err := updateFlags.GetString("comment")
-		if err != nil {
-			return nil, err
-		}
-		silence.Comment = comment
+	if *comment != "" {
+		silence.Comment = *comment
 	}
 
 	// addSilence can also be used to update an existing silence

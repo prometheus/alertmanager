@@ -7,7 +7,6 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/spf13/viper"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"
@@ -46,6 +45,7 @@ type Formatter interface {
 var Formatters = map[string]Formatter{}
 
 func FormatDate(input time.Time) string {
-	dateformat := viper.GetString("date.format")
+	// FIX-BEFORE-MERGE
+	dateformat := DefaultDateFormat //viper.GetString("date.format")
 	return input.Format(dateformat)
 }

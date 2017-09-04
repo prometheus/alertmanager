@@ -3,6 +3,21 @@
 	"ignore": "test",
 	"package": [
 		{
+<<<<<<< HEAD
+=======
+			"checksumSHA1": "DYv6Q1+VfnUVxMwvk5IshAClLvw=",
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "5e5dc898656f695e2a086b8e12559febbfc01562",
+			"revisionTime": "2017-05-15T10:45:16Z"
+		},
+		{
+			"checksumSHA1": "XhkBA2yTAxMmcxk3dPqh8JNU4II=",
+			"path": "github.com/alecthomas/kingpin",
+			"revision": "75c60582c55399763d53eeb59078d63d3616f58c",
+			"revisionTime": "2017-12-17T17:58:06Z"
+		},
+		{
+>>>>>>> Switch cmd/amtool to kingpin
 			"checksumSHA1": "4QnLdmB1kG3N+KlDd1N+G9TWAGQ=",
 			"path": "github.com/beorn7/perks/quantile",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",

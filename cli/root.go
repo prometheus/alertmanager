@@ -1,19 +1,64 @@
 package cli
 
 import (
-	"fmt"
+	"io/ioutil"
 	"os"
 
-	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/common/version"
+	"gopkg.in/yaml.v2"
 )
 
-// RootCmd represents the base command when called without any subcommands
-var RootCmd = &cobra.Command{
-	Use:   "amtool",
-	Short: "Alertmanager CLI",
-	Long: `View and modify the current Alertmanager state.
+var (
+	app             = kingpin.New("amtool", "Alertmanager CLI").DefaultEnvars()
+	verbose         = app.Flag("verbose", "Verbose running information").Short('v').Bool()
+	alertmanagerUrl = app.Flag("alertmanager.url", "Alertmanager to talk to").Required().URL()
+	output          = app.Flag("output", "Output formatter (simple, extended, json)").Default("simple").Enum("simple", "extended", "json")
+)
+
+type amtoolConfigResolver struct {
+	configData []map[string]string
+}
+
+func newConfigResolver() amtoolConfigResolver {
+	files := []string{
+		os.ExpandEnv("$HOME/.config/amtool/config.yml"),
+		"/etc/amtool/config.yml",
+	}
+
+	resolver := amtoolConfigResolver{
+		configData: make([]map[string]string, 0),
+	}
+	for _, f := range files {
+		b, err := ioutil.ReadFile(f)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			panic(err)
+		}
+		var config map[string]string
+		err = yaml.Unmarshal(b, &config)
+		if err != nil {
+			panic(err)
+		}
+		resolver.configData = append(resolver.configData, config)
+	}
+
+	return resolver
+}
+
+func (r amtoolConfigResolver) Resolve(key string, context *kingpin.ParseContext) ([]string, error) {
+	for _, c := range r.configData {
+		if v, ok := c[key]; ok {
+			return []string{v}, nil
+		}
+	}
+	return nil, nil
+}
+
+/*
+`View and modify the current Alertmanager state.
 
 [Config File]
 
@@ -36,48 +81,17 @@ The accepted config options are as follows:
 
 	output
 		Set a default output type. Options are (simple, extended, json)
-	`,
-}
+*/
 
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
-}
+	app.Version(version.Print("amtool"))
+	app.GetFlag("help").Short('h')
 
-func init() {
-	cobra.OnInitialize(initConfig)
-
-	RootCmd.PersistentFlags().String("config", "", "config file (default is $HOME/.config/amtool/config.yml)")
-	viper.BindPFlag("config", RootCmd.PersistentFlags().Lookup("config"))
-	RootCmd.PersistentFlags().String("alertmanager.url", "", "Alertmanager to talk to")
-	viper.BindPFlag("alertmanager.url", RootCmd.PersistentFlags().Lookup("alertmanager.url"))
-	RootCmd.PersistentFlags().StringP("output", "o", "simple", "Output formatter (simple, extended, json)")
-	viper.BindPFlag("output", RootCmd.PersistentFlags().Lookup("output"))
-	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose running information")
-	viper.BindPFlag("verbose", RootCmd.PersistentFlags().Lookup("verbose"))
-	viper.SetDefault("date.format", format.DefaultDateFormat)
-}
-
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	viper.SetConfigName("config") // name of config file (without extension)
-	viper.AddConfigPath("/etc/amtool")
-	viper.AddConfigPath("$HOME/.config/amtool")
-	viper.SetEnvPrefix("AMTOOL")
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	cfgFile := viper.GetString("config")
-	if cfgFile != "" { // enable ability to specify config file via flag
-		viper.SetConfigFile(cfgFile)
-	}
-	err := viper.ReadInConfig()
-	if err == nil {
-		if viper.GetBool("verbose") {
-			fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-		}
+	app.Resolver(newConfigResolver())
+	_, err := app.Parse(os.Args[1:])
+	if err != nil {
+		kingpin.Fatalf("%v\n", err)
 	}
 }
