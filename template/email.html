@@ -325,7 +325,7 @@ a {
           <tr>
             <td class="alert alert-warning">
               {{ .Alerts | len }} alert{{ if gt (len .Alerts) 1 }}s{{ end }} for {{ range .GroupLabels.SortedPairs }}
-                {{ .Name }}={{ .Value }} 
+                {{ .Name }}={{ .Value }}
               {{ end }}
             </td>
           </tr>
