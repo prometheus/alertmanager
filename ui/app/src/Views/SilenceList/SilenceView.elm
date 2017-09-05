@@ -1,4 +1,4 @@
-module Views.SilenceList.SilenceView exposing (view)
+module Views.SilenceList.SilenceView exposing (view, deleteButton, editButton)
 
 import Html exposing (Html, div, a, p, text, b, i, span, small, button, li)
 import Html.Attributes exposing (class, href, style)
@@ -31,7 +31,7 @@ view silence =
                     dateView "Expired" silence.endsAt
             , detailsButton silence.id
             , editButton silence
-            , deleteButton silence
+            , deleteButton silence False
             ]
         , div [ class "" ] (List.map matcherButton silence.matchers)
         ]
@@ -92,8 +92,8 @@ editButton silence =
                     ]
 
 
-deleteButton : Silence -> Html Msg
-deleteButton silence =
+deleteButton : Silence -> Bool -> Html Msg
+deleteButton silence refresh =
     case silence.status.state of
         Expired ->
             text ""
@@ -101,7 +101,7 @@ deleteButton silence =
         Active ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (DestroySilence silence))
+                , onClick (MsgForSilenceList (DestroySilence silence refresh))
                 ]
                 [ text "Expire"
                 ]
@@ -109,7 +109,7 @@ deleteButton silence =
         Pending ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (DestroySilence silence))
+                , onClick (MsgForSilenceList (DestroySilence silence refresh))
                 ]
                 [ text "Delete"
                 ]

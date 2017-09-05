@@ -73,7 +73,7 @@ currentView model =
             Status.view model.status
 
         SilenceViewRoute silenceId ->
-            SilenceView.view model.silenceView |> Html.map MsgForSilenceView
+            SilenceView.view model.silenceView
 
         AlertsRoute filter ->
             AlertList.view model.alertList filter

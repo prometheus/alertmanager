@@ -7,7 +7,7 @@ import Views.FilterBar.Types as FilterBar
 
 
 type SilenceListMsg
-    = DestroySilence Silence
+    = DestroySilence Silence Bool
     | SilencesFetch (ApiData (List Silence))
     | FetchSilences
     | MsgForFilterBar FilterBar.Msg

@@ -9,10 +9,10 @@ import Utils.Filter exposing (nullFilter)
 
 
 update : SilenceViewMsg -> Model -> String -> ( Model, Cmd SilenceViewMsg )
-update msg model basePath =
+update msg model apiUrl =
     case msg of
         FetchSilence id ->
-            ( model, getSilence basePath id SilenceFetched )
+            ( model, getSilence apiUrl id SilenceFetched )
 
         AlertGroupsPreview alerts ->
             ( { model | alerts = alerts }
@@ -25,7 +25,7 @@ update msg model basePath =
                 , alerts = Loading
               }
             , Alerts.Api.fetchAlerts
-                basePath
+                apiUrl
                 ({ nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True })
                 |> Cmd.map AlertGroupsPreview
             )
@@ -34,4 +34,4 @@ update msg model basePath =
             ( { model | silence = silence, alerts = Initial }, Cmd.none )
 
         InitSilenceView silenceId ->
-            ( model, getSilence basePath silenceId SilenceFetched )
+            ( model, getSilence apiUrl silenceId SilenceFetched )
