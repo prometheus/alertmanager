@@ -35,10 +35,13 @@ view { silence, alerts } =
 viewSilence : ApiData (List Alert) -> Silence -> Html Msg
 viewSilence alerts silence =
     div []
-        [ h1 [ class "d-inline-block" ] [ text "Silence" ]
-        , span []
-            [ editButton silence
-            , deleteButton silence True
+        [ h1 []
+            [ text "Silence"
+            , span
+                [ class "ml-3" ]
+                [ editButton silence
+                , deleteButton silence True
+                ]
             ]
         , formGroup "ID" <| text silence.id
         , formGroup "Starts at" <| text <| dateTimeFormat silence.startsAt
