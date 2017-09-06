@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"sync"
 	"time"
 
@@ -359,6 +360,9 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Fingerprint < res[j].Fingerprint
+	})
 	respond(w, res)
 }
 
