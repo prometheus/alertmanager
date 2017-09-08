@@ -4,7 +4,7 @@
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status)][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
 
-The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, OpsGenie, or PagerTree. It also takes care of silencing and inhibition of alerts.
 
 * [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
 
@@ -152,6 +152,8 @@ receivers:
   - to: 'team-X+alerts-critical@example.org'
   pagerduty_configs:
   - service_key: <team-X-key>
+  pagertree_configs:
+  - url: <team-x-pagertree-url>
 
 - name: 'team-Y-mails'
   email_configs:
@@ -160,10 +162,14 @@ receivers:
 - name: 'team-Y-pager'
   pagerduty_configs:
   - service_key: <team-Y-key>
+  pagertree_configs:
+  - url: <team-y-pagertree-url>
 
 - name: 'team-DB-pager'
   pagerduty_configs:
   - service_key: <team-DB-key>
+  pagertree_configs:
+  - url: <team-DB-pagertree-url>
 ```
 
 ## Amtool

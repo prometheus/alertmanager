@@ -1,3 +1,7 @@
+## 0.8.1 / 2017-09-07
+
+* [FEATURE] Add PagerTree integration notifications.
+
 ## 0.8.0 / 2017-07-20
 
 * [FEATURE] Add ability to filter alerts by receiver in the UI (#890)
