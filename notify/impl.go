@@ -112,6 +112,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewPagerDuty(c, tmpl)
 		add("pagerduty", i, n, c)
 	}
+	for i, c := range nc.PagerTreeConfigs {
+		n := NewPagerTree(c, tmpl)
+		add("pagertree", i, n, c)
+	}
 	for i, c := range nc.OpsGenieConfigs {
 		n := NewOpsGenie(c, tmpl)
 		add("opsgenie", i, n, c)
@@ -500,6 +504,62 @@ func (n *PagerDuty) retry(statusCode int) (bool, error) {
 	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/trigger-events
+	if statusCode/100 != 2 {
+		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// PagerTree implements a Notifier for PagerTree Integrations.
+type PagerTree struct {
+	// The URL to which notifications are sent.
+	URL  string
+	tmpl *template.Template
+}
+
+// NewPagerTree returns a new PagerTree.
+func NewPagerTree(conf *config.PagerTreeConfig, t *template.Template) *PagerTree {
+	return &PagerTree{URL: conf.URL, tmpl: t}
+}
+
+// PagerTreeMessage defines the JSON object send to webhook endpoints.
+type PagerTreeMessage struct {
+	*template.Data
+}
+
+// Notify implements the Notifier interface.
+func (pt *PagerTree) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	data := pt.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
+
+	msg := &PagerTreeMessage{
+		Data:     data,
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequest("POST", pt.URL, &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("User-Agent", userAgentHeader)
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	if err != nil {
+		return true, err
+	}
+	resp.Body.Close()
+
+	return pt.retry(resp.StatusCode)
+}
+
+func (pt *PagerTree) retry(statusCode int) (bool, error) {
+	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
+	// 2xx response codes indicate a successful request.
 	if statusCode/100 != 2 {
 		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}

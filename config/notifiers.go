@@ -55,6 +55,13 @@ var (
 		},
 	}
 
+	// DefaultPagerTreeConfig defines default values for PagerTree configurations.
+	DefaultPagerTreeConfig = PagerTreeConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultSlackConfig defines default values for Slack configurations.
 	DefaultSlackConfig = SlackConfig{
 		NotifierConfig: NotifierConfig{
@@ -200,6 +207,29 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return fmt.Errorf("missing service key in PagerDuty config")
 	}
 	return checkOverflow(c.XXX, "pagerduty config")
+}
+
+type PagerTreeConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	// URL to send POST request to.
+	URL string `yaml:"url" json:"url"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *PagerTreeConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultPagerTreeConfig
+	type plain PagerTreeConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == "" {
+		return fmt.Errorf("missing URL in PagerTree config")
+	}
+	return checkOverflow(c.XXX, "webhook config")
 }
 
 // SlackConfig configures notifications via Slack.

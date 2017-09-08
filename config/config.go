@@ -225,6 +225,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				pdc.URL = c.Global.PagerdutyURL
 			}
 		}
+		for _, ptc := range rcv.PagerTreeConfigs {
+			if ptc.URL == "" {
+				if c.Global.PagerTreeURL == "" {
+					return fmt.Errorf("no global PagerTree URL set")
+				}
+				ptc.URL = c.Global.PagerTreeURL
+			}
+		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			if ogc.APIHost == "" {
 				if c.Global.OpsGenieAPIHost == "" {
@@ -455,6 +463,7 @@ type Receiver struct {
 
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	PagerTreeConfigs []*PagerTreeConfig `yaml:"pagertree_configs,omitempty" json:"pagertree_configs,omitempty"`
 	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
