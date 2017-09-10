@@ -47,7 +47,7 @@ vet:
 # Will only build the back-end
 build: promu
 	@echo ">> building binaries"
-	@$(PROMU) build --prefix $(PREFIX)
+	@$(PROMU) build --prefix $(PREFIX) $(BINARIES)
 
 # Will build both the front-end as well as the back-end
 build-all: assets build
