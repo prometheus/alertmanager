@@ -1,6 +1,6 @@
 # Generating amtool artifacts
 
-Amtool comes with the option to create a number of eaze-of-use artifacts that can be created.
+Amtool comes with the option to create a number of ease-of-use artifacts.
 
     go run generate_amtool_artifacts.go
 
