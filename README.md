@@ -45,6 +45,11 @@ $ make build
 $ ./alertmanager -config.file=<your_file>
 ```
 
+You can also build just one of the binaries in this repo by passing a name to the build function:
+```
+$ make build BINARIES=amtool
+```
+
 ## Example
 
 This is an example configuration that should cover most relevant aspects of the new YAML configuration format. The full documentation of the configuration can be found [here](https://prometheus.io/docs/alerting/configuration/).
