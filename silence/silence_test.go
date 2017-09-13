@@ -81,13 +81,17 @@ func TestSilencesGC(t *testing.T) {
 	newSilence := func(exp time.Time) *pb.MeshSilence {
 		return &pb.MeshSilence{ExpiresAt: exp}
 	}
-	s.st = gossipData{
-		"1": newSilence(now),
-		"2": newSilence(now.Add(-time.Second)),
-		"3": newSilence(now.Add(time.Second)),
+	s.st = &gossipData{
+		data: silenceMap{
+			"1": newSilence(now),
+			"2": newSilence(now.Add(-time.Second)),
+			"3": newSilence(now.Add(time.Second)),
+		},
 	}
-	want := gossipData{
-		"3": newSilence(now.Add(time.Second)),
+	want := &gossipData{
+		data: silenceMap{
+			"3": newSilence(now.Add(time.Second)),
+		},
 	}
 
 	n, err := s.GC()
@@ -138,10 +142,10 @@ func TestSilencesSnapshot(t *testing.T) {
 		f, err := ioutil.TempFile("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
-		s1 := &Silences{st: gossipData{}, metrics: newMetrics(nil)}
+		s1 := &Silences{st: newGossipData(), metrics: newMetrics(nil)}
 		// Setup internal state manually.
 		for _, e := range c.entries {
-			s1.st[e.Silence.Id] = e
+			s1.st.data[e.Silence.Id] = e
 		}
 		_, err = s1.Snapshot(f)
 		require.NoError(t, err, "creating snapshot failed")
@@ -152,10 +156,10 @@ func TestSilencesSnapshot(t *testing.T) {
 		require.NoError(t, err, "opening snapshot file failed")
 
 		// Check again against new nlog instance.
-		s2 := &Silences{mc: matcherCache{}}
+		s2 := &Silences{mc: matcherCache{}, st: newGossipData()}
 		err = s2.loadSnapshot(f)
 		require.NoError(t, err, "error loading snapshot")
-		require.Equal(t, s1.st, s2.st, "state after loading snapshot did not match snapshotted state")
+		require.Equal(t, s1.st.data, s2.st.data, "state after loading snapshot did not match snapshotted state")
 
 		require.NoError(t, f.Close(), "closing snapshot file failed")
 	}
@@ -184,17 +188,19 @@ func TestSilencesSetSilence(t *testing.T) {
 		EndsAt:   nowpb,
 	}
 
-	want := gossipData{
-		"some_id": &pb.MeshSilence{
-			Silence:   sil,
-			ExpiresAt: now.Add(time.Minute),
+	want := &gossipData{
+		data: silenceMap{
+			"some_id": &pb.MeshSilence{
+				Silence:   sil,
+				ExpiresAt: now.Add(time.Minute),
+			},
 		},
 	}
 
 	var called bool
 	s.gossip = &mockGossip{
 		broadcast: func(d mesh.GossipData) {
-			data, ok := d.(gossipData)
+			data, ok := d.(*gossipData)
 			require.True(t, ok, "gossip data of unknown type")
 			require.Equal(t, want, data, "unexpected gossip broadcast data")
 
@@ -203,7 +209,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	}
 	require.NoError(t, s.setSilence(sil))
 	require.True(t, called, "GossipBroadcast was not called")
-	require.Equal(t, want, s.st, "Unexpected silence state")
+	require.Equal(t, want.data, s.st.data, "Unexpected silence state")
 }
 
 func TestSilenceSet(t *testing.T) {
@@ -226,19 +232,21 @@ func TestSilenceSet(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, id1, "")
 
-	want := gossipData{
-		id1: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        id1,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now1.Add(2 * time.Minute),
-				EndsAt:    now1.Add(5 * time.Minute),
-				UpdatedAt: now1,
+	want := &gossipData{
+		data: silenceMap{
+			id1: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id:        id1,
+					Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					StartsAt:  now1.Add(2 * time.Minute),
+					EndsAt:    now1.Add(5 * time.Minute),
+					UpdatedAt: now1,
+				},
+				ExpiresAt: now1.Add(5*time.Minute + s.retention),
 			},
-			ExpiresAt: now1.Add(5*time.Minute + s.retention),
 		},
 	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.Equal(t, want.data, s.st.data, "unexpected state after silence creation")
 
 	// Insert silence with unset start time. Must be set to now.
 	now = now.Add(time.Minute)
@@ -252,20 +260,22 @@ func TestSilenceSet(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, id2, "")
 
-	want = gossipData{
-		id1: want[id1],
-		id2: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        id2,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now2,
-				EndsAt:    now2.Add(1 * time.Minute),
-				UpdatedAt: now2,
+	want = &gossipData{
+		data: silenceMap{
+			id1: want.data[id1],
+			id2: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id:        id2,
+					Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					StartsAt:  now2,
+					EndsAt:    now2.Add(1 * time.Minute),
+					UpdatedAt: now2,
+				},
+				ExpiresAt: now2.Add(1*time.Minute + s.retention),
 			},
-			ExpiresAt: now2.Add(1*time.Minute + s.retention),
 		},
 	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.Equal(t, want.data, s.st.data, "unexpected state after silence creation")
 
 	// Overwrite silence 2 with new end time.
 	now = now.Add(time.Minute)
@@ -278,20 +288,22 @@ func TestSilenceSet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, id2, id3)
 
-	want = gossipData{
-		id1: want[id1],
-		id2: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        id2,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now2,
-				EndsAt:    now3.Add(100 * time.Minute),
-				UpdatedAt: now3,
+	want = &gossipData{
+		data: silenceMap{
+			id1: want.data[id1],
+			id2: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id:        id2,
+					Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					StartsAt:  now2,
+					EndsAt:    now3.Add(100 * time.Minute),
+					UpdatedAt: now3,
+				},
+				ExpiresAt: now3.Add(100*time.Minute + s.retention),
 			},
-			ExpiresAt: now3.Add(100*time.Minute + s.retention),
 		},
 	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.Equal(t, want.data, s.st.data, "unexpected state after silence creation")
 
 	// Update silence 2 with new matcher expires it and creates a new one.
 	now = now.Add(time.Minute)
@@ -304,30 +316,32 @@ func TestSilenceSet(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, id2, id4)
 
-	want = gossipData{
-		id1: want[id1],
-		id2: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        id2,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now2,
-				EndsAt:    now4,
-				UpdatedAt: now4,
+	want = &gossipData{
+		data: silenceMap{
+			id1: want.data[id1],
+			id2: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id:        id2,
+					Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					StartsAt:  now2,
+					EndsAt:    now4,
+					UpdatedAt: now4,
+				},
+				ExpiresAt: now4.Add(s.retention),
 			},
-			ExpiresAt: now4.Add(s.retention),
-		},
-		id4: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        id4,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
-				StartsAt:  now4,
-				EndsAt:    now3.Add(100 * time.Minute),
-				UpdatedAt: now4,
+			id4: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id:        id4,
+					Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
+					StartsAt:  now4,
+					EndsAt:    now3.Add(100 * time.Minute),
+					UpdatedAt: now4,
+				},
+				ExpiresAt: now3.Add(100*time.Minute + s.retention),
 			},
-			ExpiresAt: now3.Add(100*time.Minute + s.retention),
 		},
 	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.Equal(t, want.data, s.st.data, "unexpected state after silence creation")
 
 	// Re-create expired silence.
 	now = now.Add(time.Minute)
@@ -341,22 +355,24 @@ func TestSilenceSet(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, id2, id4)
 
-	want = gossipData{
-		id1: want[id1],
-		id2: want[id2],
-		id4: want[id4],
-		id5: &pb.MeshSilence{
-			Silence: &pb.Silence{
-				Id:        id5,
-				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now5,
-				EndsAt:    now5.Add(5 * time.Minute),
-				UpdatedAt: now5,
+	want = &gossipData{
+		data: silenceMap{
+			id1: want.data[id1],
+			id2: want.data[id2],
+			id4: want.data[id4],
+			id5: &pb.MeshSilence{
+				Silence: &pb.Silence{
+					Id:        id5,
+					Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+					StartsAt:  now5,
+					EndsAt:    now5.Add(5 * time.Minute),
+					UpdatedAt: now5,
+				},
+				ExpiresAt: now5.Add(5*time.Minute + s.retention),
 			},
-			ExpiresAt: now5.Add(5*time.Minute + s.retention),
 		},
 	}
-	require.Equal(t, want, s.st, "unexpected state after silence creation")
+	require.Equal(t, want.data, s.st.data, "unexpected state after silence creation")
 }
 
 func TestSilencesSetFail(t *testing.T) {
@@ -492,7 +508,7 @@ func TestQMatches(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		drop, err := f(c.sil, &Silences{mc: matcherCache{}}, time.Time{})
+		drop, err := f(c.sil, &Silences{mc: matcherCache{}, st: newGossipData()}, time.Time{})
 		require.NoError(t, err)
 		require.Equal(t, c.drop, drop, "unexpected filter result")
 	}
@@ -502,12 +518,14 @@ func TestSilencesQuery(t *testing.T) {
 	s, err := New(Options{})
 	require.NoError(t, err)
 
-	s.st = gossipData{
-		"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}},
-		"2": &pb.MeshSilence{Silence: &pb.Silence{Id: "2"}},
-		"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}},
-		"4": &pb.MeshSilence{Silence: &pb.Silence{Id: "4"}},
-		"5": &pb.MeshSilence{Silence: &pb.Silence{Id: "5"}},
+	s.st = &gossipData{
+		data: silenceMap{
+			"1": &pb.MeshSilence{Silence: &pb.Silence{Id: "1"}},
+			"2": &pb.MeshSilence{Silence: &pb.Silence{Id: "2"}},
+			"3": &pb.MeshSilence{Silence: &pb.Silence{Id: "3"}},
+			"4": &pb.MeshSilence{Silence: &pb.Silence{Id: "4"}},
+			"5": &pb.MeshSilence{Silence: &pb.Silence{Id: "5"}},
+		},
 	}
 	cases := []struct {
 		q   *query
@@ -717,28 +735,30 @@ func TestSilenceExpire(t *testing.T) {
 
 	m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
 
-	s.st = gossipData{
-		"pending": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "pending",
-			Matchers:  []*pb.Matcher{m},
-			StartsAt:  now.Add(time.Minute),
-			EndsAt:    now.Add(time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
-		}},
-		"active": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "active",
-			Matchers:  []*pb.Matcher{m},
-			StartsAt:  now.Add(-time.Minute),
-			EndsAt:    now.Add(time.Hour),
-			UpdatedAt: now.Add(-time.Hour),
-		}},
-		"expired": &pb.MeshSilence{Silence: &pb.Silence{
-			Id:        "expired",
-			Matchers:  []*pb.Matcher{m},
-			StartsAt:  now.Add(-time.Hour),
-			EndsAt:    now.Add(-time.Minute),
-			UpdatedAt: now.Add(-time.Hour),
-		}},
+	s.st = &gossipData{
+		data: silenceMap{
+			"pending": &pb.MeshSilence{Silence: &pb.Silence{
+				Id:        "pending",
+				Matchers:  []*pb.Matcher{m},
+				StartsAt:  now.Add(time.Minute),
+				EndsAt:    now.Add(time.Hour),
+				UpdatedAt: now.Add(-time.Hour),
+			}},
+			"active": &pb.MeshSilence{Silence: &pb.Silence{
+				Id:        "active",
+				Matchers:  []*pb.Matcher{m},
+				StartsAt:  now.Add(-time.Minute),
+				EndsAt:    now.Add(time.Hour),
+				UpdatedAt: now.Add(-time.Hour),
+			}},
+			"expired": &pb.MeshSilence{Silence: &pb.Silence{
+				Id:        "expired",
+				Matchers:  []*pb.Matcher{m},
+				StartsAt:  now.Add(-time.Hour),
+				EndsAt:    now.Add(-time.Minute),
+				UpdatedAt: now.Add(-time.Hour),
+			}},
+		},
 	}
 
 	require.NoError(t, s.expire("pending"))
@@ -979,29 +999,37 @@ func TestGossipDataMerge(t *testing.T) {
 		}
 	}
 	cases := []struct {
-		a, b         gossipData
-		final, delta gossipData
+		a, b         *gossipData
+		final, delta *gossipData
 	}{
 		{
-			a: gossipData{
-				"a1": newSilence(now),
-				"a2": newSilence(now),
-				"a3": newSilence(now),
+			a: &gossipData{
+				data: silenceMap{
+					"a1": newSilence(now),
+					"a2": newSilence(now),
+					"a3": newSilence(now),
+				},
 			},
-			b: gossipData{
-				"b1": newSilence(now),                   // new key, should be added
-				"a2": newSilence(now.Add(-time.Minute)), // older timestamp, should be dropped
-				"a3": newSilence(now.Add(time.Minute)),  // newer timestamp, should overwrite
+			b: &gossipData{
+				data: silenceMap{
+					"b1": newSilence(now),                   // new key, should be added
+					"a2": newSilence(now.Add(-time.Minute)), // older timestamp, should be dropped
+					"a3": newSilence(now.Add(time.Minute)),  // newer timestamp, should overwrite
+				},
 			},
-			final: gossipData{
-				"a1": newSilence(now),
-				"a2": newSilence(now),
-				"a3": newSilence(now.Add(time.Minute)),
-				"b1": newSilence(now),
+			final: &gossipData{
+				data: silenceMap{
+					"a1": newSilence(now),
+					"a2": newSilence(now),
+					"a3": newSilence(now.Add(time.Minute)),
+					"b1": newSilence(now),
+				},
 			},
-			delta: gossipData{
-				"b1": newSilence(now),
-				"a3": newSilence(now.Add(time.Minute)),
+			delta: &gossipData{
+				data: silenceMap{
+					"b1": newSilence(now),
+					"a3": newSilence(now.Add(time.Minute)),
+				},
 			},
 		},
 	}
@@ -1065,9 +1093,9 @@ func TestGossipDataCoding(t *testing.T) {
 
 	for _, c := range cases {
 		// Create gossip data from input.
-		in := gossipData{}
+		in := newGossipData()
 		for _, e := range c.entries {
-			in[e.Silence.Id] = e
+			in.data[e.Silence.Id] = e
 		}
 		msg := in.Encode()
 		require.Equal(t, 1, len(msg), "expected single message for input")
