@@ -1,11 +1,11 @@
 module Views.Shared.SilencePreview exposing (view)
 
 import Alerts.Types exposing (Alert)
-import Html exposing (Html, div, text, strong, p)
+import Html exposing (Html, div, p, strong, text)
 import Html.Attributes exposing (class)
-import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure))
-import Views.Shared.AlertListCompact
+import Utils.Types exposing (ApiData(Failure, Initial, Loading, Success))
 import Utils.Views exposing (loading)
+import Views.Shared.AlertListCompact
 
 
 view : ApiData (List Alert) -> Html msg
@@ -17,7 +17,7 @@ view alertsResponse =
                     [ p [] [ strong [] [ text "No silenced alerts" ] ] ]
             else
                 div [ class "w-100" ]
-                    [ p [] [ strong [] [ text "Silenced alerts:" ] ]
+                    [ p [] [ strong [] [ text ("Silenced alerts: " ++ toString (List.length alerts)) ] ]
                     , Views.Shared.AlertListCompact.view alerts
                     ]
 
