@@ -372,7 +372,6 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	fmt.Fprintf(wc, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
 
-
 	// TODO: Add some useful headers here, such as URL of the alertmanager
 	// and active/resolved.
 	fmt.Fprintf(wc, "\r\n")

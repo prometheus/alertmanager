@@ -16,6 +16,7 @@
         "elm-tools/parser": "2.0.0 <= v < 3.0.0",
         "evancz/url-parser": "2.0.1 <= v < 3.0.0",
         "jweir/elm-iso8601": "3.0.2 <= v < 4.0.0",
+        "krisajenkins/elm-dialog": "4.0.3 <= v < 5.0.0",
         "rluiten/elm-date-extra": "8.5.0 <= v < 9.0.0"
     },
     "elm-version": "0.18.0 <= v < 0.19.0"

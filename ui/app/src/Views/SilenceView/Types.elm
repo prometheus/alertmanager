@@ -1,7 +1,7 @@
-module Views.SilenceView.Types exposing (SilenceViewMsg(..), Model, initSilenceView)
+module Views.SilenceView.Types exposing (Model, SilenceViewMsg(..), initSilenceView)
 
-import Silences.Types exposing (Silence, SilenceId)
 import Alerts.Types exposing (Alert)
+import Silences.Types exposing (Silence, SilenceId)
 import Utils.Types exposing (ApiData(Initial))
 
 
@@ -10,11 +10,14 @@ type SilenceViewMsg
     | SilenceFetched (ApiData Silence)
     | AlertGroupsPreview (ApiData (List Alert))
     | InitSilenceView SilenceId
+    | ConfirmDestroySilence Silence Bool
+    | Reload String
 
 
 type alias Model =
     { silence : ApiData Silence
     , alerts : ApiData (List Alert)
+    , showConfirmationDialog : Bool
     }
 
 
@@ -22,4 +25,5 @@ initSilenceView : Model
 initSilenceView =
     { silence = Initial
     , alerts = Initial
+    , showConfirmationDialog = False
     }

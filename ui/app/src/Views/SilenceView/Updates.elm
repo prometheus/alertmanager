@@ -1,15 +1,16 @@
 module Views.SilenceView.Updates exposing (update)
 
-import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
-import Silences.Api exposing (getSilence)
 import Alerts.Api
+import Navigation exposing (newUrl)
+import Silences.Api exposing (getSilence)
+import Utils.Filter exposing (nullFilter)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
-import Utils.Filter exposing (nullFilter)
+import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
 
 
-update : SilenceViewMsg -> Model -> String -> ( Model, Cmd SilenceViewMsg )
-update msg model apiUrl =
+update : SilenceViewMsg -> Model -> String -> String -> ( Model, Cmd SilenceViewMsg )
+update msg model apiUrl basePath =
     case msg of
         FetchSilence id ->
             ( model, getSilence apiUrl id SilenceFetched )
@@ -26,12 +27,20 @@ update msg model apiUrl =
               }
             , Alerts.Api.fetchAlerts
                 apiUrl
-                ({ nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True })
+                { nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True }
                 |> Cmd.map AlertGroupsPreview
+            )
+
+        ConfirmDestroySilence silence refresh ->
+            ( { model | showConfirmationDialog = True }
+            , Cmd.none
             )
 
         SilenceFetched silence ->
             ( { model | silence = silence, alerts = Initial }, Cmd.none )
 
         InitSilenceView silenceId ->
-            ( model, getSilence apiUrl silenceId SilenceFetched )
+            ( { model | showConfirmationDialog = False }, getSilence apiUrl silenceId SilenceFetched )
+
+        Reload silenceId ->
+            ( { model | showConfirmationDialog = False }, newUrl ("#/silences/" ++ silenceId) )
