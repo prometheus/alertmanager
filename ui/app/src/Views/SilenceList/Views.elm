@@ -2,19 +2,19 @@ module Views.SilenceList.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Views.SilenceList.Types exposing (SilenceListMsg(..), Model)
-import Views.SilenceList.SilenceView
 import Silences.Types exposing (Silence, State(..), stateToString)
-import Utils.Types exposing (Matcher, ApiData(..))
+import Types exposing (Msg(MsgForSilenceList, Noop, UpdateFilter))
 import Utils.Api exposing (withDefault)
-import Utils.Views exposing (iconButtonMsg, checkbox, textField, formInput, formField, buttonLink, error, loading)
-import Types exposing (Msg(UpdateFilter, MsgForSilenceList, Noop))
-import Views.FilterBar.Views as FilterBar
 import Utils.String as StringUtils
+import Utils.Types exposing (ApiData(..), Matcher)
+import Utils.Views exposing (buttonLink, checkbox, error, formField, formInput, iconButtonMsg, loading, textField)
+import Views.FilterBar.Views as FilterBar
+import Views.SilenceList.SilenceView
+import Views.SilenceList.Types exposing (Model, SilenceListMsg(..))
 
 
 view : Model -> Html Msg
-view { filterBar, tab, silences } =
+view { filterBar, tab, silences, showConfirmationDialog } =
     div []
         [ div [ class "mb-4" ]
             [ label [ class "mb-2", for "filter-bar-matcher" ] [ text "Filter" ]
@@ -24,7 +24,7 @@ view { filterBar, tab, silences } =
             (List.map (tabView tab) (groupSilencesByState (withDefault [] silences)))
         , case silences of
             Success sils ->
-                silencesView (filterSilencesByState tab sils)
+                silencesView showConfirmationDialog (filterSilencesByState tab sils)
 
             Failure msg ->
                 error msg
@@ -49,13 +49,13 @@ tabView currentState ( state, silences ) =
                 ]
 
 
-silencesView : List Silence -> Html Msg
-silencesView silences =
+silencesView : Bool -> List Silence -> Html Msg
+silencesView showConfirmationDialog silences =
     if List.isEmpty silences then
         div [] [ text "No silences found" ]
     else
         ul [ class "list-group" ]
-            (List.map Views.SilenceList.SilenceView.view silences)
+            (List.map (Views.SilenceList.SilenceView.view showConfirmationDialog) silences)
 
 
 groupSilencesByState : List Silence -> List ( State, List Silence )

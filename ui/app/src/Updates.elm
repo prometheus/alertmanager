@@ -1,25 +1,25 @@
 module Updates exposing (update)
 
 import Navigation
+import String exposing (trim)
 import Task
 import Types
     exposing
-        ( Msg(..)
-        , Model
-        , Route(NotFoundRoute, SilenceFormEditRoute, SilenceFormNewRoute, SilenceViewRoute, StatusRoute, SilenceListRoute, AlertsRoute)
+        ( Model
+        , Msg(..)
+        , Route(AlertsRoute, NotFoundRoute, SilenceFormEditRoute, SilenceFormNewRoute, SilenceListRoute, SilenceViewRoute, StatusRoute)
         )
-import Utils.Types exposing (ApiData(Loading, Failure, Success), Matcher)
-import Views.AlertList.Updates
+import Utils.Types exposing (ApiData(Failure, Loading, Success), Matcher)
 import Views.AlertList.Types exposing (AlertListMsg(FetchAlerts))
-import Views.SilenceView.Types exposing (SilenceViewMsg(SilenceFetched, InitSilenceView))
-import Views.SilenceList.Types exposing (SilenceListMsg(FetchSilences))
-import Views.SilenceView.Updates
-import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers, FetchSilence))
+import Views.AlertList.Updates
+import Views.SilenceForm.Types exposing (SilenceFormMsg(FetchSilence, NewSilenceFromMatchers))
 import Views.SilenceForm.Updates
+import Views.SilenceList.Types exposing (SilenceListMsg(FetchSilences))
 import Views.SilenceList.Updates
+import Views.SilenceView.Types exposing (SilenceViewMsg(InitSilenceView, SilenceFetched))
+import Views.SilenceView.Updates
 import Views.Status.Types exposing (StatusMsg(InitStatusView))
 import Views.Status.Updates
-import String exposing (trim)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -52,12 +52,12 @@ update msg ({ basePath, apiUrl } as model) =
                 )
 
         NavigateToStatus ->
-            ( { model | route = StatusRoute }, Task.perform identity (Task.succeed <| (MsgForStatus InitStatusView)) )
+            ( { model | route = StatusRoute }, Task.perform identity (Task.succeed <| MsgForStatus InitStatusView) )
 
         NavigateToSilenceView silenceId ->
             let
                 ( silenceView, cmd ) =
-                    Views.SilenceView.Updates.update (InitSilenceView silenceId) model.silenceView apiUrl
+                    Views.SilenceView.Updates.update (InitSilenceView silenceId) model.silenceView apiUrl basePath
             in
                 ( { model | route = SilenceViewRoute silenceId, silenceView = silenceView }
                 , Cmd.map MsgForSilenceView cmd
@@ -116,7 +116,7 @@ update msg ({ basePath, apiUrl } as model) =
         MsgForSilenceView msg ->
             let
                 ( silenceView, cmd ) =
-                    Views.SilenceView.Updates.update msg model.silenceView apiUrl
+                    Views.SilenceView.Updates.update msg model.silenceView basePath apiUrl
             in
                 ( { model | silenceView = silenceView }, Cmd.map MsgForSilenceView cmd )
 

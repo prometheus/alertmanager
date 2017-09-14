@@ -1,23 +1,24 @@
-module Views.SilenceList.SilenceView exposing (view, deleteButton, editButton)
+module Views.SilenceList.SilenceView exposing (deleteButton, editButton, view)
 
-import Html exposing (Html, div, a, p, text, b, i, span, small, button, li)
+import Dialog
+import Html exposing (Html, a, b, button, div, h3, i, li, p, small, span, text)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence, State(Expired, Active, Pending))
-import Types exposing (Msg(Noop, MsgForSilenceList, MsgForSilenceForm))
-import Views.SilenceList.Types exposing (SilenceListMsg(DestroySilence, MsgForFilterBar))
+import Silences.Types exposing (Silence, State(Active, Expired, Pending))
+import Time exposing (Time)
+import Types exposing (Msg(MsgForSilenceForm, MsgForSilenceList, Noop))
 import Utils.Date
-import Utils.Views exposing (buttonLink)
-import Utils.Types exposing (Matcher)
 import Utils.Filter
 import Utils.List
+import Utils.Types exposing (Matcher)
+import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
-import Time exposing (Time)
 import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers))
+import Views.SilenceList.Types exposing (SilenceListMsg(ConfirmDestroySilence, DestroySilence, FetchSilences, MsgForFilterBar))
 
 
-view : Silence -> Html Msg
-view silence =
+view : Bool -> Silence -> Html Msg
+view showConfirmationDialog silence =
     li [ class "align-items-start list-group-item border-0 alert-list-item p-0 mb-4" ]
         [ div [ class "w-100 mb-2 d-flex align-items-start" ]
             [ case silence.status.state of
@@ -34,7 +35,30 @@ view silence =
             , deleteButton silence False
             ]
         , div [ class "" ] (List.map matcherButton silence.matchers)
+        , Dialog.view
+            (if showConfirmationDialog then
+                Just (confirmSilenceDeleteView silence False)
+             else
+                Nothing
+            )
         ]
+
+
+confirmSilenceDeleteView : Silence -> Bool -> Dialog.Config Msg
+confirmSilenceDeleteView silence refresh =
+    { closeMessage = Just (MsgForSilenceList Views.SilenceList.Types.FetchSilences)
+    , containerClass = Nothing
+    , header = Just (h3 [] [ text "Expire Silence" ])
+    , body = Just (text "Are you sure you want to expire this silence?")
+    , footer =
+        Just
+            (button
+                [ class "btn btn-success"
+                , onClick (MsgForSilenceList (Views.SilenceList.Types.DestroySilence silence refresh))
+                ]
+                [ text "Confirm" ]
+            )
+    }
 
 
 dateView : String -> Time -> Html Msg
@@ -56,14 +80,13 @@ matcherButton matcher =
                 Utils.Filter.Eq
 
         msg =
-            (FilterBarTypes.AddFilterMatcher False
+            FilterBarTypes.AddFilterMatcher False
                 { key = matcher.name
                 , op = op
                 , value = matcher.value
                 }
                 |> MsgForFilterBar
                 |> MsgForSilenceList
-            )
     in
         Utils.Views.labelButton (Just msg) (Utils.List.mstring matcher)
 
@@ -76,7 +99,7 @@ editButton silence =
         Expired ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href ("#/silences/new?keep=1")
+                , href "#/silences/new?keep=1"
                 , onClick (NewSilenceFromMatchers silence.matchers |> MsgForSilenceForm)
                 ]
                 [ text "Recreate"
@@ -101,7 +124,7 @@ deleteButton silence refresh =
         Active ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (DestroySilence silence refresh))
+                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
                 ]
                 [ text "Expire"
                 ]
@@ -109,7 +132,7 @@ deleteButton silence refresh =
         Pending ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (DestroySilence silence refresh))
+                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
                 ]
                 [ text "Delete"
                 ]
