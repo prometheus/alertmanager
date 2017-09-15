@@ -63,6 +63,8 @@ var (
 		Name: "alertmanager_config_last_reload_success_timestamp_seconds",
 		Help: "Timestamp of the last successful configuration reload.",
 	})
+	alertsActive     prometheus.GaugeFunc
+	alertsSuppressed prometheus.GaugeFunc
 )
 
 func init() {
@@ -70,6 +72,27 @@ func init() {
 	prometheus.MustRegister(configSuccessTime)
 	prometheus.MustRegister(configHash)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
+}
+
+func newAlertMetricByState(marker types.Marker, st types.AlertState) prometheus.GaugeFunc {
+	return prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name:        "alertmanager_alerts",
+			Help:        "How many alerts by state.",
+			ConstLabels: prometheus.Labels{"state": string(st)},
+		},
+		func() float64 {
+			return float64(marker.Count(st))
+		},
+	)
+}
+
+func newMarkerMetrics(marker types.Marker) {
+	alertsActive = newAlertMetricByState(marker, types.AlertStateActive)
+	alertsSuppressed = newAlertMetricByState(marker, types.AlertStateSuppressed)
+
+	prometheus.MustRegister(alertsActive)
+	prometheus.MustRegister(alertsSuppressed)
 }
 
 func main() {
@@ -148,6 +171,7 @@ func main() {
 	}
 
 	marker := types.NewMarker()
+	newMarkerMetrics(marker)
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
