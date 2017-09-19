@@ -291,6 +291,7 @@ func (s *Silences) GC() (int, error) {
 			n++
 		}
 	}
+
 	return n, nil
 }
 
@@ -831,8 +832,8 @@ func (gd *gossipData) Merge(other mesh.GossipData) mesh.GossipData {
 	return gd
 }
 
-// mergeDelta behaves like Merge but returns a gossipData only
-// containing things that have changed.
+// mergeDelta behaves like Merge but ignores expired silences, and
+// returns a gossipData only containing things that have changed.
 func (gd *gossipData) mergeDelta(od *gossipData) *gossipData {
 	delta := newGossipData()
 
@@ -843,6 +844,18 @@ func (gd *gossipData) mergeDelta(od *gossipData) *gossipData {
 	defer gd.mtx.Unlock()
 
 	for id, s := range od.data {
+		// If a gossiped silence is expired, skip it.
+		// For a given silence duration exceeding a few minutes,
+		// active silences will have already been gossiped.
+		// Once the active silence is gossiped, its expiration
+		// should happen more or less simultaneously on the different
+		// alertmanager nodes. Preventing the gossiping of expired
+		// silences allows them to be GC'd, and doesn't affect
+		// consistency across the mesh.
+		if !s.ExpiresAt.After(utcNow()) {
+			continue
+		}
+
 		// Comments list was moved to a single comment. Apply upgrade
 		// on silences received from peers.
 		if len(s.Silence.Comments) > 0 {

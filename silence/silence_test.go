@@ -998,6 +998,7 @@ func TestGossipDataMerge(t *testing.T) {
 			Silence: &pb.Silence{UpdatedAt: ts},
 		}
 	}
+
 	cases := []struct {
 		a, b         *gossipData
 		final, delta *gossipData
@@ -1042,8 +1043,68 @@ func TestGossipDataMerge(t *testing.T) {
 		require.Equal(t, c.final, res, "Merge result should match expectation")
 		require.Equal(t, c.final, ca, "Merge should apply changes to original state")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
+	}
+}
 
-		ca, cb = c.a.clone(), c.b.clone()
+func TestGossipDataMergeDelta(t *testing.T) {
+	now := utcNow()
+
+	// We only care about key names and timestamps for the
+	// merging logic.
+	newSilence := func(ts time.Time) *pb.MeshSilence {
+		return &pb.MeshSilence{
+			Silence:   &pb.Silence{UpdatedAt: ts},
+			ExpiresAt: ts.Add(time.Hour),
+		}
+	}
+
+	newExpiredSilence := func(ts time.Time) *pb.MeshSilence {
+		return &pb.MeshSilence{
+			Silence:   &pb.Silence{UpdatedAt: ts},
+			ExpiresAt: ts,
+		}
+	}
+
+	cases := []struct {
+		a, b         *gossipData
+		final, delta *gossipData
+	}{
+		{
+			a: &gossipData{
+				data: silenceMap{
+					"a1": newSilence(now),
+					"a2": newSilence(now),
+					"a3": newSilence(now),
+				},
+			},
+			b: &gossipData{
+				data: silenceMap{
+					"b1": newSilence(now),                          // new key, should be added
+					"a2": newSilence(now.Add(-time.Minute)),        // older timestamp, should be dropped
+					"a3": newSilence(now.Add(time.Minute)),         // newer timestamp, should overwrite
+					"a4": newExpiredSilence(now.Add(-time.Minute)), // expired, should be dropped
+					"a5": newExpiredSilence(now.Add(-time.Hour)),   // expired, should be dropped
+				},
+			},
+			final: &gossipData{
+				data: silenceMap{
+					"a1": newSilence(now),
+					"a2": newSilence(now),
+					"a3": newSilence(now.Add(time.Minute)),
+					"b1": newSilence(now),
+				},
+			},
+			delta: &gossipData{
+				data: silenceMap{
+					"b1": newSilence(now),
+					"a3": newSilence(now.Add(time.Minute)),
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		ca, cb := c.a.clone(), c.b.clone()
 
 		delta := ca.mergeDelta(cb)
 
