@@ -27,6 +27,23 @@ var (
 		},
 	}
 
+	// DefaultEtcdConfig defines default values for Etcd configurations.
+	DefaultEtcdConfig = EtcdConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Firing: EtcdPostConf{
+			URL:             "",
+			KeyAnnotation:   "etcd_key",
+			ValueAnnotation: "etcd_value",
+		},
+		Resolved: EtcdPostConf{
+			URL:             "",
+			KeyAnnotation:   "etcd_key",
+			ValueAnnotation: "etcd_value",
+		},
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -289,6 +306,40 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing URL in webhook config")
 	}
 	return checkOverflow(c.XXX, "webhook config")
+}
+
+// EtcdAlertConf holds information needed to push alerts to etcd
+type EtcdPostConf struct {
+	URL             string `yaml:"url" json:"url"`
+	KeyAnnotation   string `yaml:"key_annotation" json:"key_annotation"`
+	ValueAnnotation string `yaml:"value_annotation" json:"value_annotation"`
+}
+
+// EtcdConfig configures notifications to an etcd KV store.
+type EtcdConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	Firing   EtcdPostConf `yaml:"firing" json:"firing"`
+	Resolved EtcdPostConf `yaml:"resolved" json:"resolved"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *EtcdConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultEtcdConfig
+	type plain EtcdConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Firing.URL == "" {
+		return fmt.Errorf("missing firing URL in etcd config")
+	}
+	if c.Resolved.URL == "" {
+		return fmt.Errorf("missing resolved URL in etcd config")
+	}
+	return checkOverflow(c.XXX, "etcd config")
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.

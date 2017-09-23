@@ -104,6 +104,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewWebhook(c, tmpl)
 		add("webhook", i, n, c)
 	}
+	for i, c := range nc.EtcdConfigs {
+		n := NewEtcd(c, tmpl)
+		add("etcd", i, n, c)
+	}
 	for i, c := range nc.EmailConfigs {
 		n := NewEmail(c, tmpl)
 		add("email", i, n, c)
@@ -201,6 +205,99 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 	// request and 5xx response codes are assumed to be recoverable.
 	if statusCode/100 != 2 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.URL)
+	}
+
+	return false, nil
+}
+
+// EtcdAlertConf holds information needed to push alerts to etcd
+type EtcdAlertConf struct {
+	URL             string // etcd instance to post to
+	KeyAnnotation   string // annotation holding the etcd key to put/delete
+	ValueAnnotation string // annotation holding the value to put
+}
+
+// Etcd implements a Notifier for setting etcd keys
+type Etcd struct {
+	// map "firing" or "resolved" status to conf
+	confs map[model.AlertStatus]EtcdAlertConf
+	tmpl  *template.Template
+}
+
+// NewEtcd returns a new Etcd notifier.
+func NewEtcd(conf *config.EtcdConfig, t *template.Template) *Etcd {
+	return &Etcd{
+		confs: map[model.AlertStatus]EtcdAlertConf{
+			model.AlertFiring: EtcdAlertConf{
+				URL:             conf.Firing.URL,
+				KeyAnnotation:   conf.Firing.KeyAnnotation,
+				ValueAnnotation: conf.Firing.ValueAnnotation,
+			},
+			model.AlertResolved: EtcdAlertConf{
+				URL:             conf.Resolved.URL,
+				KeyAnnotation:   conf.Resolved.KeyAnnotation,
+				ValueAnnotation: conf.Resolved.ValueAnnotation,
+			},
+		},
+		tmpl: t,
+	}
+}
+
+// EtcdMessage defines the JSON object to send to etcd.
+type EtcdMessage struct {
+	Key   []byte `json:"key"`
+	Value []byte `json:"value"`
+}
+
+// Notify implements the Notifier interface.
+func (n *Etcd) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
+
+	conf, ok := n.confs[types.Alerts(alerts...).Status()]
+	if !ok {
+		return false, fmt.Errorf("missing etcd conf for status '%v'", data.Status)
+	}
+
+	key, ok := data.CommonAnnotations[conf.KeyAnnotation]
+	if !ok {
+		return false, fmt.Errorf("etcd key annotation '%v' missing", conf.KeyAnnotation)
+	}
+	value, ok := data.CommonAnnotations[conf.ValueAnnotation]
+	if !ok {
+		return false, fmt.Errorf("etcd value annotation '%v' missing", conf.ValueAnnotation)
+	}
+
+	msg := &EtcdMessage{
+		Key:   []byte(key),
+		Value: []byte(value),
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequest("POST", conf.URL, &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("User-Agent", userAgentHeader)
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	if err != nil {
+		return true, err
+	}
+	resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Etcd) retry(statusCode int) (bool, error) {
+	// Etcd is assumed to respond with 2xx response codes on a successful
+	// request and 5xx response codes are assumed to be recoverable.
+	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil
