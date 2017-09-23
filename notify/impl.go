@@ -389,6 +389,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return true, err
 	}
+	multipartWriter.Close()
 
 	// Text template
 	// Last alternative based on recommendation in section 7.2.3 of w3 rfc1341 protocol
