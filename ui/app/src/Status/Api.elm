@@ -1,9 +1,27 @@
 module Status.Api exposing (getStatus)
 
-import Utils.Api exposing (send, get)
-import Utils.Types exposing (ApiData)
-import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer)
-import Json.Decode exposing (Decoder, map2, string, field, at, list, int, maybe)
+import Utils.Api exposing (send, get, (|:))
+import Utils.Types exposing (ApiData, Matcher)
+import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer, Route)
+import Json.Decode
+    exposing
+        ( Decoder
+        , map
+        , map2
+        , map3
+        , map5
+        , map6
+        , string
+        , succeed
+        , field
+        , at
+        , list
+        , int
+        , maybe
+        , bool
+        , dict
+        , lazy
+        )
 
 
 getStatus : String -> (ApiData StatusResponse -> msg) -> Cmd msg
@@ -25,16 +43,17 @@ decodeStatusResponse =
 
 decodeData : Decoder StatusResponse
 decodeData =
-    Json.Decode.map4 StatusResponse
+    map5 StatusResponse
         (field "configYAML" string)
         (field "uptime" string)
         (field "versionInfo" decodeVersionInfo)
         (field "meshStatus" (maybe decodeMeshStatus))
+        (at [ "configJSON", "route" ] decodeRoute)
 
 
 decodeVersionInfo : Decoder VersionInfo
 decodeVersionInfo =
-    Json.Decode.map6 VersionInfo
+    map6 VersionInfo
         (field "branch" string)
         (field "buildDate" string)
         (field "buildUser" string)
@@ -45,7 +64,7 @@ decodeVersionInfo =
 
 decodeMeshStatus : Decoder MeshStatus
 decodeMeshStatus =
-    Json.Decode.map3 MeshStatus
+    map3 MeshStatus
         (field "name" string)
         (field "nickName" string)
         (field "peers" (list decodeMeshPeer))
@@ -53,7 +72,32 @@ decodeMeshStatus =
 
 decodeMeshPeer : Decoder MeshPeer
 decodeMeshPeer =
-    Json.Decode.map3 MeshPeer
+    map3 MeshPeer
         (field "name" string)
         (field "nickName" string)
         (field "uid" int)
+
+
+decodeRoute : Decoder Route
+decodeRoute =
+    succeed Route
+        |: (maybe (field "receiver" string))
+        |: (maybe (field "group_by" (list string)))
+        |: (maybe (field "continue" bool))
+        |: matchers
+        |: (maybe (field "group_wait" int))
+        |: (maybe (field "group_interval" int))
+        |: (maybe (field "repeat_interval" int))
+        |: (maybe (field "routes" (map Status.Types.Routes (list (lazy (\_ -> decodeRoute))))))
+
+
+matchers : Decoder (List Matcher)
+matchers =
+    map2
+        (\matchers matcher_res ->
+            -- in here, parse and merge the two, returning a list of matchers
+            -- the two decoders below are the arguments.
+            []
+        )
+        (maybe (field "matcher" (dict string)))
+        (maybe (field "matcher_re" (dict string)))

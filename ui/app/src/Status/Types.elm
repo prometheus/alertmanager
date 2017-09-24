@@ -1,4 +1,6 @@
-module Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer)
+module Status.Types exposing (..)
+
+import Utils.Types exposing (Matcher)
 
 
 type alias StatusResponse =
@@ -6,6 +8,7 @@ type alias StatusResponse =
     , uptime : String
     , versionInfo : VersionInfo
     , meshStatus : Maybe MeshStatus
+    , route : Route
     }
 
 
@@ -31,3 +34,19 @@ type alias MeshPeer =
     , nickName : String
     , uid : Int
     }
+
+
+type alias Route =
+    { receiver : Maybe String
+    , group_by : Maybe (List String)
+    , continue : Maybe Bool
+    , matchers : List Matcher
+    , group_wait : Maybe Int
+    , group_interval : Maybe Int
+    , repeat_interval : Maybe Int
+    , routes : Maybe Routes
+    }
+
+
+type Routes
+    = Routes (List Route)
