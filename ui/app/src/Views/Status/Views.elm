@@ -9,7 +9,7 @@ import Views.Status.Types exposing (StatusModel)
 import Utils.Views
 
 
-view : StatusModel -> Html Types.Msg
+view : StatusModel -> Html Msg
 view statusInfo =
     case statusInfo of
         Success info ->
@@ -25,7 +25,7 @@ view statusInfo =
             Utils.Views.error msg
 
 
-viewStatusInfo : StatusResponse -> Html Types.Msg
+viewStatusInfo : StatusResponse -> Html Msg
 viewStatusInfo status =
     div []
         [ h1 [] [ text "Status" ]
@@ -39,7 +39,7 @@ viewStatusInfo status =
         ]
 
 
-viewConfig : String -> Html Types.Msg
+viewConfig : String -> Html Msg
 viewConfig config =
     div []
         [ h2 [] [ text "Config" ]
@@ -51,7 +51,7 @@ viewConfig config =
         ]
 
 
-viewMeshStatus : Maybe MeshStatus -> Html Types.Msg
+viewMeshStatus : Maybe MeshStatus -> Html Msg
 viewMeshStatus meshStatus =
     case meshStatus of
         Just meshStatus ->
@@ -81,7 +81,7 @@ viewMeshStatus meshStatus =
                 ]
 
 
-viewMeshPeer : MeshPeer -> Html Types.Msg
+viewMeshPeer : MeshPeer -> Html Msg
 viewMeshPeer peer =
     li []
         [ div [ class "" ]
@@ -99,7 +99,7 @@ viewMeshPeer peer =
         ]
 
 
-viewVersionInformation : VersionInfo -> Html Types.Msg
+viewVersionInformation : VersionInfo -> Html Msg
 viewVersionInformation versionInfo =
     span []
         [ h2 [] [ text "Version Information" ]
