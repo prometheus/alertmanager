@@ -19,7 +19,7 @@ import Json.Decode
         , int
         , maybe
         , bool
-        , dict
+        , keyValuePairs
         , lazy
         )
 
@@ -95,9 +95,18 @@ matchers : Decoder (List Matcher)
 matchers =
     map2
         (\matchers matcher_res ->
-            -- in here, parse and merge the two, returning a list of matchers
-            -- the two decoders below are the arguments.
-            []
+            let
+                m =
+                    matchers
+                        |> Maybe.withDefault []
+                        |> List.map (\( name, value ) -> { isRegex = False, name = name, value = value })
+
+                mRe =
+                    matcher_res
+                        |> Maybe.withDefault []
+                        |> List.map (\( name, value ) -> { isRegex = True, name = name, value = value })
+            in
+                m ++ mRe
         )
-        (maybe (field "matcher" (dict string)))
-        (maybe (field "matcher_re" (dict string)))
+        (maybe (field "match" (keyValuePairs string)))
+        (maybe (field "match_re" (keyValuePairs string)))
