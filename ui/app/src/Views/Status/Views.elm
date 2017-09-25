@@ -10,7 +10,7 @@ import Utils.Views
 
 
 view : StatusModel -> Html Types.Msg
-view { statusInfo } =
+view statusInfo =
     case statusInfo of
         Success info ->
             viewStatusInfo info

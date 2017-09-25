@@ -10,10 +10,9 @@ type StatusMsg
 
 
 type alias StatusModel =
-    { statusInfo : ApiData StatusResponse
-    }
+    ApiData StatusResponse
 
 
 initStatusModel : StatusModel
 initStatusModel =
-    { statusInfo = Initial }
+    Initial

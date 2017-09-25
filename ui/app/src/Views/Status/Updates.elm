@@ -9,7 +9,7 @@ update : StatusMsg -> Model -> String -> ( Model, Cmd Msg )
 update msg model basePath =
     case msg of
         NewStatus apiResponse ->
-            ( { model | status = { statusInfo = apiResponse } }, Cmd.none )
+            ( { model | status = apiResponse }, Cmd.none )
 
         InitStatusView ->
             ( model, getStatus basePath (NewStatus >> MsgForStatus) )
