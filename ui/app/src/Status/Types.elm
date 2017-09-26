@@ -45,8 +45,13 @@ type alias Route =
     , group_interval : Maybe Int
     , repeat_interval : Maybe Int
     , routes : Maybe Routes
+    , parent : Maybe Parent
     }
 
 
 type Routes
     = Routes (List Route)
+
+
+type Parent
+    = Parent Route

@@ -89,6 +89,7 @@ decodeRoute =
         |: (maybe (field "group_interval" int))
         |: (maybe (field "repeat_interval" int))
         |: (maybe (field "routes" (map Status.Types.Routes (list (lazy (\_ -> decodeRoute))))))
+        |: (succeed Nothing)
 
 
 matchers : Decoder (List Matcher)
