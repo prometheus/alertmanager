@@ -46,6 +46,9 @@ type alias Route =
     , repeat_interval : Maybe Int
     , routes : Maybe Routes
     , parent : Maybe Parent
+    , x : Int
+    , y : Int
+    , mod : Int
     }
 
 

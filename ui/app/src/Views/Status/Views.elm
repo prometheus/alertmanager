@@ -7,7 +7,6 @@ import Types exposing (Msg(MsgForStatus))
 import Utils.Types exposing (ApiData(Failure, Success, Loading, Initial), Matcher)
 import Views.Status.Types exposing (StatusModel)
 import Utils.Views
-import Graph.Tree as Tree exposing (Tree)
 
 
 view : StatusModel -> Html Msg
@@ -41,89 +40,59 @@ viewStatusInfo status =
         ]
 
 
-makeTree : Route -> Maybe Status.Types.Parent -> Tree Route
-makeTree node parent =
+makeTree : Int -> Int -> Route -> Maybe Status.Types.Parent -> Route
+makeTree idx depth node parent =
     let
         newParent =
             Just (Status.Types.Parent node)
 
-        leaves =
+        ( routes, x ) =
             case node.routes of
                 Just (Status.Types.Routes routes) ->
-                    List.map (flip makeTree newParent) routes
+                    ( (List.indexedMap
+                        (\idx route ->
+                            (flip (makeTree idx (depth + 1)) newParent) route
+                        )
+                        routes
+                      )
+                        |> Status.Types.Routes
+                        |> Just
+                    , (List.length routes) // 2
+                    )
 
                 Nothing ->
-                    []
+                    ( Nothing, idx )
+
+        mod =
+            if idx == 0 then
+                0
+            else
+                idx - x
     in
-        Tree.inner { node | parent = parent } leaves
+        { node
+            | x = x
+            , y = depth
+            , mod = mod
+            , parent = parent
+            , routes = routes
+        }
 
 
 type alias Node =
     { matchers : List Matcher
+    , receiver : String
     , x : Int
     , y : Int
     }
 
 
 routingTree : Route -> Html Msg
-routingTree route =
+routingTree root =
     let
         tree =
-            makeTree route Nothing
-
-        x =
-            Tree.postOrder
-                (\route routes acc ->
-                    let
-                        new =
-                            case route.parent of
-                                Just (Status.Types.Parent parent) ->
-                                    let
-                                        x =
-                                            case parent.routes of
-                                                Just (Status.Types.Routes routes) ->
-                                                    indexOf route routes
-
-                                                Nothing ->
-                                                    0
-
-                                        depth =
-                                            1 + (findDepth parent)
-                                    in
-                                        { matchers = route.matchers, x = x, y = depth }
-
-                                Nothing ->
-                                    { matchers = route.matchers, x = 0, y = 0 }
-                    in
-                        new :: acc
-                )
-                []
-                tree
+            makeTree 0 0 root Nothing
     in
         div [] []
-
-
-indexOf : Route -> List Route -> Int
-indexOf route routes =
-    case routes of
-        x :: xs ->
-            if route == x then
-                0
-            else
-                1 + (indexOf route xs)
-
-        [] ->
-            0
-
-
-findDepth : Route -> Int
-findDepth route =
-    case route.parent of
-        Just (Status.Types.Parent route) ->
-            1 + (findDepth route)
-
-        Nothing ->
-            0
 
 
 viewConfig : String -> Html Msg
