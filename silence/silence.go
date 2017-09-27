@@ -370,7 +370,9 @@ func (s *Silences) setSilence(sil *pb.Silence) error {
 	}
 
 	s.st.Merge(st)
-	s.gossip.GossipBroadcast(st)
+	// setSilence() is called with s.mtx locked, which can produce
+	// a deadlock if we call GossipBroadcast from here.
+	go s.gossip.GossipBroadcast(st)
 
 	return nil
 }

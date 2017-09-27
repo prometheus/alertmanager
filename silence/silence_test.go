@@ -197,18 +197,35 @@ func TestSilencesSetSilence(t *testing.T) {
 		},
 	}
 
-	var called bool
+	done := make(chan bool)
 	s.gossip = &mockGossip{
 		broadcast: func(d mesh.GossipData) {
 			data, ok := d.(*gossipData)
-			require.True(t, ok, "gossip data of unknown type")
-			require.Equal(t, want, data, "unexpected gossip broadcast data")
 
-			called = true
+			// Double check that we can take a lock on s.mtx here.
+			s.mtx.Lock()
+			defer s.mtx.Unlock()
+
+			require.True(t, ok, "gossip data of unknown type")
+			require.Equal(t, want.data, data.data, "unexpected gossip broadcast data")
+			close(done)
 		},
 	}
-	require.NoError(t, s.setSilence(sil))
-	require.True(t, called, "GossipBroadcast was not called")
+
+	// setSilence() is always called with s.mtx locked()
+	go func() {
+		s.mtx.Lock()
+		require.NoError(t, s.setSilence(sil))
+		s.mtx.Unlock()
+	}()
+
+	// GossipBroadcast is called in a goroutine.
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("GossipBroadcast was not called")
+	}
+
 	require.Equal(t, want.data, s.st.data, "Unexpected silence state")
 }
 
