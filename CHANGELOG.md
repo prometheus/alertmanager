@@ -1,3 +1,26 @@
+## 0.9.0 / 2017-09.28
+* [ENHANCEMENT] Add current time to webhook message (#909)
+* [ENHANCEMENT] Add link_names to slack notifier (#912)
+* [ENHANCEMENT] Make ui labels selectable/highlightable (#932)
+* [ENHANCEMENT] Make links in ui annotations selectable (#946)
+* [ENHANCEMENT] Expose the alert's "fingerprint" (unique identifier) through API (#786)
+* [ENHANCEMENT] Add README information for amtool (#939)
+* [ENHANCEMENT] Use user-set logging option consistently throughout alertmanager (#968)
+* [ENHANCEMENT] Sort alerts returned from API by their fingerprint (#969)
+* [ENHANCEMENT] Add edit/delete silence buttons on silence page view (#970)
+* [ENHANCEMENT] Add check-config subcommand to amtool (#978)
+* [ENHANCEMENT] Add email notification text content support (#934)
+* [ENHANCEMENT] Support passing binary name to make build target (#990)
+* [ENHANCEMENT] Show total no. of silenced alerts in preview (#994)
+* [ENHANCEMENT] Added confirmation dialog when expiring silences (#993)
+* [BUGFIX] Fix crash when no mesh router is configured (#919)
+* [BUGFIX] Render status page without mesh (#920)
+* [BUGFIX] Exit amtool subcommands with non-zero error code (#938)
+* [BUGFIX] Change mktemp invocation in makefile to work for macOS (#971)
+* [BUGFIX] Add a mutex to silences.go:gossipData (#984)
+* [BUGFIX] silences: avoid deadlock (#995)
+* [BUGFIX] Ignore expired silences OnGossip (#999)
+
 ## 0.8.0 / 2017-07-20
 
 * [FEATURE] Add ability to filter alerts by receiver in the UI (#890)
