@@ -1,4 +1,4 @@
-## 0.9.0 / 2017-09.28
+## 0.9.0 / 2017-09-28
 * [ENHANCEMENT] Add current time to webhook message (#909)
 * [ENHANCEMENT] Add link_names to slack notifier (#912)
 * [ENHANCEMENT] Make ui labels selectable/highlightable (#932)
