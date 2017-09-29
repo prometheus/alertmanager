@@ -117,6 +117,18 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultJiraConfig defines default values for Jira configurations.
+	DefaultJiraConfig = JiraConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Summary:     `{{ template "jira.default.summary" . }}`,
+		Description: `{{ template "jira.default.description" . }}`,
+		IssueType:   `Bug`,
+		Priority:    `Critical`,
+		ReopenState: `To Do`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -394,4 +406,60 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+type JiraConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	APIURL   string `yaml:"api_url" json:"api_url"`
+	User     string `yaml:"user" json:"user"`
+	Password Secret `yaml:"password" json:"password"`
+
+	Project           string                 `yaml:"project" json:"project"`
+	IssueType         string                 `yaml:"issue_type" json:"issue_type"`
+	Priority          string                 `yaml:"priority" json:"priority"`
+	Summary           string                 `yaml:"summary" json:"summary"`
+	Description       string                 `yaml:"description" json:"description"`
+	WontFixResolution string                 `yaml:"wont_fix_resolution" json:"wont_fix_resolution"`
+	ReopenState       string                 `yaml:"reopen_state" json:"reopen_state"`
+	Fields            map[string]interface{} `yaml:"fields" json:"fields"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *JiraConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultJiraConfig
+	type plain JiraConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.VSendResolved {
+		return fmt.Errorf("sending resolved notifications to Jira is not supported")
+	}
+	// Check API access fields
+	if c.APIURL == "" {
+		return fmt.Errorf("missing api_url in Jira config")
+	}
+	if c.User == "" {
+		return fmt.Errorf("missing user in Jira config")
+	}
+	if c.Password == "" {
+		return fmt.Errorf("missing password in Jira config")
+	}
+	// Check required issue fields
+	if c.Project == "" {
+		return fmt.Errorf("missing project in Jira config")
+	}
+	if c.IssueType == "" {
+		return fmt.Errorf("missing issue_type in Jira config")
+	}
+	if c.Summary == "" {
+		return fmt.Errorf("missing summary in Jira config")
+	}
+	if c.ReopenState == "" {
+		return fmt.Errorf("missing reopen_state in Jira config")
+	}
+	return checkOverflow(c.XXX, "Jira config")
 }
