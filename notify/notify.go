@@ -50,6 +50,23 @@ var (
 )
 
 func init() {
+	numNotifications.WithLabelValues("email")
+	numNotifications.WithLabelValues("hipchat")
+	numNotifications.WithLabelValues("pagerduty")
+	numNotifications.WithLabelValues("pushover")
+	numNotifications.WithLabelValues("slack")
+	numNotifications.WithLabelValues("opsgenie")
+	numNotifications.WithLabelValues("webhook")
+	numNotifications.WithLabelValues("victorops")
+	numFailedNotifications.WithLabelValues("email")
+	numFailedNotifications.WithLabelValues("hipchat")
+	numFailedNotifications.WithLabelValues("pagerduty")
+	numFailedNotifications.WithLabelValues("pushover")
+	numFailedNotifications.WithLabelValues("slack")
+	numFailedNotifications.WithLabelValues("opsgenie")
+	numFailedNotifications.WithLabelValues("webhook")
+	numFailedNotifications.WithLabelValues("victorops")
+
 	prometheus.Register(numNotifications)
 	prometheus.Register(numFailedNotifications)
 }
@@ -444,7 +461,7 @@ func hashAlert(a *types.Alert) uint64 {
 
 	names := make(model.LabelNames, 0, len(a.Labels))
 
-	for ln, _ := range a.Labels {
+	for ln := range a.Labels {
 		names = append(names, ln)
 	}
 	sort.Sort(names)
