@@ -9,8 +9,8 @@ import Utils.Types exposing (ApiData(..))
 import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
 
 
-update : SilenceViewMsg -> Model -> String -> String -> ( Model, Cmd SilenceViewMsg )
-update msg model apiUrl basePath =
+update : SilenceViewMsg -> Model -> String -> ( Model, Cmd SilenceViewMsg )
+update msg model apiUrl =
     case msg of
         FetchSilence id ->
             ( model, getSilence apiUrl id SilenceFetched )
