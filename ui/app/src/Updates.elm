@@ -57,7 +57,7 @@ update msg ({ basePath, apiUrl } as model) =
         NavigateToSilenceView silenceId ->
             let
                 ( silenceView, cmd ) =
-                    Views.SilenceView.Updates.update (InitSilenceView silenceId) model.silenceView apiUrl basePath
+                    Views.SilenceView.Updates.update (InitSilenceView silenceId) model.silenceView apiUrl
             in
                 ( { model | route = SilenceViewRoute silenceId, silenceView = silenceView }
                 , Cmd.map MsgForSilenceView cmd
@@ -116,7 +116,7 @@ update msg ({ basePath, apiUrl } as model) =
         MsgForSilenceView msg ->
             let
                 ( silenceView, cmd ) =
-                    Views.SilenceView.Updates.update msg model.silenceView basePath apiUrl
+                    Views.SilenceView.Updates.update msg model.silenceView apiUrl
             in
                 ( { model | silenceView = silenceView }, Cmd.map MsgForSilenceView cmd )
 
