@@ -392,6 +392,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return true, err
 		}
 	}
+	multipartWriter.Close()
 
 	if len(n.conf.HTML) > 0 {
 		// Html template
