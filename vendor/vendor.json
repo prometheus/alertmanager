@@ -9,6 +9,12 @@
 			"revisionTime": "2017-05-15T10:45:16Z"
 		},
 		{
+			"checksumSHA1": "Y5qJaIZOQpSvEG4jyzVEVADW3qk=",
+			"path": "github.com/andygrunwald/go-jira",
+			"revision": "1c664343c3c160a5f2e3569db43f9c2b712956d6",
+			"revisionTime": "2017-09-04T06:51:25Z"
+		},
+		{
 			"checksumSHA1": "4QnLdmB1kG3N+KlDd1N+G9TWAGQ=",
 			"path": "github.com/beorn7/perks/quantile",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
@@ -351,6 +357,12 @@
 			"path": "github.com/stretchr/testify/require",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
 			"revisionTime": "2016-11-21T14:22:35Z"
+		},
+		{
+			"checksumSHA1": "UuqTxLTgGoI9VCV8k1c9ur016FA=",
+			"path": "github.com/trivago/tgo/tcontainer",
+			"revision": "e4d1ddd28c17dd89ed26327cf69fded22060671b",
+			"revisionTime": "2017-08-10T13:40:52Z"
 		},
 		{
 			"checksumSHA1": "Hc5wR0iUw/ofXSMFbYIAI/sxRC8=",
