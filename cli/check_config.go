@@ -10,10 +10,10 @@ import (
 
 // alertCmd represents the alert command
 var checkConfigCmd = &cobra.Command{
-	Use:   "check-config",
+	Use:   "check-config file1 [file2] ...",
 	Args:  cobra.MinimumNArgs(1),
-	Short: "Validate configuration files for correctness",
-	Long: `Validate configuration files for correctness
+	Short: "Validate alertmanager config files",
+	Long: `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
 and associated templates. Non existing templates will not trigger
