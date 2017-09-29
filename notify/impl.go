@@ -371,43 +371,47 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	fmt.Fprintf(wc, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
+	fmt.Fprintf(wc, "MIME-Version: 1.0\r\n")
 
 	// TODO: Add some useful headers here, such as URL of the alertmanager
 	// and active/resolved.
 	fmt.Fprintf(wc, "\r\n")
 
-	// Html template
-	w, err := multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/html; charset=UTF-8"}})
-	if err != nil {
-		return false, fmt.Errorf("creating part for html template: %s", err)
-	}
-	body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
-	if err != nil {
-		return false, fmt.Errorf("executing email html template: %s", err)
-	}
-	_, err = w.Write([]byte(body))
-	if err != nil {
-		return true, err
+	if len(n.conf.Text) > 0 {
+		// Text template
+		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/plain; charset=UTF-8"}})
+		if err != nil {
+			return false, fmt.Errorf("creating part for text template: %s", err)
+		}
+		body, err := n.tmpl.ExecuteTextString(n.conf.Text, data)
+		if err != nil {
+			return false, fmt.Errorf("executing email text template: %s", err)
+		}
+		_, err = w.Write([]byte(body))
+		if err != nil {
+			return true, err
+		}
 	}
 
-	// Text template
-	// Last alternative based on recommendation in section 7.2.3 of w3 rfc1341 protocol
-	// https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
-	w, err = multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/plain; charset=UTF-8"}})
-	if err != nil {
-		return false, fmt.Errorf("create part for text template: %s", err)
-	}
-	body, err = n.tmpl.ExecuteTextString(n.conf.Text, data)
-	if err != nil {
-		return false, fmt.Errorf("executing email text template: %s", err)
-	}
-	_, err = w.Write([]byte(body))
-	if err != nil {
-		return true, err
+	if len(n.conf.HTML) > 0 {
+		// Html template
+		// Preferred alternative placed last per section 5.1.4 of RFC 2046
+		// https://www.ietf.org/rfc/rfc2046.txt
+		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/html; charset=UTF-8"}})
+		if err != nil {
+			return false, fmt.Errorf("creating part for html template: %s", err)
+		}
+		body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
+		if err != nil {
+			return false, fmt.Errorf("executing email html template: %s", err)
+		}
+		_, err = w.Write([]byte(body))
+		if err != nil {
+			return true, err
+		}
 	}
 
 	multipartWriter.Close()
-
 	wc.Write(buffer.Bytes())
 
 	return false, nil
