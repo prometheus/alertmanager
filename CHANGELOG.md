@@ -1,3 +1,7 @@
+## 0.9.1 / 2017-09-29
+* [BUGFIX] Fix -web.external-url regression in ui (#1008)
+* [BUGFIX] Fix multipart email implementation (#1009)
+
 ## 0.9.0 / 2017-09-28
 * [ENHANCEMENT] Add current time to webhook message (#909)
 * [ENHANCEMENT] Add link_names to slack notifier (#912)
