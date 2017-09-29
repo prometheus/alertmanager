@@ -365,6 +365,12 @@
 			"revisionTime": "2017-08-10T13:40:52Z"
 		},
 		{
+			"checksumSHA1": "8UiTXe2s74eNltHmZ2len8etVz4=",
+			"path": "github.com/trivago/tgo/treflect",
+			"revision": "e4d1ddd28c17dd89ed26327cf69fded22060671b",
+			"revisionTime": "2017-08-10T13:40:52Z"
+		},
+		{
 			"checksumSHA1": "Hc5wR0iUw/ofXSMFbYIAI/sxRC8=",
 			"path": "github.com/weaveworks/mesh",
 			"revision": "38e8100dfbc7b28ae8ffde5a2bbeceec57ffa52a",
