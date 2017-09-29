@@ -593,7 +593,34 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		sils = append(sils, s)
 	}
 
-	respond(w, sils)
+	var active, pending, expired, silences []*types.Silence
+
+	for _, s := range sils {
+		switch s.Status.State {
+		case "active":
+			active = append(active, s)
+		case "pending":
+			pending = append(pending, s)
+		case "expired":
+			expired = append(expired, s)
+		}
+	}
+
+	sort.Slice(active, func(i int, j int) bool {
+		return active[i].EndsAt.Before(active[j].EndsAt)
+	})
+	sort.Slice(pending, func(i int, j int) bool {
+		return pending[i].StartsAt.Before(pending[j].EndsAt)
+	})
+	sort.Slice(expired, func(i int, j int) bool {
+		return expired[i].EndsAt.After(expired[j].EndsAt)
+	})
+
+	silences = append(silences, active...)
+	silences = append(silences, pending...)
+	silences = append(silences, expired...)
+
+	respond(w, silences)
 }
 
 func matchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
