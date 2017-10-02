@@ -117,7 +117,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
 	for _, r := range ih.rules {
-		if inhibitedByFP, eq := r.hasEqual(lset); r.TargetMatchers.Match(lset) && eq {
+		if inhibitedByFP, eq := r.hasEqual(lset, fp); r.TargetMatchers.Match(lset) && eq {
 			ih.marker.SetInhibited(fp, fmt.Sprintf("%d", inhibitedByFP))
 			return true
 		}
@@ -190,14 +190,18 @@ func (r *InhibitRule) set(a *types.Alert) {
 	r.scache[a.Fingerprint()] = a
 }
 
-// hasEqual checks whether the source cache contains alerts matching
-// the equal labels for the given label set.
-func (r *InhibitRule) hasEqual(lset model.LabelSet) (model.Fingerprint, bool) {
+// hasEqual checks whether the source cache contains alerts other than itself
+// matching the equal labels for the given label set.
+func (r *InhibitRule) hasEqual(lset model.LabelSet, alertFp model.Fingerprint) (model.Fingerprint, bool) {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
 
 Outer:
 	for fp, a := range r.scache {
+		// Don't match itself.
+		if fp == alertFp {
+			continue
+		}
 		// The cache might be stale and contain resolved alerts.
 		if a.Resolved() {
 			continue

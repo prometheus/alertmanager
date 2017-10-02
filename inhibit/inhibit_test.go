@@ -29,6 +29,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		initial map[model.Fingerprint]*types.Alert
 		equal   model.LabelNames
 		input   model.LabelSet
+		inputFp model.Fingerprint
 		result  bool
 	}{
 		{
@@ -66,26 +67,26 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			result: false,
 		},
 		{
-			// Matching but already resolved.
+			// Matching and unresolved.
 			initial: map[model.Fingerprint]*types.Alert{
 				1: &types.Alert{
 					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "b", "c": "d"},
+						Labels:   model.LabelSet{"a": "b", "b": "f"},
 						StartsAt: now.Add(-time.Minute),
 						EndsAt:   now.Add(-time.Second),
 					},
 				},
 				2: &types.Alert{
 					Alert: model.Alert{
-						Labels:   model.LabelSet{"a": "b", "c": "f"},
+						Labels:   model.LabelSet{"a": "b", "b": "c"},
 						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
+						EndsAt:   now.Add(time.Hour),
 					},
 				},
 			},
 			equal:  model.LabelNames{"a"},
 			input:  model.LabelSet{"a": "b"},
-			result: false,
+			result: true,
 		},
 		{
 			// Equal label does not match.
@@ -94,20 +95,59 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "c", "c": "d"},
 						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
+						EndsAt:   now.Add(time.Hour),
 					},
 				},
 				2: &types.Alert{
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "c", "c": "f"},
 						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
+						EndsAt:   now.Add(time.Hour),
 					},
 				},
 			},
 			equal:  model.LabelNames{"a"},
 			input:  model.LabelSet{"a": "b"},
 			result: false,
+		},
+		{
+			// Matching only itself.
+			initial: map[model.Fingerprint]*types.Alert{
+				13: &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "b", "b": "f"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Hour),
+					},
+				},
+			},
+			equal:   model.LabelNames{"a"},
+			input:   model.LabelSet{"a": "b"},
+			inputFp: 13,
+			result:  false,
+		},
+		{
+			// Matching itself and one other.
+			initial: map[model.Fingerprint]*types.Alert{
+				13: &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "b", "b": "f"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Hour),
+					},
+				},
+				2: &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "b", "b": "c"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Hour),
+					},
+				},
+			},
+			equal:   model.LabelNames{"a"},
+			input:   model.LabelSet{"a": "b"},
+			inputFp: 13,
+			result:  true,
 		},
 	}
 
@@ -123,7 +163,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			r.scache[k] = v
 		}
 
-		if _, have := r.hasEqual(c.input); have != c.result {
+		if _, have := r.hasEqual(c.input, c.inputFp); have != c.result {
 			t.Errorf("Unexpected result %t, expected %t", have, c.result)
 		}
 		if !reflect.DeepEqual(r.scache, c.initial) {
