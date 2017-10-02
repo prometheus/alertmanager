@@ -200,6 +200,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sc.APIURL = c.Global.SlackAPIURL
 			}
 		}
+		for _, tc := range rcv.TeamsConfigs {
+			if tc.APIURL == "" {
+				if c.Global.TeamsAPIURL == "" {
+					return fmt.Errorf("no global Teams API URL set")
+				}
+				tc.APIURL = c.Global.TeamsAPIURL
+			}
+		}
 		for _, hc := range rcv.HipchatConfigs {
 			if hc.APIURL == "" {
 				if c.Global.HipchatURL == "" {
@@ -320,6 +328,7 @@ type GlobalConfig struct {
 	SMTPAuthIdentity string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS   bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
 	SlackAPIURL      Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	TeamsAPIURL      Secret `yaml:"teams_api_url,omitempty" json:"teams_api_url,omitempty"`
 	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	HipchatURL       string `yaml:"hipchat_url,omitempty" json:"hipchat_url,omitempty"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
@@ -457,6 +466,7 @@ type Receiver struct {
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	TeamsConfigs     []*TeamsConfig     `yaml:"teams_configs,omitempty" json:"teams_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`

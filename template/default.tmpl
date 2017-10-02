@@ -21,6 +21,15 @@
 {{ define "slack.default.iconurl" }}{{ end }}
 {{ define "slack.default.text" }}{{ end }}
 
+{{ define "teams.default.context" }}http://schema.org/extensions{{ end }}
+{{ define "teams.default.type" }}MessageCard{{ end }}
+{{ define "teams.default.title" }}{{ end }}
+{{ define "teams.default.text" }}{{ template "__subject" . }}{{ end }}
+{{ define "teams.default.uri" }}{{ template "__alertmanagerURL" . }}{{ end }}
+{{ define "teams.default.uritext" }}View Alert{{ end }}
+{{ define "teams.default.urios" }}default{{ end }}
+{{ define "teams.default.themecolor" }}{{ if gt (len .Alerts.Firing) 0 }}F35225{{ end }}{{ if gt (len .Alerts.Resolved) 0 }}81BB05{{ end }}{{ end }}
+
 
 {{ define "hipchat.default.from" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "hipchat.default.message" }}{{ template "__subject" . }}{{ end }}

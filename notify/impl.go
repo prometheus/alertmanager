@@ -37,10 +37,11 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
+	"net/textproto"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"net/textproto"
 )
 
 type notifierConfig interface {
@@ -119,6 +120,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 	for i, c := range nc.SlackConfigs {
 		n := NewSlack(c, tmpl)
 		add("slack", i, n, c)
+	}
+	for i, c := range nc.TeamsConfigs {
+		n := NewTeams(c, tmpl)
+		add("teams", i, n, c)
 	}
 	for i, c := range nc.HipchatConfigs {
 		n := NewHipchat(c, tmpl)
@@ -600,6 +605,95 @@ func (n *Slack) retry(statusCode int) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
+	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// Teams implements a Notifier for Microsoft Teams notifications.
+type Teams struct {
+	conf *config.TeamsConfig
+	tmpl *template.Template
+}
+
+// NewTeams returns a new Microsoft Teams notification handler.
+func NewTeams(conf *config.TeamsConfig, tmpl *template.Template) *Teams {
+	return &Teams{
+		conf: conf,
+		tmpl: tmpl,
+	}
+}
+
+type teamsReq struct {
+	Context         string            `json:"@context,omitempty"`
+	Type            string            `json:"@type,omitempty"`
+	Title           string            `json:"title,omitempty"`
+	Text            string            `json:"text"`
+	ThemeColor      string            `json:"themeColor,omitempty"`
+	PotentialAction []potentialAction `json:"potentialAction,omitempty"`
+}
+
+type potentialAction interface{}
+
+type teamsOpenURI struct {
+	Type   string              `json:"@type"`
+	Name   string              `json:"name"`
+	Target []teamOpenURITarget `json:"targets"`
+}
+
+type teamOpenURITarget struct {
+	OS  string `json:"os"`
+	URI string `json:"uri"`
+}
+
+// Notify implements the Notifier interface.
+func (n *Teams) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var (
+		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+	)
+
+	openURI := &teamsOpenURI{
+		Type: "OpenUri",
+		Name: tmplText(n.conf.URIText),
+		Target: []teamOpenURITarget{
+			{
+				OS:  tmplText(n.conf.URIOS),
+				URI: tmplText(n.conf.URI),
+			},
+		},
+	}
+
+	req := &teamsReq{
+		Context:         tmplText(n.conf.Context),
+		Type:            tmplText(n.conf.Type),
+		Title:           tmplText(n.conf.Title),
+		Text:            tmplText(n.conf.Text),
+		ThemeColor:      tmplText(n.conf.ThemeColor),
+		PotentialAction: []potentialAction{openURI},
+	}
+	if err != nil {
+		return false, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, string(n.conf.APIURL), contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+	resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Teams) retry(statusCode int) (bool, error) {
 	if statusCode/100 != 2 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}

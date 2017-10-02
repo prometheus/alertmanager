@@ -71,6 +71,21 @@ var (
 		Fallback:  `{{ template "slack.default.fallback" . }}`,
 	}
 
+	// DefaultTeamsConfig defines default values for Microsoft Teams configurations.
+	DefaultTeamsConfig = TeamsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Context:    `{{ template "teams.default.context" . }}`,
+		Type:       `{{ template "teams.default.type" . }}`,
+		Title:      `{{ template "teams.default.title" . }}`,
+		Text:       `{{ template "teams.default.text" . }}`,
+		URI:        `{{ template "teams.default.uri" . }}`,
+		URIText:    `{{ template "teams.default.uritext" . }}`,
+		URIOS:      `{{ template "teams.default.urios" . }}`,
+		ThemeColor: `{{ template "teams.default.themecolor" . }}`,
+	}
+
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
 	DefaultHipchatConfig = HipchatConfig{
 		NotifierConfig: NotifierConfig{
@@ -234,6 +249,35 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	return checkOverflow(c.XXX, "slack config")
+}
+
+// TeamsConfig configures notifications via Microsoft Teams.
+type TeamsConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	APIURL Secret `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+
+	Context    string `yaml:"context,omitempty" json:"context,omitempty"`
+	Type       string `yaml:"type,omitempty" json:"type,omitempty"`
+	Title      string `yaml:"title,omitempty" json:"title,omitempty"`
+	Text       string `yaml:"text,omitempty" json:"text,omitempty"`
+	URI        string `yaml:"uri,omitempty" json:"uri,omitempty"`
+	URIText    string `yaml:"uritext,omitempty" json:"uritext,omitempty"`
+	URIOS      string `yaml:"urios,omitempty" json:"urios,omitempty"`
+	ThemeColor string `yaml:"themecolor,omitempty" json:"themecolor,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTeamsConfig
+	type plain TeamsConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	return checkOverflow(c.XXX, "teams config")
 }
 
 // HipchatConfig configures notifications via Hipchat.
