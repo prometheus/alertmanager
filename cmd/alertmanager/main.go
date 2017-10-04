@@ -51,6 +51,10 @@ import (
 )
 
 var (
+	peerPosition = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_peer_position",
+		Help: "Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
+	})
 	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_hash",
 		Help: "Hash of the currently loaded alertmanager configuration.",
@@ -66,6 +70,7 @@ var (
 )
 
 func init() {
+	prometheus.MustRegister(peerPosition)
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
 	prometheus.MustRegister(configHash)
@@ -359,7 +364,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 			}
 			k++
 		}
-		// TODO(fabxc): add metric exposing the "position" from AM's own view.
+		peerPosition.Set(float64(k))
 		return time.Duration(k) * timeout
 	}
 }
