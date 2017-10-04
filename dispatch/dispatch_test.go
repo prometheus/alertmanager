@@ -3,6 +3,7 @@ package dispatch
 import (
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -144,9 +145,10 @@ func TestAggrGroup(t *testing.T) {
 	)
 
 	var (
-		last     = time.Now()
-		current  = time.Now()
-		alertsCh = make(chan types.AlertSlice)
+		last       = time.Now()
+		current    = time.Now()
+		lastCurMtx = &sync.Mutex{}
+		alertsCh   = make(chan types.AlertSlice)
 	)
 
 	ntfy := func(ctx context.Context, alerts ...*types.Alert) bool {
@@ -167,8 +169,10 @@ func TestAggrGroup(t *testing.T) {
 			t.Errorf("wrong repeat interval: %q", ri)
 		}
 
+		lastCurMtx.Lock()
 		last = current
 		current = time.Now()
+		lastCurMtx.Unlock()
 
 		alertsCh <- types.AlertSlice(alerts)
 
@@ -253,7 +257,10 @@ func TestAggrGroup(t *testing.T) {
 			t.Fatalf("expected new batch after group interval but received none")
 
 		case batch := <-alertsCh:
-			if s := time.Since(last); s < opts.GroupInterval {
+			lastCurMtx.Lock()
+			s := time.Since(last)
+			lastCurMtx.Unlock()
+			if s < opts.GroupInterval {
 				t.Fatalf("received batch to early after %v", s)
 			}
 			exp := types.AlertSlice{a1, a2, a3}
