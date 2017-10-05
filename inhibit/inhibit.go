@@ -14,10 +14,12 @@
 package inhibit
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/oklog/oklog/pkg/group"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 
@@ -33,8 +35,8 @@ type Inhibitor struct {
 	rules  []*InhibitRule
 	marker types.Marker
 
-	mtx   sync.RWMutex
-	stopc chan struct{}
+	mtx    sync.RWMutex
+	cancel func()
 }
 
 // NewInhibitor returns a new Inhibitor.
@@ -50,33 +52,26 @@ func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker)
 	return ih
 }
 
-func (ih *Inhibitor) runGC() {
+func (ih *Inhibitor) runGC(ctx context.Context) {
 	for {
 		select {
 		case <-time.After(15 * time.Minute):
 			for _, r := range ih.rules {
 				r.gc()
 			}
-		case <-ih.stopc:
+		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-// Run the Inihibitor's background processing.
-func (ih *Inhibitor) Run() {
-	ih.mtx.Lock()
-	ih.stopc = make(chan struct{})
-	ih.mtx.Unlock()
-
-	go ih.runGC()
-
+func (ih *Inhibitor) run(ctx context.Context) {
 	it := ih.alerts.Subscribe()
 	defer it.Close()
 
 	for {
 		select {
-		case <-ih.stopc:
+		case <-ctx.Done():
 			return
 		case a := <-it.Next():
 			if err := it.Err(); err != nil {
@@ -98,17 +93,41 @@ func (ih *Inhibitor) Run() {
 	}
 }
 
+// Run the Inihibitor's background processing.
+func (ih *Inhibitor) Run() {
+	var (
+		g   group.Group
+		ctx context.Context
+	)
+
+	ctx, ih.cancel = context.WithCancel(context.Background())
+	gcCtx, gcCancel := context.WithCancel(ctx)
+	runCtx, runCancel := context.WithCancel(ctx)
+
+	g.Add(func() error {
+		ih.runGC(gcCtx)
+		return nil
+	}, func(err error) {
+		gcCancel()
+	})
+	g.Add(func() error {
+		ih.run(runCtx)
+		return nil
+	}, func(err error) {
+		runCancel()
+	})
+
+	g.Run()
+}
+
 // Stop the Inhibitor's background processing.
 func (ih *Inhibitor) Stop() {
 	if ih == nil {
 		return
 	}
-	ih.mtx.Lock()
-	defer ih.mtx.Unlock()
 
-	if ih.stopc != nil {
-		close(ih.stopc)
-		ih.stopc = nil
+	if ih.cancel != nil {
+		ih.cancel()
 	}
 }
 
