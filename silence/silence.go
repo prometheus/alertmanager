@@ -113,9 +113,29 @@ type metrics struct {
 	queriesTotal     prometheus.Counter
 	queryErrorsTotal prometheus.Counter
 	queryDuration    prometheus.Histogram
+	silencesActive   prometheus.GaugeFunc
+	silencesPending  prometheus.GaugeFunc
+	silencesExpired  prometheus.GaugeFunc
 }
 
-func newMetrics(r prometheus.Registerer) *metrics {
+func newSilenceMetricByState(s *Silences, st SilenceState) prometheus.GaugeFunc {
+	return prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name:        "alertmanager_silences",
+			Help:        "How many silences by state.",
+			ConstLabels: prometheus.Labels{"state": string(st)},
+		},
+		func() float64 {
+			count, err := s.CountState(st)
+			if err != nil {
+				s.logger.With("err", err).Error("counting silences failed")
+			}
+			return float64(count)
+		},
+	)
+}
+
+func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 	m := &metrics{}
 
 	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
@@ -138,6 +158,11 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		Name: "alertmanager_silences_query_duration_seconds",
 		Help: "Duration of silence query evaluation.",
 	})
+	if s != nil {
+		m.silencesActive = newSilenceMetricByState(s, StateActive)
+		m.silencesPending = newSilenceMetricByState(s, StatePending)
+		m.silencesExpired = newSilenceMetricByState(s, StateExpired)
+	}
 
 	if r != nil {
 		r.MustRegister(
@@ -146,6 +171,9 @@ func newMetrics(r prometheus.Registerer) *metrics {
 			m.queriesTotal,
 			m.queryErrorsTotal,
 			m.queryDuration,
+			m.silencesActive,
+			m.silencesPending,
+			m.silencesExpired,
 		)
 	}
 	return m
@@ -195,12 +223,13 @@ func New(o Options) (*Silences, error) {
 	s := &Silences{
 		mc:        matcherCache{},
 		logger:    log.NewNopLogger(),
-		metrics:   newMetrics(o.Metrics),
 		retention: o.Retention,
 		now:       utcNow,
 		gossip:    nopGossip{},
 		st:        newGossipData(),
 	}
+	s.metrics = newMetrics(o.Metrics, s)
+
 	if o.Logger != nil {
 		s.logger = o.Logger
 	}
@@ -585,6 +614,16 @@ func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, error) {
 	}
 	s.metrics.queryDuration.Observe(time.Since(start).Seconds())
 	return sils, err
+}
+
+// Count silences by state.
+func (s *Silences) CountState(states ...SilenceState) (int, error) {
+	// This could probably be optimized.
+	sils, err := s.Query(QState(states...))
+	if err != nil {
+		return -1, err
+	}
+	return len(sils), nil
 }
 
 func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, error) {
