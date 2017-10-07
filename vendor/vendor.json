@@ -9,6 +9,12 @@
 			"revisionTime": "2017-05-15T10:45:16Z"
 		},
 		{
+			"checksumSHA1": "Y5qJaIZOQpSvEG4jyzVEVADW3qk=",
+			"path": "github.com/andygrunwald/go-jira",
+			"revision": "1c664343c3c160a5f2e3569db43f9c2b712956d6",
+			"revisionTime": "2017-09-04T06:51:25Z"
+		},
+		{
 			"checksumSHA1": "4QnLdmB1kG3N+KlDd1N+G9TWAGQ=",
 			"path": "github.com/beorn7/perks/quantile",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
@@ -32,6 +38,12 @@
 			"path": "github.com/davecgh/go-spew/spew",
 			"revision": "346938d642f2ec3594ed81d874461961cd0faa76",
 			"revisionTime": "2016-10-29T20:57:26Z"
+		},
+		{
+			"checksumSHA1": "40Ns85VYa4smQPcewZ7SOdfLnKU=",
+			"path": "github.com/fatih/structs",
+			"revision": "7e5a8eef611ee84dd359503f3969f80df4c50723",
+			"revisionTime": "2017-06-12T12:55:44Z"
 		},
 		{
 			"checksumSHA1": "JhI3dzfib2NMGL11NiUswioZP8U=",
@@ -86,6 +98,12 @@
 			"path": "github.com/golang/protobuf/ptypes/timestamp",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
 			"revisionTime": "2016-11-21T14:22:35Z"
+		},
+		{
+			"checksumSHA1": "p3IB18uJRs4dL2K5yx24MrLYE9A=",
+			"path": "github.com/google/go-querystring/query",
+			"revision": "53e6ce116135b80d037921a7fdd5138cf32d7a8a",
+			"revisionTime": "2017-01-11T10:11:55Z"
 		},
 		{
 			"checksumSHA1": "Ok3Csn6Voou7pQT6Dv2mkwpqFtw=",
@@ -351,6 +369,18 @@
 			"path": "github.com/stretchr/testify/require",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
 			"revisionTime": "2016-11-21T14:22:35Z"
+		},
+		{
+			"checksumSHA1": "UuqTxLTgGoI9VCV8k1c9ur016FA=",
+			"path": "github.com/trivago/tgo/tcontainer",
+			"revision": "e4d1ddd28c17dd89ed26327cf69fded22060671b",
+			"revisionTime": "2017-08-10T13:40:52Z"
+		},
+		{
+			"checksumSHA1": "8UiTXe2s74eNltHmZ2len8etVz4=",
+			"path": "github.com/trivago/tgo/treflect",
+			"revision": "e4d1ddd28c17dd89ed26327cf69fded22060671b",
+			"revisionTime": "2017-08-10T13:40:52Z"
 		},
 		{
 			"checksumSHA1": "Hc5wR0iUw/ofXSMFbYIAI/sxRC8=",
