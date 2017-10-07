@@ -184,6 +184,12 @@
 			"revisionTime": "2017-01-25T05:19:37Z"
 		},
 		{
+			"checksumSHA1": "gkyBg/2hcIWR/8qGEeGVoHwOyfo=",
+			"path": "github.com/oklog/oklog/pkg/group",
+			"revision": "f857583a70c345341d679b3f27aa542c8db70a21",
+			"revisionTime": "2017-09-18T07:00:58Z"
+		},
+		{
 			"checksumSHA1": "8Y05Pz7onrQPcVWW6JStSsYRh6E=",
 			"path": "github.com/pelletier/go-buffruneio",
 			"revision": "df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d",
