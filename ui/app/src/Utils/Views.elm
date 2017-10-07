@@ -22,7 +22,13 @@ labelButton maybeMsg labelText =
     case maybeMsg of
         Nothing ->
             span
-                [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2" ]
+                [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
+                , style
+                    [ ( "user-select", "text" )
+                    , ( "-moz-user-select", "text" )
+                    , ( "-webkit-user-select", "text" )
+                    ]
+                ]
                 [ text labelText ]
 
         Just msg ->
