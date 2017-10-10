@@ -477,11 +477,8 @@ func TestSilenceStage(t *testing.T) {
 	}
 
 	var got []model.LabelSet
-	for i, a := range alerts {
+	for _, a := range alerts {
 		got = append(got, a.Labels)
-		if a.WasSilenced != (i == 1) {
-			t.Errorf("Expected WasSilenced to be %v for %d, was %v", i == 1, i, a.WasSilenced)
-		}
 	}
 
 	if !reflect.DeepEqual(got, out) {
@@ -533,11 +530,8 @@ func TestInhibitStage(t *testing.T) {
 	}
 
 	var got []model.LabelSet
-	for i, a := range alerts {
+	for _, a := range alerts {
 		got = append(got, a.Labels)
-		if a.WasInhibited != (i == 1) {
-			t.Errorf("Expected WasInhibited to be %v for %d, was %v", i == 1, i, a.WasInhibited)
-		}
 	}
 
 	if !reflect.DeepEqual(got, out) {
