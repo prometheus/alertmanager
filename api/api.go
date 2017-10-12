@@ -342,6 +342,9 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		if !showSilenced && len(status.SilencedBy) != 0 {
 			continue
 		}
+		if !showSilenced && len(status.InhibitedBy) != 0 {
+			continue
+		}
 
 		apiAlert := &dispatch.APIAlert{
 			Alert:       &a.Alert,
