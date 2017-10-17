@@ -264,9 +264,10 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		re  *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res          = []*dispatch.APIAlert{}
-		matchers     = []*labels.Matcher{}
-		showSilenced = true
+		res           = []*dispatch.APIAlert{}
+		matchers      = []*labels.Matcher{}
+		showSilenced  = true
+		showInhibited = true
 	)
 
 	if filter := r.FormValue("filter"); filter != "" {
@@ -289,6 +290,21 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 				err: fmt.Errorf(
 					"parameter 'silenced' can either be 'true' or 'false', not '%v'",
 					silencedParam,
+				),
+			}, nil)
+			return
+		}
+	}
+
+	if inhibitedParam := r.FormValue("inhibited"); inhibitedParam != "" {
+		if inhibitedParam == "false" {
+			showInhibited = false
+		} else if inhibitedParam != "true" {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: fmt.Errorf(
+					"parameter 'inhibited' can either be 'true' or 'false', not '%v'",
+					inhibitedParam,
 				),
 			}, nil)
 			return
@@ -340,6 +356,10 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		status := api.getAlertStatus(a.Fingerprint())
 
 		if !showSilenced && len(status.SilencedBy) != 0 {
+			continue
+		}
+
+		if !showInhibited && len(status.InhibitedBy) != 0 {
 			continue
 		}
 
