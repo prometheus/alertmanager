@@ -434,13 +434,20 @@ const (
 )
 
 type pagerDutyMessage struct {
-	ServiceKey  string            `json:"service_key"`
-	IncidentKey string            `json:"incident_key"`
-	EventType   string            `json:"event_type"`
-	Description string            `json:"description"`
-	Client      string            `json:"client,omitempty"`
-	ClientURL   string            `json:"client_url,omitempty"`
-	Details     map[string]string `json:"details,omitempty"`
+	ServiceKey  string             `json:"service_key"`
+	IncidentKey string             `json:"incident_key"`
+	EventType   string             `json:"event_type"`
+	Description string             `json:"description"`
+	Client      string             `json:"client,omitempty"`
+	ClientURL   string             `json:"client_url,omitempty"`
+	Details     map[string]string  `json:"details,omitempty"`
+	Contexts    []pagerDutyContext `json:"contexts,omitempty"`
+}
+
+type pagerDutyContext struct {
+	Type string `json:"type"`
+	Href string `json:"href"`
+	Text string `json:"text"`
 }
 
 // Notify implements the Notifier interface.
@@ -480,6 +487,16 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
 		msg.ClientURL = tmpl(n.conf.ClientURL)
+
+		var contexts []pagerDutyContext
+		for _, c := range n.conf.Contexts {
+			contexts = append(contexts, pagerDutyContext{
+				Type:  tmpl(c.Type),
+				Href:  tmpl(c.Href),
+				Text:  tmpl(c.Text),
+			})
+		}
+		msg.Contexts = contexts
 	}
 	if err != nil {
 		return false, err

@@ -178,12 +178,22 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
-	URL         string            `yaml:"url,omitempty" json:"url,omitempty"`
-	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
-	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
-	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+	ServiceKey  Secret             `yaml:"service_key,omitempty" json:"service_key,omitempty"`
+	URL         string             `yaml:"url,omitempty" json:"url,omitempty"`
+	Client      string             `yaml:"client,omitempty" json:"client,omitempty"`
+	ClientURL   string             `yaml:"client_url,omitempty" json:"client_url,omitempty"`
+	Description string             `yaml:"description,omitempty" json:"description,omitempty"`
+	Details     map[string]string  `yaml:"details,omitempty" json:"details,omitempty"`
+	Contexts    []PagerdutyContext `yaml:"contexts,omitempty" json:"contexts,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+type PagerdutyContext struct {
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+	Href string `yaml:"href,omitempty" json:"href,omitempty"`
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`

@@ -6,6 +6,7 @@
 /.build
 /.release
 /.tarballs
+/.idea
 
 !/doc/examples/simple.yml
 !/circle.yml
