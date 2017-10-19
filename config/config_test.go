@@ -26,16 +26,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func TestDefaultReceiverExists(t *testing.T) {
-	in := `
-route:
-   group_wait: 30s
-`
+func TestLoadEmptyString(t *testing.T) {
 
-	conf := &Config{}
-	err := yaml.Unmarshal([]byte(in), conf)
+	var in string
+	_, err := Load(in)
 
-	expected := "Root route must specify a default receiver"
+	expected := "no route provided in config"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -43,6 +39,149 @@ route:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
+}
+
+func TestDefaultReceiverExists(t *testing.T) {
+	in := `
+route:
+   group_wait: 30s
+`
+	conf := &Config{}
+	err := yaml.Unmarshal([]byte(in), conf)
+
+	expected := "root route must specify a default receiver"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestReceiverNameIsUnique(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-X'
+- name: 'team-X'
+`
+	_, err := Load(in)
+
+	expected := "notification config name \"team-X\" is not unique"
+
+	if err == nil {
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestReceiverExists(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+
+receivers:
+- name: 'team-Y'
+`
+	_, err := Load(in)
+
+	expected := "undefined receiver \"team-X\" used in route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestReceiverHasName(t *testing.T) {
+	in := `
+route:
+
+receivers:
+- name: ''
+`
+	_, err := Load(in)
+
+	expected := "missing name in receiver"
+
+	if err == nil {
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestGroupByHasNoDuplicatedLabels(t *testing.T) {
+	in := `
+route:
+  group_by: ['alertname', 'cluster', 'service', 'cluster']
+
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "duplicated label \"cluster\" in group_by"
+
+	if err == nil {
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestRootRouteExists(t *testing.T) {
+	in := `
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "no routes provided"
+
+	if err == nil {
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestRootRouteHasNoMatcher(t *testing.T) {
+	in := `
+route:
+  receiver: 'team-X'
+  match:
+    severity: critical
+
+receivers:
+- name: 'team-X'
+`
+	_, err := Load(in)
+
+	expected := "root route must not have any matchers"
+
+	if err == nil {
+		t.Fatalf("no error returned, expeceted:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
 }
 
 func TestContinueErrorInRouteRoot(t *testing.T) {
@@ -54,7 +193,6 @@ route:
 receivers:
 - name: 'team-X-mails'
 `
-
 	_, err := Load(in)
 
 	expected := "cannot have continue in root route"
