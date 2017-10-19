@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
@@ -141,14 +142,13 @@ var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
-	// The URL to which notifications are sent.
-	URL  string
+	conf *config.WebhookConfig
 	tmpl *template.Template
 }
 
 // NewWebhook returns a new Webhook.
 func NewWebhook(conf *config.WebhookConfig, t *template.Template) *Webhook {
-	return &Webhook{URL: conf.URL, tmpl: t}
+	return &Webhook{conf: conf, tmpl: t}
 }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
@@ -180,14 +180,19 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 		return false, err
 	}
 
-	req, err := http.NewRequest("POST", w.URL, &buf)
+	req, err := http.NewRequest("POST", w.conf.URL, &buf)
 	if err != nil {
 		return true, err
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("User-Agent", userAgentHeader)
 
-	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	c, err := commoncfg.NewHTTPClientFromConfig(w.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Do(ctx, c, req)
 	if err != nil {
 		return true, err
 	}
@@ -200,7 +205,7 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 	// Webhooks are assumed to respond with 2xx response codes on a successful
 	// request and 5xx response codes are assumed to be recoverable.
 	if statusCode/100 != 2 {
-		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.URL)
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.conf.URL)
 	}
 
 	return false, nil
@@ -490,7 +495,12 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, n.conf.URL, contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -587,7 +597,12 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, string(n.conf.APIURL), contentTypeJSON, &buf)
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, string(n.conf.APIURL), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -662,7 +677,12 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, url, contentTypeJSON, &buf)
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, url, contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -774,7 +794,12 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, apiURL, contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -892,7 +917,12 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, apiURL, contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -982,7 +1012,12 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	u.RawQuery = parameters.Encode()
 	log.With("incident", key).Debugf("Pushover URL = %q", u.String())
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, u.String(), "text/plain", nil)
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, u.String(), "text/plain", nil)
 	if err != nil {
 		return true, err
 	}

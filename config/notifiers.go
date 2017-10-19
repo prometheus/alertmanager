@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	commoncfg "github.com/prometheus/common/config"
 )
 
 var (
@@ -178,6 +180,8 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
 	URL         string            `yaml:"url,omitempty" json:"url,omitempty"`
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
@@ -205,6 +209,8 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIURL Secret `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
@@ -240,6 +246,8 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type HipchatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	APIURL        string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
 	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
@@ -271,6 +279,8 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type WebhookConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	// URL to send POST request to.
 	URL string `yaml:"url" json:"url"`
 
@@ -294,6 +304,8 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // OpsGenieConfig configures notifications via OpsGenie.
 type OpsGenieConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIKey      Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	APIHost     string            `yaml:"api_host,omitempty" json:"api_host,omitempty"`
@@ -325,6 +337,8 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 // VictorOpsConfig configures notifications via VictorOps.
 type VictorOpsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIKey            Secret `yaml:"api_key" json:"api_key"`
 	APIURL            string `yaml:"api_url" json:"api_url"`
@@ -366,6 +380,8 @@ func (d duration) MarshalText() ([]byte, error) {
 
 type PushoverConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	UserKey  Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
 	Token    Secret   `yaml:"token,omitempty" json:"token,omitempty"`

@@ -233,6 +233,12 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
+			"checksumSHA1": "4TLgSCgJZuS5gtytxNvcVk4h8/g=",
+			"path": "github.com/prometheus/common/config",
+			"revision": "3e6a7635bac6573d43f49f97b47eb9bda195dba8",
+			"revisionTime": "2017-07-07T05:33:19Z"
+		},
+		{
 			"checksumSHA1": "Wtpzndm/+bdwwNU5PCTfb4oUhc8=",
 			"path": "github.com/prometheus/common/expfmt",
 			"revision": "9e0844febd9e2856f839c9cb974fbd676d1755a8",
