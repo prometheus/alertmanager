@@ -17,4 +17,5 @@ alertsParser =
         <?> stringParam "group"
         <?> stringParam "receiver"
         <?> boolParam "silenced"
+        <?> boolParam "inhibited"
         |> map Filter
