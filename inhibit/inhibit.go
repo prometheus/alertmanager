@@ -19,8 +19,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/oklog/pkg/group"
-	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
@@ -34,16 +35,18 @@ type Inhibitor struct {
 	alerts provider.Alerts
 	rules  []*InhibitRule
 	marker types.Marker
+	logger log.Logger
 
 	mtx    sync.RWMutex
 	cancel func()
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker, logger log.Logger) *Inhibitor {
 	ih := &Inhibitor{
 		alerts: ap,
 		marker: mk,
+		logger: logger,
 	}
 	for _, cr := range rs {
 		r := NewInhibitRule(cr)
@@ -75,7 +78,7 @@ func (ih *Inhibitor) run(ctx context.Context) {
 			return
 		case a := <-it.Next():
 			if err := it.Err(); err != nil {
-				log.Errorf("Error iterating alerts: %s", err)
+				level.Error(ih.logger).Log("msg", "Error iterating alerts", "err", err)
 				continue
 			}
 			if a.Resolved() {

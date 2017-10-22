@@ -22,8 +22,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
@@ -81,6 +82,7 @@ type API struct {
 	resolveTimeout time.Duration
 	uptime         time.Time
 	mrouter        *mesh.Router
+	logger         log.Logger
 
 	groups         groupsFn
 	getAlertStatus getAlertStatusFn
@@ -92,7 +94,7 @@ type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
 type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
 
 // New returns a new API.
-func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, sf getAlertStatusFn, router *mesh.Router) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, sf getAlertStatusFn, router *mesh.Router, l log.Logger) *API {
 	return &API{
 		alerts:         alerts,
 		silences:       silences,
@@ -100,6 +102,7 @@ func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, sf get
 		getAlertStatus: sf,
 		uptime:         time.Now(),
 		mrouter:        router,
+		logger:         l,
 	}
 }
 
@@ -171,7 +174,7 @@ func (api *API) receivers(w http.ResponseWriter, req *http.Request) {
 		receivers = append(receivers, r.Name)
 	}
 
-	respond(w, receivers)
+	api.respond(w, receivers)
 }
 
 func (api *API) status(w http.ResponseWriter, req *http.Request) {
@@ -200,7 +203,7 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 
 	api.mtx.RUnlock()
 
-	respond(w, status)
+	api.respond(w, status)
 }
 
 type meshStatus struct {
@@ -245,7 +248,7 @@ func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
 	if filter := r.FormValue("filter"); filter != "" {
 		matchers, err = parse.Matchers(filter)
 		if err != nil {
-			respondError(w, apiError{
+			api.respondError(w, apiError{
 				typ: errorBadData,
 				err: err,
 			}, nil)
@@ -255,7 +258,7 @@ func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
 
 	groups := api.groups(matchers)
 
-	respond(w, groups)
+	api.respond(w, groups)
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
@@ -273,7 +276,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	if filter := r.FormValue("filter"); filter != "" {
 		matchers, err = parse.Matchers(filter)
 		if err != nil {
-			respondError(w, apiError{
+			api.respondError(w, apiError{
 				typ: errorBadData,
 				err: err,
 			}, nil)
@@ -285,7 +288,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		if silencedParam == "false" {
 			showSilenced = false
 		} else if silencedParam != "true" {
-			respondError(w, apiError{
+			api.respondError(w, apiError{
 				typ: errorBadData,
 				err: fmt.Errorf(
 					"parameter 'silenced' can either be 'true' or 'false', not '%v'",
@@ -300,7 +303,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		if inhibitedParam == "false" {
 			showInhibited = false
 		} else if inhibitedParam != "true" {
-			respondError(w, apiError{
+			api.respondError(w, apiError{
 				typ: errorBadData,
 				err: fmt.Errorf(
 					"parameter 'inhibited' can either be 'true' or 'false', not '%v'",
@@ -314,7 +317,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	if receiverParam := r.FormValue("receiver"); receiverParam != "" {
 		re, err = regexp.Compile("^(?:" + receiverParam + ")$")
 		if err != nil {
-			respondError(w, apiError{
+			api.respondError(w, apiError{
 				typ: errorBadData,
 				err: fmt.Errorf(
 					"failed to parse receiver param: %s",
@@ -374,7 +377,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorInternal,
 			err: err,
 		}, nil)
@@ -383,7 +386,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(res, func(i, j int) bool {
 		return res[i].Fingerprint < res[j].Fingerprint
 	})
-	respond(w, res)
+	api.respond(w, res)
 }
 
 func regexpAny(re *regexp.Regexp, ss []string) bool {
@@ -414,7 +417,7 @@ func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
 		Labels      model.LabelSet   `json:"labels"`
 		Payload     model.LabelSet   `json:"payload"`
 	}{}
-	if err := receive(r, &legacyAlerts); err != nil {
+	if err := api.receive(r, &legacyAlerts); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -442,8 +445,8 @@ func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 	var alerts []*types.Alert
-	if err := receive(r, &alerts); err != nil {
-		respondError(w, apiError{
+	if err := api.receive(r, &alerts); err != nil {
+		api.respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, nil)
@@ -489,7 +492,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		validAlerts = append(validAlerts, a)
 	}
 	if err := api.alerts.Put(validAlerts...); err != nil {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorInternal,
 			err: err,
 		}, nil)
@@ -497,20 +500,20 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	}
 
 	if validationErrs.Len() > 0 {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorBadData,
 			err: validationErrs,
 		}, nil)
 		return
 	}
 
-	respond(w, nil)
+	api.respond(w, nil)
 }
 
 func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 	var sil types.Silence
-	if err := receive(r, &sil); err != nil {
-		respondError(w, apiError{
+	if err := api.receive(r, &sil); err != nil {
+		api.respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, nil)
@@ -518,7 +521,7 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 	}
 	psil, err := silenceToProto(&sil)
 	if err != nil {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, nil)
@@ -527,14 +530,14 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 
 	sid, err := api.silences.Set(psil)
 	if err != nil {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
 	}
 
-	respond(w, struct {
+	api.respond(w, struct {
 		SilenceID string `json:"silenceId"`
 	}{
 		SilenceID: sid,
@@ -551,33 +554,33 @@ func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 	}
 	sil, err := silenceFromProto(sils[0])
 	if err != nil {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorInternal,
 			err: err,
 		}, nil)
 		return
 	}
 
-	respond(w, sil)
+	api.respond(w, sil)
 }
 
 func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 	sid := route.Param(r.Context(), "sid")
 
 	if err := api.silences.Expire(sid); err != nil {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorBadData,
 			err: err,
 		}, nil)
 		return
 	}
-	respond(w, nil)
+	api.respond(w, nil)
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	psils, err := api.silences.Query()
 	if err != nil {
-		respondError(w, apiError{
+		api.respondError(w, apiError{
 			typ: errorInternal,
 			err: err,
 		}, nil)
@@ -588,7 +591,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	if filter := r.FormValue("filter"); filter != "" {
 		matchers, err = parse.Matchers(filter)
 		if err != nil {
-			respondError(w, apiError{
+			api.respondError(w, apiError{
 				typ: errorBadData,
 				err: err,
 			}, nil)
@@ -600,7 +603,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	for _, ps := range psils {
 		s, err := silenceFromProto(ps)
 		if err != nil {
-			respondError(w, apiError{
+			api.respondError(w, apiError{
 				typ: errorInternal,
 				err: err,
 			}, nil)
@@ -640,7 +643,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	silences = append(silences, pending...)
 	silences = append(silences, expired...)
 
-	respond(w, silences)
+	api.respond(w, silences)
 }
 
 func matchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
@@ -724,7 +727,7 @@ type response struct {
 	Error     string      `json:"error,omitempty"`
 }
 
-func respond(w http.ResponseWriter, data interface{}) {
+func (api *API) respond(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
@@ -733,13 +736,13 @@ func respond(w http.ResponseWriter, data interface{}) {
 		Data:   data,
 	})
 	if err != nil {
-		log.Errorf("errorr: %v", err)
+		level.Error(api.logger).Log("msg", "Error marshalling JSON", "err", err)
 		return
 	}
 	w.Write(b)
 }
 
-func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
+func (api *API) respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 
 	switch apiErr.typ {
@@ -760,18 +763,18 @@ func respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
 	if err != nil {
 		return
 	}
-	log.Errorf("api error: %v", apiErr.Error())
+	level.Error(api.logger).Log("msg", "API error", "err", apiErr.Error())
 
 	w.Write(b)
 }
 
-func receive(r *http.Request, v interface{}) error {
+func (api *API) receive(r *http.Request, v interface{}) error {
 	dec := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 
 	err := dec.Decode(v)
 	if err != nil {
-		log.Debugf("Decoding request failed: %v", err)
+		level.Debug(api.logger).Log("msg", "Decoding request failed", "err", err)
 	}
 	return err
 }
