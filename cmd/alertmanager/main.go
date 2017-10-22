@@ -31,6 +31,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -43,7 +45,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
@@ -101,7 +103,6 @@ func newMarkerMetrics(marker types.Marker) {
 }
 
 func main() {
-	peers := &stringset{}
 	var (
 		showVersion = flag.Bool("version", false, "Print version information.")
 
@@ -113,20 +114,31 @@ func main() {
 		routePrefix   = flag.String("web.route-prefix", "", "Prefix for the internal routes of web endpoints. Defaults to path of -web.external-url.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
-		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable.")
-		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
-		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
-		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
+		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "Mesh listen address. Pass an empty string to disable.")
+		hwaddr     = flag.String("mesh.peer-id", "", "Mesh peer ID (default: MAC address).")
+		nickname   = flag.String("mesh.nickname", mustHostname(), "Mesh peer nickname.")
+		password   = flag.String("mesh.password", "", "Password to join the peer network (empty password disables encryption).")
 	)
-	flag.Var(peers, "mesh.peer", "initial peers (may be repeated)")
+	peers := &stringset{}
+	flag.Var(peers, "mesh.peer", "Initial peers (may be repeated)")
+
+	logLevel := &promlog.AllowedLevel{}
+	if err := logLevel.Set("info"); err != nil {
+		panic(err)
+	}
+	flag.Var(logLevel, "log.level", "Only log messages with the given severity or above. One of: [debug, info, warn, error]")
+
 	flag.Parse()
+
+	logger := promlog.New(*logLevel)
 
 	if *hwaddr == "" {
 		*hwaddr = mustHardwareAddr()
 	}
 
 	if len(flag.Args()) > 0 {
-		log.Fatalln("Received unexpected and unparsed arguments: ", strings.Join(flag.Args(), ", "))
+		level.Error(logger).Log("msg", "Received unexpected and unparsed arguments", "arguments", strings.Join(flag.Args(), ", "))
+		os.Exit(1)
 	}
 
 	if *showVersion {
@@ -134,19 +146,21 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Infoln("Starting alertmanager", version.Info())
-	log.Infoln("Build context", version.BuildContext())
+	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
+	level.Info(logger).Log("build_context", version.BuildContext())
 
 	err := os.MkdirAll(*dataDir, 0777)
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
+		os.Exit(1)
 	}
 
 	var mrouter *mesh.Router
 	if *meshListen != "" {
-		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
+		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With(logger, "component", "mesh"))
 		if err != nil {
-			log.Fatal(err)
+			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
+			os.Exit(1)
 		}
 	}
 
@@ -159,20 +173,22 @@ func main() {
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
-		nflog.WithLogger(log.Base().With("component", "nflog")),
+		nflog.WithLogger(log.With(logger, "component", "nflog")),
 	}
 	if *meshListen != "" {
 		notificationLogOpts = append(notificationLogOpts, nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
 			res, err := mrouter.NewGossip("nflog", g)
 			if err != nil {
-				log.Fatal(err)
+				level.Error(logger).Log("err", err)
+				os.Exit(1)
 			}
 			return res
 		}))
 	}
 	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("err", err)
+		os.Exit(1)
 	}
 
 	marker := types.NewMarker()
@@ -181,14 +197,15 @@ func main() {
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
-		Logger:       log.Base().With("component", "silences"),
+		Logger:       log.With(logger, "component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
 	}
 	if *meshListen != "" {
 		silenceOpts.Gossip = func(g mesh.Gossiper) mesh.Gossip {
 			res, err := mrouter.NewGossip("silences", g)
 			if err != nil {
-				log.Fatal(err)
+				level.Error(logger).Log("err", err)
+				os.Exit(1)
 			}
 			return res
 		}
@@ -196,7 +213,8 @@ func main() {
 	silences, err := silence.New(silenceOpts)
 
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("err", err)
+		os.Exit(1)
 	}
 
 	// Start providers before router potentially sends updates.
@@ -221,7 +239,8 @@ func main() {
 
 	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("err", err)
+		os.Exit(1)
 	}
 	defer alerts.Close()
 
@@ -241,11 +260,13 @@ func main() {
 		},
 		marker.Status,
 		mrouter,
+		logger,
 	)
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("err", err)
+		os.Exit(1)
 	}
 
 	waitFunc := func() time.Duration { return 0 }
@@ -261,10 +282,10 @@ func main() {
 
 	var hash float64
 	reload := func() (err error) {
-		log.With("file", *configFile).Infof("Loading configuration file")
+		level.Info(logger).Log("msg", "Loading configuration file", "file", *configFile)
 		defer func() {
 			if err != nil {
-				log.With("file", *configFile).Errorf("Loading configuration file failed: %s", err)
+				level.Error(logger).Log("msg", "Loading configuration file failed", "file", *configFile, "err", err)
 				configSuccess.Set(0)
 			} else {
 				configSuccess.Set(1)
@@ -294,7 +315,7 @@ func main() {
 		inhibitor.Stop()
 		disp.Stop()
 
-		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker)
+		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		pipeline = notify.BuildPipeline(
 			conf.Receivers,
 			tmpl,
@@ -303,8 +324,9 @@ func main() {
 			silences,
 			notificationLog,
 			marker,
+			logger,
 		)
-		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc)
+		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
 
 		go disp.Run()
 		go inhibitor.Run()
@@ -331,12 +353,12 @@ func main() {
 
 	webReload := make(chan struct{})
 
-	ui.Register(router, webReload)
+	ui.Register(router, webReload, logger)
 
 	apiv.Register(router.WithPrefix("/api"))
 
-	log.Infoln("Listening on", *listenAddress)
-	go listen(*listenAddress, router)
+	level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
+	go listen(*listenAddress, router, logger)
 
 	var (
 		hup      = make(chan os.Signal)
@@ -362,7 +384,7 @@ func main() {
 
 	<-term
 
-	log.Infoln("Received SIGTERM, exiting gracefully...")
+	level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
 }
 
 type peerDescSlice []mesh.PeerDescription
@@ -397,16 +419,19 @@ func initMesh(addr, hwaddr, nickname, pw string, logger log.Logger) (*mesh.Route
 	host, portStr, err := net.SplitHostPort(addr)
 
 	if err != nil {
-		log.Fatalf("mesh address: %s: %v", addr, err)
+		level.Error(logger).Log("msg", "Invalid mesh address", "address", addr, "err", err)
+		os.Exit(1)
 	}
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		log.Fatalf("mesh address: %s: %v", addr, err)
+		level.Error(logger).Log("msg", "Invalid mesh address", "address", addr, "err", err)
+		os.Exit(1)
 	}
 
 	name, err := mesh.PeerNameFromString(hwaddr)
 	if err != nil {
-		log.Fatalf("invalid hardware address %q: %v", hwaddr, err)
+		level.Error(logger).Log("msg", "Invalid hardware address", "address", hwaddr, "err", err)
+		os.Exit(1)
 	}
 
 	password := []byte(pw)
@@ -432,7 +457,7 @@ type printfLogger struct {
 }
 
 func (l printfLogger) Printf(f string, args ...interface{}) {
-	l.Debugf(f, args...)
+	level.Debug(l).Log(fmt.Sprintf(f, args...))
 }
 
 func extURL(listen, external string) (*url.URL, error) {
@@ -463,9 +488,10 @@ func extURL(listen, external string) (*url.URL, error) {
 	return u, nil
 }
 
-func listen(listen string, router *route.Router) {
+func listen(listen string, router *route.Router, logger log.Logger) {
 	if err := http.ListenAndServe(listen, router); err != nil {
-		log.Fatal(err)
+		level.Error(logger).Log("msg", "Listen error", "err", err)
+		os.Exit(1)
 	}
 }
 

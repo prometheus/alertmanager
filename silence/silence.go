@@ -26,12 +26,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/pkg/errors"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/satori/go.uuid"
 	"github.com/weaveworks/mesh"
@@ -128,7 +129,7 @@ func newSilenceMetricByState(s *Silences, st SilenceState) prometheus.GaugeFunc 
 		func() float64 {
 			count, err := s.CountState(st)
 			if err != nil {
-				s.logger.With("err", err).Error("counting silences failed")
+				level.Error(s.logger).Log("msg", "Counting silences failed", "err", err)
 			}
 			return float64(count)
 		},
@@ -258,8 +259,8 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 
 	f := func() error {
 		start := s.now()
-		s.logger.Info("running maintenance")
-		defer s.logger.With("duration", s.now().Sub(start)).Info("maintenance done")
+		level.Info(s.logger).Log("msg", "Running maintenance")
+		defer level.Info(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start))
 
 		if _, err := s.GC(); err != nil {
 			return err
@@ -285,7 +286,7 @@ Loop:
 			break Loop
 		case <-t.C:
 			if err := f(); err != nil {
-				s.logger.With("err", err).Error("running maintenance failed")
+				level.Info(s.logger).Log("msg", "Running maintenance failed", "err", err)
 			}
 		}
 	}
@@ -294,7 +295,7 @@ Loop:
 		return
 	}
 	if err := f(); err != nil {
-		s.logger.With("err", err).Info("msg", "creating shutdown snapshot failed")
+		level.Info(s.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
 

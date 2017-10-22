@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
@@ -180,7 +181,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil)
+	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -228,7 +229,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil)
+	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)

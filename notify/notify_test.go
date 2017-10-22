@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/prometheus/common/model"
@@ -47,7 +48,7 @@ func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool,
 
 type failStage struct{}
 
-func (s failStage) Exec(ctx context.Context, as ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (s failStage) Exec(ctx context.Context, l log.Logger, as ...*types.Alert) (context.Context, []*types.Alert, error) {
 	return ctx, nil, fmt.Errorf("some error")
 }
 
@@ -168,12 +169,12 @@ func TestDedupStage(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, _, err := s.Exec(ctx)
+	_, _, err := s.Exec(ctx, log.NewNopLogger())
 	require.EqualError(t, err, "group key missing")
 
 	ctx = WithGroupKey(ctx, "1")
 
-	_, _, err = s.Exec(ctx)
+	_, _, err = s.Exec(ctx, log.NewNopLogger())
 	require.EqualError(t, err, "repeat interval missing")
 
 	ctx = WithRepeatInterval(ctx, time.Hour)
@@ -184,14 +185,14 @@ func TestDedupStage(t *testing.T) {
 	s.nflog = &testNflog{
 		qerr: errors.New("bad things"),
 	}
-	ctx, res, err := s.Exec(ctx, alerts...)
+	ctx, res, err := s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.EqualError(t, err, "bad things")
 
 	// ... but skip ErrNotFound.
 	s.nflog = &testNflog{
 		qerr: nflog.ErrNotFound,
 	}
-	ctx, res, err = s.Exec(ctx, alerts...)
+	ctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err, "unexpected error on not found log entry")
 	require.Equal(t, alerts, res, "input alerts differ from result alerts")
 
@@ -202,7 +203,7 @@ func TestDedupStage(t *testing.T) {
 			{FiringAlerts: []uint64{1, 2, 3}},
 		},
 	}
-	ctx, res, err = s.Exec(ctx, alerts...)
+	ctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.Contains(t, err.Error(), "result size")
 
 	// Must return no error and no alerts no need to update.
@@ -216,7 +217,7 @@ func TestDedupStage(t *testing.T) {
 			},
 		},
 	}
-	ctx, res, err = s.Exec(ctx, alerts...)
+	ctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Nil(t, res, "unexpected alerts returned")
 
@@ -231,7 +232,7 @@ func TestDedupStage(t *testing.T) {
 			},
 		},
 	}
-	ctx, res, err = s.Exec(ctx, alerts...)
+	ctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res, "unexpected alerts returned")
 }
@@ -244,14 +245,14 @@ func TestMultiStage(t *testing.T) {
 	)
 
 	stage := MultiStage{
-		StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+		StageFunc(func(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of MultiStage")
 			}
 			ctx = context.WithValue(ctx, "key", "value")
 			return ctx, alerts2, nil
 		}),
-		StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+		StageFunc(func(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts2) {
 				t.Fatal("Input not equal to output of previous stage")
 			}
@@ -263,7 +264,7 @@ func TestMultiStage(t *testing.T) {
 		}),
 	}
 
-	_, alerts, err := stage.Exec(context.Background(), alerts1...)
+	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), alerts1...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -280,7 +281,7 @@ func TestMultiStageFailure(t *testing.T) {
 		stage = MultiStage{s1}
 	)
 
-	_, _, err := stage.Exec(ctx, nil)
+	_, _, err := stage.Exec(ctx, log.NewNopLogger(), nil)
 	if err.Error() != "some error" {
 		t.Fatal("Errors were not propagated correctly by MultiStage")
 	}
@@ -293,7 +294,7 @@ func TestRoutingStage(t *testing.T) {
 	)
 
 	stage := RoutingStage{
-		"name": StageFunc(func(ctx context.Context, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+		"name": StageFunc(func(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of RoutingStage")
 			}
@@ -304,7 +305,7 @@ func TestRoutingStage(t *testing.T) {
 
 	ctx := WithReceiverName(context.Background(), "name")
 
-	_, alerts, err := stage.Exec(ctx, alerts1...)
+	_, alerts, err := stage.Exec(ctx, log.NewNopLogger(), alerts1...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -379,21 +380,21 @@ func TestSetNotifiesStage(t *testing.T) {
 	alerts := []*types.Alert{{}, {}, {}}
 	ctx := context.Background()
 
-	resctx, res, err := s.Exec(ctx, alerts...)
+	resctx, res, err := s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.EqualError(t, err, "group key missing")
 	require.Nil(t, res)
 	require.NotNil(t, resctx)
 
 	ctx = WithGroupKey(ctx, "1")
 
-	resctx, res, err = s.Exec(ctx, alerts...)
+	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.EqualError(t, err, "firing alerts missing")
 	require.Nil(t, res)
 	require.NotNil(t, resctx)
 
 	ctx = WithFiringAlerts(ctx, []uint64{0, 1, 2})
 
-	resctx, res, err = s.Exec(ctx, alerts...)
+	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.EqualError(t, err, "resolved alerts missing")
 	require.Nil(t, res)
 	require.NotNil(t, resctx)
@@ -407,7 +408,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		require.Equal(t, []uint64{}, resolvedAlerts)
 		return nil
 	}
-	resctx, res, err = s.Exec(ctx, alerts...)
+	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.Nil(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
@@ -422,7 +423,7 @@ func TestSetNotifiesStage(t *testing.T) {
 		require.Equal(t, []uint64{0, 1, 2}, resolvedAlerts)
 		return nil
 	}
-	resctx, res, err = s.Exec(ctx, alerts...)
+	resctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.Nil(t, err)
 	require.Equal(t, alerts, res)
 	require.NotNil(t, resctx)
@@ -471,7 +472,7 @@ func TestSilenceStage(t *testing.T) {
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
 
-	_, alerts, err := silencer.Exec(nil, inAlerts...)
+	_, alerts, err := silencer.Exec(nil, log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -524,7 +525,7 @@ func TestInhibitStage(t *testing.T) {
 	// the WasInhibited flag set to true afterwards.
 	marker.SetInhibited(inAlerts[1].Fingerprint(), "123")
 
-	_, alerts, err := inhibitor.Exec(nil, inAlerts...)
+	_, alerts, err := inhibitor.Exec(nil, log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
