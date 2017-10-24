@@ -974,15 +974,17 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters := url.Values{}
 	parameters.Add("token", tmpl(string(n.conf.Token)))
 	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+
 	title := tmpl(n.conf.Title)
-	message := tmpl(n.conf.Message)
-	parameters.Add("title", title)
-	if len(title) > 512 {
-		title = title[:512]
-		level.Debug(n.logger).Log("msg", "Truncated title due to Pushover message limit", "truncated_title", title, "incident", key)
+	if len(title) > 250 {
+		title = title[:247] + "..."
+		level.Debug(n.logger).Log("msg", "Truncated title due to Pushover title limit", "truncated_title", title, "incident", key)
 	}
-	if len(title)+len(message) > 512 {
-		message = message[:512-len(title)]
+	parameters.Add("title", title)
+
+	message := tmpl(n.conf.Message)
+	if len(message) > 1024 {
+		message = message[:1021] + "..."
 		level.Debug(n.logger).Log("msg", "Truncated message due to Pushover message limit", "truncated_message", message, "incident", key)
 	}
 	message = strings.TrimSpace(message)
@@ -991,7 +993,14 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = "(no details)"
 	}
 	parameters.Add("message", message)
-	parameters.Add("url", tmpl(n.conf.URL))
+
+	supplementaryUrl := tmpl(n.conf.URL)
+	if len(supplementaryUrl) > 512 {
+		supplementaryUrl = supplementaryUrl[:509] + "..."
+		level.Debug(n.logger).Log("msg", "Truncated URL due to Pushover url limit", "truncated_url", supplementaryUrl, "incident", key)
+	}
+	parameters.Add("url", supplementaryUrl)
+
 	parameters.Add("priority", tmpl(n.conf.Priority))
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
