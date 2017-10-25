@@ -890,6 +890,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	if len(stateMessage) > 20480 {
 		stateMessage = stateMessage[0:20475] + "\n..."
+		level.Debug(n.logger).Log("msg", "Truncated stateMessage due to VictorOps stateMessage limit", "truncated_state_message", stateMessage, "incident", key)
 	}
 
 	msg := &victorOpsMessage{
