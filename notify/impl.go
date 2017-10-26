@@ -762,10 +762,16 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		apiURL = n.conf.APIHost + "v1/json/alert/close"
 		msg = &opsGenieCloseMessage{&apiMsg}
 	default:
+		message := tmpl(n.conf.Message)
+		if len(message) > 130 {
+			message = message[:127]+"..."
+			level.Debug(n.logger).Log("msg", "Truncated message to %q due to OpsGenie message limit", "truncated_message", message, "incident", key)
+		}
+
 		apiURL = n.conf.APIHost + "v1/json/alert"
 		msg = &opsGenieCreateMessage{
 			opsGenieMessage: &apiMsg,
-			Message:         tmpl(n.conf.Message),
+			Message:         message,
 			Description:     tmpl(n.conf.Description),
 			Details:         details,
 			Source:          tmpl(n.conf.Source),
