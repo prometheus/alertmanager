@@ -703,14 +703,8 @@ func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template, l log.Logger) *
 	return &OpsGenie{conf: c, tmpl: t, logger: l}
 }
 
-type opsGenieMessage struct {
-	APIKey string `json:"apiKey"`
-	Alias  string `json:"alias"`
-}
-
 type opsGenieCreateMessage struct {
-	*opsGenieMessage `json:",inline"`
-
+	Alias       string            `json:"alias"`
 	Message     string            `json:"message"`
 	Description string            `json:"description,omitempty"`
 	Details     map[string]string `json:"details"`
@@ -721,12 +715,7 @@ type opsGenieCreateMessage struct {
 }
 
 type opsGenieCloseMessage struct {
-	*opsGenieMessage `json:",inline"`
-}
-
-type opsGenieErrorResponse struct {
-	Code  int    `json:"code"`
-	Error string `json:"error"`
+	Source string `json:"source"`
 }
 
 // Notify implements the Notifier interface.
@@ -750,34 +739,30 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	var (
 		msg    interface{}
 		apiURL string
-
-		apiMsg = opsGenieMessage{
-			APIKey: string(n.conf.APIKey),
-			Alias:  hashKey(key),
-		}
+		alias  = hashKey(key)
 		alerts = types.Alerts(as...)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
-		apiURL = n.conf.APIHost + "v1/json/alert/close"
-		msg = &opsGenieCloseMessage{&apiMsg}
+		apiURL = fmt.Sprintf("%sv2/alerts/%s/close?identifierType=alias", n.conf.APIHost, alias)
+		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 	default:
 		message := tmpl(n.conf.Message)
 		if len(message) > 130 {
-			message = message[:127]+"..."
+			message = message[:127] + "..."
 			level.Debug(n.logger).Log("msg", "Truncated message to %q due to OpsGenie message limit", "truncated_message", message, "incident", key)
 		}
 
-		apiURL = n.conf.APIHost + "v1/json/alert"
+		apiURL = n.conf.APIHost + "v2/alerts"
 		msg = &opsGenieCreateMessage{
-			opsGenieMessage: &apiMsg,
-			Message:         message,
-			Description:     tmpl(n.conf.Description),
-			Details:         details,
-			Source:          tmpl(n.conf.Source),
-			Teams:           tmpl(n.conf.Teams),
-			Tags:            tmpl(n.conf.Tags),
-			Note:            tmpl(n.conf.Note),
+			Alias:       alias,
+			Message:     message,
+			Description: tmpl(n.conf.Description),
+			Details:     details,
+			Source:      tmpl(n.conf.Source),
+			Teams:       tmpl(n.conf.Teams),
+			Tags:        tmpl(n.conf.Tags),
+			Note:        tmpl(n.conf.Note),
 		}
 	}
 	if err != nil {
@@ -789,29 +774,24 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
+	req, err := http.NewRequest("POST", apiURL, &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", n.conf.APIKey))
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+
 	if err != nil {
 		return true, err
 	}
 	defer resp.Body.Close()
 
-	// Missing documentation therefore assuming only 5xx response codes are
-	// recoverable.
-	if resp.StatusCode/100 == 5 {
+	// https://docs.opsgenie.com/docs/response#section-response-codes
+	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
+	if resp.StatusCode/100 == 5 || resp.StatusCode == 429 {
 		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	} else if resp.StatusCode == 400 && alerts.Status() == model.AlertResolved {
-		body, _ := ioutil.ReadAll(resp.Body)
-
-		var responseMessage opsGenieErrorResponse
-		if err := json.Unmarshal(body, &responseMessage); err != nil {
-			return false, fmt.Errorf("could not parse error response %q", body)
-		}
-		const alreadyClosedError = 5
-		if responseMessage.Code == alreadyClosedError {
-			return false, nil
-		}
-		return false, fmt.Errorf("error when closing alert: code %d, error %q",
-			responseMessage.Code, responseMessage.Error)
 	} else if resp.StatusCode/100 == 4 {
 		return false, fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	} else if resp.StatusCode/100 != 2 {
