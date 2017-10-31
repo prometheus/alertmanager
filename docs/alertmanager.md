@@ -13,7 +13,7 @@ them to the correct receiver integration such as email, PagerDuty, or OpsGenie.
 It also takes care of silencing and inhibition of alerts.
 
 The following describes the core concepts the Alertmanager implements. Consult
-the [configuration documentation](../configuration) to learn how to use them
+the [configuration documentation](configuration.md) to learn how to use them
 in more detail.
 
 ## Grouping
@@ -64,7 +64,7 @@ Silences are configured in the web interface of the Alertmanager.
 
 ## Client behavior
 
-The Alertmanager has [special requirements](../clients) for behavior of its
+The Alertmanager has [special requirements](clients.md) for behavior of its
 client. Those are only relevant for advanced use cases where Prometheus
 is not used to send alerts.
 

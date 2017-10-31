@@ -12,7 +12,7 @@ While the command-line flags configure immutable system parameters, the
 configuration file defines inhibition rules, notification routing and
 notification receivers.
 
-The [visual editor](/webtools/alerting/routing-tree-editor) can assist in
+The [visual editor](https://prometheus.io/webtools/alerting/routing-tree-editor/) can assist in
 building routing trees.
 
 To view all available command-line flags, run `alertmanager -h`.
@@ -215,7 +215,7 @@ source_match_re:
 
 Receiver is a named configuration of one or more notification integrations.
 
-__We're not actively adding new receivers, we recommend implementing custom notification integrations via the [webhook](/docs/alerting/configuration/#webhook_config) receiver.__
+__We're not actively adding new receivers, we recommend implementing custom notification integrations via the [webhook](configuration.md#webhook_config) receiver.__
 
 ```
 # The unique name of the receiver.
@@ -503,5 +503,5 @@ endpoint:
 
 
 There is a list of
-[integrations](/docs/operating/integrations/#alertmanager-webhook-receiver) with
+[integrations](https://prometheus.io/docs/instrumenting/integrations/#alertmanager-webhook-receiver) with
 this feature.
