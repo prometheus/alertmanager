@@ -11,6 +11,6 @@ Welcome to Alertmanager documentation.
 - [Overview](overview.md)
 - [Introduction](introduction.md)
 - [Configuration](configuration.md)
-- [Notifications](notifications.md)
-- [Notification Examples](notification_examples.md)
+- [Templates](templates.md)
+- [Template Examples](template_examples.md)
 - [Clients](clients.md)
