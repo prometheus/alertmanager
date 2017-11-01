@@ -399,6 +399,9 @@ receivers:
 		Alert("alertname", "test", "lbl", "v2").Active(1),
 		Alert("alertname", "test", "lbl", "v3").Active(3),
 	)
+	co2.Want(Between(12, 12.5),
+		Alert("alertname", "test", "lbl", "v3").Active(3),
+	)
 
 	at.Run()
 }
