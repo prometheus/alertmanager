@@ -360,9 +360,11 @@ func (l *nlog) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []u
 		},
 		ExpiresAt: now.Add(l.retention),
 	}
-	l.gossip.GossipBroadcast(gossipData{
-		key: e,
-	})
+	if l.gossip != nil {
+		l.gossip.GossipBroadcast(gossipData{
+			key: e,
+		})
+	}
 	l.st[key] = e
 
 	return nil
