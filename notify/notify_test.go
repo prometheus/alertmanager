@@ -237,6 +237,55 @@ func TestDedupStage(t *testing.T) {
 	require.Equal(t, alerts, res, "unexpected alerts returned")
 }
 
+func TestDedupStageAddResolvedAlertToNLogWhenSendResolvedFalse(t *testing.T) {
+	i := 0
+	now := utcNow()
+	s := &DedupStage{
+		hash: func(a *types.Alert) uint64 {
+			res := uint64(i)
+			i++
+			return res
+		},
+		now: func() time.Time {
+			return now
+		},
+		sendResolved: false,
+	}
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "1")
+	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	alerts := []*types.Alert{
+		{
+			Alert: model.Alert {
+				EndsAt: time.Now(),
+			},
+		},
+	}
+
+	nflogAdded := false
+	s.nflog = &testNflog{
+		qerr: nil,
+		qres: []*nflogpb.Entry{
+			{
+				ResolvedAlerts: []uint64{},
+				Timestamp:    now,
+			},
+		},
+		logFunc: func(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
+			nflogAdded = true
+			return nil
+		},
+	}
+
+	s.Exec(ctx, log.NewNopLogger(), alerts...)
+
+	if !nflogAdded {
+		t.Error("Expected stage add nlog for resolved alerts")
+	}
+}
+
 func TestMultiStage(t *testing.T) {
 	var (
 		alerts1 = []*types.Alert{{}}
