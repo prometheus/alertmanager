@@ -234,31 +234,31 @@ func (d *Dispatcher) Stop() {
 type notifyFunc func(context.Context, ...*types.Alert) bool
 
 // processAlert determines in which aggregation group the alert falls
-// and insert it.
+// and inserts it.
 func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
-	group := model.LabelSet{}
+	groupLabels := model.LabelSet{}
 
 	for ln, lv := range alert.Labels {
 		if _, ok := route.RouteOpts.GroupBy[ln]; ok {
-			group[ln] = lv
+			groupLabels[ln] = lv
 		}
 	}
 
-	fp := group.Fingerprint()
+	fp := groupLabels.Fingerprint()
 
 	d.mtx.Lock()
-	groups, ok := d.aggrGroups[route]
+	group, ok := d.aggrGroups[route]
 	if !ok {
-		groups = map[model.Fingerprint]*aggrGroup{}
-		d.aggrGroups[route] = groups
+		group = map[model.Fingerprint]*aggrGroup{}
+		d.aggrGroups[route] = group
 	}
 	d.mtx.Unlock()
 
 	// If the group does not exist, create it.
-	ag, ok := groups[fp]
+	ag, ok := group[fp]
 	if !ok {
-		ag = newAggrGroup(d.ctx, group, route, d.timeout, d.logger)
-		groups[fp] = ag
+		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+		group[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
