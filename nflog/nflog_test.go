@@ -264,3 +264,12 @@ func TestGossipDataCoding(t *testing.T) {
 		require.Equal(t, in, out, "decoded data doesn't match encoded data")
 	}
 }
+
+func TestNilGossipDoesNotCrash(t *testing.T) {
+	nl, err := New()
+	if err != nil {
+		require.NoError(t, err, "constructing nflog failed")
+	}
+	err = nl.Log(&pb.Receiver{}, "key", []uint64{}, []uint64{})
+	require.NoError(t, err, "logging notification failed")
+}

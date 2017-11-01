@@ -59,6 +59,11 @@ update msg ({ groupBar, filterBar, receiverBar } as model) filter apiUrl basePat
                 , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | showSilenced = Just showSilenced })
                 )
 
+            ToggleInhibited showInhibited ->
+                ( model
+                , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | showInhibited = Just showInhibited })
+                )
+
             SetTab tab ->
                 ( { model | tab = tab }, Cmd.none )
 

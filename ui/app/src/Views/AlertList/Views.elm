@@ -19,19 +19,19 @@ import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
 
 
-renderSilenced : Maybe Bool -> Html Msg
-renderSilenced maybeShowSilenced =
+renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
+renderCheckbox textLabel maybeShowSilenced toggleMsg =
     li [ class "nav-item" ]
-        [ label [ class "mt-1 custom-control custom-checkbox" ]
+        [ label [ class "mt-1 ml-1 custom-control custom-checkbox" ]
             [ input
                 [ type_ "checkbox"
                 , class "custom-control-input"
                 , checked (Maybe.withDefault False maybeShowSilenced)
-                , onCheck (ToggleSilenced >> MsgForAlertList)
+                , onCheck (toggleMsg >> MsgForAlertList)
                 ]
                 []
             , span [ class "custom-control-indicator" ] []
-            , span [ class "custom-control-description" ] [ text "Show Silenced" ]
+            , span [ class "custom-control-description" ] [ text textLabel ]
             ]
         ]
 
@@ -45,8 +45,11 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
                     , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ text "Group" ]
-                    , ReceiverBar.view filter.receiver receiverBar |> Html.map (MsgForReceiverBar >> MsgForAlertList)
-                    , renderSilenced filter.showSilenced
+                    , receiverBar
+                        |> ReceiverBar.view filter.receiver
+                        |> Html.map (MsgForReceiverBar >> MsgForAlertList)
+                    , renderCheckbox "Silenced" filter.showSilenced ToggleSilenced
+                    , renderCheckbox "Inhibited" filter.showInhibited ToggleInhibited
                     ]
                 ]
             , div [ class "card-block" ]

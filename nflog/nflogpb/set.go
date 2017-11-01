@@ -24,7 +24,7 @@ func (m *Entry) IsFiringSubset(subset map[uint64]struct{}) bool {
 	return isSubset(set, subset)
 }
 
-// IsFiringSubset returns whether the given subset is a subset of the alerts
+// IsResolvedSubset returns whether the given subset is a subset of the alerts
 // that were resolved at the time of the last notification.
 func (m *Entry) IsResolvedSubset(subset map[uint64]struct{}) bool {
 	set := map[uint64]struct{}{}

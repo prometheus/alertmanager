@@ -3,9 +3,11 @@ package dispatch
 import (
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
@@ -144,9 +146,10 @@ func TestAggrGroup(t *testing.T) {
 	)
 
 	var (
-		last     = time.Now()
-		current  = time.Now()
-		alertsCh = make(chan types.AlertSlice)
+		last       = time.Now()
+		current    = time.Now()
+		lastCurMtx = &sync.Mutex{}
+		alertsCh   = make(chan types.AlertSlice)
 	)
 
 	ntfy := func(ctx context.Context, alerts ...*types.Alert) bool {
@@ -167,8 +170,10 @@ func TestAggrGroup(t *testing.T) {
 			t.Errorf("wrong repeat interval: %q", ri)
 		}
 
+		lastCurMtx.Lock()
 		last = current
 		current = time.Now()
+		lastCurMtx.Unlock()
 
 		alertsCh <- types.AlertSlice(alerts)
 
@@ -176,7 +181,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil)
+	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -224,7 +229,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil)
+	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -253,7 +258,10 @@ func TestAggrGroup(t *testing.T) {
 			t.Fatalf("expected new batch after group interval but received none")
 
 		case batch := <-alertsCh:
-			if s := time.Since(last); s < opts.GroupInterval {
+			lastCurMtx.Lock()
+			s := time.Since(last)
+			lastCurMtx.Unlock()
+			if s < opts.GroupInterval {
 				t.Fatalf("received batch to early after %v", s)
 			}
 			exp := types.AlertSlice{a1, a2, a3}

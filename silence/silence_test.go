@@ -142,7 +142,7 @@ func TestSilencesSnapshot(t *testing.T) {
 		f, err := ioutil.TempFile("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
-		s1 := &Silences{st: newGossipData(), metrics: newMetrics(nil)}
+		s1 := &Silences{st: newGossipData(), metrics: newMetrics(nil, nil)}
 		// Setup internal state manually.
 		for _, e := range c.entries {
 			s1.st.data[e.Silence.Id] = e
@@ -778,6 +778,10 @@ func TestSilenceExpire(t *testing.T) {
 		},
 	}
 
+	count, err := s.CountState(StatePending)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
 	require.NoError(t, s.expire("pending"))
 	require.NoError(t, s.expire("active"))
 
@@ -794,6 +798,11 @@ func TestSilenceExpire(t *testing.T) {
 		EndsAt:    now,
 		UpdatedAt: now,
 	}, sil)
+
+	count, err = s.CountState(StatePending)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+
 	// Expiring a pending Silence should make the API return the
 	// SilenceStateExpired Silence state.
 	silenceState := types.CalcSilenceState(sil.StartsAt, sil.EndsAt)

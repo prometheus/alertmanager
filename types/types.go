@@ -45,6 +45,8 @@ type Marker interface {
 	SetInhibited(alert model.Fingerprint, ids ...string)
 	SetSilenced(alert model.Fingerprint, ids ...string)
 
+	Count(...AlertState) int
+
 	Status(model.Fingerprint) AlertStatus
 	Delete(model.Fingerprint)
 
@@ -65,6 +67,27 @@ type memMarker struct {
 	m map[model.Fingerprint]*AlertStatus
 
 	mtx sync.RWMutex
+}
+
+// Count alerts of a given state.
+func (m *memMarker) Count(states ...AlertState) int {
+	count := 0
+
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	if len(states) == 0 {
+		count = len(m.m)
+	} else {
+		for _, status := range m.m {
+			for _, state := range states {
+				if status.State == state {
+					count += 1
+				}
+			}
+		}
+	}
+	return count
 }
 
 // SetSilenced sets the AlertStatus to suppressed and stores the associated silence IDs.
@@ -238,10 +261,8 @@ type Alert struct {
 	model.Alert
 
 	// The authoritative timestamp.
-	UpdatedAt    time.Time
-	Timeout      bool
-	WasSilenced  bool `json:"-"`
-	WasInhibited bool `json:"-"`
+	UpdatedAt time.Time
+	Timeout   bool
 }
 
 // AlertSlice is a sortable slice of Alerts.

@@ -26,6 +26,7 @@ type alias Filter =
     , group : Maybe String
     , receiver : Maybe String
     , showSilenced : Maybe Bool
+    , showInhibited : Maybe Bool
     }
 
 
@@ -35,6 +36,7 @@ nullFilter =
     , group = Nothing
     , receiver = Nothing
     , showSilenced = Nothing
+    , showInhibited = Nothing
     }
 
 
@@ -44,10 +46,11 @@ generateQueryParam name =
 
 
 generateQueryString : Filter -> String
-generateQueryString { receiver, showSilenced, text, group } =
+generateQueryString { receiver, showSilenced, showInhibited, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> toString |> String.toLower |> Just )
+            , ( "inhibited", Maybe.withDefault False showInhibited |> toString |> String.toLower |> Just )
             , ( "filter", emptyToNothing text )
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )

@@ -59,6 +59,7 @@ updateFilter : Maybe String -> Filter
 updateFilter maybeFilter =
     { receiver = Nothing
     , showSilenced = Nothing
+    , showInhibited = Nothing
     , group = Nothing
     , text = maybeFilter
     }

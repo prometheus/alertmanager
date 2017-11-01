@@ -14,6 +14,7 @@ type AlertListMsg
     | MsgForFilterBar FilterBar.Msg
     | MsgForGroupBar GroupBar.Msg
     | ToggleSilenced Bool
+    | ToggleInhibited Bool
     | SetActive (Maybe String)
     | SetTab Tab
 
