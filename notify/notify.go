@@ -552,6 +552,18 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	} else if ok {
 		return ctx, alerts, nil
 	}
+
+	// If the pipeline is not configured to send_resolved, but the resolvedSet changed,
+	// we need to write it on the log to update the firing status existent on it, which
+	// would avoid subsequent firing alerts to be send because the status would still be
+	// stored as active.
+	// In case the send_resolved is true, this will happen at the end of the pipeline
+	// (SetNotifiesStage) but when it is false the pipeline stops here.
+	if !n.sendResolved && !entry.IsResolvedSubset(resolvedSet) {
+		level.Debug(l).Log("msg", "Updating the notification log", "stage", "DedupStage")
+		n.nflog.Log(n.recv, gkey, firing, resolved)
+	}
+
 	return ctx, nil, nil
 }
 
@@ -649,5 +661,6 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 		return ctx, nil, fmt.Errorf("resolved alerts missing")
 	}
 
+	level.Debug(l).Log("msg", "Updating the notification log", "stage", "SetNotifiesStage")
 	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved)
 }
