@@ -36,7 +36,7 @@ func (m *Entry) IsResolvedSubset(subset map[uint64]struct{}) bool {
 }
 
 func isSubset(set, subset map[uint64]struct{}) bool {
-	for k, _ := range subset {
+	for k := range subset {
 		_, exists := set[k]
 		if !exists {
 			return false

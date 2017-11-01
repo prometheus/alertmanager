@@ -26,9 +26,8 @@ func (s ByAlphabetical) Less(i, j int) bool {
 		return s[i].Type < s[j].Type
 	} else if s[i].Value != s[j].Value {
 		return s[i].Value < s[j].Value
-	} else {
-		return false
 	}
+	return false
 }
 
 func GetAlertmanagerURL() (*url.URL, error) {

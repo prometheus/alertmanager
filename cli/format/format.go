@@ -43,7 +43,7 @@ type Formatter interface {
 }
 
 // Formatters is a map of cli argument name to formatter inferface object
-var Formatters map[string]Formatter = map[string]Formatter{}
+var Formatters = map[string]Formatter{}
 
 func FormatDate(input time.Time) string {
 	dateformat := viper.GetString("date.format")

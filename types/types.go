@@ -82,7 +82,7 @@ func (m *memMarker) Count(states ...AlertState) int {
 		for _, status := range m.m {
 			for _, state := range states {
 				if status.State == state {
-					count += 1
+					count++
 				}
 			}
 		}
