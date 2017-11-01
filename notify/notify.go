@@ -474,15 +474,6 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func allAlertsResolved(alerts []*types.Alert) bool {
-	for _, a := range alerts {
-		if !a.Resolved() {
-			return false
-		}
-	}
-	return true
-}
-
 func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) (bool, error) {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
