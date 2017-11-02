@@ -236,7 +236,7 @@ func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(notificationLog, recv, i.conf.SendResolved()))
+		s = append(s, NewDedupStage(notificationLog, recv))
 		s = append(s, NewRetryStage(i))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
@@ -411,22 +411,20 @@ func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 // DedupStage filters alerts.
 // Filtering happens based on a notification log.
 type DedupStage struct {
-	nflog        nflog.Log
-	recv         *nflogpb.Receiver
-	sendResolved bool
+	nflog nflog.Log
+	recv  *nflogpb.Receiver
 
 	now  func() time.Time
 	hash func(*types.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(l nflog.Log, recv *nflogpb.Receiver, sendResolved bool) *DedupStage {
+func NewDedupStage(l nflog.Log, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
-		nflog:        l,
-		recv:         recv,
-		now:          utcNow,
-		sendResolved: sendResolved,
-		hash:         hashAlert,
+		nflog: l,
+		recv:  recv,
+		now:   utcNow,
+		hash:  hashAlert,
 	}
 }
 
@@ -485,7 +483,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return true, nil
 	}
 
-	if n.sendResolved && !entry.IsResolvedSubset(resolved) {
+	if !entry.IsResolvedSubset(resolved) {
 		return true, nil
 	}
 
@@ -561,6 +559,19 @@ func NewRetryStage(i Integration) *RetryStage {
 
 // Exec implements the Stage interface.
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	// If we shouldn't send notifications for resolved alerts, but there are only
+	// resolved alerts, report them all as successfully notified (we still want the
+	// notification log to log them).
+	if !r.integration.conf.SendResolved() {
+		firing, ok := FiringAlerts(ctx)
+		if !ok {
+			return ctx, alerts, fmt.Errorf("firing alerts missing")
+		}
+		if len(firing) == 0 {
+			return ctx, alerts, nil
+		}
+	}
+
 	var (
 		i    = 0
 		b    = backoff.NewExponentialBackOff()
