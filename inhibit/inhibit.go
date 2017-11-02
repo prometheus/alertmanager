@@ -139,6 +139,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
 	for _, r := range ih.rules {
+		// Only inhibit if target matchers match but source matchers don't.
 		if inhibitedByFP, eq := r.hasEqual(lset); !r.SourceMatchers.Match(lset) && r.TargetMatchers.Match(lset) && eq {
 			ih.marker.SetInhibited(fp, fmt.Sprintf("%d", inhibitedByFP))
 			return true
