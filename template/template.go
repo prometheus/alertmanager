@@ -16,6 +16,7 @@ package template
 import (
 	"bytes"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -135,6 +136,8 @@ var DefaultFuncs = FuncMap{
 		re := regexp.MustCompile(pattern)
 		return re.ReplaceAllString(text, repl)
 	},
+	"env":       func(s string) string { return os.Getenv(s) },
+	"expandenv": func(s string) string { return os.ExpandEnv(s) },
 }
 
 // Pair is a key/value string pair.
