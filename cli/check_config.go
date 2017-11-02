@@ -39,7 +39,7 @@ func CheckConfig(args []string) error {
 		config, _, err := config.LoadFile(arg)
 		if err != nil {
 			fmt.Printf("  FAILED: %s\n", err)
-			failed += 1
+			failed++
 		} else {
 			fmt.Printf("  SUCCESS\n")
 		}
@@ -50,7 +50,7 @@ func CheckConfig(args []string) error {
 				_, err = template.FromGlobs(config.Templates...)
 				if err != nil {
 					fmt.Printf("  FAILED: %s\n", err)
-					failed += 1
+					failed++
 				} else {
 					fmt.Printf("  SUCCESS\n")
 				}

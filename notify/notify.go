@@ -536,7 +536,7 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	case 1:
 		entry = entries[0]
 	case 2:
-		return ctx, nil, fmt.Errorf("Unexpected entry result size %d", len(entries))
+		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 	if ok, err := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval); err != nil {
 		return ctx, nil, err
@@ -588,7 +588,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "err", err)
 				if !retry {
-					return ctx, alerts, fmt.Errorf("Cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
+					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
 				}
 
 				// Save this error to be able to return the last seen error by an

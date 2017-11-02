@@ -88,7 +88,7 @@ func add(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("No matchers specified")
 	}
 
-	expire_on, err := addFlags.GetString("expire-on")
+	expireOn, err := addFlags.GetString("expire-on")
 	if err != nil {
 		return err
 	}
@@ -96,8 +96,8 @@ func add(cmd *cobra.Command, args []string) error {
 	expires := viper.GetString("expires")
 	var endsAt time.Time
 
-	if expire_on != "" {
-		endsAt, err = time.Parse(time.RFC3339, expire_on)
+	if expireOn != "" {
+		endsAt, err = time.Parse(time.RFC3339, expireOn)
 		if err != nil {
 			return err
 		}
@@ -111,9 +111,9 @@ func add(cmd *cobra.Command, args []string) error {
 
 	author := viper.GetString("author")
 	comment := viper.GetString("comment")
-	comment_required := viper.GetBool("comment_required")
+	commentRequired := viper.GetBool("comment_required")
 
-	if comment_required && comment == "" {
+	if commentRequired && comment == "" {
 		return errors.New("Comment required by config")
 	}
 
@@ -151,7 +151,7 @@ func add(cmd *cobra.Command, args []string) error {
 	response := addResponse{}
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Unable to parse silence json response from %s", u.String()))
+		return fmt.Errorf("Unable to parse silence json response from %s", u.String())
 	}
 
 	if response.Status == "error" {

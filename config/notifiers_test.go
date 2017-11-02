@@ -1,8 +1,8 @@
 package config
 
 import (
-	"testing"
 	"gopkg.in/yaml.v2"
+	"testing"
 )
 
 func TestEmailToIsPresent(t *testing.T) {
