@@ -273,3 +273,36 @@ func TestNilGossipDoesNotCrash(t *testing.T) {
 	err = nl.Log(&pb.Receiver{}, "key", []uint64{}, []uint64{})
 	require.NoError(t, err, "logging notification failed")
 }
+
+func TestQuery(t *testing.T) {
+	nl, err := New()
+	if err != nil {
+		require.NoError(t, err, "constructing nflog failed")
+	}
+
+	recv := new(pb.Receiver)
+
+	// no key param
+	_, err = nl.Query(QGroupKey("key"))
+	require.EqualError(t, err, "no query parameters specified")
+
+	// no recv param
+	_, err = nl.Query(QReceiver(recv))
+	require.EqualError(t, err, "no query parameters specified")
+
+	// no entry
+	_, err = nl.Query(QGroupKey("nonexistingkey"), QReceiver(recv))
+	require.EqualError(t, err, "not found")
+
+	// existing entry
+	firingAlerts := []uint64{1, 2, 3}
+	resolvedAlerts := []uint64{4, 5}
+
+	err = nl.Log(recv, "key", firingAlerts, resolvedAlerts)
+	require.NoError(t, err, "logging notification failed")
+
+	entries, err := nl.Query(QGroupKey("key"), QReceiver(recv))
+	entry := entries[0]
+	require.EqualValues(t, firingAlerts, entry.FiringAlerts)
+	require.EqualValues(t, resolvedAlerts, entry.ResolvedAlerts)
+}
