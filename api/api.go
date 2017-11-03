@@ -401,8 +401,16 @@ func regexpAny(re *regexp.Regexp, ss []string) bool {
 
 func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {
 	for _, m := range matchers {
-		if v, prs := a.Labels[model.LabelName(m.Name)]; !prs || !m.Matches(string(v)) {
-			return false
+		v, prs := a.Labels[model.LabelName(m.Name)]
+		switch m.Type {
+		case labels.MatchNotEqual, labels.MatchNotRegexp:
+			if !m.Matches(string(v)) {
+				return false
+			}
+		default:
+			if !prs || !m.Matches(string(v)) {
+				return false
+			}
 		}
 	}
 
