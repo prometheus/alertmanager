@@ -238,8 +238,10 @@ func main() {
 
 	defer func() {
 		close(stopc)
-		// Stop receiving updates from router before shutting down.
-		mrouter.Stop()
+		if *meshListen != "" {
+			// Stop receiving updates from router before shutting down.
+			mrouter.Stop()
+		}
 		wg.Wait()
 	}()
 
