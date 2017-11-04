@@ -156,7 +156,7 @@ receivers:
   email_configs:
   - to: 'team-X+alerts-critical@example.org'
   pagerduty_configs:
-  - service_key: <team-X-key>
+  - routing_key: <team-X-key>
 
 - name: 'team-Y-mails'
   email_configs:
@@ -164,11 +164,11 @@ receivers:
 
 - name: 'team-Y-pager'
   pagerduty_configs:
-  - service_key: <team-Y-key>
+  - routing_key: <team-Y-key>
 
 - name: 'team-DB-pager'
   pagerduty_configs:
-  - service_key: <team-DB-key>
+  - routing_key: <team-DB-key>
 ```
 
 ## Amtool

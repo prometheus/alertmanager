@@ -49,7 +49,7 @@ service_key: ''
 	var cfg PagerdutyConfig
 	err := yaml.Unmarshal([]byte(in), &cfg)
 
-	expected := "missing service key in PagerDuty config"
+	expected := "missing service or routing key in PagerDuty config"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
