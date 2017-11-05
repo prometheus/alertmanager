@@ -779,7 +779,10 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return true, err
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
-	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", n.conf.APIKey))
+	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", tmpl(string(n.conf.APIKey))))
+	if err != nil {
+		return false, err
+	}
 
 	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
 
