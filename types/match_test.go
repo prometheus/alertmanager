@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/prometheus/common/model"
@@ -93,6 +94,42 @@ func TestMatcherMatch(t *testing.T) {
 	}
 }
 
+func TestMatcherString(t *testing.T) {
+	m := NewMatcher("foo", "bar")
+
+	if m.String() != "foo=\"bar\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+
+	re, err := regexp.Compile(".*")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	m = NewRegexMatcher("foo", re)
+
+	if m.String() != "foo=~\".*\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+}
+
+func TestMatchersString(t *testing.T) {
+	m1 := NewMatcher("foo", "bar")
+
+	re, err := regexp.Compile(".*")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	m2 := NewRegexMatcher("bar", re)
+
+	matchers := NewMatchers(m1, m2)
+
+	if matchers.String() != "{bar=~\".*\",foo=\"bar\"}" {
+		t.Errorf("unexpected matcher string %#v", matchers.String())
+	}
+}
+
 func TestMatchersMatch(t *testing.T) {
 
 	m1 := &Matcher{Name: "label1", Value: "value1"}
@@ -102,9 +139,8 @@ func TestMatchersMatch(t *testing.T) {
 	m3 := &Matcher{Name: "label3", Value: "value3"}
 	m3.Init()
 
-
 	tests := []struct {
-		matchers  Matchers
+		matchers Matchers
 		expected bool
 	}{
 		{matchers: Matchers{m1, m2}, expected: true},
@@ -118,8 +154,6 @@ func TestMatchersMatch(t *testing.T) {
 	}
 }
 
-
-
 func TestMatchersEqual(t *testing.T) {
 
 	m1 := &Matcher{Name: "label1", Value: "value1"}
@@ -129,11 +163,10 @@ func TestMatchersEqual(t *testing.T) {
 	m3 := &Matcher{Name: "label3", Value: "value3"}
 	m3.Init()
 
-
 	tests := []struct {
-		matchers1  Matchers
-		matchers2  Matchers
-		expected bool
+		matchers1 Matchers
+		matchers2 Matchers
+		expected  bool
 	}{
 		{matchers1: Matchers{m1, m2}, matchers2: Matchers{m1, m2}, expected: true},
 		{matchers1: Matchers{m1, m3}, matchers2: Matchers{m1, m2}, expected: false},
