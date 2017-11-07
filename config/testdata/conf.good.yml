@@ -108,7 +108,7 @@ receivers:
   email_configs:
   - to: 'team-X+alerts-critical@example.org'
   pagerduty_configs:
-  - service_key: "mysecret"
+  - routing_key: "mysecret"
 
 - name: 'team-Y-mails'
   email_configs:
@@ -116,11 +116,11 @@ receivers:
 
 - name: 'team-Y-pager'
   pagerduty_configs:
-  - service_key: "mysecret"
+  - routing_key: "mysecret"
 
 - name: 'team-DB-pager'
   pagerduty_configs:
-  - service_key: "mysecret"
+  - routing_key: "mysecret"
 - name: 'team-X-hipchat'
   hipchat_configs:
   - auth_token: "mysecret"

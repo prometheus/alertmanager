@@ -438,18 +438,116 @@ const (
 )
 
 type pagerDutyMessage struct {
-	ServiceKey  string            `json:"service_key"`
-	IncidentKey string            `json:"incident_key"`
-	EventType   string            `json:"event_type"`
-	Description string            `json:"description"`
+	RoutingKey  string            `json:"routing_key,omitempty"`
+	ServiceKey  string            `json:"service_key,omitempty"`
+	DedupKey    string            `json:"dedup_key,omitempty"`
+	IncidentKey string            `json:"incident_key,omitempty"`
+	EventType   string            `json:"event_type,omitempty"`
+	Description string            `json:"description,omitempty"`
+	EventAction string            `json:"event_action"`
+	Payload     *pagerDutyPayload `json:"payload"`
 	Client      string            `json:"client,omitempty"`
 	ClientURL   string            `json:"client_url,omitempty"`
 	Details     map[string]string `json:"details,omitempty"`
 }
 
+type pagerDutyPayload struct {
+	Summary       string            `json:"summary"`
+	Source        string            `json:"source"`
+	Severity      string            `json:"severity"`
+	Timestamp     string            `json:"timestamp,omitempty"`
+	Component     string            `json:"component,omitempty"`
+	Group         string            `json:"group,omitempty"`
+	CustomDetails map[string]string `json:"custom_details,omitempty"`
+}
+
+func (n *PagerDuty) notifyV1(ctx context.Context, eventType string, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+
+	msg := &pagerDutyMessage{}
+
+	var err error
+
+	level.Info(n.logger).Log("msg", "PagerDuty v1 API will no longer be supported: https://v2.developer.pagerduty.com/v2/docs/api-v2-frequently-asked-questions")
+	msg.ServiceKey = string(n.conf.ServiceKey)
+	msg.EventType = eventType
+	msg.IncidentKey = hashKey(key)
+	msg.Description = tmpl(n.conf.Description)
+	msg.Details = details
+	n.conf.URL = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
+
+	if eventType == pagerDutyEventTrigger {
+		msg.Client = tmpl(n.conf.Client)
+		msg.ClientURL = tmpl(n.conf.ClientURL)
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+	resp.Body.Close()
+
+	return n.retryV1(resp.StatusCode)
+}
+
+func (n *PagerDuty) notifyV2(ctx context.Context, eventType string, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+
+	var err error
+
+	msg := &pagerDutyMessage{}
+
+	if n.conf.Severity == "" {
+		n.conf.Severity = "error"
+	}
+	msg.RoutingKey = string(n.conf.RoutingKey)
+	msg.EventAction = eventType
+	msg.DedupKey = hashKey(key)
+	if eventType == pagerDutyEventTrigger {
+		msgpayload := &pagerDutyPayload{
+			Summary:       tmpl(n.conf.Description),
+			Source:        n.conf.Client,
+			Severity:      n.conf.Severity,
+			CustomDetails: details,
+			Component:     n.conf.Component,
+			Group:         n.conf.Group,
+		}
+		msg.Payload = msgpayload
+	}
+
+	if eventType == pagerDutyEventTrigger {
+		msg.Client = tmpl(n.conf.Client)
+		msg.ClientURL = tmpl(n.conf.ClientURL)
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+	resp.Body.Close()
+
+	return n.retryV2(resp.StatusCode)
+}
+
 // Notify implements the Notifier interface.
 //
-// http://developer.pagerduty.com/documentation/integration/events/trigger
+// https://v2.developer.pagerduty.com/docs/events-api-v2
 func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
@@ -474,41 +572,33 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		details[k] = tmpl(v)
 	}
 
-	msg := &pagerDutyMessage{
-		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
-		EventType:   eventType,
-		IncidentKey: hashKey(key),
-		Description: tmpl(n.conf.Description),
-		Details:     details,
-	}
-	if eventType == pagerDutyEventTrigger {
-		msg.Client = tmpl(n.conf.Client)
-		msg.ClientURL = tmpl(n.conf.ClientURL)
-	}
 	if err != nil {
 		return false, err
 	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, err
+	if n.conf.ServiceKey != "" {
+		return n.notifyV1(ctx, eventType, key, tmpl, details, as...)
 	}
-
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
-	if err != nil {
-		return true, err
-	}
-	resp.Body.Close()
-
-	return n.retry(resp.StatusCode)
+	return n.notifyV2(ctx, eventType, key, tmpl, details, as...)
 }
 
-func (n *PagerDuty) retry(statusCode int) (bool, error) {
+func (n *PagerDuty) retryV1(statusCode int) (bool, error) {
 	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/trigger-events
 	if statusCode/100 != 2 {
 		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+func (n *PagerDuty) retryV2(statusCode int) (bool, error) {
+	// Retrying can solve the issue on 429 (rate limiting) and 5xx response codes.
+	// 2xx response codes indicate a successful request.
+	// https://v2.developer.pagerduty.com/docs/events-api-v2#api-response-codes--retry-logic
+	if statusCode/100 != 2 {
+		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil

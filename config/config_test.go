@@ -283,7 +283,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			HipchatURL:       "https://hipchat.foobar.org/",
 			SlackAPIURL:      "mysecret",
 			SMTPRequireTLS:   true,
-			PagerdutyURL:     "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+			PagerdutyURL:     "https://events.pagerduty.com/v2/enqueue",
 			OpsGenieAPIHost:  "https://api.opsgenie.com/",
 			VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
 		},

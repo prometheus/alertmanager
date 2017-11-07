@@ -178,12 +178,16 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
+	ServiceKey  Secret            `yaml:"service_key,omitempty" json"service_key,omitempty"`
+	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
 	URL         string            `yaml:"url,omitempty" json:"url,omitempty"`
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
 	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
+	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -196,8 +200,8 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.ServiceKey == "" {
-		return fmt.Errorf("missing service key in PagerDuty config")
+	if c.RoutingKey == "" && c.ServiceKey == "" {
+		return fmt.Errorf("missing service or routing key in PagerDuty config")
 	}
 	return checkOverflow(c.XXX, "pagerduty config")
 }
