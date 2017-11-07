@@ -861,7 +861,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		alerts       = types.Alerts(as...)
 		data         = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmpl         = tmplText(n.tmpl, data, &err)
-		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
+		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, tmpl(n.conf.RoutingKey))
 		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
