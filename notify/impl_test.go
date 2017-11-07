@@ -2,9 +2,10 @@ package notify
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestWebhookRetry(t *testing.T) {
@@ -47,6 +48,32 @@ func TestHipchatRetry(t *testing.T) {
 	notifier := new(Hipchat)
 	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range retryTests(retryCodes) {
+		actual, _ := notifier.retry(statusCode)
+		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+	}
+}
+
+func TestOpsGenieRetry(t *testing.T) {
+	notifier := new(OpsGenie)
+
+	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
+	for statusCode, expected := range retryTests(retryCodes) {
+		actual, _ := notifier.retry(statusCode)
+		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+	}
+}
+
+func TestVictorOpsRetry(t *testing.T) {
+	notifier := new(VictorOps)
+	for statusCode, expected := range retryTests(defaultRetryCodes()) {
+		actual, _ := notifier.retry(statusCode)
+		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+	}
+}
+
+func TestPushoverRetry(t *testing.T) {
+	notifier := new(Pushover)
+	for statusCode, expected := range retryTests(defaultRetryCodes()) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
