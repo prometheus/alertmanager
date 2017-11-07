@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
@@ -66,7 +67,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			result: false,
 		},
 		{
-			// Matching but already resolved.
+			// Matching and unresolved.
 			initial: map[model.Fingerprint]*types.Alert{
 				1: &types.Alert{
 					Alert: model.Alert{
@@ -79,13 +80,13 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "c": "f"},
 						StartsAt: now.Add(-time.Minute),
-						EndsAt:   now.Add(-time.Second),
+						EndsAt:   now.Add(time.Hour),
 					},
 				},
 			},
 			equal:  model.LabelNames{"a"},
 			input:  model.LabelSet{"a": "b"},
-			result: false,
+			result: true,
 		},
 		{
 			// Equal label does not match.
@@ -129,6 +130,65 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		if !reflect.DeepEqual(r.scache, c.initial) {
 			t.Errorf("Cache state unexpectedly changed")
 			t.Errorf(pretty.Compare(r.scache, c.initial))
+		}
+	}
+}
+
+func TestInhibitRuleMatches(t *testing.T) {
+	// Simple inhibut rule
+	cr := config.InhibitRule{
+		SourceMatch: map[string]string{"s": "1"},
+		TargetMatch: map[string]string{"t": "1"},
+		Equal:       model.LabelNames{"e"},
+	}
+	m := types.NewMarker()
+	ih := NewInhibitor(nil, []*config.InhibitRule{&cr}, m, nil)
+	ir := ih.rules[0]
+	now := time.Now()
+	// Active alert that matches the source filter
+	sourceAlert := types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s": "1", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+	ir.scache = map[model.Fingerprint]*types.Alert{1: &sourceAlert}
+
+	cases := []struct {
+		target   model.LabelSet
+		expected bool
+	}{
+		{
+			// Matches target filter, inhibited
+			target:   model.LabelSet{"t": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Matches target filter (plus noise), inhibited
+			target:   model.LabelSet{"t": "1", "t2": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Doesn't match target filter, not inhibited
+			target:   model.LabelSet{"t": "0", "e": "1"},
+			expected: false,
+		},
+		{
+			// Matches both source and target filters, not inhibited
+			target:   model.LabelSet{"s": "1", "t": "1", "e": "1"},
+			expected: false,
+		},
+		{
+			// Matches target filter, equal label doesn't match, not inhibited
+			target:   model.LabelSet{"t": "1", "e": "0"},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		if actual := ih.Mutes(c.target); actual != c.expected {
+			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
 		}
 	}
 }
