@@ -628,11 +628,11 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 
 	for _, s := range sils {
 		switch s.Status.State {
-		case "active":
+		case types.SilenceStateActive:
 			active = append(active, s)
-		case "pending":
+		case types.SilenceStatePending:
 			pending = append(pending, s)
-		case "expired":
+		case types.SilenceStateExpired:
 			expired = append(expired, s)
 		}
 	}

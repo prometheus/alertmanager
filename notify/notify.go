@@ -362,7 +362,7 @@ func (n *SilenceStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if the silencer mutes it.
 		sils, err := n.silences.Query(
-			silence.QState(silence.StateActive),
+			silence.QState(types.SilenceStateActive),
 			silence.QMatches(a.Labels),
 		)
 		if err != nil {

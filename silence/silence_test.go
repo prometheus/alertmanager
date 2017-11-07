@@ -434,7 +434,7 @@ func TestQState(t *testing.T) {
 
 	cases := []struct {
 		sil    *pb.Silence
-		states []SilenceState
+		states []types.SilenceState
 		keep   bool
 	}{
 		{
@@ -442,7 +442,7 @@ func TestQState(t *testing.T) {
 				StartsAt: now.Add(time.Minute),
 				EndsAt:   now.Add(time.Hour),
 			},
-			states: []SilenceState{StateActive, StateExpired},
+			states: []types.SilenceState{types.SilenceStateActive, types.SilenceStateExpired},
 			keep:   false,
 		},
 		{
@@ -450,7 +450,7 @@ func TestQState(t *testing.T) {
 				StartsAt: now.Add(time.Minute),
 				EndsAt:   now.Add(time.Hour),
 			},
-			states: []SilenceState{StatePending},
+			states: []types.SilenceState{types.SilenceStatePending},
 			keep:   true,
 		},
 		{
@@ -458,7 +458,7 @@ func TestQState(t *testing.T) {
 				StartsAt: now.Add(time.Minute),
 				EndsAt:   now.Add(time.Hour),
 			},
-			states: []SilenceState{StateExpired, StatePending},
+			states: []types.SilenceState{types.SilenceStateExpired, types.SilenceStatePending},
 			keep:   true,
 		},
 	}
@@ -778,7 +778,7 @@ func TestSilenceExpire(t *testing.T) {
 		},
 	}
 
-	count, err := s.CountState(StatePending)
+	count, err := s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
@@ -799,7 +799,7 @@ func TestSilenceExpire(t *testing.T) {
 		UpdatedAt: now,
 	}, sil)
 
-	count, err = s.CountState(StatePending)
+	count, err = s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
