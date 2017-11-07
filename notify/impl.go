@@ -461,18 +461,17 @@ type pagerDutyPayload struct {
 	CustomDetails map[string]string `json:"custom_details,omitempty"`
 }
 
-func (n *PagerDuty) notifyV1(ctx context.Context, eventType string, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
-
-	msg := &pagerDutyMessage{}
-
-	var err error
-
+func (n *PagerDuty) notifyV1(ctx context.Context, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
 	level.Info(n.logger).Log("msg", "PagerDuty v1 API will no longer be supported: https://v2.developer.pagerduty.com/v2/docs/api-v2-frequently-asked-questions")
-	msg.ServiceKey = string(n.conf.ServiceKey)
-	msg.EventType = eventType
-	msg.IncidentKey = hashKey(key)
-	msg.Description = tmpl(n.conf.Description)
-	msg.Details = details
+
+	msg := &pagerDutyMessage{
+		ServiceKey:  string(n.conf.ServiceKey),
+		EventType:   eventType,
+		IncidentKey: hashKey(key),
+		Description: tmpl(n.conf.Description),
+		Details:     details,
+	}
+
 	n.conf.URL = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
 
 	if eventType == pagerDutyEventTrigger {
@@ -480,10 +479,6 @@ func (n *PagerDuty) notifyV1(ctx context.Context, eventType string, key string, 
 		msg.ClientURL = tmpl(n.conf.ClientURL)
 	}
 
-	if err != nil {
-		return false, err
-	}
-
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return false, err
@@ -493,25 +488,19 @@ func (n *PagerDuty) notifyV1(ctx context.Context, eventType string, key string, 
 	if err != nil {
 		return true, err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 
 	return n.retryV1(resp.StatusCode)
 }
 
-func (n *PagerDuty) notifyV2(ctx context.Context, eventType string, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
-
-	var err error
-
-	msg := &pagerDutyMessage{}
-
+func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
 	if n.conf.Severity == "" {
 		n.conf.Severity = "error"
 	}
-	msg.RoutingKey = string(n.conf.RoutingKey)
-	msg.EventAction = eventType
-	msg.DedupKey = hashKey(key)
+
+	var payload *pagerDutyPayload
 	if eventType == pagerDutyEventTrigger {
-		msgpayload := &pagerDutyPayload{
+		payload = &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
 			Source:        n.conf.Client,
 			Severity:      n.conf.Severity,
@@ -519,16 +508,18 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType string, key string, 
 			Component:     n.conf.Component,
 			Group:         n.conf.Group,
 		}
-		msg.Payload = msgpayload
+	}
+
+	msg := &pagerDutyMessage{
+		RoutingKey:  string(n.conf.RoutingKey),
+		EventAction: eventType,
+		DedupKey:    hashKey(key),
+		Payload:     payload,
 	}
 
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
 		msg.ClientURL = tmpl(n.conf.ClientURL)
-	}
-
-	if err != nil {
-		return false, err
 	}
 
 	var buf bytes.Buffer
@@ -540,7 +531,7 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType string, key string, 
 	if err != nil {
 		return true, err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 
 	return n.retryV2(resp.StatusCode)
 }
