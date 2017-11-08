@@ -1,7 +1,6 @@
 ---
 title: Introduction
 sort_rank: 2
-nav_icon: sliders
 ---
 
 # Alertmanager
