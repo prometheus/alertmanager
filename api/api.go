@@ -624,7 +624,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		sils = append(sils, s)
 	}
 
-	var active, pending, expired, silences []*types.Silence
+	var active, pending, expired []*types.Silence
 
 	for _, s := range sils {
 		switch s.Status.State {
@@ -647,6 +647,9 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		return expired[i].EndsAt.After(expired[j].EndsAt)
 	})
 
+	// Initialize silences explicitly to an empty list (instead of nil)
+	// So that it does not get converted to "null" in JSON.
+	silences := []*types.Silence{}
 	silences = append(silences, active...)
 	silences = append(silences, pending...)
 	silences = append(silences, expired...)
