@@ -1,3 +1,28 @@
+## 0.10.0 / 2017-11-09
+
+* [CHANGE] Prevent inhibiting alerts in the source of the inhibition (#1017)
+* [ENHANCEMENT] Improve amtool check-config use and description text (#1016)
+* [ENHANCEMENT] Add metrics about current silences and alerts (#998)
+* [ENHANCEMENT] Sorted silences based on current status (#1015)
+* [ENHANCEMENT] Add metric of alertmanager position in mesh (#1024)
+* [ENHANCEMENT] Initialise notifications_total and notifications_failed_total (#1011)
+* [ENHANCEMENT] Allow selectable matchers on silence view (#1030)
+* [ENHANCEMENT] Allow template in victorops message_type field (#1038)
+* [ENHANCEMENT] Optionally hide inhibited alerts in API response (#1039)
+* [ENHANCEMENT] Toggle silenced and inhibited alerts in UI (#1049)
+* [ENHANCEMENT] Fix pushover limits (title, message, url) (#1055)
+* [ENHANCEMENT] Add limit to OpsGenie message (#1045)
+* [ENHANCEMENT] Upgrade OpsGenie notifier to v2 API. (#1061)
+* [ENHANCEMENT] Allow template in victorops routing_key field (#1083)
+* [ENHANCEMENT] Add support for PagerDuty API v2 (#1054)
+* [BUGFIX] Fix inhibit race (#1032)
+* [BUGFIX] Fix segfault on amtool (#1031)
+* [BUGFIX] Remove .WasInhibited and .WasSilenced fields of Alert type (#1026)
+* [BUGFIX] nflog: Fix Log() crash when gossip is nil (#1064)
+* [BUGFIX] Fix notifications for flapping alerts (#1071)
+* [BUGFIX] Fix shutdown crash with nil mesh router (#1077)
+* [BUGFIX] Fix negative matchers filtering (#1077)
+
 ## 0.9.1 / 2017-09-29
 * [BUGFIX] Fix -web.external-url regression in ui (#1008)
 * [BUGFIX] Fix multipart email implementation (#1009)
