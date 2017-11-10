@@ -226,14 +226,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
-			if ogc.APIHost == "" {
-				if c.Global.OpsGenieAPIHost == "" {
+			if ogc.APIURL == "" {
+				if c.Global.OpsGenieAPIURL == "" {
 					return fmt.Errorf("no global OpsGenie URL set")
 				}
-				ogc.APIHost = c.Global.OpsGenieAPIHost
+				ogc.APIURL = c.Global.OpsGenieAPIURL
 			}
-			if !strings.HasSuffix(ogc.APIHost, "/") {
-				ogc.APIHost += "/"
+			if !strings.HasSuffix(ogc.APIURL, "/") {
+				ogc.APIURL += "/"
 			}
 		}
 		for _, voc := range rcv.VictorOpsConfigs {
@@ -300,7 +300,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	SMTPRequireTLS:  true,
 	PagerdutyURL:    "https://events.pagerduty.com/v2/enqueue",
 	HipchatAPIURL:   "https://api.hipchat.com/",
-	OpsGenieAPIHost: "https://api.opsgenie.com/",
+	OpsGenieAPIURL:  "https://api.opsgenie.com/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
 
@@ -323,7 +323,7 @@ type GlobalConfig struct {
 	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	HipchatAPIURL    string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
-	OpsGenieAPIHost  string `yaml:"opsgenie_api_host,omitempty" json:"opsgenie_api_host,omitempty"`
+	OpsGenieAPIURL   string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 
