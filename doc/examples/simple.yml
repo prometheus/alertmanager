@@ -7,7 +7,7 @@ global:
   # The auth token for Hipchat.
   hipchat_auth_token: '1234556789'
   # Alternative host for Hipchat.
-  hipchat_url: 'https://hipchat.foobar.org/'
+  hipchat_api_url: 'https://hipchat.foobar.org/'
 
 # The directory from which notification templates are read.
 templates: 

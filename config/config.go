@@ -202,10 +202,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 		for _, hc := range rcv.HipchatConfigs {
 			if hc.APIURL == "" {
-				if c.Global.HipchatURL == "" {
+				if c.Global.HipchatAPIURL == "" {
 					return fmt.Errorf("no global Hipchat API URL set")
 				}
-				hc.APIURL = c.Global.HipchatURL
+				hc.APIURL = c.Global.HipchatAPIURL
 			}
 			if !strings.HasSuffix(hc.APIURL, "/") {
 				hc.APIURL += "/"
@@ -299,7 +299,7 @@ var DefaultGlobalConfig = GlobalConfig{
 
 	SMTPRequireTLS:  true,
 	PagerdutyURL:    "https://events.pagerduty.com/v2/enqueue",
-	HipchatURL:      "https://api.hipchat.com/",
+	HipchatAPIURL:   "https://api.hipchat.com/",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
@@ -321,7 +321,7 @@ type GlobalConfig struct {
 	SMTPRequireTLS   bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
 	SlackAPIURL      Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	HipchatURL       string `yaml:"hipchat_url,omitempty" json:"hipchat_url,omitempty"`
+	HipchatAPIURL    string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host,omitempty" json:"opsgenie_api_host,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`

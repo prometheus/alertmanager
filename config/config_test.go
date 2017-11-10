@@ -280,7 +280,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPSmarthost:    "localhost:25",
 			SMTPFrom:         "alertmanager@example.org",
 			HipchatAuthToken: "mysecret",
-			HipchatURL:       "https://hipchat.foobar.org/",
+			HipchatAPIURL:    "https://hipchat.foobar.org/",
 			SlackAPIURL:      "mysecret",
 			SMTPRequireTLS:   true,
 			PagerdutyURL:     "https://events.pagerduty.com/v2/enqueue",
