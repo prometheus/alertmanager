@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -18,7 +19,7 @@ import (
 
 type addResponse struct {
 	Status string `json:"status"`
-	Data   struct {
+	Data struct {
 		SilenceID string `json:"silenceId"`
 	} `json:"data,omitempty"`
 	ErrorType string `json:"errorType,omitempty"`
@@ -102,11 +103,14 @@ func add(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	} else {
-		duration, err := time.ParseDuration(expires)
+		duration, err := model.ParseDuration(expires)
 		if err != nil {
 			return err
 		}
-		endsAt = time.Now().UTC().Add(duration)
+		if duration == 0 {
+			return fmt.Errorf("silence duration must be greater than 0")
+		}
+		endsAt = time.Now().UTC().Add(time.Duration(duration))
 	}
 
 	author := viper.GetString("author")
