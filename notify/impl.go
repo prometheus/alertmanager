@@ -792,6 +792,7 @@ type opsGenieCreateMessage struct {
 	Teams       string            `json:"teams,omitempty"`
 	Tags        string            `json:"tags,omitempty"`
 	Note        string            `json:"note,omitempty"`
+	Priority    string            `json:"priority,omitempty"`
 }
 
 type opsGenieCloseMessage struct {
@@ -843,6 +844,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			Teams:       tmpl(n.conf.Teams),
 			Tags:        tmpl(n.conf.Tags),
 			Note:        tmpl(n.conf.Note),
+			Priority:    tmpl(n.conf.Priority),
 		}
 	}
 	if err != nil {
