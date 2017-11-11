@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net"
@@ -869,24 +868,18 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer resp.Body.Close()
 
+	return n.retry(resp.StatusCode)
+}
+
+func (n *OpsGenie) retry(statusCode int) (bool, error) {
 	// https://docs.opsgenie.com/docs/response#section-response-codes
 	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
-	if resp.StatusCode/100 == 5 || resp.StatusCode == 429 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	} else if resp.StatusCode/100 == 4 {
-		return false, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	} else if resp.StatusCode/100 != 2 {
-		body, _ := ioutil.ReadAll(resp.Body)
-		level.Debug(n.logger).Log(
-			"msg", "Unexpected OpsGenie response",
-			"incident", key,
-			"url", apiURL,
-			"posted_message", msg,
-			"status", resp.Status,
-			"response_body", body,
-		)
-		return false, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	if statusCode/100 == 5 || statusCode == 429 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
+
 	return false, nil
 }
 
@@ -984,31 +977,16 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	defer resp.Body.Close()
 
+	return n.retry(resp.StatusCode)
+}
+
+func (n *VictorOps) retry(statusCode int) (bool, error) {
 	// Missing documentation therefore assuming only 5xx response codes are
 	// recoverable.
-	if resp.StatusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	}
-
-	if resp.StatusCode/100 != 2 {
-		body, _ := ioutil.ReadAll(resp.Body)
-
-		var responseMessage victorOpsErrorResponse
-		if err := json.Unmarshal(body, &responseMessage); err != nil {
-			return false, fmt.Errorf("could not parse error response %q", body)
-		}
-
-		level.Debug(n.logger).Log(
-			"msg", "Unexpected VictorOps response",
-			"incident", key,
-			"url", apiURL,
-			"posted_message", msg,
-			"status", resp.Status,
-			"response_body", body,
-		)
-
-		return false, fmt.Errorf("error when posting alert: result %q, message %q",
-			responseMessage.Result, responseMessage.Message)
+	if statusCode/100 == 5 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil
@@ -1090,19 +1068,17 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer resp.Body.Close()
 
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Pushover) retry(statusCode int) (bool, error) {
 	// Only documented behaviour is that 2xx response codes are successful and
 	// 4xx are unsuccessful, therefore assuming only 5xx are recoverable.
 	// https://pushover.net/api#response
-	if resp.StatusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	}
-
-	if resp.StatusCode/100 != 2 {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return false, err
-		}
-		return false, fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+	if statusCode/100 == 5 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil
