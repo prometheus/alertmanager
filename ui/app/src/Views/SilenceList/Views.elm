@@ -52,7 +52,7 @@ tabView currentState ( state, silences ) =
 silencesView : Bool -> List Silence -> Html Msg
 silencesView showConfirmationDialog silences =
     if List.isEmpty silences then
-        div [] [ text "No silences found" ]
+        Utils.Views.error "No silences found"
     else
         ul [ class "list-group" ]
             (List.map (Views.SilenceList.SilenceView.view showConfirmationDialog) silences)
