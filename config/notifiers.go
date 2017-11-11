@@ -300,7 +300,7 @@ type OpsGenieConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	APIKey      Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIHost     string            `yaml:"api_host,omitempty" json:"api_host,omitempty"`
+	APIURL      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Source      string            `yaml:"source,omitempty" json:"source,omitempty"`

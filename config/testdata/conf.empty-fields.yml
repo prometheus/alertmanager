@@ -5,7 +5,7 @@ global:
   smtp_auth_password: ''
   smtp_hello: ''
   hipchat_auth_token: 'mysecret'
-  hipchat_url: 'https://hipchat.foobar.org/'
+  hipchat_api_url: 'https://hipchat.foobar.org/'
   slack_api_url: 'mysecret'
 
 

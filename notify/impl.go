@@ -825,7 +825,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
-		apiURL = fmt.Sprintf("%sv2/alerts/%s/close?identifierType=alias", n.conf.APIHost, alias)
+		apiURL = fmt.Sprintf("%sv2/alerts/%s/close?identifierType=alias", n.conf.APIURL, alias)
 		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 	default:
 		message := tmpl(n.conf.Message)
@@ -834,7 +834,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			level.Debug(n.logger).Log("msg", "Truncated message to %q due to OpsGenie message limit", "truncated_message", message, "incident", key)
 		}
 
-		apiURL = n.conf.APIHost + "v2/alerts"
+		apiURL = n.conf.APIURL + "v2/alerts"
 		msg = &opsGenieCreateMessage{
 			Alias:       alias,
 			Message:     message,
