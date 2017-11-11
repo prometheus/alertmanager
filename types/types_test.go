@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAlertMerge(t *testing.T) {
@@ -60,4 +61,24 @@ func TestAlertMerge(t *testing.T) {
 			t.Errorf("unexpected merged alert %#v", res)
 		}
 	}
+}
+
+func TestCalcSilenceState(t *testing.T) {
+
+	var (
+		pastStartTime = time.Now()
+		pastEndTime   = time.Now()
+
+		futureStartTime = time.Now().Add(time.Hour)
+		futureEndTime   = time.Now().Add(time.Hour)
+	)
+
+	expected := CalcSilenceState(futureStartTime, futureEndTime)
+	require.Equal(t, SilenceStatePending, expected)
+
+	expected = CalcSilenceState(pastStartTime, futureEndTime)
+	require.Equal(t, SilenceStateActive, expected)
+
+	expected = CalcSilenceState(pastStartTime, pastEndTime)
+	require.Equal(t, SilenceStateExpired, expected)
 }
