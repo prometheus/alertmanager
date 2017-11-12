@@ -618,7 +618,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if !matchesFilterLabels(s, matchers) {
+		if !silenceMatchesFilterLabels(s, matchers) {
 			continue
 		}
 		sils = append(sils, s)
@@ -657,14 +657,23 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 	api.respond(w, silences)
 }
 
-func matchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
+func silenceMatchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
 	sms := map[string]string{}
 	for _, m := range s.Matchers {
 		sms[m.Name] = m.Value
 	}
+
 	for _, m := range matchers {
-		if v, prs := sms[m.Name]; !prs || !m.Matches(v) {
-			return false
+		v, prs := sms[m.Name]
+		switch m.Type {
+		case labels.MatchNotEqual, labels.MatchNotRegexp:
+			if !m.Matches(string(v)) {
+				return false
+			}
+		default:
+			if !prs || !m.Matches(string(v)) {
+				return false
+			}
 		}
 	}
 
