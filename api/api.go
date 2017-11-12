@@ -263,8 +263,8 @@ func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	var (
-		err error
-		re  *regexp.Regexp
+		err            error
+		receiverFilter *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
 		res           = []*dispatch.APIAlert{}
@@ -315,7 +315,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if receiverParam := r.FormValue("receiver"); receiverParam != "" {
-		re, err = regexp.Compile("^(?:" + receiverParam + ")$")
+		receiverFilter, err = regexp.Compile("^(?:" + receiverParam + ")$")
 		if err != nil {
 			api.respondError(w, apiError{
 				typ: errorBadData,
@@ -343,7 +343,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 			receivers = append(receivers, r.RouteOpts.Receiver)
 		}
 
-		if re != nil && !regexpAny(re, receivers) {
+		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
 			continue
 		}
 
@@ -389,9 +389,9 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	api.respond(w, res)
 }
 
-func regexpAny(re *regexp.Regexp, ss []string) bool {
-	for _, s := range ss {
-		if re.MatchString(s) {
+func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
+	for _, r := range receivers {
+		if filter.MatchString(r) {
 			return true
 		}
 	}

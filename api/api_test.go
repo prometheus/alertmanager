@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/prometheus/common/model"
@@ -87,4 +88,20 @@ func TestAlertFiltering(t *testing.T) {
 		msg := fmt.Sprintf("Expected %t for %s", test.expected, test.msg)
 		require.Equal(t, test.expected, actual, msg)
 	}
+}
+
+func TestReceiversMatchFilter(t *testing.T) {
+	receivers := []string{"pagerduty", "slack", "hipchat"}
+
+	filter, err := regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip.*"))
+	if err != nil {
+		t.Error("Unexpected error %v", err)
+	}
+	require.True(t, receiversMatchFilter(receivers, filter))
+
+	filter, err = regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip"))
+	if err != nil {
+		t.Error("Unexpected error %v", err)
+	}
+	require.False(t, receiversMatchFilter(receivers, filter))
 }
