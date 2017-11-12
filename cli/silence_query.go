@@ -127,7 +127,7 @@ func query(cmd *cobra.Command, args []string) error {
 	} else {
 		formatter, found := format.Formatters[viper.GetString("output")]
 		if !found {
-			return errors.New("Unknown output formatter")
+			return errors.New("unknown output formatter")
 		}
 		formatter.FormatSilences(displaySilences)
 	}

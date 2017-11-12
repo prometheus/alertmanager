@@ -95,7 +95,7 @@ func queryConfig(cmd *cobra.Command, args []string) error {
 
 	formatter, found := format.Formatters[viper.GetString("output")]
 	if !found {
-		return errors.New("Unknown output formatter")
+		return errors.New("unknown output formatter")
 	}
 
 	c := format.Config(config)

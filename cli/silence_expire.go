@@ -24,7 +24,7 @@ func expire(cmd *cobra.Command, args []string) error {
 	basePath := path.Join(u.Path, "/api/v1/silence")
 
 	if len(args) < 1 {
-		return errors.New("No silence IDs specified")
+		return errors.New("no silence IDs specified")
 	}
 
 	for _, arg := range args {

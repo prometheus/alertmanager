@@ -7,11 +7,11 @@ import (
 func TestCheckConfig(t *testing.T) {
 	err := CheckConfig([]string{"testdata/conf.good.yml"})
 	if err != nil {
-		t.Fatalf("Checking valid config file failed with: %v", err)
+		t.Fatalf("checking valid config file failed with: %v", err)
 	}
 
 	err = CheckConfig([]string{"testdata/conf.bad.yml"})
 	if err == nil {
-		t.Fatalf("Failed to detect invalid file.")
+		t.Fatalf("failed to detect invalid file.")
 	}
 }

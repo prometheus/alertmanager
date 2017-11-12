@@ -33,7 +33,7 @@ func (s ByAlphabetical) Less(i, j int) bool {
 func GetAlertmanagerURL() (*url.URL, error) {
 	u, err := url.ParseRequestURI(viper.GetString("alertmanager.url"))
 	if err != nil {
-		return nil, errors.New("Invalid alertmanager url")
+		return nil, errors.New("invalid alertmanager url")
 	}
 	return u, nil
 }
