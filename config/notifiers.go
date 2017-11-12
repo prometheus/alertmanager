@@ -308,6 +308,7 @@ type OpsGenieConfig struct {
 	Teams       string            `yaml:"teams,omitempty" json:"teams,omitempty"`
 	Tags        string            `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Note        string            `yaml:"note,omitempty" json:"note,omitempty"`
+	Priority    string            `yaml:"priority,omitempty" json:"priority,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
