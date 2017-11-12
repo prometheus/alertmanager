@@ -400,21 +400,11 @@ func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
 }
 
 func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {
-	for _, m := range matchers {
-		v, prs := a.Labels[model.LabelName(m.Name)]
-		switch m.Type {
-		case labels.MatchNotEqual, labels.MatchNotRegexp:
-			if !m.Matches(string(v)) {
-				return false
-			}
-		default:
-			if !prs || !m.Matches(string(v)) {
-				return false
-			}
-		}
+	sms := make(map[string]string)
+	for name, value := range a.Labels {
+		sms[string(name)] = string(value)
 	}
-
-	return true
+	return matchFilterLabels(matchers, sms)
 }
 
 func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
@@ -658,11 +648,15 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 }
 
 func silenceMatchesFilterLabels(s *types.Silence, matchers []*labels.Matcher) bool {
-	sms := map[string]string{}
+	sms := make(map[string]string)
 	for _, m := range s.Matchers {
 		sms[m.Name] = m.Value
 	}
 
+	return matchFilterLabels(matchers, sms)
+}
+
+func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 	for _, m := range matchers {
 		v, prs := sms[m.Name]
 		switch m.Type {
