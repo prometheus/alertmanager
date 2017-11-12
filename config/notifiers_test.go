@@ -42,6 +42,23 @@ headers:
 	}
 }
 
+func TestPagerdutyRoutingKeyIsPresent(t *testing.T) {
+	in := `
+routing_key: ''
+`
+	var cfg PagerdutyConfig
+	err := yaml.Unmarshal([]byte(in), &cfg)
+
+	expected := "missing service or routing key in PagerDuty config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func TestPagerdutyServiceKeyIsPresent(t *testing.T) {
 	in := `
 service_key: ''
