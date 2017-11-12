@@ -19,7 +19,7 @@ import (
 
 type addResponse struct {
 	Status string `json:"status"`
-	Data struct {
+	Data   struct {
 		SilenceID string `json:"silenceId"`
 	} `json:"data,omitempty"`
 	ErrorType string `json:"errorType,omitempty"`
@@ -86,7 +86,7 @@ func add(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(matchers) < 1 {
-		return fmt.Errorf("No matchers specified")
+		return fmt.Errorf("no matchers specified")
 	}
 
 	expireOn, err := addFlags.GetString("expire-on")
@@ -118,7 +118,7 @@ func add(cmd *cobra.Command, args []string) error {
 	commentRequired := viper.GetBool("comment_required")
 
 	if commentRequired && comment == "" {
-		return errors.New("Comment required by config")
+		return errors.New("comment required by config")
 	}
 
 	typeMatchers, err := TypeMatchers(matchers)
@@ -155,7 +155,7 @@ func add(cmd *cobra.Command, args []string) error {
 	response := addResponse{}
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		return fmt.Errorf("Unable to parse silence json response from %s", u.String())
+		return fmt.Errorf("unable to parse silence json response from %s", u.String())
 	}
 
 	if response.Status == "error" {

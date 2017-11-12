@@ -59,7 +59,7 @@ func CheckConfig(args []string) error {
 		fmt.Printf("\n")
 	}
 	if failed > 0 {
-		return fmt.Errorf("Failed to validate %d file(s).", failed)
+		return fmt.Errorf("failed to validate %d file(s)", failed)
 	}
 	return nil
 }

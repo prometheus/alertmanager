@@ -103,7 +103,7 @@ func fetchAlerts(filter string) ([]*dispatch.APIAlert, error) {
 
 	err = json.NewDecoder(res.Body).Decode(&alertResponse)
 	if err != nil {
-		return []*dispatch.APIAlert{}, fmt.Errorf("Unable to decode json response: %s", err)
+		return []*dispatch.APIAlert{}, fmt.Errorf("unable to decode json response: %s", err)
 	}
 
 	if alertResponse.Status != "success" {
@@ -168,7 +168,7 @@ func queryAlerts(cmd *cobra.Command, args []string) error {
 
 	formatter, found := format.Formatters[viper.GetString("output")]
 	if !found {
-		return errors.New("Unknown output formatter")
+		return errors.New("unknown output formatter")
 	}
 	return formatter.FormatAlerts(displayAlerts)
 }
