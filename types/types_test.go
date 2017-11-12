@@ -82,3 +82,15 @@ func TestCalcSilenceState(t *testing.T) {
 	expected = CalcSilenceState(pastStartTime, pastEndTime)
 	require.Equal(t, SilenceStateExpired, expected)
 }
+
+func TestSilenceExpired(t *testing.T) {
+	now := time.Now()
+	silence := Silence{StartsAt: now, EndsAt: now}
+	require.True(t, silence.Expired())
+
+	silence = Silence{StartsAt: now.Add(time.Hour), EndsAt: now.Add(time.Hour)}
+	require.True(t, silence.Expired())
+
+	silence = Silence{StartsAt: now, EndsAt: now.Add(time.Hour)}
+	require.False(t, silence.Expired())
+}

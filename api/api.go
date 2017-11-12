@@ -15,6 +15,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -540,6 +541,19 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 		}, nil)
 		return
 	}
+
+	// This is an API only validation, it cannot be done internally
+	// because the expired silence is semantically important.
+	// But one should not be able to create expired silences, that
+	// won't have any use.
+	if sil.Expired() {
+		api.respondError(w, apiError{
+			typ: errorBadData,
+			err: errors.New("start time must not be equal to end time"),
+		}, nil)
+		return
+	}
+
 	psil, err := silenceToProto(&sil)
 	if err != nil {
 		api.respondError(w, apiError{
