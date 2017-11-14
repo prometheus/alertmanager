@@ -215,7 +215,7 @@ func BuildPipeline(
 ) RoutingStage {
 	rs := RoutingStage{}
 
-	is := NewInhibitStage(muter, marker)
+	is := NewInhibitStage(muter)
 	ss := NewSilenceStage(silences, marker)
 
 	for _, rc := range confs {
@@ -318,11 +318,8 @@ type InhibitStage struct {
 }
 
 // NewInhibitStage return a new InhibitStage.
-func NewInhibitStage(m types.Muter, mk types.Marker) *InhibitStage {
-	return &InhibitStage{
-		muter:  m,
-		marker: mk,
-	}
+func NewInhibitStage(m types.Muter) *InhibitStage {
+	return &InhibitStage{muter: m}
 }
 
 // Exec implements the Stage interface.
