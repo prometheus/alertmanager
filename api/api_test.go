@@ -78,9 +78,9 @@ func TestAlertFiltering(t *testing.T) {
 	}
 
 	tests = []test{
-		{&model.Alert{Labels: model.LabelSet{"label1": "test1"}}, "label1=~test1", false},
-		{&model.Alert{Labels: model.LabelSet{"label1": "test2"}}, "label1=~test2", false},
-		{&model.Alert{Labels: model.LabelSet{"label2": "test2"}}, "label2=~test2", true},
+		{&model.Alert{Labels: model.LabelSet{"label1": "test1"}}, "label1!~test1", false},
+		{&model.Alert{Labels: model.LabelSet{"label1": "test2"}}, "label1!~test2", false},
+		{&model.Alert{Labels: model.LabelSet{"label2": "test2"}}, "label2!~test2", true},
 	}
 
 	for _, test := range tests {
