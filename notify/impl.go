@@ -790,7 +790,7 @@ type opsGenieCreateMessage struct {
 	Details     map[string]string   `json:"details"`
 	Source      string              `json:"source"`
 	Teams       []map[string]string `json:"teams,omitempty"`
-	Tags        string              `json:"tags,omitempty"`
+	Tags        []string            `json:"tags,omitempty"`
 	Note        string              `json:"note,omitempty"`
 	Priority    string              `json:"priority,omitempty"`
 }
@@ -846,7 +846,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			Details:     details,
 			Source:      tmpl(n.conf.Source),
 			Teams:       teams,
-			Tags:        tmpl(n.conf.Tags),
+			Tags:        strings.Split(string(tmpl(n.conf.Tags)), ","),
 			Note:        tmpl(n.conf.Note),
 			Priority:    tmpl(n.conf.Priority),
 		}
