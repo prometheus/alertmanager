@@ -784,15 +784,15 @@ func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template, l log.Logger) *
 }
 
 type opsGenieCreateMessage struct {
-	Alias       string            `json:"alias"`
-	Message     string            `json:"message"`
-	Description string            `json:"description,omitempty"`
-	Details     map[string]string `json:"details"`
-	Source      string            `json:"source"`
-	Teams       string            `json:"teams,omitempty"`
-	Tags        string            `json:"tags,omitempty"`
-	Note        string            `json:"note,omitempty"`
-	Priority    string            `json:"priority,omitempty"`
+	Alias       string              `json:"alias"`
+	Message     string              `json:"message"`
+	Description string              `json:"description,omitempty"`
+	Details     map[string]string   `json:"details"`
+	Source      string              `json:"source"`
+	Teams       []map[string]string `json:"teams,omitempty"`
+	Tags        string              `json:"tags,omitempty"`
+	Note        string              `json:"note,omitempty"`
+	Priority    string              `json:"priority,omitempty"`
 }
 
 type opsGenieCloseMessage struct {
@@ -835,13 +835,17 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 
 		apiURL = n.conf.APIURL + "v2/alerts"
+		var teams []map[string]string
+		for _, t := range strings.Split(string(tmpl(n.conf.Teams)), ",") {
+			teams = append(teams, map[string]string{"name": t})
+		}
 		msg = &opsGenieCreateMessage{
 			Alias:       alias,
 			Message:     message,
 			Description: tmpl(n.conf.Description),
 			Details:     details,
 			Source:      tmpl(n.conf.Source),
-			Teams:       tmpl(n.conf.Teams),
+			Teams:       teams,
 			Tags:        tmpl(n.conf.Tags),
 			Note:        tmpl(n.conf.Note),
 			Priority:    tmpl(n.conf.Priority),
