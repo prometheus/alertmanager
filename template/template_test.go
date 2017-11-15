@@ -1,9 +1,10 @@
 package template
 
 import (
+	"testing"
+
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestPairNames(t *testing.T) {
@@ -26,6 +27,37 @@ func TestPairValues(t *testing.T) {
 
 	expected := []string{"value1", "value2", "value3"}
 	require.EqualValues(t, expected, pairs.Values())
+}
+
+func TestKVSortedPairs(t *testing.T) {
+	kv := KV{"d": "dVal", "b": "bVal", "c": "cVal"}
+
+	expectedPairs := Pairs{
+		{"b", "bVal"},
+		{"c", "cVal"},
+		{"d", "dVal"},
+	}
+
+	for i, p := range kv.SortedPairs() {
+		require.EqualValues(t, p.Name, expectedPairs[i].Name)
+		require.EqualValues(t, p.Value, expectedPairs[i].Value)
+	}
+
+	// validates alertname always comes first
+	kv = KV{"d": "dVal", "b": "bVal", "c": "cVal", "alertname": "alert", "a": "aVal"}
+
+	expectedPairs = Pairs{
+		{"alertname", "alert"},
+		{"a", "aVal"},
+		{"b", "bVal"},
+		{"c", "cVal"},
+		{"d", "dVal"},
+	}
+
+	for i, p := range kv.SortedPairs() {
+		require.EqualValues(t, p.Name, expectedPairs[i].Name)
+		require.EqualValues(t, p.Value, expectedPairs[i].Value)
+	}
 }
 
 func TestKVRemove(t *testing.T) {
