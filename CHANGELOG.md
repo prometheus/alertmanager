@@ -1,3 +1,12 @@
+## 0.11.0 / 2017-11-16
+
+* [CHANGE] Make silence negative filtering consistent with alert filtering (#1095)
+* [ENHANCEMENT] amtool: Allow 'd', 'w', 'y' time suffixes when creating silence (#1091)
+* [ENHANCEMENT] Support OpsGenie Priority field (#1094)
+* [BUGFIX] Fix UI when no silences are present (#1090)
+* [BUGFIX] Fix OpsGenie Teams field (#1101)
+* [BUGFIX] Fix OpsGenie Tags field (#1108)
+
 ## 0.10.0 / 2017-11-09
 
 * [CHANGE] Prevent inhibiting alerts in the source of the inhibition (#1017)
