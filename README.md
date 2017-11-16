@@ -276,7 +276,7 @@ alertmanager.url: "http://localhost:9093"
 author: me@example.com
 
 # Force amtool to give you an error if you don't include a comment on a silence
-comment_require: true
+comment_required: true
 
 # Set a default output format. (unset defaults to simple)
 output: extended
