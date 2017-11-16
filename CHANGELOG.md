@@ -1,6 +1,7 @@
 ## 0.11.0 / 2017-11-16
 
 * [CHANGE] Make silence negative filtering consistent with alert filtering (#1095)
+* [CHANGE] Change HipChat and OpsGenie api config names (#1087)
 * [ENHANCEMENT] amtool: Allow 'd', 'w', 'y' time suffixes when creating silence (#1091)
 * [ENHANCEMENT] Support OpsGenie Priority field (#1094)
 * [BUGFIX] Fix UI when no silences are present (#1090)
