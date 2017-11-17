@@ -216,6 +216,9 @@ type Email struct {
 
 // NewEmail returns a new Email notifier.
 func NewEmail(c *config.EmailConfig, t *template.Template, l log.Logger) *Email {
+	if _, ok := c.Headers["Auto-Submitted"]; !ok {
+		c.Headers["Auto-Submitted"] = "auto-generated"
+	}
 	if _, ok := c.Headers["Subject"]; !ok {
 		c.Headers["Subject"] = config.DefaultEmailSubject
 	}
