@@ -195,16 +195,17 @@ func TestGossipDataMerge(t *testing.T) {
 		res := ca.Merge(cb)
 
 		require.Equal(t, c.final, res, "Merge result should match expectation")
-		require.Equal(t, c.final, ca, "Merge should apply changes to original state")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
+		require.NotEqual(t, c.final, ca, "Merge should not change original state")
 
 		ca, cb = c.a.clone(), c.b.clone()
 
-		delta := ca.mergeDelta(cb)
+		res, delta := ca.mergeDelta(cb)
 
 		require.Equal(t, c.delta, delta, "Merge delta should match expectation")
-		require.Equal(t, c.final, ca, "Merge should apply changes to original state")
+		require.Equal(t, c.final, res, "Merge should apply changes to original state")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
+		require.NotEqual(t, res, ca, "Merge should not change original state")
 	}
 }
 
