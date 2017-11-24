@@ -103,7 +103,9 @@ func (ih *Inhibitor) Run() {
 		ctx context.Context
 	)
 
+	ih.mtx.Lock()
 	ctx, ih.cancel = context.WithCancel(context.Background())
+	ih.mtx.Unlock()
 	gcCtx, gcCancel := context.WithCancel(ctx)
 	runCtx, runCancel := context.WithCancel(ctx)
 
@@ -129,6 +131,8 @@ func (ih *Inhibitor) Stop() {
 		return
 	}
 
+	ih.mtx.RLock()
+	defer ih.mtx.RUnlock()
 	if ih.cancel != nil {
 		ih.cancel()
 	}
