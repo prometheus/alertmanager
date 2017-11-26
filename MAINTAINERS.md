@@ -1,1 +1,1 @@
-* Stuart Nelson <stn@soundcloud.com>
+* Stuart Nelson <stuartnelson3@gmail.com>
