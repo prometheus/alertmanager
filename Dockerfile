@@ -1,6 +1,7 @@
 FROM        prom/busybox:latest
 MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
 
+COPY amtool                     /bin/amtool
 COPY alertmanager               /bin/alertmanager
 COPY doc/examples/simple.yml    /etc/alertmanager/config.yml
 
