@@ -100,7 +100,7 @@ var (
 			VSendResolved: true,
 		},
 		Message:   `{{ template "wechat.default.message" . }}`,
-		ApiURL:   `{{ template "wechat.default.apiurl" . }}`,
+		ApiURL:    `{{ template "wechat.default.apiurl" . }}`,
 		ApiSecret: `{{ template "wechat.default.apisecret" . }}`,
 		ToUser:    `{{ template "wechat.default.touser" . }}`,
 		ToParty:   `{{ template "wechat.default.toparty" . }}`,
