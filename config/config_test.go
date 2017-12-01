@@ -270,6 +270,7 @@ func TestJSONUnmarshalMarshaled(t *testing.T) {
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
+	boolFalse := false
 	var regexpFoo Regexp
 	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
 
@@ -318,6 +319,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 						Smarthost:  "localhost:25",
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
+						insecure_skip_verify: &boolFalse,
 					},
 				},
 			},
