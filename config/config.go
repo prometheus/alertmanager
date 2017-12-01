@@ -159,6 +159,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if _, ok := names[rcv.Name]; ok {
 			return fmt.Errorf("notification config name %q is not unique", rcv.Name)
 		}
+
+		if rcv.InsecureSkipVerify == nil { 
+			rcv.InsecureSkipVerify = new(bool)
+                        *rcv.InsecureSkipVerify = c.Global.InsecureSkipVerify
+                }
+
 		for _, ec := range rcv.EmailConfigs {
 			if ec.Smarthost == "" {
 				if c.Global.SMTPSmarthost == "" {
@@ -326,6 +332,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	OpsGenieAPIURL:  "https://api.opsgenie.com/",
 	WeChatAPIURL:    "https://qyapi.weixin.qq.com/cgi-bin/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
+	InsecureSkipVerify:  false,
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -353,6 +360,7 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify",omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -489,6 +497,7 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	InsecureSkipVerify     *bool        `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
