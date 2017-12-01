@@ -7,6 +7,10 @@ services:
 go:
 - 1.8.1
 
+branches:
+  only:
+  - 1211
+
 script:
 # test front-end
 - make clean
