@@ -1,9 +1,10 @@
-module Views.SilenceForm.Updates exposing (update)
+port module Views.SilenceForm.Updates exposing (update)
 
 import Alerts.Api
 import Silences.Api
 import Task
 import Time
+import Types exposing (Msg(MsgForSilenceForm, SetDefaultCreator))
 import Navigation
 import Utils.Date exposing (timeFromString)
 import Utils.List
@@ -169,14 +170,18 @@ updateForm msg form =
                 { form | matchers = matchers }
 
 
-update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd SilenceFormMsg )
+update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
 update msg model basePath apiUrl =
     case msg of
         CreateSilence ->
             case toSilence model.form of
                 Just silence ->
                     ( { model | silenceId = Loading }
-                    , Silences.Api.create apiUrl silence |> Cmd.map SilenceCreate
+                    , Cmd.batch
+                        [ Silences.Api.create apiUrl silence |> Cmd.map (SilenceCreate >> MsgForSilenceForm)
+                        , persistDefaultCreator silence.createdBy
+                        , Task.succeed silence.createdBy |> Task.perform SetDefaultCreator
+                        ]
                     )
 
                 Nothing ->
@@ -199,11 +204,11 @@ update msg model basePath apiUrl =
             in
                 ( { model | silenceId = silenceId }, cmd )
 
-        NewSilenceFromMatchers matchers ->
-            ( model, Task.perform (NewSilenceFromMatchersAndTime matchers) Time.now )
+        NewSilenceFromMatchers defaultCreator matchers ->
+            ( model, Task.perform (NewSilenceFromMatchersAndTime defaultCreator matchers >> MsgForSilenceForm) Time.now )
 
-        NewSilenceFromMatchersAndTime matchers time ->
-            ( { form = fromMatchersAndTime matchers time
+        NewSilenceFromMatchersAndTime defaultCreator matchers time ->
+            ( { form = fromMatchersAndTime defaultCreator matchers time
               , alerts = Initial
               , silenceId = Initial
               }
@@ -211,11 +216,11 @@ update msg model basePath apiUrl =
             )
 
         FetchSilence silenceId ->
-            ( model, Silences.Api.getSilence apiUrl silenceId SilenceFetch )
+            ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetch >> MsgForSilenceForm) )
 
         SilenceFetch (Success silence) ->
             ( { model | form = fromSilence silence }
-            , Task.perform identity (Task.succeed PreviewSilence)
+            , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
             )
 
         SilenceFetch _ ->
@@ -228,7 +233,7 @@ update msg model basePath apiUrl =
                     , Alerts.Api.fetchAlerts
                         apiUrl
                         { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
-                        |> Cmd.map AlertGroupsPreview
+                        |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
                     )
 
                 Nothing ->
@@ -251,3 +256,6 @@ update msg model basePath apiUrl =
               }
             , Cmd.none
             )
+
+
+port persistDefaultCreator : String -> Cmd msg
