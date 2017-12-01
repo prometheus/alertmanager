@@ -161,6 +161,7 @@ type EmailConfig struct {
 	HTML         string            `yaml:"html,omitempty" json:"html,omitempty"`
 	Text         string            `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	InsecureSkipVerify    *bool    `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
