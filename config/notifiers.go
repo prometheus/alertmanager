@@ -94,6 +94,21 @@ var (
 		// TODO: Add a details field with all the alerts.
 	}
 
+	// DefaultWechatConfig defines default values for wechat configurations.
+	DefaultWechatConfig = WechatConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:   `{{ template "wechat.default.message" . }}`,
+		ApiURL:   `{{ template "wechat.default.apiurl" . }}`,
+		ApiSecret: `{{ template "wechat.default.apisecret" . }}`,
+		ToUser:    `{{ template "wechat.default.touser" . }}`,
+		ToParty:   `{{ template "wechat.default.toparty" . }}`,
+		Totag:     `{{ template "wechat.default.totag" . }}`,
+		AgentID:   `{{ template "wechat.default.agentid" . }}`,
+		// TODO: Add a details field with all the alerts.
+	}
+
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
 	DefaultVictorOpsConfig = VictorOpsConfig{
 		NotifierConfig: NotifierConfig{
@@ -293,6 +308,39 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing URL in webhook config")
 	}
 	return checkOverflow(c.XXX, "webhook config")
+}
+
+// WechatConfig configures notifications via Wechat.
+type WechatConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	ApiSecret string `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+	ApiURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser    string `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty   string `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag     string `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID   string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWechatConfig
+	type plain WechatConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.ApiSecret == "" {
+		return fmt.Errorf("missing Wechat ApiSecret in Wechat config")
+	}
+	if c.CorpID == "" {
+		return fmt.Errorf("missing Wechat CorpID in Wechat config")
+	}
+	return checkOverflow(c.XXX, "Wechat config")
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
