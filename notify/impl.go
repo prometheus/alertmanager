@@ -839,10 +839,17 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 		alerts = types.Alerts(as...)
 	)
-	var params = "corpid=" + n.conf.CorpID + "&corpsecret=" + n.conf.ApiSecret
-	apiURL = n.conf.ApiURL + "gettoken?" + params
-	
-	resp, err := ctxhttp.Get(ctx, http.DefaultClient, apiURL)
+	parameters := url.Values{}
+	parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
+	parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
+	apiURL = n.conf.APIURL + "gettoken" 
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return false, err
+	}
+	u.RawQuery = parameters.Encode()
+	level.Debug(n.logger).Log("msg", "Sending Wechat  message", "incident", key, "url", u.String())
+	resp, err := ctxhttp.Get(ctx, http.DefaultClient, u.String())
 	if err != nil {
 		return true, err
 	}
@@ -851,13 +858,13 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
         return false, err
 	}
-	postMessageURL := n.conf.ApiURL + "message/send?access_token=" + wechatToken.AccessToken
+	postMessageURL := n.conf.APIURL + "message/send?access_token=" + wechatToken.AccessToken
 	switch alerts.Status() {
 		case model.AlertResolved:
 			msg = &weChatCloseMessage{Text: apiMsg,
 				ToUser:  tmpl(n.conf.ToUser),
 				ToParty: tmpl(n.conf.ToParty),
-				Totag:   tmpl(n.conf.Totag),
+				Totag:   tmpl(n.conf.ToTag),
 				AgentID: tmpl(n.conf.AgentID),
 				Type:    "text",
 				Safe:    "0"}
@@ -868,7 +875,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 				},
 				ToUser:  tmpl(n.conf.ToUser),
 				ToParty: tmpl(n.conf.ToParty),
-				Totag:   tmpl(n.conf.Totag),
+				Totag:   tmpl(n.conf.ToTag),
 				AgentID: tmpl(n.conf.AgentID),
 				Type:    "text",
 				Safe:    "0",

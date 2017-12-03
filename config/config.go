@@ -237,14 +237,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
-			wcc.ApiURL = c.Global.WeChatAPIURL
-			if wcc.ApiURL == "" {
+			wcc.APIURL = c.Global.WeChatAPIURL
+			if wcc.APIURL == "" {
 				if c.Global.WeChatAPIURL == "" {
 					return fmt.Errorf("no global Wechat URL set")
 				}				
 			}
-			wcc.ApiSecret = c.Global.WeChatAPISecret
-			if wcc.ApiSecret == "" {
+			wcc.APISecret = c.Global.WeChatAPISecret
+			if wcc.APISecret == "" {
 				if c.Global.WeChatAPISecret == "" {
 					return fmt.Errorf("no global Wechat ApiSecret set")
 				}	
@@ -255,8 +255,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				wcc.CorpID = c.Global.WeChatAPICorpID
 			}			
-			if !strings.HasSuffix(wcc.ApiURL, "/") {
-				wcc.ApiURL += "/"
+			if !strings.HasSuffix(wcc.APIURL, "/") {
+				wcc.APIURL += "/"
 			}
 		}
 		for _, voc := range rcv.VictorOpsConfigs {
@@ -324,7 +324,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	PagerdutyURL:    "https://events.pagerduty.com/v2/enqueue",
 	HipchatAPIURL:   "https://api.hipchat.com/",
 	OpsGenieAPIURL:  "https://api.opsgenie.com/",
-	WeChatAPIURL: "https://qyapi.weixin.qq.com/cgi-bin/",
+	WeChatAPIURL: 	 "https://qyapi.weixin.qq.com/cgi-bin/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
 
@@ -350,7 +350,7 @@ type GlobalConfig struct {
 	OpsGenieAPIURL   string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	WeChatAPIURL     string `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret  string `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID  string `yaml:"wechat_api_corpid,omitempty" json:"wechat_api_corpid,omitempty"`
+	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 

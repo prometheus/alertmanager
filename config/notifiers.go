@@ -100,12 +100,12 @@ var (
 			VSendResolved: true,
 		},
 		Message:   `{{ template "wechat.default.message" . }}`,
-		ApiURL:    `{{ template "wechat.default.apiurl" . }}`,
-		ApiSecret: `{{ template "wechat.default.apisecret" . }}`,
-		ToUser:    `{{ template "wechat.default.touser" . }}`,
-		ToParty:   `{{ template "wechat.default.toparty" . }}`,
-		Totag:     `{{ template "wechat.default.totag" . }}`,
-		AgentID:   `{{ template "wechat.default.agentid" . }}`,
+		APIURL:    `{{ template "wechat.default.api_url" . }}`,
+		APISecret: `{{ template "wechat.default.api_secret" . }}`,
+		ToUser:    `{{ template "wechat.default.to_user" . }}`,
+		ToParty:   `{{ template "wechat.default.to_party" . }}`,
+		ToTag:     `{{ template "wechat.default.to_tag" . }}`,
+		AgentID:   `{{ template "wechat.default.agent_id" . }}`,
 		// TODO: Add a details field with all the alerts.
 	}
 
@@ -314,13 +314,13 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type WechatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	ApiSecret string `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	APISecret string `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
 	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
 	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
-	ApiURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser    string `yaml:"touser,omitempty" json:"touser,omitempty"`
-	ToParty   string `yaml:"toparty,omitempty" json:"toparty,omitempty"`
-	Totag     string `yaml:"totag,omitempty" json:"totag,omitempty"`
+	APIURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser    string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty   string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag     string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
 	AgentID   string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
@@ -334,8 +334,8 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.ApiSecret == "" {
-		return fmt.Errorf("missing Wechat ApiSecret in Wechat config")
+	if c.APISecret == "" {
+		return fmt.Errorf("missing Wechat APISecret in Wechat config")
 	}
 	if c.CorpID == "" {
 		return fmt.Errorf("missing Wechat CorpID in Wechat config")
