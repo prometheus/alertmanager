@@ -896,8 +896,10 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 }
 func (n *Wechat) retry(statusCode int) (bool, error) {
 	// https://work.weixin.qq.com/api/doc#10649
-	if statusCode/100 != 2 {
-		return (statusCode/100 == 4 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	if statusCode/100 == 5 || statusCode == 429 {
+		return true,  fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil
