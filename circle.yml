@@ -18,6 +18,7 @@ dependencies:
   override:
     - promu crossbuild
     - ln -s .build/linux-amd64/alertmanager alertmanager
+    - ln -s .build/linux-amd64/amtool amtool
     - |
       if [ -n "$CIRCLE_TAG" ]; then
         make docker DOCKER_IMAGE_NAME=$DOCKER_IMAGE_NAME DOCKER_IMAGE_TAG=$CIRCLE_TAG
