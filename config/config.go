@@ -241,20 +241,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if wcc.APIURL == "" {
 				if c.Global.WeChatAPIURL == "" {
 					return fmt.Errorf("no global Wechat URL set")
-				}				
+				}
 			}
 			wcc.APISecret = c.Global.WeChatAPISecret
 			if wcc.APISecret == "" {
 				if c.Global.WeChatAPISecret == "" {
 					return fmt.Errorf("no global Wechat ApiSecret set")
-				}	
+				}
 			}
 			if wcc.CorpID == "" {
 				if c.Global.WeChatAPICorpID == "" {
 					return fmt.Errorf("no global Wechat CorpID set")
 				}
 				wcc.CorpID = c.Global.WeChatAPICorpID
-			}			
+			}
 			if !strings.HasSuffix(wcc.APIURL, "/") {
 				wcc.APIURL += "/"
 			}
@@ -324,7 +324,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	PagerdutyURL:    "https://events.pagerduty.com/v2/enqueue",
 	HipchatAPIURL:   "https://api.hipchat.com/",
 	OpsGenieAPIURL:  "https://api.opsgenie.com/",
-	WeChatAPIURL: 	 "https://qyapi.weixin.qq.com/cgi-bin/",
+	WeChatAPIURL:    "https://qyapi.weixin.qq.com/cgi-bin/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
 

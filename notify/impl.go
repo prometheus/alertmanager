@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net"
@@ -30,8 +31,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
-	"io/ioutil"
-	
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/common/model"
@@ -836,14 +836,14 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		msg    interface{}
 		apiURL string
 		apiMsg = weChatMessage{
-			Content:  tmpl(n.conf.Message),
+			Content: tmpl(n.conf.Message),
 		}
 		alerts = types.Alerts(as...)
 	)
 	parameters := url.Values{}
 	parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 	parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
-	apiURL = n.conf.APIURL + "gettoken" 
+	apiURL = n.conf.APIURL + "gettoken"
 	u, err := url.Parse(apiURL)
 	if err != nil {
 		return false, err
@@ -857,29 +857,29 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	defer resp.Body.Close()
 	var wechatToken WechatToken
 	if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
-        return false, err
+		return false, err
 	}
 	postMessageURL := n.conf.APIURL + "message/send?access_token=" + wechatToken.AccessToken
 	switch alerts.Status() {
-		case model.AlertResolved:
-			msg = &weChatCloseMessage{Text: apiMsg,
-				ToUser:  tmpl(n.conf.ToUser),
-				ToParty: tmpl(n.conf.ToParty),
-				Totag:   tmpl(n.conf.ToTag),
-				AgentID: tmpl(n.conf.AgentID),
-				Type:    "text",
-				Safe:    "0"}
-		default:
-			msg = &weChatCreateMessage{
-				Text: weChatMessage{
-					Content: tmpl(n.conf.Message),
-				},
-				ToUser:  tmpl(n.conf.ToUser),
-				ToParty: tmpl(n.conf.ToParty),
-				Totag:   tmpl(n.conf.ToTag),
-				AgentID: tmpl(n.conf.AgentID),
-				Type:    "text",
-				Safe:    "0",
+	case model.AlertResolved:
+		msg = &weChatCloseMessage{Text: apiMsg,
+			ToUser:  tmpl(n.conf.ToUser),
+			ToParty: tmpl(n.conf.ToParty),
+			Totag:   tmpl(n.conf.ToTag),
+			AgentID: tmpl(n.conf.AgentID),
+			Type:    "text",
+			Safe:    "0"}
+	default:
+		msg = &weChatCreateMessage{
+			Text: weChatMessage{
+				Content: tmpl(n.conf.Message),
+			},
+			ToUser:  tmpl(n.conf.ToUser),
+			ToParty: tmpl(n.conf.ToParty),
+			Totag:   tmpl(n.conf.ToTag),
+			AgentID: tmpl(n.conf.AgentID),
+			Type:    "text",
+			Safe:    "0",
 		}
 	}
 	var buf bytes.Buffer
@@ -898,7 +898,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 func (n *Wechat) retry(statusCode int) (bool, error) {
 	// https://work.weixin.qq.com/api/doc#10649
 	if statusCode/100 == 5 || statusCode == 429 {
-		return true,  fmt.Errorf("unexpected status code %v", statusCode)
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
 	} else if statusCode/100 != 2 {
 		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
