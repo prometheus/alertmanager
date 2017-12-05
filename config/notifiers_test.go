@@ -110,6 +110,23 @@ url: ''
 	}
 }
 
+func TestWebhookURLIsAbsolute(t *testing.T) {
+	in := `
+url: 'localhost:9093'
+`
+	var cfg WebhookConfig
+	err := yaml.Unmarshal([]byte(in), &cfg)
+
+	expected := "non-absolute URL in webhook config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func TestOpsGenieAPIKeyIsPresent(t *testing.T) {
 	in := `
 api_key: ''

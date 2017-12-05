@@ -15,6 +15,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -292,6 +293,14 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.URL == "" {
 		return fmt.Errorf("missing URL in webhook config")
 	}
+	url, err := url.Parse(c.URL)
+	if err != nil {
+		return err
+	}
+	if url.Scheme != "https" && url.Scheme != "http" {
+		return fmt.Errorf("non-absolute URL in webhook config")
+	}
+	c.URL = url.String()
 	return checkOverflow(c.XXX, "webhook config")
 }
 
