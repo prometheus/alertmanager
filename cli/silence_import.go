@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
+	"sync"
 )
 
 var importFlags *flag.FlagSet
@@ -35,8 +36,8 @@ func init() {
 	importFlags = importCmd.Flags()
 }
 
-func addSilenceWorker(silences <-chan *types.Silence, errs chan<- error) {
-	for s := range silences {
+func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {
+	for s := range silencec {
 		silenceId, err := addSilence(s)
 		sid := s.ID
 		if err != nil && err.Error() == "[bad_data] not found" {
@@ -50,12 +51,17 @@ func addSilenceWorker(silences <-chan *types.Silence, errs chan<- error) {
 		} else {
 			fmt.Println(silenceId)
 		}
-		errs <- err
+		errc <- err
 	}
 }
 
 func bulkImport(cmd *cobra.Command, args []string) error {
 	force, err := importFlags.GetBool("force")
+	if err != nil {
+		return err
+	}
+
+	workers, err := importFlags.GetInt("worker")
 	if err != nil {
 		return err
 	}
@@ -70,22 +76,31 @@ func bulkImport(cmd *cobra.Command, args []string) error {
 	}
 
 	dec := json.NewDecoder(input)
-
 	// read open square bracket
 	_, err = dec.Token()
 	if err != nil {
 		return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
 	}
 
-	silences := make(chan *types.Silence, 100)
-	errs := make(chan error, 100)
-	workers, err := importFlags.GetInt("worker")
-	if err != nil {
-		return err
-	}
+	silencec := make(chan *types.Silence, 100)
+	errc := make(chan error, 100)
+	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
-		go addSilenceWorker(silences, errs)
+		go func() {
+			wg.Add(1)
+			addSilenceWorker(silencec, errc)
+			wg.Done()
+		}()
 	}
+
+	errCount := 0
+	go func() {
+		for err := range errc {
+			if err != nil {
+				errCount++
+			}
+		}
+	}()
 
 	count := 0
 	for dec.More() {
@@ -100,28 +115,16 @@ func bulkImport(cmd *cobra.Command, args []string) error {
 			s.ID = ""
 		}
 
-		silences <- &s
+		silencec <- &s
 		count++
 	}
-	close(silences)
 
-	// read closing bracket
-	_, err = dec.Token()
-	if err != nil {
-		return errors.Wrap(err, "invalid JSON")
-	}
-
-	errCount := 0
-	for i := 0; i < count; i++ {
-		err = <-errs
-		if err != nil {
-			errCount++
-		}
-	}
+	close(silencec)
+	wg.Wait()
+	close(errc)
 
 	if errCount > 0 {
 		return fmt.Errorf("couldn't import %v out of %v silences", errCount, count)
 	}
-
 	return nil
 }
