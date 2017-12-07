@@ -31,4 +31,5 @@ func init() {
 	silenceCmd.AddCommand(addCmd)
 	silenceCmd.AddCommand(expireCmd)
 	silenceCmd.AddCommand(queryCmd)
+	silenceCmd.AddCommand(importCmd)
 }
