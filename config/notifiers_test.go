@@ -117,7 +117,7 @@ url: 'localhost:9093'
 	var cfg WebhookConfig
 	err := yaml.Unmarshal([]byte(in), &cfg)
 
-	expected := "non-absolute URL in webhook config"
+	expected := "scheme required for webhook url"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)

@@ -298,7 +298,7 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if url.Scheme != "https" && url.Scheme != "http" {
-		return fmt.Errorf("non-absolute URL in webhook config")
+		return fmt.Errorf("scheme required for webhook url")
 	}
 	c.URL = url.String()
 	return checkOverflow(c.XXX, "webhook config")
