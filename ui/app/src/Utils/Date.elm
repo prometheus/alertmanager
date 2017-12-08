@@ -48,21 +48,25 @@ term =
         |. Parser.ignore Parser.zeroOrMore ((==) ' ')
 
 
-durationFormat : Time.Time -> String
+durationFormat : Time.Time -> Maybe String
 durationFormat time =
-    List.foldl
-        (\( unit, ms ) ( result, curr ) ->
-            ( if curr // ms == 0 then
-                result
-              else
-                result ++ toString (curr // ms) ++ unit ++ " "
-            , curr % ms
+    if time >= 0 then
+        List.foldl
+            (\( unit, ms ) ( result, curr ) ->
+                ( if curr // ms == 0 then
+                    result
+                  else
+                    result ++ toString (curr // ms) ++ unit ++ " "
+                , curr % ms
+                )
             )
-        )
-        ( "", round time )
-        units
-        |> Tuple.first
-        |> String.trim
+            ( "", round time )
+            units
+            |> Tuple.first
+            |> String.trim
+            |> Just
+    else
+        Nothing
 
 
 dateFormat : Time.Time -> String
@@ -86,10 +90,13 @@ encode =
 
 
 timeFromString : String -> Result String Time.Time
-timeFromString =
-    ISO8601.fromString
-        >> Result.map (ISO8601.toTime >> toFloat)
-        >> Result.mapError (always "Wrong ISO8601 format")
+timeFromString string =
+    if string == "" then
+        Err "Should not be empty"
+    else
+        ISO8601.fromString string
+            |> Result.map (ISO8601.toTime >> toFloat)
+            |> Result.mapError (always "Wrong ISO8601 format")
 
 
 fromTime : Time.Time -> Types.Time
