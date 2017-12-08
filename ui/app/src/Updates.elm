@@ -31,9 +31,9 @@ update msg ({ basePath, apiUrl } as model) =
                     List.map (\( k, v ) -> Matcher False k v) labels
 
                 ( silenceForm, cmd ) =
-                    Views.SilenceForm.Updates.update (NewSilenceFromMatchers matchers) model.silenceForm basePath apiUrl
+                    Views.SilenceForm.Updates.update (NewSilenceFromMatchers model.defaultCreator matchers) model.silenceForm basePath apiUrl
             in
-                ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )
+                ( { model | silenceForm = silenceForm }, cmd )
 
         NavigateToAlerts filter ->
             let
@@ -68,7 +68,7 @@ update msg ({ basePath, apiUrl } as model) =
             , if keep then
                 Cmd.none
               else
-                Task.perform (NewSilenceFromMatchers >> MsgForSilenceForm) (Task.succeed [])
+                Task.perform (NewSilenceFromMatchers model.defaultCreator >> MsgForSilenceForm) (Task.succeed [])
             )
 
         NavigateToSilenceFormEdit uuid ->
@@ -125,10 +125,13 @@ update msg ({ basePath, apiUrl } as model) =
                 ( silenceForm, cmd ) =
                     Views.SilenceForm.Updates.update msg model.silenceForm basePath apiUrl
             in
-                ( { model | silenceForm = silenceForm }, Cmd.map MsgForSilenceForm cmd )
+                ( { model | silenceForm = silenceForm }, cmd )
 
         BootstrapCSSLoaded css ->
             ( { model | bootstrapCSS = css }, Cmd.none )
 
         FontAwesomeCSSLoaded css ->
             ( { model | fontAwesomeCSS = css }, Cmd.none )
+
+        SetDefaultCreator name ->
+            ( { model | defaultCreator = name }, Cmd.none )

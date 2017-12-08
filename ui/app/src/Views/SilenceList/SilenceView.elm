@@ -100,7 +100,7 @@ editButton silence =
             a
                 [ class "btn btn-outline-info border-0"
                 , href "#/silences/new?keep=1"
-                , onClick (NewSilenceFromMatchers silence.matchers |> MsgForSilenceForm)
+                , onClick (NewSilenceFromMatchers silence.createdBy silence.matchers |> MsgForSilenceForm)
                 ]
                 [ text "Recreate"
                 ]

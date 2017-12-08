@@ -13,8 +13,8 @@ import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..), SilenceForm)
 
 
-view : Maybe SilenceId -> Model -> Html SilenceFormMsg
-view maybeId { form, silenceId, alerts } =
+view : Maybe SilenceId -> String -> Model -> Html SilenceFormMsg
+view maybeId defaultCreator { form, silenceId, alerts } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -22,7 +22,7 @@ view maybeId { form, silenceId, alerts } =
                     ( "Edit Silence", FetchSilence silenceId )
 
                 Nothing ->
-                    ( "New Silence", NewSilenceFromMatchers [] )
+                    ( "New Silence", NewSilenceFromMatchers defaultCreator [] )
     in
         div []
             [ h1 [] [ text title ]

@@ -23,6 +23,7 @@ type alias Model =
     , libUrl : String
     , bootstrapCSS : ApiData String
     , fontAwesomeCSS : ApiData String
+    , defaultCreator : String
     }
 
 
@@ -45,6 +46,7 @@ type Msg
     | UpdateFilter String
     | BootstrapCSSLoaded (ApiData String)
     | FontAwesomeCSSLoaded (ApiData String)
+    | SetDefaultCreator String
 
 
 type Route

@@ -15,6 +15,11 @@
             }
         </script>
         <script src="script.js"></script>
-        <script>Elm.Main.embed(document.body, { production: true })</script>
+        <script>
+            var app = Elm.Main.embed(document.body, { production: true, defaultCreator: window.localStorage.getItem('defaultCreator') });
+            app.ports.persistDefaultCreator.subscribe(function(name) {
+                window.localStorage.setItem('defaultCreator', name);
+            });
+        </script>
     </body>
 </html>
