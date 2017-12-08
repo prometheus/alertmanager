@@ -461,7 +461,6 @@ type pagerDutyPayload struct {
 }
 
 func (n *PagerDuty) notifyV1(ctx context.Context, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
-	level.Info(n.logger).Log("msg", "PagerDuty v1 API will no longer be supported: https://v2.developer.pagerduty.com/v2/docs/api-v2-frequently-asked-questions")
 
 	msg := &pagerDutyMessage{
 		ServiceKey:  string(n.conf.ServiceKey),
