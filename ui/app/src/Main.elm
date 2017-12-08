@@ -65,7 +65,7 @@ init flags location =
         defaultCreator =
             flags
                 |> Json.decodeValue (Json.field "defaultCreator" Json.string)
-                |> Result.toMaybe
+                |> Result.withDefault ""
 
         apiUrl =
             if prod then

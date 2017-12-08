@@ -134,4 +134,4 @@ update msg ({ basePath, apiUrl } as model) =
             ( { model | fontAwesomeCSS = css }, Cmd.none )
 
         SetDefaultCreator name ->
-            ( { model | defaultCreator = Just name }, Cmd.none )
+            ( { model | defaultCreator = name }, Cmd.none )

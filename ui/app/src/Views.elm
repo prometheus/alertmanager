@@ -85,7 +85,7 @@ currentView model =
             SilenceForm.view Nothing model.defaultCreator model.silenceForm |> Html.map MsgForSilenceForm
 
         SilenceFormEditRoute silenceId ->
-            SilenceForm.view (Just silenceId) Nothing model.silenceForm |> Html.map MsgForSilenceForm
+            SilenceForm.view (Just silenceId) "" model.silenceForm |> Html.map MsgForSilenceForm
 
         TopLevelRoute ->
             Utils.Views.loading

@@ -13,7 +13,7 @@ import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..), SilenceForm)
 
 
-view : Maybe SilenceId -> Maybe String -> Model -> Html SilenceFormMsg
+view : Maybe SilenceId -> String -> Model -> Html SilenceFormMsg
 view maybeId defaultCreator { form, silenceId, alerts } =
     let
         ( title, resetClick ) =

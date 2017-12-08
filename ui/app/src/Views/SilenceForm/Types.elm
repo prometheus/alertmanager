@@ -60,8 +60,8 @@ type SilenceFormMsg
     | PreviewSilence
     | AlertGroupsPreview (ApiData (List Alert))
     | FetchSilence String
-    | NewSilenceFromMatchers (Maybe String) (List Matcher)
-    | NewSilenceFromMatchersAndTime (Maybe String) (List Matcher) Time
+    | NewSilenceFromMatchers String (List Matcher)
+    | NewSilenceFromMatchersAndTime String (List Matcher) Time
     | SilenceFetch (ApiData Silence)
     | SilenceCreate (ApiData SilenceId)
 
@@ -172,13 +172,13 @@ defaultDuration =
     2 * Time.hour
 
 
-fromMatchersAndTime : Maybe String -> List Matcher -> Time -> SilenceForm
+fromMatchersAndTime : String -> List Matcher -> Time -> SilenceForm
 fromMatchersAndTime defaultCreator matchers now =
     { empty
         | startsAt = initialField (timeToString now)
         , endsAt = initialField (timeToString (now + defaultDuration))
         , duration = initialField (durationFormat defaultDuration)
-        , createdBy = initialField (Maybe.withDefault "" defaultCreator)
+        , createdBy = initialField defaultCreator
         , matchers =
             -- If no matchers were specified, add an empty row
             if List.isEmpty matchers then

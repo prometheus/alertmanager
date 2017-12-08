@@ -23,7 +23,7 @@ type alias Model =
     , libUrl : String
     , bootstrapCSS : ApiData String
     , fontAwesomeCSS : ApiData String
-    , defaultCreator : Maybe String
+    , defaultCreator : String
     }
 
 
