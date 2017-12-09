@@ -491,7 +491,8 @@ func (l *nlog) OnGossip(msg []byte) (mesh.GossipData, error) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	if delta := l.st.mergeDelta(gd); len(delta) > 0 {
+	var delta gossipData
+	if l.st, delta = l.st.mergeDelta(gd); len(delta) > 0 {
 		return delta, nil
 	}
 	return nil, nil
@@ -506,7 +507,10 @@ func (l *nlog) OnGossipBroadcast(src mesh.PeerName, msg []byte) (mesh.GossipData
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	return l.st.mergeDelta(gd), nil
+	var delta mesh.GossipData
+	l.st, delta = l.st.mergeDelta(gd)
+
+	return delta, nil
 }
 
 // OnGossipUnicast implements the mesh.Gossiper interface.
@@ -577,36 +581,38 @@ func (gd gossipData) clone() gossipData {
 // TODO(fabxc): can we just return the receiver. Does it have to remain
 // unmodified. Needs to be clarified upstream.
 func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
+	merged := gd.clone()
 	for k, e := range other.(gossipData) {
-		prev, ok := gd[k]
+		prev, ok := merged[k]
 		if !ok {
-			gd[k] = e
+			merged[k] = e
 			continue
 		}
 		if prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
-			gd[k] = e
+			merged[k] = e
 		}
 	}
-	return gd
+	return merged
 }
 
-// mergeDelta behaves like Merge but returns a gossipData only containing
-// things that have changed.
-func (gd gossipData) mergeDelta(od gossipData) gossipData {
-	delta := gossipData{}
+// mergeDelta behaves like Merge but in addition returns a gossipData only
+// containing things that have changed.
+func (gd gossipData) mergeDelta(od gossipData) (merged gossipData, delta gossipData) {
+	merged = gd.clone()
+	delta = gossipData{}
 	for k, e := range od {
-		prev, ok := gd[k]
+		prev, ok := merged[k]
 		if !ok {
-			gd[k] = e
+			merged[k] = e
 			delta[k] = e
 			continue
 		}
 		if prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
-			gd[k] = e
+			merged[k] = e
 			delta[k] = e
 		}
 	}
-	return delta
+	return merged, delta
 }
 
 // replaceFile wraps a file that is moved to another filename on closing.
