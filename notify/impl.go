@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net"
@@ -115,6 +116,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	for i, c := range nc.OpsGenieConfigs {
 		n := NewOpsGenie(c, tmpl, logger)
 		add("opsgenie", i, n, c)
+	}
+	for i, c := range nc.WechatConfigs {
+		n := NewWechat(c, tmpl, logger)
+		add("wechat", i, n, c)
 	}
 	for i, c := range nc.SlackConfigs {
 		n := NewSlack(c, tmpl, logger)
@@ -766,6 +771,136 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
 	if statusCode/100 != 2 {
 		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// Wechat implements a Notfier for wechat notifications
+type Wechat struct {
+	conf   *config.WechatConfig
+	tmpl   *template.Template
+	logger log.Logger
+}
+type WechatToken struct {
+	AccessToken string `json:"access_token"`
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `json:"-"`
+}
+type weChatMessage struct {
+	Content string `json:"content"`
+}
+type weChatCreateMessage struct {
+	Text    weChatMessage `yaml:"text,omitempty" json:"text,omitempty"`
+	ToUser  string        `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty string        `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag   string        `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID string        `yaml:"agentid,omitempty" json:"agentid,omitempty"`
+	Safe    string        `yaml:"safe,omitempty" json:"safe,omitempty"`
+	Type    string        `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+}
+
+type weChatCloseMessage struct {
+	Text    weChatMessage `yaml:"text,omitempty" json:"text,omitempty"`
+	ToUser  string        `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty string        `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag   string        `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID string        `yaml:"agentid,omitempty" json:"agentid,omitempty"`
+	Safe    string        `yaml:"safe,omitempty" json:"safe,omitempty"`
+	Type    string        `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+}
+
+type weChatErrorResponse struct {
+	Code  int    `json:"code"`
+	Error string `json:"error"`
+}
+
+// NewWechat returns a new Wechat notifier.
+func NewWechat(c *config.WechatConfig, t *template.Template, l log.Logger) *Wechat {
+	return &Wechat{conf: c, tmpl: t, logger: l}
+}
+
+// Notify implements the Notifier interface.
+func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+	level.Debug(n.logger).Log("msg", "Notifying Wechat", "incident", key)
+
+	var err error
+	tmpl := tmplText(n.tmpl, data, &err)
+
+	var (
+		msg    interface{}
+		apiURL string
+		apiMsg = weChatMessage{
+			Content: tmpl(n.conf.Message),
+		}
+		alerts = types.Alerts(as...)
+	)
+	parameters := url.Values{}
+	parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
+	parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
+	apiURL = n.conf.APIURL + "gettoken"
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return false, err
+	}
+	u.RawQuery = parameters.Encode()
+	level.Debug(n.logger).Log("msg", "Sending Wechat  message", "incident", key, "url", u.String())
+	resp, err := ctxhttp.Get(ctx, http.DefaultClient, u.String())
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
+	var wechatToken WechatToken
+	if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
+		return false, err
+	}
+	postMessageURL := n.conf.APIURL + "message/send?access_token=" + wechatToken.AccessToken
+	switch alerts.Status() {
+	case model.AlertResolved:
+		msg = &weChatCloseMessage{Text: apiMsg,
+			ToUser:  tmpl(n.conf.ToUser),
+			ToParty: tmpl(n.conf.ToParty),
+			Totag:   tmpl(n.conf.ToTag),
+			AgentID: tmpl(n.conf.AgentID),
+			Type:    "text",
+			Safe:    "0"}
+	default:
+		msg = &weChatCreateMessage{
+			Text: weChatMessage{
+				Content: tmpl(n.conf.Message),
+			},
+			ToUser:  tmpl(n.conf.ToUser),
+			ToParty: tmpl(n.conf.ToParty),
+			Totag:   tmpl(n.conf.ToTag),
+			AgentID: tmpl(n.conf.AgentID),
+			Type:    "text",
+			Safe:    "0",
+		}
+	}
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+	resp, err = ctxhttp.Post(ctx, http.DefaultClient, postMessageURL, contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+	body, _ := ioutil.ReadAll(resp.Body)
+	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
+	defer resp.Body.Close()
+	return n.retry(resp.StatusCode)
+}
+func (n *Wechat) retry(statusCode int) (bool, error) {
+	// https://work.weixin.qq.com/api/doc#10649
+	if statusCode/100 == 5 || statusCode == 429 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil

@@ -110,6 +110,39 @@ url: ''
 	}
 }
 
+func TestWechatAPIKeyIsPresent(t *testing.T) {
+	in := `
+api_secret: ''
+`
+	var cfg WechatConfig
+	err := yaml.Unmarshal([]byte(in), &cfg)
+
+	expected := "missing Wechat APISecret in Wechat config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+func TestWechatCorpIDIsPresent(t *testing.T) {
+	in := `
+corp_id: ''
+`
+	var cfg WechatConfig
+	err := yaml.Unmarshal([]byte(in), &cfg)
+
+	expected := "missing Wechat CorpID in Wechat config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func TestOpsGenieAPIKeyIsPresent(t *testing.T) {
 	in := `
 api_key: ''

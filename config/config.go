@@ -236,6 +236,29 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIURL += "/"
 			}
 		}
+		for _, wcc := range rcv.WechatConfigs {
+			wcc.APIURL = c.Global.WeChatAPIURL
+			if wcc.APIURL == "" {
+				if c.Global.WeChatAPIURL == "" {
+					return fmt.Errorf("no global Wechat URL set")
+				}
+			}
+			wcc.APISecret = c.Global.WeChatAPISecret
+			if wcc.APISecret == "" {
+				if c.Global.WeChatAPISecret == "" {
+					return fmt.Errorf("no global Wechat ApiSecret set")
+				}
+			}
+			if wcc.CorpID == "" {
+				if c.Global.WeChatAPICorpID == "" {
+					return fmt.Errorf("no global Wechat CorpID set")
+				}
+				wcc.CorpID = c.Global.WeChatAPICorpID
+			}
+			if !strings.HasSuffix(wcc.APIURL, "/") {
+				wcc.APIURL += "/"
+			}
+		}
 		for _, voc := range rcv.VictorOpsConfigs {
 			if voc.APIURL == "" {
 				if c.Global.VictorOpsAPIURL == "" {
@@ -301,6 +324,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	PagerdutyURL:    "https://events.pagerduty.com/v2/enqueue",
 	HipchatAPIURL:   "https://api.hipchat.com/",
 	OpsGenieAPIURL:  "https://api.opsgenie.com/",
+	WeChatAPIURL:    "https://qyapi.weixin.qq.com/cgi-bin/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
 
@@ -324,6 +348,9 @@ type GlobalConfig struct {
 	HipchatAPIURL    string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIURL   string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	WeChatAPIURL     string `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret  string `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 
@@ -459,6 +486,7 @@ type Receiver struct {
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 
