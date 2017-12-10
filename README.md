@@ -309,7 +309,7 @@ Procfile within this repository.
 
 	goreman start
 
-To point your Prometheus 2.x instance to multiple Alertmanagers, configure them
+To point your Prometheus 1.4, or later, instance to multiple Alertmanagers, configure them
 in your `prometheus.yml` configuration file, for example:
 
 ```yaml
@@ -321,14 +321,6 @@ alerting:
       - alertmanager2:9093
       - alertmanager3:9093
 ```
-
-To point your Prometheus 1.x instance to multiple Alertmanagers use the
-`-alertmanager.url` parameter. It allows passing in a comma separated list.
-Start your prometheus like this, for example:
-
-	./prometheus -config.file=prometheus.yml -alertmanager.url http://localhost:9095,http://localhost:9094,http://localhost:9093
-
-> Note: make sure to have a valid `prometheus.yml` in your current directory
 
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
 
