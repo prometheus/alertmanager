@@ -77,7 +77,7 @@ init flags location =
             if prod then
                 location.pathname
             else
-                "http://localhost:9093/"
+                "/"
     in
         update (urlUpdate location)
             (Model

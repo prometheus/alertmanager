@@ -68,14 +68,14 @@ go-bindata:
 template/internal/deftmpl/bindata.go: template/default.tmpl
 	@go-bindata $(bindata_flags) -mode 420 -modtime 1 -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
 
-ui/bindata.go: ui/app/script.js ui/app/index.html ui/lib
+ui/bindata.go: ui/app/script.js ui/app/index.html ui/app/lib
 # Using "-mode 420" and "-modtime 1" to make assets make target deterministic.
 # It sets all file permissions and time stamps to 420 and 1
 	@go-bindata $(bindata_flags) -mode 420 -modtime 1 -pkg ui -o \
 		ui/bindata.go ui/app/script.js \
 		ui/app/index.html \
 		ui/app/favicon.ico \
-		ui/lib/...
+		ui/app/lib/...
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm)
 	cd $(FRONTEND_DIR) && $(MAKE) script.js

@@ -67,7 +67,7 @@ func Register(r *route.Router, reloadCh chan<- struct{}, logger log.Logger) {
 	r.Get("/lib/*filepath", ihf("lib_files",
 		func(w http.ResponseWriter, req *http.Request) {
 			fp := route.Param(req.Context(), "filepath")
-			serveAsset(w, req, filepath.Join("ui/lib", fp), logger)
+			serveAsset(w, req, filepath.Join("ui/app/lib", fp), logger)
 		},
 	))
 
