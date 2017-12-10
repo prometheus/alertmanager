@@ -309,7 +309,20 @@ Procfile within this repository.
 
 	goreman start
 
-To point your prometheus instance to multiple Alertmanagers use the
+To point your Prometheus 2.x instance to multiple Alertmanagers, configure them
+in your `prometheus.yml` configuration file, for example:
+
+```yaml
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      - alertmanager1:9093
+      - alertmanager2:9093
+      - alertmanager3:9093
+```
+
+To point your Prometheus 1.x instance to multiple Alertmanagers use the
 `-alertmanager.url` parameter. It allows passing in a comma separated list.
 Start your prometheus like this, for example:
 
