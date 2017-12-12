@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/spf13/cobra"
@@ -44,12 +45,23 @@ var queryCmd = &cobra.Command{
   	As well as direct equality, regex matching is also supported. The '=~' syntax
   	(similar to prometheus) is used to represent a regex match. Regex matching
   	can be used in combination with a direct match.
+
+  In addition to filtering by silence labels, one can also query for silences
+  that are due to expire soon with the "--within" parameter. In the event that
+  you want to preemptively act upon expiring silences by either fixing them or
+  extending them. For example:
+
+  amtool silence query --within 8h
+
+  gives all the silences due to expire within the next 8 hours. This syntax can
+  also be combined with the label based filtering above for more flexibility.
 				`,
 	Run: CommandWrapper(query),
 }
 
 func init() {
 	queryCmd.Flags().Bool("expired", false, "Show expired silences as well as active")
+	queryCmd.Flags().String("within", "", "Show silences that will expire within a duration")
 	queryFlags = queryCmd.Flags()
 }
 
@@ -89,6 +101,19 @@ func query(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	within, err := queryFlags.GetString("within")
+	if err != nil {
+		return err
+	}
+
+	var duration model.Duration
+	if within != "" {
+		duration, err = model.ParseDuration(within)
+		if err != nil {
+			return err
+		}
+	}
+
 	quiet := viper.GetBool("quiet")
 
 	var filterString = ""
@@ -117,6 +142,11 @@ func query(cmd *cobra.Command, args []string) error {
 		if !expired && silence.EndsAt.Before(time.Now()) {
 			continue
 		}
+
+		if int64(duration) > 0 && silence.EndsAt.After(time.Now().UTC().Add(time.Duration(duration))) {
+			continue
+		}
+
 		displaySilences = append(displaySilences, silence)
 	}
 
