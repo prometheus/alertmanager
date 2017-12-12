@@ -70,6 +70,7 @@ var (
 		Pretext:   `{{ template "slack.default.pretext" . }}`,
 		Text:      `{{ template "slack.default.text" . }}`,
 		Fallback:  `{{ template "slack.default.fallback" . }}`,
+		Footer:    `{{ template "slack.default.footer" . }}`,
 	}
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
@@ -237,6 +238,7 @@ type SlackConfig struct {
 	TitleLink string `yaml:"title_link,omitempty" json:"title_link,omitempty"`
 	Pretext   string `yaml:"pretext,omitempty" json:"pretext,omitempty"`
 	Text      string `yaml:"text,omitempty" json:"text,omitempty"`
+	Footer    string `yaml:"footer,omitempty" json:"footer,omitempty"`
 	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
