@@ -669,8 +669,8 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		var fields = make([]slackAttachmentField, numFields)
 		for k, v := range n.conf.Fields {
 			fields[k] = slackAttachmentField{
-				v["title"],
-				v["value"],
+				tmplText(v["title"]),
+				tmplText(v["value"]),
 				n.conf.ShortFields,
 			}
 		}
