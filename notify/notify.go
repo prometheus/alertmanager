@@ -28,7 +28,6 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
@@ -210,7 +209,7 @@ func BuildPipeline(
 	confs []*config.Receiver,
 	tmpl *template.Template,
 	wait func() time.Duration,
-	inhibitor *inhibit.Inhibitor,
+	muter types.Muter,
 	silences *silence.Silences,
 	notificationLog nflog.Log,
 	marker types.Marker,
@@ -218,7 +217,7 @@ func BuildPipeline(
 ) RoutingStage {
 	rs := RoutingStage{}
 
-	is := NewInhibitStage(inhibitor, marker)
+	is := NewInhibitStage(muter)
 	ss := NewSilenceStage(silences, marker)
 
 	for _, rc := range confs {
@@ -321,11 +320,8 @@ type InhibitStage struct {
 }
 
 // NewInhibitStage return a new InhibitStage.
-func NewInhibitStage(m types.Muter, mk types.Marker) *InhibitStage {
-	return &InhibitStage{
-		muter:  m,
-		marker: mk,
-	}
+func NewInhibitStage(m types.Muter) *InhibitStage {
+	return &InhibitStage{muter: m}
 }
 
 // Exec implements the Stage interface.
