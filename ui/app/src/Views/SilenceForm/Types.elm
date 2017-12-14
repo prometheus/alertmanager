@@ -11,6 +11,7 @@ module Views.SilenceForm.Types
         , initSilenceForm
         , emptyMatcher
         , validateForm
+        , parseEndsAt
         )
 
 import Silences.Types exposing (Silence, SilenceId, nullSilence)
@@ -70,11 +71,9 @@ type SilenceFormFieldMsg
     = AddMatcher
     | DeleteMatcher Int
     | UpdateStartsAt String
-    | ValidateStartsAt
     | UpdateEndsAt String
-    | ValidateEndsAt
     | UpdateDuration String
-    | ValidateDuration
+    | ValidateTime
     | UpdateCreatedBy String
     | ValidateCreatedBy
     | UpdateComment String
@@ -111,7 +110,7 @@ toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
         (List.foldr appendMatcher (Ok []) matchers)
         (stringNotEmpty createdBy.value)
         (timeFromString startsAt.value)
-        (timeFromString endsAt.value)
+        (parseEndsAt startsAt.value endsAt.value)
         |> Result.toMaybe
 
 
@@ -122,7 +121,7 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , comment = initialField comment
     , startsAt = initialField (timeToString startsAt)
     , endsAt = initialField (timeToString endsAt)
-    , duration = initialField (durationFormat (endsAt - startsAt))
+    , duration = initialField (durationFormat (endsAt - startsAt) |> Maybe.withDefault "")
     , matchers = List.map fromMatcher matchers
     }
 
@@ -133,10 +132,23 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
     , createdBy = validate stringNotEmpty createdBy
     , comment = validate stringNotEmpty comment
     , startsAt = validate timeFromString startsAt
-    , endsAt = validate timeFromString endsAt
+    , endsAt = validate (parseEndsAt startsAt.value) endsAt
     , duration = validate parseDuration duration
     , matchers = List.map validateMatcherForm matchers
     }
+
+
+parseEndsAt : String -> String -> Result String Time.Time
+parseEndsAt startsAt endsAt =
+    case ( timeFromString startsAt, timeFromString endsAt ) of
+        ( Ok starts, Ok ends ) ->
+            if starts > ends then
+                Err "Can't be in the past"
+            else
+                Ok ends
+
+        ( _, endsResult ) ->
+            endsResult
 
 
 validateMatcherForm : MatcherForm -> MatcherForm
@@ -177,7 +189,7 @@ fromMatchersAndTime defaultCreator matchers now =
     { empty
         | startsAt = initialField (timeToString now)
         , endsAt = initialField (timeToString (now + defaultDuration))
-        , duration = initialField (durationFormat defaultDuration)
+        , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
         , createdBy = initialField defaultCreator
         , matchers =
             -- If no matchers were specified, add an empty row

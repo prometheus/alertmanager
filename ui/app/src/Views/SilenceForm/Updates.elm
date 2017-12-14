@@ -19,6 +19,7 @@ import Views.SilenceForm.Types
         , SilenceFormFieldMsg(..)
         , fromMatchersAndTime
         , fromSilence
+        , parseEndsAt
         , validateForm
         , toSilence
         , emptyMatcher
@@ -42,7 +43,12 @@ updateForm msg form =
                 durationValue =
                     case Result.map2 (-) endsAt startsAt of
                         Ok duration ->
-                            Utils.Date.durationFormat duration
+                            case Utils.Date.durationFormat duration of
+                                Just value ->
+                                    value
+
+                                Nothing ->
+                                    form.duration.value
 
                         Err _ ->
                             form.duration.value
@@ -51,11 +57,6 @@ updateForm msg form =
                     | startsAt = updateValue time form.startsAt
                     , duration = updateValue durationValue form.duration
                 }
-
-        ValidateStartsAt ->
-            { form
-                | startsAt = validate Utils.Date.timeFromString form.startsAt
-            }
 
         UpdateEndsAt time ->
             let
@@ -68,7 +69,12 @@ updateForm msg form =
                 durationValue =
                     case Result.map2 (-) endsAt startsAt of
                         Ok duration ->
-                            Utils.Date.durationFormat duration
+                            case Utils.Date.durationFormat duration of
+                                Just value ->
+                                    value
+
+                                Nothing ->
+                                    form.duration.value
 
                         Err _ ->
                             form.duration.value
@@ -77,11 +83,6 @@ updateForm msg form =
                     | endsAt = updateValue time form.endsAt
                     , duration = updateValue durationValue form.duration
                 }
-
-        ValidateEndsAt ->
-            { form
-                | endsAt = validate Utils.Date.timeFromString form.endsAt
-            }
 
         UpdateDuration time ->
             let
@@ -104,9 +105,11 @@ updateForm msg form =
                     , duration = updateValue time form.duration
                 }
 
-        ValidateDuration ->
+        ValidateTime ->
             { form
-                | duration = validate Utils.Date.parseDuration form.duration
+                | startsAt = validate Utils.Date.timeFromString form.startsAt
+                , endsAt = validate (parseEndsAt form.startsAt.value) form.endsAt
+                , duration = validate Utils.Date.parseDuration form.duration
             }
 
         UpdateCreatedBy createdBy ->

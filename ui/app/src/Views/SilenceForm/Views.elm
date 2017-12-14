@@ -59,19 +59,19 @@ timeInput startsAt endsAt duration =
             "Start"
             "col-5"
             (UpdateStartsAt >> UpdateField)
-            (ValidateStartsAt |> UpdateField)
+            (ValidateTime |> UpdateField)
             startsAt
         , validatedField input
             "Duration"
             "col-2"
             (UpdateDuration >> UpdateField)
-            (ValidateDuration |> UpdateField)
+            (ValidateTime |> UpdateField)
             duration
         , validatedField input
             "End"
             "col-5"
             (UpdateEndsAt >> UpdateField)
-            (ValidateEndsAt |> UpdateField)
+            (ValidateTime |> UpdateField)
             endsAt
         ]
 
