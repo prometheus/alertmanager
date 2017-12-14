@@ -465,7 +465,7 @@ type printfLogger struct {
 }
 
 func (l printfLogger) Printf(f string, args ...interface{}) {
-	level.Debug(l).Log(fmt.Sprintf(f, args...))
+	level.Debug(l).Log("msg", fmt.Sprintf(f, args...))
 }
 
 func extURL(listen, external string) (*url.URL, error) {
