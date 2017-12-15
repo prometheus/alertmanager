@@ -626,12 +626,13 @@ type slackReq struct {
 
 // slackAttachment is used to display a richly-formatted message block.
 type slackAttachment struct {
-	Title     string `json:"title,omitempty"`
-	TitleLink string `json:"title_link,omitempty"`
-	Pretext   string `json:"pretext,omitempty"`
-	Text      string `json:"text"`
-	Fallback  string `json:"fallback"`
-	Footer    string `json:"footer"`
+	Title     string                 `json:"title,omitempty"`
+	TitleLink string                 `json:"title_link,omitempty"`
+	Pretext   string                 `json:"pretext,omitempty"`
+	Text      string                 `json:"text"`
+	Fallback  string                 `json:"fallback"`
+	Fields    []slackAttachmentField `json:"fields"`
+	Footer    string                 `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
 	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
@@ -662,6 +663,20 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Color:     tmplText(n.conf.Color),
 		MrkdwnIn:  []string{"fallback", "pretext", "text"},
 	}
+
+	var numFields = len(n.conf.Fields)
+	if numFields > 0 {
+		var fields = make([]slackAttachmentField, numFields)
+		for k, v := range n.conf.Fields {
+			fields[k] = slackAttachmentField{
+				tmplText(v["title"]),
+				tmplText(v["value"]),
+				n.conf.ShortFields,
+			}
+		}
+		attachment.Fields = fields
+	}
+
 	req := &slackReq{
 		Channel:     tmplText(n.conf.Channel),
 		Username:    tmplText(n.conf.Username),

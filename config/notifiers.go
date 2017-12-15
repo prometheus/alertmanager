@@ -234,15 +234,17 @@ type SlackConfig struct {
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 	Color    string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
-	TitleLink string `yaml:"title_link,omitempty" json:"title_link,omitempty"`
-	Pretext   string `yaml:"pretext,omitempty" json:"pretext,omitempty"`
-	Text      string `yaml:"text,omitempty" json:"text,omitempty"`
-	Footer    string `yaml:"footer,omitempty" json:"footer,omitempty"`
-	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
-	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
-	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
-	LinkNames bool   `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	Title       string              `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink   string              `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Pretext     string              `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Text        string              `yaml:"text,omitempty" json:"text,omitempty"`
+	Fields      []map[string]string `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ShortFields bool                `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
+	Footer      string              `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Fallback    string              `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	IconEmoji   string              `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	IconURL     string              `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	LinkNames   bool                `yaml:"link_names,omitempty" json:"link_names,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
