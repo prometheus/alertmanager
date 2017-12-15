@@ -1,14 +1,25 @@
-module Views.SilenceForm.Parsing exposing (silenceFormNewParser, silenceFormEditParser)
+module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, silenceFormNewParser, silenceFormEditParser)
 
 import UrlParser exposing (Parser, s, (</>), (<?>), string, stringParam, oneOf, map)
+import Utils.Filter exposing (parseFilter, Matcher)
+import Http exposing (encodeUri)
 
 
-silenceFormNewParser : Parser (Bool -> a) a
+newSilenceFromAlertLabels : List ( String, String ) -> String
+newSilenceFromAlertLabels labels =
+    labels
+        |> List.map (\( k, v ) -> Utils.Filter.Matcher k Utils.Filter.Eq v)
+        |> Utils.Filter.stringifyFilter
+        |> encodeUri
+        |> (++) "#/silences/new?filter="
+
+
+silenceFormNewParser : Parser (List Matcher -> a) a
 silenceFormNewParser =
     s "silences"
         </> s "new"
-        <?> stringParam "keep"
-        |> map (Maybe.map (always True) >> Maybe.withDefault False)
+        <?> stringParam "filter"
+        |> map (Maybe.andThen parseFilter >> Maybe.withDefault [])
 
 
 silenceFormEditParser : Parser (String -> a) a

@@ -20,6 +20,7 @@ import Utils.Types exposing (Matcher, Duration, ApiData(..))
 import Time exposing (Time)
 import Utils.Date exposing (timeFromString, timeToString, durationFormat, parseDuration)
 import Time exposing (Time)
+import Utils.Filter
 import Utils.FormValidation
     exposing
         ( initialField
@@ -61,8 +62,8 @@ type SilenceFormMsg
     | PreviewSilence
     | AlertGroupsPreview (ApiData (List Alert))
     | FetchSilence String
-    | NewSilenceFromMatchers String (List Matcher)
-    | NewSilenceFromMatchersAndTime String (List Matcher) Time
+    | NewSilenceFromMatchers String (List Utils.Filter.Matcher)
+    | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Time
     | SilenceFetch (ApiData Silence)
     | SilenceCreate (ApiData SilenceId)
 
@@ -184,7 +185,7 @@ defaultDuration =
     2 * Time.hour
 
 
-fromMatchersAndTime : String -> List Matcher -> Time -> SilenceForm
+fromMatchersAndTime : String -> List Utils.Filter.Matcher -> Time -> SilenceForm
 fromMatchersAndTime defaultCreator matchers now =
     { empty
         | startsAt = initialField (timeToString now)
@@ -196,7 +197,7 @@ fromMatchersAndTime defaultCreator matchers now =
             if List.isEmpty matchers then
                 [ emptyMatcher ]
             else
-                List.map fromMatcher matchers
+                List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
     }
 
 
@@ -204,6 +205,21 @@ appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (Li
 appendMatcher { isRegex, name, value } =
     Result.map2 (::)
         (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (stringNotEmpty value.value))
+
+
+filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher
+filterMatcherToMatcher { key, op, value } =
+    Maybe.map (\op -> Matcher op key value) <|
+        case op of
+            Utils.Filter.Eq ->
+                Just False
+
+            Utils.Filter.RegexMatch ->
+                Just True
+
+            -- we don't support negative matchers
+            _ ->
+                Nothing
 
 
 fromMatcher : Matcher -> MatcherForm

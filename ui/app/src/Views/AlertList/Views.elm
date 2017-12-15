@@ -4,7 +4,7 @@ import Alerts.Types exposing (Alert)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
+import Types exposing (Msg(Noop, MsgForAlertList))
 import Utils.Filter exposing (Filter)
 import Views.FilterBar.Views as FilterBar
 import Views.ReceiverBar.Views as ReceiverBar
@@ -14,7 +14,7 @@ import Utils.List
 import Views.AlertList.AlertView as AlertView
 import Views.GroupBar.Types as GroupBar
 import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
-import Types exposing (Msg(Noop, CreateSilenceFromAlert, MsgForAlertList))
+import Types exposing (Msg(Noop, MsgForAlertList))
 import Views.GroupBar.Views as GroupBar
 import Dict exposing (Dict)
 
