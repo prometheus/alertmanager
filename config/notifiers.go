@@ -297,9 +297,33 @@ type WebhookConfig struct {
 
 	// URL to send POST request to.
 	URL string `yaml:"url" json:"url"`
+	// Optional TLS configuration
+	TLSConfig TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+	// Optional bearer token
+	BearerToken Secret `yaml:"bearer_token,omitempty" json:"bearer_token,omitempty"`
+	// Optional bearer token file
+	BearerTokenFile string `yaml:"bearer_token_file,omitempty" json:"bearer_token_file,omitempty"`
+	// TODO: Optional BasicAuth configuration
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// TLSConfig configures the options for TLS connections.
+type TLSConfig struct {
+	// The CA cert file.
+	CAFile string `yaml:"ca_file,omitempty"`
+	// The client cert file.
+	CertFile string `yaml:"cert_file,omitempty"`
+	// The client key file.
+	KeyFile string `yaml:"key_file,omitempty"`
+	// Used to verify the server's hostname.
+	ServerName string `yaml:"server_name,omitempty"`
+	// Disable certificate validation.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -320,6 +344,9 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("scheme required for webhook url")
 	}
 	c.URL = url.String()
+	if len(c.BearerToken) > 0 && len(c.BearerTokenFile) > 0 {
+		return fmt.Errorf("at most one of bearer_token & bearer_token_file must be configured")
+	}
 	return checkOverflow(c.XXX, "webhook config")
 }
 
