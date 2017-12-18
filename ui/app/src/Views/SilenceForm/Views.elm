@@ -11,10 +11,11 @@ import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, validatedField, loading)
 import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
 import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..), SilenceForm)
+import Utils.Filter
 
 
-view : Maybe SilenceId -> String -> Model -> Html SilenceFormMsg
-view maybeId defaultCreator { form, silenceId, alerts } =
+view : Maybe SilenceId -> List Utils.Filter.Matcher -> String -> Model -> Html SilenceFormMsg
+view maybeId matchers defaultCreator { form, silenceId, alerts } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -22,7 +23,7 @@ view maybeId defaultCreator { form, silenceId, alerts } =
                     ( "Edit Silence", FetchSilence silenceId )
 
                 Nothing ->
-                    ( "New Silence", NewSilenceFromMatchers defaultCreator [] )
+                    ( "New Silence", NewSilenceFromMatchers defaultCreator matchers )
     in
         div []
             [ h1 [] [ text title ]

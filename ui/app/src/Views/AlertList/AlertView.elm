@@ -4,12 +4,13 @@ import Alerts.Types exposing (Alert)
 import Html exposing (..)
 import Html.Attributes exposing (class, style, href, value, readonly, title)
 import Html.Events exposing (onClick)
-import Types exposing (Msg(CreateSilenceFromAlert, Noop, MsgForAlertList))
+import Types exposing (Msg(Noop, MsgForAlertList))
 import Utils.Date
 import Views.FilterBar.Types as FilterBarTypes
 import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, SetActive))
-import Utils.Filter
 import Utils.Views
+import Utils.Filter
+import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
 view : List ( String, String ) -> Maybe String -> Alert -> Html Msg
@@ -130,7 +131,6 @@ silenceButton alert =
             a
                 [ class "btn btn-outline-danger border-0"
                 , href ("#/silences/" ++ sId)
-                , onClick (CreateSilenceFromAlert alert)
                 ]
                 [ i [ class "fa fa-bell-slash mr-2" ] []
                 , text "Silenced"
@@ -139,8 +139,7 @@ silenceButton alert =
         Nothing ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href "#/silences/new?keep=1"
-                , onClick (CreateSilenceFromAlert alert)
+                , href (newSilenceFromAlertLabels alert.labels)
                 ]
                 [ i [ class "fa fa-bell-slash-o mr-2" ] []
                 , text "Silence"

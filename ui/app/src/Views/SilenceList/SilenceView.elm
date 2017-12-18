@@ -15,6 +15,7 @@ import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
 import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers))
 import Views.SilenceList.Types exposing (SilenceListMsg(ConfirmDestroySilence, DestroySilence, FetchSilences, MsgForFilterBar))
+import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
 view : Bool -> Silence -> Html Msg
@@ -99,8 +100,7 @@ editButton silence =
         Expired ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href "#/silences/new?keep=1"
-                , onClick (NewSilenceFromMatchers silence.createdBy silence.matchers |> MsgForSilenceForm)
+                , href (newSilenceFromAlertLabels [])
                 ]
                 [ text "Recreate"
                 ]

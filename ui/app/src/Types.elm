@@ -1,12 +1,11 @@
 module Types exposing (Model, Msg(..), Route(..))
 
-import Alerts.Types exposing (Alert)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
 import Views.SilenceList.Types as SilenceList exposing (SilenceListMsg)
 import Views.SilenceView.Types as SilenceView exposing (SilenceViewMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.Status.Types exposing (StatusModel, StatusMsg)
-import Utils.Filter exposing (Filter)
+import Utils.Filter exposing (Filter, Matcher)
 import Utils.Types exposing (ApiData)
 
 
@@ -28,8 +27,7 @@ type alias Model =
 
 
 type Msg
-    = CreateSilenceFromAlert Alert
-    | MsgForAlertList AlertListMsg
+    = MsgForAlertList AlertListMsg
     | MsgForSilenceView SilenceViewMsg
     | MsgForSilenceForm SilenceFormMsg
     | MsgForSilenceList SilenceListMsg
@@ -38,7 +36,7 @@ type Msg
     | NavigateToNotFound
     | NavigateToSilenceView String
     | NavigateToSilenceFormEdit String
-    | NavigateToSilenceFormNew Bool
+    | NavigateToSilenceFormNew (List Matcher)
     | NavigateToSilenceList Filter
     | NavigateToStatus
     | Noop
@@ -53,7 +51,7 @@ type Route
     = AlertsRoute Filter
     | NotFoundRoute
     | SilenceFormEditRoute String
-    | SilenceFormNewRoute Bool
+    | SilenceFormNewRoute (List Matcher)
     | SilenceListRoute Filter
     | SilenceViewRoute String
     | StatusRoute

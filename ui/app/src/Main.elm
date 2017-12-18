@@ -113,8 +113,8 @@ urlUpdate location =
             SilenceFormEditRoute silenceId ->
                 NavigateToSilenceFormEdit silenceId
 
-            SilenceFormNewRoute keep ->
-                NavigateToSilenceFormNew keep
+            SilenceFormNewRoute matchers ->
+                NavigateToSilenceFormNew matchers
 
             AlertsRoute filter ->
                 NavigateToAlerts filter
