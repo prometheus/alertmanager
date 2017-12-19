@@ -62,6 +62,16 @@ func (r amtoolConfigResolver) Resolve(key string, context *kingpin.ParseContext)
 	return nil, nil
 }
 
+// This function maps things which have previously had different names in the
+// config file to their new names, so old configrations keep working
+func backwardsCompatibilityResolver(key string) string {
+	switch key {
+	case "require-comment":
+		return "comment_required"
+	}
+	return key
+}
+
 func init() {
 	longHelpText["root"] = `View and modify the current Alertmanager state.
 
@@ -80,8 +90,8 @@ static configuration:
 		Set a default author value for new silences. If this argument is not
 		specified then the username will be used
 
-	comment_required
-		Require a comment on silence creation
+	require-comment
+		Bool, whether to require a comment on silence creation. Defaults to true
 
 	output
 		Set a default output type. Options are (simple, extended, json)
@@ -104,7 +114,15 @@ func Execute() {
 		Vars:     map[string]interface{}{"LongHelp": longHelpText},
 	}).Bool()
 
-	app.Resolver(newConfigResolver())
+	configResolver := newConfigResolver()
+	// Use the same resolver twice, first for checking backwards compatibility,
+	// then again for the new names. This order ensures that the newest wins, if
+	// both old and new are present
+	app.Resolver(
+		kingpin.RenamingResolver(configResolver, backwardsCompatibilityResolver),
+		configResolver,
+	)
+
 	_, err := app.Parse(os.Args[1:])
 	if err != nil {
 		kingpin.Fatalf("%v\n", err)
