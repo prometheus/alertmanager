@@ -112,9 +112,10 @@ func main() {
 	var (
 		showVersion = flag.Bool("version", false, "Print version information.")
 
-		configFile = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
-		dataDir    = flag.String("storage.path", "data/", "Base path for data storage.")
-		retention  = flag.Duration("data.retention", 5*24*time.Hour, "How long to keep data for.")
+		configFile      = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
+		dataDir         = flag.String("storage.path", "data/", "Base path for data storage.")
+		retention       = flag.Duration("data.retention", 5*24*time.Hour, "How long to keep data for.")
+		alertGCInterval = flag.Duration("alerts.gc-interval", 30*time.Minute, "Interval between alert GC.")
 
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 		routePrefix   = flag.String("web.route-prefix", "", "Prefix for the internal routes of web endpoints. Defaults to path of -web.external-url.")
@@ -245,7 +246,7 @@ func main() {
 		wg.Wait()
 	}()
 
-	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
+	alerts, err := mem.NewAlerts(marker, *alertGCInterval)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		os.Exit(1)

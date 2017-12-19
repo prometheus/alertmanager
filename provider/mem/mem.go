@@ -35,7 +35,7 @@ type Alerts struct {
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(m types.Marker, intervalGC time.Duration, path string) (*Alerts, error) {
+func NewAlerts(m types.Marker, intervalGC time.Duration) (*Alerts, error) {
 	a := &Alerts{
 		alerts:     map[model.Fingerprint]*types.Alert{},
 		marker:     m,
