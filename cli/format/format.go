@@ -4,12 +4,21 @@ import (
 	"io"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"
+
+var (
+	dateFormat *string
+)
+
+func InitFormatFlags(app *kingpin.Application) {
+	dateFormat = app.Flag("date.format", "Format of date output").Default(DefaultDateFormat).String()
+}
 
 // Config representation
 // Need to get this moved to the prometheus/common/model repo having is duplicated here is smelly
@@ -45,7 +54,5 @@ type Formatter interface {
 var Formatters = map[string]Formatter{}
 
 func FormatDate(input time.Time) string {
-	// FIX-BEFORE-MERGE
-	dateformat := DefaultDateFormat //viper.GetString("date.format")
-	return input.Format(dateformat)
+	return input.Format(*dateFormat)
 }

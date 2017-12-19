@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/common/version"
 	"gopkg.in/yaml.v2"
 )
@@ -58,15 +59,12 @@ func (r amtoolConfigResolver) Resolve(key string, context *kingpin.ParseContext)
 }
 
 /*
-`View and modify the current Alertmanager state.
+View and modify the current Alertmanager state.
 
 [Config File]
 
-The alertmanager tool will read a config file from the --config cli argument, AMTOOL_CONFIG environment variable or
-from one of two default config locations. Valid config file formats are JSON, TOML, YAML, HCL and Java Properties, use
-whatever makes sense for your project.
-
-The default config file paths are $HOME/.config/amtool/config.yml or /etc/amtool/config.yml
+The alertmanager tool will read a config file in YAML format from one of two default config locations:
+$HOME/.config/amtool/config.yml or /etc/amtool/config.yml
 
 The accepted config options are as follows:
 
@@ -81,11 +79,16 @@ The accepted config options are as follows:
 
 	output
 		Set a default output type. Options are (simple, extended, json)
+
+	date.format
+		Sets the output format for dates. Defaults to 2006-01-02 15:04:05 MST
 */
 
-// Execute adds all child commands to the root command sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// Execute parses the arguments and executes the corresponding command, it is
+// called by cmd/amtool/main.main().
 func Execute() {
+	format.InitFormatFlags(app)
+
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 
