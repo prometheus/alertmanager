@@ -14,8 +14,6 @@
 package mem
 
 import (
-	"io/ioutil"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -31,13 +29,8 @@ func init() {
 }
 
 func TestAlertsPut(t *testing.T) {
-	dir, err := ioutil.TempDir("", "alerts_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute, dir)
+	alerts, err := NewAlerts(marker, 30*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,14 +91,8 @@ func TestAlertsPut(t *testing.T) {
 }
 
 func TestAlertsGC(t *testing.T) {
-	dir, err := ioutil.TempDir("", "alerts_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 200*time.Millisecond, dir)
+	alerts, err := NewAlerts(marker, 200*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
