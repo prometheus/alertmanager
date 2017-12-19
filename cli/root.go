@@ -14,7 +14,7 @@ var (
 	app             = kingpin.New("amtool", "Alertmanager CLI").DefaultEnvars()
 	verbose         = app.Flag("verbose", "Verbose running information").Short('v').Bool()
 	alertmanagerUrl = app.Flag("alertmanager.url", "Alertmanager to talk to").Required().URL()
-	output          = app.Flag("output", "Output formatter (simple, extended, json)").Default("simple").Enum("simple", "extended", "json")
+	output          = app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").Enum("simple", "extended", "json")
 
 	// This contains a mapping from command path to the long-format help string
 	// Separate subcommands with spaces, eg longHelpText["silence query"]
