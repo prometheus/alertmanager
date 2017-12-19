@@ -16,6 +16,7 @@ var (
 
 func init() {
 	expireCmd.Action(expire)
+	longHelpText["silence expire"] = `Expire an alertmanager silence`
 }
 
 func expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {

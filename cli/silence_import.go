@@ -11,18 +11,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-/*
-	Long: `Import alertmanager silences from JSON file or stdin
-
-  This command can be used to bulk import silences from a JSON file
-  created by query command. For example:
-
-  amtool silence query -o json foo > foo.json
-  amtool silence import foo.json
-
-  JSON data can also come from stdin if no param is specified.
-*/
-
 var (
 	importCmd  = silenceCmd.Command("import", "Import silences")
 	force      = importCmd.Flag("force", "Force adding new silences even if it already exists").Short('f').Bool()
@@ -32,6 +20,15 @@ var (
 
 func init() {
 	importCmd.Action(bulkImport)
+	longHelpText["silence import"] = `Import alertmanager silences from JSON file or stdin
+
+This command can be used to bulk import silences from a JSON file
+created by query command. For example:
+
+amtool silence query -o json foo > foo.json
+amtool silence import foo.json
+
+JSON data can also come from stdin if no param is specified.`
 }
 
 func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {

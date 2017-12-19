@@ -42,10 +42,7 @@ var (
 
 func init() {
 	addCmd.Action(add)
-}
-
-/*
-Add a new alertmanager silence
+	longHelpText["silence add"] = `Add a new alertmanager silence
 
   Amtool uses a simplified prometheus syntax to represent silences. The
   non-option section of arguments constructs a list of "Matcher Groups"
@@ -67,7 +64,8 @@ Add a new alertmanager silence
 	As well as direct equality, regex matching is also supported. The '=~' syntax
 	(similar to prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
-*/
+`
+}
 
 func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	var err error

@@ -44,6 +44,14 @@ type alertmanagerStatusResponse struct {
 // configCmd represents the config command
 var configCmd = app.Command("config", "View the running config").Action(queryConfig)
 
+func init() {
+	longHelpText["config"] = `View current config
+The amount of output is controlled by the output selection flag:
+	- Simple: Print just the running config
+	- Extended: Print the running config as well as uptime and all version info
+	- Json: Print entire config object as json`
+}
+
 func fetchConfig() (Config, error) {
 	configResponse := alertmanagerStatusResponse{}
 

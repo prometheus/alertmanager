@@ -15,6 +15,10 @@ var (
 	verbose         = app.Flag("verbose", "Verbose running information").Short('v').Bool()
 	alertmanagerUrl = app.Flag("alertmanager.url", "Alertmanager to talk to").Required().URL()
 	output          = app.Flag("output", "Output formatter (simple, extended, json)").Default("simple").Enum("simple", "extended", "json")
+
+	// This contains a mapping from command path to the long-format help string
+	// Separate subcommands with spaces, eg longHelpText["silence query"]
+	longHelpText = make(map[string]string)
 )
 
 type amtoolConfigResolver struct {
@@ -58,21 +62,23 @@ func (r amtoolConfigResolver) Resolve(key string, context *kingpin.ParseContext)
 	return nil, nil
 }
 
-/*
-View and modify the current Alertmanager state.
+func init() {
+	longHelpText["root"] = `View and modify the current Alertmanager state.
 
-[Config File]
+Config File:
+The alertmanager tool will read a config file in YAML format from one of two
+default config locations: $HOME/.config/amtool/config.yml or
+/etc/amtool/config.yml
 
-The alertmanager tool will read a config file in YAML format from one of two default config locations:
-$HOME/.config/amtool/config.yml or /etc/amtool/config.yml
-
-The accepted config options are as follows:
+All flags can be given in the config file, but the following are the suited for
+static configuration:
 
 	alertmanager.url
 		Set a default alertmanager url for each request
 
 	author
-		Set a default author value for new silences. If this argument is not specified then the username will be used
+		Set a default author value for new silences. If this argument is not
+		specified then the username will be used
 
 	comment_required
 		Require a comment on silence creation
@@ -81,8 +87,9 @@ The accepted config options are as follows:
 		Set a default output type. Options are (simple, extended, json)
 
 	date.format
-		Sets the output format for dates. Defaults to 2006-01-02 15:04:05 MST
-*/
+		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
+`
+}
 
 // Execute parses the arguments and executes the corresponding command, it is
 // called by cmd/amtool/main.main().
@@ -91,6 +98,11 @@ func Execute() {
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
+	app.UsageTemplate(kingpin.CompactUsageTemplate)
+	app.Flag("long-help", "Give more detailed help output").UsageAction(&kingpin.UsageContext{
+		Template: longHelpTemplate,
+		Vars:     map[string]interface{}{"LongHelp": longHelpText},
+	}).Bool()
 
 	app.Resolver(newConfigResolver())
 	_, err := app.Parse(os.Args[1:])
@@ -98,3 +110,50 @@ func Execute() {
 		kingpin.Fatalf("%v\n", err)
 	}
 }
+
+const longHelpTemplate = `{{define "FormatCommands" -}}
+{{range .FlattenedCommands -}}
+{{if not .Hidden}}
+  {{.CmdSummary}}
+{{.Help|Wrap 4}}
+{{if .Flags -}}
+{{with .Flags|FlagsToTwoColumns}}{{FormatTwoColumnsWithIndent . 4 2}}{{end}}
+{{end -}}
+{{end -}}
+{{end -}}
+{{end -}}
+
+{{define "FormatUsage" -}}
+{{.AppSummary}}
+{{if .Help}}
+{{.Help|Wrap 0 -}}
+{{end -}}
+
+{{end -}}
+
+{{if .Context.SelectedCommand -}}
+{{T "usage:"}} {{.App.Name}} {{.App.FlagSummary}} {{.Context.SelectedCommand.CmdSummary}}
+
+{{index .LongHelp .Context.SelectedCommand.FullCommand}}
+{{else}}
+{{T "usage:"}} {{template "FormatUsage" .App}}
+{{index .LongHelp "root"}}
+{{end}}
+{{if .Context.Flags -}}
+{{T "Flags:"}}
+{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
+{{end -}}
+{{if .Context.Args -}}
+{{T "Args:"}}
+{{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
+{{end -}}
+{{if .Context.SelectedCommand -}}
+{{if len .Context.SelectedCommand.Commands -}}
+{{T "Subcommands:"}}
+{{template "FormatCommands" .Context.SelectedCommand}}
+{{end -}}
+{{else if .App.Commands -}}
+{{T "Commands:" -}}
+{{template "FormatCommands" .App}}
+{{end -}}
+`

@@ -24,42 +24,39 @@ var (
 
 func init() {
 	queryCmd.Action(query)
+	longHelpText["silence query"] = `Query Alertmanager silences.
+
+Amtool has a simplified prometheus query syntax, but contains robust support for
+bash variable expansions. The non-option section of arguments constructs a list
+of "Matcher Groups" that will be used to filter your query. The following
+examples will attempt to show this behaviour in action:
+
+amtool silence query alertname=foo node=bar
+
+	This query will match all silences with the alertname=foo and node=bar label
+	value pairs set.
+
+amtool silence query foo node=bar
+
+	If alertname is ommited and the first argument does not contain a '=' or a
+	'=~' then it will be assumed to be the value of the alertname pair.
+
+amtool silence query 'alertname=~foo.*'
+
+	As well as direct equality, regex matching is also supported. The '=~' syntax
+	(similar to prometheus) is used to represent a regex match. Regex matching
+	can be used in combination with a direct match.
+
+In addition to filtering by silence labels, one can also query for silences
+that are due to expire soon with the "--within" parameter. In the event that
+you want to preemptively act upon expiring silences by either fixing them or
+extending them. For example:
+
+amtool silence query --within 8h
+
+gives all the silences due to expire within the next 8 hours. This syntax can
+also be combined with the label based filtering above for more flexibility.`
 }
-
-/*
-	Query Alertmanager silences.
-
-  Amtool has a simplified prometheus query syntax, but contains robust support for
-  bash variable expansions. The non-option section of arguments constructs a list
-  of "Matcher Groups" that will be used to filter your query. The following
-  examples will attempt to show this behaviour in action:
-
-  amtool silence query alertname=foo node=bar
-
-  	This query will match all silences with the alertname=foo and node=bar label
-  	value pairs set.
-
-  amtool silence query foo node=bar
-
-  	If alertname is ommited and the first argument does not contain a '=' or a
-  	'=~' then it will be assumed to be the value of the alertname pair.
-
-  amtool silence query 'alertname=~foo.*'
-
-  	As well as direct equality, regex matching is also supported. The '=~' syntax
-  	(similar to prometheus) is used to represent a regex match. Regex matching
-  	can be used in combination with a direct match.
-
-  In addition to filtering by silence labels, one can also query for silences
-  that are due to expire soon with the "--within" parameter. In the event that
-  you want to preemptively act upon expiring silences by either fixing them or
-  extending them. For example:
-
-  amtool silence query --within 8h
-
-  gives all the silences due to expire within the next 8 hours. This syntax can
-  also be combined with the label based filtering above for more flexibility.
-*/
 
 func fetchSilences(filter string) ([]types.Silence, error) {
 	silenceResponse := alertmanagerSilenceResponse{}

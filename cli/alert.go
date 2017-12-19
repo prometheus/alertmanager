@@ -35,30 +35,6 @@ type alertBlock struct {
 	Alerts    []*dispatch.APIAlert `json:"alerts"`
 }
 
-/*
-  View and search through current alerts.
-
-  Amtool has a simplified prometheus query syntax, but contains robust support for
-  bash variable expansions. The non-option section of arguments constructs a list
-  of "Matcher Groups" that will be used to filter your query. The following
-  examples will attempt to show this behaviour in action:
-
-  amtool alert query alertname=foo node=bar
-
-  	This query will match all alerts with the alertname=foo and node=bar label
-  	value pairs set.
-
-  amtool alert query foo node=bar
-
-  	If alertname is ommited and the first argument does not contain a '=' or a
-  	'=~' then it will be assumed to be the value of the alertname pair.
-
-  amtool alert query 'alertname=~foo.*'
-
-  	As well as direct equality, regex matching is also supported. The '=~' syntax
-  	(similar to prometheus) is used to represent a regex match. Regex matching
-  	can be used in combination with a direct match.
-*/
 var (
 	alertCmd      = app.Command("alert", "View and search through current alerts")
 	alertQueryCmd = alertCmd.Command("query", "View and search through current alerts").Default()
@@ -69,6 +45,29 @@ var (
 
 func init() {
 	alertQueryCmd.Action(queryAlerts)
+	longHelpText["alert"] = `View and search through current alerts.
+
+Amtool has a simplified prometheus query syntax, but contains robust support for
+bash variable expansions. The non-option section of arguments constructs a list
+of "Matcher Groups" that will be used to filter your query. The following
+examples will attempt to show this behaviour in action:
+
+amtool alert query alertname=foo node=bar
+
+	This query will match all alerts with the alertname=foo and node=bar label
+	value pairs set.
+
+amtool alert query foo node=bar
+
+	If alertname is ommited and the first argument does not contain a '=' or a
+	'=~' then it will be assumed to be the value of the alertname pair.
+
+amtool alert query 'alertname=~foo.*'
+
+	As well as direct equality, regex matching is also supported. The '=~' syntax
+	(similar to prometheus) is used to represent a regex match. Regex matching
+	can be used in combination with a direct match.`
+	longHelpText["alert query"] = longHelpText["alert"]
 }
 
 func fetchAlerts(filter string) ([]*dispatch.APIAlert, error) {

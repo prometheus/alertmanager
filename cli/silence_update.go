@@ -29,12 +29,9 @@ var (
 	updateIds       = updateCmd.Arg("update-ids", "Silence IDs to update").Strings()
 )
 
-/*
-Extend or update existing silence in Alertmanager.
-*/
-
 func init() {
 	updateCmd.Action(update)
+	longHelpText["silence update"] = `Extend or update existing silence in Alertmanager.`
 }
 
 func update(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {

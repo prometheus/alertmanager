@@ -16,15 +16,12 @@ var (
 
 func init() {
 	checkConfigCmd.Action(checkConfig)
-}
-
-/*
-Validate alertmanager config files
+	longHelpText["check-config"] = `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
 and associated templates. Non existing templates will not trigger
-errors
-*/
+errors`
+}
 
 func checkConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	return CheckConfig(*checkFiles)
