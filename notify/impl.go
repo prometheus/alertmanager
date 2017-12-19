@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	pconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
@@ -148,9 +148,7 @@ var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
 	// The URL to which notifications are sent.
-	URL string
-	// Optional bearer token
-	token  string
+	URL    string
 	client *http.Client
 	tmpl   *template.Template
 	logger log.Logger
@@ -158,58 +156,16 @@ type Webhook struct {
 
 // NewWebhook returns a new Webhook.
 func NewWebhook(conf *config.WebhookConfig, t *template.Template, l log.Logger) *Webhook {
-	var token string
-	if len(conf.BearerToken) > 0 {
-		token = string(conf.BearerToken)
-	} else if len(conf.BearerTokenFile) > 0 {
-		bf, err := ioutil.ReadFile(conf.BearerTokenFile)
-		if err == nil {
-			token = string(bf)
-		} else {
-			level.Error(l).Log("msg", "Failed to read bearer token file", "token_file", conf.BearerTokenFile, "err", err)
-		}
+	w := &Webhook{URL: conf.URL, client: http.DefaultClient, tmpl: t, logger: l}
+
+	client, err := pconfig.NewHTTPClientFromConfig(&conf.HTTPClientConfig)
+	if err != nil {
+		level.Error(l).Log("msg", "Failed to create HTTP client for webhook", "err", err, "url", conf.URL)
+	} else {
+		w.client = client
 	}
 
-	return &Webhook{URL: conf.URL, token: token, client: newHttpClient(&conf.TLSConfig, l), tmpl: t, logger: l}
-}
-
-func newHttpClient(conf *config.TLSConfig, l log.Logger) *http.Client {
-	tlsConfig := &tls.Config{InsecureSkipVerify: conf.InsecureSkipVerify}
-	if len(conf.CAFile) > 0 {
-		caCertPool := x509.NewCertPool()
-		caCert, err := ioutil.ReadFile(conf.CAFile)
-		if err == nil {
-			if caCertPool.AppendCertsFromPEM(caCert) {
-				tlsConfig.RootCAs = caCertPool
-			} else {
-				level.Error(l).Log("msg", "Failed to add CA cert", "cert_file", conf.CAFile)
-			}
-		} else {
-			level.Error(l).Log("msg", "Failed to read CA cert", "cert_file", conf.CAFile, "err", err)
-		}
-	}
-
-	if len(conf.ServerName) > 0 {
-		tlsConfig.ServerName = conf.ServerName
-	}
-
-	if len(conf.CertFile) > 0 && len(conf.KeyFile) > 0 {
-		cert, err := tls.LoadX509KeyPair(conf.CertFile, conf.KeyFile)
-		if err == nil {
-			tlsConfig.Certificates = []tls.Certificate{cert}
-		} else {
-			level.Error(l).Log("msg", "Unable to use client cert", "cert_file", conf.CertFile, "key_file", conf.KeyFile, "err", err)
-		}
-	}
-	tlsConfig.BuildNameToCertificate()
-
-	return &http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			TLSClientConfig:     tlsConfig,
-			TLSHandshakeTimeout: 5 * time.Second,
-		},
-	}
+	return w
 }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
@@ -247,9 +203,6 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("User-Agent", userAgentHeader)
-	if w.token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", w.token))
-	}
 
 	resp, err := ctxhttp.Do(ctx, w.client, req)
 	if err != nil {
