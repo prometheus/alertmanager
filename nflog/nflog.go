@@ -14,7 +14,7 @@
 // Package nflog implements a garbage-collected and snapshottable append-only log of
 // active/resolved notifications. Each log entry stores the active/resolved state,
 // the notified receiver, and a hash digest of the notification's identifying contents.
-// The log can be queried along different paramters.
+// The log can be queried along different parameters.
 package nflog
 
 import (
@@ -284,8 +284,11 @@ func (l *nlog) run() {
 
 	f := func() error {
 		start := l.now()
+		var size int
 		level.Info(l.logger).Log("msg", "Running maintenance")
-		defer level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start))
+		defer func() {
+			level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+		}()
 
 		if _, err := l.GC(); err != nil {
 			return err
@@ -297,8 +300,7 @@ func (l *nlog) run() {
 		if err != nil {
 			return err
 		}
-		// TODO(fabxc): potentially expose snapshot size in log message.
-		if _, err := l.Snapshot(f); err != nil {
+		if size, err = l.Snapshot(f); err != nil {
 			return err
 		}
 		return f.Close()

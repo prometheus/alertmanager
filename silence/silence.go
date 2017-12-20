@@ -259,8 +259,11 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 
 	f := func() error {
 		start := s.now()
+		var size int
 		level.Info(s.logger).Log("msg", "Running maintenance")
-		defer level.Info(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start))
+		defer func() {
+			level.Info(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start), "size", size)
+		}()
 
 		if _, err := s.GC(); err != nil {
 			return err
@@ -272,8 +275,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		if err != nil {
 			return err
 		}
-		// TODO(fabxc): potentially expose snapshot size in log message.
-		if _, err := s.Snapshot(f); err != nil {
+		if size, err = s.Snapshot(f); err != nil {
 			return err
 		}
 		return f.Close()
