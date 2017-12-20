@@ -372,9 +372,11 @@ func main() {
 		hup      = make(chan os.Signal)
 		hupReady = make(chan bool)
 		term     = make(chan os.Signal)
+		usr1     = make(chan os.Signal)
 	)
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(usr1, syscall.SIGUSR1)
 
 	go func() {
 		<-hupReady
@@ -390,9 +392,31 @@ func main() {
 	// Wait for reload or termination signals.
 	close(hupReady) // Unblock SIGHUP handler.
 
+	go func() {
+		for {
+			select {
+			case <-usr1:
+				logRouterStatus(mrouter, logger)
+			}
+		}
+	}()
+
 	<-term
 
 	level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+}
+
+func logRouterStatus(r *mesh.Router, l log.Logger) {
+	if r == nil {
+		level.Info(l).Log("msg", "Mesh router not configured")
+		return
+	}
+	level.Info(l).Log("msg", "Mesh router status")
+	s := mesh.NewStatus(r)
+	level.Info(l).Log("msg", "Local peer status", "name", s.Name, "connections_nb", len(s.Connections), "peers_nb", len(s.Peers), "termination_count", s.TerminationCount)
+	for _, c := range s.Connections {
+		level.Info(l).Log("msg", "Connection status", "address", c.Address, "outbound", c.Outbound, "state", c.State, "info", c.Info)
+	}
 }
 
 type peerDescSlice []mesh.PeerDescription
