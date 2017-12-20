@@ -28,6 +28,9 @@ func expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	for _, id := range *expireIds {
 		u := GetAlertmanagerURL(path.Join(basePath, id))
 		req, err := http.NewRequest("DELETE", u.String(), nil)
+		if err != nil {
+			return err
+		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err

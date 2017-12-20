@@ -25,7 +25,7 @@ type amtoolConfigResolver struct {
 	configData []map[string]string
 }
 
-func newConfigResolver() amtoolConfigResolver {
+func newConfigResolver() (amtoolConfigResolver, error) {
 	files := []string{
 		os.ExpandEnv("$HOME/.config/amtool/config.yml"),
 		"/etc/amtool/config.yml",
@@ -40,17 +40,17 @@ func newConfigResolver() amtoolConfigResolver {
 			if os.IsNotExist(err) {
 				continue
 			}
-			panic(err)
+			return resolver, err
 		}
 		var config map[string]string
 		err = yaml.Unmarshal(b, &config)
 		if err != nil {
-			panic(err)
+			return resolver, err
 		}
 		resolver.configData = append(resolver.configData, config)
 	}
 
-	return resolver
+	return resolver, nil
 }
 
 func (r amtoolConfigResolver) Resolve(key string, context *kingpin.ParseContext) ([]string, error) {
@@ -63,7 +63,7 @@ func (r amtoolConfigResolver) Resolve(key string, context *kingpin.ParseContext)
 }
 
 // This function maps things which have previously had different names in the
-// config file to their new names, so old configrations keep working
+// config file to their new names, so old configurations keep working
 func backwardsCompatibilityResolver(key string) string {
 	switch key {
 	case "require-comment":
@@ -114,7 +114,10 @@ func Execute() {
 		Vars:     map[string]interface{}{"LongHelp": longHelpText},
 	}).Bool()
 
-	configResolver := newConfigResolver()
+	configResolver, err := newConfigResolver()
+	if err != nil {
+		kingpin.Fatalf("could not load config file: %v\n", err)
+	}
 	// Use the same resolver twice, first for checking backwards compatibility,
 	// then again for the new names. This order ensures that the newest wins, if
 	// both old and new are present
@@ -123,7 +126,7 @@ func Execute() {
 		configResolver,
 	)
 
-	_, err := app.Parse(os.Args[1:])
+	_, err = app.Parse(os.Args[1:])
 	if err != nil {
 		kingpin.Fatalf("%v\n", err)
 	}

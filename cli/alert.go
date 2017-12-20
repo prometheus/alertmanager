@@ -59,7 +59,7 @@ amtool alert query alertname=foo node=bar
 
 amtool alert query foo node=bar
 
-	If alertname is ommited and the first argument does not contain a '=' or a
+	If alertname is omitted and the first argument does not contain a '=' or a
 	'=~' then it will be assumed to be the value of the alertname pair.
 
 amtool alert query 'alertname=~foo.*'
