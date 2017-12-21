@@ -376,7 +376,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 
 		res = append(res, apiAlert)
 	}
-	api.mtx.Unlock()
+	api.mtx.RUnlock()
 
 	if err != nil {
 		api.respondError(w, apiError{
