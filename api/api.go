@@ -331,6 +331,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
+	api.mtx.RLock()
 	// TODO(fabxc): enforce a sensible timeout.
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
@@ -375,6 +376,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 
 		res = append(res, apiAlert)
 	}
+	api.mtx.Unlock()
 
 	if err != nil {
 		api.respondError(w, apiError{
@@ -457,6 +459,10 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*types.Alert) {
 	now := time.Now()
 
+	api.mtx.RLock()
+	resolveTimeout := api.resolveTimeout
+	api.mtx.RUnlock()
+
 	for _, alert := range alerts {
 		alert.UpdatedAt = now
 
@@ -468,7 +474,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		// is marked resolved if it is not updated.
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
-			alert.EndsAt = now.Add(api.resolveTimeout)
+			alert.EndsAt = now.Add(resolveTimeout)
 
 			numReceivedAlerts.WithLabelValues("firing").Inc()
 		} else {
