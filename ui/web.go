@@ -15,6 +15,7 @@ package ui
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
@@ -74,6 +75,11 @@ func Register(r *route.Router, reloadCh chan<- struct{}, logger log.Logger) {
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("Reloading configuration file..."))
 		reloadCh <- struct{}{}
+	})
+
+	r.Get("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "OK")
 	})
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
