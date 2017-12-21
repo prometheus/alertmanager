@@ -150,7 +150,7 @@ inhibit_rules:
 receivers:
 - name: 'team-X-mails'
   email_configs:
-  - to: 'team-X+alerts@example.org'
+  - to: 'team-X+alerts@example.org, team-Y+alerts@example.org'
 
 - name: 'team-X-pager'
   email_configs:
