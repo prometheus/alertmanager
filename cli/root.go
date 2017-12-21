@@ -109,7 +109,7 @@ func Execute() {
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)
-	app.Flag("long-help", "Give more detailed help output").UsageAction(&kingpin.UsageContext{
+	app.Flag("help-long", "Give more detailed help output").UsageAction(&kingpin.UsageContext{
 		Template: longHelpTemplate,
 		Vars:     map[string]interface{}{"LongHelp": longHelpText},
 	}).Bool()
