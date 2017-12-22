@@ -6,30 +6,31 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/spf13/cobra"
+	"github.com/alecthomas/kingpin"
 )
 
-var expireCmd = &cobra.Command{
-	Use:   "expire",
-	Short: "expire silence",
-	Long:  `expire an alertmanager silence`,
-	Run:   CommandWrapper(expire),
+var (
+	expireCmd = silenceCmd.Command("expire", "expire an alertmanager silence")
+	expireIds = expireCmd.Arg("silence-ids", "Ids of silences to expire").Strings()
+)
+
+func init() {
+	expireCmd.Action(expire)
+	longHelpText["silence expire"] = `Expire an alertmanager silence`
 }
 
-func expire(cmd *cobra.Command, args []string) error {
-	u, err := GetAlertmanagerURL()
-	if err != nil {
-		return err
-	}
-	basePath := path.Join(u.Path, "/api/v1/silence")
-
-	if len(args) < 1 {
+func expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+	if len(*expireIds) < 1 {
 		return errors.New("no silence IDs specified")
 	}
 
-	for _, arg := range args {
-		u.Path = path.Join(basePath, arg)
+	basePath := "/api/v1/silence"
+	for _, id := range *expireIds {
+		u := GetAlertmanagerURL(path.Join(basePath, id))
 		req, err := http.NewRequest("DELETE", u.String(), nil)
+		if err != nil {
+			return err
+		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err

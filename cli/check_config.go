@@ -3,32 +3,28 @@ package cli
 import (
 	"fmt"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/spf13/cobra"
 )
 
 // alertCmd represents the alert command
-var checkConfigCmd = &cobra.Command{
-	Use:   "check-config file1 [file2] ...",
-	Args:  cobra.MinimumNArgs(1),
-	Short: "Validate alertmanager config files",
-	Long: `Validate alertmanager config files
+var (
+	checkConfigCmd = app.Command("check-config", "Validate alertmanager config files")
+	checkFiles     = checkConfigCmd.Arg("check-files", "Files to be validated").ExistingFiles()
+)
+
+func init() {
+	checkConfigCmd.Action(checkConfig)
+	longHelpText["check-config"] = `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
 and associated templates. Non existing templates will not trigger
-errors`,
-	RunE: checkConfig,
+errors`
 }
 
-func init() {
-	RootCmd.AddCommand(checkConfigCmd)
-	checkConfigCmd.Flags()
-}
-
-func checkConfig(cmd *cobra.Command, args []string) error {
-	cmd.SilenceUsage = true
-	return CheckConfig(args)
+func checkConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+	return CheckConfig(*checkFiles)
 }
 
 func CheckConfig(args []string) error {

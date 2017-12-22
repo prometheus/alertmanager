@@ -4,36 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/spf13/cobra"
-	flag "github.com/spf13/pflag"
-	"sync"
 )
 
-var importFlags *flag.FlagSet
-var importCmd = &cobra.Command{
-	Use:   "import [JSON file]",
-	Short: "Import silences",
-	Long: `Import alertmanager silences from JSON file or stdin
-
-  This command can be used to bulk import silences from a JSON file
-  created by query command. For example:
-
-  amtool silence query -o json foo > foo.json
-  amtool silence import foo.json
-
-  JSON data can also come from stdin if no param is specified.
-	`,
-	Args: cobra.MaximumNArgs(1),
-	Run:  CommandWrapper(bulkImport),
-}
+var (
+	importCmd  = silenceCmd.Command("import", "Import silences")
+	force      = importCmd.Flag("force", "Force adding new silences even if it already exists").Short('f').Bool()
+	workers    = importCmd.Flag("worker", "Number of concurrent workers to use for import").Short('w').Default("8").Int()
+	importFile = importCmd.Arg("input-file", "JSON file with silences").ExistingFile()
+)
 
 func init() {
-	importCmd.Flags().BoolP("force", "f", false, "Force adding new silences even if it already exists")
-	importCmd.Flags().IntP("worker", "w", 8, "Number of concurrent workers to use for import")
-	importFlags = importCmd.Flags()
+	importCmd.Action(bulkImport)
+	longHelpText["silence import"] = `Import alertmanager silences from JSON file or stdin
+
+This command can be used to bulk import silences from a JSON file
+created by query command. For example:
+
+amtool silence query -o json foo > foo.json
+amtool silence import foo.json
+
+JSON data can also come from stdin if no param is specified.`
 }
 
 func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {
@@ -55,20 +50,11 @@ func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {
 	}
 }
 
-func bulkImport(cmd *cobra.Command, args []string) error {
-	force, err := importFlags.GetBool("force")
-	if err != nil {
-		return err
-	}
-
-	workers, err := importFlags.GetInt("worker")
-	if err != nil {
-		return err
-	}
-
+func bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	input := os.Stdin
-	if len(args) == 1 {
-		input, err = os.Open(args[0])
+	var err error
+	if *importFile != "" {
+		input, err = os.Open(*importFile)
 		if err != nil {
 			return err
 		}
@@ -85,7 +71,7 @@ func bulkImport(cmd *cobra.Command, args []string) error {
 	silencec := make(chan *types.Silence, 100)
 	errc := make(chan error, 100)
 	var wg sync.WaitGroup
-	for w := 0; w < workers; w++ {
+	for w := 0; w < *workers; w++ {
 		go func() {
 			wg.Add(1)
 			addSilenceWorker(silencec, errc)
@@ -110,7 +96,7 @@ func bulkImport(cmd *cobra.Command, args []string) error {
 			return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
 		}
 
-		if force {
+		if *force {
 			// reset the silence ID so Alertmanager will always create new silence
 			s.ID = ""
 		}
