@@ -207,15 +207,23 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 }
 
 type meshStatus struct {
-	Name     string       `json:"name"`
-	NickName string       `json:"nickName"`
-	Peers    []peerStatus `json:"peers"`
+	Name        string             `json:"name"`
+	NickName    string             `json:"nickName"`
+	Peers       []peerStatus       `json:"peers"`
+	Connections []connectionStatus `json:"connections"`
 }
 
 type peerStatus struct {
 	Name     string `json:"name"`     // e.g. "00:00:00:00:00:01"
 	NickName string `json:"nickName"` // e.g. "a"
 	UID      uint64 `json:"uid"`      // e.g. "14015114173033265000"
+}
+
+type connectionStatus struct {
+	Address  string `json:"address"`
+	Outbound bool   `json:"outbound"`
+	State    string `json:"state"`
+	Info     string `json:"info"`
 }
 
 func getMeshStatus(api *API) *meshStatus {
@@ -225,9 +233,10 @@ func getMeshStatus(api *API) *meshStatus {
 
 	status := mesh.NewStatus(api.mrouter)
 	strippedStatus := &meshStatus{
-		Name:     status.Name,
-		NickName: status.NickName,
-		Peers:    make([]peerStatus, len(status.Peers)),
+		Name:        status.Name,
+		NickName:    status.NickName,
+		Peers:       make([]peerStatus, len(status.Peers)),
+		Connections: make([]connectionStatus, len(status.Connections)),
 	}
 
 	for i := 0; i < len(status.Peers); i++ {
@@ -235,6 +244,14 @@ func getMeshStatus(api *API) *meshStatus {
 			Name:     status.Peers[i].Name,
 			NickName: status.Peers[i].NickName,
 			UID:      uint64(status.Peers[i].UID),
+		}
+	}
+	for i := 0; i < len(status.Connections); i++ {
+		strippedStatus.Connections[i] = connectionStatus{
+			Address:  status.Connections[i].Address,
+			Outbound: status.Connections[i].Outbound,
+			State:    status.Connections[i].State,
+			Info:     status.Connections[i].Info,
 		}
 	}
 

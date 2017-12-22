@@ -1,4 +1,4 @@
-module Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer)
+module Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer, MeshConnection)
 
 
 type alias StatusResponse =
@@ -23,6 +23,7 @@ type alias MeshStatus =
     { name : String
     , nickName : String
     , peers : List MeshPeer
+    , connections : List MeshConnection
     }
 
 
@@ -30,4 +31,12 @@ type alias MeshPeer =
     { name : String
     , nickName : String
     , uid : Int
+    }
+
+
+type alias MeshConnection =
+    { address : String
+    , outbound : Bool
+    , state : String
+    , info : String
     }

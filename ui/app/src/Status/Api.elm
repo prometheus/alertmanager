@@ -2,8 +2,8 @@ module Status.Api exposing (getStatus)
 
 import Utils.Api exposing (send, get)
 import Utils.Types exposing (ApiData)
-import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer)
-import Json.Decode exposing (Decoder, map2, string, field, at, list, int, maybe)
+import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer, MeshConnection)
+import Json.Decode exposing (Decoder, map2, string, field, at, list, int, maybe, bool)
 
 
 getStatus : String -> (ApiData StatusResponse -> msg) -> Cmd msg
@@ -45,10 +45,11 @@ decodeVersionInfo =
 
 decodeMeshStatus : Decoder MeshStatus
 decodeMeshStatus =
-    Json.Decode.map3 MeshStatus
+    Json.Decode.map4 MeshStatus
         (field "name" string)
         (field "nickName" string)
         (field "peers" (list decodeMeshPeer))
+        (field "connections" (list decodeMeshConnection))
 
 
 decodeMeshPeer : Decoder MeshPeer
@@ -57,3 +58,12 @@ decodeMeshPeer =
         (field "name" string)
         (field "nickName" string)
         (field "uid" int)
+
+
+decodeMeshConnection : Decoder MeshConnection
+decodeMeshConnection =
+    Json.Decode.map4 MeshConnection
+        (field "address" string)
+        (field "outbound" bool)
+        (field "state" string)
+        (field "info" string)

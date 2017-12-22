@@ -2,7 +2,7 @@ module Views.Status.Views exposing (view)
 
 import Html exposing (..)
 import Html.Attributes exposing (class, style)
-import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer)
+import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer, MeshConnection)
 import Types exposing (Msg(MsgForStatus))
 import Utils.Types exposing (ApiData(Failure, Success, Loading, Initial))
 import Views.Status.Types exposing (StatusModel)
@@ -70,6 +70,11 @@ viewMeshStatus meshStatus =
                     , ul [ class "col-sm-10" ] <|
                         List.map viewMeshPeer meshStatus.peers
                     ]
+                , div [ class "form-group row" ]
+                    [ b [ class "col-sm-2" ] [ text "Connections:" ]
+                    , ul [ class "col-sm-10" ] <|
+                        List.map viewMeshConnection meshStatus.connections
+                    ]
                 ]
 
         Nothing ->
@@ -95,6 +100,24 @@ viewMeshPeer peer =
         , div [ class "" ]
             [ b [ class "" ] [ text "UID: " ]
             , text <| toString peer.uid
+            ]
+        ]
+
+
+viewMeshConnection : MeshConnection -> Html Types.Msg
+viewMeshConnection connection =
+    li []
+        [ div [ class "" ]
+            [ b [ class "" ] [ text "Address: " ]
+            , text connection.address
+            ]
+        , div [ class "" ]
+            [ b [ class "" ] [ text "Info: " ]
+            , text connection.info
+            ]
+        , div [ class "" ]
+            [ b [ class "" ] [ text "State: " ]
+            , text connection.state
             ]
         ]
 
