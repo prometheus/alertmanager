@@ -18,20 +18,20 @@ update msg model filter basePath apiUrl =
             ( { model
                 | filterBar = FilterBar.setMatchers filter model.filterBar
                 , silences = Loading
-                , showConfirmationDialog = False
+                , showConfirmationDialog = Nothing
               }
             , Api.getSilences apiUrl filter SilencesFetch
             )
 
         ConfirmDestroySilence silence refresh ->
-            ( { model | showConfirmationDialog = True }
+            ( { model | showConfirmationDialog = Just silence.id }
             , Cmd.none
             )
 
         DestroySilence silence refresh ->
             -- TODO: "Deleted id: ID" growl
             -- TODO: Check why POST isn't there but is accepted
-            { model | silences = Loading, showConfirmationDialog = False }
+            { model | silences = Loading, showConfirmationDialog = Nothing }
                 ! [ Api.destroy apiUrl silence (always FetchSilences)
                   , if refresh then
                         Navigation.newUrl (basePath ++ "#/silences")

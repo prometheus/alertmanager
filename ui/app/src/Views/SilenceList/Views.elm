@@ -2,7 +2,7 @@ module Views.SilenceList.Views exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Silences.Types exposing (Silence, State(..), stateToString)
+import Silences.Types exposing (Silence, State(..), stateToString, SilenceId)
 import Types exposing (Msg(MsgForSilenceList, Noop, UpdateFilter))
 import Utils.Api exposing (withDefault)
 import Utils.String as StringUtils
@@ -49,13 +49,20 @@ tabView currentState ( state, silences ) =
                 ]
 
 
-silencesView : Bool -> List Silence -> Html Msg
+silencesView : Maybe SilenceId -> List Silence -> Html Msg
 silencesView showConfirmationDialog silences =
     if List.isEmpty silences then
         Utils.Views.error "No silences found"
     else
         ul [ class "list-group" ]
-            (List.map (Views.SilenceList.SilenceView.view showConfirmationDialog) silences)
+            (List.map
+                (\silence ->
+                    Views.SilenceList.SilenceView.view
+                        (showConfirmationDialog == Just silence.id)
+                        silence
+                )
+                silences
+            )
 
 
 groupSilencesByState : List Silence -> List ( State, List Silence )
