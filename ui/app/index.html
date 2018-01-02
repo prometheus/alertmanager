@@ -7,9 +7,9 @@
     </head>
     <body>
         <script>
-            //If there is no trailing slash at the end of the path in the url,
-            // add one. This ensures assets like script.js` are loaded properly
-            if (window.location.pathname.endsWith('/') === false) {
+            // If there is no trailing slash at the end of the path in the url,
+            // add one. This ensures assets like script.js are loaded properly
+            if (window.location.pathname.substr(-1) != '/') {
                 window.location.pathname = window.location.pathname + '/';
                 console.log('added slash');
             }
