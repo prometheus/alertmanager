@@ -33,7 +33,7 @@ errorToString err =
 
         BadStatus resp ->
             parseError resp.body
-                |> Maybe.withDefault (resp.status.message ++ " " ++ resp.body)
+                |> Maybe.withDefault (toString resp.status.code ++ " " ++ resp.status.message)
 
         BadPayload err resp ->
             -- OK status, unexpected payload
