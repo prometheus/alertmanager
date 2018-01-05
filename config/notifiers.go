@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	pconfig "github.com/prometheus/common/config"
 )
 
 var (
@@ -297,6 +299,8 @@ type WebhookConfig struct {
 
 	// URL to send POST request to.
 	URL string `yaml:"url" json:"url"`
+	// HTTP client parameters.
+	HTTPClientConfig pconfig.HTTPClientConfig `yaml:"http_client_config,inline" json:"http_client_config,inline"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`

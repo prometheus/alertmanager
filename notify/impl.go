@@ -34,6 +34,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	pconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
@@ -148,13 +149,23 @@ var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 type Webhook struct {
 	// The URL to which notifications are sent.
 	URL    string
+	client *http.Client
 	tmpl   *template.Template
 	logger log.Logger
 }
 
 // NewWebhook returns a new Webhook.
 func NewWebhook(conf *config.WebhookConfig, t *template.Template, l log.Logger) *Webhook {
-	return &Webhook{URL: conf.URL, tmpl: t, logger: l}
+	w := &Webhook{URL: conf.URL, client: http.DefaultClient, tmpl: t, logger: l}
+
+	client, err := pconfig.NewHTTPClientFromConfig(&conf.HTTPClientConfig)
+	if err != nil {
+		level.Error(l).Log("msg", "Failed to create HTTP client for webhook", "err", err, "url", conf.URL)
+	} else {
+		w.client = client
+	}
+
+	return w
 }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
@@ -193,7 +204,7 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("User-Agent", userAgentHeader)
 
-	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+	resp, err := ctxhttp.Do(ctx, w.client, req)
 	if err != nil {
 		return true, err
 	}
