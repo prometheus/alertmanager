@@ -16,7 +16,6 @@ package main
 import (
 	"crypto/md5"
 	"encoding/binary"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -32,6 +31,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/alertmanager/api"
@@ -109,49 +109,34 @@ func main() {
 		runtime.SetMutexProfileFraction(20)
 	}
 
-	var (
-		showVersion = flag.Bool("version", false, "Print version information.")
-
-		configFile      = flag.String("config.file", "alertmanager.yml", "Alertmanager configuration file name.")
-		dataDir         = flag.String("storage.path", "data/", "Base path for data storage.")
-		retention       = flag.Duration("data.retention", 5*24*time.Hour, "How long to keep data for.")
-		alertGCInterval = flag.Duration("alerts.gc-interval", 30*time.Minute, "Interval between alert GC.")
-
-		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
-		routePrefix   = flag.String("web.route-prefix", "", "Prefix for the internal routes of web endpoints. Defaults to path of -web.external-url.")
-		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
-
-		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "Mesh listen address. Pass an empty string to disable.")
-		hwaddr     = flag.String("mesh.peer-id", "", "Mesh peer ID (default: MAC address).")
-		nickname   = flag.String("mesh.nickname", mustHostname(), "Mesh peer nickname.")
-		password   = flag.String("mesh.password", "", "Password to join the peer network (empty password disables encryption).")
-	)
-	peers := &stringset{}
-	flag.Var(peers, "mesh.peer", "Initial peers (may be repeated)")
-
 	logLevel := &promlog.AllowedLevel{}
 	if err := logLevel.Set("info"); err != nil {
 		panic(err)
 	}
-	flag.Var(logLevel, "log.level", "Only log messages with the given severity or above. One of: [debug, info, warn, error]")
+	var (
+		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
+		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
+		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
+		logLevelString  = kingpin.Flag("log.level", "Only log messages with the given severity or above.").Default("info").Enum("debug", "info", "warn", "error")
 
-	flag.Parse()
+		externalURL   = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
+		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
 
+		meshListen = kingpin.Flag("mesh.listen-address", "mesh listen address. Pass an empty string to disable.").Default(net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port))).String()
+		hwaddr     = kingpin.Flag("mesh.peer-id", "mesh peer ID").Default(mustHardwareAddr()).String()
+		nickname   = kingpin.Flag("mesh.nickname", "mesh peer nickname").Default(mustHostname()).String()
+		password   = kingpin.Flag("mesh.password", "password to join the peer network (empty password disables encryption)").Default("").String()
+		peers      = kingpin.Flag("mesh.peer", "initial peers (may be repeated)").Strings()
+	)
+
+	kingpin.Version(version.Print("alertmanager"))
+	kingpin.CommandLine.GetFlag("help").Short('h')
+	kingpin.Parse()
+
+	logLevel.Set(*logLevelString)
 	logger := promlog.New(*logLevel)
-
-	if *hwaddr == "" {
-		*hwaddr = mustHardwareAddr()
-	}
-
-	if len(flag.Args()) > 0 {
-		level.Error(logger).Log("msg", "Received unexpected and unparsed arguments", "arguments", strings.Join(flag.Args(), ", "))
-		os.Exit(1)
-	}
-
-	if *showVersion {
-		fmt.Fprintln(os.Stdout, version.Print("alertmanager"))
-		os.Exit(0)
-	}
 
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
@@ -234,7 +219,7 @@ func main() {
 	// Disable mesh if empty string passed for mesh.listen-address flag.
 	if *meshListen != "" {
 		mrouter.Start()
-		mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
+		mrouter.ConnectionMaker.InitiateConnections(*peers, true)
 	}
 
 	defer func() {
@@ -502,30 +487,6 @@ func listen(listen string, router *route.Router, logger log.Logger) {
 		level.Error(logger).Log("msg", "Listen error", "err", err)
 		os.Exit(1)
 	}
-}
-
-type stringset map[string]struct{}
-
-func (ss stringset) Set(value string) error {
-	for _, v := range strings.Split(value, ",") {
-		if v = strings.TrimSpace(v); v != "" {
-			ss[v] = struct{}{}
-		}
-	}
-	return nil
-}
-
-func (ss stringset) String() string {
-	return strings.Join(ss.slice(), ",")
-}
-
-func (ss stringset) slice() []string {
-	slice := make([]string, 0, len(ss))
-	for k := range ss {
-		slice = append(slice, k)
-	}
-	sort.Strings(slice)
-	return slice
 }
 
 func mustHardwareAddr() string {

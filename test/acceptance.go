@@ -240,13 +240,13 @@ type Alertmanager struct {
 // Start the alertmanager and wait until it is ready to receive.
 func (am *Alertmanager) Start() {
 	cmd := exec.Command("../../alertmanager",
-		"-config.file", am.confFile.Name(),
-		"-log.level", "debug",
-		"-web.listen-address", am.addr,
-		"-storage.path", am.dir,
-		"-mesh.listen-address", am.mesh,
-		"-mesh.peer-id", am.hwaddr,
-		"-mesh.nickname", am.nickname,
+		"--config.file", am.confFile.Name(),
+		"--log.level", "debug",
+		"--web.listen-address", am.addr,
+		"--storage.path", am.dir,
+		"--mesh.listen-address", am.mesh,
+		"--mesh.peer-id", am.hwaddr,
+		"--mesh.nickname", am.nickname,
 	)
 
 	if am.cmd == nil {
