@@ -15,6 +15,7 @@ package ui
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
@@ -47,7 +48,7 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string, logger log.
 }
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- struct{}, logger log.Logger) {
+func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 	ihf := prometheus.InstrumentHandlerFunc
 
 	r.Get("/metrics", prometheus.Handler().ServeHTTP)
@@ -72,8 +73,16 @@ func Register(r *route.Router, reloadCh chan<- struct{}, logger log.Logger) {
 	))
 
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte("Reloading configuration file..."))
-		reloadCh <- struct{}{}
+		errc := make(chan error)
+		defer close(errc)
+
+		reloadCh <- errc
+		if err := <-errc; err != nil {
+			http.Error(w, fmt.Sprintf("config file reload failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Write([]byte("config file reloaded"))
 	})
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)

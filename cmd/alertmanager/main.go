@@ -345,7 +345,7 @@ func main() {
 		router = router.WithPrefix(*routePrefix)
 	}
 
-	webReload := make(chan struct{})
+	webReload := make(chan chan error)
 
 	ui.Register(router, webReload, logger)
 
@@ -367,9 +367,10 @@ func main() {
 		for {
 			select {
 			case <-hup:
-			case <-webReload:
+				reload()
+			case errc := <-webReload:
+				errc <- reload()
 			}
-			reload()
 		}
 	}()
 
