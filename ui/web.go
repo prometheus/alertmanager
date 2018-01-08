@@ -78,11 +78,8 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 
 		reloadCh <- errc
 		if err := <-errc; err != nil {
-			http.Error(w, fmt.Sprintf("config file reload failed: %v", err), http.StatusInternalServerError)
-			return
+			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
 		}
-
-		w.Write([]byte("config file reloaded"))
 	})
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
