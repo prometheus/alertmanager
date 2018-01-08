@@ -468,7 +468,7 @@ type pagerDutyPayload struct {
 func (n *PagerDuty) notifyV1(ctx context.Context, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
 
 	msg := &pagerDutyMessage{
-		ServiceKey:  string(n.conf.ServiceKey),
+		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
 		EventType:   eventType,
 		IncidentKey: hashKey(key),
 		Description: tmpl(n.conf.Description),
@@ -514,7 +514,7 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl fu
 	}
 
 	msg := &pagerDutyMessage{
-		RoutingKey:  string(n.conf.RoutingKey),
+		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
 		EventAction: eventType,
 		DedupKey:    hashKey(key),
 		Payload:     payload,
