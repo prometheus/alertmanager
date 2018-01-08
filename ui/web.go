@@ -48,7 +48,7 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string, logger log.
 }
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- struct{}, logger log.Logger) {
+func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 	ihf := prometheus.InstrumentHandlerFunc
 
 	r.Get("/metrics", prometheus.Handler().ServeHTTP)
@@ -73,8 +73,13 @@ func Register(r *route.Router, reloadCh chan<- struct{}, logger log.Logger) {
 	))
 
 	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte("Reloading configuration file..."))
-		reloadCh <- struct{}{}
+		errc := make(chan error)
+		defer close(errc)
+
+		reloadCh <- errc
+		if err := <-errc; err != nil {
+			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
+		}
 	})
 
 	r.Get("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
