@@ -11,6 +11,7 @@ import (
 
 	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 type addResponse struct {
@@ -34,7 +35,7 @@ var (
 	addCmd         = silenceCmd.Command("add", "Add a new alertmanager silence")
 	author         = addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).String()
 	requireComment = addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").Bool()
-	expires        = addCmd.Flag("expires", "Duration of silence (100h)").Short('e').Default("1h").Duration()
+	expires        = addCmd.Flag("expires", "Duration of silence").Short('e').Default("1h").String()
 	expireOn       = addCmd.Flag("expire-on", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00").String()
 	comment        = addCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
 	addArgs        = addCmd.Arg("matcher-groups", "Query filter").Strings()
@@ -86,7 +87,14 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 			return err
 		}
 	} else {
-		endsAt = time.Now().UTC().Add(*expires)
+		duration, err := model.ParseDuration(*expires)
+		if err != nil {
+			return err
+		}
+		if duration == 0 {
+			return fmt.Errorf("silence duration must be greater than 0")
+		}
+		endsAt = time.Now().UTC().Add(time.Duration(duration))
 	}
 
 	if *requireComment && *comment == "" {
