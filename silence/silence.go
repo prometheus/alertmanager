@@ -111,6 +111,7 @@ type Silences struct {
 type metrics struct {
 	gcDuration       prometheus.Summary
 	snapshotDuration prometheus.Summary
+	snapshotSize     prometheus.Gauge
 	queriesTotal     prometheus.Counter
 	queryErrorsTotal prometheus.Counter
 	queryDuration    prometheus.Histogram
@@ -147,6 +148,10 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Name: "alertmanager_silences_snapshot_duration_seconds",
 		Help: "Duration of the last silence snapshot.",
 	})
+	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_silences_snapshot_size_bytes",
+		Help: "Size of the last silence snapshot in bytes.",
+	})
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
 		Help: "How many silence queries were received.",
@@ -169,6 +174,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		r.MustRegister(
 			m.gcDuration,
 			m.snapshotDuration,
+			m.snapshotSize,
 			m.queriesTotal,
 			m.queryErrorsTotal,
 			m.queryDuration,
@@ -263,6 +269,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		level.Info(s.logger).Log("msg", "Running maintenance")
 		defer func() {
 			level.Info(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start), "size", size)
+			s.metrics.snapshotSize.Set(float64(size))
 		}()
 
 		if _, err := s.GC(); err != nil {

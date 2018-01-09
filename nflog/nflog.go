@@ -117,6 +117,7 @@ type nlog struct {
 type metrics struct {
 	gcDuration       prometheus.Summary
 	snapshotDuration prometheus.Summary
+	snapshotSize     prometheus.Gauge
 	queriesTotal     prometheus.Counter
 	queryErrorsTotal prometheus.Counter
 	queryDuration    prometheus.Histogram
@@ -132,6 +133,10 @@ func newMetrics(r prometheus.Registerer) *metrics {
 	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
 		Name: "alertmanager_nflog_snapshot_duration_seconds",
 		Help: "Duration of the last notification log snapshot.",
+	})
+	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_nflog_snapshot_size_bytes",
+		Help: "Size of the last notification log snapshot in bytes.",
 	})
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_queries_total",
@@ -288,6 +293,7 @@ func (l *nlog) run() {
 		level.Info(l.logger).Log("msg", "Running maintenance")
 		defer func() {
 			level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+			l.metrics.snapshotSize.Set(float64(size))
 		}()
 
 		if _, err := l.GC(); err != nil {
