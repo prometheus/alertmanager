@@ -20,6 +20,7 @@ var (
 	queryExpired = queryCmd.Flag("expired", "Show expired silences as well as active").Bool()
 	silenceQuery = queryCmd.Arg("matcher-groups", "Query filter").Strings()
 	queryWithin  = queryCmd.Flag("within", "Show silences that will expire within a duration").Duration()
+	queryExpiredWithin  = queryCmd.Flag("expired-within", "Show silences that have expired within a duration").Duration()
 )
 
 func init() {
@@ -107,11 +108,15 @@ func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	displaySilences := []types.Silence{}
 	for _, silence := range fetchedSilences {
 		// If we are only returning current silences and this one has already expired skip it
-		if !*queryExpired && silence.EndsAt.Before(time.Now()) {
+		if !*queryExpired && *queryExpiredWithin == 0 && silence.EndsAt.Before(time.Now()) {
 			continue
 		}
 
 		if int64(*queryWithin) > 0 && silence.EndsAt.After(time.Now().UTC().Add(*queryWithin)) {
+			continue
+		}
+
+		if int64(*queryExpiredWithin) > 0 && (silence.EndsAt.Before(time.Now().UTC().Add(-*queryExpiredWithin)) || silence.EndsAt.After(time.Now().UTC())) {
 			continue
 		}
 
