@@ -14,7 +14,7 @@
 // Package nflog implements a garbage-collected and snapshottable append-only log of
 // active/resolved notifications. Each log entry stores the active/resolved state,
 // the notified receiver, and a hash digest of the notification's identifying contents.
-// The log can be queried along different paramters.
+// The log can be queried along different parameters.
 package nflog
 
 import (
@@ -117,6 +117,7 @@ type nlog struct {
 type metrics struct {
 	gcDuration       prometheus.Summary
 	snapshotDuration prometheus.Summary
+	snapshotSize     prometheus.Gauge
 	queriesTotal     prometheus.Counter
 	queryErrorsTotal prometheus.Counter
 	queryDuration    prometheus.Histogram
@@ -132,6 +133,10 @@ func newMetrics(r prometheus.Registerer) *metrics {
 	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
 		Name: "alertmanager_nflog_snapshot_duration_seconds",
 		Help: "Duration of the last notification log snapshot.",
+	})
+	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_nflog_snapshot_size_bytes",
+		Help: "Size of the last notification log snapshot in bytes.",
 	})
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_nflog_queries_total",
@@ -284,8 +289,12 @@ func (l *nlog) run() {
 
 	f := func() error {
 		start := l.now()
+		var size int
 		level.Info(l.logger).Log("msg", "Running maintenance")
-		defer level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start))
+		defer func() {
+			level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+			l.metrics.snapshotSize.Set(float64(size))
+		}()
 
 		if _, err := l.GC(); err != nil {
 			return err
@@ -297,8 +306,7 @@ func (l *nlog) run() {
 		if err != nil {
 			return err
 		}
-		// TODO(fabxc): potentially expose snapshot size in log message.
-		if _, err := l.Snapshot(f); err != nil {
+		if size, err = l.Snapshot(f); err != nil {
 			return err
 		}
 		return f.Close()
