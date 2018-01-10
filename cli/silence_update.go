@@ -103,8 +103,8 @@ func updateSilence(silence *types.Silence) (*types.Silence, error) {
 		silence.EndsAt = *updateExpiresOn
 	}
 
-	if *comment != "" {
-		silence.Comment = *comment
+	if *updateComment != "" {
+		silence.Comment = *updateComment
 	}
 
 	// addSilence can also be used to update an existing silence
