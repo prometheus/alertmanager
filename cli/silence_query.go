@@ -17,9 +17,9 @@ import (
 
 var (
 	queryCmd     = silenceCmd.Command("query", "Query Alertmanager silences.").Default()
-	queryExpired = queryCmd.Flag("expired", "Show expired silences as well as active").Bool()
+	queryExpired = queryCmd.Flag("expired", "Show expired silences instead of active").Bool()
 	silenceQuery = queryCmd.Arg("matcher-groups", "Query filter").Strings()
-	queryWithin  = queryCmd.Flag("within", "Show silences that will expire within a duration").Duration()
+	queryWithin  = queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").Duration()
 )
 
 func init() {
@@ -106,12 +106,20 @@ func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 
 	displaySilences := []types.Silence{}
 	for _, silence := range fetchedSilences {
-		// If we are only returning current silences and this one has already expired skip it
+		// skip expired silences if --expired is not set
 		if !*queryExpired && silence.EndsAt.Before(time.Now()) {
 			continue
 		}
-
-		if int64(*queryWithin) > 0 && silence.EndsAt.After(time.Now().UTC().Add(*queryWithin)) {
+		// skip active silences if --expired is set
+		if *queryExpired && silence.EndsAt.After(time.Now()) {
+			continue
+		}
+		// skip active silences expiring after "--within"
+		if !*queryExpired && int64(*queryWithin) > 0 && silence.EndsAt.After(time.Now().UTC().Add(*queryWithin)) {
+			continue
+		}
+		// skip silences that expired before "--within"
+		if *queryExpired && int64(*queryWithin) > 0 && silence.EndsAt.Before(time.Now().UTC().Add(-*queryWithin)) {
 			continue
 		}
 
