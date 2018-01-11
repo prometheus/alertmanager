@@ -215,7 +215,8 @@ route:
   group_by: []
   group_wait:      1s
   group_interval:  1s
-  repeat_interval: 5s
+  # use a value slightly below the 5s interval to avoid timing issues
+  repeat_interval: 4900ms
 
 receivers:
 - name: "default"
