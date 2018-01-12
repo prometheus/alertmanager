@@ -1,3 +1,19 @@
+## 0.13.0 / 2018-01-12
+
+* [CHANGE] Switch cmd/alertmanager to kingpin (#974)
+* [CHANGE] [amtool] Switch amtool to kingpin (#976)
+* [CHANGE] [amtool] silence query: --expired flag only shows expired silences (#1190)
+* [CHANGE] Return config reload result from reload endpoint (#1180)
+* [CHANGE] Template secret keys for pagerduty notifier (#1182)
+* [FEATURE] UI silence form is populated from location bar (#1148)
+* [FEATURE] Add /-/healthy endpoint (#1159)
+* [ENHANCEMENT] Instrument and log snapshot sizes on maintenance (#1155)
+* [ENHANCEMENT] Make alertGC interval configurable (#1151)
+* [ENHANCEMENT] Display mesh connections in the Status page (#1164)
+* [BUGFIX] Fix expire buttons on the silences page (#1171)
+* [BUGFIX] Fix JavaScript error in MSIE due to endswith() usage (#1172)
+* [BUGFIX] Correctly format UI error output (#1167)
+
 ## 0.12.0 / 2017-12-15
 
 * [FEATURE] package amtool in docker container (#1127)
