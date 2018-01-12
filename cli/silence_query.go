@@ -38,7 +38,7 @@ amtool silence query alertname=foo node=bar
 
 amtool silence query foo node=bar
 
-	If alertname is ommited and the first argument does not contain a '=' or a
+	If alertname is omitted and the first argument does not contain a '=' or a
 	'=~' then it will be assumed to be the value of the alertname pair.
 
 amtool silence query 'alertname=~foo.*'
@@ -54,8 +54,16 @@ extending them. For example:
 
 amtool silence query --within 8h
 
-gives all the silences due to expire within the next 8 hours. This syntax can
-also be combined with the label based filtering above for more flexibility.`
+returns all the silences due to expire within the next 8 hours. This syntax can
+also be combined with the label based filtering above for more flexibility.
+
+The "--expired" parameter returns only expired silences. Used in combination
+with "--within=TIME", amtool returns the silences that expired within the
+preceding duration.
+
+amtool silence query --within 2h --expired
+
+returns all silences that expired within the preceeding 2 hours.`
 }
 
 func fetchSilences(filter string) ([]types.Silence, error) {
