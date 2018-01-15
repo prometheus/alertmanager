@@ -12,6 +12,7 @@ import (
 	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 type getResponse struct {
@@ -23,7 +24,7 @@ type getResponse struct {
 
 var (
 	updateCmd       = silenceCmd.Command("update", "Update silences")
-	updateExpires   = updateCmd.Flag("expires", "Duration of silence").Short('e').Duration()
+	updateExpires   = updateCmd.Flag("expires", "Duration of silence").Short('e').Default("1h").String()
 	updateExpiresOn = updateCmd.Flag("expire-on", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00").Time(time.RFC3339)
 	updateComment   = updateCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
 	updateIds       = updateCmd.Arg("update-ids", "Silence IDs to update").Strings()
@@ -94,8 +95,15 @@ func getSilenceById(silenceId string, baseUrl url.URL) (*types.Silence, error) {
 }
 
 func updateSilence(silence *types.Silence) (*types.Silence, error) {
-	if *updateExpires != 0 {
-		silence.EndsAt = time.Now().UTC().Add(*updateExpires)
+	if *updateExpires != "" {
+		duration, err := model.ParseDuration(*updateExpires)
+		if err != nil {
+			return nil, err
+		}
+		if duration == 0 {
+			return nil, fmt.Errorf("silence duration must be greater than 0")
+		}
+		silence.EndsAt = time.Now().UTC().Add(time.Duration(duration))
 	}
 
 	// expire-on will override expires value if both are specified
