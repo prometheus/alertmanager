@@ -387,8 +387,7 @@ func (ag *aggrGroup) stop() {
 	<-ag.done
 }
 
-// insert inserts the alert into the aggregation group. If the aggregation group
-// is empty afterwards, it returns true.
+// insert inserts the alert into the aggregation group.
 func (ag *aggrGroup) insert(alert *types.Alert) {
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
