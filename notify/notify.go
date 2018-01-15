@@ -481,6 +481,15 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return true, nil
 	}
 
+	// If the current alert group and last notification contain no firing alert
+	// and the resolved alerts are different, it means that some alerts have
+	// been fired and resolved during the last group_wait interval. In this
+	// case, there is no need to notify the receiver since it doesn't know
+	// about them.
+	if len(firing) == 0 && len(entry.FiringAlerts) == 0 {
+		return false, nil
+	}
+
 	if !entry.IsResolvedSubset(resolved) {
 		return true, nil
 	}
