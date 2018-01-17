@@ -554,6 +554,14 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if sil.EndsAt.Before(time.Now()) {
+		api.respondError(w, apiError{
+			typ: errorBadData,
+			err: errors.New("end time can't be in the past"),
+		}, nil)
+		return
+	}
+
 	psil, err := silenceToProto(&sil)
 	if err != nil {
 		api.respondError(w, apiError{
