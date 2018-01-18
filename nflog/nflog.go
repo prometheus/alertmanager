@@ -46,7 +46,7 @@ type Log interface {
 	// alert object.
 	Log(r *pb.Receiver, key string, firing, resolved []uint64) error
 
-	// Query the log along the given Paramteres.
+	// Query the log along the given Parameters.
 	//
 	// TODO(fabxc):
 	// - extend the interface by a `QueryOne` method?

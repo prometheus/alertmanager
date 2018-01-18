@@ -97,9 +97,10 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 	now := utcNow()
 
 	cases := []struct {
-		entry        *nflogpb.Entry
-		firingAlerts map[uint64]struct{}
-		repeat       time.Duration
+		entry          *nflogpb.Entry
+		firingAlerts   map[uint64]struct{}
+		resolvedAlerts map[uint64]struct{}
+		repeat         time.Duration
 
 		res    bool
 		resErr bool
@@ -135,6 +136,14 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			repeat:       10 * time.Minute,
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
+		}, {
+			entry: &nflogpb.Entry{
+				ResolvedAlerts: []uint64{1, 2, 3},
+				Timestamp:      now.Add(-11 * time.Minute),
+			},
+			repeat:         10 * time.Minute,
+			resolvedAlerts: alertHashSet(3, 4, 5),
+			res:            false,
 		},
 	}
 	for i, c := range cases {
@@ -143,7 +152,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		s := &DedupStage{
 			now: func() time.Time { return now },
 		}
-		ok, err := s.needsUpdate(c.entry, c.firingAlerts, nil, c.repeat)
+		ok, err := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
 		if c.resErr {
 			require.Error(t, err)
 		} else {
