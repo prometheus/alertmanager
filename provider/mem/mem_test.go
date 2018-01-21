@@ -97,13 +97,8 @@ func TestAlertsPut(t *testing.T) {
 }
 
 func TestAlertsSubscribe(t *testing.T) {
-	dir, err := ioutil.TempDir("", "alerts_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute, dir)
+	alerts, err := NewAlerts(marker, 30*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,13 +177,8 @@ func TestAlertsSubscribe(t *testing.T) {
 }
 
 func TestAlertsGetPending(t *testing.T) {
-	dir, err := ioutil.TempDir("", "alerts_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute, dir)
+	alerts, err := NewAlerts(marker, 30*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
