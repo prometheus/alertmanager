@@ -387,10 +387,8 @@ receivers:
 		Alert("alertname", "test", "lbl", "v2").Active(1),
 		Alert("alertname", "test", "lbl", "v3").Active(3),
 	)
-	co1.Want(Between(12, 12.5),
-		Alert("alertname", "test", "lbl", "v2").Active(1, 11),
-		Alert("alertname", "test", "lbl", "v3").Active(3),
-	)
+	// no notification should be sent after group_interval because no new alert has been fired
+	co1.Want(Between(12, 12.5))
 
 	co2.Want(Between(2, 2.5),
 		Alert("alertname", "test", "lbl", "v1").Active(1),
@@ -400,9 +398,7 @@ receivers:
 		Alert("alertname", "test", "lbl", "v2").Active(1),
 		Alert("alertname", "test", "lbl", "v3").Active(3),
 	)
-	co2.Want(Between(12, 12.5),
-		Alert("alertname", "test", "lbl", "v3").Active(3),
-	)
+	co1.Want(Between(12, 12.5))
 
 	at.Run()
 }

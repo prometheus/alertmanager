@@ -92,8 +92,15 @@ func (c *Collector) check() string {
 	for iv, expected := range c.expected {
 		report += fmt.Sprintf("interval %v\n", iv)
 
+		var alerts []model.Alerts
+		for at, got := range c.collected {
+			if iv.contains(at) {
+				alerts = append(alerts, got...)
+			}
+		}
+
 		for _, exp := range expected {
-			var found model.Alerts
+			found := len(exp) == 0 && len(alerts) == 0
 
 			report += fmt.Sprintf("---\n")
 
@@ -101,22 +108,14 @@ func (c *Collector) check() string {
 				report += fmt.Sprintf("- %v\n", c.opts.alertString(e))
 			}
 
-			for at, got := range c.collected {
-				if !iv.contains(at) {
-					continue
-				}
-				for _, a := range got {
-					if batchesEqual(exp, a, c.opts) {
-						found = a
-						break
-					}
-				}
-				if found != nil {
+			for _, a := range alerts {
+				if batchesEqual(exp, a, c.opts) {
+					found = true
 					break
 				}
 			}
 
-			if found != nil {
+			if found {
 				report += fmt.Sprintf("  [ ✓ ]\n")
 			} else {
 				c.t.Fail()
