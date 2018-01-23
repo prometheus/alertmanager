@@ -144,6 +144,36 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			repeat:         10 * time.Minute,
 			resolvedAlerts: alertHashSet(3, 4, 5),
 			res:            false,
+		}, {
+			entry: &nflogpb.Entry{
+				FiringAlerts:   []uint64{1, 2},
+				ResolvedAlerts: []uint64{3},
+				Timestamp:      now.Add(-11 * time.Minute),
+			},
+			repeat:         10 * time.Minute,
+			firingAlerts:   alertHashSet(1),
+			resolvedAlerts: alertHashSet(2, 3),
+			res:            true,
+		}, {
+			entry: &nflogpb.Entry{
+				FiringAlerts:   []uint64{1, 2},
+				ResolvedAlerts: []uint64{3},
+				Timestamp:      now.Add(-9 * time.Minute),
+			},
+			repeat:         10 * time.Minute,
+			firingAlerts:   alertHashSet(1),
+			resolvedAlerts: alertHashSet(2, 3),
+			res:            false,
+		}, {
+			entry: &nflogpb.Entry{
+				FiringAlerts:   []uint64{1, 2},
+				ResolvedAlerts: []uint64{3},
+				Timestamp:      now.Add(-9 * time.Minute),
+			},
+			repeat:         10 * time.Minute,
+			firingAlerts:   alertHashSet(),
+			resolvedAlerts: alertHashSet(1, 2, 3),
+			res:            true,
 		},
 	}
 	for i, c := range cases {
