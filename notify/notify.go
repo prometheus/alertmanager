@@ -600,7 +600,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
-				var alertnames []string
+				alertnames := make([]string, 0, len(alerts))
 				for _, al := range alerts {
 					alertnames = append(alertnames, al.Name())
 				}
