@@ -16,7 +16,6 @@ package notify
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -601,13 +600,13 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
-				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "err", err)
+				var alertnames []string
+				for _, al := range alerts {
+					alertnames = append(alertnames, al.Name())
+				}
+				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "alerts", alertnames, "err", err)
 				if !retry {
-					var alertnames []string
-					for _, al := range alerts {
-						alertnames = append(alertnames, al.Name())
-					}
-					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q (alerts: %s) due to unrecoverable error: %s", r.integration.name, strings.Join(alertnames, ", "), err)
+					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
 				}
 
 				// Save this error to be able to return the last seen error by an
