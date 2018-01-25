@@ -45,8 +45,9 @@ decodeVersionInfo =
 
 decodeClusterStatus : Decoder ClusterStatus
 decodeClusterStatus =
-    Json.Decode.map2 ClusterStatus
+    Json.Decode.map3 ClusterStatus
         (field "name" string)
+        (field "status" string)
         (field "peers" (list decodeClusterPeer))
 
 

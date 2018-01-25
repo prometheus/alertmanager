@@ -1,7 +1,7 @@
 module Views.Status.Views exposing (view)
 
 import Html exposing (..)
-import Html.Attributes exposing (class, style)
+import Html.Attributes exposing (class, style, classList)
 import Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
 import Types exposing (Msg(MsgForStatus))
 import Utils.Types exposing (ApiData(Failure, Success, Loading, Initial))
@@ -60,6 +60,19 @@ viewClusterStatus clusterStatus =
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Name:" ]
                     , div [ class "col-sm-10" ] [ text clusterStatus.name ]
+                    ]
+                , div [ class "form-group row" ]
+                    [ b [ class "col-sm-2" ] [ text "Status:" ]
+                    , div [ class "col-sm-10" ]
+                        [ span
+                            [ classList
+                                [ ( "badge", True )
+                                , ( "badge-success", clusterStatus.status == "ready" )
+                                , ( "badge-warning", clusterStatus.status == "settling" )
+                                ]
+                            ]
+                            [ text clusterStatus.status ]
+                        ]
                     ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Peers:" ]

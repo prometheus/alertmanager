@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"context"
 	"github.com/alecthomas/kingpin"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -121,18 +122,14 @@ func main() {
 
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "listen address for cluster").
 				Default(defaultClusterAddr).String()
-
 		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "explicit address to advertise in cluster").String()
-
-		peerTimeout = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
-
-		gossipInterval = kingpin.Flag("cluster.gossip-interval", "interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").
-				Default(cluster.DefaultGossipInterval.String()).Duration()
-
-		pushPullInterval = kingpin.Flag("cluster.pushpull-interval", "interval for gossip state syncs . Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").
+		peerTimeout          = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
+		gossipInterval       = kingpin.Flag("cluster.gossip-interval", "interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").
+					Default(cluster.DefaultGossipInterval.String()).Duration()
+		pushPullInterval = kingpin.Flag("cluster.pushpull-interval", "interval for gossip state syncs. Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").
 					Default(cluster.DefaultPushPullInterval.String()).Duration()
-
-		peers = kingpin.Flag("cluster.peer", "initial peers (may be repeated)").Strings()
+		settleTimeout = kingpin.Flag("cluster.settle-timeout", "enable notifications after this duration regardless of meshing settling status.").Default(cluster.DefaultPushPullInterval.String()).Duration()
+		peers         = kingpin.Flag("cluster.peer", "initial peers (may be repeated)").Strings()
 	)
 
 	kingpin.Version(version.Print("alertmanager"))
@@ -166,6 +163,12 @@ func main() {
 			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
 			os.Exit(1)
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), *settleTimeout)
+		defer func() {
+			cancel()
+			peer.Leave(10 * time.Second)
+		}()
+		go peer.Settle(ctx, *pushPullInterval / 2)
 	}
 
 	stopc := make(chan struct{})
@@ -179,6 +182,7 @@ func main() {
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
 		nflog.WithLogger(log.With(logger, "component", "nflog")),
 	}
+
 	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		level.Error(logger).Log("err", err)
@@ -198,6 +202,7 @@ func main() {
 		Logger:       log.With(logger, "component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
 	}
+
 	silences, err := silence.New(silenceOpts)
 	if err != nil {
 		level.Error(logger).Log("err", err)
@@ -217,9 +222,6 @@ func main() {
 
 	defer func() {
 		close(stopc)
-		if peer != nil {
-			peer.Leave(10 * time.Second)
-		}
 		wg.Wait()
 	}()
 
@@ -310,6 +312,7 @@ func main() {
 			silences,
 			notificationLog,
 			marker,
+			peer,
 			logger,
 		)
 		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
