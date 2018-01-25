@@ -16,7 +16,6 @@ package notify
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -239,7 +238,7 @@ func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(notificationLog, recv))
-		s = append(s, NewRetryStage(i))
+		s = append(s, NewRetryStage(i, recv))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -552,12 +551,14 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
 	integration Integration
+	recv        *nflogpb.Receiver
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration) *RetryStage {
+func NewRetryStage(i Integration, recv *nflogpb.Receiver) *RetryStage {
 	return &RetryStage{
 		integration: i,
+		recv:        recv,
 	}
 }
 
@@ -601,11 +602,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
-				alertnames := make([]string, 0, len(alerts))
-				for _, al := range alerts {
-					alertnames = append(alertnames, al.Name())
-				}
-				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "alerts", strings.Join(alertnames, ", "), "err", err)
+				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.recv.GroupName, "err", err)
 				if !retry {
 					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
 				}
