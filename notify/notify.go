@@ -16,6 +16,7 @@ package notify
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -604,7 +605,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				for _, al := range alerts {
 					alertnames = append(alertnames, al.Name())
 				}
-				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "alerts", alertnames, "err", err)
+				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "alerts", strings.Join(alertnames, ", "), "err", err)
 				if !retry {
 					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
 				}
