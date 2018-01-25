@@ -235,6 +235,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if !strings.HasSuffix(ogc.APIURL, "/") {
 				ogc.APIURL += "/"
 			}
+			if ogc.APIKey == "" {
+				if c.Global.OpsGenieAPIKey == "" {
+					return fmt.Errorf("no global OpsGenie API Key set")
+				}
+				ogc.APIKey = c.Global.OpsGenieAPIKey
+			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
 			wcc.APIURL = c.Global.WeChatAPIURL
@@ -348,6 +354,7 @@ type GlobalConfig struct {
 	HipchatAPIURL    string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIURL   string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey   Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
 	WeChatAPIURL     string `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret  string `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`

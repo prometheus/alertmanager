@@ -381,3 +381,28 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 		t.Errorf("Expected: %s\nGot: %s", "no global VictorOps API Key set", err.Error())
 	}
 }
+
+func TestOpsGenieDefaultAPIKey(t *testing.T) {
+	conf, _, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
+	}
+
+	var defaultKey = conf.Global.OpsGenieAPIKey
+	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKey {
+		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
+	}
+	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKey {
+		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, "qwe456")
+	}
+}
+
+func TestOpsGenieNoAPIKey(t *testing.T) {
+	_, _, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
+	if err == nil {
+		t.Errorf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
+	}
+	if err.Error() != "no global OpsGenie API Key set" {
+		t.Errorf("Expected: %s\nGot: %s", "no global OpsGenie API Key set", err.Error())
+	}
+}
