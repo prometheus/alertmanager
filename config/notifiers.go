@@ -28,6 +28,13 @@ var (
 		},
 	}
 
+	// DefaultKafkaConfig defines default values for kafka configurations.
+	DefaultKafkaConfig = KafkaConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -460,4 +467,32 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+type KafkaConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	KafkaAddress string `yaml:"kafka_address,omitempty" json:"kafka_address,omitempty"`
+	KafkaTopic   string `yaml:"kafka_topic,omitempty" json:"kafka_topic,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *KafkaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultKafkaConfig
+	type plain KafkaConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.KafkaAddress == "" {
+		return fmt.Errorf("missing kafka address in kafka config")
+	}
+
+	if c.KafkaTopic == "" {
+		return fmt.Errorf("missing kafka topic in kafka config")
+	}
+
+	return checkOverflow(c.XXX, "kafka config")
 }

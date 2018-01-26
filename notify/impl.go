@@ -39,6 +39,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
+	"github.com/Shopify/sarama"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -137,6 +138,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		n := NewPushover(c, tmpl, logger)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.KafkaConfigs {
+		n := NewKafka(c, tmpl, logger)
+		add("kafka", i, n, c)
+	}
 	return integrations
 }
 
@@ -210,6 +215,61 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// Kafka implements a Notifier for send kafka.
+type Kafka struct {
+	tmpl   *template.Template
+	conf   *config.KafkaConfig
+	logger log.Logger
+}
+
+// NewKafka returns a new kafka.
+func NewKafka(c *config.KafkaConfig, t *template.Template, l log.Logger) *Kafka {
+	return &Kafka{conf: c, tmpl: t, logger: l}
+}
+
+// KafkaClient return a kafka produce client
+func KafkaClient(c *config.KafkaConfig, l log.Logger, msgString string) (bool, error) {
+	config := sarama.NewConfig()
+	config.Producer.RequiredAcks = sarama.WaitForLocal
+	config.Producer.Return.Successes = true
+	config.Producer.Partitioner = sarama.NewManualPartitioner
+	kafkaProduce, err := sarama.NewSyncProducer(strings.Split(c.KafkaAddress, ","), config)
+	if err != nil {
+		return false, err
+	}
+	defer kafkaProduce.Close()
+	kafkaMsg := &sarama.ProducerMessage{
+		Topic: c.KafkaTopic,
+		Value: sarama.StringEncoder(msgString),
+	}
+	if _, _, err := kafkaProduce.SendMessage(kafkaMsg); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// Notify implements the Notifier interface.
+func (k *Kafka) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var (
+		data = k.tmpl.Data(receiverName(ctx, k.logger), groupLabels(ctx, k.logger), as...)
+		//tmplText = tmplText(k.tmpl, data, &err)
+	)
+	level.Debug(k.logger).Log("data", fmt.Sprintf("data %v", data))
+	msg := make(map[string]interface{})
+	for k, v := range data.CommonLabels {
+		msg[k] = v
+	}
+	for k, v := range data.CommonAnnotations {
+		msg[k] = v
+	}
+	msgMarshal, err := json.Marshal(msg)
+	if err != nil {
+		return false, err
+	}
+	level.Debug(k.logger).Log("msg", "Notifying kafkaover", "incident", string(msgMarshal))
+	return KafkaClient(k.conf, k.logger, string(msgMarshal))
 }
 
 // Email implements a Notifier for email notifications.

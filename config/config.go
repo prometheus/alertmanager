@@ -192,6 +192,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
 		}
+		for _, kc := range rcv.KafkaConfigs {
+			if kc.KafkaAddress == "" {
+				if c.Global.KafkaAddress == "" {
+					return fmt.Errorf("no global kafka address set")
+				}
+				kc.KafkaAddress = c.Global.KafkaAddress
+			}
+		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.APIURL == "" {
 				if c.Global.SlackAPIURL == "" {
@@ -353,6 +361,7 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	KafkaAddress     string `yaml:"kakfa_address,omitempty" json:"kafka_address,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -489,7 +498,7 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-
+	KafkaConfigs     []*KafkaConfig     `yaml:"kafka_configs,omitempty" json:"kafka_configs,omitempty"`
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
