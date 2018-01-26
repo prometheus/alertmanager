@@ -1,8 +1,9 @@
 package config
 
 import (
-	"gopkg.in/yaml.v2"
 	"testing"
+
+	"gopkg.in/yaml.v2"
 )
 
 func TestEmailToIsPresent(t *testing.T) {
@@ -134,23 +135,6 @@ corp_id: ''
 	err := yaml.Unmarshal([]byte(in), &cfg)
 
 	expected := "missing Wechat CorpID in Wechat config"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestOpsGenieAPIKeyIsPresent(t *testing.T) {
-	in := `
-api_key: ''
-`
-	var cfg OpsGenieConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
-
-	expected := "missing API key in OpsGenie config"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
