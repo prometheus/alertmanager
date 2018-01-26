@@ -39,6 +39,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
+	"github.com/Shopify/sarama"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -208,6 +209,82 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 	if statusCode/100 != 2 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.URL)
 	}
+
+	return false, nil
+}
+
+// Kakfa implements a Notifier for send kafka.
+type Kafka struct {
+	// The kafkaAdress to which notifications are sent.
+	kafkaAdress string
+	tmpl        *template.Template
+	conf        *config.KafkaConfig
+	logger      log.Logger
+}
+
+// KafkaMessage implements a Notifier for kafkamessage notifications.
+type KafkaMessage struct {
+	Title       string `json:"title"`
+	Source      string `json:"source"`
+	Node        string `json:"node"`
+	Expr        string `json:"expr"`
+	Value       string `json:"value"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	Level       int    `json:"level"`
+	Note        string `json:"note"`
+}
+
+// KafkaClient return a kafka produce client
+func KafkaClient(c *config.KafkaConfig, l log.Logger) (sarama.SyncProducer, error) {
+	config := sarama.NewConfig()
+	config.Producer.RequiredAcks = sarama.WaitForLocal
+	config.Producer.Return.Successes = true
+	config.Producer.Partitioner = sarama.NewManualPartitioner
+
+	return sarama.NewSyncProducer(strings.Split(c.KafkaAddress, ","), config)
+}
+
+// Notify implements the Notifier interface.
+func (k *Kafka) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+
+	var (
+		data = k.tmpl.Data(receiverName(ctx, k.logger), groupLabels(ctx, k.logger), as...)
+		//tmplText = tmplText(k.tmpl, data, &err)
+	)
+	level.Debug(k.logger).Log("data", fmt.Sprintf("data %v", data))
+	msg := make(map[string]interface{})
+	for k, v := range data.CommonLabels {
+		msg[k] = v
+	}
+	for k, v := range data.CommonAnnotations {
+		msg[k] = v
+	}
+	msgMarshal, err := json.Marshal(msg)
+	if err != nil {
+		return false, err
+	}
+	kafkaMsg := &sarama.ProducerMessage{
+		Topic: k.conf.KafkaTopic,
+		Value: sarama.StringEncoder(string(msgMarshal)),
+	}
+
+	kafkaProduce, err := KafkaClient(k.conf, k.logger)
+	if err != nil {
+		return false, err
+	}
+	defer kafkaProduce.Close()
+	_, _, errK := kafkaProduce.SendMessage(kafkaMsg)
+	if errK != nil {
+		return false, errK
+	}
+
+	level.Debug(k.logger).Log("msg", "Notifying Pushover", "incident", key)
 
 	return false, nil
 }
