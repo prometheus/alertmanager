@@ -3,6 +3,12 @@
 	"ignore": "test",
 	"package": [
 		{
+			"checksumSHA1": "8sVvxNROt3X7RsQ/KTtIRjVxquI=",
+			"path": "github.com/Shopify/sarama",
+			"revision": "f196330231e867c80737487edc4c3512b1431529",
+			"revisionTime": "2017-12-31T15:39:51Z"
+		},
+		{
 			"checksumSHA1": "XhkBA2yTAxMmcxk3dPqh8JNU4II=",
 			"path": "github.com/alecthomas/kingpin",
 			"revision": "75c60582c55399763d53eeb59078d63d3616f58c",
