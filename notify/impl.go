@@ -217,26 +217,11 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
-// Kakfa implements a Notifier for send kafka.
+// Kafka implements a Notifier for send kafka.
 type Kafka struct {
-	// The kafkaAdress to which notifications are sent.
-	kafkaAdress string
-	tmpl        *template.Template
-	conf        *config.KafkaConfig
-	logger      log.Logger
-}
-
-// KafkaMessage implements a Notifier for kafkamessage notifications.
-type KafkaMessage struct {
-	Title       string `json:"title"`
-	Source      string `json:"source"`
-	Node        string `json:"node"`
-	Expr        string `json:"expr"`
-	Value       string `json:"value"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
-	Level       int    `json:"level"`
-	Note        string `json:"note"`
+	tmpl   *template.Template
+	conf   *config.KafkaConfig
+	logger log.Logger
 }
 
 // NewKafka returns a new kafka.
@@ -245,23 +230,28 @@ func NewKafka(c *config.KafkaConfig, t *template.Template, l log.Logger) *Kafka 
 }
 
 // KafkaClient return a kafka produce client
-func KafkaClient(c *config.KafkaConfig, l log.Logger) (sarama.SyncProducer, error) {
+func KafkaClient(c *config.KafkaConfig, l log.Logger, msgString string) (bool, error) {
 	config := sarama.NewConfig()
 	config.Producer.RequiredAcks = sarama.WaitForLocal
 	config.Producer.Return.Successes = true
 	config.Producer.Partitioner = sarama.NewManualPartitioner
-
-	return sarama.NewSyncProducer(strings.Split(c.KafkaAddress, ","), config)
+	kafkaProduce, err := sarama.NewSyncProducer(strings.Split(c.KafkaAddress, ","), config)
+	if err != nil {
+		return false, err
+	}
+	defer kafkaProduce.Close()
+	kafkaMsg := &sarama.ProducerMessage{
+		Topic: c.KafkaTopic,
+		Value: sarama.StringEncoder(msgString),
+	}
+	if _, _, err := kafkaProduce.SendMessage(kafkaMsg); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Notify implements the Notifier interface.
 func (k *Kafka) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	var err error
-	key, ok := GroupKey(ctx)
-	if !ok {
-		return false, fmt.Errorf("group key missing")
-	}
-
 	var (
 		data = k.tmpl.Data(receiverName(ctx, k.logger), groupLabels(ctx, k.logger), as...)
 		//tmplText = tmplText(k.tmpl, data, &err)
@@ -278,24 +268,8 @@ func (k *Kafka) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	kafkaMsg := &sarama.ProducerMessage{
-		Topic: k.conf.KafkaTopic,
-		Value: sarama.StringEncoder(string(msgMarshal)),
-	}
-
-	kafkaProduce, err := KafkaClient(k.conf, k.logger)
-	if err != nil {
-		return false, err
-	}
-	defer kafkaProduce.Close()
-	_, _, errK := kafkaProduce.SendMessage(kafkaMsg)
-	if errK != nil {
-		return false, errK
-	}
-
-	level.Debug(k.logger).Log("msg", "Notifying Pushover", "incident", key)
-
-	return false, nil
+	level.Debug(k.logger).Log("msg", "Notifying kafkaover", "incident", string(msgMarshal))
+	return KafkaClient(k.conf, k.logger, string(msgMarshal))
 }
 
 // Email implements a Notifier for email notifications.
