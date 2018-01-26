@@ -121,3 +121,8 @@ receivers:
     room_id: 85
     message_format: html
     notify: true
+
+- name: 'achieve-alert-message'
+  kakfa_configs:
+  - kafka_topic: 'test'
+    kafka_address: '10.0.3.4:9092,10.0.3.5:9092,10.0.3.6:9092'
