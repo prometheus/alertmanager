@@ -138,6 +138,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		n := NewPushover(c, tmpl, logger)
 		add("pushover", i, n, c)
 	}
+	for i, c := range nc.KafkaConfigs {
+		n := NewKafka(c, tmpl, logger)
+		add("kafka", i, n, c)
+	}
 	return integrations
 }
 
@@ -233,6 +237,11 @@ type KafkaMessage struct {
 	URL         string `json:"url"`
 	Level       int    `json:"level"`
 	Note        string `json:"note"`
+}
+
+// NewKafka returns a new kafka.
+func NewKafka(c *config.KafkaConfig, t *template.Template, l log.Logger) *Kafka {
+	return &Kafka{conf: c, tmpl: t, logger: l}
 }
 
 // KafkaClient return a kafka produce client
