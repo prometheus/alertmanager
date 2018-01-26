@@ -506,7 +506,7 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl fu
 		payload = &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
 			Source:        tmpl(n.conf.Client),
-			Severity:      n.conf.Severity,
+			Severity:      tmpl(n.conf.Severity),
 			CustomDetails: details,
 			Component:     n.conf.Component,
 			Group:         n.conf.Group,
