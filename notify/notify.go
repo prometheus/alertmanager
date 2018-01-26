@@ -68,6 +68,7 @@ func init() {
 	numFailedNotifications.WithLabelValues("opsgenie")
 	numFailedNotifications.WithLabelValues("webhook")
 	numFailedNotifications.WithLabelValues("victorops")
+	numFailedNotifications.WithLabelValues("kafka")
 
 	prometheus.Register(numNotifications)
 	prometheus.Register(numFailedNotifications)
