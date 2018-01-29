@@ -115,6 +115,7 @@ receivers:
 - name: 'team-DB-pager'
   pagerduty_configs:
   - service_key: <team-DB-key>
+  
 - name: 'team-X-hipchat'
   hipchat_configs:
   - auth_token: <auth_token>
