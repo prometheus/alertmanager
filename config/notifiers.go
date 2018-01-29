@@ -382,9 +382,6 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.APIKey == "" {
-		return fmt.Errorf("missing API key in OpsGenie config")
-	}
 	return checkOverflow(c.XXX, "opsgenie config")
 }
 
