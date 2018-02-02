@@ -214,8 +214,11 @@ func main() {
 
 	// Disable mesh if empty string passed for mesh.listen-address flag.
 	if *meshListen != "" {
-		mrouter.Start()
-		mrouter.ConnectionMaker.InitiateConnections(*peers, true)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			startRouter(mrouter, peers, stopc, log.With(logger, "component", "mesh"))
+		}()
 	}
 
 	defer func() {
@@ -558,6 +561,90 @@ func listen(listen string, router *route.Router, logger log.Logger) {
 	if err := http.ListenAndServe(listen, router); err != nil {
 		level.Error(logger).Log("msg", "Listen error", "err", err)
 		os.Exit(1)
+	}
+}
+
+// startRouter resolves the peer names to IP addresses and kicks off the connections.
+func startRouter(router *mesh.Router, peers *[]string, stopc <-chan struct{}, logger log.Logger) {
+	var (
+		wg     sync.WaitGroup
+		peerc  = make(chan string)
+		cancel = make(chan struct{})
+		addrs  = make([]string, 0, len(*peers))
+	)
+
+	exponential := func(d time.Duration) time.Duration {
+		const max = 10 * time.Second
+		d = 2 * d
+		if d > max {
+			return max
+		}
+		return d
+	}
+
+	router.Start()
+
+	// Resolve peer addresses concurrently.
+	wg.Add(len(*peers))
+	for _, p := range *peers {
+		go func(p string) {
+			defer wg.Done()
+
+			d := 1 * time.Second
+			for {
+				host, port, err := net.SplitHostPort(p)
+				if err != nil {
+					host = p
+					port = ""
+				}
+				// TODO: support DNS SRV records.
+				ips, err := net.LookupIP(host)
+				if err == nil {
+					for _, ip := range ips {
+						if port == "" {
+							peerc <- ip.String()
+						} else {
+							peerc <- fmt.Sprintf("%s:%s", ip.String(), port)
+						}
+					}
+					return
+				}
+
+				select {
+				case <-cancel:
+					level.Debug(logger).Log("msg", "Failed to resolve host's address", "host", host)
+					return
+				case <-time.After(d):
+					d = exponential(d)
+				}
+			}
+		}(p)
+	}
+
+	go func() {
+		wg.Wait()
+		close(peerc)
+	}()
+
+OuterLoop:
+	for {
+		select {
+		case <-stopc:
+		case <-time.After(60 * time.Second):
+			close(cancel)
+		case v, ok := <-peerc:
+			if !ok {
+				// All resolvers have returned.
+				break OuterLoop
+			}
+			addrs = append(addrs, v)
+		}
+	}
+
+	level.Debug(logger).Log("msg", "Initiate router's connections", "peers", fmt.Sprintf("%v", addrs))
+	errs := router.ConnectionMaker.InitiateConnections(addrs, true)
+	for _, err := range errs {
+		level.Error(logger).Log("msg", "Failed to initialize router's connection", "err", err)
 	}
 }
 
