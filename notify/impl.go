@@ -952,9 +952,38 @@ type opsGenieCloseMessage struct {
 
 // Notify implements the Notifier interface.
 func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	req, retry, err := n.createRequest(ctx, as...)
+	if err != nil {
+		return retry, err
+	}
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+// Like Split but filter out empty strings.
+func safeSplit(s string, sep string) []string {
+	a := strings.Split(strings.TrimSpace(s), sep)
+	b := a[:0]
+	for _, x := range a {
+		if x != "" {
+			b = append(b, x)
+		}
+	}
+	return b
+}
+
+// Create requests for a list of alerts.
+func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http.Request, bool, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return false, fmt.Errorf("group key missing")
+		return nil, false, fmt.Errorf("group key missing")
 	}
 	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 
@@ -987,9 +1016,11 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		apiURL = n.conf.APIURL + "v2/alerts"
 		var teams []map[string]string
-		for _, t := range strings.Split(string(tmpl(n.conf.Teams)), ",") {
+		for _, t := range safeSplit(string(tmpl(n.conf.Teams)), ",") {
 			teams = append(teams, map[string]string{"name": t})
 		}
+		tags := safeSplit(string(tmpl(n.conf.Tags)), ",")
+
 		msg = &opsGenieCreateMessage{
 			Alias:       alias,
 			Message:     message,
@@ -997,35 +1028,27 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			Details:     details,
 			Source:      tmpl(n.conf.Source),
 			Teams:       teams,
-			Tags:        strings.Split(string(tmpl(n.conf.Tags)), ","),
+			Tags:        tags,
 			Note:        tmpl(n.conf.Note),
 			Priority:    tmpl(n.conf.Priority),
 		}
 	}
 	if err != nil {
-		return false, fmt.Errorf("templating error: %s", err)
+		return nil, false, fmt.Errorf("templating error: %s", err)
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, err
+		return nil, false, err
 	}
 
 	req, err := http.NewRequest("POST", apiURL, &buf)
 	if err != nil {
-		return true, err
+		return nil, true, err
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", n.conf.APIKey))
-
-	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
-
-	if err != nil {
-		return true, err
-	}
-	defer resp.Body.Close()
-
-	return n.retry(resp.StatusCode)
+	return req, true, nil
 }
 
 func (n *OpsGenie) retry(statusCode int) (bool, error) {
