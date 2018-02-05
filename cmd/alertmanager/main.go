@@ -54,10 +54,6 @@ import (
 )
 
 var (
-	peerPosition = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_peer_position",
-		Help: "Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
-	})
 	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_hash",
 		Help: "Hash of the currently loaded alertmanager configuration.",
@@ -75,7 +71,6 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(peerPosition)
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
 	prometheus.MustRegister(configHash)
@@ -154,6 +149,7 @@ func main() {
 			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
 			os.Exit(1)
 		}
+		prometheus.MustRegister(NewMeshCollector(mrouter))
 	}
 
 	stopc := make(chan struct{})
@@ -382,31 +378,106 @@ func main() {
 	level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
 }
 
+type meshCollector struct {
+	router   *mesh.Router
+	connDesc *prometheus.Desc
+	posDesc  *prometheus.Desc
+	termDesc *prometheus.Desc
+}
+
+func NewMeshCollector(router *mesh.Router) *meshCollector {
+	return &meshCollector{
+		router: router,
+		connDesc: prometheus.NewDesc(
+			"alertmanager_peer_connection",
+			"State of the connection between the Alertmanager instance and a peer.",
+			[]string{"peer", "nick"},
+			prometheus.Labels{},
+		),
+		posDesc: prometheus.NewDesc(
+			"alertmanager_peer_position",
+			"Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
+			[]string{},
+			prometheus.Labels{},
+		),
+		termDesc: prometheus.NewDesc(
+			"alertmanager_peer_terminations_total",
+			"Total number of terminated connections between the AlertManager and its peers.",
+			[]string{},
+			prometheus.Labels{},
+		),
+	}
+}
+
+// Describe implements the prometheus.Collector interface
+func (c *meshCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.connDesc
+	ch <- c.posDesc
+	ch <- c.termDesc
+}
+
+// Collect implements the prometheus.Collector interface
+func (c *meshCollector) Collect(ch chan<- prometheus.Metric) {
+	status := mesh.NewStatus(c.router)
+	for _, peer := range status.Peers {
+		// collect only metrics for the local peer
+		if status.Name != peer.Name {
+			continue
+		}
+		for _, conn := range peer.Connections {
+			var v float64
+			if conn.Established {
+				v = 1
+			}
+			ch <- prometheus.MustNewConstMetric(
+				c.connDesc,
+				prometheus.GaugeValue,
+				v,
+				conn.Name, conn.NickName,
+			)
+		}
+	}
+	ch <- prometheus.MustNewConstMetric(
+		c.posDesc,
+		prometheus.GaugeValue,
+		float64(meshPeerPosition(c.router)),
+	)
+	ch <- prometheus.MustNewConstMetric(
+		c.termDesc,
+		prometheus.GaugeValue,
+		float64(status.TerminationCount),
+	)
+}
+
 type peerDescSlice []mesh.PeerDescription
 
 func (s peerDescSlice) Len() int           { return len(s) }
 func (s peerDescSlice) Less(i, j int) bool { return s[i].UID < s[j].UID }
 func (s peerDescSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
+// meshPeerPosition returns the position of the local peer in the mesh.
+func meshPeerPosition(r *mesh.Router) int {
+	var peers peerDescSlice
+	for _, desc := range r.Peers.Descriptions() {
+		peers = append(peers, desc)
+	}
+	sort.Sort(peers)
+
+	k := 0
+	for _, desc := range peers {
+		if desc.Self {
+			break
+		}
+		k++
+	}
+	return k
+}
+
 // meshWait returns a function that inspects the current peer state and returns
 // a duration of one base timeout for each peer with a higher ID than ourselves.
 func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	return func() time.Duration {
-		var peers peerDescSlice
-		for _, desc := range r.Peers.Descriptions() {
-			peers = append(peers, desc)
-		}
-		sort.Sort(peers)
-
-		k := 0
-		for _, desc := range peers {
-			if desc.Self {
-				break
-			}
-			k++
-		}
-		peerPosition.Set(float64(k))
-		return time.Duration(k) * timeout
+		return time.Duration(meshPeerPosition(r)) * timeout
 	}
 }
 
