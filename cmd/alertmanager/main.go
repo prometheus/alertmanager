@@ -391,7 +391,7 @@ func NewMeshCollector(router *mesh.Router) *meshCollector {
 		connDesc: prometheus.NewDesc(
 			"alertmanager_peer_connection",
 			"State of the connection between the Alertmanager instance and a peer.",
-			[]string{"peer", "nick"},
+			[]string{"peer"},
 			prometheus.Labels{},
 		),
 		posDesc: prometheus.NewDesc(
@@ -433,7 +433,7 @@ func (c *meshCollector) Collect(ch chan<- prometheus.Metric) {
 				c.connDesc,
 				prometheus.GaugeValue,
 				v,
-				conn.Name, conn.NickName,
+				conn.Name,
 			)
 		}
 	}
