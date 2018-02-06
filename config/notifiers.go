@@ -336,6 +336,8 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type WechatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	APISecret string `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
 	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
 	Message   string `yaml:"message,omitempty" json:"message,omitempty"`

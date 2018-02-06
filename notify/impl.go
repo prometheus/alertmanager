@@ -871,6 +871,11 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
 	// Refresh AccessToken over 2 hours
 	if n.accessToken == "" || time.Now().Sub(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
@@ -895,7 +900,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 		req.Header.Set("Content-Type", contentTypeJSON)
 
-		resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+		resp, err := c.Do(req.WithContext(ctx))
 		if err != nil {
 			return true, err
 		}
@@ -939,7 +944,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return true, err
 	}
 
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	resp, err := c.Do(req.WithContext(ctx))
 	if err != nil {
 		return true, err
 	}

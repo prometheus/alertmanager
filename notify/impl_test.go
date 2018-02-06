@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 )
 
@@ -274,6 +275,8 @@ func TestWechat(t *testing.T) {
 		CorpID:    "invalidCorpID",
 		AgentID:   "1",
 		ToUser:    "admin",
+
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
 	}
 	notifier := NewWechat(conf, tmpl, logger)
 
