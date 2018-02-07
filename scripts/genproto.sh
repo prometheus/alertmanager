@@ -14,8 +14,8 @@ if ! [[ "$0" =~ "scripts/genproto.sh" ]]; then
 	exit 255
 fi
 
-if ! [[ $(protoc --version) =~ "3.2.0" ]]; then
-	echo "could not find protoc 3.2.0, is it installed + in PATH?"
+if ! [[ $(protoc --version) =~ "3.5.1" ]]; then
+	echo "could not find protoc 3.5.1, is it installed + in PATH?"
 	exit 255
 fi
 
@@ -23,7 +23,7 @@ GOGOPROTO_ROOT="${GOPATH}/src/github.com/gogo/protobuf"
 GOGOPROTO_PATH="${GOGOPROTO_ROOT}:${GOGOPROTO_ROOT}/protobuf"
 GRPC_GATEWAY_ROOT="${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway"
 
-DIRS="nflog/nflogpb silence/silencepb"
+DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb"
 
 for dir in ${DIRS}; do
 	pushd ${dir}

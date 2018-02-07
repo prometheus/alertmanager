@@ -204,6 +204,11 @@ func (f StageFunc) Exec(ctx context.Context, l log.Logger, alerts ...*types.Aler
 	return f(ctx, l, alerts...)
 }
 
+type NotificationLog interface {
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error
+	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
+}
+
 // BuildPipeline builds a map of receivers to Stages.
 func BuildPipeline(
 	confs []*config.Receiver,
@@ -211,7 +216,7 @@ func BuildPipeline(
 	wait func() time.Duration,
 	muter types.Muter,
 	silences *silence.Silences,
-	notificationLog nflog.Log,
+	notificationLog NotificationLog,
 	marker types.Marker,
 	logger log.Logger,
 ) RoutingStage {
@@ -227,7 +232,7 @@ func BuildPipeline(
 }
 
 // createStage creates a pipeline of stages for a receiver.
-func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, notificationLog nflog.Log, logger log.Logger) Stage {
+func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, notificationLog NotificationLog, logger log.Logger) Stage {
 	var fs FanoutStage
 	for _, i := range BuildReceiverIntegrations(rc, tmpl, logger) {
 		recv := &nflogpb.Receiver{
@@ -409,7 +414,7 @@ func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 // DedupStage filters alerts.
 // Filtering happens based on a notification log.
 type DedupStage struct {
-	nflog nflog.Log
+	nflog NotificationLog
 	recv  *nflogpb.Receiver
 
 	now  func() time.Time
@@ -417,7 +422,7 @@ type DedupStage struct {
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(l nflog.Log, recv *nflogpb.Receiver) *DedupStage {
+func NewDedupStage(l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
 		nflog: l,
 		recv:  recv,
@@ -627,12 +632,12 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 // SetNotifiesStage sets the notification information about passed alerts. The
 // passed alerts should have already been sent to the receivers.
 type SetNotifiesStage struct {
-	nflog nflog.Log
+	nflog NotificationLog
 	recv  *nflogpb.Receiver
 }
 
 // NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-func NewSetNotifiesStage(l nflog.Log, recv *nflogpb.Receiver) *SetNotifiesStage {
+func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver) *SetNotifiesStage {
 	return &SetNotifiesStage{
 		nflog: l,
 		recv:  recv,

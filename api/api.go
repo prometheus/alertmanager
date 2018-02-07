@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
 
+	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/parse"
@@ -38,7 +39,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/weaveworks/mesh"
 )
 
 var (
@@ -82,7 +82,7 @@ type API struct {
 	route          *dispatch.Route
 	resolveTimeout time.Duration
 	uptime         time.Time
-	mrouter        *mesh.Router
+	peer           *cluster.Peer
 	logger         log.Logger
 
 	groups         groupsFn
@@ -95,14 +95,21 @@ type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
 type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
 
 // New returns a new API.
-func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn, sf getAlertStatusFn, router *mesh.Router, l log.Logger) *API {
+func New(
+	alerts provider.Alerts,
+	silences *silence.Silences,
+	gf groupsFn,
+	sf getAlertStatusFn,
+	peer *cluster.Peer,
+	l log.Logger,
+) *API {
 	return &API{
 		alerts:         alerts,
 		silences:       silences,
 		groups:         gf,
 		getAlertStatus: sf,
 		uptime:         time.Now(),
-		mrouter:        router,
+		peer:           peer,
 		logger:         l,
 	}
 }
@@ -228,32 +235,21 @@ type connectionStatus struct {
 }
 
 func getMeshStatus(api *API) *meshStatus {
-	if api.mrouter == nil {
+	if api.peer == nil {
 		return nil
 	}
 
-	status := mesh.NewStatus(api.mrouter)
 	strippedStatus := &meshStatus{
-		Name:        status.Name,
-		NickName:    status.NickName,
-		Peers:       make([]peerStatus, len(status.Peers)),
-		Connections: make([]connectionStatus, len(status.Connections)),
+		Name:     api.peer.Name(),
+		NickName: "",
 	}
 
-	for i := 0; i < len(status.Peers); i++ {
-		strippedStatus.Peers[i] = peerStatus{
-			Name:     status.Peers[i].Name,
-			NickName: status.Peers[i].NickName,
-			UID:      uint64(status.Peers[i].UID),
-		}
-	}
-	for i := 0; i < len(status.Connections); i++ {
-		strippedStatus.Connections[i] = connectionStatus{
-			Address:  status.Connections[i].Address,
-			Outbound: status.Connections[i].Outbound,
-			State:    status.Connections[i].State,
-			Info:     status.Connections[i].Info,
-		}
+	for _, p := range api.peer.Peers() {
+		strippedStatus.Peers = append(strippedStatus.Peers, peerStatus{
+			Name:     p.Name,
+			NickName: "",
+			UID:      0,
+		})
 	}
 
 	return strippedStatus

@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -35,6 +34,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/alertmanager/api"
+	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/inhibit"
@@ -50,10 +50,13 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/weaveworks/mesh"
 )
 
 var (
+	peerPosition = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_peer_position",
+		Help: "Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
+	})
 	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_hash",
 		Help: "Hash of the currently loaded alertmanager configuration.",
@@ -71,6 +74,7 @@ var (
 )
 
 func init() {
+	prometheus.MustRegister(peerPosition)
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
 	prometheus.MustRegister(configHash)
@@ -98,6 +102,8 @@ func newMarkerMetrics(marker types.Marker) {
 	prometheus.MustRegister(alertsSuppressed)
 }
 
+const defaultClusterAddr = "0.0.0.0:19093"
+
 func main() {
 	if os.Getenv("DEBUG") != "" {
 		runtime.SetBlockProfileRate(20)
@@ -119,11 +125,18 @@ func main() {
 		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
 		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
 
-		meshListen = kingpin.Flag("mesh.listen-address", "mesh listen address. Pass an empty string to disable.").Default(net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port))).String()
-		hwaddr     = kingpin.Flag("mesh.peer-id", "mesh peer ID").Default(mustHardwareAddr()).String()
-		nickname   = kingpin.Flag("mesh.nickname", "mesh peer nickname").Default(mustHostname()).String()
-		password   = kingpin.Flag("mesh.password", "password to join the peer network (empty password disables encryption)").Default("").String()
-		peers      = kingpin.Flag("mesh.peer", "initial peers (may be repeated)").Strings()
+		clusterBindAddr = kingpin.Flag("cluster.address", "listen address for cluster").
+				Default(defaultClusterAddr).String()
+
+		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "explicit address to advertise in cluster").String()
+
+		gossipInterval = kingpin.Flag("cluster.gossip-interval", "interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").
+				Default(cluster.DefaultGossipInterval.String()).Duration()
+
+		pushPullInterval = kingpin.Flag("cluster.pushpull-interval", "interval for gossip state syncs . Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").
+					Default(cluster.DefaultPushPullInterval.String()).Duration()
+
+		peers = kingpin.Flag("cluster.peer", "initial peers (may be repeated)").Strings()
 	)
 
 	kingpin.Version(version.Print("alertmanager"))
@@ -142,14 +155,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	var mrouter *mesh.Router
-	if *meshListen != "" {
-		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With(logger, "component", "mesh"))
+	var peer *cluster.Peer
+	if *clusterBindAddr != "" {
+		fmt.Println("addrs", *clusterBindAddr, *clusterAdvertiseAddr)
+		peer, err = cluster.Join(log.With(logger, "component", "cluster"), prometheus.DefaultRegisterer,
+			*clusterBindAddr,
+			*clusterAdvertiseAddr,
+			*peers,
+			true,
+			*gossipInterval,
+			*pushPullInterval,
+		)
 		if err != nil {
 			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
 			os.Exit(1)
 		}
-		prometheus.MustRegister(NewMeshCollector(mrouter))
 	}
 
 	stopc := make(chan struct{})
@@ -163,20 +183,14 @@ func main() {
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
 		nflog.WithLogger(log.With(logger, "component", "nflog")),
 	}
-	if *meshListen != "" {
-		notificationLogOpts = append(notificationLogOpts, nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
-			res, err := mrouter.NewGossip("nflog", g)
-			if err != nil {
-				level.Error(logger).Log("err", err)
-				os.Exit(1)
-			}
-			return res
-		}))
-	}
 	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		os.Exit(1)
+	}
+	if peer != nil {
+		c := peer.AddState("nfl", notificationLog)
+		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
 	marker := types.NewMarker()
@@ -188,21 +202,14 @@ func main() {
 		Logger:       log.With(logger, "component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
 	}
-	if *meshListen != "" {
-		silenceOpts.Gossip = func(g mesh.Gossiper) mesh.Gossip {
-			res, err := mrouter.NewGossip("silences", g)
-			if err != nil {
-				level.Error(logger).Log("err", err)
-				os.Exit(1)
-			}
-			return res
-		}
-	}
 	silences, err := silence.New(silenceOpts)
-
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		os.Exit(1)
+	}
+	if peer != nil {
+		c := peer.AddState("sil", silences)
+		silences.SetBroadcast(c.Broadcast)
 	}
 
 	// Start providers before router potentially sends updates.
@@ -212,17 +219,10 @@ func main() {
 		wg.Done()
 	}()
 
-	// Disable mesh if empty string passed for mesh.listen-address flag.
-	if *meshListen != "" {
-		mrouter.Start()
-		mrouter.ConnectionMaker.InitiateConnections(*peers, true)
-	}
-
 	defer func() {
 		close(stopc)
-		if *meshListen != "" {
-			// Stop receiving updates from router before shutting down.
-			mrouter.Stop()
+		if peer != nil {
+			peer.Leave(10 * time.Second)
 		}
 		wg.Wait()
 	}()
@@ -249,7 +249,7 @@ func main() {
 			return disp.Groups(matchers)
 		},
 		marker.Status,
-		mrouter,
+		peer,
 		logger,
 	)
 
@@ -260,8 +260,8 @@ func main() {
 	}
 
 	waitFunc := func() time.Duration { return 0 }
-	if *meshListen != "" {
-		waitFunc = meshWait(mrouter, 5*time.Second)
+	if peer != nil {
+		waitFunc = clusterWait(peer, 15*time.Second)
 	}
 	timeoutFunc := func(d time.Duration) time.Duration {
 		if d < notify.MinTimeout {
@@ -378,144 +378,25 @@ func main() {
 	level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
 }
 
-type meshCollector struct {
-	router   *mesh.Router
-	connDesc *prometheus.Desc
-	posDesc  *prometheus.Desc
-	termDesc *prometheus.Desc
-}
-
-func NewMeshCollector(router *mesh.Router) *meshCollector {
-	return &meshCollector{
-		router: router,
-		connDesc: prometheus.NewDesc(
-			"alertmanager_peer_connection",
-			"State of the connection between the Alertmanager instance and a peer.",
-			[]string{"peer"},
-			prometheus.Labels{},
-		),
-		posDesc: prometheus.NewDesc(
-			"alertmanager_peer_position",
-			"Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
-			[]string{},
-			prometheus.Labels{},
-		),
-		termDesc: prometheus.NewDesc(
-			"alertmanager_peer_terminations_total",
-			"Total number of terminated connections between the AlertManager and its peers.",
-			[]string{},
-			prometheus.Labels{},
-		),
-	}
-}
-
-// Describe implements the prometheus.Collector interface
-func (c *meshCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.connDesc
-	ch <- c.posDesc
-	ch <- c.termDesc
-}
-
-// Collect implements the prometheus.Collector interface
-func (c *meshCollector) Collect(ch chan<- prometheus.Metric) {
-	status := mesh.NewStatus(c.router)
-	for _, peer := range status.Peers {
-		// collect only metrics for the local peer
-		if status.Name != peer.Name {
-			continue
-		}
-		for _, conn := range peer.Connections {
-			var v float64
-			if conn.Established {
-				v = 1
-			}
-			ch <- prometheus.MustNewConstMetric(
-				c.connDesc,
-				prometheus.GaugeValue,
-				v,
-				conn.Name,
-			)
-		}
-	}
-	ch <- prometheus.MustNewConstMetric(
-		c.posDesc,
-		prometheus.GaugeValue,
-		float64(meshPeerPosition(c.router)),
-	)
-	ch <- prometheus.MustNewConstMetric(
-		c.termDesc,
-		prometheus.GaugeValue,
-		float64(status.TerminationCount),
-	)
-}
-
-type peerDescSlice []mesh.PeerDescription
-
-func (s peerDescSlice) Len() int           { return len(s) }
-func (s peerDescSlice) Less(i, j int) bool { return s[i].UID < s[j].UID }
-func (s peerDescSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-
-// meshPeerPosition returns the position of the local peer in the mesh.
-func meshPeerPosition(r *mesh.Router) int {
-	var peers peerDescSlice
-	for _, desc := range r.Peers.Descriptions() {
-		peers = append(peers, desc)
-	}
-	sort.Sort(peers)
-
-	k := 0
-	for _, desc := range peers {
-		if desc.Self {
-			break
-		}
-		k++
-	}
-	return k
-}
-
-// meshWait returns a function that inspects the current peer state and returns
+// clusterWait returns a function that inspects the current peer state and returns
 // a duration of one base timeout for each peer with a higher ID than ourselves.
-func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
+func clusterWait(p *cluster.Peer, timeout time.Duration) func() time.Duration {
 	return func() time.Duration {
-		return time.Duration(meshPeerPosition(r)) * timeout
-	}
-}
+		all := p.Peers()
+		sort.Slice(all, func(i, j int) bool {
+			return all[i].Name < all[j].Name
+		})
 
-func initMesh(addr, hwaddr, nickname, pw string, logger log.Logger) (*mesh.Router, error) {
-	host, portStr, err := net.SplitHostPort(addr)
-
-	if err != nil {
-		level.Error(logger).Log("msg", "Invalid mesh address", "address", addr, "err", err)
-		os.Exit(1)
+		k := 0
+		for _, n := range all {
+			if n.Name == p.Self().Name {
+				break
+			}
+			k++
+		}
+		peerPosition.Set(float64(k))
+		return time.Duration(k) * timeout
 	}
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		level.Error(logger).Log("msg", "Invalid mesh address", "address", addr, "err", err)
-		os.Exit(1)
-	}
-
-	name, err := mesh.PeerNameFromString(hwaddr)
-	if err != nil {
-		level.Error(logger).Log("msg", "Invalid hardware address", "address", hwaddr, "err", err)
-		os.Exit(1)
-	}
-
-	password := []byte(pw)
-	if len(password) == 0 {
-		// Emtpy password is used to disable secure communication. Using a nil
-		// password disables encryption in mesh.
-		password = nil
-	}
-
-	return mesh.NewRouter(mesh.Config{
-		Host:               host,
-		Port:               port,
-		ProtocolMinVersion: mesh.ProtocolMinVersion,
-		Password:           password,
-		ConnLimit:          64,
-		PeerDiscovery:      true,
-		TrustedSubnets:     []*net.IPNet{},
-	}, name, nickname, mesh.NullOverlay{}, printfLogger{logger})
 }
 
 type printfLogger struct {
