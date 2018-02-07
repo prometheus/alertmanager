@@ -508,8 +508,8 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl fu
 			Source:        tmpl(n.conf.Client),
 			Severity:      tmpl(n.conf.Severity),
 			CustomDetails: details,
-			Component:     n.conf.Component,
-			Group:         n.conf.Group,
+			Component:     tmpl(n.conf.Component),
+			Group:         tmpl(n.conf.Group),
 		}
 	}
 
