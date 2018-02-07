@@ -460,6 +460,7 @@ type pagerDutyPayload struct {
 	Source        string            `json:"source"`
 	Severity      string            `json:"severity"`
 	Timestamp     string            `json:"timestamp,omitempty"`
+	Class         string            `json:"class,omitempty"`
 	Component     string            `json:"component,omitempty"`
 	Group         string            `json:"group,omitempty"`
 	CustomDetails map[string]string `json:"custom_details,omitempty"`
@@ -508,6 +509,7 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl fu
 			Source:        tmpl(n.conf.Client),
 			Severity:      tmpl(n.conf.Severity),
 			CustomDetails: details,
+			Class:         tmpl(n.conf.Class),
 			Component:     tmpl(n.conf.Component),
 			Group:         tmpl(n.conf.Group),
 		}
