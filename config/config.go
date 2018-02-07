@@ -421,6 +421,13 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		groupBy[ln] = struct{}{}
 	}
 
+	if r.GroupInterval != nil && time.Duration(*r.GroupInterval) == time.Duration(0) {
+		return fmt.Errorf("group_interval cannot be zero")
+	}
+	if r.RepeatInterval != nil && time.Duration(*r.RepeatInterval) == time.Duration(0) {
+		return fmt.Errorf("repeat_interval cannot be zero")
+	}
+
 	return checkOverflow(r.XXX, "route")
 }
 

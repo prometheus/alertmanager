@@ -73,7 +73,7 @@ receivers:
 	expected := "notification config name \"team-X\" is not unique"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%q", expected)
+		t.Fatalf("no error returned, expected:\n%q", expected)
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
@@ -94,7 +94,7 @@ receivers:
 	expected := "undefined receiver \"team-X\" used in route"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%q", expected)
+		t.Fatalf("no error returned, expected:\n%q", expected)
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
@@ -114,7 +114,7 @@ receivers:
 	expected := "missing name in receiver"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%q", expected)
+		t.Fatalf("no error returned, expected:\n%q", expected)
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
@@ -135,7 +135,7 @@ receivers:
 	expected := "duplicated label \"cluster\" in group_by"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%q", expected)
+		t.Fatalf("no error returned, expected:\n%q", expected)
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
@@ -153,7 +153,7 @@ receivers:
 	expected := "no routes provided"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%q", expected)
+		t.Fatalf("no error returned, expected:\n%q", expected)
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
@@ -176,7 +176,7 @@ receivers:
 	expected := "root route must not have any matchers"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%q", expected)
+		t.Fatalf("no error returned, expected:\n%q", expected)
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
@@ -198,12 +198,54 @@ receivers:
 	expected := "cannot have continue in root route"
 
 	if err == nil {
-		t.Fatalf("no error returned, expeceted:\n%q", expected)
+		t.Fatalf("no error returned, expected:\n%q", expected)
 	}
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
 
+}
+
+func TestGroupIntervalIsGreaterThanZero(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-mails
+    group_interval: 0s
+
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "group_interval cannot be zero"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestRepeatIntervalIsGreaterThanZero(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-mails
+    repeat_interval: 0s
+
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "repeat_interval cannot be zero"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
 }
 
 func TestHideConfigSecrets(t *testing.T) {
