@@ -493,7 +493,8 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		if alert.EndsAt.IsZero() {
 			alert.Timeout = true
 			alert.EndsAt = now.Add(resolveTimeout)
-
+		}
+		if alert.EndsAt.After(time.Now()) {
 			numReceivedAlerts.WithLabelValues("firing").Inc()
 		} else {
 			numReceivedAlerts.WithLabelValues("resolved").Inc()
