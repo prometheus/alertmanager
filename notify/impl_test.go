@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
-	"net/url"
+	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 	"io/ioutil"
+	"net/url"
 )
 
 func TestWebhookRetry(t *testing.T) {
@@ -200,7 +200,7 @@ func createTmpl(t *testing.T) *template.Template {
 	return tmpl
 }
 
-func readBody(t *testing.T,  r *http.Request) string {
+func readBody(t *testing.T, r *http.Request) string {
 	body, err := ioutil.ReadAll(r.Body)
 	require.NoError(t, err)
 	return string(body)
@@ -216,7 +216,7 @@ func TestOpsGenie(t *testing.T) {
 		Message:     `{{ .CommonLabels.Message }}`,
 		Description: `{{ .CommonLabels.Description }}`,
 		Source:      `{{ .CommonLabels.Source }}`,
-		Teams:        `{{ .CommonLabels.Teams }}`,
+		Teams:       `{{ .CommonLabels.Teams }}`,
 		Tags:        `{{ .CommonLabels.Tags }}`,
 		Note:        `{{ .CommonLabels.Note }}`,
 		Priority:    `{{ .CommonLabels.Priority }}`,
@@ -231,11 +231,11 @@ func TestOpsGenie(t *testing.T) {
 	expectedUrl, _ := url.Parse("https://opsgenie/apiv2/alerts")
 
 	// Empty alert.
-	alert1:= &types.Alert{
-			Alert: model.Alert{
-				StartsAt: time.Now(),
-				EndsAt: time.Now().Add(time.Hour),
-			},
+	alert1 := &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
 	}
 	expectedBody := `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{},"source":""}
 `
@@ -247,19 +247,19 @@ func TestOpsGenie(t *testing.T) {
 	require.Equal(t, expectedBody, readBody(t, req))
 
 	// Fully defined alert.
-	alert2:= &types.Alert{
+	alert2 := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
-				"Message": "message",
+				"Message":     "message",
 				"Description": "description",
-				"Source": "http://prometheus",
-				"Teams": "TeamA,TeamB,",
-				"Tags": "tag1,tag2",
-				"Note": "this is a note",
-				"Priotity": "P1",
-				},
+				"Source":      "http://prometheus",
+				"Teams":       "TeamA,TeamB,",
+				"Tags":        "tag1,tag2",
+				"Note":        "this is a note",
+				"Priotity":    "P1",
+			},
 			StartsAt: time.Now(),
-			EndsAt: time.Now().Add(time.Hour),
+			EndsAt:   time.Now().Add(time.Hour),
 		},
 	}
 	expectedBody = `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{},"source":"http://prometheus","teams":[{"name":"TeamA"},{"name":"TeamB"}],"tags":["tag1","tag2"],"note":"this is a note"}
