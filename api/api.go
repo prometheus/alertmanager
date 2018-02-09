@@ -189,11 +189,11 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	api.mtx.RLock()
 
 	var status = struct {
-		ConfigYAML  string            `json:"configYAML"`
-		ConfigJSON  *config.Config    `json:"configJSON"`
-		VersionInfo map[string]string `json:"versionInfo"`
-		Uptime      time.Time         `json:"uptime"`
-		MeshStatus  *meshStatus       `json:"meshStatus"`
+		ConfigYAML    string            `json:"configYAML"`
+		ConfigJSON    *config.Config    `json:"configJSON"`
+		VersionInfo   map[string]string `json:"versionInfo"`
+		Uptime        time.Time         `json:"uptime"`
+		ClusterStatus *clusterStatus    `json:"clusterStatus"`
 	}{
 		ConfigYAML: api.config.String(),
 		ConfigJSON: api.config,
@@ -205,8 +205,8 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 			"buildDate": version.BuildDate,
 			"goVersion": version.GoVersion,
 		},
-		Uptime:     api.uptime,
-		MeshStatus: getMeshStatus(api),
+		Uptime:        api.uptime,
+		ClusterStatus: getClusterStatus(api.peer),
 	}
 
 	api.mtx.RUnlock()
@@ -214,45 +214,29 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	api.respond(w, status)
 }
 
-type meshStatus struct {
-	Name        string             `json:"name"`
-	NickName    string             `json:"nickName"`
-	Peers       []peerStatus       `json:"peers"`
-	Connections []connectionStatus `json:"connections"`
-}
-
 type peerStatus struct {
-	Name     string `json:"name"`     // e.g. "00:00:00:00:00:01"
-	NickName string `json:"nickName"` // e.g. "a"
-	UID      uint64 `json:"uid"`      // e.g. "14015114173033265000"
+	Name    string `json:"name"`
+	Address string `json:"address"`
 }
 
-type connectionStatus struct {
-	Address  string `json:"address"`
-	Outbound bool   `json:"outbound"`
-	State    string `json:"state"`
-	Info     string `json:"info"`
+type clusterStatus struct {
+	Name  string       `json:"name"`
+	Peers []peerStatus `json:"peers"`
 }
 
-func getMeshStatus(api *API) *meshStatus {
-	if api.peer == nil {
+func getClusterStatus(p *cluster.Peer) *clusterStatus {
+	if p == nil {
 		return nil
 	}
+	s := &clusterStatus{Name: p.Name()}
 
-	strippedStatus := &meshStatus{
-		Name:     api.peer.Name(),
-		NickName: "",
-	}
-
-	for _, p := range api.peer.Peers() {
-		strippedStatus.Peers = append(strippedStatus.Peers, peerStatus{
-			Name:     p.Name,
-			NickName: "",
-			UID:      0,
+	for _, n := range p.Peers() {
+		s.Peers = append(s.Peers, peerStatus{
+			Name:    n.Name,
+			Address: n.Address(),
 		})
 	}
-
-	return strippedStatus
+	return s
 }
 
 func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
