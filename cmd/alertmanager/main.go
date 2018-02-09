@@ -102,7 +102,7 @@ func newMarkerMetrics(marker types.Marker) {
 	prometheus.MustRegister(alertsSuppressed)
 }
 
-const defaultClusterAddr = "0.0.0.0:19093"
+const defaultClusterAddr = "0.0.0.0:9094"
 
 func main() {
 	if os.Getenv("DEBUG") != "" {
@@ -125,7 +125,7 @@ func main() {
 		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
 		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
 
-		clusterBindAddr = kingpin.Flag("cluster.address", "listen address for cluster").
+		clusterBindAddr = kingpin.Flag("cluster.listen-address", "listen address for cluster").
 				Default(defaultClusterAddr).String()
 
 		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "explicit address to advertise in cluster").String()
