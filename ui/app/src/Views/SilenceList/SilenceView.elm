@@ -13,14 +13,18 @@ import Utils.List
 import Utils.Types exposing (Matcher)
 import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
-import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers))
 import Views.SilenceList.Types exposing (SilenceListMsg(ConfirmDestroySilence, DestroySilence, FetchSilences, MsgForFilterBar))
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
 view : Bool -> Silence -> Html Msg
 view showConfirmationDialog silence =
-    li [ class "align-items-start list-group-item border-0 alert-list-item p-0 mb-4" ]
+    li
+        [ -- speedup rendering in Chrome, because list-group-item className
+          -- creates a new layer in the rendering engine
+          style [ ( "position", "static" ) ]
+        , class "align-items-start list-group-item border-0 p-0 mb-4"
+        ]
         [ div [ class "w-100 mb-2 d-flex align-items-start" ]
             [ case silence.status.state of
                 Active ->
