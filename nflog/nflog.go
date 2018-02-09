@@ -489,6 +489,7 @@ func (l *Log) MarshalBinary() ([]byte, error) {
 	return l.st.MarshalBinary()
 }
 
+// Merge serialized silence state into own state.
 func (l *Log) Merge(b []byte) error {
 	st, err := decodeState(bytes.NewReader(b))
 	if err != nil {
@@ -503,17 +504,8 @@ func (l *Log) Merge(b []byte) error {
 	return nil
 }
 
-func (l *Log) MergeSingle(b []byte) error {
-	var e pb.MeshEntry
-	if err := proto.Unmarshal(b, &e); err != nil {
-		return err
-	}
-	l.mtx.Lock()
-	l.st.merge(&e)
-	l.mtx.Unlock()
-	return nil
-}
-
+// SetBroadcast sets a broadcast callback that will be invoked with serialized state
+// on updates.
 func (l *Log) SetBroadcast(f func([]byte)) {
 	l.mtx.Lock()
 	l.broadcast = f

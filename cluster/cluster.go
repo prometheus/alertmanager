@@ -190,9 +190,11 @@ func (p *Peer) Peers() []*memberlist.Node {
 // State is a piece of state that can be serialized and merged with other
 // serialized state.
 type State interface {
+	// MarshalBinary serializes the underlying state.
 	MarshalBinary() ([]byte, error)
+
+	// Merge merges serialized state into the underlying state.
 	Merge(b []byte) error
-	MergeSingle(b []byte) error
 }
 
 // Channel allows clients to send messages for a specific state type that will be
@@ -273,7 +275,7 @@ func (d *delegate) NotifyMsg(b []byte) {
 	if !ok {
 		return
 	}
-	if err := s.MergeSingle(p.Data); err != nil {
+	if err := s.Merge(p.Data); err != nil {
 		level.Warn(d.logger).Log("msg", "merge broadcast", "err", err)
 		return
 	}
