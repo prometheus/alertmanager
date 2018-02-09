@@ -2,7 +2,7 @@ module Views.Status.Views exposing (view)
 
 import Html exposing (..)
 import Html.Attributes exposing (class, style)
-import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer, MeshConnection)
+import Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
 import Types exposing (Msg(MsgForStatus))
 import Utils.Types exposing (ApiData(Failure, Success, Loading, Initial))
 import Views.Status.Types exposing (StatusModel)
@@ -33,7 +33,7 @@ viewStatusInfo status =
             [ b [ class "col-sm-2" ] [ text "Uptime:" ]
             , div [ class "col-sm-10" ] [ text status.uptime ]
             ]
-        , viewMeshStatus status.meshStatus
+        , viewClusterStatus status.clusterStatus
         , viewVersionInformation status.versionInfo
         , viewConfig status.config
         ]
@@ -51,29 +51,20 @@ viewConfig config =
         ]
 
 
-viewMeshStatus : Maybe MeshStatus -> Html Types.Msg
-viewMeshStatus meshStatus =
-    case meshStatus of
-        Just meshStatus ->
+viewClusterStatus : Maybe ClusterStatus -> Html Types.Msg
+viewClusterStatus clusterStatus =
+    case clusterStatus of
+        Just clusterStatus ->
             span []
-                [ h2 [] [ text "Mesh Status" ]
+                [ h2 [] [ text "Cluster Status" ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Name:" ]
-                    , div [ class "col-sm-10" ] [ text meshStatus.name ]
-                    ]
-                , div [ class "form-group row" ]
-                    [ b [ class "col-sm-2" ] [ text "Nick Name:" ]
-                    , div [ class "col-sm-10" ] [ text meshStatus.nickName ]
+                    , div [ class "col-sm-10" ] [ text clusterStatus.name ]
                     ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Peers:" ]
                     , ul [ class "col-sm-10" ] <|
-                        List.map viewMeshPeer meshStatus.peers
-                    ]
-                , div [ class "form-group row" ]
-                    [ b [ class "col-sm-2" ] [ text "Connections:" ]
-                    , ul [ class "col-sm-10" ] <|
-                        List.map viewMeshConnection meshStatus.connections
+                        List.map viewClusterPeer clusterStatus.peers
                     ]
                 ]
 
@@ -86,38 +77,16 @@ viewMeshStatus meshStatus =
                 ]
 
 
-viewMeshPeer : MeshPeer -> Html Types.Msg
-viewMeshPeer peer =
+viewClusterPeer : ClusterPeer -> Html Types.Msg
+viewClusterPeer peer =
     li []
         [ div [ class "" ]
             [ b [ class "" ] [ text "Name: " ]
             , text peer.name
             ]
         , div [ class "" ]
-            [ b [ class "" ] [ text "Nick Name: " ]
-            , text peer.nickName
-            ]
-        , div [ class "" ]
-            [ b [ class "" ] [ text "UID: " ]
-            , text <| toString peer.uid
-            ]
-        ]
-
-
-viewMeshConnection : MeshConnection -> Html Types.Msg
-viewMeshConnection connection =
-    li []
-        [ div [ class "" ]
             [ b [ class "" ] [ text "Address: " ]
-            , text connection.address
-            ]
-        , div [ class "" ]
-            [ b [ class "" ] [ text "Info: " ]
-            , text connection.info
-            ]
-        , div [ class "" ]
-            [ b [ class "" ] [ text "State: " ]
-            , text connection.state
+            , text peer.address
             ]
         ]
 
