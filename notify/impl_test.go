@@ -10,12 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
+	"io/ioutil"
+	"net/url"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
-	"io/ioutil"
-	"net/url"
 )
 
 func TestWebhookRetry(t *testing.T) {
@@ -56,15 +57,6 @@ func TestSlackRetry(t *testing.T) {
 
 func TestHipchatRetry(t *testing.T) {
 	notifier := new(Hipchat)
-	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
-	for statusCode, expected := range retryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
-	}
-}
-
-func TestWechatRetry(t *testing.T) {
-	notifier := new(Wechat)
 	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range retryTests(retryCodes) {
 		actual, _ := notifier.retry(statusCode)
@@ -266,4 +258,53 @@ func TestOpsGenie(t *testing.T) {
 `
 	req, retry, err = notifier.createRequest(ctx, alert2)
 	require.Equal(t, expectedBody, readBody(t, req))
+}
+
+func TestWechat(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+
+	conf := &config.WechatConfig{
+		NotifierConfig: config.NotifierConfig{
+			VSendResolved: true,
+		},
+		Message: `{{ template "wechat.default.message" . }}`,
+		APIURL:  config.DefaultGlobalConfig.WeChatAPIURL,
+
+		APISecret: "invalidSecret",
+		CorpID:    "invalidCorpID",
+		AgentID:   "1",
+		ToUser:    "admin",
+	}
+	notifier := NewWechat(conf, tmpl, logger)
+
+	ctx := context.Background()
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message":     "message",
+				"Description": "description",
+				"Source":      "http://prometheus",
+				"Teams":       "TeamA,TeamB,",
+				"Tags":        "tag1,tag2",
+				"Note":        "this is a note",
+				"Priotity":    "P1",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	// miss group key
+	retry, err := notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
+
+	ctx = WithGroupKey(ctx, "2")
+
+	// invalid secret
+	retry, err = notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
 }

@@ -823,7 +823,7 @@ type weChatMessageContent struct {
 	Content string `json:"content"`
 }
 
-type weChatErrorResponse struct {
+type weChatResponse struct {
 	Code  int    `json:"code"`
 	Error string `json:"error"`
 }
@@ -849,11 +849,8 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	var accessToken string
 	// Refresh AccessToken over 2 hours
-	if n.accessToken != "" && time.Now().Sub(n.accessTokenAt) < 110*time.Minute {
-		accessToken = n.accessToken
-	} else {
+	if n.accessToken == "" || time.Now().Sub(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
@@ -867,9 +864,16 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 		u.RawQuery = parameters.Encode()
 
-		level.Debug(n.logger).Log("msg", "Sending Wechat  message", "incident", key, "url", u.String())
+		level.Debug(n.logger).Log("msg", "Sending Wechat message", "incident", key, "url", u.String())
 
-		resp, err := ctxhttp.Get(ctx, http.DefaultClient, u.String())
+		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+		if err != nil {
+			return true, err
+		}
+
+		req.Header.Set("Content-Type", contentTypeJSON)
+
+		resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 		if err != nil {
 			return true, err
 		}
@@ -880,10 +884,12 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return false, err
 		}
 
-		accessToken = wechatToken.AccessToken
+		if wechatToken.AccessToken == "" {
+			return false, fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID)
+		}
 
 		// Cache accessToken
-		n.accessToken = accessToken
+		n.accessToken = wechatToken.AccessToken
 		n.accessTokenAt = time.Now()
 	}
 
@@ -904,30 +910,43 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	postMessageURL := n.conf.APIURL + "message/send?access_token=" + accessToken
+	postMessageURL := n.conf.APIURL + "message/send?access_token=" + n.accessToken
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, postMessageURL, contentTypeJSON, &buf)
+	req, err := http.NewRequest(http.MethodPost, postMessageURL, &buf)
 	if err != nil {
 		return true, err
 	}
 
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return true, err
+	}
 	defer resp.Body.Close()
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
 
-	return n.retry(resp.StatusCode)
-}
+	if resp.StatusCode != 200 {
+		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	} else {
+		var weResp weChatResponse
+		if err := json.Unmarshal(body, &weResp); err != nil {
+			return true, err
+		}
 
-func (n *Wechat) retry(statusCode int) (bool, error) {
-	// https://work.weixin.qq.com/api/doc#10649
-	if statusCode/100 == 5 || statusCode == 429 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
+		// https://work.weixin.qq.com/api/doc#10649
+		if weResp.Code == 0 {
+			return false, nil
+		}
+
+		// AccessToken is expired
+		if weResp.Code == 42001 {
+			n.accessToken = ""
+			return true, errors.New(weResp.Error)
+		}
+
+		return false, errors.New(weResp.Error)
 	}
-
-	return false, nil
 }
 
 // OpsGenie implements a Notifier for OpsGenie notifications.
