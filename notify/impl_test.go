@@ -10,12 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/alertmanager/types"
+	"io/ioutil"
+	"net/url"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
-	"net/url"
-	"io/ioutil"
+	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 func TestWebhookRetry(t *testing.T) {
@@ -56,15 +57,6 @@ func TestSlackRetry(t *testing.T) {
 
 func TestHipchatRetry(t *testing.T) {
 	notifier := new(Hipchat)
-	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
-	for statusCode, expected := range retryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
-	}
-}
-
-func TestWechatRetry(t *testing.T) {
-	notifier := new(Wechat)
 	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range retryTests(retryCodes) {
 		actual, _ := notifier.retry(statusCode)
@@ -200,7 +192,7 @@ func createTmpl(t *testing.T) *template.Template {
 	return tmpl
 }
 
-func readBody(t *testing.T,  r *http.Request) string {
+func readBody(t *testing.T, r *http.Request) string {
 	body, err := ioutil.ReadAll(r.Body)
 	require.NoError(t, err)
 	return string(body)
@@ -216,7 +208,7 @@ func TestOpsGenie(t *testing.T) {
 		Message:     `{{ .CommonLabels.Message }}`,
 		Description: `{{ .CommonLabels.Description }}`,
 		Source:      `{{ .CommonLabels.Source }}`,
-		Teams:        `{{ .CommonLabels.Teams }}`,
+		Teams:       `{{ .CommonLabels.Teams }}`,
 		Tags:        `{{ .CommonLabels.Tags }}`,
 		Note:        `{{ .CommonLabels.Note }}`,
 		Priority:    `{{ .CommonLabels.Priority }}`,
@@ -231,11 +223,11 @@ func TestOpsGenie(t *testing.T) {
 	expectedUrl, _ := url.Parse("https://opsgenie/apiv2/alerts")
 
 	// Empty alert.
-	alert1:= &types.Alert{
-			Alert: model.Alert{
-				StartsAt: time.Now(),
-				EndsAt: time.Now().Add(time.Hour),
-			},
+	alert1 := &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
 	}
 	expectedBody := `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{},"source":""}
 `
@@ -247,23 +239,72 @@ func TestOpsGenie(t *testing.T) {
 	require.Equal(t, expectedBody, readBody(t, req))
 
 	// Fully defined alert.
-	alert2:= &types.Alert{
+	alert2 := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
-				"Message": "message",
+				"Message":     "message",
 				"Description": "description",
-				"Source": "http://prometheus",
-				"Teams": "TeamA,TeamB,",
-				"Tags": "tag1,tag2",
-				"Note": "this is a note",
-				"Priotity": "P1",
-				},
+				"Source":      "http://prometheus",
+				"Teams":       "TeamA,TeamB,",
+				"Tags":        "tag1,tag2",
+				"Note":        "this is a note",
+				"Priotity":    "P1",
+			},
 			StartsAt: time.Now(),
-			EndsAt: time.Now().Add(time.Hour),
+			EndsAt:   time.Now().Add(time.Hour),
 		},
 	}
 	expectedBody = `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{},"source":"http://prometheus","teams":[{"name":"TeamA"},{"name":"TeamB"}],"tags":["tag1","tag2"],"note":"this is a note"}
 `
 	req, retry, err = notifier.createRequest(ctx, alert2)
 	require.Equal(t, expectedBody, readBody(t, req))
+}
+
+func TestWechat(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+
+	conf := &config.WechatConfig{
+		NotifierConfig: config.NotifierConfig{
+			VSendResolved: true,
+		},
+		Message: `{{ template "wechat.default.message" . }}`,
+		APIURL:  config.DefaultGlobalConfig.WeChatAPIURL,
+
+		APISecret: "invalidSecret",
+		CorpID:    "invalidCorpID",
+		AgentID:   "1",
+		ToUser:    "admin",
+	}
+	notifier := NewWechat(conf, tmpl, logger)
+
+	ctx := context.Background()
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message":     "message",
+				"Description": "description",
+				"Source":      "http://prometheus",
+				"Teams":       "TeamA,TeamB,",
+				"Tags":        "tag1,tag2",
+				"Note":        "this is a note",
+				"Priotity":    "P1",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	// miss group key
+	retry, err := notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
+
+	ctx = WithGroupKey(ctx, "2")
+
+	// invalid secret
+	retry, err = notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
 }

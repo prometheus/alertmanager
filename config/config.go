@@ -243,24 +243,27 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
-			wcc.APIURL = c.Global.WeChatAPIURL
 			if wcc.APIURL == "" {
 				if c.Global.WeChatAPIURL == "" {
 					return fmt.Errorf("no global Wechat URL set")
 				}
+				wcc.APIURL = c.Global.WeChatAPIURL
 			}
-			wcc.APISecret = c.Global.WeChatAPISecret
+
 			if wcc.APISecret == "" {
 				if c.Global.WeChatAPISecret == "" {
 					return fmt.Errorf("no global Wechat ApiSecret set")
 				}
+				wcc.APISecret = c.Global.WeChatAPISecret
 			}
+
 			if wcc.CorpID == "" {
 				if c.Global.WeChatAPICorpID == "" {
 					return fmt.Errorf("no global Wechat CorpID set")
 				}
 				wcc.CorpID = c.Global.WeChatAPICorpID
 			}
+
 			if !strings.HasSuffix(wcc.APIURL, "/") {
 				wcc.APIURL += "/"
 			}
