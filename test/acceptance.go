@@ -242,7 +242,7 @@ func (am *Alertmanager) Start() {
 		"--log.level", "debug",
 		"--web.listen-address", am.apiAddr,
 		"--storage.path", am.dir,
-		"--cluster.address", am.clusterAddr,
+		"--cluster.listen-address", am.clusterAddr,
 	)
 
 	if am.cmd == nil {
