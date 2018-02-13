@@ -102,13 +102,11 @@ var (
 			VSendResolved: true,
 		},
 		Message:   `{{ template "wechat.default.message" . }}`,
-		APIURL:    `{{ template "wechat.default.api_url" . }}`,
 		APISecret: `{{ template "wechat.default.api_secret" . }}`,
 		ToUser:    `{{ template "wechat.default.to_user" . }}`,
 		ToParty:   `{{ template "wechat.default.to_party" . }}`,
 		ToTag:     `{{ template "wechat.default.to_tag" . }}`,
 		AgentID:   `{{ template "wechat.default.agent_id" . }}`,
-		// TODO: Add a details field with all the alerts.
 	}
 
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
@@ -203,6 +201,7 @@ type PagerdutyConfig struct {
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
 	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
 

@@ -460,6 +460,7 @@ type pagerDutyPayload struct {
 	Source        string            `json:"source"`
 	Severity      string            `json:"severity"`
 	Timestamp     string            `json:"timestamp,omitempty"`
+	Class         string            `json:"class,omitempty"`
 	Component     string            `json:"component,omitempty"`
 	Group         string            `json:"group,omitempty"`
 	CustomDetails map[string]string `json:"custom_details,omitempty"`
@@ -508,8 +509,9 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl fu
 			Source:        tmpl(n.conf.Client),
 			Severity:      tmpl(n.conf.Severity),
 			CustomDetails: details,
-			Component:     n.conf.Component,
-			Group:         n.conf.Group,
+			Class:         tmpl(n.conf.Class),
+			Component:     tmpl(n.conf.Component),
+			Group:         tmpl(n.conf.Group),
 		}
 	}
 
@@ -797,36 +799,33 @@ type Wechat struct {
 	conf   *config.WechatConfig
 	tmpl   *template.Template
 	logger log.Logger
+
+	accessToken   string
+	accessTokenAt time.Time
 }
+
+// Wechat AccessToken with corpid and corpsecret.
 type WechatToken struct {
 	AccessToken string `json:"access_token"`
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `json:"-"`
 }
+
 type weChatMessage struct {
+	Text    weChatMessageContent `yaml:"text,omitempty" json:"text,omitempty"`
+	ToUser  string               `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty string               `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag   string               `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID string               `yaml:"agentid,omitempty" json:"agentid,omitempty"`
+	Safe    string               `yaml:"safe,omitempty" json:"safe,omitempty"`
+	Type    string               `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+}
+
+type weChatMessageContent struct {
 	Content string `json:"content"`
 }
-type weChatCreateMessage struct {
-	Text    weChatMessage `yaml:"text,omitempty" json:"text,omitempty"`
-	ToUser  string        `yaml:"touser,omitempty" json:"touser,omitempty"`
-	ToParty string        `yaml:"toparty,omitempty" json:"toparty,omitempty"`
-	Totag   string        `yaml:"totag,omitempty" json:"totag,omitempty"`
-	AgentID string        `yaml:"agentid,omitempty" json:"agentid,omitempty"`
-	Safe    string        `yaml:"safe,omitempty" json:"safe,omitempty"`
-	Type    string        `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
-}
 
-type weChatCloseMessage struct {
-	Text    weChatMessage `yaml:"text,omitempty" json:"text,omitempty"`
-	ToUser  string        `yaml:"touser,omitempty" json:"touser,omitempty"`
-	ToParty string        `yaml:"toparty,omitempty" json:"toparty,omitempty"`
-	Totag   string        `yaml:"totag,omitempty" json:"totag,omitempty"`
-	AgentID string        `yaml:"agentid,omitempty" json:"agentid,omitempty"`
-	Safe    string        `yaml:"safe,omitempty" json:"safe,omitempty"`
-	Type    string        `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
-}
-
-type weChatErrorResponse struct {
+type weChatResponse struct {
 	Code  int    `json:"code"`
 	Error string `json:"error"`
 }
@@ -842,84 +841,114 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("group key missing")
 	}
-	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+
 	level.Debug(n.logger).Log("msg", "Notifying Wechat", "incident", key)
+	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 
 	var err error
 	tmpl := tmplText(n.tmpl, data, &err)
+	if err != nil {
+		return false, err
+	}
 
-	var (
-		msg    interface{}
-		apiURL string
-		apiMsg = weChatMessage{
+	// Refresh AccessToken over 2 hours
+	if n.accessToken == "" || time.Now().Sub(n.accessTokenAt) > 2*time.Hour {
+		parameters := url.Values{}
+		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
+		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
+
+		apiURL := n.conf.APIURL + "gettoken"
+
+		u, err := url.Parse(apiURL)
+		if err != nil {
+			return false, err
+		}
+
+		u.RawQuery = parameters.Encode()
+
+		level.Debug(n.logger).Log("msg", "Sending Wechat message", "incident", key, "url", u.String())
+
+		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+		if err != nil {
+			return true, err
+		}
+
+		req.Header.Set("Content-Type", contentTypeJSON)
+
+		resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+		if err != nil {
+			return true, err
+		}
+		defer resp.Body.Close()
+
+		var wechatToken WechatToken
+		if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
+			return false, err
+		}
+
+		if wechatToken.AccessToken == "" {
+			return false, fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID)
+		}
+
+		// Cache accessToken
+		n.accessToken = wechatToken.AccessToken
+		n.accessTokenAt = time.Now()
+	}
+
+	msg := &weChatMessage{
+		Text: weChatMessageContent{
 			Content: tmpl(n.conf.Message),
-		}
-		alerts = types.Alerts(as...)
-	)
-	parameters := url.Values{}
-	parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
-	parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
-	apiURL = n.conf.APIURL + "gettoken"
-	u, err := url.Parse(apiURL)
-	if err != nil {
-		return false, err
+		},
+		ToUser:  n.conf.ToUser,
+		ToParty: n.conf.ToParty,
+		Totag:   n.conf.ToTag,
+		AgentID: n.conf.AgentID,
+		Type:    "text",
+		Safe:    "0",
 	}
-	u.RawQuery = parameters.Encode()
-	level.Debug(n.logger).Log("msg", "Sending Wechat  message", "incident", key, "url", u.String())
-	resp, err := ctxhttp.Get(ctx, http.DefaultClient, u.String())
-	if err != nil {
-		return true, err
-	}
-	defer resp.Body.Close()
-	var wechatToken WechatToken
-	if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
-		return false, err
-	}
-	postMessageURL := n.conf.APIURL + "message/send?access_token=" + wechatToken.AccessToken
-	switch alerts.Status() {
-	case model.AlertResolved:
-		msg = &weChatCloseMessage{Text: apiMsg,
-			ToUser:  tmpl(n.conf.ToUser),
-			ToParty: tmpl(n.conf.ToParty),
-			Totag:   tmpl(n.conf.ToTag),
-			AgentID: tmpl(n.conf.AgentID),
-			Type:    "text",
-			Safe:    "0"}
-	default:
-		msg = &weChatCreateMessage{
-			Text: weChatMessage{
-				Content: tmpl(n.conf.Message),
-			},
-			ToUser:  tmpl(n.conf.ToUser),
-			ToParty: tmpl(n.conf.ToParty),
-			Totag:   tmpl(n.conf.ToTag),
-			AgentID: tmpl(n.conf.AgentID),
-			Type:    "text",
-			Safe:    "0",
-		}
-	}
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return false, err
 	}
-	resp, err = ctxhttp.Post(ctx, http.DefaultClient, postMessageURL, contentTypeJSON, &buf)
+
+	postMessageURL := n.conf.APIURL + "message/send?access_token=" + n.accessToken
+
+	req, err := http.NewRequest(http.MethodPost, postMessageURL, &buf)
 	if err != nil {
 		return true, err
 	}
+
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
+
 	body, _ := ioutil.ReadAll(resp.Body)
 	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
-	defer resp.Body.Close()
-	return n.retry(resp.StatusCode)
-}
-func (n *Wechat) retry(statusCode int) (bool, error) {
-	// https://work.weixin.qq.com/api/doc#10649
-	if statusCode/100 == 5 || statusCode == 429 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
-	}
 
-	return false, nil
+	if resp.StatusCode != 200 {
+		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	} else {
+		var weResp weChatResponse
+		if err := json.Unmarshal(body, &weResp); err != nil {
+			return true, err
+		}
+
+		// https://work.weixin.qq.com/api/doc#10649
+		if weResp.Code == 0 {
+			return false, nil
+		}
+
+		// AccessToken is expired
+		if weResp.Code == 42001 {
+			n.accessToken = ""
+			return true, errors.New(weResp.Error)
+		}
+
+		return false, errors.New(weResp.Error)
+	}
 }
 
 // OpsGenie implements a Notifier for OpsGenie notifications.

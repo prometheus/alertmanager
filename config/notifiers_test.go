@@ -129,6 +129,7 @@ api_secret: ''
 }
 func TestWechatCorpIDIsPresent(t *testing.T) {
 	in := `
+api_secret: 'api_secret'
 corp_id: ''
 `
 	var cfg WechatConfig

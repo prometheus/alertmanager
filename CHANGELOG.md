@@ -1,3 +1,20 @@
+## 0.14.0 / 2018-02-12
+
+* [ENHANCEMENT] [amtool] Silence update support dwy suffixes to expire flag (#1197)
+* [ENHANCEMENT] Allow templating PagerDuty receiver severity (#1214)
+* [ENHANCEMENT] Include receiver name in failed notifications log messages (#1207)
+* [ENHANCEMENT] Allow global opsgenie api key (#1208)
+* [ENHANCEMENT] Add mesh metrics (#1225)
+* [ENHANCEMENT] Add Class field to PagerDuty; add templating to PagerDuty-CEF fields (#1231)
+* [BUGFIX] Don't notify of resolved alerts if none were reported firing (#1198)
+* [BUGFIX] Notify only when new firing alerts are added (#1205)
+* [BUGFIX] [mesh] Fix pending connections never set to established (#1204)
+* [BUGFIX] Allow OpsGenie notifier to have empty team fields (#1224)
+* [BUGFIX] Don't count alerts with EndTime in the future as resolved (#1233)
+* [BUGFIX] Speed up re-rendering of Silence UI (#1235)
+* [BUGFIX] Forbid 0 value for group_interval and repeat_interval (#1230)
+* [BUGFIX] Fix WeChat agentid issue (#1229)
+
 ## 0.13.0 / 2018-01-12
 
 * [CHANGE] Switch cmd/alertmanager to kingpin (#974)

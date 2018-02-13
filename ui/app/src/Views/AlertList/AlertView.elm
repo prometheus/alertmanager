@@ -24,7 +24,10 @@ view labels maybeActiveId alert =
                 |> uncurry (++)
     in
         li
-            [ class "align-items-start list-group-item border-0 alert-list-item p-0 mb-4"
+            [ -- speedup rendering in Chrome, because list-group-item className
+              -- creates a new layer in the rendering engine
+              style [ ( "position", "static" ) ]
+            , class "align-items-start list-group-item border-0 p-0 mb-4"
             ]
             [ div
                 [ class "w-100 mb-2 d-flex align-items-start" ]

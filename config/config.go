@@ -243,24 +243,27 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
-			wcc.APIURL = c.Global.WeChatAPIURL
 			if wcc.APIURL == "" {
 				if c.Global.WeChatAPIURL == "" {
 					return fmt.Errorf("no global Wechat URL set")
 				}
+				wcc.APIURL = c.Global.WeChatAPIURL
 			}
-			wcc.APISecret = c.Global.WeChatAPISecret
+
 			if wcc.APISecret == "" {
 				if c.Global.WeChatAPISecret == "" {
 					return fmt.Errorf("no global Wechat ApiSecret set")
 				}
+				wcc.APISecret = c.Global.WeChatAPISecret
 			}
+
 			if wcc.CorpID == "" {
 				if c.Global.WeChatAPICorpID == "" {
 					return fmt.Errorf("no global Wechat CorpID set")
 				}
 				wcc.CorpID = c.Global.WeChatAPICorpID
 			}
+
 			if !strings.HasSuffix(wcc.APIURL, "/") {
 				wcc.APIURL += "/"
 			}
@@ -419,6 +422,13 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return fmt.Errorf("duplicated label %q in group_by", ln)
 		}
 		groupBy[ln] = struct{}{}
+	}
+
+	if r.GroupInterval != nil && time.Duration(*r.GroupInterval) == time.Duration(0) {
+		return fmt.Errorf("group_interval cannot be zero")
+	}
+	if r.RepeatInterval != nil && time.Duration(*r.RepeatInterval) == time.Duration(0) {
+		return fmt.Errorf("repeat_interval cannot be zero")
 	}
 
 	return checkOverflow(r.XXX, "route")
