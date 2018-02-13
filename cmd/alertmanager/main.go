@@ -130,6 +130,8 @@ func main() {
 
 		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "explicit address to advertise in cluster").String()
 
+		peerTimeout = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
+
 		gossipInterval = kingpin.Flag("cluster.gossip-interval", "interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").
 				Default(cluster.DefaultGossipInterval.String()).Duration()
 
@@ -261,7 +263,7 @@ func main() {
 
 	waitFunc := func() time.Duration { return 0 }
 	if peer != nil {
-		waitFunc = clusterWait(peer, 15*time.Second)
+		waitFunc = clusterWait(peer, *peerTimeout)
 	}
 	timeoutFunc := func(d time.Duration) time.Duration {
 		if d < notify.MinTimeout {
