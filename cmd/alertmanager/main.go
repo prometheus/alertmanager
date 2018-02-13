@@ -399,14 +399,6 @@ func clusterWait(p *cluster.Peer, timeout time.Duration) func() time.Duration {
 	}
 }
 
-type printfLogger struct {
-	log.Logger
-}
-
-func (l printfLogger) Printf(f string, args ...interface{}) {
-	level.Debug(l).Log("msg", fmt.Sprintf(f, args...))
-}
-
 func extURL(listen, external string) (*url.URL, error) {
 	if external == "" {
 		hostname, err := os.Hostname()
