@@ -29,37 +29,14 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/gogo/protobuf/proto"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/weaveworks/mesh"
 )
 
 // ErrNotFound is returned for empty query results.
 var ErrNotFound = errors.New("not found")
-
-// Log stores and serves information about notifications
-// about byte-slice addressed alert objects to different receivers.
-type Log interface {
-	// The Log* methods store a notification log entry for
-	// a fully qualified receiver and a given IDs identifying the
-	// alert object.
-	Log(r *pb.Receiver, key string, firing, resolved []uint64) error
-
-	// Query the log along the given Parameters.
-	//
-	// TODO(fabxc):
-	// - extend the interface by a `QueryOne` method?
-	// - return an iterator rather than a materialized list?
-	Query(p ...QueryParam) ([]*pb.Entry, error)
-
-	// Snapshot the current log state and return the number
-	// of bytes written.
-	Snapshot(w io.Writer) (int, error)
-	// GC removes expired entries from the log. It returns
-	// the total number of deleted entries.
-	GC() (int, error)
-}
 
 // query currently allows filtering by and/or receiver group key.
 // It is configured via QueryParameter functions.
@@ -92,7 +69,7 @@ func QGroupKey(gk string) QueryParam {
 	}
 }
 
-type nlog struct {
+type Log struct {
 	logger    log.Logger
 	metrics   *metrics
 	now       func() time.Time
@@ -103,15 +80,11 @@ type nlog struct {
 	stopc       chan struct{}
 	done        func()
 
-	gossip mesh.Gossip // gossip channel for sharing log state.
-
 	// For now we only store the most recently added log entry.
 	// The key is a serialized concatenation of group key and receiver.
-	// Currently our memory state is equivalent to the mesh.GossipData
-	// representation. This may change in the future as we support history
-	// and indexing.
-	mtx sync.RWMutex
-	st  gossipData
+	mtx       sync.RWMutex
+	st        state
+	broadcast func([]byte)
 }
 
 type metrics struct {
@@ -164,20 +137,11 @@ func newMetrics(r prometheus.Registerer) *metrics {
 }
 
 // Option configures a new Log implementation.
-type Option func(*nlog) error
-
-// WithMesh registers the log with a mesh network with which
-// the log state will be shared.
-func WithMesh(create func(g mesh.Gossiper) mesh.Gossip) Option {
-	return func(l *nlog) error {
-		l.gossip = create(l)
-		return nil
-	}
-}
+type Option func(*Log) error
 
 // WithRetention sets the retention time for log st.
 func WithRetention(d time.Duration) Option {
-	return func(l *nlog) error {
+	return func(l *Log) error {
 		l.retention = d
 		return nil
 	}
@@ -187,7 +151,7 @@ func WithRetention(d time.Duration) Option {
 // for the current point in time.
 // This is generally useful for injection during tests.
 func WithNow(f func() time.Time) Option {
-	return func(l *nlog) error {
+	return func(l *Log) error {
 		l.now = f
 		return nil
 	}
@@ -195,7 +159,7 @@ func WithNow(f func() time.Time) Option {
 
 // WithLogger configures a logger for the notification log.
 func WithLogger(logger log.Logger) Option {
-	return func(l *nlog) error {
+	return func(l *Log) error {
 		l.logger = logger
 		return nil
 	}
@@ -203,7 +167,7 @@ func WithLogger(logger log.Logger) Option {
 
 // WithMetrics registers metrics for the notification log.
 func WithMetrics(r prometheus.Registerer) Option {
-	return func(l *nlog) error {
+	return func(l *Log) error {
 		l.metrics = newMetrics(r)
 		return nil
 	}
@@ -215,7 +179,7 @@ func WithMetrics(r prometheus.Registerer) Option {
 // The maintenance terminates on receiving from the provided channel.
 // The done function is called after the final snapshot was completed.
 func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
-	return func(l *nlog) error {
+	return func(l *Log) error {
 		if d == 0 {
 			return fmt.Errorf("maintenance interval must not be 0")
 		}
@@ -230,7 +194,7 @@ func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
 // If maintenance is configured, a snapshot will be saved periodically and on
 // shutdown as well.
 func WithSnapshot(sf string) Option {
-	return func(l *nlog) error {
+	return func(l *Log) error {
 		l.snapf = sf
 		return nil
 	}
@@ -240,13 +204,61 @@ func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
+type state map[string]*pb.MeshEntry
+
+func (s state) clone() state {
+	c := make(state, len(s))
+	for k, v := range s {
+		c[k] = v
+	}
+	return c
+}
+
+func (s state) merge(e *pb.MeshEntry) {
+	k := stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)
+
+	prev, ok := s[k]
+	if !ok || prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
+		s[k] = e
+	}
+}
+
+func (s state) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+
+	for _, e := range s {
+		if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeState(r io.Reader) (state, error) {
+	st := state{}
+	for {
+		var e pb.MeshEntry
+		_, err := pbutil.ReadDelimited(r, &e)
+		if err == nil {
+			st[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = &e
+			continue
+		}
+		if err == io.EOF {
+			break
+		}
+		return nil, err
+	}
+	return st, nil
+}
+
 // New creates a new notification log based on the provided options.
 // The snapshot is loaded into the Log if it is set.
-func New(opts ...Option) (Log, error) {
-	l := &nlog{
-		logger: log.NewNopLogger(),
-		now:    utcNow,
-		st:     map[string]*pb.MeshEntry{},
+func New(opts ...Option) (*Log, error) {
+	l := &Log{
+		logger:    log.NewNopLogger(),
+		now:       utcNow,
+		st:        state{},
+		broadcast: func([]byte) {},
 	}
 	for _, o := range opts {
 		if err := o(l); err != nil {
@@ -276,7 +288,7 @@ func New(opts ...Option) (Log, error) {
 }
 
 // run periodic background maintenance.
-func (l *nlog) run() {
+func (l *Log) run() {
 	if l.runInterval == 0 || l.stopc == nil {
 		return
 	}
@@ -289,7 +301,8 @@ func (l *nlog) run() {
 
 	f := func() error {
 		start := l.now()
-		var size int
+		var size int64
+
 		level.Info(l.logger).Log("msg", "Running maintenance")
 		defer func() {
 			level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
@@ -342,7 +355,7 @@ func stateKey(k string, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, receiverKey(r))
 }
 
-func (l *nlog) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
+func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -368,18 +381,19 @@ func (l *nlog) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []u
 		},
 		ExpiresAt: now.Add(l.retention),
 	}
-	if l.gossip != nil {
-		l.gossip.GossipBroadcast(gossipData{
-			key: e,
-		})
+
+	b, err := proto.Marshal(e)
+	if err != nil {
+		return err
 	}
-	l.st[key] = e
+	l.st.merge(e)
+	l.broadcast(b)
 
 	return nil
 }
 
 // GC implements the Log interface.
-func (l *nlog) GC() (int, error) {
+func (l *Log) GC() (int, error) {
 	start := time.Now()
 	defer func() { l.metrics.gcDuration.Observe(time.Since(start).Seconds()) }()
 
@@ -403,7 +417,7 @@ func (l *nlog) GC() (int, error) {
 }
 
 // Query implements the Log interface.
-func (l *nlog) Query(params ...QueryParam) ([]*pb.Entry, error) {
+func (l *Log) Query(params ...QueryParam) ([]*pb.Entry, error) {
 	start := time.Now()
 	l.metrics.queriesTotal.Inc()
 
@@ -438,189 +452,64 @@ func (l *nlog) Query(params ...QueryParam) ([]*pb.Entry, error) {
 }
 
 // loadSnapshot loads a snapshot generated by Snapshot() into the state.
-func (l *nlog) loadSnapshot(r io.Reader) error {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-
-	st := gossipData{}
-
-	for {
-		var e pb.MeshEntry
-		if _, err := pbutil.ReadDelimited(r, &e); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-		st[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = &e
+func (l *Log) loadSnapshot(r io.Reader) error {
+	st, err := decodeState(r)
+	if err != nil {
+		return err
 	}
+
+	l.mtx.Lock()
 	l.st = st
+	l.mtx.Unlock()
 
 	return nil
 }
 
 // Snapshot implements the Log interface.
-func (l *nlog) Snapshot(w io.Writer) (int, error) {
+func (l *Log) Snapshot(w io.Writer) (int64, error) {
 	start := time.Now()
 	defer func() { l.metrics.snapshotDuration.Observe(time.Since(start).Seconds()) }()
 
 	l.mtx.RLock()
 	defer l.mtx.RUnlock()
 
-	var n int
-	for _, e := range l.st {
-		m, err := pbutil.WriteDelimited(w, e)
-		if err != nil {
-			return n + m, err
-		}
-		n += m
-	}
-	return n, nil
-}
-
-// Gossip implements the mesh.Gossiper interface.
-func (l *nlog) Gossip() mesh.GossipData {
-	l.mtx.RLock()
-	defer l.mtx.RUnlock()
-
-	gd := make(gossipData, len(l.st))
-	for k, v := range l.st {
-		gd[k] = v
-	}
-	return gd
-}
-
-// OnGossip implements the mesh.Gossiper interface.
-func (l *nlog) OnGossip(msg []byte) (mesh.GossipData, error) {
-	gd, err := decodeGossipData(msg)
+	b, err := l.st.MarshalBinary()
 	if err != nil {
-		return nil, err
+		return 0, err
+	}
+
+	return io.Copy(w, bytes.NewReader(b))
+}
+
+// MarshalBinary serializes all contents of the notification log.
+func (l *Log) MarshalBinary() ([]byte, error) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	return l.st.MarshalBinary()
+}
+
+// Merge serialized silence state into own state.
+func (l *Log) Merge(b []byte) error {
+	st, err := decodeState(bytes.NewReader(b))
+	if err != nil {
+		return err
 	}
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	var delta gossipData
-	if l.st, delta = l.st.mergeDelta(gd); len(delta) > 0 {
-		return delta, nil
+	for _, e := range st {
+		l.st.merge(e)
 	}
-	return nil, nil
+	return nil
 }
 
-// OnGossipBroadcast implements the mesh.Gossiper interface.
-func (l *nlog) OnGossipBroadcast(src mesh.PeerName, msg []byte) (mesh.GossipData, error) {
-	gd, err := decodeGossipData(msg)
-	if err != nil {
-		return nil, err
-	}
+// SetBroadcast sets a broadcast callback that will be invoked with serialized state
+// on updates.
+func (l *Log) SetBroadcast(f func([]byte)) {
 	l.mtx.Lock()
-	defer l.mtx.Unlock()
-
-	var delta mesh.GossipData
-	l.st, delta = l.st.mergeDelta(gd)
-
-	return delta, nil
-}
-
-// OnGossipUnicast implements the mesh.Gossiper interface.
-func (l *nlog) OnGossipUnicast(src mesh.PeerName, msg []byte) error {
-	panic("not implemented")
-}
-
-// gossipData is a representation of the current log state that
-// implements the mesh.GossipData interface.
-type gossipData map[string]*pb.MeshEntry
-
-func decodeGossipData(msg []byte) (gossipData, error) {
-	gd := gossipData{}
-	rd := bytes.NewReader(msg)
-
-	for {
-		var e pb.MeshEntry
-		if _, err := pbutil.ReadDelimited(rd, &e); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return gd, err
-		}
-		gd[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = &e
-	}
-
-	return gd, nil
-}
-
-// Encode implements the mesh.GossipData interface.
-func (gd gossipData) Encode() [][]byte {
-	// Split into sub-messages of ~1MB.
-	const maxSize = 1024 * 1024
-
-	var (
-		buf bytes.Buffer
-		res [][]byte
-		n   int
-	)
-	for _, e := range gd {
-		m, err := pbutil.WriteDelimited(&buf, e)
-		n += m
-		if err != nil {
-			// TODO(fabxc): log error and skip entry. Or can this really not happen with a bytes.Buffer?
-			panic(err)
-		}
-		if n > maxSize {
-			res = append(res, buf.Bytes())
-			buf = bytes.Buffer{}
-		}
-	}
-	if buf.Len() > 0 {
-		res = append(res, buf.Bytes())
-	}
-	return res
-}
-
-func (gd gossipData) clone() gossipData {
-	res := make(gossipData, len(gd))
-	for k, e := range gd {
-		res[k] = e
-	}
-	return res
-}
-
-// Merge the notification set with gossip data and return a new notification
-// state.
-// TODO(fabxc): can we just return the receiver. Does it have to remain
-// unmodified. Needs to be clarified upstream.
-func (gd gossipData) Merge(other mesh.GossipData) mesh.GossipData {
-	merged := gd.clone()
-	for k, e := range other.(gossipData) {
-		prev, ok := merged[k]
-		if !ok {
-			merged[k] = e
-			continue
-		}
-		if prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
-			merged[k] = e
-		}
-	}
-	return merged
-}
-
-// mergeDelta behaves like Merge but in addition returns a gossipData only
-// containing things that have changed.
-func (gd gossipData) mergeDelta(od gossipData) (merged gossipData, delta gossipData) {
-	merged = gd.clone()
-	delta = gossipData{}
-	for k, e := range od {
-		prev, ok := merged[k]
-		if !ok {
-			merged[k] = e
-			delta[k] = e
-			continue
-		}
-		if prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
-			merged[k] = e
-			delta[k] = e
-		}
-	}
-	return merged, delta
+	l.broadcast = f
+	l.mtx.Unlock()
 }
 
 // replaceFile wraps a file that is moved to another filename on closing.

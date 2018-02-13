@@ -14,6 +14,7 @@
 package nflog
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNlogGC(t *testing.T) {
+func TestLogGC(t *testing.T) {
 	now := utcNow()
 	// We only care about key names and expiration timestamps.
 	newEntry := func(ts time.Time) *pb.MeshEntry {
@@ -33,8 +34,8 @@ func TestNlogGC(t *testing.T) {
 		}
 	}
 
-	l := &nlog{
-		st: gossipData{
+	l := &Log{
+		st: state{
 			"a1": newEntry(now),
 			"a2": newEntry(now.Add(time.Second)),
 			"a3": newEntry(now.Add(-time.Second)),
@@ -46,13 +47,13 @@ func TestNlogGC(t *testing.T) {
 	require.NoError(t, err, "unexpected error in garbage collection")
 	require.Equal(t, 2, n, "unexpected number of removed entries")
 
-	expected := gossipData{
+	expected := state{
 		"a2": newEntry(now.Add(time.Second)),
 	}
 	require.Equal(t, l.st, expected, "unepexcted state after garbage collection")
 }
 
-func TestNlogSnapshot(t *testing.T) {
+func TestLogSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
 	now := utcNow()
 
@@ -97,8 +98,8 @@ func TestNlogSnapshot(t *testing.T) {
 		f, err := ioutil.TempFile("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
-		l1 := &nlog{
-			st:      gossipData{},
+		l1 := &Log{
+			st:      state{},
 			metrics: newMetrics(nil),
 		}
 		// Setup internal state manually.
@@ -107,14 +108,13 @@ func TestNlogSnapshot(t *testing.T) {
 		}
 		_, err = l1.Snapshot(f)
 		require.NoError(t, err, "creating snapshot failed")
-
 		require.NoError(t, f.Close(), "closing snapshot file failed")
 
 		f, err = os.Open(f.Name())
 		require.NoError(t, err, "opening snapshot file failed")
 
 		// Check again against new nlog instance.
-		l2 := &nlog{}
+		l2 := &Log{}
 		err = l2.loadSnapshot(f)
 		require.NoError(t, err, "error loading snapshot")
 		require.Equal(t, l1.st, l2.st, "state after loading snapshot did not match snapshotted state")
@@ -151,40 +151,44 @@ func TestReplaceFile(t *testing.T) {
 	require.Equal(t, "test", string(res), "unexpected file contents")
 }
 
-func TestGossipDataMerge(t *testing.T) {
+func TestStateMerge(t *testing.T) {
 	now := utcNow()
 
 	// We only care about key names and timestamps for the
 	// merging logic.
-	newEntry := func(ts time.Time) *pb.MeshEntry {
+	newEntry := func(ts time.Time, name string) *pb.MeshEntry {
 		return &pb.MeshEntry{
-			Entry: &pb.Entry{Timestamp: ts},
+			Entry: &pb.Entry{
+				Timestamp: ts,
+				GroupKey:  []byte("key"),
+				Receiver: &pb.Receiver{
+					GroupName:   name,
+					Idx:         1,
+					Integration: "integr",
+				},
+			},
 		}
 	}
 	cases := []struct {
-		a, b         gossipData
-		final, delta gossipData
+		a, b  state
+		final state
 	}{
 		{
-			a: gossipData{
-				"a1": newEntry(now),
-				"a2": newEntry(now),
-				"a3": newEntry(now),
+			a: state{
+				"key:a1/integr/1": newEntry(now, "a1"),
+				"key:a2/integr/1": newEntry(now, "a2"),
+				"key:a3/integr/1": newEntry(now, "a3"),
 			},
-			b: gossipData{
-				"b1": newEntry(now),                   // new key, should be added
-				"a2": newEntry(now.Add(-time.Minute)), // older timestamp, should be dropped
-				"a3": newEntry(now.Add(time.Minute)),  // newer timestamp, should overwrite
+			b: state{
+				"key:b1/integr/1": newEntry(now, "b1"),                   // new key, should be added
+				"key:a2/integr/1": newEntry(now.Add(-time.Minute), "a2"), // older timestamp, should be dropped
+				"key:a3/integr/1": newEntry(now.Add(time.Minute), "a3"),  // newer timestamp, should overwrite
 			},
-			final: gossipData{
-				"a1": newEntry(now),
-				"a2": newEntry(now),
-				"a3": newEntry(now.Add(time.Minute)),
-				"b1": newEntry(now),
-			},
-			delta: gossipData{
-				"b1": newEntry(now),
-				"a3": newEntry(now.Add(time.Minute)),
+			final: state{
+				"key:a1/integr/1": newEntry(now, "a1"),
+				"key:a2/integr/1": newEntry(now, "a2"),
+				"key:a3/integr/1": newEntry(now.Add(time.Minute), "a3"),
+				"key:b1/integr/1": newEntry(now, "b1"),
 			},
 		},
 	}
@@ -192,24 +196,17 @@ func TestGossipDataMerge(t *testing.T) {
 	for _, c := range cases {
 		ca, cb := c.a.clone(), c.b.clone()
 
-		res := ca.Merge(cb)
-
+		res := c.a.clone()
+		for _, e := range cb {
+			res.merge(e)
+		}
 		require.Equal(t, c.final, res, "Merge result should match expectation")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
 		require.NotEqual(t, c.final, ca, "Merge should not change original state")
-
-		ca, cb = c.a.clone(), c.b.clone()
-
-		res, delta := ca.mergeDelta(cb)
-
-		require.Equal(t, c.delta, delta, "Merge delta should match expectation")
-		require.Equal(t, c.final, res, "Merge should apply changes to original state")
-		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
-		require.NotEqual(t, res, ca, "Merge should not change original state")
 	}
 }
 
-func TestGossipDataCoding(t *testing.T) {
+func TestStateDataCoding(t *testing.T) {
 	// Check whether encoding and decoding the data is symmetric.
 	now := utcNow()
 
@@ -252,27 +249,18 @@ func TestGossipDataCoding(t *testing.T) {
 
 	for _, c := range cases {
 		// Create gossip data from input.
-		in := gossipData{}
+		in := state{}
 		for _, e := range c.entries {
 			in[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = e
 		}
-		msg := in.Encode()
-		require.Equal(t, 1, len(msg), "expected single message for input")
+		msg, err := in.MarshalBinary()
+		require.NoError(t, err)
 
-		out, err := decodeGossipData(msg[0])
+		out, err := decodeState(bytes.NewReader(msg))
 		require.NoError(t, err, "decoding message failed")
 
 		require.Equal(t, in, out, "decoded data doesn't match encoded data")
 	}
-}
-
-func TestNilGossipDoesNotCrash(t *testing.T) {
-	nl, err := New()
-	if err != nil {
-		require.NoError(t, err, "constructing nflog failed")
-	}
-	err = nl.Log(&pb.Receiver{}, "key", []uint64{}, []uint64{})
-	require.NoError(t, err, "logging notification failed")
 }
 
 func TestQuery(t *testing.T) {
