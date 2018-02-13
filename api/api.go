@@ -103,6 +103,10 @@ func New(
 	peer *cluster.Peer,
 	l log.Logger,
 ) *API {
+	if l == nil {
+		l = log.NewNopLogger()
+	}
+
 	return &API{
 		alerts:         alerts,
 		silences:       silences,
@@ -466,7 +470,11 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 
 		// Ensure StartsAt is set.
 		if alert.StartsAt.IsZero() {
-			alert.StartsAt = now
+			if alert.EndsAt.IsZero() {
+				alert.StartsAt = now
+			} else {
+				alert.StartsAt = alert.EndsAt
+			}
 		}
 		// If no end time is defined, set a timeout after which an alert
 		// is marked resolved if it is not updated.
