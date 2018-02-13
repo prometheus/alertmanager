@@ -117,8 +117,12 @@ func Join(
 	}
 	p.mlist = ml
 
-	n, _ := ml.Join(knownPeers)
-	level.Debug(l).Log("msg", "joined cluster", "peers", n)
+	n, err := ml.Join(resolvedPeers)
+	if err != nil {
+		level.Warn(l).Log("msg", "failed to join cluster", "err", err)
+	} else {
+		level.Debug(l).Log("msg", "joined cluster", "peers", n)
+	}
 
 	if n > 0 {
 		go p.warnIfAlone(l, 10*time.Second)
