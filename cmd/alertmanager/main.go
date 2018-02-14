@@ -24,7 +24,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -53,10 +52,6 @@ import (
 )
 
 var (
-	peerPosition = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_peer_position",
-		Help: "Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
-	})
 	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_hash",
 		Help: "Hash of the currently loaded alertmanager configuration.",
@@ -74,7 +69,6 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(peerPosition)
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
 	prometheus.MustRegister(configHash)
@@ -384,20 +378,7 @@ func main() {
 // a duration of one base timeout for each peer with a higher ID than ourselves.
 func clusterWait(p *cluster.Peer, timeout time.Duration) func() time.Duration {
 	return func() time.Duration {
-		all := p.Peers()
-		sort.Slice(all, func(i, j int) bool {
-			return all[i].Name < all[j].Name
-		})
-
-		k := 0
-		for _, n := range all {
-			if n.Name == p.Self().Name {
-				break
-			}
-			k++
-		}
-		peerPosition.Set(float64(k))
-		return time.Duration(k) * timeout
+		return time.Duration(p.Position()) * timeout
 	}
 }
 
