@@ -279,8 +279,14 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer) *delegate {
 	}, func() float64 {
 		return float64(p.Position())
 	})
+	healthScore := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "alertmanager_cluster_health_score",
+		Help: "Health score of the cluster. Lower values are better and zero means 'totally healthy'.",
+	}, func() float64 {
+		return float64(p.mlist.GetHealthScore())
+	})
 
-	reg.MustRegister(messagesReceived, messagesReceivedSize, gossipClusterMembers, peerPosition)
+	reg.MustRegister(messagesReceived, messagesReceivedSize, gossipClusterMembers, peerPosition, healthScore)
 
 	return &delegate{
 		logger:               l,
