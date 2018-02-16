@@ -56,6 +56,9 @@ var (
 )
 
 func init() {
+	numReceivedAlerts.WithLabelValues("firing")
+	numReceivedAlerts.WithLabelValues("resolved")
+
 	prometheus.Register(numReceivedAlerts)
 	prometheus.Register(numInvalidAlerts)
 }
