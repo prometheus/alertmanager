@@ -436,28 +436,6 @@ func listen(listen string, router *route.Router, logger log.Logger) {
 	}
 }
 
-func mustHardwareAddr() string {
-	// TODO(fabxc): consider a safe-guard against colliding MAC addresses.
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		panic(err)
-	}
-	for _, iface := range ifaces {
-		if s := iface.HardwareAddr.String(); s != "" {
-			return s
-		}
-	}
-	panic("no valid network interfaces")
-}
-
-func mustHostname() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic(err)
-	}
-	return hostname
-}
-
 func md5HashAsMetricValue(data []byte) float64 {
 	sum := md5.Sum(data)
 	// We only want 48 bits as a float64 only has a 53 bit mantissa.
