@@ -2,7 +2,9 @@ package notify
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -10,17 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
-	"io/ioutil"
-	"net/url"
-
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 )
 
 func TestWebhookRetry(t *testing.T) {
-	notifier := new(Webhook)
+	notifier := &Webhook{conf: &config.WebhookConfig{URL: "http://example.com/"}}
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
@@ -275,6 +275,8 @@ func TestWechat(t *testing.T) {
 		CorpID:    "invalidCorpID",
 		AgentID:   "1",
 		ToUser:    "admin",
+
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
 	}
 	notifier := NewWechat(conf, tmpl, logger)
 
