@@ -338,7 +338,7 @@ type WechatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APISecret string `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	APISecret Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
 	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
 	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
 	APIURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
