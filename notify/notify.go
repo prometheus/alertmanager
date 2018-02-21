@@ -321,12 +321,12 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 	return ctx, alerts, nil
 }
 
-// GossipSettleStage waits until the Gossip has settle to forward alerts.
+// GossipSettleStage waits until the Gossip has settled to forward alerts.
 type GossipSettleStage struct {
 	peer *cluster.Peer
 }
 
-// NewGossipSettleStage return a new GossipSettleStage
+// NewGossipSettleStage returns a new GossipSettleStage.
 func NewGossipSettleStage(p *cluster.Peer) *GossipSettleStage {
 	return &GossipSettleStage{peer: p}
 }

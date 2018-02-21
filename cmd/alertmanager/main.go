@@ -168,7 +168,7 @@ func main() {
 			cancel()
 			peer.Leave(10 * time.Second)
 		}()
-		go peer.Settle(ctx, *pushPullInterval / 2)
+		go peer.Settle(ctx, *gossipInterval * 10)
 	}
 
 	stopc := make(chan struct{})

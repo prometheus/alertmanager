@@ -186,7 +186,7 @@ func (p *Peer) Ready() bool {
 	return false
 }
 
-// Wait until Settle() as finished.
+// Wait until Settle() has finished.
 func (p *Peer) WaitReady() {
 	<-p.readyc
 }
@@ -241,10 +241,10 @@ func (p *Peer) Position() int {
 
 // Settle waits until the mesh is ready (and sets the appropriate internal state when it is).
 // The idea is that we don't want to start "working" before we get a chance to know most of the alerts and/or silences.
+// Inspired from https://github.com/apache/cassandra/blob/7a40abb6a5108688fb1b10c375bb751cbb782ea4/src/java/org/apache/cassandra/gms/Gossiper.java
+// This is clearly not perfect or strictly correct but should prevent the alertmanager to send notification before it is obviously not ready.
+// This is especially important for those that do not have persistent storage.
 func (p *Peer) Settle(ctx context.Context, interval time.Duration) {
-	// Inspired from https://github.com/apache/cassandra/blob/7a40abb6a5108688fb1b10c375bb751cbb782ea4/src/java/org/apache/cassandra/gms/Gossiper.java
-	// This is clearly not perfect or strictly correct but should prevent the alertmanager to send notification before it is obviously not ready.
-	// This is especially important for those that do not have persistent storage.
 	const NumOkayRequired = 3
 	level.Info(p.logger).Log("msg", "Waiting for gossip to settle...", "interval", interval)
 	start := time.Now()
