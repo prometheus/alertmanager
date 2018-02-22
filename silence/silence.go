@@ -732,14 +732,6 @@ func (s *Silences) SetBroadcast(f func([]byte)) {
 
 type state map[string]*pb.MeshSilence
 
-func (s state) clone() state {
-	c := make(state, len(s))
-	for k, v := range s {
-		c[k] = v
-	}
-	return c
-}
-
 func (s state) merge(e *pb.MeshSilence) {
 	// Comments list was moved to a single comment. Apply upgrade
 	// on silences received from peers.
