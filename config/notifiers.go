@@ -101,7 +101,7 @@ var (
 	// DefaultWechatConfig defines default values for wechat configurations.
 	DefaultWechatConfig = WechatConfig{
 		NotifierConfig: NotifierConfig{
-			VSendResolved: true,
+			VSendResolved: false,
 		},
 		Message:   `{{ template "wechat.default.message" . }}`,
 		APISecret: `{{ template "wechat.default.api_secret" . }}`,
