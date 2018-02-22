@@ -134,7 +134,7 @@ func TestAlertsSubscribe(t *testing.T) {
 		}
 
 		if len(expectedAlerts) != 0 {
-			t.Fatalf("Unexpected number of alerts: %s", len(expectedAlerts))
+			t.Fatalf("Unexpected number of alerts: %d", len(expectedAlerts))
 		}
 	}()
 
@@ -158,7 +158,7 @@ func TestAlertsSubscribe(t *testing.T) {
 		}
 
 		if len(expectedAlerts) != 0 {
-			t.Fatalf("Unexpected number of alerts: %s", len(expectedAlerts))
+			t.Fatalf("Unexpected number of alerts: %d", len(expectedAlerts))
 		}
 	}()
 
