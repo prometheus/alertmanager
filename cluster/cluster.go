@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -191,6 +192,23 @@ func (p *Peer) Peers() []*memberlist.Node {
 	return p.mlist.Members()
 }
 
+// Position returns the position of the peer in the cluster.
+func (p *Peer) Position() int {
+	all := p.Peers()
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Name < all[j].Name
+	})
+
+	k := 0
+	for _, n := range all {
+		if n.Name == p.Self().Name {
+			break
+		}
+		k++
+	}
+	return k
+}
+
 // State is a piece of state that can be serialized and merged with other
 // serialized state.
 type State interface {
@@ -255,8 +273,20 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer) *delegate {
 	}, func() float64 {
 		return float64(p.ClusterSize())
 	})
+	peerPosition := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "alertmanager_peer_position",
+		Help: "Position the Alertmanager instance believes it's in. The position determines a peer's behavior in the cluster.",
+	}, func() float64 {
+		return float64(p.Position())
+	})
+	healthScore := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "alertmanager_cluster_health_score",
+		Help: "Health score of the cluster. Lower values are better and zero means 'totally healthy'.",
+	}, func() float64 {
+		return float64(p.mlist.GetHealthScore())
+	})
 
-	reg.MustRegister(messagesReceived, messagesReceivedSize, gossipClusterMembers)
+	reg.MustRegister(messagesReceived, messagesReceivedSize, gossipClusterMembers, peerPosition, healthScore)
 
 	return &delegate{
 		logger:               l,
