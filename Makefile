@@ -30,7 +30,7 @@ all: format build test
 
 test:
 	@echo ">> running tests"
-	@$(GO) test -short $(pkgs)
+	@$(GO) test -race -short $(pkgs)
 
 style:
 	@echo ">> checking code style"

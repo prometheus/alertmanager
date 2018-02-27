@@ -167,6 +167,8 @@ func (t *AcceptanceTest) Run() {
 		defer func(am *Alertmanager) {
 			am.Terminate()
 			am.cleanup()
+			t.Logf("stdout:\n%v", am.cmd.Stdout)
+			t.Logf("stderr:\n%v", am.cmd.Stderr)
 		}(am)
 	}
 
@@ -192,11 +194,6 @@ func (t *AcceptanceTest) Run() {
 		report := coll.check()
 		t.Log(report)
 	}
-
-	for _, am := range t.ams {
-		t.Logf("stdout:\n%v", am.cmd.Stdout)
-		t.Logf("stderr:\n%v", am.cmd.Stderr)
-	}
 }
 
 // runActions performs the stored actions at the defined times.
@@ -217,6 +214,23 @@ func (t *AcceptanceTest) runActions() {
 	}
 
 	wg.Wait()
+}
+
+type buffer struct {
+	b   bytes.Buffer
+	mtx sync.Mutex
+}
+
+func (b *buffer) Write(p []byte) (int, error) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *buffer) String() string {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.b.String()
 }
 
 // Alertmanager encapsulates an Alertmanager process and allows
@@ -246,7 +260,7 @@ func (am *Alertmanager) Start() {
 	)
 
 	if am.cmd == nil {
-		var outb, errb bytes.Buffer
+		var outb, errb buffer
 		cmd.Stdout = &outb
 		cmd.Stderr = &errb
 	} else {
@@ -344,14 +358,14 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 			am.t.Errorf("error setting silence %v: %s", sil, err)
 			return
 		}
-		sil.ID = v.Data.SilenceID
+		sil.SetID(v.Data.SilenceID)
 	})
 }
 
 // DelSilence deletes the silence with the sid at the given time.
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
-		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/v1/silence/%s", am.apiAddr, sil.ID), nil)
+		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/v1/silence/%s", am.apiAddr, sil.ID()), nil)
 		if err != nil {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 			return
