@@ -154,14 +154,14 @@ func (r *Route) Key() string {
 // RouteOpts holds various routing options necessary for processing alerts
 // that match a given route.
 type RouteOpts struct {
-	// The identifier of the associated notification configuration
+	// The identifier of the associated notification configuration.
 	Receiver string
 
 	// What labels to group alerts by for notifications.
 	GroupBy map[model.LabelName]struct{}
 
 	// How long to wait to group matching alerts before sending
-	// a notificaiton
+	// a notification.
 	GroupWait      time.Duration
 	GroupInterval  time.Duration
 	RepeatInterval time.Duration
