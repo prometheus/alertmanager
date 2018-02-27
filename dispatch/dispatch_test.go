@@ -192,7 +192,7 @@ func TestAggrGroup(t *testing.T) {
 
 	case batch := <-alertsCh:
 		if s := time.Since(last); s < opts.GroupWait {
-			t.Fatalf("received batch to early after %v", s)
+			t.Fatalf("received batch too early after %v", s)
 		}
 		exp := types.AlertSlice{a1}
 		sort.Sort(batch)
@@ -212,7 +212,7 @@ func TestAggrGroup(t *testing.T) {
 
 		case batch := <-alertsCh:
 			if s := time.Since(last); s < opts.GroupInterval {
-				t.Fatalf("received batch to early after %v", s)
+				t.Fatalf("received batch too early after %v", s)
 			}
 			exp := types.AlertSlice{a1, a3}
 			sort.Sort(batch)
@@ -262,7 +262,7 @@ func TestAggrGroup(t *testing.T) {
 			s := time.Since(last)
 			lastCurMtx.Unlock()
 			if s < opts.GroupInterval {
-				t.Fatalf("received batch to early after %v", s)
+				t.Fatalf("received batch too early after %v", s)
 			}
 			exp := types.AlertSlice{a1, a2, a3}
 			sort.Sort(batch)
@@ -274,9 +274,12 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Resolve all alerts, they should be removed after the next batch was sent.
-	a1.EndsAt = time.Now()
-	a2.EndsAt = time.Now()
-	a3.EndsAt = time.Now()
+	a1r, a2r, a3r := *a1, *a2, *a3
+	resolved := types.AlertSlice{&a1r, &a2r, &a3r}
+	for _, a := range resolved {
+		a.EndsAt = time.Now()
+		ag.insert(a)
+	}
 
 	select {
 	case <-time.After(2 * opts.GroupInterval):
@@ -284,13 +287,12 @@ func TestAggrGroup(t *testing.T) {
 
 	case batch := <-alertsCh:
 		if s := time.Since(last); s < opts.GroupInterval {
-			t.Fatalf("received batch to early after %v", s)
+			t.Fatalf("received batch too early after %v", s)
 		}
-		exp := types.AlertSlice{a1, a2, a3}
 		sort.Sort(batch)
 
-		if !reflect.DeepEqual(batch, exp) {
-			t.Fatalf("expected alerts %v but got %v", exp, batch)
+		if !reflect.DeepEqual(batch, resolved) {
+			t.Fatalf("expected alerts %v but got %v", resolved, batch)
 		}
 
 		if !ag.empty() {

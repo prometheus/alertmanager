@@ -15,6 +15,7 @@ package test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,8 @@ type Collector struct {
 
 	collected map[float64][]model.Alerts
 	expected  map[Interval][]model.Alerts
+
+	mtx sync.RWMutex
 }
 
 func (c *Collector) String() string {
@@ -59,6 +62,8 @@ func batchesEqual(as, bs model.Alerts, opts *AcceptanceOpts) bool {
 // latest returns the latest relative point in time where a notification is
 // expected.
 func (c *Collector) latest() float64 {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 	var latest float64
 	for iv := range c.expected {
 		if iv.end > latest {
@@ -71,6 +76,8 @@ func (c *Collector) latest() float64 {
 // Want declares that the Collector expects to receive the given alerts
 // within the given time boundaries.
 func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 	var nas model.Alerts
 	for _, a := range alerts {
 		nas = append(nas, a.nativeAlert(c.opts))
@@ -81,6 +88,8 @@ func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
 
 // add the given alerts to the collected alerts.
 func (c *Collector) add(alerts ...*model.Alert) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 	arrival := c.opts.relativeTime(time.Now())
 
 	c.collected[arrival] = append(c.collected[arrival], model.Alerts(alerts))
@@ -89,6 +98,8 @@ func (c *Collector) add(alerts ...*model.Alert) {
 func (c *Collector) check() string {
 	report := fmt.Sprintf("\ncollector %q:\n\n", c)
 
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 	for iv, expected := range c.expected {
 		report += fmt.Sprintf("interval %v\n", iv)
 

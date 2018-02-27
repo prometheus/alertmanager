@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -53,10 +54,12 @@ func Between(start, end float64) Interval {
 
 // TestSilence models a model.Silence with relative times.
 type TestSilence struct {
-	ID               string
+	id               string
 	match            []string
 	matchRE          []string
 	startsAt, endsAt float64
+
+	mtx sync.RWMutex
 }
 
 // Silence creates a new TestSilence active for the relative interval given
@@ -81,6 +84,20 @@ func (s *TestSilence) MatchRE(v ...string) *TestSilence {
 	}
 	s.matchRE = append(s.matchRE, v...)
 	return s
+}
+
+// SetID sets the silence ID.
+func (s *TestSilence) SetID(ID string) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.id = ID
+}
+
+// ID gets the silence ID.
+func (s *TestSilence) ID() string {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	return s.id
 }
 
 // nativeSilence converts the declared test silence into a regular
