@@ -224,14 +224,14 @@ func TestDedupStage(t *testing.T) {
 	s.nflog = &testNflog{
 		qerr: errors.New("bad things"),
 	}
-	ctx, res, err := s.Exec(ctx, log.NewNopLogger(), alerts...)
+	ctx, _, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.EqualError(t, err, "bad things")
 
 	// ... but skip ErrNotFound.
 	s.nflog = &testNflog{
 		qerr: nflog.ErrNotFound,
 	}
-	ctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
+	ctx, res, err := s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err, "unexpected error on not found log entry")
 	require.Equal(t, alerts, res, "input alerts differ from result alerts")
 
@@ -242,7 +242,7 @@ func TestDedupStage(t *testing.T) {
 			{FiringAlerts: []uint64{1, 2, 3}},
 		},
 	}
-	ctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
+	ctx, _, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.Contains(t, err.Error(), "result size")
 
 	// Must return no error and no alerts no need to update.
@@ -271,7 +271,7 @@ func TestDedupStage(t *testing.T) {
 			},
 		},
 	}
-	ctx, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
+	_, res, err = s.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NoError(t, err)
 	require.Equal(t, alerts, res, "unexpected alerts returned")
 }

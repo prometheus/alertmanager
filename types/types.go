@@ -25,8 +25,8 @@ type AlertState string
 
 const (
 	AlertStateUnprocessed AlertState = "unprocessed"
-	AlertStateActive                 = "active"
-	AlertStateSuppressed             = "suppressed"
+	AlertStateActive      AlertState = "active"
+	AlertStateSuppressed  AlertState = "suppressed"
 )
 
 // AlertStatus stores the state and values associated with an Alert.

@@ -164,8 +164,8 @@ type errorType string
 
 const (
 	errorNone     errorType = ""
-	errorInternal           = "server_error"
-	errorBadData            = "bad_data"
+	errorInternal errorType = "server_error"
+	errorBadData  errorType = "bad_data"
 )
 
 type apiError struct {
@@ -765,7 +765,7 @@ type status string
 
 const (
 	statusSuccess status = "success"
-	statusError          = "error"
+	statusError   status = "error"
 )
 
 type response struct {
