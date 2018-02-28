@@ -257,6 +257,8 @@ func TestOpsGenie(t *testing.T) {
 	expectedBody = `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{},"source":"http://prometheus","teams":[{"name":"TeamA"},{"name":"TeamB"}],"tags":["tag1","tag2"],"note":"this is a note"}
 `
 	req, retry, err = notifier.createRequest(ctx, alert2)
+	require.NoError(t, err)
+	require.Equal(t, true, retry)
 	require.Equal(t, expectedBody, readBody(t, req))
 }
 

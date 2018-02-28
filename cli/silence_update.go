@@ -91,6 +91,9 @@ func getSilenceById(silenceId string, baseUrl url.URL) (*types.Silence, error) {
 
 	var response getResponse
 	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't decode response body: %v", err)
+	}
 	return &response.Data, nil
 }
 

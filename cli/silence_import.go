@@ -72,8 +72,8 @@ func bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error 
 	errc := make(chan error, 100)
 	var wg sync.WaitGroup
 	for w := 0; w < *workers; w++ {
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			addSilenceWorker(silencec, errc)
 			wg.Done()
 		}()

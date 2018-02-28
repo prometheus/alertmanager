@@ -14,6 +14,7 @@
 package mem
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -110,6 +111,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	fatalc := make(chan string, 2)
 
 	iterator1 := alerts.Subscribe()
 	iterator2 := alerts.Subscribe()
@@ -126,15 +128,15 @@ func TestAlertsSubscribe(t *testing.T) {
 			actual := <-iterator1.Next()
 			expected := expectedAlerts[actual.Fingerprint()]
 			if !alertsEqual(actual, expected) {
-				t.Errorf("Unexpected alert")
-				t.Fatalf(pretty.Compare(actual, expected))
+				fatalc <- fmt.Sprintf("Unexpected alert (iterator1)\n%s", pretty.Compare(actual, expected))
+				return
 			}
 
 			delete(expectedAlerts, actual.Fingerprint())
 		}
 
 		if len(expectedAlerts) != 0 {
-			t.Fatalf("Unexpected number of alerts: %d", len(expectedAlerts))
+			fatalc <- fmt.Sprintf("Unexpected number of alerts (iterator1): %d", len(expectedAlerts))
 		}
 	}()
 
@@ -151,15 +153,20 @@ func TestAlertsSubscribe(t *testing.T) {
 			expected := expectedAlerts[actual.Fingerprint()]
 			if !alertsEqual(actual, expected) {
 				t.Errorf("Unexpected alert")
-				t.Fatalf(pretty.Compare(actual, expected))
+				fatalc <- fmt.Sprintf("Unexpected alert (iterator2)\n%s", pretty.Compare(actual, expected))
 			}
 
 			delete(expectedAlerts, actual.Fingerprint())
 		}
 
 		if len(expectedAlerts) != 0 {
-			t.Fatalf("Unexpected number of alerts: %d", len(expectedAlerts))
+			fatalc <- fmt.Sprintf("Unexpected number of alerts (iterator2): %d", len(expectedAlerts))
 		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(fatalc)
 	}()
 
 	if err := alerts.Put(alert2); err != nil {
@@ -170,7 +177,10 @@ func TestAlertsSubscribe(t *testing.T) {
 		t.Fatalf("Insert failed: %s", err)
 	}
 
-	wg.Wait()
+	fatal, ok := <-fatalc
+	if ok {
+		t.Fatalf(fatal)
+	}
 
 	iterator1.Close()
 	iterator2.Close()

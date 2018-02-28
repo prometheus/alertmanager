@@ -349,7 +349,7 @@ func main() {
 	var (
 		hup      = make(chan os.Signal)
 		hupReady = make(chan bool)
-		term     = make(chan os.Signal)
+		term     = make(chan os.Signal, 1)
 	)
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
