@@ -1,3 +1,10 @@
+## 0.15.0-rc.0 / 2018-02-28
+
+* [CHANGE] Moved to memberlist as underlying gossip protocol
+* [FEATURE] Make HTTP clients used for integrations configurable
+* [ENHANCEMENT] Support receiving alerts with end time and zero start time
+* [BUGFIX] Properly configure HTTP client for Wechat integration
+
 ## 0.14.0 / 2018-02-12
 
 * [ENHANCEMENT] [amtool] Silence update support dwy suffixes to expire flag (#1197)
