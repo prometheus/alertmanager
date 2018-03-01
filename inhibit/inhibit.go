@@ -81,16 +81,19 @@ func (ih *Inhibitor) run(ctx context.Context) {
 				level.Error(ih.logger).Log("msg", "Error iterating alerts", "err", err)
 				continue
 			}
+			sourceRules := ih.sourceRules(a)
 			if a.Resolved() {
 				// As alerts can also time out without an update, we never
-				// handle new resolved alerts but invalidate the cache on read.
+				// handle new resolved alerts. We need to un-inhibit all rules
+				// having this alert as source instead
+				for _, r := range sourceRules {
+					r.unset(a)
+				}
 				continue
 			}
 			// Populate the inhibition rules' cache.
-			for _, r := range ih.rules {
-				if r.SourceMatchers.Match(a.Labels) {
-					r.set(a)
-				}
+			for _, r := range sourceRules {
+				r.set(a)
 			}
 		}
 	}
@@ -138,7 +141,7 @@ func (ih *Inhibitor) Stop() {
 	}
 }
 
-// Mutes returns true iff the given label set is muted.
+// Mutes returns true if the given label set is muted.
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
@@ -152,6 +155,16 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	ih.marker.SetInhibited(fp)
 
 	return false
+}
+
+// sourceRules returns a subset of rules with source alert
+func (ih *Inhibitor) sourceRules(a *types.Alert) (rules []*InhibitRule) {
+	for _, r := range ih.rules {
+		if r.SourceMatchers.Match(a.Labels) {
+			rules = append(rules, r)
+		}
+	}
+	return
 }
 
 // An InhibitRule specifies that a class of (source) alerts should inhibit
@@ -215,6 +228,14 @@ func (r *InhibitRule) set(a *types.Alert) {
 	defer r.mtx.Unlock()
 
 	r.scache[a.Fingerprint()] = a
+}
+
+// unset the alert in the source cache.
+func (r *InhibitRule) unset(a *types.Alert) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	delete(r.scache, a.Fingerprint())
 }
 
 // hasEqual checks whether the source cache contains alerts matching

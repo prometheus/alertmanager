@@ -24,6 +24,68 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+func TestInhibitorSourceRules(t *testing.T) {
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"label1": "val1",
+				"label2": "val2",
+			},
+		},
+	}
+
+	rule1 := &InhibitRule{SourceMatchers: types.Matchers{types.NewMatcher(model.LabelName("label1"), "val1")}}
+	rule2 := &InhibitRule{SourceMatchers: types.Matchers{types.NewMatcher(model.LabelName("label1"), "val2")}}
+	rule3 := &InhibitRule{SourceMatchers: types.Matchers{types.NewMatcher(model.LabelName("label1"), "val1")}}
+
+	inhibitor := Inhibitor{rules: []*InhibitRule{rule1, rule2, rule3}}
+
+	rules := inhibitor.sourceRules(alert)
+
+	if len(rules) != 2 {
+		t.Errorf("Expected length of rules: %d, actual: %d", 2, len(rules))
+	}
+
+	if rules[0] != rule1 {
+		t.Errorf("Source rules slice doesn't contain expected rule at index %d", 0)
+	}
+
+	if rules[1] != rule3 {
+		t.Errorf("Source rules slice doesn't contain expected rule at index %d", 1)
+	}
+}
+
+func TestInhibitRuleUnset(t *testing.T) {
+	alert1 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{"a": "b"},
+		},
+	}
+
+	alert2 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{"c": "d"},
+		},
+	}
+
+	inhibitRule := InhibitRule{
+		scache: map[model.Fingerprint]*types.Alert{
+			alert1.Fingerprint(): alert1,
+			alert2.Fingerprint(): alert2,
+		},
+	}
+
+	inhibitRule.unset(alert2)
+
+	if len(inhibitRule.scache) != 1 {
+		t.Errorf("Unexpected cache size. Expected: %d, Actual: %d", 1, len(inhibitRule.scache))
+	}
+
+	if inhibitRule.scache[alert1.Fingerprint()] != alert1 {
+		t.Errorf("Cache does not contain expected alert")
+	}
+}
+
 func TestInhibitRuleHasEqual(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
