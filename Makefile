@@ -96,7 +96,7 @@ promu:
 	$(GO) get -u github.com/prometheus/promu
 
 $(FIRST_GOPATH)/bin/staticcheck:
-	@GOOS= GOARCH= $(GO) get -u honnef.co/go/tools/cmd/staticcheck
+	@GOOS= GOARCH= $(GO) get -u -v honnef.co/go/tools/cmd/staticcheck
 
 proto:
 	scripts/genproto.sh
