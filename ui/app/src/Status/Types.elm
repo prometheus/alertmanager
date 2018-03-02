@@ -21,6 +21,7 @@ type alias VersionInfo =
 
 type alias ClusterStatus =
     { name : String
+    , status : String
     , peers : List ClusterPeer
     }
 

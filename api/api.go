@@ -224,15 +224,16 @@ type peerStatus struct {
 }
 
 type clusterStatus struct {
-	Name  string       `json:"name"`
-	Peers []peerStatus `json:"peers"`
+	Name   string       `json:"name"`
+	Status string       `json:"status"`
+	Peers  []peerStatus `json:"peers"`
 }
 
 func getClusterStatus(p *cluster.Peer) *clusterStatus {
 	if p == nil {
 		return nil
 	}
-	s := &clusterStatus{Name: p.Name()}
+	s := &clusterStatus{Name: p.Name(), Status: p.Status()}
 
 	for _, n := range p.Peers() {
 		s.Peers = append(s.Peers, peerStatus{

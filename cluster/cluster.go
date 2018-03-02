@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/memberlist"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
+
 	"github.com/prometheus/alertmanager/cluster/clusterpb"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -29,6 +30,9 @@ type Peer struct {
 	mtx    sync.RWMutex
 	states map[string]State
 	stopc  chan struct{}
+	readyc chan struct{}
+
+	logger log.Logger
 }
 
 const (
@@ -94,6 +98,8 @@ func Join(
 	p := &Peer{
 		states: map[string]State{},
 		stopc:  make(chan struct{}),
+		readyc: make(chan struct{}),
+		logger: l,
 	}
 	p.delegate = newDelegate(l, reg, p)
 
@@ -170,6 +176,30 @@ func (p *Peer) ClusterSize() int {
 	return p.mlist.NumMembers()
 }
 
+// Return true when router has settled.
+func (p *Peer) Ready() bool {
+	select {
+	case <-p.readyc:
+		return true
+	default:
+	}
+	return false
+}
+
+// Wait until Settle() has finished.
+func (p *Peer) WaitReady() {
+	<-p.readyc
+}
+
+// Return a status string representing the peer state.
+func (p *Peer) Status() string {
+	if p.Ready() {
+		return "ready"
+	} else {
+		return "settling"
+	}
+}
+
 // Info returns a JSON-serializable dump of cluster state.
 // Useful for debug.
 func (p *Peer) Info() map[string]interface{} {
@@ -207,6 +237,46 @@ func (p *Peer) Position() int {
 		k++
 	}
 	return k
+}
+
+// Settle waits until the mesh is ready (and sets the appropriate internal state when it is).
+// The idea is that we don't want to start "working" before we get a chance to know most of the alerts and/or silences.
+// Inspired from https://github.com/apache/cassandra/blob/7a40abb6a5108688fb1b10c375bb751cbb782ea4/src/java/org/apache/cassandra/gms/Gossiper.java
+// This is clearly not perfect or strictly correct but should prevent the alertmanager to send notification before it is obviously not ready.
+// This is especially important for those that do not have persistent storage.
+func (p *Peer) Settle(ctx context.Context, interval time.Duration) {
+	const NumOkayRequired = 3
+	level.Info(p.logger).Log("msg", "Waiting for gossip to settle...", "interval", interval)
+	start := time.Now()
+	nPeers := 0
+	nOkay := 0
+	totalPolls := 0
+	for {
+		select {
+		case <-ctx.Done():
+			elapsed := time.Since(start)
+			level.Info(p.logger).Log("msg", "gossip not settled but continuing anyway", "polls", totalPolls, "elapsed", elapsed)
+			close(p.readyc)
+			return
+		case <-time.After(interval):
+		}
+		elapsed := time.Since(start)
+		n := len(p.Peers())
+		if nOkay >= NumOkayRequired {
+			level.Info(p.logger).Log("msg", "gossip settled; proceeding", "elapsed", elapsed)
+			break
+		}
+		if n == nPeers {
+			nOkay++
+			level.Debug(p.logger).Log("msg", "gossip looks settled", "elapsed", elapsed)
+		} else {
+			nOkay = 0
+			level.Info(p.logger).Log("msg", "gossip not settled", "polls", totalPolls, "before", nPeers, "now", n, "elapsed", elapsed)
+		}
+		nPeers = n
+		totalPolls++
+	}
+	close(p.readyc)
 }
 
 // State is a piece of state that can be serialized and merged with other

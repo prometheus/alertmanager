@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -218,15 +219,17 @@ func BuildPipeline(
 	silences *silence.Silences,
 	notificationLog NotificationLog,
 	marker types.Marker,
+	peer *cluster.Peer,
 	logger log.Logger,
 ) RoutingStage {
 	rs := RoutingStage{}
 
+	ms := NewGossipSettleStage(peer)
 	is := NewInhibitStage(muter)
 	ss := NewSilenceStage(silences, marker)
 
 	for _, rc := range confs {
-		rs[rc.Name] = MultiStage{is, ss, createStage(rc, tmpl, wait, notificationLog, logger)}
+		rs[rc.Name] = MultiStage{ms, is, ss, createStage(rc, tmpl, wait, notificationLog, logger)}
 	}
 	return rs
 }
@@ -314,6 +317,23 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 
 	if me.Len() > 0 {
 		return ctx, alerts, &me
+	}
+	return ctx, alerts, nil
+}
+
+// GossipSettleStage waits until the Gossip has settled to forward alerts.
+type GossipSettleStage struct {
+	peer *cluster.Peer
+}
+
+// NewGossipSettleStage returns a new GossipSettleStage.
+func NewGossipSettleStage(p *cluster.Peer) *GossipSettleStage {
+	return &GossipSettleStage{peer: p}
+}
+
+func (n *GossipSettleStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	if n.peer != nil {
+		n.peer.WaitReady()
 	}
 	return ctx, alerts, nil
 }

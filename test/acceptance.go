@@ -257,6 +257,7 @@ func (am *Alertmanager) Start() {
 		"--web.listen-address", am.apiAddr,
 		"--storage.path", am.dir,
 		"--cluster.listen-address", am.clusterAddr,
+		"--cluster.settle-timeout", "0s",
 	)
 
 	if am.cmd == nil {
