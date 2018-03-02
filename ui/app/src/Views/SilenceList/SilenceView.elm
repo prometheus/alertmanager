@@ -98,25 +98,29 @@ matcherButton matcher =
 
 editButton : Silence -> Html Msg
 editButton silence =
-    case silence.status.state of
-        -- If the silence is expired, do not edit it, but instead create a new
-        -- one with the old matchers
-        Expired ->
-            a
-                [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels [])
-                ]
-                [ text "Recreate"
-                ]
-
-        _ ->
-            let
-                editUrl =
-                    String.join "/" [ "#/silences", silence.id, "edit" ]
-            in
-                a [ class "btn btn-outline-info border-0", href editUrl ]
-                    [ text "Edit"
+    let
+        matchers =
+            List.map (\s -> ( s.name, s.value )) silence.matchers
+    in
+        case silence.status.state of
+            -- If the silence is expired, do not edit it, but instead create a new
+            -- one with the old matchers
+            Expired ->
+                a
+                    [ class "btn btn-outline-info border-0"
+                    , href (newSilenceFromAlertLabels matchers)
                     ]
+                    [ text "Recreate"
+                    ]
+
+            _ ->
+                let
+                    editUrl =
+                        String.join "/" [ "#/silences", silence.id, "edit" ]
+                in
+                    a [ class "btn btn-outline-info border-0", href editUrl ]
+                        [ text "Edit"
+                        ]
 
 
 deleteButton : Silence -> Bool -> Html Msg
