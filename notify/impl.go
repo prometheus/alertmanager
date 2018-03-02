@@ -1151,11 +1151,6 @@ type victorOpsMessage struct {
 	MonitoringTool    string `json:"monitoring_tool"`
 }
 
-type victorOpsErrorResponse struct {
-	Result  string `json:"result"`
-	Message string `json:"message"`
-}
-
 // Notify implements the Notifier interface.
 func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	victorOpsAllowedEvents := map[string]bool{

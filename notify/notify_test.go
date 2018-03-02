@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
@@ -73,14 +71,6 @@ func (l *testNflog) GC() (int, error) {
 
 func (l *testNflog) Snapshot(w io.Writer) (int, error) {
 	return 0, nil
-}
-
-func mustTimestampProto(ts time.Time) *timestamp.Timestamp {
-	tspb, err := ptypes.TimestampProto(ts)
-	if err != nil {
-		panic(err)
-	}
-	return tspb
 }
 
 func alertHashSet(hashes ...uint64) map[uint64]struct{} {

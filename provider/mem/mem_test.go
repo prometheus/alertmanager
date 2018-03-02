@@ -285,15 +285,3 @@ func alertsEqual(a1, a2 *types.Alert) bool {
 	}
 	return a1.Timeout == a2.Timeout
 }
-
-func alertListEqual(a1, a2 []*types.Alert) bool {
-	if len(a1) != len(a2) {
-		return false
-	}
-	for i, a := range a1 {
-		if !alertsEqual(a, a2[i]) {
-			return false
-		}
-	}
-	return true
-}
