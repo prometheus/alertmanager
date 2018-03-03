@@ -340,8 +340,7 @@ func (n *GossipSettleStage) Exec(ctx context.Context, l log.Logger, alerts ...*t
 
 // InhibitStage filters alerts through an inhibition muter.
 type InhibitStage struct {
-	muter  types.Muter
-	marker types.Marker
+	muter types.Muter
 }
 
 // NewInhibitStage return a new InhibitStage.
