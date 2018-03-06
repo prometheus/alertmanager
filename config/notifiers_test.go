@@ -219,6 +219,23 @@ routing_key: ''
 	}
 }
 
+func TestDingTalkAccessTokenIsPresent(t *testing.T) {
+	in := `
+access_token: ''
+`
+	var cfg DingTalkConfig
+	err := yaml.Unmarshal([]byte(in), &cfg)
+
+	expected := "missing DingTalk access token in DingTalk config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func TestPushoverUserKeyIsPresent(t *testing.T) {
 	in := `
 user_key: ''

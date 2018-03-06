@@ -111,6 +111,18 @@ var (
 		AgentID:   `{{ template "wechat.default.agent_id" . }}`,
 	}
 
+	// DefaultDingTalkConfig defines default values for DingTalk configurations.
+	DefaultDingTalkConfig = DingTalkConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		MsgType:     "text",
+		AccessToken: `{{ template "dingtalk.default.access_token" . }}`,
+		Content:     `{{ template "dingtalk.default.content" . }}`,
+		AtMobiles:   []string{},
+		IsAtAll:     false,
+	}
+
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
 	DefaultVictorOpsConfig = VictorOpsConfig{
 		NotifierConfig: NotifierConfig{
@@ -365,6 +377,37 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing Wechat CorpID in Wechat config")
 	}
 	return checkOverflow(c.XXX, "Wechat config")
+}
+
+// DingTalkConfig configures notifications via DingTalk.
+type DingTalkConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	AccessToken Secret `yaml:"access_token,omitempty" json:"access_token,omitempty"`
+	MsgType     string `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+	APIURL      string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Content     string `yaml:"content,omitempty" json:"content,omitempty"`
+	IsAtAll     bool   `yaml:"isAtAll,omitempty" json:"isAtAll,omitempty"`
+	// AtMobiles separated by comma
+	AtMobiles []string `yaml:"atMobiles,omitempty" json:"atMobiles,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *DingTalkConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultDingTalkConfig
+	type plain DingTalkConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.AccessToken == "" {
+		return fmt.Errorf("missing DingTalk access token in DingTalk config")
+	}
+	return checkOverflow(c.XXX, "DingTalk config")
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
