@@ -122,6 +122,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		n := NewWechat(c, tmpl, logger)
 		add("wechat", i, n, c)
 	}
+	for i, c := range nc.DingTalkConfigs {
+		n := NewDingTalk(c, tmpl, logger)
+		add("dingtalk", i, n, c)
+	}
 	for i, c := range nc.SlackConfigs {
 		n := NewSlack(c, tmpl, logger)
 		add("slack", i, n, c)
@@ -974,6 +978,108 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 		return false, errors.New(weResp.Error)
 	}
+}
+
+type DingTalk struct {
+	conf   *config.DingTalkConfig
+	tmpl   *template.Template
+	logger log.Logger
+}
+
+type DingTalkMessage struct {
+	MsgType string                 `json:"msgtype"`
+	Text    DingTalkMessageContent `json:"text"`
+	At      DingTalkAt             `json:"at"`
+}
+type DingTalkMessageContent struct {
+	Content string `yaml:"content" json:"content"`
+}
+type DingTalkAt struct {
+	IsAtAll   bool     `yaml:"isAtAll" json:"isAtAll"`
+	AtMobiles []string `yaml:"atMobiles" json:"atMobiles"`
+}
+type DingTalkResponse struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+}
+
+// NewDingTalk returns a new DingTalk notifier.
+func NewDingTalk(c *config.DingTalkConfig, t *template.Template, l log.Logger) *DingTalk {
+	return &DingTalk{conf: c, tmpl: t, logger: l}
+}
+
+// Notify implements the Notifier interface.
+func (n *DingTalk) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	req, err := n.createRequest(ctx, as...)
+	if err != nil {
+		return false, err
+	}
+
+	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Do(ctx, c, req)
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
+
+	key, _ := GroupKey(ctx)
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
+
+	if resp.StatusCode != 200 {
+		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+	var dingtalkResp DingTalkResponse
+	if err := json.Unmarshal(body, &dingtalkResp); err != nil {
+		return true, err
+	}
+
+	// https://open-doc.dingtalk.com/docs/doc.htm?spm=a219a.7629140.0.0.2aYysA&treeId=257&articleId=105735&docType=1
+	if dingtalkResp.ErrCode == 0 {
+		return false, nil
+	}
+
+	return false, errors.New(dingtalkResp.ErrMsg)
+}
+
+func (n *DingTalk) createRequest(ctx context.Context, as ...*types.Alert) (*http.Request, error) {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return nil, fmt.Errorf("group key missing")
+	}
+	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+
+	level.Debug(n.logger).Log("msg", "Notifying DingTalk", "incident", key)
+
+	var err error
+	tmpl := tmplText(n.tmpl, data, &err)
+	if err != nil {
+		return nil, err
+	}
+
+	msg := &DingTalkMessage{
+		Text: DingTalkMessageContent{
+			Content: tmpl(n.conf.Content),
+		},
+		MsgType: n.conf.MsgType,
+		At: DingTalkAt{
+			IsAtAll:   n.conf.IsAtAll,
+			AtMobiles: n.conf.AtMobiles,
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return nil, err
+	}
+
+	postMessageURL := n.conf.APIURL + "?access_token=" + string(n.conf.AccessToken)
+	return http.NewRequest(http.MethodPost, postMessageURL, &buf)
 }
 
 // OpsGenie implements a Notifier for OpsGenie notifications.

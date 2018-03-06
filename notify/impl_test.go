@@ -312,3 +312,65 @@ func TestWechat(t *testing.T) {
 	require.False(t, retry)
 	require.Error(t, err)
 }
+
+func TestDingTalk(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+
+	conf := &config.DingTalkConfig{
+		NotifierConfig: config.NotifierConfig{
+			VSendResolved: true,
+		},
+		Content:     `{{ template "dingtalk.default.message" . }}`,
+		APIURL:      config.DefaultGlobalConfig.DingTalkAPIURL,
+		IsAtAll:     false,
+		AtMobiles:   []string{},
+		AccessToken: "access_token",
+		MsgType:     "text",
+
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+	notifier := NewDingTalk(conf, tmpl, logger)
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "1")
+
+	expectedUrl, _ := url.Parse(config.DefaultGlobalConfig.DingTalkAPIURL + "?access_token=access_token")
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message":     "message",
+				"Description": "description",
+				"Source":      "http://prometheus",
+				"Teams":       "TeamA,TeamB,",
+				"Tags":        "tag1,tag2",
+				"Note":        "this is a note",
+				"Priotity":    "P1",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	expectedBody := `{"msgtype":"text","text":{"content":""},"at":{"isAtAll":false,"atMobiles":[]}}
+`
+	req, err := notifier.createRequest(ctx, alert)
+	require.NoError(t, err)
+	require.Equal(t, expectedUrl, req.URL)
+	realBody := readBody(t, req)
+	// t.Error(realBody)
+	require.Equal(t, expectedBody, realBody)
+
+	// miss group key
+	retry, err := notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
+
+	ctx = WithGroupKey(ctx, "2")
+
+	// invalid secret
+	retry, err = notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
+}

@@ -291,6 +291,20 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				wcc.APIURL += "/"
 			}
 		}
+		for _, drc := range rcv.DingTalkConfigs {
+			if drc.APIURL == "" {
+				if c.Global.DingTalkAPIURL == "" {
+					return fmt.Errorf("no global DingTalk APIURL set")
+				}
+				drc.APIURL = c.Global.DingTalkAPIURL
+			}
+			if drc.AccessToken == "" {
+				if c.Global.DingTalkAuthToken == "" {
+					return fmt.Errorf("no global DingTalk AccessToken set")
+				}
+				drc.AccessToken = c.Global.DingTalkAuthToken
+			}
+		}
 		for _, voc := range rcv.VictorOpsConfigs {
 			if voc.HTTPConfig == nil {
 				voc.HTTPConfig = c.Global.HTTPConfig
@@ -361,6 +375,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	HipchatAPIURL:   "https://api.hipchat.com/",
 	OpsGenieAPIURL:  "https://api.opsgenie.com/",
 	WeChatAPIURL:    "https://qyapi.weixin.qq.com/cgi-bin/",
+	DingTalkAPIURL:  "https://oapi.dingtalk.com/robot/send",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
 }
 
@@ -373,25 +388,27 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	SMTPFrom         string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello        string `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost    string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS   bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL      Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	HipchatAPIURL    string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
-	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
-	OpsGenieAPIURL   string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey   Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	WeChatAPIURL     string `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret  Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	SMTPFrom          string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello         string `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost     string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername  string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword  Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret    Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity  string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS    bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
+	SlackAPIURL       Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	PagerdutyURL      string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	HipchatAPIURL     string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
+	HipchatAuthToken  Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
+	OpsGenieAPIURL    string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey    Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	WeChatAPIURL      string `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret   Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID   string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	DingTalkAPIURL    string `yaml:"dingtalk_api_url,omitempty" json:"dingtalk_api_url,omitempty"`
+	DingTalkAuthToken Secret `yaml:"dingtalk_access_token,omitempty" json:"dingtalk_access_token,omitempty"`
+	VictorOpsAPIURL   string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey   Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -533,6 +550,7 @@ type Receiver struct {
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	DingTalkConfigs  []*DingTalkConfig  `yaml:"dingtalk_configs,omitempty" json:"dingtalk_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 

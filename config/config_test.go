@@ -330,6 +330,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			PagerdutyURL:     "https://events.pagerduty.com/v2/enqueue",
 			OpsGenieAPIURL:   "https://api.opsgenie.com/",
 			WeChatAPIURL:     "https://qyapi.weixin.qq.com/cgi-bin/",
+			DingTalkAPIURL:   "https://oapi.dingtalk.com/robot/send",
 			VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
 		},
 
