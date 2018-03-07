@@ -1,0 +1,305 @@
+// Copyright 2018 The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package cli
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"time"
+
+	"github.com/prometheus/client_golang/api"
+
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
+)
+
+const (
+	apiPrefix = "/api/v1"
+
+	epStatus      = apiPrefix + "/status"
+	epSilence     = apiPrefix + "/silence/:id"
+	epSilences    = apiPrefix + "/silences"
+	epAlerts      = apiPrefix + "/alerts"
+	epAlertGroups = apiPrefix + "/alerts/groups"
+
+	statusSuccess = "success"
+	statusError   = "error"
+)
+
+// ServerStatus represents the status of the AlertManager endpoint.
+type ServerStatus struct {
+	ConfigYAML    string            `json:"configYAML"`
+	ConfigJSON    *config.Config    `json:"configJSON"`
+	VersionInfo   map[string]string `json:"versionInfo"`
+	Uptime        time.Time         `json:"uptime"`
+	ClusterStatus *ClusterStatus    `json:"clusterStatus"`
+}
+
+// PeerStatus represents the status of a peer in the cluster.
+type PeerStatus struct {
+	Name    string `json:"name"`
+	Address string `json:"address"`
+}
+
+// ClusterStatus represents the status of the cluster.
+type ClusterStatus struct {
+	Name   string       `json:"name"`
+	Status string       `json:"status"`
+	Peers  []PeerStatus `json:"peers"`
+}
+
+// apiClient wraps a regular client and processes successful API responses.
+// Successful also includes responses that errored at the API level.
+type apiClient struct {
+	api.Client
+}
+
+type apiResponse struct {
+	Status    string          `json:"status"`
+	Data      json.RawMessage `json:"data,omitempty"`
+	ErrorType string          `json:"errorType,omitempty"`
+	Error     string          `json:"error,omitempty"`
+}
+
+type clientError struct {
+	code int
+	msg  string
+}
+
+func (e *clientError) Error() string {
+	return fmt.Sprintf("%s (code: %d)", e.msg, e.code)
+}
+
+func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	resp, body, err := c.Client.Do(ctx, req)
+	if err != nil {
+		return resp, body, err
+	}
+
+	code := resp.StatusCode
+
+	var result apiResponse
+	if err = json.Unmarshal(body, &result); err != nil {
+		// Pass the returned body rather than the JSON error because some API
+		// endpoints return plain text instead of JSON payload.
+		return resp, body, &clientError{
+			code: code,
+			msg:  string(body),
+		}
+	}
+
+	if (code/100 == 2) && (result.Status != statusSuccess) {
+		return resp, body, &clientError{
+			code: code,
+			msg:  "inconsistent body for response code",
+		}
+	}
+
+	if result.Status == statusError {
+		err = &clientError{
+			code: code,
+			msg:  result.Error,
+		}
+	}
+
+	return resp, []byte(result.Data), err
+}
+
+// StatusAPI provides bindings for the Alertmanager's status API.
+type StatusAPI interface {
+	// Get returns the server's configuration, version, uptime and cluster information.
+	Get(ctx context.Context) (*ServerStatus, error)
+}
+
+// NewStatusAPI returns a status API client.
+func NewStatusAPI(c api.Client) StatusAPI {
+	return &httpStatusAPI{client: apiClient{c}}
+}
+
+type httpStatusAPI struct {
+	client api.Client
+}
+
+func (h *httpStatusAPI) Get(ctx context.Context) (*ServerStatus, error) {
+	u := h.client.URL(epStatus, nil)
+
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var ss *ServerStatus
+	err = json.Unmarshal(body, &ss)
+
+	return ss, err
+}
+
+// AlertAPI provides bindings for the Alertmanager's alert API.
+type AlertAPI interface {
+	// List returns all the active alerts.
+	List(ctx context.Context) ([]*model.Alert, error)
+	// Push sends a list of alerts to the Alertmanager.
+	Push(ctx context.Context, alerts ...model.Alert) error
+}
+
+// NewAlertAPI returns a new AlertAPI for the client.
+func NewAlertAPI(c api.Client) AlertAPI {
+	return &httpAlertAPI{client: apiClient{c}}
+}
+
+type httpAlertAPI struct {
+	client api.Client
+}
+
+func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
+	u := h.client.URL(epAlerts, nil)
+
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var alts []*model.Alert
+	err = json.Unmarshal(body, &alts)
+
+	return alts, err
+}
+
+func (h *httpAlertAPI) Push(ctx context.Context, alerts ...model.Alert) error {
+	u := h.client.URL(epAlerts, nil)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(&alerts); err != nil {
+		return err
+	}
+
+	req, _ := http.NewRequest(http.MethodPost, u.String(), &buf)
+
+	_, _, err := h.client.Do(ctx, req)
+	return err
+}
+
+// SilenceAPI provides bindings for the Alertmanager's silence API.
+type SilenceAPI interface {
+	// Get returns the silence associated with the given ID.
+	Get(ctx context.Context, id string) (*types.Silence, error)
+	// Set updates or creates the given silence and returns its ID.
+	Set(ctx context.Context, sil types.Silence) (string, error)
+	// Delete deletes the silence with the given ID.
+	Delete(ctx context.Context, id string) error
+	// List returns all the silences.
+	List(ctx context.Context) ([]*types.Silence, error)
+}
+
+// NewSilenceAPI returns a new SilenceAPI for the client.
+func NewSilenceAPI(c api.Client) SilenceAPI {
+	return &httpSilenceAPI{client: apiClient{c}}
+}
+
+type httpSilenceAPI struct {
+	client api.Client
+}
+
+func (h *httpSilenceAPI) Get(ctx context.Context, id string) (*types.Silence, error) {
+	u := h.client.URL(epSilence, map[string]string{
+		"id": id,
+	})
+
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var sil types.Silence
+	err = json.Unmarshal(body, &sil)
+
+	return &sil, err
+}
+
+func (h *httpSilenceAPI) Delete(ctx context.Context, id string) error {
+	u := h.client.URL(epSilence, map[string]string{
+		"id": id,
+	})
+
+	req, _ := http.NewRequest(http.MethodDelete, u.String(), nil)
+
+	_, _, err := h.client.Do(ctx, req)
+	return err
+}
+
+func (h *httpSilenceAPI) Set(ctx context.Context, sil types.Silence) (string, error) {
+	var (
+		u      *url.URL
+		method string
+	)
+
+	var buf bytes.Buffer
+	s := types.Silence{
+		Matchers:  make([]*types.Matcher, len(sil.Matchers)),
+		StartsAt:  sil.StartsAt,
+		EndsAt:    sil.EndsAt,
+		CreatedBy: sil.CreatedBy,
+		Comment:   sil.Comment,
+	}
+	for _, v := range sil.Matchers {
+		s.Matchers = append(s.Matchers, &types.Matcher{Name: string(v.Name), Value: v.Value, IsRegex: v.IsRegex})
+	}
+	if err := json.NewEncoder(&buf).Encode(&s); err != nil {
+		return "", err
+	}
+
+	u = h.client.URL(epSilences, nil)
+	method = http.MethodPost
+
+	req, _ := http.NewRequest(method, u.String(), &buf)
+
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	var res struct {
+		SilenceID string `json:"silenceId"`
+	}
+	err = json.Unmarshal(body, &res)
+
+	return res.SilenceID, err
+}
+
+func (h *httpSilenceAPI) List(ctx context.Context) ([]*types.Silence, error) {
+	u := h.client.URL(epSilences, nil)
+
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var sils []*types.Silence
+	err = json.Unmarshal(body, &sils)
+
+	return sils, err
+}

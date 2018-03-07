@@ -22,18 +22,6 @@ type Config struct {
 	Uptime      time.Time              `json:"uptime"`
 }
 
-type MeshStatus struct {
-	Name     string       `json:"name"`
-	NickName string       `json:"nickName"`
-	Peers    []PeerStatus `json:"peerStatus"`
-}
-
-type PeerStatus struct {
-	Name     string `json:"name"`
-	NickName string `json:"nickName"`
-	UID      uint64 `uid`
-}
-
 type alertmanagerStatusResponse struct {
 	Status    string `json:"status"`
 	Data      Config `json:"data,omitempty"`
