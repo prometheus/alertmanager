@@ -268,6 +268,7 @@ $ amtool silence expire $(amtool silence query -q)
 Amtool allows a config file to specify some options for convenience. The default config file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
 
 An example configfile might look like the following:
+
 ```
 # Define the path that amtool can find your `alertmanager` instance at
 alertmanager.url: "http://localhost:9093"
@@ -288,21 +289,21 @@ output: extended
 
 To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
-`-mesh.*` flags.
+`--cluster.*` flags.
 
-- `--mesh.peer-id` string: mesh peer ID (default "&lt;hardware-mac-address&gt;")
-- `--mesh.listen-address` string: mesh listen address (default "0.0.0.0:6783")
-- `--mesh.nickname` string: mesh peer nickname (default "&lt;machine-hostname&gt;")
-- `--mesh.peer` value: initial peers (repeat flag for each additional peer)
+- `--cluster.listen-address` string: cluster listen address (default "0.0.0.0:9094")
+- `--cluster.advertise-address` string: cluster advertise address
+- `--cluster.peer` value: initial peers (repeat flag for each additional peer)
+- `--cluster.peer-timeout` value: peer timeout period (default "15s")
+- `--cluster.gossip-interval` value: cluster message propagation speed
+  (default "200ms")
+- `--cluster.pushpull-interval` value: lower values will increase
+  convergence speeds at expense of bandwidth (default "1m0s")
+- `--cluster.settle-timeout` value: maximum time to wait for cluster
+  connections to settle before evaluating notifications.
 
-The `mesh.peer-id` flag is used as a unique ID among the peers. It defaults to
-the MAC address, therefore the default value should typically be a good option.
-
-The same applies to the default of the `mesh.nickname` flag, as it defaults to
-the hostname.
-
-The chosen port in the `mesh.listen-address` flag is the port that needs to be
-specified in the `mesh.peer` flag of the other peers.
+The chosen port in the `cluster.listen-address` flag is the port that needs to be
+specified in the `cluster.peer` flag of the other peers.
 
 To start a cluster of three peers on your local machine use `goreman` and the
 Procfile within this repository.
