@@ -14,6 +14,7 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/binary"
 	"fmt"
@@ -29,7 +30,6 @@ import (
 	"syscall"
 	"time"
 
-	"context"
 	"github.com/alecthomas/kingpin"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -120,16 +120,14 @@ func main() {
 		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
 		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
 
-		clusterBindAddr = kingpin.Flag("cluster.listen-address", "listen address for cluster").
+		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster.").
 				Default(defaultClusterAddr).String()
-		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "explicit address to advertise in cluster").String()
+		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
+		peers                = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout          = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
-		gossipInterval       = kingpin.Flag("cluster.gossip-interval", "interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").
-					Default(cluster.DefaultGossipInterval.String()).Duration()
-		pushPullInterval = kingpin.Flag("cluster.pushpull-interval", "interval for gossip state syncs. Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").
-					Default(cluster.DefaultPushPullInterval.String()).Duration()
-		settleTimeout = kingpin.Flag("cluster.settle-timeout", "enable notifications after this duration regardless of meshing settling status.").Default(cluster.DefaultPushPullInterval.String()).Duration()
-		peers         = kingpin.Flag("cluster.peer", "initial peers (may be repeated)").Strings()
+		gossipInterval       = kingpin.Flag("cluster.gossip-interval", "Interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").Default(cluster.DefaultGossipInterval.String()).Duration()
+		pushPullInterval     = kingpin.Flag("cluster.pushpull-interval", "Interval for gossip state syncs. Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").Default(cluster.DefaultPushPullInterval.String()).Duration()
+		settleTimeout        = kingpin.Flag("cluster.settle-timeout", "Maximum time to wait for cluster connections to settle before evaluating notifications.").Default(cluster.DefaultPushPullInterval.String()).Duration()
 	)
 
 	kingpin.Version(version.Print("alertmanager"))
@@ -168,7 +166,7 @@ func main() {
 			cancel()
 			peer.Leave(10 * time.Second)
 		}()
-		go peer.Settle(ctx, *gossipInterval * 10)
+		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
 	stopc := make(chan struct{})
