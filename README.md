@@ -268,6 +268,7 @@ $ amtool silence expire $(amtool silence query -q)
 Amtool allows a config file to specify some options for convenience. The default config file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
 
 An example configfile might look like the following:
+
 ```
 # Define the path that amtool can find your `alertmanager` instance at
 alertmanager.url: "http://localhost:9093"
@@ -298,6 +299,8 @@ be configured to communicate with each other. This is configured using the
   (default "200ms")
 - `--cluster.pushpull-interval` value: lower values will increase
   convergence speeds at expense of bandwidth (default "1m0s")
+- `--cluster.settle-timeout` value: maximum time to wait for cluster
+  connections to settle before evaluating notifications.
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.
