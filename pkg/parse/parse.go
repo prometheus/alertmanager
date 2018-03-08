@@ -53,7 +53,7 @@ func Matcher(s string) (*labels.Matcher, error) {
 func Input(s string) (name, value string, matchType labels.MatchType, err error) {
 	ms := re.FindStringSubmatch(s)
 	if len(ms) < 4 {
-		return "", "", labels.MatchEqual, fmt.Errorf("bad matcher format")
+		return "", "", labels.MatchEqual, fmt.Errorf("bad matcher format: %s", s)
 	}
 
 	var prs bool

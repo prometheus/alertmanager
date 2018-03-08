@@ -94,9 +94,9 @@ func fetchSilences(filter string) ([]types.Silence, error) {
 func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	var filterString = ""
 	if len(*silenceQuery) == 1 {
-		// If we only have one argument then it's possible that the user wants me to assume alertname=<arg>
-		// Attempt to use the parser to pare the argument
-		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets prepend `alertname=` to the front
+		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
+		// assume that the user wants alertname=<arg> and prepend `alertname=`
+		// to the front.
 		_, err := parse.Matcher((*silenceQuery)[0])
 		if err != nil {
 			filterString = fmt.Sprintf("{alertname=%s}", (*silenceQuery)[0])
