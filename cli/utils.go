@@ -27,11 +27,9 @@ func (s ByAlphabetical) Less(i, j int) bool {
 }
 
 func GetAlertmanagerURL(p string) url.URL {
-	return url.URL{
-		Scheme: (*alertmanagerUrl).Scheme,
-		Host:   (*alertmanagerUrl).Host,
-		Path:   path.Join((*alertmanagerUrl).Path, p),
-	}
+	amURL := **alertmanagerUrl
+	amURL.Path = path.Join((*alertmanagerUrl).Path, p)
+	return amURL
 }
 
 // Parse a list of labels (cli arguments)
