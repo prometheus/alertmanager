@@ -355,8 +355,14 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer) *delegate {
 	}, func() float64 {
 		return float64(p.mlist.GetHealthScore())
 	})
+	messagesQueued := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "alertmanager_cluster_messages_queued",
+		Help: "Number of cluster messsages which are queued.",
+	}, func() float64 {
+		return float64(bcast.NumQueued())
+	})
 
-	reg.MustRegister(messagesReceived, messagesReceivedSize, gossipClusterMembers, peerPosition, healthScore)
+	reg.MustRegister(messagesReceived, messagesReceivedSize, gossipClusterMembers, peerPosition, healthScore, messagesQueued)
 
 	return &delegate{
 		logger:               l,
@@ -387,7 +393,7 @@ func (d *delegate) NotifyMsg(b []byte) {
 		return
 	}
 	if err := s.Merge(p.Data); err != nil {
-		level.Warn(d.logger).Log("msg", "merge broadcast", "err", err)
+		level.Warn(d.logger).Log("msg", "merge broadcast", "err", err, "key", p.Key)
 		return
 	}
 }
@@ -405,7 +411,7 @@ func (d *delegate) LocalState(_ bool) []byte {
 	for key, s := range d.states {
 		b, err := s.MarshalBinary()
 		if err != nil {
-			level.Warn(d.logger).Log("msg", "encode local state", "err", err)
+			level.Warn(d.logger).Log("msg", "encode local state", "err", err, "key", key)
 			return nil
 		}
 		all.Parts = append(all.Parts, clusterpb.Part{Key: key, Data: b})
@@ -436,7 +442,7 @@ func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
 			continue
 		}
 		if err := s.Merge(p.Data); err != nil {
-			level.Warn(d.logger).Log("msg", "merge remote state", "err", err)
+			level.Warn(d.logger).Log("msg", "merge remote state", "err", err, "key", p.Key)
 			return
 		}
 	}
