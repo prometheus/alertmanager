@@ -154,8 +154,8 @@ func main() {
 			*clusterAdvertiseAddr,
 			*peers,
 			true,
-			*gossipInterval,
 			*pushPullInterval,
+			*gossipInterval,
 		)
 		if err != nil {
 			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
