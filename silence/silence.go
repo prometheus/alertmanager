@@ -28,7 +28,6 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/pkg/errors"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
@@ -389,7 +388,7 @@ func (s *Silences) setSilence(sil *pb.Silence) error {
 		Silence:   sil,
 		ExpiresAt: sil.EndsAt.Add(s.retention),
 	}
-	b, err := proto.Marshal(msil)
+	b, err := marshalMeshSilence(msil)
 	if err != nil {
 		return err
 	}
@@ -691,7 +690,7 @@ func (s *Silences) Snapshot(w io.Writer) (int64, error) {
 	return io.Copy(w, bytes.NewReader(b))
 }
 
-// MarshalBinary serializes all contents of the notification log.
+// MarshalBinary serializes all silences.
 func (s *Silences) MarshalBinary() ([]byte, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -699,6 +698,7 @@ func (s *Silences) MarshalBinary() ([]byte, error) {
 	return s.st.MarshalBinary()
 }
 
+// Merge merges silence state received from the cluster with the local state.
 func (s *Silences) Merge(b []byte) error {
 	st, err := decodeState(bytes.NewReader(b))
 	if err != nil {
@@ -710,17 +710,6 @@ func (s *Silences) Merge(b []byte) error {
 	for _, e := range st {
 		s.st.merge(e)
 	}
-	return nil
-}
-
-func (s *Silences) MergeSingle(b []byte) error {
-	var e pb.MeshSilence
-	if err := proto.Unmarshal(b, &e); err != nil {
-		return err
-	}
-	s.mtx.Lock()
-	s.st.merge(&e)
-	s.mtx.Unlock()
 	return nil
 }
 
@@ -778,6 +767,14 @@ func decodeState(r io.Reader) (state, error) {
 		return nil, err
 	}
 	return st, nil
+}
+
+func marshalMeshSilence(e *pb.MeshSilence) ([]byte, error) {
+	var buf bytes.Buffer
+	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // replaceFile wraps a file that is moved to another filename on closing.
