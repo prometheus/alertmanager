@@ -212,7 +212,7 @@ stringContents separator =
             |= keepOne (\char -> True)
         , Parser.keep Parser.oneOrMore (\char -> char /= separator && char /= '\\')
         ]
-        |> Parser.repeat Parser.oneOrMore
+        |> Parser.repeat Parser.zeroOrMore
         |> Parser.map (String.join "")
 
 

@@ -155,7 +155,7 @@ parseEndsAt startsAt endsAt =
 validateMatcherForm : MatcherForm -> MatcherForm
 validateMatcherForm { name, value, isRegex } =
     { name = validate stringNotEmpty name
-    , value = validate stringNotEmpty value
+    , value = value
     , isRegex = isRegex
     }
 
