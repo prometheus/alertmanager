@@ -31,9 +31,7 @@ var DefaultRouteOpts = RouteOpts{
 	GroupWait:      30 * time.Second,
 	GroupInterval:  5 * time.Minute,
 	RepeatInterval: 4 * time.Hour,
-	GroupBy: map[model.LabelName]struct{}{
-		model.AlertNameLabel: struct{}{},
-	},
+	GroupBy:        map[model.LabelName]struct{}{},
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
