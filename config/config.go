@@ -356,6 +356,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	ResolveTimeout: model.Duration(5 * time.Minute),
 	HTTPConfig:     &commoncfg.HTTPClientConfig{},
 
+	SMTPHello:       "localhost",
 	SMTPRequireTLS:  true,
 	PagerdutyURL:    "https://events.pagerduty.com/v2/enqueue",
 	HipchatAPIURL:   "https://api.hipchat.com/",
