@@ -148,7 +148,6 @@ func main() {
 
 	var peer *cluster.Peer
 	if *clusterBindAddr != "" {
-		fmt.Println("addrs", *clusterBindAddr, *clusterAdvertiseAddr)
 		peer, err = cluster.Join(log.With(logger, "component", "cluster"), prometheus.DefaultRegisterer,
 			*clusterBindAddr,
 			*clusterAdvertiseAddr,
