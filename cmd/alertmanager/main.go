@@ -120,8 +120,7 @@ func main() {
 		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
 		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
 
-		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster.").
-				Default(defaultClusterAddr).String()
+		clusterBindAddr      = kingpin.Flag("cluster.listen-address", "Listen address for cluster.").Default(defaultClusterAddr).String()
 		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
 		peers                = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
 		peerTimeout          = kingpin.Flag("cluster.peer-timeout", "Time to wait between peers to send notifications.").Default("15s").Duration()
@@ -148,7 +147,7 @@ func main() {
 
 	var peer *cluster.Peer
 	if *clusterBindAddr != "" {
-		fmt.Println("addrs", *clusterBindAddr, *clusterAdvertiseAddr)
+		level.Info(logger).Log("cluster_bind_addr", *clusterBindAddr, "cluster_advertise_addr", *clusterAdvertiseAddr)
 		peer, err = cluster.Join(log.With(logger, "component", "cluster"), prometheus.DefaultRegisterer,
 			*clusterBindAddr,
 			*clusterAdvertiseAddr,
