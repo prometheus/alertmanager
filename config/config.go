@@ -197,6 +197,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.RequireTLS = new(bool)
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
+			if ec.TLSConfig == nil {
+				ec.TLSConfig = c.Global.SMTPTLSConfig
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.HTTPConfig == nil {
@@ -397,6 +400,8 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+
+	SMTPTLSConfig *commoncfg.TLSConfig `yaml:"smtp_tls_config"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
