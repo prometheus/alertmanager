@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/prometheus/client_golang/api"
@@ -250,30 +249,14 @@ func (h *httpSilenceAPI) Delete(ctx context.Context, id string) error {
 }
 
 func (h *httpSilenceAPI) Set(ctx context.Context, sil types.Silence) (string, error) {
-	var (
-		u      *url.URL
-		method string
-	)
+	u := h.client.URL(epSilences, nil)
 
 	var buf bytes.Buffer
-	s := types.Silence{
-		Matchers:  make([]*types.Matcher, len(sil.Matchers)),
-		StartsAt:  sil.StartsAt,
-		EndsAt:    sil.EndsAt,
-		CreatedBy: sil.CreatedBy,
-		Comment:   sil.Comment,
-	}
-	for _, v := range sil.Matchers {
-		s.Matchers = append(s.Matchers, &types.Matcher{Name: string(v.Name), Value: v.Value, IsRegex: v.IsRegex})
-	}
-	if err := json.NewEncoder(&buf).Encode(&s); err != nil {
+	if err := json.NewEncoder(&buf).Encode(&sil); err != nil {
 		return "", err
 	}
 
-	u = h.client.URL(epSilences, nil)
-	method = http.MethodPost
-
-	req, _ := http.NewRequest(method, u.String(), &buf)
+	req, _ := http.NewRequest(http.MethodPost, u.String(), &buf)
 
 	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
