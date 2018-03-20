@@ -705,21 +705,7 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 	for _, m := range matchers {
 		v, prs := sms[m.Name]
 		switch m.Type {
-		case labels.MatchNotRegexp:
-			if string(m.Value) == "^(?:)$" && prs {
-				continue
-			}
-			if !m.Matches(string(v)) {
-				return false
-			}
-		case labels.MatchRegexp:
-			if string(m.Value) == "^(?:)$" && !prs {
-				continue
-			}
-			if !m.Matches(string(v)) {
-				return false
-			}
-		case labels.MatchNotEqual:
+		case labels.MatchNotRegexp, labels.MatchNotEqual:
 			if string(m.Value) == "" && prs {
 				continue
 			}
