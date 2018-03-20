@@ -266,6 +266,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
+			if wcc.HTTPConfig == nil {
+				wcc.HTTPConfig = c.Global.HTTPConfig
+			}
+
 			if wcc.APIURL == "" {
 				if c.Global.WeChatAPIURL == "" {
 					return fmt.Errorf("no global Wechat URL set")
