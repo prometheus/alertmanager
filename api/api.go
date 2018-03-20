@@ -696,10 +696,16 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 		v, prs := sms[m.Name]
 		switch m.Type {
 		case labels.MatchNotEqual, labels.MatchNotRegexp:
+			if string(v) == "" && prs {
+				return true
+			}
 			if !m.Matches(string(v)) {
 				return false
 			}
 		default:
+			if string(v) == "" && !prs {
+				return true
+			}
 			if !prs || !m.Matches(string(v)) {
 				return false
 			}
