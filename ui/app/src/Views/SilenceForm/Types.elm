@@ -204,7 +204,7 @@ fromMatchersAndTime defaultCreator matchers now =
 appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (List Matcher)
 appendMatcher { isRegex, name, value } =
     Result.map2 (::)
-        (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (stringNotEmpty value.value))
+        (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (Ok value.value))
 
 
 filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher

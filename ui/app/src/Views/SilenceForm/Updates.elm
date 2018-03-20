@@ -158,7 +158,7 @@ updateForm msg form =
             let
                 matchers =
                     Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = validate stringNotEmpty matcher.value })
+                        (\matcher -> { matcher | value = matcher.value })
                         form.matchers
             in
                 { form | matchers = matchers }
