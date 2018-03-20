@@ -336,10 +336,10 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-			"checksumSHA1": "eaMsPRNZ92H6cbU80b6ExPCpKKs=",
+			"checksumSHA1": "VvJ7kr3WkRUwMKxzbnxroYVZMmg=",
 			"path": "github.com/prometheus/prometheus/pkg/labels",
-			"revision": "9304179ef7075d54cd60b3a0c5f3ab825179ddc7",
-			"revisionTime": "2017-02-28T08:43:16Z"
+			"revision": "58e2a31db8de12da60783d91d748008daed95159",
+			"revisionTime": "2018-03-15T08:59:19Z"
 		},
 		{
 			"checksumSHA1": "cKNzpMpci3WUAzXpe+tVnBv2cjE=",

@@ -1,3 +1,16 @@
+// Copyright 2017 The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package labels
 
 import (
@@ -14,9 +27,10 @@ const sep = '\xff'
 
 // Well-known label names used by Prometheus components.
 const (
-	MetricName  = "__name__"
-	AlertName   = "alertname"
-	BucketLabel = "le"
+	MetricName   = "__name__"
+	AlertName    = "alertname"
+	BucketLabel  = "le"
+	InstanceName = "instance"
 )
 
 // Label is a key/value pair of strings.
@@ -50,10 +64,12 @@ func (ls Labels) String() string {
 	return b.String()
 }
 
+// MarshalJSON implements json.Marshaler.
 func (ls Labels) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ls.Map())
 }
 
+// UnmarshalJSON implements json.Unmarshaler.
 func (ls *Labels) UnmarshalJSON(b []byte) error {
 	var m map[string]string
 
@@ -94,6 +110,16 @@ func (ls Labels) Get(name string) string {
 		}
 	}
 	return ""
+}
+
+// Has returns true if the label with the given name is present.
+func (ls Labels) Has(name string) bool {
+	for _, l := range ls {
+		if l.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // Equal returns whether the two label sets are equal.
@@ -173,7 +199,7 @@ func Compare(a, b Labels) int {
 	return len(a) - len(b)
 }
 
-// LabelsBuilder allows modifiying Labels.
+// Builder allows modifiying Labels.
 type Builder struct {
 	base Labels
 	del  []string
@@ -216,7 +242,7 @@ func (b *Builder) Set(n, v string) *Builder {
 }
 
 // Labels returns the labels from the builder. If no modifications
-// were made, the originl labels are returned.
+// were made, the original labels are returned.
 func (b *Builder) Labels() Labels {
 	if len(b.del) == 0 && len(b.add) == 0 {
 		return b.base
