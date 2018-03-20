@@ -7,6 +7,22 @@ import Utils.Date
 import Utils.Types exposing (ApiData(..))
 
 
+map : (a -> b) -> ApiData a -> ApiData b
+map fn response =
+    case response of
+        Success value ->
+            Success (fn value)
+
+        Initial ->
+            Initial
+
+        Loading ->
+            Loading
+
+        Failure a ->
+            Failure a
+
+
 withDefault : a -> ApiData a -> a
 withDefault default response =
     case response of

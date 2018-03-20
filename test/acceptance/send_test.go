@@ -33,10 +33,10 @@ func TestMergeAlerts(t *testing.T) {
 	conf := `
 route:
   receiver: "default"
-  group_by: []
+  group_by: [alertname]
   group_wait:      1s
   group_interval:  1s
-  repeat_interval: 0s
+  repeat_interval: 1ms
 
 receivers:
 - name: "default"
@@ -109,10 +109,10 @@ func TestRepeat(t *testing.T) {
 	conf := `
 route:
   receiver: "default"
-  group_by: []
+  group_by: [alertname]
   group_wait:      1s
   group_interval:  1s
-  repeat_interval: 0s
+  repeat_interval: 1ms
 
 receivers:
 - name: "default"
@@ -168,7 +168,7 @@ func TestRetry(t *testing.T) {
 	conf := `
 route:
   receiver: "default"
-  group_by: []
+  group_by: [alertname]
   group_wait:      1s
   group_interval:  1s
   repeat_interval: 3s

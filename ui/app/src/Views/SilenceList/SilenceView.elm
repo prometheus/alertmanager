@@ -13,14 +13,18 @@ import Utils.List
 import Utils.Types exposing (Matcher)
 import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
-import Views.SilenceForm.Types exposing (SilenceFormMsg(NewSilenceFromMatchers))
 import Views.SilenceList.Types exposing (SilenceListMsg(ConfirmDestroySilence, DestroySilence, FetchSilences, MsgForFilterBar))
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
 view : Bool -> Silence -> Html Msg
 view showConfirmationDialog silence =
-    li [ class "align-items-start list-group-item border-0 alert-list-item p-0 mb-4" ]
+    li
+        [ -- speedup rendering in Chrome, because list-group-item className
+          -- creates a new layer in the rendering engine
+          style [ ( "position", "static" ) ]
+        , class "align-items-start list-group-item border-0 p-0 mb-4"
+        ]
         [ div [ class "w-100 mb-2 d-flex align-items-start" ]
             [ case silence.status.state of
                 Active ->
@@ -94,25 +98,29 @@ matcherButton matcher =
 
 editButton : Silence -> Html Msg
 editButton silence =
-    case silence.status.state of
-        -- If the silence is expired, do not edit it, but instead create a new
-        -- one with the old matchers
-        Expired ->
-            a
-                [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels [])
-                ]
-                [ text "Recreate"
-                ]
-
-        _ ->
-            let
-                editUrl =
-                    String.join "/" [ "#/silences", silence.id, "edit" ]
-            in
-                a [ class "btn btn-outline-info border-0", href editUrl ]
-                    [ text "Edit"
+    let
+        matchers =
+            List.map (\s -> ( s.name, s.value )) silence.matchers
+    in
+        case silence.status.state of
+            -- If the silence is expired, do not edit it, but instead create a new
+            -- one with the old matchers
+            Expired ->
+                a
+                    [ class "btn btn-outline-info border-0"
+                    , href (newSilenceFromAlertLabels matchers)
                     ]
+                    [ text "Recreate"
+                    ]
+
+            _ ->
+                let
+                    editUrl =
+                        String.join "/" [ "#/silences", silence.id, "edit" ]
+                in
+                    a [ class "btn btn-outline-info border-0", href editUrl ]
+                        [ text "Edit"
+                        ]
 
 
 deleteButton : Silence -> Bool -> Html Msg

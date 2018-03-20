@@ -123,15 +123,13 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 	am.confFile = cf
 	am.UpdateConfig(conf)
 
-	am.addr = freeAddress()
-	am.mesh = freeAddress()
-	am.hwaddr = "00:00:00:00:00:01"
-	am.nickname = "1"
+	am.apiAddr = freeAddress()
+	am.clusterAddr = freeAddress()
 
-	t.Logf("AM on %s", am.addr)
+	t.Logf("AM on %s", am.apiAddr)
 
 	client, err := alertmanager.New(alertmanager.Config{
-		Address: fmt.Sprintf("http://%s", am.addr),
+		Address: fmt.Sprintf("http://%s", am.apiAddr),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -169,6 +167,8 @@ func (t *AcceptanceTest) Run() {
 		defer func(am *Alertmanager) {
 			am.Terminate()
 			am.cleanup()
+			t.Logf("stdout:\n%v", am.cmd.Stdout)
+			t.Logf("stderr:\n%v", am.cmd.Stderr)
 		}(am)
 	}
 
@@ -194,11 +194,6 @@ func (t *AcceptanceTest) Run() {
 		report := coll.check()
 		t.Log(report)
 	}
-
-	for _, am := range t.ams {
-		t.Logf("stdout:\n%v", am.cmd.Stdout)
-		t.Logf("stderr:\n%v", am.cmd.Stderr)
-	}
 }
 
 // runActions performs the stored actions at the defined times.
@@ -221,18 +216,35 @@ func (t *AcceptanceTest) runActions() {
 	wg.Wait()
 }
 
+type buffer struct {
+	b   bytes.Buffer
+	mtx sync.Mutex
+}
+
+func (b *buffer) Write(p []byte) (int, error) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *buffer) String() string {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.b.String()
+}
+
 // Alertmanager encapsulates an Alertmanager process and allows
 // declaring alerts being pushed to it at fixed points in time.
 type Alertmanager struct {
 	t    *AcceptanceTest
 	opts *AcceptanceOpts
 
-	addr                   string
-	mesh, hwaddr, nickname string
-	client                 alertmanager.Client
-	cmd                    *exec.Cmd
-	confFile               *os.File
-	dir                    string
+	apiAddr     string
+	clusterAddr string
+	client      alertmanager.Client
+	cmd         *exec.Cmd
+	confFile    *os.File
+	dir         string
 
 	errc chan<- error
 }
@@ -242,15 +254,14 @@ func (am *Alertmanager) Start() {
 	cmd := exec.Command("../../alertmanager",
 		"--config.file", am.confFile.Name(),
 		"--log.level", "debug",
-		"--web.listen-address", am.addr,
+		"--web.listen-address", am.apiAddr,
 		"--storage.path", am.dir,
-		"--mesh.listen-address", am.mesh,
-		"--mesh.peer-id", am.hwaddr,
-		"--mesh.nickname", am.nickname,
+		"--cluster.listen-address", am.clusterAddr,
+		"--cluster.settle-timeout", "0s",
 	)
 
 	if am.cmd == nil {
-		var outb, errb bytes.Buffer
+		var outb, errb buffer
 		cmd.Stdout = &outb
 		cmd.Stderr = &errb
 	} else {
@@ -271,7 +282,7 @@ func (am *Alertmanager) Start() {
 
 	time.Sleep(50 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://%s/status", am.addr))
+		resp, err := http.Get(fmt.Sprintf("http://%s/status", am.apiAddr))
 		if err == nil {
 			_, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
@@ -326,7 +337,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 			return
 		}
 
-		resp, err := http.Post(fmt.Sprintf("http://%s/api/v1/silences", am.addr), "application/json", &buf)
+		resp, err := http.Post(fmt.Sprintf("http://%s/api/v1/silences", am.apiAddr), "application/json", &buf)
 		if err != nil {
 			am.t.Errorf("Error setting silence %v: %s", sil, err)
 			return
@@ -348,14 +359,14 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 			am.t.Errorf("error setting silence %v: %s", sil, err)
 			return
 		}
-		sil.ID = v.Data.SilenceID
+		sil.SetID(v.Data.SilenceID)
 	})
 }
 
 // DelSilence deletes the silence with the sid at the given time.
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
-		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/v1/silence/%s", am.addr, sil.ID), nil)
+		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/v1/silence/%s", am.apiAddr, sil.ID()), nil)
 		if err != nil {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 			return

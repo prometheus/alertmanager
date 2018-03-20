@@ -2,7 +2,7 @@ module Status.Api exposing (getStatus)
 
 import Utils.Api exposing (send, get)
 import Utils.Types exposing (ApiData)
-import Status.Types exposing (StatusResponse, VersionInfo, MeshStatus, MeshPeer, MeshConnection)
+import Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
 import Json.Decode exposing (Decoder, map2, string, field, at, list, int, maybe, bool)
 
 
@@ -29,7 +29,7 @@ decodeData =
         (field "configYAML" string)
         (field "uptime" string)
         (field "versionInfo" decodeVersionInfo)
-        (field "meshStatus" (maybe decodeMeshStatus))
+        (field "clusterStatus" (maybe decodeClusterStatus))
 
 
 decodeVersionInfo : Decoder VersionInfo
@@ -43,27 +43,16 @@ decodeVersionInfo =
         (field "version" string)
 
 
-decodeMeshStatus : Decoder MeshStatus
-decodeMeshStatus =
-    Json.Decode.map4 MeshStatus
+decodeClusterStatus : Decoder ClusterStatus
+decodeClusterStatus =
+    Json.Decode.map3 ClusterStatus
         (field "name" string)
-        (field "nickName" string)
-        (field "peers" (list decodeMeshPeer))
-        (field "connections" (list decodeMeshConnection))
+        (field "status" string)
+        (field "peers" (list decodeClusterPeer))
 
 
-decodeMeshPeer : Decoder MeshPeer
-decodeMeshPeer =
-    Json.Decode.map3 MeshPeer
+decodeClusterPeer : Decoder ClusterPeer
+decodeClusterPeer =
+    Json.Decode.map2 ClusterPeer
         (field "name" string)
-        (field "nickName" string)
-        (field "uid" int)
-
-
-decodeMeshConnection : Decoder MeshConnection
-decodeMeshConnection =
-    Json.Decode.map4 MeshConnection
         (field "address" string)
-        (field "outbound" bool)
-        (field "state" string)
-        (field "info" string)

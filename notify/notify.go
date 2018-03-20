@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -204,6 +205,11 @@ func (f StageFunc) Exec(ctx context.Context, l log.Logger, alerts ...*types.Aler
 	return f(ctx, l, alerts...)
 }
 
+type NotificationLog interface {
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error
+	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
+}
+
 // BuildPipeline builds a map of receivers to Stages.
 func BuildPipeline(
 	confs []*config.Receiver,
@@ -211,23 +217,25 @@ func BuildPipeline(
 	wait func() time.Duration,
 	muter types.Muter,
 	silences *silence.Silences,
-	notificationLog nflog.Log,
+	notificationLog NotificationLog,
 	marker types.Marker,
+	peer *cluster.Peer,
 	logger log.Logger,
 ) RoutingStage {
 	rs := RoutingStage{}
 
+	ms := NewGossipSettleStage(peer)
 	is := NewInhibitStage(muter)
 	ss := NewSilenceStage(silences, marker)
 
 	for _, rc := range confs {
-		rs[rc.Name] = MultiStage{is, ss, createStage(rc, tmpl, wait, notificationLog, logger)}
+		rs[rc.Name] = MultiStage{ms, is, ss, createStage(rc, tmpl, wait, notificationLog, logger)}
 	}
 	return rs
 }
 
 // createStage creates a pipeline of stages for a receiver.
-func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, notificationLog nflog.Log, logger log.Logger) Stage {
+func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, notificationLog NotificationLog, logger log.Logger) Stage {
 	var fs FanoutStage
 	for _, i := range BuildReceiverIntegrations(rc, tmpl, logger) {
 		recv := &nflogpb.Receiver{
@@ -313,10 +321,26 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 	return ctx, alerts, nil
 }
 
+// GossipSettleStage waits until the Gossip has settled to forward alerts.
+type GossipSettleStage struct {
+	peer *cluster.Peer
+}
+
+// NewGossipSettleStage returns a new GossipSettleStage.
+func NewGossipSettleStage(p *cluster.Peer) *GossipSettleStage {
+	return &GossipSettleStage{peer: p}
+}
+
+func (n *GossipSettleStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	if n.peer != nil {
+		n.peer.WaitReady()
+	}
+	return ctx, alerts, nil
+}
+
 // InhibitStage filters alerts through an inhibition muter.
 type InhibitStage struct {
-	muter  types.Muter
-	marker types.Marker
+	muter types.Muter
 }
 
 // NewInhibitStage return a new InhibitStage.
@@ -409,7 +433,7 @@ func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 // DedupStage filters alerts.
 // Filtering happens based on a notification log.
 type DedupStage struct {
-	nflog nflog.Log
+	nflog NotificationLog
 	recv  *nflogpb.Receiver
 
 	now  func() time.Time
@@ -417,7 +441,7 @@ type DedupStage struct {
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(l nflog.Log, recv *nflogpb.Receiver) *DedupStage {
+func NewDedupStage(l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
 		nflog: l,
 		recv:  recv,
@@ -627,12 +651,12 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 // SetNotifiesStage sets the notification information about passed alerts. The
 // passed alerts should have already been sent to the receivers.
 type SetNotifiesStage struct {
-	nflog nflog.Log
+	nflog NotificationLog
 	recv  *nflogpb.Receiver
 }
 
 // NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-func NewSetNotifiesStage(l nflog.Log, recv *nflogpb.Receiver) *SetNotifiesStage {
+func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver) *SetNotifiesStage {
 	return &SetNotifiesStage{
 		nflog: l,
 		recv:  recv,

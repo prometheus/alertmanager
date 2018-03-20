@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	commoncfg "github.com/prometheus/common/config"
 )
 
 var (
@@ -99,16 +101,14 @@ var (
 	// DefaultWechatConfig defines default values for wechat configurations.
 	DefaultWechatConfig = WechatConfig{
 		NotifierConfig: NotifierConfig{
-			VSendResolved: true,
+			VSendResolved: false,
 		},
 		Message:   `{{ template "wechat.default.message" . }}`,
-		APIURL:    `{{ template "wechat.default.api_url" . }}`,
 		APISecret: `{{ template "wechat.default.api_secret" . }}`,
 		ToUser:    `{{ template "wechat.default.to_user" . }}`,
 		ToParty:   `{{ template "wechat.default.to_party" . }}`,
 		ToTag:     `{{ template "wechat.default.to_tag" . }}`,
 		AgentID:   `{{ template "wechat.default.agent_id" . }}`,
-		// TODO: Add a details field with all the alerts.
 	}
 
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
@@ -196,6 +196,8 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	ServiceKey  Secret            `yaml:"service_key,omitempty" json"service_key,omitempty"`
 	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
 	URL         string            `yaml:"url,omitempty" json:"url,omitempty"`
@@ -204,6 +206,7 @@ type PagerdutyConfig struct {
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
 	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
 
@@ -227,6 +230,8 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 // SlackConfig configures notifications via Slack.
 type SlackConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIURL Secret `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
@@ -265,6 +270,8 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type HipchatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	APIURL        string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
 	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
@@ -295,6 +302,8 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
 	URL string `yaml:"url" json:"url"`
@@ -328,7 +337,9 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type WechatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APISecret string `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APISecret Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
 	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
 	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
 	APIURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
@@ -361,6 +372,8 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type OpsGenieConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	APIKey      Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	APIURL      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
@@ -389,6 +402,8 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 // VictorOpsConfig configures notifications via VictorOps.
 type VictorOpsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIKey            Secret `yaml:"api_key" json:"api_key"`
 	APIURL            string `yaml:"api_url" json:"api_url"`
@@ -430,6 +445,8 @@ func (d duration) MarshalText() ([]byte, error) {
 
 type PushoverConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	UserKey  Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
 	Token    Secret   `yaml:"token,omitempty" json:"token,omitempty"`

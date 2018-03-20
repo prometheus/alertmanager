@@ -2,14 +2,25 @@ package notify
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/context"
+
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
+	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 )
 
 func TestWebhookRetry(t *testing.T) {
-	notifier := new(Webhook)
+	notifier := &Webhook{conf: &config.WebhookConfig{URL: "http://example.com/"}}
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
@@ -53,14 +64,6 @@ func TestHipchatRetry(t *testing.T) {
 	}
 }
 
-func TestWechatRetry(t *testing.T) {
-	notifier := new(Wechat)
-	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
-	for statusCode, expected := range retryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
-	}
-}
 func TestOpsGenieRetry(t *testing.T) {
 	notifier := new(OpsGenie)
 
@@ -180,4 +183,132 @@ func defaultRetryCodes() []int {
 		http.StatusNotExtended,
 		http.StatusNetworkAuthenticationRequired,
 	}
+}
+
+func createTmpl(t *testing.T) *template.Template {
+	tmpl, err := template.FromGlobs()
+	require.NoError(t, err)
+	tmpl.ExternalURL, _ = url.Parse("http://am")
+	return tmpl
+}
+
+func readBody(t *testing.T, r *http.Request) string {
+	body, err := ioutil.ReadAll(r.Body)
+	require.NoError(t, err)
+	return string(body)
+}
+
+func TestOpsGenie(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+	conf := &config.OpsGenieConfig{
+		NotifierConfig: config.NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:     `{{ .CommonLabels.Message }}`,
+		Description: `{{ .CommonLabels.Description }}`,
+		Source:      `{{ .CommonLabels.Source }}`,
+		Teams:       `{{ .CommonLabels.Teams }}`,
+		Tags:        `{{ .CommonLabels.Tags }}`,
+		Note:        `{{ .CommonLabels.Note }}`,
+		Priority:    `{{ .CommonLabels.Priority }}`,
+		APIKey:      `s3cr3t`,
+		APIURL:      `https://opsgenie/api`,
+	}
+	notifier := NewOpsGenie(conf, tmpl, logger)
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "1")
+
+	expectedUrl, _ := url.Parse("https://opsgenie/apiv2/alerts")
+
+	// Empty alert.
+	alert1 := &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+	expectedBody := `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{},"source":""}
+`
+	req, retry, err := notifier.createRequest(ctx, alert1)
+	require.NoError(t, err)
+	require.Equal(t, true, retry)
+	require.Equal(t, expectedUrl, req.URL)
+	require.Equal(t, "GenieKey s3cr3t", req.Header.Get("Authorization"))
+	require.Equal(t, expectedBody, readBody(t, req))
+
+	// Fully defined alert.
+	alert2 := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message":     "message",
+				"Description": "description",
+				"Source":      "http://prometheus",
+				"Teams":       "TeamA,TeamB,",
+				"Tags":        "tag1,tag2",
+				"Note":        "this is a note",
+				"Priotity":    "P1",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+	expectedBody = `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{},"source":"http://prometheus","teams":[{"name":"TeamA"},{"name":"TeamB"}],"tags":["tag1","tag2"],"note":"this is a note"}
+`
+	req, retry, err = notifier.createRequest(ctx, alert2)
+	require.NoError(t, err)
+	require.Equal(t, true, retry)
+	require.Equal(t, expectedBody, readBody(t, req))
+}
+
+func TestWechat(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+
+	conf := &config.WechatConfig{
+		NotifierConfig: config.NotifierConfig{
+			VSendResolved: true,
+		},
+		Message: `{{ template "wechat.default.message" . }}`,
+		APIURL:  config.DefaultGlobalConfig.WeChatAPIURL,
+
+		APISecret: "invalidSecret",
+		CorpID:    "invalidCorpID",
+		AgentID:   "1",
+		ToUser:    "admin",
+
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+	notifier := NewWechat(conf, tmpl, logger)
+
+	ctx := context.Background()
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message":     "message",
+				"Description": "description",
+				"Source":      "http://prometheus",
+				"Teams":       "TeamA,TeamB,",
+				"Tags":        "tag1,tag2",
+				"Note":        "this is a note",
+				"Priotity":    "P1",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	// miss group key
+	retry, err := notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
+
+	ctx = WithGroupKey(ctx, "2")
+
+	// invalid secret
+	retry, err = notifier.Notify(ctx, alert)
+	require.False(t, retry)
+	require.Error(t, err)
 }

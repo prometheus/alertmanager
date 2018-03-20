@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 )
@@ -159,6 +160,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if _, ok := names[rcv.Name]; ok {
 			return fmt.Errorf("notification config name %q is not unique", rcv.Name)
 		}
+		for _, wh := range rcv.WebhookConfigs {
+			if wh.HTTPConfig == nil {
+				wh.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
 		for _, ec := range rcv.EmailConfigs {
 			if ec.Smarthost == "" {
 				if c.Global.SMTPSmarthost == "" {
@@ -197,6 +203,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, sc := range rcv.SlackConfigs {
+			if sc.HTTPConfig == nil {
+				sc.HTTPConfig = c.Global.HTTPConfig
+			}
 			if sc.APIURL == "" {
 				if c.Global.SlackAPIURL == "" {
 					return fmt.Errorf("no global Slack API URL set")
@@ -205,6 +214,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, hc := range rcv.HipchatConfigs {
+			if hc.HTTPConfig == nil {
+				hc.HTTPConfig = c.Global.HTTPConfig
+			}
 			if hc.APIURL == "" {
 				if c.Global.HipchatAPIURL == "" {
 					return fmt.Errorf("no global Hipchat API URL set")
@@ -221,7 +233,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				hc.AuthToken = c.Global.HipchatAuthToken
 			}
 		}
+		for _, poc := range rcv.PushoverConfigs {
+			if poc.HTTPConfig == nil {
+				poc.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
 		for _, pdc := range rcv.PagerdutyConfigs {
+			if pdc.HTTPConfig == nil {
+				pdc.HTTPConfig = c.Global.HTTPConfig
+			}
 			if pdc.URL == "" {
 				if c.Global.PagerdutyURL == "" {
 					return fmt.Errorf("no global PagerDuty URL set")
@@ -230,6 +250,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
+			if ogc.HTTPConfig == nil {
+				ogc.HTTPConfig = c.Global.HTTPConfig
+			}
 			if ogc.APIURL == "" {
 				if c.Global.OpsGenieAPIURL == "" {
 					return fmt.Errorf("no global OpsGenie URL set")
@@ -247,29 +270,35 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
-			wcc.APIURL = c.Global.WeChatAPIURL
 			if wcc.APIURL == "" {
 				if c.Global.WeChatAPIURL == "" {
 					return fmt.Errorf("no global Wechat URL set")
 				}
+				wcc.APIURL = c.Global.WeChatAPIURL
 			}
-			wcc.APISecret = c.Global.WeChatAPISecret
+
 			if wcc.APISecret == "" {
 				if c.Global.WeChatAPISecret == "" {
 					return fmt.Errorf("no global Wechat ApiSecret set")
 				}
+				wcc.APISecret = c.Global.WeChatAPISecret
 			}
+
 			if wcc.CorpID == "" {
 				if c.Global.WeChatAPICorpID == "" {
 					return fmt.Errorf("no global Wechat CorpID set")
 				}
 				wcc.CorpID = c.Global.WeChatAPICorpID
 			}
+
 			if !strings.HasSuffix(wcc.APIURL, "/") {
 				wcc.APIURL += "/"
 			}
 		}
 		for _, voc := range rcv.VictorOpsConfigs {
+			if voc.HTTPConfig == nil {
+				voc.HTTPConfig = c.Global.HTTPConfig
+			}
 			if voc.APIURL == "" {
 				if c.Global.VictorOpsAPIURL == "" {
 					return fmt.Errorf("no global VictorOps URL set")
@@ -329,7 +358,9 @@ func checkReceiver(r *Route, receivers map[string]struct{}) error {
 // DefaultGlobalConfig provides global default values.
 var DefaultGlobalConfig = GlobalConfig{
 	ResolveTimeout: model.Duration(5 * time.Minute),
+	HTTPConfig:     &commoncfg.HTTPClientConfig{},
 
+  SMTPHello:          "localhost",
 	SMTPRequireTLS:     true,
 	InsecureSkipVerify: false,
 	PagerdutyURL:       "https://events.pagerduty.com/v2/enqueue",
@@ -346,6 +377,8 @@ type GlobalConfig struct {
 	// if it has not been updated.
 	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
 	SMTPFrom           string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello          string `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost      string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
@@ -354,7 +387,7 @@ type GlobalConfig struct {
 	SMTPAuthSecret     Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthIdentity   string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS     bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
-	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify,omitempty"`
+  InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify,omitempty"`
 	SlackAPIURL        Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	PagerdutyURL       string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	HipchatAPIURL      string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
@@ -362,7 +395,7 @@ type GlobalConfig struct {
 	OpsGenieAPIURL     string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey     Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
 	WeChatAPIURL       string `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret    string `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPISecret    Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID    string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL    string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey    Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
@@ -425,6 +458,13 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return fmt.Errorf("duplicated label %q in group_by", ln)
 		}
 		groupBy[ln] = struct{}{}
+	}
+
+	if r.GroupInterval != nil && time.Duration(*r.GroupInterval) == time.Duration(0) {
+		return fmt.Errorf("group_interval cannot be zero")
+	}
+	if r.RepeatInterval != nil && time.Duration(*r.RepeatInterval) == time.Duration(0) {
+		return fmt.Errorf("repeat_interval cannot be zero")
 	}
 
 	return checkOverflow(r.XXX, "route")

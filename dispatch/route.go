@@ -31,9 +31,7 @@ var DefaultRouteOpts = RouteOpts{
 	GroupWait:      30 * time.Second,
 	GroupInterval:  5 * time.Minute,
 	RepeatInterval: 4 * time.Hour,
-	GroupBy: map[model.LabelName]struct{}{
-		model.AlertNameLabel: struct{}{},
-	},
+	GroupBy:        map[model.LabelName]struct{}{},
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -154,14 +152,14 @@ func (r *Route) Key() string {
 // RouteOpts holds various routing options necessary for processing alerts
 // that match a given route.
 type RouteOpts struct {
-	// The identifier of the associated notification configuration
+	// The identifier of the associated notification configuration.
 	Receiver string
 
 	// What labels to group alerts by for notifications.
 	GroupBy map[model.LabelName]struct{}
 
 	// How long to wait to group matching alerts before sending
-	// a notificaiton
+	// a notification.
 	GroupWait      time.Duration
 	GroupInterval  time.Duration
 	RepeatInterval time.Duration
