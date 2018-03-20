@@ -496,6 +496,8 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		validationErrs = &types.MultiError{}
 	)
 	for _, a := range alerts {
+		removeEmptyLabels(a.Labels)
+
 		if err := a.Validate(); err != nil {
 			validationErrs.Add(err)
 			numInvalidAlerts.Inc()
@@ -520,6 +522,14 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	}
 
 	api.respond(w, nil)
+}
+
+func removeEmptyLabels(ls model.LabelSet) {
+	for k, v := range ls {
+		if string(v) == "" {
+			delete(ls, k)
+		}
+	}
 }
 
 func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
