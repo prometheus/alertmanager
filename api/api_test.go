@@ -312,6 +312,38 @@ func TestReceiversMatchFilter(t *testing.T) {
 	require.False(t, receiversMatchFilter(receivers, filter))
 }
 
+func TestMatchFilterLabels(t *testing.T) {
+	testCases := []struct {
+		matcher  labels.MatchType
+		expected bool
+	}{
+		{labels.MatchEqual, true},
+		{labels.MatchRegexp, true},
+		{labels.MatchNotEqual, false},
+		{labels.MatchNotRegexp, false},
+	}
+
+	for _, tc := range testCases {
+		l, err := labels.NewMatcher(tc.matcher, "foo", "")
+		require.NoError(t, err)
+		sms := map[string]string{
+			"baz": "bar",
+		}
+		ls := []*labels.Matcher{l}
+
+		require.Equal(t, tc.expected, matchFilterLabels(ls, sms))
+
+		l, err = labels.NewMatcher(tc.matcher, "foo", "")
+		require.NoError(t, err)
+		sms = map[string]string{
+			"baz": "bar",
+			"foo": "quux",
+		}
+		ls = []*labels.Matcher{l}
+		require.NotEqual(t, tc.expected, matchFilterLabels(ls, sms))
+	}
+}
+
 func newMatcher(labelSet model.LabelSet) types.Matchers {
 	matchers := make([]*types.Matcher, 0, len(labelSet))
 	for key, val := range labelSet {

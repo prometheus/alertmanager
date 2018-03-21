@@ -496,6 +496,8 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		validationErrs = &types.MultiError{}
 	)
 	for _, a := range alerts {
+		removeEmptyLabels(a.Labels)
+
 		if err := a.Validate(); err != nil {
 			validationErrs.Add(err)
 			numInvalidAlerts.Inc()
@@ -520,6 +522,14 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	}
 
 	api.respond(w, nil)
+}
+
+func removeEmptyLabels(ls model.LabelSet) {
+	for k, v := range ls {
+		if string(v) == "" {
+			delete(ls, k)
+		}
+	}
 }
 
 func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
@@ -695,11 +705,17 @@ func matchFilterLabels(matchers []*labels.Matcher, sms map[string]string) bool {
 	for _, m := range matchers {
 		v, prs := sms[m.Name]
 		switch m.Type {
-		case labels.MatchNotEqual, labels.MatchNotRegexp:
+		case labels.MatchNotRegexp, labels.MatchNotEqual:
+			if string(m.Value) == "" && prs {
+				continue
+			}
 			if !m.Matches(string(v)) {
 				return false
 			}
 		default:
+			if string(m.Value) == "" && !prs {
+				continue
+			}
 			if !prs || !m.Matches(string(v)) {
 				return false
 			}

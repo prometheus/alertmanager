@@ -101,6 +101,14 @@ func TestMatchers(t *testing.T) {
 				return append(ms, m, m2)
 			}(),
 		},
+		{
+			input: `{foo=""}`,
+			want: func() []*labels.Matcher {
+				ms := []*labels.Matcher{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+				return append(ms, m)
+			}(),
+		},
 	}
 
 	for i, tc := range testCases {

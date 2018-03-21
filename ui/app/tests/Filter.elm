@@ -13,6 +13,9 @@ parseMatcher =
         [ test "should parse empty matcher string" <|
             \() ->
                 Expect.equal Nothing (Utils.Filter.parseMatcher "")
+        , test "should parse empty matcher value" <|
+            \() ->
+                Expect.equal (Just (Matcher "alertname" Eq "")) (Utils.Filter.parseMatcher "alertname=\"\"")
         , fuzz (tuple ( string, string )) "should parse random matcher string" <|
             \( key, value ) ->
                 if List.map isNotEmptyTrimmedAlphabetWord [ key, value ] /= [ True, True ] then

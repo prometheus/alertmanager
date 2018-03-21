@@ -155,7 +155,7 @@ parseEndsAt startsAt endsAt =
 validateMatcherForm : MatcherForm -> MatcherForm
 validateMatcherForm { name, value, isRegex } =
     { name = validate stringNotEmpty name
-    , value = validate stringNotEmpty value
+    , value = value
     , isRegex = isRegex
     }
 
@@ -204,7 +204,7 @@ fromMatchersAndTime defaultCreator matchers now =
 appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (List Matcher)
 appendMatcher { isRegex, name, value } =
     Result.map2 (::)
-        (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (stringNotEmpty value.value))
+        (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (Ok value.value))
 
 
 filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher
