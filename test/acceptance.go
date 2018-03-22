@@ -28,9 +28,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/api/alertmanager"
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
+
+	"github.com/prometheus/alertmanager/cli"
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected
@@ -128,7 +130,7 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 
 	t.Logf("AM on %s", am.apiAddr)
 
-	client, err := alertmanager.New(alertmanager.Config{
+	client, err := api.NewClient(api.Config{
 		Address: fmt.Sprintf("http://%s", am.apiAddr),
 	})
 	if err != nil {
@@ -241,7 +243,7 @@ type Alertmanager struct {
 
 	apiAddr     string
 	clusterAddr string
-	client      alertmanager.Client
+	client      api.Client
 	cmd         *exec.Cmd
 	confFile    *os.File
 	dir         string
@@ -314,12 +316,12 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var nas model.Alerts
+	var nas []model.Alert
 	for _, a := range alerts {
-		nas = append(nas, a.nativeAlert(am.opts))
+		nas = append(nas, *(a.nativeAlert(am.opts)))
 	}
 
-	alertAPI := alertmanager.NewAlertAPI(am.client)
+	alertAPI := cli.NewAlertAPI(am.client)
 
 	am.t.Do(at, func() {
 		if err := alertAPI.Push(context.Background(), nas...); err != nil {
