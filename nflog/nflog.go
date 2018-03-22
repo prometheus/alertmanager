@@ -29,7 +29,6 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -251,6 +250,14 @@ func decodeState(r io.Reader) (state, error) {
 	return st, nil
 }
 
+func marshalMeshEntry(e *pb.MeshEntry) ([]byte, error) {
+	var buf bytes.Buffer
+	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 // New creates a new notification log based on the provided options.
 // The snapshot is loaded into the Log if it is set.
 func New(opts ...Option) (*Log, error) {
@@ -382,7 +389,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 		ExpiresAt: now.Add(l.retention),
 	}
 
-	b, err := proto.Marshal(e)
+	b, err := marshalMeshEntry(e)
 	if err != nil {
 		return err
 	}
@@ -489,7 +496,7 @@ func (l *Log) MarshalBinary() ([]byte, error) {
 	return l.st.MarshalBinary()
 }
 
-// Merge serialized silence state into own state.
+// Merge merges notification log state received from the cluster with the local state.
 func (l *Log) Merge(b []byte) error {
 	st, err := decodeState(bytes.NewReader(b))
 	if err != nil {

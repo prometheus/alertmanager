@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
@@ -187,7 +187,8 @@ func TestSilencesSetSilence(t *testing.T) {
 	done := make(chan bool)
 	s.broadcast = func(b []byte) {
 		var e pb.MeshSilence
-		err := proto.Unmarshal(b, &e)
+		r := bytes.NewReader(b)
+		_, err := pbutil.ReadDelimited(r, &e)
 		require.NoError(t, err)
 
 		require.Equal(t, want["some_id"], &e)
