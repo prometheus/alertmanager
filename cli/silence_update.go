@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -23,11 +24,12 @@ type getResponse struct {
 }
 
 var (
-	updateCmd       = silenceCmd.Command("update", "Update silences")
-	updateExpires   = updateCmd.Flag("expires", "Duration of silence").Short('e').Default("1h").String()
-	updateExpiresOn = updateCmd.Flag("expire-on", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00").Time(time.RFC3339)
-	updateComment   = updateCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
-	updateIds       = updateCmd.Arg("update-ids", "Silence IDs to update").Strings()
+	updateCmd      = silenceCmd.Command("update", "Update silences")
+	updateDuration = updateCmd.Flag("duration", "Duration of silence").Short('d').String()
+	updateStart    = updateCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").String()
+	updateEnd      = updateCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").String()
+	updateComment  = updateCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
+	updateIds      = updateCmd.Arg("update-ids", "Silence IDs to update").Strings()
 )
 
 func init() {
@@ -98,20 +100,32 @@ func getSilenceById(silenceId string, baseUrl url.URL) (*types.Silence, error) {
 }
 
 func updateSilence(silence *types.Silence) (*types.Silence, error) {
-	if *updateExpires != "" {
-		duration, err := model.ParseDuration(*updateExpires)
+	var err error
+	if *updateEnd != "" {
+		silence.EndsAt, err = time.Parse(time.RFC3339, *updateEnd)
 		if err != nil {
 			return nil, err
 		}
-		if duration == 0 {
+	} else if *updateDuration != "" {
+		d, err := model.ParseDuration(*updateDuration)
+		if err != nil {
+			return nil, err
+		}
+		if d == 0 {
 			return nil, fmt.Errorf("silence duration must be greater than 0")
 		}
-		silence.EndsAt = time.Now().UTC().Add(time.Duration(duration))
+		silence.EndsAt = silence.EndsAt.UTC().Add(time.Duration(d))
 	}
 
-	// expire-on will override expires value if both are specified
-	if !(*updateExpiresOn).IsZero() {
-		silence.EndsAt = *updateExpiresOn
+	if *updateStart != "" {
+		silence.StartsAt, err = time.Parse(time.RFC3339, *updateStart)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if silence.StartsAt.After(silence.EndsAt) {
+		return nil, errors.New("silence cannot start after it ends")
 	}
 
 	if *updateComment != "" {
@@ -119,7 +133,7 @@ func updateSilence(silence *types.Silence) (*types.Silence, error) {
 	}
 
 	// addSilence can also be used to update an existing silence
-	_, err := addSilence(silence)
+	_, err = addSilence(silence)
 	if err != nil {
 		return nil, err
 	}
