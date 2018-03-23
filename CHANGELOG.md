@@ -1,3 +1,15 @@
+## 0.15.0-rc.1 / 2018-03-22
+
+* [BUGFIX/CHANGE] The default group_by is no labels. (#1287)
+* [FEATURE] Wait for mesh to settle before sending alerts (#1209)
+* [FEATURE] [amtool] Support basic auth in alertmanager url (#1279)
+* [ENHANCEMENT] Sort dispatched alerts by job+instance (#1234)
+* [BUGFIX] Hide sensitive Wechat configuration (#1253)
+* [BUGFIX] Prepopulate matchers when recreating a silence (#1270)
+* [BUGFIX] Fix wechat panic (#1293)
+* [BUGFIX] Allow empty matchers in silences/filtering (#1289)
+* [BUGFIX] Fix gossip broadcast EOF errors (#1286)
+
 ## 0.15.0-rc.0 / 2018-02-28
 
 * [CHANGE] Moved to memberlist as underlying gossip protocol
