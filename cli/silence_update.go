@@ -133,9 +133,10 @@ func updateSilence(silence *types.Silence) (*types.Silence, error) {
 	}
 
 	// addSilence can also be used to update an existing silence
-	_, err = addSilence(silence)
+	newID, err := addSilence(silence)
 	if err != nil {
 		return nil, err
 	}
+	silence.ID = newID
 	return silence, nil
 }
