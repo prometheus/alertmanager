@@ -276,10 +276,16 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-			"checksumSHA1": "KkB+77Ziom7N6RzSbyUwYGrmDeU=",
+			"checksumSHA1": "I87tkF1e/hrl4d/XIKFfkPRq1ww=",
 			"path": "github.com/prometheus/client_golang/prometheus",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"revision": "d49167c4b9f3c4451707560c5c71471ff5291aaa",
+			"revisionTime": "2018-03-19T13:17:21Z"
+		},
+		{
+			"checksumSHA1": "mIWVz1E1QJ6yZnf7ELNwLboyK4w=",
+			"path": "github.com/prometheus/client_golang/prometheus/promhttp",
+			"revision": "d49167c4b9f3c4451707560c5c71471ff5291aaa",
+			"revisionTime": "2018-03-19T13:17:21Z"
 		},
 		{
 			"checksumSHA1": "DvwvOlPNAgRntBzt3b3OSRMS2N4=",
@@ -318,10 +324,10 @@
 			"revisionTime": "2017-10-06T14:14:18Z"
 		},
 		{
-			"checksumSHA1": "9aDxDuzZt1l7FQJ9qpn2kPcF7NU=",
+			"checksumSHA1": "9doPk0x0LONG/idxK61JnZYcxBs=",
 			"path": "github.com/prometheus/common/route",
-			"revision": "1bab55dd05dbff384524a6a1c99006d9eb5f139b",
-			"revisionTime": "2017-10-06T14:14:18Z"
+			"revision": "38c53a9f4bfcd932d1b00bfc65e256a7fba6b37a",
+			"revisionTime": "2018-03-26T16:04:09Z"
 		},
 		{
 			"checksumSHA1": "91KYK0SpvkaMJJA2+BcxbVnyRO0=",

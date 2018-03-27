@@ -28,9 +28,7 @@ ifdef DEBUG
 endif
 
 STATICCHECK_IGNORE = \
-  github.com/prometheus/alertmanager/api/api.go:SA1019 \
-  github.com/prometheus/alertmanager/notify/notify.go:SA6002 \
-  github.com/prometheus/alertmanager/ui/web.go:SA1019
+  github.com/prometheus/alertmanager/notify/notify.go:SA6002
 
 all: format staticcheck build test
 
