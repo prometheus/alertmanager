@@ -101,6 +101,13 @@ func getSilenceById(silenceId string, baseUrl url.URL) (*types.Silence, error) {
 
 func updateSilence(silence *types.Silence) (*types.Silence, error) {
 	var err error
+	if *updateStart != "" {
+		silence.StartsAt, err = time.Parse(time.RFC3339, *updateStart)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if *updateEnd != "" {
 		silence.EndsAt, err = time.Parse(time.RFC3339, *updateEnd)
 		if err != nil {
@@ -114,14 +121,7 @@ func updateSilence(silence *types.Silence) (*types.Silence, error) {
 		if d == 0 {
 			return nil, fmt.Errorf("silence duration must be greater than 0")
 		}
-		silence.EndsAt = silence.EndsAt.UTC().Add(time.Duration(d))
-	}
-
-	if *updateStart != "" {
-		silence.StartsAt, err = time.Parse(time.RFC3339, *updateStart)
-		if err != nil {
-			return nil, err
-		}
+		silence.EndsAt = silence.StartsAt.UTC().Add(time.Duration(d))
 	}
 
 	if silence.StartsAt.After(silence.EndsAt) {
