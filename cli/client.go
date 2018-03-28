@@ -25,7 +25,6 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 )
 
 const (
@@ -154,10 +153,36 @@ func (h *httpStatusAPI) Get(ctx context.Context) (*ServerStatus, error) {
 // AlertAPI provides bindings for the Alertmanager's alert API.
 type AlertAPI interface {
 	// List returns all the active alerts.
-	List(ctx context.Context) ([]*model.Alert, error)
+	List(ctx context.Context) ([]*ExtendedAlert, error)
 	// Push sends a list of alerts to the Alertmanager.
-	Push(ctx context.Context, alerts ...model.Alert) error
+	Push(ctx context.Context, alerts ...Alert) error
 }
+
+// Alert represents an alert as expected by the AlertManager's push alert API.
+type Alert struct {
+	Labels       LabelSet  `json:"labels"`
+	Annotations  LabelSet  `json:"annotations"`
+	StartsAt     time.Time `json:"startsAt,omitempty"`
+	EndsAt       time.Time `json:"endsAt,omitempty"`
+	GeneratorURL string    `json:"generatorURL"`
+}
+
+// ExtendedAlert represents an alert as returned by the AlertManager's list alert API.
+type ExtendedAlert struct {
+	Alert
+	Status      types.AlertStatus `json:"status"`
+	Receivers   []string          `json:"receivers"`
+	Fingerprint string            `json:"fingerprint"`
+}
+
+// LabelSet represents a collection of label names and values as a map.
+type LabelSet map[LabelName]LabelValue
+
+// LabelName represents the name of a label.
+type LabelName string
+
+// LabelValue represents the value of a label.
+type LabelValue string
 
 // NewAlertAPI returns a new AlertAPI for the client.
 func NewAlertAPI(c api.Client) AlertAPI {
@@ -168,7 +193,7 @@ type httpAlertAPI struct {
 	client api.Client
 }
 
-func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
+func (h *httpAlertAPI) List(ctx context.Context) ([]*ExtendedAlert, error) {
 	u := h.client.URL(epAlerts, nil)
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
@@ -178,13 +203,13 @@ func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
 		return nil, err
 	}
 
-	var alts []*model.Alert
+	var alts []*ExtendedAlert
 	err = json.Unmarshal(body, &alts)
 
 	return alts, err
 }
 
-func (h *httpAlertAPI) Push(ctx context.Context, alerts ...model.Alert) error {
+func (h *httpAlertAPI) Push(ctx context.Context, alerts ...Alert) error {
 	u := h.client.URL(epAlerts, nil)
 
 	var buf bytes.Buffer

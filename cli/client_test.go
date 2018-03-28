@@ -24,10 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/common/model"
-
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -104,38 +101,28 @@ func TestAPI(t *testing.T) {
 		return api.Get(context.Background())
 	}
 
-	alerts := []*model.Alert{
-		{
-			StartsAt:    now,
-			EndsAt:      now.Add(time.Duration(5 * time.Minute)),
-			Labels:      model.LabelSet{"label1": "test1"},
-			Annotations: model.LabelSet{"annotation1": "some text"},
-		},
-		{
-			StartsAt:    now,
-			EndsAt:      now.Add(time.Duration(5 * time.Minute)),
-			Labels:      model.LabelSet{"label2": "test2"},
-			Annotations: model.LabelSet{"annotation2": "some text"},
-		},
+	alertOne := Alert{
+		StartsAt:    now,
+		EndsAt:      now.Add(time.Duration(5 * time.Minute)),
+		Labels:      LabelSet{"label1": "test1"},
+		Annotations: LabelSet{"annotation1": "some text"},
 	}
-	alertData := []*dispatch.APIAlert{}
-	for i := range alerts {
-		a := alerts[i]
-		alertData = append(alertData, &dispatch.APIAlert{Alert: a, Fingerprint: a.Fingerprint().String(), Status: types.AlertStatus{State: types.AlertStateActive}})
+	alerts := []*ExtendedAlert{
+		{
+			Alert:       alertOne,
+			Fingerprint: "1c93eec3511dc156",
+			Status: types.AlertStatus{
+				State: types.AlertStateActive,
+			},
+		},
 	}
 	doAlertList := func() (interface{}, error) {
 		api := httpAlertAPI{client: client}
 		return api.List(context.Background())
 	}
-	doAlertPush := func(alerts []*model.Alert) func() (interface{}, error) {
-		als := make([]model.Alert, len(alerts))
-		for _, a := range alerts {
-			als = append(als, *a)
-		}
-		return func() (interface{}, error) {
-			api := httpAlertAPI{client: client}
-			return nil, api.Push(context.Background(), als...)
-		}
+	doAlertPush := func() (interface{}, error) {
+		api := httpAlertAPI{client: client}
+		return nil, api.Push(context.Background(), []Alert{alertOne}...)
 	}
 
 	silOne := &types.Silence{
@@ -201,7 +188,7 @@ func TestAPI(t *testing.T) {
 		{
 			do: doAlertList,
 			apiRes: fakeAPIResponse{
-				res:    alertData,
+				res:    alerts,
 				path:   "/api/v1/alerts",
 				method: http.MethodGet,
 			},
@@ -217,7 +204,7 @@ func TestAPI(t *testing.T) {
 			err: fmt.Errorf("some error"),
 		},
 		{
-			do: doAlertPush(alerts),
+			do: doAlertPush,
 			apiRes: fakeAPIResponse{
 				res:    nil,
 				path:   "/api/v1/alerts",
@@ -226,7 +213,7 @@ func TestAPI(t *testing.T) {
 			res: nil,
 		},
 		{
-			do: doAlertPush(alerts),
+			do: doAlertPush,
 			apiRes: fakeAPIResponse{
 				err:    fmt.Errorf("some error"),
 				path:   "/api/v1/alerts",

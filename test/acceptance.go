@@ -316,16 +316,30 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var nas []model.Alert
-	for _, a := range alerts {
-		nas = append(nas, *(a.nativeAlert(am.opts)))
+	var cas []cli.Alert
+	for i := range alerts {
+		a := alerts[i].nativeAlert(am.opts)
+		al := cli.Alert{
+			Labels:       cli.LabelSet{},
+			Annotations:  cli.LabelSet{},
+			StartsAt:     a.StartsAt,
+			EndsAt:       a.EndsAt,
+			GeneratorURL: a.GeneratorURL,
+		}
+		for n, v := range a.Labels {
+			al.Labels[cli.LabelName(n)] = cli.LabelValue(v)
+		}
+		for n, v := range a.Annotations {
+			al.Annotations[cli.LabelName(n)] = cli.LabelValue(v)
+		}
+		cas = append(cas, al)
 	}
 
 	alertAPI := cli.NewAlertAPI(am.client)
 
 	am.t.Do(at, func() {
-		if err := alertAPI.Push(context.Background(), nas...); err != nil {
-			am.t.Errorf("Error pushing %v: %s", nas, err)
+		if err := alertAPI.Push(context.Background(), cas...); err != nil {
+			am.t.Errorf("Error pushing %v: %s", cas, err)
 		}
 	})
 }
