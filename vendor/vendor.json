@@ -270,10 +270,10 @@
 			"revisionTime": "2016-11-17T07:43:51Z"
 		},
 		{
-			"checksumSHA1": "FvZfvycWzgm7uHk9b4eINmD6CN0=",
-			"path": "github.com/prometheus/client_golang/api/alertmanager",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
+			"checksumSHA1": "4VppKBbzCSmoFfQxGNUm0TYiFCA=",
+			"path": "github.com/prometheus/client_golang/api",
+			"revision": "c3324c1198cf3374996e9d3098edd46a6b55afc9",
+			"revisionTime": "2018-02-23T14:47:18Z"
 		},
 		{
 			"checksumSHA1": "KkB+77Ziom7N6RzSbyUwYGrmDeU=",
