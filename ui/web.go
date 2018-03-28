@@ -23,7 +23,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
 )
 
@@ -49,30 +49,28 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string, logger log.
 
 // Register registers handlers to serve files for the web interface.
 func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
-	ihf := prometheus.InstrumentHandlerFunc
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
-	r.Get("/metrics", prometheus.Handler().ServeHTTP)
-
-	r.Get("/", ihf("index", func(w http.ResponseWriter, req *http.Request) {
+	r.Get("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/index.html", logger)
 	}))
 
-	r.Get("/script.js", ihf("app", func(w http.ResponseWriter, req *http.Request) {
+	r.Get("/script.js", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/script.js", logger)
 	}))
 
-	r.Get("/favicon.ico", ihf("app", func(w http.ResponseWriter, req *http.Request) {
+	r.Get("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		serveAsset(w, req, "ui/app/favicon.ico", logger)
 	}))
 
-	r.Get("/lib/*filepath", ihf("lib_files",
+	r.Get("/lib/*filepath", http.HandlerFunc(
 		func(w http.ResponseWriter, req *http.Request) {
 			fp := route.Param(req.Context(), "filepath")
 			serveAsset(w, req, filepath.Join("ui/app/lib", fp), logger)
 		},
 	))
 
-	r.Post("/-/reload", func(w http.ResponseWriter, req *http.Request) {
+	r.Post("/-/reload", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		errc := make(chan error)
 		defer close(errc)
 
@@ -80,16 +78,16 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		if err := <-errc; err != nil {
 			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
 		}
-	})
+	}))
 
-	r.Get("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
-	})
-	r.Get("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
+	}))
+	r.Get("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
-	})
+	}))
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
 	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)

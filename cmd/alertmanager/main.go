@@ -46,6 +46,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
@@ -67,13 +68,41 @@ var (
 	})
 	alertsActive     prometheus.GaugeFunc
 	alertsSuppressed prometheus.GaugeFunc
+	requestDuration  = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "alertmanager_http_request_duration_seconds",
+			Help:    "Histogram of latencies for HTTP requests.",
+			Buckets: []float64{.05, 0.1, .25, .5, .75, 1, 2, 5, 20, 60},
+		},
+		[]string{"handler", "method"},
+	)
+	responseSize = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "alertmanager_http_response_size_bytes",
+			Help:    "Histogram of response size for HTTP requests.",
+			Buckets: prometheus.ExponentialBuckets(100, 10, 7),
+		},
+		[]string{"handler", "method"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(configSuccess)
 	prometheus.MustRegister(configSuccessTime)
 	prometheus.MustRegister(configHash)
+	prometheus.MustRegister(requestDuration)
+	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
+}
+
+func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
+	return promhttp.InstrumentHandlerDuration(
+		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+		promhttp.InstrumentHandlerResponseSize(
+			responseSize.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+			handler,
+		),
+	)
 }
 
 func newAlertMetricByState(marker types.Marker, st types.AlertState) prometheus.GaugeFunc {
@@ -331,7 +360,7 @@ func main() {
 
 	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
 
-	router := route.New()
+	router := route.New().WithInstrumentation(instrumentHandler)
 
 	if *routePrefix != "/" {
 		router = router.WithPrefix(*routePrefix)

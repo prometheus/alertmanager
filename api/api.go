@@ -121,32 +121,32 @@ func New(
 // Register registers the API handlers under their correct routes
 // in the given router.
 func (api *API) Register(r *route.Router) {
-	ihf := func(name string, f http.HandlerFunc) http.HandlerFunc {
-		return prometheus.InstrumentHandlerFunc(name, func(w http.ResponseWriter, r *http.Request) {
+	wrap := func(f http.HandlerFunc) http.HandlerFunc {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			setCORS(w)
 			f(w, r)
 		})
 	}
 
-	r.Options("/*path", ihf("options", func(w http.ResponseWriter, r *http.Request) {}))
+	r.Options("/*path", wrap(func(w http.ResponseWriter, r *http.Request) {}))
 
 	// Register legacy forwarder for alert pushing.
-	r.Post("/alerts", ihf("legacy_add_alerts", api.legacyAddAlerts))
+	r.Post("/alerts", wrap(api.legacyAddAlerts))
 
 	// Register actual API.
 	r = r.WithPrefix("/v1")
 
-	r.Get("/status", ihf("status", api.status))
-	r.Get("/receivers", ihf("receivers", api.receivers))
-	r.Get("/alerts/groups", ihf("alert_groups", api.alertGroups))
+	r.Get("/status", wrap(api.status))
+	r.Get("/receivers", wrap(api.receivers))
+	r.Get("/alerts/groups", wrap(api.alertGroups))
 
-	r.Get("/alerts", ihf("list_alerts", api.listAlerts))
-	r.Post("/alerts", ihf("add_alerts", api.addAlerts))
+	r.Get("/alerts", wrap(api.listAlerts))
+	r.Post("/alerts", wrap(api.addAlerts))
 
-	r.Get("/silences", ihf("list_silences", api.listSilences))
-	r.Post("/silences", ihf("add_silence", api.setSilence))
-	r.Get("/silence/:sid", ihf("get_silence", api.getSilence))
-	r.Del("/silence/:sid", ihf("del_silence", api.delSilence))
+	r.Get("/silences", wrap(api.listSilences))
+	r.Post("/silences", wrap(api.setSilence))
+	r.Get("/silence/:sid", wrap(api.getSilence))
+	r.Del("/silence/:sid", wrap(api.delSilence))
 }
 
 // Update sets the configuration string to a new value.
