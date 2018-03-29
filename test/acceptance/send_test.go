@@ -406,10 +406,9 @@ receivers:
 func TestReload(t *testing.T) {
 	t.Parallel()
 
-	// We create a notification config that fans out into two different
-	// webhooks.
-	// The succeeding one must still only receive the first successful
-	// notifications. Sending to the succeeding one must eventually succeed.
+	// This integration test ensures that the first alert isn't notified twice
+	// and repeat_interval applies after the AlertManager process has been
+	// reloaded.
 	conf := `
 route:
   receiver: "default"
