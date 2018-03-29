@@ -43,6 +43,9 @@ type Inhibitor struct {
 
 // NewInhibitor returns a new Inhibitor.
 func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker, logger log.Logger) *Inhibitor {
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
 	ih := &Inhibitor{
 		alerts: ap,
 		marker: mk,
@@ -81,14 +84,9 @@ func (ih *Inhibitor) run(ctx context.Context) {
 				level.Error(ih.logger).Log("msg", "Error iterating alerts", "err", err)
 				continue
 			}
-			if a.Resolved() {
-				// As alerts can also time out without an update, we never
-				// handle new resolved alerts but invalidate the cache on read.
-				continue
-			}
-			// Populate the inhibition rules' cache.
+			// Update the inhibition rules' cache.
 			for _, r := range ih.rules {
-				if r.SourceMatchers.Match(a.Labels) {
+				if r.exists(a) || r.SourceMatchers.Match(a.Labels) {
 					r.set(a)
 				}
 			}
@@ -145,7 +143,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	for _, r := range ih.rules {
 		// Only inhibit if target matchers match but source matchers don't.
 		if inhibitedByFP, eq := r.hasEqual(lset); !r.SourceMatchers.Match(lset) && r.TargetMatchers.Match(lset) && eq {
-			ih.marker.SetInhibited(fp, fmt.Sprintf("%d", inhibitedByFP))
+			ih.marker.SetInhibited(fp, fmt.Sprintf("%s", inhibitedByFP.String()))
 			return true
 		}
 	}
@@ -215,6 +213,15 @@ func (r *InhibitRule) set(a *types.Alert) {
 	defer r.mtx.Unlock()
 
 	r.scache[a.Fingerprint()] = a
+}
+
+// exists returns true if the alert is present in the source cache.
+func (r *InhibitRule) exists(a *types.Alert) bool {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	_, ok := r.scache[a.Fingerprint()]
+	return ok
 }
 
 // hasEqual checks whether the source cache contains alerts matching
