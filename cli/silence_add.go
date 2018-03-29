@@ -35,8 +35,9 @@ var (
 	addCmd         = silenceCmd.Command("add", "Add a new alertmanager silence")
 	author         = addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).String()
 	requireComment = addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").Bool()
-	expires        = addCmd.Flag("expires", "Duration of silence").Short('e').Default("1h").String()
-	expireOn       = addCmd.Flag("expire-on", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00").String()
+	duration       = addCmd.Flag("duration", "Duration of silence").Short('d').Default("1h").String()
+	addStart       = addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").String()
+	addEnd         = addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").String()
 	comment        = addCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
 	addArgs        = addCmd.Arg("matcher-groups", "Query filter").Strings()
 )
@@ -81,24 +82,39 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	}
 
 	var endsAt time.Time
-	if *expireOn != "" {
-		endsAt, err = time.Parse(time.RFC3339, *expireOn)
+	if *addEnd != "" {
+		endsAt, err = time.Parse(time.RFC3339, *addEnd)
 		if err != nil {
 			return err
 		}
 	} else {
-		duration, err := model.ParseDuration(*expires)
+		d, err := model.ParseDuration(*duration)
 		if err != nil {
 			return err
 		}
-		if duration == 0 {
+		if d == 0 {
 			return fmt.Errorf("silence duration must be greater than 0")
 		}
-		endsAt = time.Now().UTC().Add(time.Duration(duration))
+		endsAt = time.Now().UTC().Add(time.Duration(d))
 	}
 
 	if *requireComment && *comment == "" {
 		return errors.New("comment required by config")
+	}
+
+	var startsAt time.Time
+	if *addStart != "" {
+		startsAt, err = time.Parse(time.RFC3339, *addStart)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		startsAt = time.Now().UTC()
+	}
+
+	if startsAt.After(endsAt) {
+		return errors.New("silence cannot start after it ends")
 	}
 
 	typeMatchers, err := TypeMatchers(matchers)
@@ -108,7 +124,7 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 
 	silence := types.Silence{
 		Matchers:  typeMatchers,
-		StartsAt:  time.Now().UTC(),
+		StartsAt:  startsAt,
 		EndsAt:    endsAt,
 		CreatedBy: *author,
 		Comment:   *comment,
