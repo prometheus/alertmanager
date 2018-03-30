@@ -163,6 +163,8 @@ type EmailConfig struct {
 	Text         string            `yaml:"text,omitempty" json:"text,omitempty"`
 	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 
+	TLSConfig *commoncfg.TLSConfig `yaml:"tls_config"`
+
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
