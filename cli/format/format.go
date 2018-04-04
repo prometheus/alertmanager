@@ -7,7 +7,6 @@ import (
 	"github.com/alecthomas/kingpin"
 
 	"github.com/prometheus/alertmanager/cli"
-	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -25,7 +24,7 @@ func InitFormatFlags(app *kingpin.Application) {
 type Formatter interface {
 	SetOutput(io.Writer)
 	FormatSilences([]types.Silence) error
-	FormatAlerts([]*dispatch.APIAlert) error
+	FormatAlerts([]*cli.ExtendedAlert) error
 	FormatConfig(*cli.ServerStatus) error
 }
 

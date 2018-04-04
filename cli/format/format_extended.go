@@ -9,9 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/prometheus/alertmanager/cli"
-	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 )
 
 type ExtendedFormatter struct {
@@ -47,7 +45,7 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) err
 	return nil
 }
 
-func (formatter *ExtendedFormatter) FormatAlerts(alerts []*dispatch.APIAlert) error {
+func (formatter *ExtendedFormatter) FormatAlerts(alerts []*cli.ExtendedAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
@@ -78,7 +76,7 @@ func (formatter *ExtendedFormatter) FormatConfig(status *cli.ServerStatus) error
 	return nil
 }
 
-func extendedFormatLabels(labels model.LabelSet) string {
+func extendedFormatLabels(labels cli.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {
 		output = append(output, fmt.Sprintf("%s=\"%s\"", name, value))
@@ -87,7 +85,7 @@ func extendedFormatLabels(labels model.LabelSet) string {
 	return strings.Join(output, " ")
 }
 
-func extendedFormatAnnotations(labels model.LabelSet) string {
+func extendedFormatAnnotations(labels cli.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {
 		output = append(output, fmt.Sprintf("%s=\"%s\"", name, value))
