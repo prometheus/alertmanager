@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/prometheus/alertmanager/cli"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -31,7 +32,7 @@ func (formatter *JSONFormatter) FormatAlerts(alerts []*dispatch.APIAlert) error 
 	return enc.Encode(alerts)
 }
 
-func (formatter *JSONFormatter) FormatConfig(config Config) error {
+func (formatter *JSONFormatter) FormatConfig(status *cli.ServerStatus) error {
 	enc := json.NewEncoder(formatter.writer)
-	return enc.Encode(config)
+	return enc.Encode(status)
 }

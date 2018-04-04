@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/prometheus/alertmanager/cli"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
@@ -65,15 +66,15 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts []*dispatch.APIAlert) er
 	return nil
 }
 
-func (formatter *ExtendedFormatter) FormatConfig(config Config) error {
-	fmt.Fprintln(formatter.writer, config.ConfigYAML)
-	fmt.Fprintln(formatter.writer, "buildUser", config.VersionInfo["buildUser"])
-	fmt.Fprintln(formatter.writer, "goVersion", config.VersionInfo["goVersion"])
-	fmt.Fprintln(formatter.writer, "revision", config.VersionInfo["revision"])
-	fmt.Fprintln(formatter.writer, "version", config.VersionInfo["version"])
-	fmt.Fprintln(formatter.writer, "branch", config.VersionInfo["branch"])
-	fmt.Fprintln(formatter.writer, "buildDate", config.VersionInfo["buildDate"])
-	fmt.Fprintln(formatter.writer, "uptime", config.Uptime)
+func (formatter *ExtendedFormatter) FormatConfig(status *cli.ServerStatus) error {
+	fmt.Fprintln(formatter.writer, status.ConfigYAML)
+	fmt.Fprintln(formatter.writer, "buildUser", status.VersionInfo["buildUser"])
+	fmt.Fprintln(formatter.writer, "goVersion", status.VersionInfo["goVersion"])
+	fmt.Fprintln(formatter.writer, "revision", status.VersionInfo["revision"])
+	fmt.Fprintln(formatter.writer, "version", status.VersionInfo["version"])
+	fmt.Fprintln(formatter.writer, "branch", status.VersionInfo["branch"])
+	fmt.Fprintln(formatter.writer, "buildDate", status.VersionInfo["buildDate"])
+	fmt.Fprintln(formatter.writer, "uptime", status.Uptime)
 	return nil
 }
 

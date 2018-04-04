@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/prometheus/alertmanager/cli"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -60,8 +61,8 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*dispatch.APIAlert) erro
 	return nil
 }
 
-func (formatter *SimpleFormatter) FormatConfig(config Config) error {
-	fmt.Fprintln(formatter.writer, config.ConfigYAML)
+func (formatter *SimpleFormatter) FormatConfig(status *cli.ServerStatus) error {
+	fmt.Fprintln(formatter.writer, status.ConfigYAML)
 	return nil
 }
 
