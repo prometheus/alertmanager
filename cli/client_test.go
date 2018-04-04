@@ -163,7 +163,7 @@ func TestAPI(t *testing.T) {
 	}
 	doSilenceList := func() (interface{}, error) {
 		api := httpSilenceAPI{client: client}
-		return api.List(context.Background())
+		return api.List(context.Background(), "")
 	}
 
 	tests := []apiTest{

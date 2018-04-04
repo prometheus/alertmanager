@@ -1,12 +1,13 @@
 package cmd
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"net/http"
-	"path"
 
 	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/client_golang/api"
+
+	"github.com/prometheus/alertmanager/cli"
 )
 
 var (
@@ -24,30 +25,18 @@ func expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		return errors.New("no silence IDs specified")
 	}
 
-	basePath := "/api/v1/silence"
+	client, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := cli.NewSilenceAPI(client)
+
 	for _, id := range *expireIds {
-		u := GetAlertmanagerURL(path.Join(basePath, id))
-		req, err := http.NewRequest("DELETE", u.String(), nil)
+		err := silenceAPI.Delete(context.Background(), id)
 		if err != nil {
 			return err
-		}
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-
-		defer res.Body.Close()
-		decoder := json.NewDecoder(res.Body)
-
-		response := alertmanagerSilenceResponse{}
-		err = decoder.Decode(&response)
-		if err != nil {
-			return err
-		}
-
-		if response.Status == "error" {
-			return errors.New(response.Error)
 		}
 	}
+
 	return nil
 }

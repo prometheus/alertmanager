@@ -1,13 +1,18 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/alecthomas/kingpin"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/api"
+
+	"github.com/prometheus/alertmanager/cli"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -31,20 +36,29 @@ amtool silence import foo.json
 JSON data can also come from stdin if no param is specified.`
 }
 
+func addSilence(silence *types.Silence) (string, error) {
+	client, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return "", err
+	}
+	silenceAPI := cli.NewSilenceAPI(client)
+	return silenceAPI.Set(context.Background(), *silence)
+}
+
 func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {
 	for s := range silencec {
-		silenceId, err := addSilence(s)
+		silenceID, err := addSilence(s)
 		sid := s.ID
-		if err != nil && err.Error() == "[bad_data] not found" {
+		if err != nil && strings.Contains(err.Error(), "not found") {
 			// silence doesn't exists yet, retry to create as a new one
 			s.ID = ""
-			silenceId, err = addSilence(s)
+			silenceID, err = addSilence(s)
 		}
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v", sid, err)
+			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v\n", sid, err)
 		} else {
-			fmt.Println(silenceId)
+			fmt.Println(silenceID)
 		}
 		errc <- err
 	}
