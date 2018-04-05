@@ -15,7 +15,6 @@ package inhibit
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -143,7 +142,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	for _, r := range ih.rules {
 		// Only inhibit if target matchers match but source matchers don't.
 		if inhibitedByFP, eq := r.hasEqual(lset); !r.SourceMatchers.Match(lset) && r.TargetMatchers.Match(lset) && eq {
-			ih.marker.SetInhibited(fp, fmt.Sprintf("%s", inhibitedByFP.String()))
+			ih.marker.SetInhibited(fp, inhibitedByFP.String())
 			return true
 		}
 	}
