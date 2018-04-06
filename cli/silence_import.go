@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/api"
 
-	"github.com/prometheus/alertmanager/cli"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -36,23 +36,14 @@ amtool silence import foo.json
 JSON data can also come from stdin if no param is specified.`
 }
 
-func addSilence(silence *types.Silence) (string, error) {
-	client, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
-	if err != nil {
-		return "", err
-	}
-	silenceAPI := cli.NewSilenceAPI(client)
-	return silenceAPI.Set(context.Background(), *silence)
-}
-
-func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {
+func addSilenceWorker(sclient client.SilenceAPI, silencec <-chan *types.Silence, errc chan<- error) {
 	for s := range silencec {
-		silenceID, err := addSilence(s)
+		silenceID, err := sclient.Set(context.Background(), *s)
 		sid := s.ID
 		if err != nil && strings.Contains(err.Error(), "not found") {
 			// silence doesn't exists yet, retry to create as a new one
 			s.ID = ""
-			silenceID, err = addSilence(s)
+			silenceID, err = sclient.Set(context.Background(), *s)
 		}
 
 		if err != nil {
@@ -82,13 +73,18 @@ func bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error 
 		return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
 	}
 
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(c)
 	silencec := make(chan *types.Silence, 100)
 	errc := make(chan error, 100)
 	var wg sync.WaitGroup
 	for w := 0; w < *workers; w++ {
 		wg.Add(1)
 		go func() {
-			addSilenceWorker(silencec, errc)
+			addSilenceWorker(silenceAPI, silencec, errc)
 			wg.Done()
 		}()
 	}

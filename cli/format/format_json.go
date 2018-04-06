@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/prometheus/alertmanager/cli"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -26,12 +26,12 @@ func (formatter *JSONFormatter) FormatSilences(silences []types.Silence) error {
 	return enc.Encode(silences)
 }
 
-func (formatter *JSONFormatter) FormatAlerts(alerts []*cli.ExtendedAlert) error {
+func (formatter *JSONFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
 	enc := json.NewEncoder(formatter.writer)
 	return enc.Encode(alerts)
 }
 
-func (formatter *JSONFormatter) FormatConfig(status *cli.ServerStatus) error {
+func (formatter *JSONFormatter) FormatConfig(status *client.ServerStatus) error {
 	enc := json.NewEncoder(formatter.writer)
 	return enc.Encode(status)
 }

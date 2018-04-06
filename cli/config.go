@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
 
-	"github.com/prometheus/alertmanager/cli"
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/client"
 )
 
 // configCmd represents the config command
@@ -23,11 +23,11 @@ The amount of output is controlled by the output selection flag:
 }
 
 func queryConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
-	client, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
 	if err != nil {
 		return err
 	}
-	statusAPI := cli.NewStatusAPI(client)
+	statusAPI := client.NewStatusAPI(c)
 	status, err := statusAPI.Get(context.Background())
 	if err != nil {
 		return err

@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 // silenceCmd represents the silence command
 var (

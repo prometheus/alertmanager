@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
 
-	"github.com/prometheus/alertmanager/cli"
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
@@ -41,11 +41,11 @@ func update(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		return fmt.Errorf("no silence IDs specified")
 	}
 
-	client, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
 	if err != nil {
 		return err
 	}
-	silenceAPI := cli.NewSilenceAPI(client)
+	silenceAPI := client.NewSilenceAPI(c)
 
 	var updatedSilences []types.Silence
 	for _, silenceID := range *updateIds {

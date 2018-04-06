@@ -1,7 +1,7 @@
 package main
 
-import "github.com/prometheus/alertmanager/cli/cmd"
+import "github.com/prometheus/alertmanager/cli"
 
 func main() {
-	cmd.Execute()
+	cli.Execute()
 }

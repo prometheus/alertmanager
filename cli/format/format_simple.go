@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/prometheus/alertmanager/cli"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -43,7 +43,7 @@ func (formatter *SimpleFormatter) FormatSilences(silences []types.Silence) error
 	return nil
 }
 
-func (formatter *SimpleFormatter) FormatAlerts(alerts []*cli.ExtendedAlert) error {
+func (formatter *SimpleFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\t")
@@ -60,7 +60,7 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*cli.ExtendedAlert) erro
 	return nil
 }
 
-func (formatter *SimpleFormatter) FormatConfig(status *cli.ServerStatus) error {
+func (formatter *SimpleFormatter) FormatConfig(status *client.ServerStatus) error {
 	fmt.Fprintln(formatter.writer, status.ConfigYAML)
 	return nil
 }

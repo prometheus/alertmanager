@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
 
-	"github.com/prometheus/alertmanager/cli"
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/pkg/parse"
 )
 
@@ -65,11 +65,11 @@ func queryAlerts(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error
 		filterString = fmt.Sprintf("{%s}", strings.Join(*alertQuery, ","))
 	}
 
-	client, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
 	if err != nil {
 		return err
 	}
-	alertAPI := cli.NewAlertAPI(client)
+	alertAPI := client.NewAlertAPI(c)
 	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, *expired, *silenced)
 	if err != nil {
 		return err

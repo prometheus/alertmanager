@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/cli"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -131,11 +131,11 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		Comment:   *comment,
 	}
 
-	client, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
 	if err != nil {
 		return err
 	}
-	silenceAPI := cli.NewSilenceAPI(client)
+	silenceAPI := client.NewSilenceAPI(c)
 	silenceID, err := silenceAPI.Set(context.Background(), silence)
 	if err != nil {
 		return err

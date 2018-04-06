@@ -6,7 +6,7 @@ import (
 
 	"github.com/alecthomas/kingpin"
 
-	"github.com/prometheus/alertmanager/cli"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -24,8 +24,8 @@ func InitFormatFlags(app *kingpin.Application) {
 type Formatter interface {
 	SetOutput(io.Writer)
 	FormatSilences([]types.Silence) error
-	FormatAlerts([]*cli.ExtendedAlert) error
-	FormatConfig(*cli.ServerStatus) error
+	FormatAlerts([]*client.ExtendedAlert) error
+	FormatConfig(*client.ServerStatus) error
 }
 
 // Formatters is a map of cli argument names to formatter interface object.
