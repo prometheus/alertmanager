@@ -22,7 +22,6 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -82,103 +81,6 @@ func (d *Dispatcher) Run() {
 
 	d.run(d.alerts.Subscribe())
 	close(d.done)
-}
-
-// AlertBlock contains a list of alerts associated with a set of
-// routing options.
-type AlertBlock struct {
-	RouteOpts *RouteOpts  `json:"routeOpts"`
-	Alerts    []*APIAlert `json:"alerts"`
-}
-
-// APIAlert is the API representation of an alert, which is a regular alert
-// annotated with silencing and inhibition info.
-type APIAlert struct {
-	*model.Alert
-	Status      types.AlertStatus `json:"status"`
-	Receivers   []string          `json:"receivers"`
-	Fingerprint string            `json:"fingerprint"`
-}
-
-// AlertGroup is a list of alert blocks grouped by the same label set.
-type AlertGroup struct {
-	Labels   model.LabelSet `json:"labels"`
-	GroupKey string         `json:"groupKey"`
-	Blocks   []*AlertBlock  `json:"blocks"`
-}
-
-// AlertOverview is a representation of all active alerts in the system.
-type AlertOverview []*AlertGroup
-
-func (ao AlertOverview) Swap(i, j int)      { ao[i], ao[j] = ao[j], ao[i] }
-func (ao AlertOverview) Less(i, j int) bool { return ao[i].Labels.Before(ao[j].Labels) }
-func (ao AlertOverview) Len() int           { return len(ao) }
-
-func matchesFilterLabels(a *APIAlert, matchers []*labels.Matcher) bool {
-	for _, m := range matchers {
-		if v, prs := a.Labels[model.LabelName(m.Name)]; !prs || !m.Matches(string(v)) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// Groups populates an AlertOverview from the dispatcher's internal state.
-func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
-	overview := AlertOverview{}
-
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
-
-	seen := map[model.Fingerprint]*AlertGroup{}
-
-	for route, ags := range d.aggrGroups {
-		for _, ag := range ags {
-			alertGroup, ok := seen[ag.fingerprint()]
-			if !ok {
-				alertGroup = &AlertGroup{Labels: ag.labels}
-				alertGroup.GroupKey = ag.GroupKey()
-
-				seen[ag.fingerprint()] = alertGroup
-			}
-
-			now := time.Now()
-
-			var apiAlerts []*APIAlert
-			for _, a := range types.Alerts(ag.alertSlice()...) {
-				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
-					continue
-				}
-				status := d.marker.Status(a.Fingerprint())
-				aa := &APIAlert{
-					Alert:       a,
-					Status:      status,
-					Fingerprint: a.Fingerprint().String(),
-				}
-
-				if !matchesFilterLabels(aa, matchers) {
-					continue
-				}
-
-				apiAlerts = append(apiAlerts, aa)
-			}
-			if len(apiAlerts) == 0 {
-				continue
-			}
-
-			alertGroup.Blocks = append(alertGroup.Blocks, &AlertBlock{
-				RouteOpts: &route.RouteOpts,
-				Alerts:    apiAlerts,
-			})
-
-			overview = append(overview, alertGroup)
-		}
-	}
-
-	sort.Sort(overview)
-
-	return overview
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
