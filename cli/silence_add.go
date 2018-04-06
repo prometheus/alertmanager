@@ -15,15 +15,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-type addResponse struct {
-	Status string `json:"status"`
-	Data   struct {
-		SilenceID string `json:"silenceId"`
-	} `json:"data,omitempty"`
-	ErrorType string `json:"errorType,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
-
 func username() string {
 	user, err := user.Current()
 	if err != nil {

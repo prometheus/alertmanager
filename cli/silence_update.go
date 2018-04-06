@@ -15,13 +15,6 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-type getResponse struct {
-	Status    string        `json:"status"`
-	Data      types.Silence `json:"data,omitempty"`
-	ErrorType string        `json:"errorType,omitempty"`
-	Error     string        `json:"error,omitempty"`
-}
-
 var (
 	updateCmd      = silenceCmd.Command("update", "Update silences")
 	updateDuration = updateCmd.Flag("duration", "Duration of silence").Short('d').String()
