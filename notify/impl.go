@@ -1144,11 +1144,13 @@ const (
 )
 
 type victorOpsMessage struct {
-	MessageType       string `json:"message_type"`
-	EntityID          string `json:"entity_id"`
-	EntityDisplayName string `json:"entity_display_name"`
-	StateMessage      string `json:"state_message"`
-	MonitoringTool    string `json:"monitoring_tool"`
+	MessageType       string         `json:"message_type"`
+	EntityID          string         `json:"entity_id"`
+	EntityDisplayName string         `json:"entity_display_name"`
+	StateMessage      string         `json:"state_message"`
+	MonitoringTool    string         `json:"monitoring_tool"`
+	Labels            model.LabelSet `json:"labels,omitempty"`
+	Annotations       model.LabelSet `json:"annotations,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -1193,6 +1195,8 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		EntityDisplayName: tmpl(n.conf.EntityDisplayName),
 		StateMessage:      stateMessage,
 		MonitoringTool:    tmpl(n.conf.MonitoringTool),
+		Labels:            alerts[0].Labels.Clone(),
+		Annotations:       alerts[0].Annotations.Clone(),
 	}
 
 	if err != nil {
