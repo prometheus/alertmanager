@@ -40,6 +40,9 @@ import (
 // ErrNotFound is returned if a silence was not found.
 var ErrNotFound = fmt.Errorf("not found")
 
+// ErrInvalidState is returned if the state isn't valid.
+var ErrInvalidState = fmt.Errorf("invalid state")
+
 func utcNow() time.Time {
 	return time.Now().UTC()
 }
@@ -758,6 +761,9 @@ func decodeState(r io.Reader) (state, error) {
 		var s pb.MeshSilence
 		_, err := pbutil.ReadDelimited(r, &s)
 		if err == nil {
+			if s.Silence == nil {
+				return nil, ErrInvalidState
+			}
 			st[s.Silence.Id] = &s
 			continue
 		}

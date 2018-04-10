@@ -296,3 +296,14 @@ func TestQuery(t *testing.T) {
 	require.EqualValues(t, firingAlerts, entry.FiringAlerts)
 	require.EqualValues(t, resolvedAlerts, entry.ResolvedAlerts)
 }
+
+func TestStateDecodingError(t *testing.T) {
+	// Check whether decoding copes with erroneous data.
+	s := state{"": &pb.MeshEntry{}}
+
+	msg, err := s.MarshalBinary()
+	require.NoError(t, err)
+
+	_, err = decodeState(bytes.NewReader(msg))
+	require.Equal(t, ErrInvalidState, err)
+}
