@@ -1080,3 +1080,14 @@ func TestStateCoding(t *testing.T) {
 		require.Equal(t, in, out, "decoded data doesn't match encoded data")
 	}
 }
+
+func TestStateDecodingError(t *testing.T) {
+	// Check whether decoding copes with erroneous data.
+	s := state{"": &pb.MeshSilence{}}
+
+	msg, err := s.MarshalBinary()
+	require.NoError(t, err)
+
+	_, err = decodeState(bytes.NewReader(msg))
+	require.Equal(t, ErrInvalidState, err)
+}
