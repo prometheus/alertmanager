@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/common/model"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
 )
+
+var nopLogger = log.NewNopLogger()
 
 func TestInhibitRuleHasEqual(t *testing.T) {
 	t.Parallel()
@@ -148,7 +151,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		Equal:       model.LabelNames{"e"},
 	}
 	m := types.NewMarker()
-	ih := NewInhibitor(nil, []*config.InhibitRule{&cr}, m, nil)
+	ih := NewInhibitor(nil, []*config.InhibitRule{&cr}, m, nopLogger)
 	ir := ih.rules[0]
 	now := time.Now()
 	// Active alert that matches the source filter
@@ -355,7 +358,7 @@ func TestInhibit(t *testing.T) {
 	} {
 		ap := newFakeAlerts(tc.alerts)
 		mk := types.NewMarker()
-		inhibitor := NewInhibitor(ap, []*config.InhibitRule{inhibitRule()}, mk, nil)
+		inhibitor := NewInhibitor(ap, []*config.InhibitRule{inhibitRule()}, mk, nopLogger)
 
 		go func() {
 			for ap.finished != nil {

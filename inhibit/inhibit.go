@@ -42,9 +42,6 @@ type Inhibitor struct {
 
 // NewInhibitor returns a new Inhibitor.
 func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker, logger log.Logger) *Inhibitor {
-	if logger == nil {
-		logger = log.NewNopLogger()
-	}
 	ih := &Inhibitor{
 		alerts: ap,
 		marker: mk,
