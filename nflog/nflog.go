@@ -37,6 +37,9 @@ import (
 // ErrNotFound is returned for empty query results.
 var ErrNotFound = errors.New("not found")
 
+// ErrInvalidState is returned if the state isn't valid.
+var ErrInvalidState = fmt.Errorf("invalid state")
+
 // query currently allows filtering by and/or receiver group key.
 // It is configured via QueryParameter functions.
 //
@@ -239,6 +242,9 @@ func decodeState(r io.Reader) (state, error) {
 		var e pb.MeshEntry
 		_, err := pbutil.ReadDelimited(r, &e)
 		if err == nil {
+			if e.Entry == nil || e.Entry.Receiver == nil {
+				return nil, ErrInvalidState
+			}
 			st[stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)] = &e
 			continue
 		}
