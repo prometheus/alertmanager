@@ -237,8 +237,8 @@ type SilenceAPI interface {
 	Get(ctx context.Context, id string) (*types.Silence, error)
 	// Set updates or creates the given silence and returns its ID.
 	Set(ctx context.Context, sil types.Silence) (string, error)
-	// Delete deletes the silence with the given ID.
-	Delete(ctx context.Context, id string) error
+	// Expire expires the silence with the given ID.
+	Expire(ctx context.Context, id string) error
 	// List returns silences matching the given filter.
 	List(ctx context.Context, filter string) ([]*types.Silence, error)
 }
@@ -270,7 +270,7 @@ func (h *httpSilenceAPI) Get(ctx context.Context, id string) (*types.Silence, er
 	return &sil, err
 }
 
-func (h *httpSilenceAPI) Delete(ctx context.Context, id string) error {
+func (h *httpSilenceAPI) Expire(ctx context.Context, id string) error {
 	u := h.client.URL(epSilence, map[string]string{
 		"id": id,
 	})

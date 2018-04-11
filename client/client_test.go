@@ -155,10 +155,10 @@ func TestAPI(t *testing.T) {
 			return api.Set(context.Background(), sil)
 		}
 	}
-	doSilenceDelete := func(id string) func() (interface{}, error) {
+	doSilenceExpire := func(id string) func() (interface{}, error) {
 		return func() (interface{}, error) {
 			api := httpSilenceAPI{client: client}
-			return nil, api.Delete(context.Background(), id)
+			return nil, api.Expire(context.Background(), id)
 		}
 	}
 	doSilenceList := func() (interface{}, error) {
@@ -258,14 +258,14 @@ func TestAPI(t *testing.T) {
 			err: fmt.Errorf("some error"),
 		},
 		{
-			do: doSilenceDelete("abc"),
+			do: doSilenceExpire("abc"),
 			apiRes: fakeAPIResponse{
 				path:   "/api/v1/silence/abc",
 				method: http.MethodDelete,
 			},
 		},
 		{
-			do: doSilenceDelete("abc"),
+			do: doSilenceExpire("abc"),
 			apiRes: fakeAPIResponse{
 				err:    fmt.Errorf("some error"),
 				path:   "/api/v1/silence/abc",
