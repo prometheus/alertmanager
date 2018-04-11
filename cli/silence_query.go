@@ -1,16 +1,17 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/client_golang/api"
+
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -66,31 +67,6 @@ amtool silence query --within 2h --expired
 returns all silences that expired within the preceeding 2 hours.`
 }
 
-func fetchSilences(filter string) ([]types.Silence, error) {
-	silenceResponse := alertmanagerSilenceResponse{}
-
-	u := GetAlertmanagerURL("/api/v1/silences")
-	u.RawQuery = "filter=" + url.QueryEscape(filter)
-
-	res, err := http.Get(u.String())
-	if err != nil {
-		return []types.Silence{}, err
-	}
-
-	defer res.Body.Close()
-
-	err = json.NewDecoder(res.Body).Decode(&silenceResponse)
-	if err != nil {
-		return []types.Silence{}, err
-	}
-
-	if silenceResponse.Status != "success" {
-		return []types.Silence{}, fmt.Errorf("[%s] %s", silenceResponse.ErrorType, silenceResponse.Error)
-	}
-
-	return silenceResponse.Data, nil
-}
-
 func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	var filterString = ""
 	if len(*silenceQuery) == 1 {
@@ -107,7 +83,12 @@ func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		filterString = fmt.Sprintf("{%s}", strings.Join(*silenceQuery, ","))
 	}
 
-	fetchedSilences, err := fetchSilences(filterString)
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(c)
+	fetchedSilences, err := silenceAPI.List(context.Background(), filterString)
 	if err != nil {
 		return err
 	}
@@ -131,7 +112,7 @@ func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 			continue
 		}
 
-		displaySilences = append(displaySilences, silence)
+		displaySilences = append(displaySilences, *silence)
 	}
 
 	if *silenceQuiet {

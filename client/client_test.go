@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cli
+package client
 
 import (
 	"bytes"
@@ -118,7 +118,7 @@ func TestAPI(t *testing.T) {
 	}
 	doAlertList := func() (interface{}, error) {
 		api := httpAlertAPI{client: client}
-		return api.List(context.Background())
+		return api.List(context.Background(), "", false, false)
 	}
 	doAlertPush := func() (interface{}, error) {
 		api := httpAlertAPI{client: client}
@@ -163,7 +163,7 @@ func TestAPI(t *testing.T) {
 	}
 	doSilenceList := func() (interface{}, error) {
 		api := httpSilenceAPI{client: client}
-		return api.List(context.Background())
+		return api.List(context.Background(), "")
 	}
 
 	tests := []apiTest{

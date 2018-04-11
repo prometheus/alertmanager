@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cli
+package client
 
 import (
 	"bytes"
@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/prometheus/client_golang/api"
@@ -153,7 +154,7 @@ func (h *httpStatusAPI) Get(ctx context.Context) (*ServerStatus, error) {
 // AlertAPI provides bindings for the Alertmanager's alert API.
 type AlertAPI interface {
 	// List returns all the active alerts.
-	List(ctx context.Context) ([]*ExtendedAlert, error)
+	List(ctx context.Context, filter string, silenced, inhibited bool) ([]*ExtendedAlert, error)
 	// Push sends a list of alerts to the Alertmanager.
 	Push(ctx context.Context, alerts ...Alert) error
 }
@@ -193,8 +194,15 @@ type httpAlertAPI struct {
 	client api.Client
 }
 
-func (h *httpAlertAPI) List(ctx context.Context) ([]*ExtendedAlert, error) {
+func (h *httpAlertAPI) List(ctx context.Context, filter string, silenced, inhibited bool) ([]*ExtendedAlert, error) {
 	u := h.client.URL(epAlerts, nil)
+	params := url.Values{}
+	if filter != "" {
+		params.Add("filter", filter)
+	}
+	params.Add("silenced", fmt.Sprintf("%t", silenced))
+	params.Add("inhibited", fmt.Sprintf("%t", inhibited))
+	u.RawQuery = params.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 
@@ -231,8 +239,8 @@ type SilenceAPI interface {
 	Set(ctx context.Context, sil types.Silence) (string, error)
 	// Delete deletes the silence with the given ID.
 	Delete(ctx context.Context, id string) error
-	// List returns all the silences.
-	List(ctx context.Context) ([]*types.Silence, error)
+	// List returns silences matching the given filter.
+	List(ctx context.Context, filter string) ([]*types.Silence, error)
 }
 
 // NewSilenceAPI returns a new SilenceAPI for the client.
@@ -296,8 +304,13 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil types.Silence) (string, er
 	return res.SilenceID, err
 }
 
-func (h *httpSilenceAPI) List(ctx context.Context) ([]*types.Silence, error) {
+func (h *httpSilenceAPI) List(ctx context.Context, filter string) ([]*types.Silence, error) {
 	u := h.client.URL(epSilences, nil)
+	params := url.Values{}
+	if filter != "" {
+		params.Add("filter", filter)
+	}
+	u.RawQuery = params.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 

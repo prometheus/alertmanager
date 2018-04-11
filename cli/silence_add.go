@@ -1,27 +1,19 @@
 package cli
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os/user"
 	"time"
 
 	"github.com/alecthomas/kingpin"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
-)
 
-type addResponse struct {
-	Status string `json:"status"`
-	Data   struct {
-		SilenceID string `json:"silenceId"`
-	} `json:"data,omitempty"`
-	ErrorType string `json:"errorType,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
+	"github.com/prometheus/alertmanager/client"
+	"github.com/prometheus/alertmanager/types"
+)
 
 func username() string {
 	user, err := user.Current()
@@ -130,39 +122,16 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		Comment:   *comment,
 	}
 
-	silenceId, err := addSilence(&silence)
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(c)
+	silenceID, err := silenceAPI.Set(context.Background(), silence)
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Println(silenceId)
+	_, err = fmt.Println(silenceID)
 	return err
-}
-
-func addSilence(silence *types.Silence) (string, error) {
-	u := GetAlertmanagerURL("/api/v1/silences")
-
-	buf := bytes.NewBuffer([]byte{})
-	err := json.NewEncoder(buf).Encode(silence)
-	if err != nil {
-		return "", err
-	}
-
-	res, err := http.Post(u.String(), "application/json", buf)
-	if err != nil {
-		return "", err
-	}
-
-	defer res.Body.Close()
-	response := addResponse{}
-	err = json.NewDecoder(res.Body).Decode(&response)
-	if err != nil {
-		return "", fmt.Errorf("unable to parse silence json response from %s", u.String())
-	}
-
-	if response.Status == "error" {
-		return "", fmt.Errorf("[%s] %s", response.ErrorType, response.Error)
-	}
-
-	return response.Data.SilenceID, nil
 }

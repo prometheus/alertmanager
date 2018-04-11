@@ -1,27 +1,19 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"net/url"
-	"path"
 	"time"
 
 	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/client_golang/api"
+
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
-
-type getResponse struct {
-	Status    string        `json:"status"`
-	Data      types.Silence `json:"data,omitempty"`
-	ErrorType string        `json:"errorType,omitempty"`
-	Error     string        `json:"error,omitempty"`
-}
 
 var (
 	updateCmd      = silenceCmd.Command("update", "Update silences")
@@ -42,17 +34,55 @@ func update(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		return fmt.Errorf("no silence IDs specified")
 	}
 
-	alertmanagerUrl := GetAlertmanagerURL("/api/v1/silence")
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(c)
+
 	var updatedSilences []types.Silence
-	for _, silenceId := range *updateIds {
-		silence, err := getSilenceById(silenceId, alertmanagerUrl)
+	for _, silenceID := range *updateIds {
+		silence, err := silenceAPI.Get(context.Background(), silenceID)
 		if err != nil {
 			return err
 		}
-		silence, err = updateSilence(silence)
+		if *updateStart != "" {
+			silence.StartsAt, err = time.Parse(time.RFC3339, *updateStart)
+			if err != nil {
+				return err
+			}
+		}
+
+		if *updateEnd != "" {
+			silence.EndsAt, err = time.Parse(time.RFC3339, *updateEnd)
+			if err != nil {
+				return err
+			}
+		} else if *updateDuration != "" {
+			d, err := model.ParseDuration(*updateDuration)
+			if err != nil {
+				return err
+			}
+			if d == 0 {
+				return fmt.Errorf("silence duration must be greater than 0")
+			}
+			silence.EndsAt = silence.StartsAt.UTC().Add(time.Duration(d))
+		}
+
+		if silence.StartsAt.After(silence.EndsAt) {
+			return errors.New("silence cannot start after it ends")
+		}
+
+		if *updateComment != "" {
+			silence.Comment = *updateComment
+		}
+
+		newID, err := silenceAPI.Set(context.Background(), *silence)
 		if err != nil {
 			return err
 		}
+		silence.ID = newID
+
 		updatedSilences = append(updatedSilences, *silence)
 	}
 
@@ -68,75 +98,4 @@ func update(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		formatter.FormatSilences(updatedSilences)
 	}
 	return nil
-}
-
-// This takes an url.URL and not a pointer as we will modify it for our API call.
-func getSilenceById(silenceId string, baseUrl url.URL) (*types.Silence, error) {
-	baseUrl.Path = path.Join(baseUrl.Path, silenceId)
-	res, err := http.Get(baseUrl.String())
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't read response body: %v", err)
-	}
-
-	if res.StatusCode == 404 {
-		return nil, fmt.Errorf("no silence found with id: %v", silenceId)
-	}
-	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("received %d response from Alertmanager: %v", res.StatusCode, body)
-	}
-
-	var response getResponse
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't decode response body: %v", err)
-	}
-	return &response.Data, nil
-}
-
-func updateSilence(silence *types.Silence) (*types.Silence, error) {
-	var err error
-	if *updateStart != "" {
-		silence.StartsAt, err = time.Parse(time.RFC3339, *updateStart)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if *updateEnd != "" {
-		silence.EndsAt, err = time.Parse(time.RFC3339, *updateEnd)
-		if err != nil {
-			return nil, err
-		}
-	} else if *updateDuration != "" {
-		d, err := model.ParseDuration(*updateDuration)
-		if err != nil {
-			return nil, err
-		}
-		if d == 0 {
-			return nil, fmt.Errorf("silence duration must be greater than 0")
-		}
-		silence.EndsAt = silence.StartsAt.UTC().Add(time.Duration(d))
-	}
-
-	if silence.StartsAt.After(silence.EndsAt) {
-		return nil, errors.New("silence cannot start after it ends")
-	}
-
-	if *updateComment != "" {
-		silence.Comment = *updateComment
-	}
-
-	// addSilence can also be used to update an existing silence
-	newID, err := addSilence(silence)
-	if err != nil {
-		return nil, err
-	}
-	silence.ID = newID
-	return silence, nil
 }
