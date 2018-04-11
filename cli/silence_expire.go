@@ -32,7 +32,7 @@ func expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	silenceAPI := client.NewSilenceAPI(c)
 
 	for _, id := range *expireIds {
-		err := silenceAPI.Delete(context.Background(), id)
+		err := silenceAPI.Expire(context.Background(), id)
 		if err != nil {
 			return err
 		}
