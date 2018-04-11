@@ -21,14 +21,14 @@ type alertQueryCmd struct {
 
 func configureAlertCmd(app *kingpin.Application, longHelpText map[string]string) {
 	var (
-		a             = &alertQueryCmd{}
-		alertCmd      = app.Command("alert", "View and search through current alerts")
-		alertQueryCmd = alertCmd.Command("query", "View and search through current alerts").Default()
+		a        = &alertQueryCmd{}
+		alertCmd = app.Command("alert", "View and search through current alerts")
+		queryCmd = alertCmd.Command("query", "View and search through current alerts").Default()
 	)
-	alertQueryCmd.Flag("expired", "Show expired alerts as well as active").BoolVar(&a.expired)
-	alertQueryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
-	alertQueryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
-	alertQueryCmd.Action(a.queryAlerts)
+	queryCmd.Flag("expired", "Show expired alerts as well as active").BoolVar(&a.expired)
+	queryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
+	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
+	queryCmd.Action(a.queryAlerts)
 	longHelpText["alert"] = `View and search through current alerts.
 
 Amtool has a simplified prometheus query syntax, but contains robust support for
