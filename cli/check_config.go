@@ -8,14 +8,19 @@ import (
 	"github.com/prometheus/alertmanager/template"
 )
 
-// alertCmd represents the alert command
-var (
-	checkConfigCmd = app.Command("check-config", "Validate alertmanager config files")
-	checkFiles     = checkConfigCmd.Arg("check-files", "Files to be validated").ExistingFiles()
-)
+// TODO: This can just be a type that is []string, doesn't have to be a struct
+type checkConfigCmd struct {
+	files []string
+}
 
-func init() {
-	checkConfigCmd.Action(checkConfig)
+func configureCheckConfigCmd(app *kingpin.Application, longHelpText map[string]string) {
+	var (
+		c              = &checkConfigCmd{}
+		checkConfigCmd = app.Command("check-config", "Validate alertmanager config files")
+	)
+	checkConfigCmd.Arg("check-files", "Files to be validated").ExistingFilesVar(&c.files)
+
+	checkConfigCmd.Action(c.checkConfig)
 	longHelpText["check-config"] = `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
@@ -23,8 +28,8 @@ and associated templates. Non existing templates will not trigger
 errors`
 }
 
-func checkConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
-	return CheckConfig(*checkFiles)
+func (c *checkConfigCmd) checkConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+	return CheckConfig(c.files)
 }
 
 func CheckConfig(args []string) error {

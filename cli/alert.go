@@ -14,16 +14,21 @@ import (
 	"github.com/prometheus/alertmanager/pkg/parse"
 )
 
-var (
-	alertCmd      = app.Command("alert", "View and search through current alerts")
-	alertQueryCmd = alertCmd.Command("query", "View and search through current alerts").Default()
-	expired       = alertQueryCmd.Flag("expired", "Show expired alerts as well as active").Bool()
-	silenced      = alertQueryCmd.Flag("silenced", "Show silenced alerts").Short('s').Bool()
-	alertQuery    = alertQueryCmd.Arg("matcher-groups", "Query filter").Strings()
-)
+type alertQueryCmd struct {
+	expired, silenced bool
+	matcherGroups     []string
+}
 
-func init() {
-	alertQueryCmd.Action(queryAlerts)
+func configureAlertCmd(app *kingpin.Application, longHelpText map[string]string) {
+	var (
+		a             = &alertQueryCmd{}
+		alertCmd      = app.Command("alert", "View and search through current alerts")
+		alertQueryCmd = alertCmd.Command("query", "View and search through current alerts").Default()
+	)
+	alertQueryCmd.Flag("expired", "Show expired alerts as well as active").BoolVar(&a.expired)
+	alertQueryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
+	alertQueryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
+	alertQueryCmd.Action(a.queryAlerts)
 	longHelpText["alert"] = `View and search through current alerts.
 
 Amtool has a simplified prometheus query syntax, but contains robust support for
@@ -49,33 +54,33 @@ amtool alert query 'alertname=~foo.*'
 	longHelpText["alert query"] = longHelpText["alert"]
 }
 
-func queryAlerts(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (a *alertQueryCmd) queryAlerts(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	var filterString = ""
-	if len(*alertQuery) == 1 {
+	if len(a.matcherGroups) == 1 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := parse.Matcher((*alertQuery)[0])
+		_, err := parse.Matcher(a.matcherGroups[0])
 		if err != nil {
-			filterString = fmt.Sprintf("{alertname=%s}", (*alertQuery)[0])
+			filterString = fmt.Sprintf("{alertname=%s}", a.matcherGroups[0])
 		} else {
-			filterString = fmt.Sprintf("{%s}", strings.Join(*alertQuery, ","))
+			filterString = fmt.Sprintf("{%s}", strings.Join(a.matcherGroups, ","))
 		}
-	} else if len(*alertQuery) > 1 {
-		filterString = fmt.Sprintf("{%s}", strings.Join(*alertQuery, ","))
+	} else if len(a.matcherGroups) > 1 {
+		filterString = fmt.Sprintf("{%s}", strings.Join(a.matcherGroups, ","))
 	}
 
-	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
 	if err != nil {
 		return err
 	}
 	alertAPI := client.NewAlertAPI(c)
-	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, *expired, *silenced)
+	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, a.expired, a.silenced)
 	if err != nil {
 		return err
 	}
 
-	formatter, found := format.Formatters[*output]
+	formatter, found := format.Formatters[output]
 	if !found {
 		return errors.New("unknown output formatter")
 	}

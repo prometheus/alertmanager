@@ -23,19 +23,30 @@ func username() string {
 	return user.Username
 }
 
-var (
-	addCmd         = silenceCmd.Command("add", "Add a new alertmanager silence")
-	author         = addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).String()
-	requireComment = addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").Bool()
-	duration       = addCmd.Flag("duration", "Duration of silence").Short('d').Default("1h").String()
-	addStart       = addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").String()
-	addEnd         = addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").String()
-	comment        = addCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
-	addArgs        = addCmd.Arg("matcher-groups", "Query filter").Strings()
-)
+type silenceAddCmd struct {
+	author         string
+	requireComment bool
+	duration       string
+	start          string
+	end            string
+	comment        string
+	matchers       []string
+}
 
-func init() {
-	addCmd.Action(add)
+func configureSilenceAddCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
+	var (
+		c      = &silenceAddCmd{}
+		addCmd = cc.Command("add", "Add a new alertmanager silence")
+	)
+	addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).StringVar(&c.author)
+	addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").BoolVar(&c.requireComment)
+	addCmd.Flag("duration", "Duration of silence").Short('d').Default("1h").StringVar(&c.duration)
+	addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.start)
+	addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.end)
+	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
+	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
+	addCmd.Action(c.add)
+
 	longHelpText["silence add"] = `Add a new alertmanager silence
 
   Amtool uses a simplified prometheus syntax to represent silences. The
@@ -61,10 +72,10 @@ func init() {
 `
 }
 
-func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceAddCmd) add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	var err error
 
-	matchers, err := parseMatchers(*addArgs)
+	matchers, err := parseMatchers(c.matchers)
 	if err != nil {
 		return err
 	}
@@ -74,13 +85,13 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	}
 
 	var endsAt time.Time
-	if *addEnd != "" {
-		endsAt, err = time.Parse(time.RFC3339, *addEnd)
+	if c.end != "" {
+		endsAt, err = time.Parse(time.RFC3339, c.end)
 		if err != nil {
 			return err
 		}
 	} else {
-		d, err := model.ParseDuration(*duration)
+		d, err := model.ParseDuration(c.duration)
 		if err != nil {
 			return err
 		}
@@ -90,13 +101,13 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		endsAt = time.Now().UTC().Add(time.Duration(d))
 	}
 
-	if *requireComment && *comment == "" {
+	if c.requireComment && c.comment == "" {
 		return errors.New("comment required by config")
 	}
 
 	var startsAt time.Time
-	if *addStart != "" {
-		startsAt, err = time.Parse(time.RFC3339, *addStart)
+	if c.start != "" {
+		startsAt, err = time.Parse(time.RFC3339, c.start)
 		if err != nil {
 			return err
 		}
@@ -118,15 +129,15 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 		Matchers:  typeMatchers,
 		StartsAt:  startsAt,
 		EndsAt:    endsAt,
-		CreatedBy: *author,
-		Comment:   *comment,
+		CreatedBy: c.author,
+		Comment:   c.comment,
 	}
 
-	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
 	if err != nil {
 		return err
 	}
-	silenceAPI := client.NewSilenceAPI(c)
+	silenceAPI := client.NewSilenceAPI(apiClient)
 	silenceID, err := silenceAPI.Set(context.Background(), silence)
 	if err != nil {
 		return err

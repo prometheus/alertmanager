@@ -12,9 +12,9 @@ import (
 )
 
 // configCmd represents the config command
-var configCmd = app.Command("config", "View the running config").Action(queryConfig)
+func configureConfigCmd(app *kingpin.Application, longHelpText map[string]string) {
+	app.Command("config", "View the running config").Action(queryConfig)
 
-func init() {
 	longHelpText["config"] = `View current config
 The amount of output is controlled by the output selection flag:
 	- Simple: Print just the running config
@@ -23,7 +23,7 @@ The amount of output is controlled by the output selection flag:
 }
 
 func queryConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
-	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func queryConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error
 		return err
 	}
 
-	formatter, found := format.Formatters[*output]
+	formatter, found := format.Formatters[output]
 	if !found {
 		return errors.New("unknown output formatter")
 	}

@@ -27,8 +27,8 @@ func (s ByAlphabetical) Less(i, j int) bool {
 }
 
 func GetAlertmanagerURL(p string) url.URL {
-	amURL := **alertmanagerUrl
-	amURL.Path = path.Join((*alertmanagerUrl).Path, p)
+	amURL := *alertmanagerURL
+	amURL.Path = path.Join(alertmanagerURL.Path, p)
 	return amURL
 }
 
