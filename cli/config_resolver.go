@@ -8,15 +8,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type ConfigResolver []map[string]string
+type configResolver []map[string]string
 
-func NewConfigResolver() (ConfigResolver, error) {
+func newConfigResolver() (configResolver, error) {
 	files := []string{
 		os.ExpandEnv("$HOME/.config/amtool/config.yml"),
 		"/etc/amtool/config.yml",
 	}
 
-	resolver := ConfigResolver{}
+	resolver := configResolver{}
 	for _, f := range files {
 		b, err := ioutil.ReadFile(f)
 		if err != nil {
@@ -37,7 +37,7 @@ func NewConfigResolver() (ConfigResolver, error) {
 	return resolver, nil
 }
 
-func (r ConfigResolver) Resolve(key string, context *kingpin.ParseContext) ([]string, error) {
+func (r configResolver) Resolve(key string, context *kingpin.ParseContext) ([]string, error) {
 	for _, c := range r {
 		if v, ok := c[key]; ok {
 			return []string{v}, nil
@@ -48,7 +48,7 @@ func (r ConfigResolver) Resolve(key string, context *kingpin.ParseContext) ([]st
 
 // This function maps things which have previously had different names in the
 // config file to their new names, so old configurations keep working
-func BackwardsCompatibilityResolver(key string) string {
+func backwardsCompatibilityResolver(key string) string {
 	switch key {
 	case "require-comment":
 		return "comment_required"
