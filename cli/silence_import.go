@@ -1,13 +1,18 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/alecthomas/kingpin"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/api"
+
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -31,20 +36,20 @@ amtool silence import foo.json
 JSON data can also come from stdin if no param is specified.`
 }
 
-func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {
+func addSilenceWorker(sclient client.SilenceAPI, silencec <-chan *types.Silence, errc chan<- error) {
 	for s := range silencec {
-		silenceId, err := addSilence(s)
+		silenceID, err := sclient.Set(context.Background(), *s)
 		sid := s.ID
-		if err != nil && err.Error() == "[bad_data] not found" {
+		if err != nil && strings.Contains(err.Error(), "not found") {
 			// silence doesn't exists yet, retry to create as a new one
 			s.ID = ""
-			silenceId, err = addSilence(s)
+			silenceID, err = sclient.Set(context.Background(), *s)
 		}
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v", sid, err)
+			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v\n", sid, err)
 		} else {
-			fmt.Println(silenceId)
+			fmt.Println(silenceID)
 		}
 		errc <- err
 	}
@@ -68,13 +73,18 @@ func bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error 
 		return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
 	}
 
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(c)
 	silencec := make(chan *types.Silence, 100)
 	errc := make(chan error, 100)
 	var wg sync.WaitGroup
 	for w := 0; w < *workers; w++ {
 		wg.Add(1)
 		go func() {
-			addSilenceWorker(silencec, errc)
+			addSilenceWorker(silenceAPI, silencec, errc)
 			wg.Done()
 		}()
 	}

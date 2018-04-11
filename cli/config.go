@@ -1,33 +1,15 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"fmt"
-	"net/http"
-	"time"
 
 	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/client_golang/api"
+
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/client"
 )
-
-// Config is the response type of alertmanager config endpoint
-// Duped in cli/format needs to be moved to common/model
-type Config struct {
-	ConfigYAML  string                 `json:"configYAML"`
-	ConfigJSON  config.Config          `json:"configJSON"`
-	MeshStatus  map[string]interface{} `json:"meshStatus"`
-	VersionInfo map[string]string      `json:"versionInfo"`
-	Uptime      time.Time              `json:"uptime"`
-}
-
-type alertmanagerStatusResponse struct {
-	Status    string `json:"status"`
-	Data      Config `json:"data,omitempty"`
-	ErrorType string `json:"errorType,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
 
 // configCmd represents the config command
 var configCmd = app.Command("config", "View the running config").Action(queryConfig)
@@ -40,31 +22,13 @@ The amount of output is controlled by the output selection flag:
 	- Json: Print entire config object as json`
 }
 
-func fetchConfig() (Config, error) {
-	configResponse := alertmanagerStatusResponse{}
-
-	u := GetAlertmanagerURL("/api/v1/status")
-	res, err := http.Get(u.String())
-	if err != nil {
-		return Config{}, err
-	}
-
-	defer res.Body.Close()
-
-	err = json.NewDecoder(res.Body).Decode(&configResponse)
-	if err != nil {
-		return configResponse.Data, err
-	}
-
-	if configResponse.Status != "success" {
-		return Config{}, fmt.Errorf("[%s] %s", configResponse.ErrorType, configResponse.Error)
-	}
-
-	return configResponse.Data, nil
-}
-
 func queryConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
-	config, err := fetchConfig()
+	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	if err != nil {
+		return err
+	}
+	statusAPI := client.NewStatusAPI(c)
+	status, err := statusAPI.Get(context.Background())
 	if err != nil {
 		return err
 	}
@@ -74,7 +38,5 @@ func queryConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error
 		return errors.New("unknown output formatter")
 	}
 
-	c := format.Config(config)
-
-	return formatter.FormatConfig(c)
+	return formatter.FormatConfig(status)
 }

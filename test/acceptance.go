@@ -32,7 +32,7 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/cli"
+	"github.com/prometheus/alertmanager/client"
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected
@@ -130,13 +130,13 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 
 	t.Logf("AM on %s", am.apiAddr)
 
-	client, err := api.NewClient(api.Config{
+	c, err := api.NewClient(api.Config{
 		Address: fmt.Sprintf("http://%s", am.apiAddr),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	am.client = client
+	am.client = c
 
 	t.ams = append(t.ams, am)
 
@@ -316,26 +316,26 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas []cli.Alert
+	var cas []client.Alert
 	for i := range alerts {
 		a := alerts[i].nativeAlert(am.opts)
-		al := cli.Alert{
-			Labels:       cli.LabelSet{},
-			Annotations:  cli.LabelSet{},
+		al := client.Alert{
+			Labels:       client.LabelSet{},
+			Annotations:  client.LabelSet{},
 			StartsAt:     a.StartsAt,
 			EndsAt:       a.EndsAt,
 			GeneratorURL: a.GeneratorURL,
 		}
 		for n, v := range a.Labels {
-			al.Labels[cli.LabelName(n)] = cli.LabelValue(v)
+			al.Labels[client.LabelName(n)] = client.LabelValue(v)
 		}
 		for n, v := range a.Annotations {
-			al.Annotations[cli.LabelName(n)] = cli.LabelValue(v)
+			al.Annotations[client.LabelName(n)] = client.LabelValue(v)
 		}
 		cas = append(cas, al)
 	}
 
-	alertAPI := cli.NewAlertAPI(am.client)
+	alertAPI := client.NewAlertAPI(am.client)
 
 	am.t.Do(at, func() {
 		if err := alertAPI.Push(context.Background(), cas...); err != nil {

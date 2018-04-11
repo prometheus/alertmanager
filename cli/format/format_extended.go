@@ -8,9 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 )
 
 type ExtendedFormatter struct {
@@ -46,7 +45,7 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) err
 	return nil
 }
 
-func (formatter *ExtendedFormatter) FormatAlerts(alerts []*dispatch.APIAlert) error {
+func (formatter *ExtendedFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
@@ -65,19 +64,19 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts []*dispatch.APIAlert) er
 	return nil
 }
 
-func (formatter *ExtendedFormatter) FormatConfig(config Config) error {
-	fmt.Fprintln(formatter.writer, config.ConfigYAML)
-	fmt.Fprintln(formatter.writer, "buildUser", config.VersionInfo["buildUser"])
-	fmt.Fprintln(formatter.writer, "goVersion", config.VersionInfo["goVersion"])
-	fmt.Fprintln(formatter.writer, "revision", config.VersionInfo["revision"])
-	fmt.Fprintln(formatter.writer, "version", config.VersionInfo["version"])
-	fmt.Fprintln(formatter.writer, "branch", config.VersionInfo["branch"])
-	fmt.Fprintln(formatter.writer, "buildDate", config.VersionInfo["buildDate"])
-	fmt.Fprintln(formatter.writer, "uptime", config.Uptime)
+func (formatter *ExtendedFormatter) FormatConfig(status *client.ServerStatus) error {
+	fmt.Fprintln(formatter.writer, status.ConfigYAML)
+	fmt.Fprintln(formatter.writer, "buildUser", status.VersionInfo["buildUser"])
+	fmt.Fprintln(formatter.writer, "goVersion", status.VersionInfo["goVersion"])
+	fmt.Fprintln(formatter.writer, "revision", status.VersionInfo["revision"])
+	fmt.Fprintln(formatter.writer, "version", status.VersionInfo["version"])
+	fmt.Fprintln(formatter.writer, "branch", status.VersionInfo["branch"])
+	fmt.Fprintln(formatter.writer, "buildDate", status.VersionInfo["buildDate"])
+	fmt.Fprintln(formatter.writer, "uptime", status.Uptime)
 	return nil
 }
 
-func extendedFormatLabels(labels model.LabelSet) string {
+func extendedFormatLabels(labels client.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {
 		output = append(output, fmt.Sprintf("%s=\"%s\"", name, value))
@@ -86,7 +85,7 @@ func extendedFormatLabels(labels model.LabelSet) string {
 	return strings.Join(output, " ")
 }
 
-func extendedFormatAnnotations(labels model.LabelSet) string {
+func extendedFormatAnnotations(labels client.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {
 		output = append(output, fmt.Sprintf("%s=\"%s\"", name, value))
