@@ -47,10 +47,9 @@ func TestDefaultReceiverExists(t *testing.T) {
 route:
    group_wait: 30s
 `
-	conf := &Config{}
-	err := yaml.Unmarshal([]byte(in), conf)
+    _, err := Load(in)
 
-	expected := "root route must specify a default receiver"
+    expected := "root route must specify a default receiver"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)

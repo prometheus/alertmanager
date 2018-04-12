@@ -12,7 +12,7 @@ func TestEmailToIsPresent(t *testing.T) {
 to: ''
 `
 	var cfg EmailConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing to address in email config"
 
@@ -32,7 +32,7 @@ headers:
   subject: 'New Alert'
 `
 	var cfg EmailConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "duplicate header \"Subject\" in email config"
 
@@ -49,7 +49,7 @@ func TestPagerdutyRoutingKeyIsPresent(t *testing.T) {
 routing_key: ''
 `
 	var cfg PagerdutyConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing service or routing key in PagerDuty config"
 
@@ -66,7 +66,7 @@ func TestPagerdutyServiceKeyIsPresent(t *testing.T) {
 service_key: ''
 `
 	var cfg PagerdutyConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing service or routing key in PagerDuty config"
 
@@ -83,7 +83,7 @@ func TestHipchatRoomIDIsPresent(t *testing.T) {
 room_id: ''
 `
 	var cfg HipchatConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing room id in Hipchat config"
 
@@ -100,7 +100,7 @@ func TestWebhookURLIsPresent(t *testing.T) {
 url: ''
 `
 	var cfg WebhookConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing URL in webhook config"
 
@@ -120,7 +120,7 @@ http_config:
   bearer_token_file: /tmp/bar
 `
 	var cfg WebhookConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "at most one of bearer_token & bearer_token_file must be configured"
 
@@ -137,7 +137,7 @@ func TestWebhookHttpConfigIsOptional(t *testing.T) {
 url: 'http://example.com'
 `
 	var cfg WebhookConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
@@ -153,7 +153,7 @@ http_config:
     password: supersecret
 `
 	var cfg WebhookConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
@@ -173,7 +173,7 @@ func TestWechatAPIKeyIsPresent(t *testing.T) {
 api_secret: ''
 `
 	var cfg WechatConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing Wechat APISecret in Wechat config"
 
@@ -190,7 +190,7 @@ api_secret: 'api_secret'
 corp_id: ''
 `
 	var cfg WechatConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing Wechat CorpID in Wechat config"
 
@@ -207,7 +207,7 @@ func TestVictorOpsRoutingKeyIsPresent(t *testing.T) {
 routing_key: ''
 `
 	var cfg VictorOpsConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing Routing key in VictorOps config"
 
@@ -224,7 +224,7 @@ func TestPushoverUserKeyIsPresent(t *testing.T) {
 user_key: ''
 `
 	var cfg PushoverConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing user key in Pushover config"
 
@@ -242,7 +242,7 @@ user_key: '<user_key>'
 token: ''
 `
 	var cfg PushoverConfig
-	err := yaml.Unmarshal([]byte(in), &cfg)
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
 	expected := "missing token in Pushover config"
 
