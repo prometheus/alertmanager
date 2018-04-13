@@ -197,6 +197,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.RequireTLS = new(bool)
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
+			if ec.InsecureSkipVerify == nil {
+				ec.InsecureSkipVerify = new(bool)
+                        	*ec.InsecureSkipVerify = c.Global.InsecureSkipVerify
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.HTTPConfig == nil {
@@ -367,6 +371,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	OpsGenieAPIURL:  "https://api.opsgenie.com/",
 	WeChatAPIURL:    "https://qyapi.weixin.qq.com/cgi-bin/",
 	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
+	InsecureSkipVerify:  false,
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -397,6 +402,7 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify",omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
