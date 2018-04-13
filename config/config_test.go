@@ -312,25 +312,27 @@ func TestJSONUnmarshalMarshaled(t *testing.T) {
 }
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
-	boolFoo := true
+	boolTrue := true
+	boolFalse := false
 	var regexpFoo Regexp
 	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
 
 	var expectedConf = Config{
 
 		Global: &GlobalConfig{
-			HTTPConfig:       &commoncfg.HTTPClientConfig{},
-			ResolveTimeout:   model.Duration(5 * time.Minute),
-			SMTPSmarthost:    "localhost:25",
-			SMTPFrom:         "alertmanager@example.org",
-			HipchatAuthToken: "mysecret",
-			HipchatAPIURL:    "https://hipchat.foobar.org/",
-			SlackAPIURL:      "mysecret",
-			SMTPRequireTLS:   true,
-			PagerdutyURL:     "https://events.pagerduty.com/v2/enqueue",
-			OpsGenieAPIURL:   "https://api.opsgenie.com/",
-			WeChatAPIURL:     "https://qyapi.weixin.qq.com/cgi-bin/",
-			VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
+			HTTPConfig:         &commoncfg.HTTPClientConfig{},
+			ResolveTimeout:     model.Duration(5 * time.Minute),
+			SMTPSmarthost:      "localhost:25",
+			SMTPFrom:           "alertmanager@example.org",
+			HipchatAuthToken:   "mysecret",
+			HipchatAPIURL:      "https://hipchat.foobar.org/",
+			SlackAPIURL:        "mysecret",
+			SMTPRequireTLS:     true,
+      InsecureSkipVerify: false,
+			PagerdutyURL:       "https://events.pagerduty.com/v2/enqueue",
+			OpsGenieAPIURL:     "https://api.opsgenie.com/",
+			WeChatAPIURL:       "https://qyapi.weixin.qq.com/cgi-bin/",
+			VictorOpsAPIURL:    "https://alert.victorops.com/integrations/generic/20131114/alert/",
 		},
 
 		Templates: []string{
@@ -357,11 +359,12 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				Name: "team-X-mails",
 				EmailConfigs: []*EmailConfig{
 					{
-						To:         "team-X+alerts@example.org",
-						From:       "alertmanager@example.org",
-						Smarthost:  "localhost:25",
-						HTML:       "{{ template \"email.default.html\" . }}",
-						RequireTLS: &boolFoo,
+						To:                 "team-X+alerts@example.org",
+						From:               "alertmanager@example.org",
+						Smarthost:          "localhost:25",
+						HTML:               "{{ template \"email.default.html\" . }}",
+						RequireTLS:         &boolTrue,
+						InsecureSkipVerify: &boolFalse,
 					},
 				},
 			},

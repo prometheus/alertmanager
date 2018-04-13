@@ -150,18 +150,19 @@ type EmailConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	// Email address to notify.
-	To           string            `yaml:"to,omitempty" json:"to,omitempty"`
-	From         string            `yaml:"from,omitempty" json:"from,omitempty"`
-	Hello        string            `yaml:"hello,omitempty" json:"hello,omitempty"`
-	Smarthost    string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
-	AuthUsername string            `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
-	AuthPassword Secret            `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
-	AuthSecret   Secret            `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
-	AuthIdentity string            `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
-	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-	HTML         string            `yaml:"html,omitempty" json:"html,omitempty"`
-	Text         string            `yaml:"text,omitempty" json:"text,omitempty"`
-	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	To                 string            `yaml:"to,omitempty" json:"to,omitempty"`
+	From               string            `yaml:"from,omitempty" json:"from,omitempty"`
+	Hello              string            `yaml:"hello,omitempty" json:"hello,omitempty"`
+	Smarthost          string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
+	AuthUsername       string            `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
+	AuthPassword       Secret            `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
+	AuthSecret         Secret            `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
+	AuthIdentity       string            `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
+	Headers            map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
+	HTML               string            `yaml:"html,omitempty" json:"html,omitempty"`
+	Text               string            `yaml:"text,omitempty" json:"text,omitempty"`
+	RequireTLS         *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	InsecureSkipVerify *bool             `yaml:"insecure_skip_verify,omitempty" json:"insecure_skip_verify,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`

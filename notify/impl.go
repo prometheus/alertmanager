@@ -315,7 +315,10 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return true, fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
-		tlsConf := &tls.Config{ServerName: host}
+		tlsConf := &tls.Config{
+			ServerName:         host,
+			InsecureSkipVerify: *n.conf.InsecureSkipVerify,
+		}
 		if err := c.StartTLS(tlsConf); err != nil {
 			return true, fmt.Errorf("starttls failed: %s", err)
 		}
