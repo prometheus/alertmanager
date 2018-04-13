@@ -10,28 +10,33 @@ import (
 	"github.com/prometheus/alertmanager/client"
 )
 
-var (
-	expireCmd = silenceCmd.Command("expire", "expire an alertmanager silence")
-	expireIds = expireCmd.Arg("silence-ids", "Ids of silences to expire").Strings()
-)
+type silenceExpireCmd struct {
+	ids []string
+}
 
-func init() {
-	expireCmd.Action(expire)
+func configureSilenceExpireCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
+	var (
+		c         = &silenceExpireCmd{}
+		expireCmd = cc.Command("expire", "expire an alertmanager silence")
+	)
+	expireCmd.Arg("silence-ids", "Ids of silences to expire").StringsVar(&c.ids)
+
+	expireCmd.Action(c.expire)
 	longHelpText["silence expire"] = `Expire an alertmanager silence`
 }
 
-func expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
-	if len(*expireIds) < 1 {
+func (c *silenceExpireCmd) expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+	if len(c.ids) < 1 {
 		return errors.New("no silence IDs specified")
 	}
 
-	c, err := api.NewClient(api.Config{Address: (*alertmanagerUrl).String()})
+	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
 	if err != nil {
 		return err
 	}
-	silenceAPI := client.NewSilenceAPI(c)
+	silenceAPI := client.NewSilenceAPI(apiClient)
 
-	for _, id := range *expireIds {
+	for _, id := range c.ids {
 		err := silenceAPI.Expire(context.Background(), id)
 		if err != nil {
 			return err
