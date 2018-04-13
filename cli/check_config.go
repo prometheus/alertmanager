@@ -15,12 +15,12 @@ type checkConfigCmd struct {
 
 func configureCheckConfigCmd(app *kingpin.Application, longHelpText map[string]string) {
 	var (
-		c              = &checkConfigCmd{}
-		checkConfigCmd = app.Command("check-config", "Validate alertmanager config files")
+		c        = &checkConfigCmd{}
+		checkCmd = app.Command("check-config", "Validate alertmanager config files")
 	)
-	checkConfigCmd.Arg("check-files", "Files to be validated").ExistingFilesVar(&c.files)
+	checkCmd.Arg("check-files", "Files to be validated").ExistingFilesVar(&c.files)
 
-	checkConfigCmd.Action(c.checkConfig)
+	checkCmd.Action(c.checkConfig)
 	longHelpText["check-config"] = `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
