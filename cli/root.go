@@ -1,79 +1,67 @@
 package cli
 
 import (
-	"io/ioutil"
+	"net/url"
 	"os"
 
 	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/common/version"
-	"gopkg.in/yaml.v2"
 )
 
 var (
-	app             = kingpin.New("amtool", "Alertmanager CLI").DefaultEnvars()
-	verbose         = app.Flag("verbose", "Verbose running information").Short('v').Bool()
-	alertmanagerUrl = app.Flag("alertmanager.url", "Alertmanager to talk to").Required().URL()
-	output          = app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").Enum("simple", "extended", "json")
-
-	// This contains a mapping from command path to the long-format help string
-	// Separate subcommands with spaces, eg longHelpText["silence query"]
-	longHelpText = make(map[string]string)
+	verbose         bool
+	alertmanagerURL *url.URL
+	output          string
 )
 
-type amtoolConfigResolver struct {
-	configData []map[string]string
+func Execute() {
+	var (
+		longHelpText = map[string]string{}
+		app          = kingpin.New("amtool", "Alertmanager CLI").DefaultEnvars()
+	)
+
+	longHelpText["root"] = longHelpTextRoot
+
+	format.InitFormatFlags(app)
+
+	app.Flag("verbose", "Verbose running information").Short('v').BoolVar(&verbose)
+	app.Flag("alertmanager.url", "Alertmanager to talk to").Required().URLVar(&alertmanagerURL)
+	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
+	app.Version(version.Print("amtool"))
+	app.GetFlag("help").Short('h')
+	app.UsageTemplate(kingpin.CompactUsageTemplate)
+	app.Flag("help-long", "Give more detailed help output").UsageAction(&kingpin.UsageContext{
+		Template: longHelpTemplate,
+		Vars:     map[string]interface{}{"LongHelp": longHelpText},
+	}).Bool()
+
+	configResolver, err := newConfigResolver()
+	if err != nil {
+		kingpin.Fatalf("could not load config file: %v\n", err)
+	}
+	// Use the same resolver twice, first for checking backwards compatibility,
+	// then again for the new names. This order ensures that the newest wins, if
+	// both old and new are present
+	app.Resolver(
+		kingpin.RenamingResolver(configResolver, backwardsCompatibilityResolver),
+		configResolver,
+	)
+
+	configureAlertCmd(app, longHelpText)
+	configureSilenceCmd(app, longHelpText)
+	configureCheckConfigCmd(app, longHelpText)
+	configureConfigCmd(app, longHelpText)
+
+	_, err = app.Parse(os.Args[1:])
+	if err != nil {
+		kingpin.Fatalf("%v\n", err)
+	}
+
 }
 
-func newConfigResolver() (amtoolConfigResolver, error) {
-	files := []string{
-		os.ExpandEnv("$HOME/.config/amtool/config.yml"),
-		"/etc/amtool/config.yml",
-	}
-
-	resolver := amtoolConfigResolver{
-		configData: make([]map[string]string, 0),
-	}
-	for _, f := range files {
-		b, err := ioutil.ReadFile(f)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return resolver, err
-		}
-		var config map[string]string
-		err = yaml.Unmarshal(b, &config)
-		if err != nil {
-			return resolver, err
-		}
-		resolver.configData = append(resolver.configData, config)
-	}
-
-	return resolver, nil
-}
-
-func (r amtoolConfigResolver) Resolve(key string, context *kingpin.ParseContext) ([]string, error) {
-	for _, c := range r.configData {
-		if v, ok := c[key]; ok {
-			return []string{v}, nil
-		}
-	}
-	return nil, nil
-}
-
-// This function maps things which have previously had different names in the
-// config file to their new names, so old configurations keep working
-func backwardsCompatibilityResolver(key string) string {
-	switch key {
-	case "require-comment":
-		return "comment_required"
-	}
-	return key
-}
-
-func init() {
-	longHelpText["root"] = `View and modify the current Alertmanager state.
+const (
+	longHelpTextRoot = `View and modify the current Alertmanager state.
 
 Config File:
 The alertmanager tool will read a config file in YAML format from one of two
@@ -99,40 +87,7 @@ static configuration:
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
 `
-}
-
-// Execute parses the arguments and executes the corresponding command, it is
-// called by cmd/amtool/main.main().
-func Execute() {
-	format.InitFormatFlags(app)
-
-	app.Version(version.Print("amtool"))
-	app.GetFlag("help").Short('h')
-	app.UsageTemplate(kingpin.CompactUsageTemplate)
-	app.Flag("help-long", "Give more detailed help output").UsageAction(&kingpin.UsageContext{
-		Template: longHelpTemplate,
-		Vars:     map[string]interface{}{"LongHelp": longHelpText},
-	}).Bool()
-
-	configResolver, err := newConfigResolver()
-	if err != nil {
-		kingpin.Fatalf("could not load config file: %v\n", err)
-	}
-	// Use the same resolver twice, first for checking backwards compatibility,
-	// then again for the new names. This order ensures that the newest wins, if
-	// both old and new are present
-	app.Resolver(
-		kingpin.RenamingResolver(configResolver, backwardsCompatibilityResolver),
-		configResolver,
-	)
-
-	_, err = app.Parse(os.Args[1:])
-	if err != nil {
-		kingpin.Fatalf("%v\n", err)
-	}
-}
-
-const longHelpTemplate = `{{define "FormatCommands" -}}
+	longHelpTemplate = `{{define "FormatCommands" -}}
 {{range .FlattenedCommands -}}
 {{if not .Hidden}}
   {{.CmdSummary}}
@@ -178,3 +133,4 @@ const longHelpTemplate = `{{define "FormatCommands" -}}
 {{template "FormatCommands" .App}}
 {{end -}}
 `
+)
