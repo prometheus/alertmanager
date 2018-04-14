@@ -186,6 +186,12 @@ func (p *Peer) Ready() bool {
 	return false
 }
 
+// Healthy implements the web.healthIndicator interface. It is used to indicate
+// whether the mesh is settled or not.
+func (p *Peer) Healthy() bool {
+	return p.Ready()
+}
+
 // Wait until Settle() has finished.
 func (p *Peer) WaitReady() {
 	<-p.readyc

@@ -47,8 +47,15 @@ func serveAsset(w http.ResponseWriter, req *http.Request, fp string, logger log.
 	http.ServeContent(w, req, info.Name(), info.ModTime(), bytes.NewReader(file))
 }
 
+// healthIndicator reports the health of the Alertmanager instance. For
+// example, if the mesh is settling it would return false. Ready() should not
+// block.
+type healthIndicator interface {
+	Healthy() bool
+}
+
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
+func Register(r *route.Router, reloadCh chan<- chan error, h healthIndicator, logger log.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Get("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -81,8 +88,13 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 	}))
 
 	r.Get("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "OK")
+		if h.Healthy() {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "OK")
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "NOT HEALTHY")
+		}
 	}))
 	r.Get("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
