@@ -368,7 +368,7 @@ func main() {
 
 	webReload := make(chan chan error)
 
-	ui.Register(router, webReload, logger)
+	ui.Register(router, webReload, peer, logger)
 
 	apiv.Register(router.WithPrefix("/api"))
 
