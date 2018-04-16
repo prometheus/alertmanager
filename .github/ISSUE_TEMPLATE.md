@@ -25,7 +25,7 @@
 
 * Alertmanager version:
 
-	insert output of `alertmanager -version` here
+	insert output of `alertmanager --version` here
 
 * Prometheus version:
 
