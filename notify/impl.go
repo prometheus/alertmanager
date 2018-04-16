@@ -711,7 +711,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, string(n.conf.APIURL), contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, tmplText(string(n.conf.APIURL)), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
