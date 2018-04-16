@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"

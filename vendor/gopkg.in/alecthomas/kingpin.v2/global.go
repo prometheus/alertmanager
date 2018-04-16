@@ -8,6 +8,12 @@ import (
 var (
 	// CommandLine is the default Kingpin parser.
 	CommandLine = New(filepath.Base(os.Args[0]), "")
+	// Global help flag. Exposed for user customisation.
+	HelpFlag = CommandLine.HelpFlag
+	// Top-level help command. Exposed for user customisation. May be nil.
+	HelpCommand = CommandLine.HelpCommand
+	// Global version flag. Exposed for user customisation. May be nil.
+	VersionFlag = CommandLine.VersionFlag
 )
 
 // Command adds a new command to the default parser.
@@ -16,20 +22,13 @@ func Command(name, help string) *CmdClause {
 }
 
 // Flag adds a new flag to the default parser.
-func Flag(name, help string) *Clause {
+func Flag(name, help string) *FlagClause {
 	return CommandLine.Flag(name, help)
 }
 
 // Arg adds a new argument to the top-level of the default parser.
-func Arg(name, help string) *Clause {
+func Arg(name, help string) *ArgClause {
 	return CommandLine.Arg(name, help)
-}
-
-// Struct creates a command-line from a struct.
-func Struct(v interface{}) *Application {
-	err := CommandLine.Struct(v)
-	FatalIfError(err, "")
-	return CommandLine
 }
 
 // Parse and return the selected command. Will call the termination handler if
@@ -76,8 +75,7 @@ func Usage() {
 	CommandLine.Usage(os.Args[1:])
 }
 
-// UsageTemplate associates a template with a flag. The flag must be a Bool() and must
-// already be defined.
+// Set global usage template to use (defaults to DefaultUsageTemplate).
 func UsageTemplate(template string) *Application {
 	return CommandLine.UsageTemplate(template)
 }
@@ -85,7 +83,7 @@ func UsageTemplate(template string) *Application {
 // MustParse can be used with app.Parse(args) to exit with an error if parsing fails.
 func MustParse(command string, err error) string {
 	if err != nil {
-		Fatalf(T("{{.Arg0}}, try --help", V{"Arg0": err}))
+		Fatalf("%s, try --help", err)
 	}
 	return command
 }

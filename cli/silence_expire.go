@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/client"
 )
@@ -25,7 +25,7 @@ func configureSilenceExpireCmd(cc *kingpin.CmdClause, longHelpText map[string]st
 	longHelpText["silence expire"] = `Expire an alertmanager silence`
 }
 
-func (c *silenceExpireCmd) expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceExpireCmd) expire(ctx *kingpin.ParseContext) error {
 	if len(c.ids) < 1 {
 		return errors.New("no silence IDs specified")
 	}

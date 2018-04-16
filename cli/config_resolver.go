@@ -3,55 +3,56 @@ package cli
 import (
 	"io/ioutil"
 	"os"
+	"regexp"
+	"strings"
 
-	"github.com/alecthomas/kingpin"
+	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/yaml.v2"
 )
 
-type configResolver []map[string]string
-
-func newConfigResolver() (configResolver, error) {
-	files := []string{
-		os.ExpandEnv("$HOME/.config/amtool/config.yml"),
-		"/etc/amtool/config.yml",
+var (
+	// kingpin transforms flags to <APPNAME>_<FLAG>.
+	envarTransformRegexp = regexp.MustCompile(`[^a-zA-Z0-9_]+`)
+	oldFlags             = map[string]string{
+		"comment_required": "require-comment",
 	}
+)
 
-	resolver := configResolver{}
+// loadConfig loads flags from YAML files and injects them as environment variables.
+func loadConfig(app *kingpin.Application, files ...string) error {
+	flags := map[string]string{}
 	for _, f := range files {
 		b, err := ioutil.ReadFile(f)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return nil, err
+			return err
 		}
 
 		var m map[string]string
 		err = yaml.Unmarshal(b, &m)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		resolver = append(resolver, m)
-	}
-
-	return resolver, nil
-}
-
-func (r configResolver) Resolve(key string, context *kingpin.ParseContext) ([]string, error) {
-	for _, c := range r {
-		if v, ok := c[key]; ok {
-			return []string{v}, nil
+		for k, v := range m {
+			if new, ok := oldFlags[k]; ok {
+				if _, ok := m[new]; ok {
+					continue
+				}
+				k = new
+			}
+			if _, ok := flags[k]; !ok {
+				flags[k] = v
+			}
 		}
 	}
-	return nil, nil
-}
 
-// This function maps things which have previously had different names in the
-// config file to their new names, so old configurations keep working
-func backwardsCompatibilityResolver(key string) string {
-	switch key {
-	case "require-comment":
-		return "comment_required"
+	// kingpin maps flags to <APPNAME>_<FLAG> variables.
+	for k, v := range flags {
+		k := strings.ToUpper(envarTransformRegexp.ReplaceAllString(app.Name+"_"+k, "_"))
+		os.Setenv(k, v)
 	}
-	return key
+
+	return nil
 }

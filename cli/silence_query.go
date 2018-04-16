@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/client"
@@ -76,7 +76,7 @@ amtool silence query --within 2h --expired
 returns all silences that expired within the preceeding 2 hours.`
 }
 
-func (c *silenceQueryCmd) query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
 	var filterString = ""
 	if len(c.matchers) == 1 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets

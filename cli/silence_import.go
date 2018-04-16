@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
@@ -62,7 +62,7 @@ func addSilenceWorker(sclient client.SilenceAPI, silencec <-chan *types.Silence,
 	}
 }
 
-func (c *silenceImportCmd) bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceImportCmd) bulkImport(ctx *kingpin.ParseContext) error {
 	input := os.Stdin
 	var err error
 	if c.file != "" {

@@ -4,9 +4,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/common/version"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
@@ -31,22 +31,12 @@ func Execute() {
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)
-	app.Flag("help-long", "Give more detailed help output").UsageAction(&kingpin.UsageContext{
-		Template: longHelpTemplate,
-		Vars:     map[string]interface{}{"LongHelp": longHelpText},
-	}).Bool()
 
-	configResolver, err := newConfigResolver()
+	err := loadConfig(app, os.ExpandEnv("$HOME/.config/amtool/config.yml"),
+		"/etc/amtool/config.yml")
 	if err != nil {
 		kingpin.Fatalf("could not load config file: %v\n", err)
 	}
-	// Use the same resolver twice, first for checking backwards compatibility,
-	// then again for the new names. This order ensures that the newest wins, if
-	// both old and new are present
-	app.Resolver(
-		kingpin.RenamingResolver(configResolver, backwardsCompatibilityResolver),
-		configResolver,
-	)
 
 	configureAlertCmd(app, longHelpText)
 	configureSilenceCmd(app, longHelpText)
@@ -87,7 +77,7 @@ static configuration:
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
 `
-	longHelpTemplate = `{{define "FormatCommands" -}}
+	longHelpTemplate = `{{define "FormatCommands" }}
 {{range .FlattenedCommands -}}
 {{if not .Hidden}}
   {{.CmdSummary}}
@@ -99,7 +89,7 @@ static configuration:
 {{end -}}
 {{end -}}
 
-{{define "FormatUsage" -}}
+{{define "FormatUsage" }}
 {{.AppSummary}}
 {{if .Help}}
 {{.Help|Wrap 0 -}}

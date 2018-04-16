@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/client"
@@ -54,7 +54,7 @@ amtool alert query 'alertname=~foo.*'
 	longHelpText["alert query"] = longHelpText["alert"]
 }
 
-func (a *alertQueryCmd) queryAlerts(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (a *alertQueryCmd) queryAlerts(ctx *kingpin.ParseContext) error {
 	var filterString = ""
 	if len(a.matcherGroups) == 1 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets

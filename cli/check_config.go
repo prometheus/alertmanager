@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 // TODO: This can just be a type that is []string, doesn't have to be a struct
@@ -28,7 +28,7 @@ and associated templates. Non existing templates will not trigger
 errors`
 }
 
-func (c *checkConfigCmd) checkConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *checkConfigCmd) checkConfig(ctx *kingpin.ParseContext) error {
 	return CheckConfig(c.files)
 }
 

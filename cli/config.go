@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/client"
@@ -22,7 +22,7 @@ The amount of output is controlled by the output selection flag:
 	- Json: Print entire config object as json`
 }
 
-func queryConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func queryConfig(ctx *kingpin.ParseContext) error {
 	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
 	if err != nil {
 		return err

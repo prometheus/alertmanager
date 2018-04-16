@@ -7,9 +7,9 @@ import (
 	"os/user"
 	"time"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
@@ -49,7 +49,7 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause, longHelpText map[string]strin
 
 	longHelpText["silence add"] = `Add a new alertmanager silence
 
-  Amtool uses a simplified prometheus syntax to represent silences. The
+  Amtool uses a simplified Prometheus syntax to represent silences. The
   non-option section of arguments constructs a list of "Matcher Groups"
   that will be used to create a number of silences. The following examples
   will attempt to show this behaviour in action:
@@ -61,18 +61,18 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause, longHelpText map[string]strin
 
   amtool silence add foo node=bar
 
-	If alertname is ommited and the first argument does not contain a '=' or a
+	If alertname is omitted and the first argument does not contain a '=' or a
 	'=~' then it will be assumed to be the value of the alertname pair.
 
   amtool silence add 'alertname=~foo.*'
 
 	As well as direct equality, regex matching is also supported. The '=~' syntax
-	(similar to prometheus) is used to represent a regex match. Regex matching
+	(similar to Prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
 `
 }
 
-func (c *silenceAddCmd) add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceAddCmd) add(ctx *kingpin.ParseContext) error {
 	var err error
 
 	matchers, err := parseMatchers(c.matchers)
