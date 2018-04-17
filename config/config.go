@@ -53,7 +53,7 @@ func (s Secret) MarshalJSON() ([]byte, error) {
 // Load parses the YAML input s into a Config.
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
-	err := yaml.Unmarshal([]byte(s), cfg)
+	err := yaml.UnmarshalStrict([]byte(s), cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -111,22 +111,8 @@ type Config struct {
 	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
 	Templates    []string       `yaml:"templates" json:"templates"`
 
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline" json:"-"`
-
 	// original is the input from which the config was parsed.
 	original string
-}
-
-func checkOverflow(m map[string]interface{}, ctx string) error {
-	if len(m) > 0 {
-		var keys []string
-		for k := range m {
-			keys = append(keys, k)
-		}
-		return fmt.Errorf("unknown fields in %s: %s", ctx, strings.Join(keys, ", "))
-	}
-	return nil
 }
 
 func (c Config) String() string {
@@ -331,11 +317,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
-	if err := checkReceiver(c.Route, names); err != nil {
-		return err
-	}
-
-	return checkOverflow(c.XXX, "config")
+	return checkReceiver(c.Route, names)
 }
 
 // checkReceiver returns an error if a node in the routing tree
@@ -397,19 +379,13 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultGlobalConfig
 	type plain GlobalConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	return checkOverflow(c.XXX, "global")
+	return unmarshal((*plain)(c))
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -425,9 +401,6 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -465,7 +438,7 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("repeat_interval cannot be zero")
 	}
 
-	return checkOverflow(r.XXX, "route")
+	return nil
 }
 
 // InhibitRule defines an inhibition rule that mutes alerts that match the
@@ -487,9 +460,6 @@ type InhibitRule struct {
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -523,7 +493,7 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	return checkOverflow(r.XXX, "inhibit rule")
+	return nil
 }
 
 // Receiver configuration provides configuration on how to contact a receiver.
@@ -540,9 +510,6 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
-
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -554,7 +521,7 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Name == "" {
 		return fmt.Errorf("missing name in receiver")
 	}
-	return checkOverflow(c.XXX, "receiver config")
+	return nil
 }
 
 // Regexp encapsulates a regexp.Regexp and makes it YAML marshalable.

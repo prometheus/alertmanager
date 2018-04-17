@@ -827,8 +827,6 @@ type Wechat struct {
 // Wechat AccessToken with corpid and corpsecret.
 type WechatToken struct {
 	AccessToken string `json:"access_token"`
-	// Catches all undefined fields and must be empty after parsing.
-	XXX map[string]interface{} `json:"-"`
 }
 
 type weChatMessage struct {

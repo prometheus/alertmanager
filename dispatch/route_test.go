@@ -82,7 +82,7 @@ routes:
 `
 
 	var ctree config.Route
-	if err := yaml.Unmarshal([]byte(in), &ctree); err != nil {
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
 		t.Fatal(err)
 	}
 	var (
