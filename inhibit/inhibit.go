@@ -80,9 +80,6 @@ func (ih *Inhibitor) run(ctx context.Context) {
 				level.Error(ih.logger).Log("msg", "Error iterating alerts", "err", err)
 				continue
 			}
-			if a.Resolved() {
-				continue
-			}
 			// Update the inhibition rules' cache.
 			for _, r := range ih.rules {
 				if r.SourceMatchers.Match(a.Labels) {

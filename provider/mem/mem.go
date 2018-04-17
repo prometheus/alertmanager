@@ -180,12 +180,6 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
 				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
 				alert = old.Merge(alert)
-				// Merge returns a new alert. In order to
-				// update old, we have to set the struct it
-				// points to to equal the newly merged alert.
-				// This is necessary as old may be stored in
-				// the inhibitor's rules cache.
-				*old = *alert
 			}
 		}
 
