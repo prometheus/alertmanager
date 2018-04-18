@@ -18,13 +18,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
 )
 
+var nopLogger = log.NewNopLogger()
+
 func TestInhibitRuleHasEqual(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	cases := []struct {
 		initial map[model.Fingerprint]*types.Alert
@@ -135,6 +142,8 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 }
 
 func TestInhibitRuleMatches(t *testing.T) {
+	t.Parallel()
+
 	// Simple inhibut rule
 	cr := config.InhibitRule{
 		SourceMatch: map[string]string{"s": "1"},
@@ -142,7 +151,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		Equal:       model.LabelNames{"e"},
 	}
 	m := types.NewMarker()
-	ih := NewInhibitor(nil, []*config.InhibitRule{&cr}, m, nil)
+	ih := NewInhibitor(nil, []*config.InhibitRule{&cr}, m, nopLogger)
 	ir := ih.rules[0]
 	now := time.Now()
 	// Active alert that matches the source filter
@@ -224,5 +233,153 @@ func TestInhibitRuleGC(t *testing.T) {
 	if !reflect.DeepEqual(r.scache, after) {
 		t.Errorf("Unexpected cache state after GC")
 		t.Errorf(pretty.Compare(r.scache, after))
+	}
+}
+
+type fakeAlerts struct {
+	alerts   []*types.Alert
+	finished chan struct{}
+}
+
+func newFakeAlerts(alerts []*types.Alert) *fakeAlerts {
+	return &fakeAlerts{
+		alerts:   alerts,
+		finished: make(chan struct{}),
+	}
+}
+
+func (f *fakeAlerts) GetPending() provider.AlertIterator          { return nil }
+func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, nil }
+func (f *fakeAlerts) Put(...*types.Alert) error                   { return nil }
+func (f *fakeAlerts) Subscribe() provider.AlertIterator {
+	ch := make(chan *types.Alert)
+	done := make(chan struct{})
+	go func() {
+		for _, a := range f.alerts {
+			ch <- a
+		}
+		// Send another (meaningless) alert to make sure that the inhibitor has
+		// processed everything.
+		ch <- &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{},
+				StartsAt: time.Now(),
+			},
+		}
+		close(f.finished)
+		<-done
+	}()
+	return provider.NewAlertIterator(ch, done, nil)
+}
+
+func TestInhibit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	inhibitRule := func() *config.InhibitRule {
+		return &config.InhibitRule{
+			SourceMatch: map[string]string{"s": "1"},
+			TargetMatch: map[string]string{"t": "1"},
+			Equal:       model.LabelNames{"e"},
+		}
+	}
+	// alertOne is muted by alertTwo when it is active.
+	alertOne := func() *types.Alert {
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"t": "1", "e": "f"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(time.Hour),
+			},
+		}
+	}
+	alertTwo := func(resolved bool) *types.Alert {
+		var end time.Time
+		if resolved {
+			end = now.Add(-time.Second)
+		} else {
+			end = now.Add(time.Hour)
+		}
+		return &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"s": "1", "e": "f"},
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   end,
+			},
+		}
+	}
+
+	type exp struct {
+		lbls  model.LabelSet
+		muted bool
+	}
+	for i, tc := range []struct {
+		alerts   []*types.Alert
+		expected []exp
+	}{
+		{
+			// alertOne shouldn't be muted since alertTwo hasn't fired.
+			alerts: []*types.Alert{alertOne()},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// alertOne should be muted by alertTwo which is active.
+			alerts: []*types.Alert{alertOne(), alertTwo(false)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					muted: true,
+				},
+				{
+					lbls:  model.LabelSet{"s": "1", "e": "f"},
+					muted: false,
+				},
+			},
+		},
+		{
+			// alertOne shouldn't be muted since alertTwo is resolved.
+			alerts: []*types.Alert{alertOne(), alertTwo(false), alertTwo(true)},
+			expected: []exp{
+				{
+					lbls:  model.LabelSet{"t": "1", "e": "f"},
+					muted: false,
+				},
+				{
+					lbls:  model.LabelSet{"s": "1", "e": "f"},
+					muted: false,
+				},
+			},
+		},
+	} {
+		ap := newFakeAlerts(tc.alerts)
+		mk := types.NewMarker()
+		inhibitor := NewInhibitor(ap, []*config.InhibitRule{inhibitRule()}, mk, nopLogger)
+
+		go func() {
+			for ap.finished != nil {
+				select {
+				case <-ap.finished:
+					ap.finished = nil
+				default:
+				}
+			}
+			inhibitor.Stop()
+		}()
+		inhibitor.Run()
+
+		for _, expected := range tc.expected {
+			if inhibitor.Mutes(expected.lbls) != expected.muted {
+				mute := "unmuted"
+				if expected.muted {
+					mute = "muted"
+				}
+				t.Errorf("tc: %d, expected alert with labels %q to be %s", i, expected.lbls, mute)
+			}
+		}
 	}
 }
