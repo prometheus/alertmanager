@@ -82,7 +82,7 @@ func (ih *Inhibitor) run(ctx context.Context) {
 			}
 			// Update the inhibition rules' cache.
 			for _, r := range ih.rules {
-				if r.SourceMatchers.Match(a.Labels) {
+				if r.exists(a) || r.SourceMatchers.Match(a.Labels) {
 					r.set(a)
 				}
 			}
@@ -209,6 +209,15 @@ func (r *InhibitRule) set(a *types.Alert) {
 	defer r.mtx.Unlock()
 
 	r.scache[a.Fingerprint()] = a
+}
+
+// exists returns true if the alert is present in the source cache.
+func (r *InhibitRule) exists(a *types.Alert) bool {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	_, ok := r.scache[a.Fingerprint()]
+	return ok
 }
 
 // hasEqual checks whether the source cache contains alerts matching
