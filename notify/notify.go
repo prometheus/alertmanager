@@ -48,30 +48,29 @@ var (
 		Name:      "notifications_failed_total",
 		Help:      "The total number of failed notifications.",
 	}, []string{"integration"})
+
+	notificationLatencySeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "alertmanager",
+		Name:      "notification_latency_seconds",
+		Help:      "The latency of notifications in seconds.",
+		Buckets:   []float64{1, 5, 10, 15, 20},
+	}, []string{"integration"})
 )
 
 func init() {
-	numNotifications.WithLabelValues("email")
-	numNotifications.WithLabelValues("hipchat")
-	numNotifications.WithLabelValues("pagerduty")
-	numNotifications.WithLabelValues("wechat")
-	numNotifications.WithLabelValues("pushover")
-	numNotifications.WithLabelValues("slack")
-	numNotifications.WithLabelValues("opsgenie")
-	numNotifications.WithLabelValues("webhook")
-	numNotifications.WithLabelValues("victorops")
-	numFailedNotifications.WithLabelValues("email")
-	numFailedNotifications.WithLabelValues("hipchat")
-	numFailedNotifications.WithLabelValues("pagerduty")
-	numFailedNotifications.WithLabelValues("wechat")
-	numFailedNotifications.WithLabelValues("pushover")
-	numFailedNotifications.WithLabelValues("slack")
-	numFailedNotifications.WithLabelValues("opsgenie")
-	numFailedNotifications.WithLabelValues("webhook")
-	numFailedNotifications.WithLabelValues("victorops")
+	notificationLatencySeconds.WithLabelValues("email")
+	notificationLatencySeconds.WithLabelValues("hipchat")
+	notificationLatencySeconds.WithLabelValues("pagerduty")
+	notificationLatencySeconds.WithLabelValues("wechat")
+	notificationLatencySeconds.WithLabelValues("pushover")
+	notificationLatencySeconds.WithLabelValues("slack")
+	notificationLatencySeconds.WithLabelValues("opsgenie")
+	notificationLatencySeconds.WithLabelValues("webhook")
+	notificationLatencySeconds.WithLabelValues("victorops")
 
 	prometheus.Register(numNotifications)
 	prometheus.Register(numFailedNotifications)
+	prometheus.Register(notificationLatencySeconds)
 }
 
 // MinTimeout is the minimum timeout that is set for the context of a call
@@ -624,8 +623,11 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 
 		select {
 		case <-tick.C:
-			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
-				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
+			now := time.Now()
+			retry, err := r.integration.Notify(ctx, alerts...)
+			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
+			if err != nil {
+				numFailedNotifications.WithLabelValues(r.integration.name, r.groupName).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)
 				if !retry {
 					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
@@ -635,7 +637,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				// integration upon context timeout.
 				iErr = err
 			} else {
-				numNotifications.WithLabelValues(r.integration.name).Inc()
+				numNotifications.WithLabelValues(r.integration.name, r.groupName).Inc()
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
