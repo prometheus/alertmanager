@@ -638,23 +638,16 @@ type slackReq struct {
 
 // slackAttachment is used to display a richly-formatted message block.
 type slackAttachment struct {
-	Title     string                 `json:"title,omitempty"`
-	TitleLink string                 `json:"title_link,omitempty"`
-	Pretext   string                 `json:"pretext,omitempty"`
-	Text      string                 `json:"text"`
-	Fallback  string                 `json:"fallback"`
-	Fields    []slackAttachmentField `json:"fields"`
-	Footer    string                 `json:"footer"`
+	Title     string              `json:"title,omitempty"`
+	TitleLink string              `json:"title_link,omitempty"`
+	Pretext   string              `json:"pretext,omitempty"`
+	Text      string              `json:"text"`
+	Fallback  string              `json:"fallback"`
+	Fields    []config.SlackField `json:"fields,omitempty"`
+	Footer    string              `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
 	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
-}
-
-// slackAttachmentField is displayed in a table inside the message attachment.
-type slackAttachmentField struct {
-	Title string `json:"title"`
-	Value string `json:"value"`
-	Short bool   `json:"short,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -678,12 +671,21 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	var numFields = len(n.conf.Fields)
 	if numFields > 0 {
-		var fields = make([]slackAttachmentField, numFields)
-		for k, v := range n.conf.Fields {
-			fields[k] = slackAttachmentField{
-				tmplText(v["title"]),
-				tmplText(v["value"]),
-				n.conf.ShortFields,
+		var fields = make([]config.SlackField, numFields)
+		for index, field := range n.conf.Fields {
+			// Check if short was defined for the field otherwise fallback to the global setting
+			var short bool
+			if field.Short != nil {
+				short = *field.Short
+			} else {
+				short = n.conf.ShortFields
+			}
+
+			// Rebuild the field by executing any templates and setting the new value for short
+			fields[index] = config.SlackField{
+				Title: tmplText(field.Title),
+				Value: tmplText(field.Value),
+				Short: &short,
 			}
 		}
 		attachment.Fields = fields
