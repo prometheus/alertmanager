@@ -33,11 +33,11 @@ func NewResolver(files []string, legacyFlags map[string]string) (*Resolver, erro
 			return nil, err
 		}
 		for k, v := range m {
-			if new, ok := legacyFlags[k]; ok {
-				if _, ok := m[new]; ok {
+			if flag, ok := legacyFlags[k]; ok {
+				if _, ok := m[flag]; ok {
 					continue
 				}
-				k = new
+				k = flag
 			}
 			if _, ok := flags[k]; !ok {
 				flags[k] = v

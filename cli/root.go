@@ -21,14 +21,14 @@ var (
 )
 
 func requireAlertManagerURL(pc *kingpin.ParseContext) error {
-	// Return no error if an help flag is set.
+	// Return without error if any help flag is set.
 	for _, elem := range pc.Elements {
 		f, ok := elem.Clause.(*kingpin.FlagClause)
 		if !ok {
 			continue
 		}
 		name := f.Model().Name
-		if name == "help" || name == "help-long" || name == "help(man" {
+		if name == "help" || name == "help-long" || name == "help-man" {
 			return nil
 		}
 	}
