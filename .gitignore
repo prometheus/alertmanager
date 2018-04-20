@@ -7,6 +7,8 @@
 /.release
 /.tarballs
 
+!/cli/testdata/*.yml
+!/cli/config/testdata/*.yml
 !/doc/examples/simple.yml
 !/circle.yml
 !/.travis.yml

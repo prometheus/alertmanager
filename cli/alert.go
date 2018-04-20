@@ -22,7 +22,7 @@ type alertQueryCmd struct {
 func configureAlertCmd(app *kingpin.Application, longHelpText map[string]string) {
 	var (
 		a        = &alertQueryCmd{}
-		alertCmd = app.Command("alert", "View and search through current alerts")
+		alertCmd = app.Command("alert", "View and search through current alerts").PreAction(requireAlertManagerURL)
 		queryCmd = alertCmd.Command("query", "View and search through current alerts").Default()
 	)
 	queryCmd.Flag("expired", "Show expired alerts as well as active").BoolVar(&a.expired)

@@ -13,7 +13,7 @@ import (
 
 // configCmd represents the config command
 func configureConfigCmd(app *kingpin.Application, longHelpText map[string]string) {
-	app.Command("config", "View the running config").Action(queryConfig)
+	app.Command("config", "View the running config").Action(queryConfig).PreAction(requireAlertManagerURL)
 
 	longHelpText["config"] = `View current config
 The amount of output is controlled by the output selection flag:
