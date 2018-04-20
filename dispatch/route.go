@@ -32,6 +32,7 @@ var DefaultRouteOpts = RouteOpts{
 	GroupInterval:  5 * time.Minute,
 	RepeatInterval: 4 * time.Hour,
 	GroupBy:        map[model.LabelName]struct{}{},
+	SortBy:         []model.LabelName{},
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -68,6 +69,9 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		for _, ln := range cr.GroupBy {
 			opts.GroupBy[ln] = struct{}{}
 		}
+	}
+	if cr.SortBy != nil {
+		opts.SortBy = cr.SortBy
 	}
 	if cr.GroupWait != nil {
 		opts.GroupWait = time.Duration(*cr.GroupWait)
@@ -157,6 +161,7 @@ type RouteOpts struct {
 
 	// What labels to group alerts by for notifications.
 	GroupBy map[model.LabelName]struct{}
+	SortBy  []model.LabelName
 
 	// How long to wait to group matching alerts before sending
 	// a notification.
@@ -167,10 +172,14 @@ type RouteOpts struct {
 
 func (ro *RouteOpts) String() string {
 	var labels []model.LabelName
+	var sortLabels []model.LabelName
 	for ln := range ro.GroupBy {
 		labels = append(labels, ln)
 	}
-	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q timers:%q|%q>", ro.Receiver, labels, ro.GroupWait, ro.GroupInterval)
+	for _, ln := range ro.SortBy {
+		sortLabels = append(sortLabels, ln)
+	}
+	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q sort_by:%q timers:%q|%q>", ro.Receiver, labels, sortLabels, ro.GroupWait, ro.GroupInterval)
 }
 
 // MarshalJSON returns a JSON representation of the routing options.
@@ -178,11 +187,13 @@ func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
 	v := struct {
 		Receiver       string           `json:"receiver"`
 		GroupBy        model.LabelNames `json:"groupBy"`
+		SortBy         model.LabelNames `json:"sortBy"`
 		GroupWait      time.Duration    `json:"groupWait"`
 		GroupInterval  time.Duration    `json:"groupInterval"`
 		RepeatInterval time.Duration    `json:"repeatInterval"`
 	}{
 		Receiver:       ro.Receiver,
+		SortBy:         ro.SortBy,
 		GroupWait:      ro.GroupWait,
 		GroupInterval:  ro.GroupInterval,
 		RepeatInterval: ro.RepeatInterval,

@@ -15,6 +15,7 @@ templates:
 
 route:
   group_by: ['alertname', 'cluster', 'service']
+  sort_by: ['instance', 'severity']
 
   receiver: team-X-mails
   routes:
