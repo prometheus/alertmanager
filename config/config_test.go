@@ -341,6 +341,10 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				"cluster",
 				"service",
 			},
+			SortBy: []model.LabelName{
+				"instance",
+				"severity",
+			},
 			Routes: []*Route{
 				{
 					Receiver: "team-X-mails",

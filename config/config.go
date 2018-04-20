@@ -382,6 +382,7 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Route struct {
 	Receiver string            `yaml:"receiver,omitempty" json:"receiver,omitempty"`
 	GroupBy  []model.LabelName `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	SortBy   []model.LabelName `yaml:"sort_by,omitempty" json:"sort_by,omitempty"`
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
@@ -422,6 +423,14 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return fmt.Errorf("duplicated label %q in group_by", ln)
 		}
 		groupBy[ln] = struct{}{}
+	}
+
+	sortBy := map[model.LabelName]struct{}{}
+	for _, ln := range r.SortBy {
+		if _, ok := sortBy[ln]; ok {
+			return fmt.Errorf("duplicated label %q in sort_by", ln)
+		}
+		sortBy[ln] = struct{}{}
 	}
 
 	if r.GroupInterval != nil && time.Duration(*r.GroupInterval) == time.Duration(0) {
