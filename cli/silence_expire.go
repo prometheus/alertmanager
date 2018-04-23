@@ -14,15 +14,13 @@ type silenceExpireCmd struct {
 	ids []string
 }
 
-func configureSilenceExpireCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
+func configureSilenceExpireCmd(cc *kingpin.CmdClause) {
 	var (
 		c         = &silenceExpireCmd{}
 		expireCmd = cc.Command("expire", "expire an alertmanager silence")
 	)
 	expireCmd.Arg("silence-ids", "Ids of silences to expire").StringsVar(&c.ids)
-
 	expireCmd.Action(c.expire)
-	longHelpText["silence expire"] = `Expire an alertmanager silence`
 }
 
 func (c *silenceExpireCmd) expire(ctx *kingpin.ParseContext) error {

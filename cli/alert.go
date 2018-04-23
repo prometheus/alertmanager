@@ -19,17 +19,7 @@ type alertQueryCmd struct {
 	matcherGroups     []string
 }
 
-func configureAlertCmd(app *kingpin.Application, longHelpText map[string]string) {
-	var (
-		a        = &alertQueryCmd{}
-		alertCmd = app.Command("alert", "View and search through current alerts").PreAction(requireAlertManagerURL)
-		queryCmd = alertCmd.Command("query", "View and search through current alerts").Default()
-	)
-	queryCmd.Flag("expired", "Show expired alerts as well as active").BoolVar(&a.expired)
-	queryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
-	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
-	queryCmd.Action(a.queryAlerts)
-	longHelpText["alert"] = `View and search through current alerts.
+const alertHelp = `View and search through current alerts.
 
 Amtool has a simplified prometheus query syntax, but contains robust support for
 bash variable expansions. The non-option section of arguments constructs a list
@@ -50,8 +40,19 @@ amtool alert query 'alertname=~foo.*'
 
 	As well as direct equality, regex matching is also supported. The '=~' syntax
 	(similar to prometheus) is used to represent a regex match. Regex matching
-	can be used in combination with a direct match.`
-	longHelpText["alert query"] = longHelpText["alert"]
+	can be used in combination with a direct match.
+`
+
+func configureAlertCmd(app *kingpin.Application) {
+	var (
+		a        = &alertQueryCmd{}
+		alertCmd = app.Command("alert", alertHelp).PreAction(requireAlertManagerURL)
+		queryCmd = alertCmd.Command("query", alertHelp).Default()
+	)
+	queryCmd.Flag("expired", "Show expired alerts as well as active").BoolVar(&a.expired)
+	queryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
+	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
+	queryCmd.Action(a.queryAlerts)
 }
 
 func (a *alertQueryCmd) queryAlerts(ctx *kingpin.ParseContext) error {

@@ -22,17 +22,7 @@ type silenceImportCmd struct {
 	file    string
 }
 
-func configureSilenceImportCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
-	var (
-		c         = &silenceImportCmd{}
-		importCmd = cc.Command("import", "Import silences")
-	)
-
-	importCmd.Flag("force", "Force adding new silences even if it already exists").Short('f').BoolVar(&c.force)
-	importCmd.Flag("worker", "Number of concurrent workers to use for import").Short('w').Default("8").IntVar(&c.workers)
-	importCmd.Arg("input-file", "JSON file with silences").ExistingFileVar(&c.file)
-	importCmd.Action(c.bulkImport)
-	longHelpText["silence import"] = `Import alertmanager silences from JSON file or stdin
+const silenceImportHelp = `Import alertmanager silences from JSON file or stdin
 
 This command can be used to bulk import silences from a JSON file
 created by query command. For example:
@@ -40,7 +30,19 @@ created by query command. For example:
 amtool silence query -o json foo > foo.json
 amtool silence import foo.json
 
-JSON data can also come from stdin if no param is specified.`
+JSON data can also come from stdin if no param is specified.
+`
+
+func configureSilenceImportCmd(cc *kingpin.CmdClause) {
+	var (
+		c         = &silenceImportCmd{}
+		importCmd = cc.Command("import", silenceImportHelp)
+	)
+
+	importCmd.Flag("force", "Force adding new silences even if it already exists").Short('f').BoolVar(&c.force)
+	importCmd.Flag("worker", "Number of concurrent workers to use for import").Short('w').Default("8").IntVar(&c.workers)
+	importCmd.Arg("input-file", "JSON file with silences").ExistingFileVar(&c.file)
+	importCmd.Action(c.bulkImport)
 }
 
 func addSilenceWorker(sclient client.SilenceAPI, silencec <-chan *types.Silence, errc chan<- error) {

@@ -33,21 +33,7 @@ type silenceAddCmd struct {
 	matchers       []string
 }
 
-func configureSilenceAddCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
-	var (
-		c      = &silenceAddCmd{}
-		addCmd = cc.Command("add", "Add a new alertmanager silence")
-	)
-	addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).StringVar(&c.author)
-	addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").BoolVar(&c.requireComment)
-	addCmd.Flag("duration", "Duration of silence").Short('d').Default("1h").StringVar(&c.duration)
-	addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.start)
-	addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.end)
-	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
-	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
-	addCmd.Action(c.add)
-
-	longHelpText["silence add"] = `Add a new alertmanager silence
+const silenceAddHelp = `Add a new alertmanager silence
 
   Amtool uses a simplified Prometheus syntax to represent silences. The
   non-option section of arguments constructs a list of "Matcher Groups"
@@ -70,6 +56,21 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause, longHelpText map[string]strin
 	(similar to Prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
 `
+
+func configureSilenceAddCmd(cc *kingpin.CmdClause) {
+	var (
+		c      = &silenceAddCmd{}
+		addCmd = cc.Command("add", silenceAddHelp)
+	)
+	addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).StringVar(&c.author)
+	addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").BoolVar(&c.requireComment)
+	addCmd.Flag("duration", "Duration of silence").Short('d').Default("1h").StringVar(&c.duration)
+	addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.start)
+	addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.end)
+	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
+	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
+	addCmd.Action(c.add)
+
 }
 
 func (c *silenceAddCmd) add(ctx *kingpin.ParseContext) error {

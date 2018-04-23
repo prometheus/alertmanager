@@ -40,11 +40,8 @@ func requireAlertManagerURL(pc *kingpin.ParseContext) error {
 
 func Execute() {
 	var (
-		longHelpText = map[string]string{}
-		app          = kingpin.New("amtool", "Alertmanager CLI").DefaultEnvars()
+		app = kingpin.New("amtool", helpRoot).DefaultEnvars()
 	)
-
-	longHelpText["root"] = longHelpTextRoot
 
 	format.InitFormatFlags(app)
 
@@ -60,10 +57,10 @@ func Execute() {
 		kingpin.Fatalf("could not load config file: %v\n", err)
 	}
 
-	configureAlertCmd(app, longHelpText)
-	configureSilenceCmd(app, longHelpText)
-	configureCheckConfigCmd(app, longHelpText)
-	configureConfigCmd(app, longHelpText)
+	configureAlertCmd(app)
+	configureSilenceCmd(app)
+	configureCheckConfigCmd(app)
+	configureConfigCmd(app)
 
 	err = resolver.Bind(app, os.Args[1:])
 	if err != nil {
@@ -77,7 +74,7 @@ func Execute() {
 }
 
 const (
-	longHelpTextRoot = `View and modify the current Alertmanager state.
+	helpRoot = `View and modify the current Alertmanager state.
 
 Config File:
 The alertmanager tool will read a config file in YAML format from one of two
@@ -102,51 +99,5 @@ static configuration:
 
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
-`
-	longHelpTemplate = `{{define "FormatCommands" }}
-{{range .FlattenedCommands -}}
-{{if not .Hidden}}
-  {{.CmdSummary}}
-{{.Help|Wrap 4}}
-{{if .Flags -}}
-{{with .Flags|FlagsToTwoColumns}}{{FormatTwoColumnsWithIndent . 4 2}}{{end}}
-{{end -}}
-{{end -}}
-{{end -}}
-{{end -}}
-
-{{define "FormatUsage" }}
-{{.AppSummary}}
-{{if .Help}}
-{{.Help|Wrap 0 -}}
-{{end -}}
-
-{{end -}}
-
-{{if .Context.SelectedCommand -}}
-{{T "usage:"}} {{.App.Name}} {{.App.FlagSummary}} {{.Context.SelectedCommand.CmdSummary}}
-
-{{index .LongHelp .Context.SelectedCommand.FullCommand}}
-{{else}}
-{{T "usage:"}} {{template "FormatUsage" .App}}
-{{index .LongHelp "root"}}
-{{end}}
-{{if .Context.Flags -}}
-{{T "Flags:"}}
-{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
-{{end -}}
-{{if .Context.Args -}}
-{{T "Args:"}}
-{{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
-{{end -}}
-{{if .Context.SelectedCommand -}}
-{{if len .Context.SelectedCommand.Commands -}}
-{{T "Subcommands:"}}
-{{template "FormatCommands" .Context.SelectedCommand}}
-{{end -}}
-{{else if .App.Commands -}}
-{{T "Commands:" -}}
-{{template "FormatCommands" .App}}
-{{end -}}
 `
 )

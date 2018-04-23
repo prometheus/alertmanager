@@ -11,15 +11,18 @@ import (
 	"github.com/prometheus/alertmanager/client"
 )
 
-// configCmd represents the config command
-func configureConfigCmd(app *kingpin.Application, longHelpText map[string]string) {
-	app.Command("config", "View the running config").Action(queryConfig).PreAction(requireAlertManagerURL)
+const configHelp = `View current config.
 
-	longHelpText["config"] = `View current config
 The amount of output is controlled by the output selection flag:
 	- Simple: Print just the running config
 	- Extended: Print the running config as well as uptime and all version info
-	- Json: Print entire config object as json`
+	- Json: Print entire config object as json
+`
+
+// configCmd represents the config command
+func configureConfigCmd(app *kingpin.Application) {
+	app.Command("config", configHelp).Action(queryConfig).PreAction(requireAlertManagerURL)
+
 }
 
 func queryConfig(ctx *kingpin.ParseContext) error {

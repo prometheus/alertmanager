@@ -13,19 +13,20 @@ type checkConfigCmd struct {
 	files []string
 }
 
-func configureCheckConfigCmd(app *kingpin.Application, longHelpText map[string]string) {
-	var (
-		c        = &checkConfigCmd{}
-		checkCmd = app.Command("check-config", "Validate alertmanager config files")
-	)
-	checkCmd.Arg("check-files", "Files to be validated").ExistingFilesVar(&c.files)
-
-	checkCmd.Action(c.checkConfig)
-	longHelpText["check-config"] = `Validate alertmanager config files
+const checkConfigHelp = `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
 and associated templates. Non existing templates will not trigger
-errors`
+errors.
+`
+
+func configureCheckConfigCmd(app *kingpin.Application) {
+	var (
+		c        = &checkConfigCmd{}
+		checkCmd = app.Command("check-config", checkConfigHelp)
+	)
+	checkCmd.Arg("check-files", "Files to be validated").ExistingFilesVar(&c.files)
+	checkCmd.Action(c.checkConfig)
 }
 
 func (c *checkConfigCmd) checkConfig(ctx *kingpin.ParseContext) error {

@@ -24,7 +24,7 @@ type silenceUpdateCmd struct {
 	ids      []string
 }
 
-func configureSilenceUpdateCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
+func configureSilenceUpdateCmd(cc *kingpin.CmdClause) {
 	var (
 		c         = &silenceUpdateCmd{}
 		updateCmd = cc.Command("update", "Update silences")
@@ -37,7 +37,6 @@ func configureSilenceUpdateCmd(cc *kingpin.CmdClause, longHelpText map[string]st
 	updateCmd.Arg("update-ids", "Silence IDs to update").StringsVar(&c.ids)
 
 	updateCmd.Action(c.update)
-	longHelpText["silence update"] = `Extend or update existing silence in Alertmanager.`
 }
 
 func (c *silenceUpdateCmd) update(ctx *kingpin.ParseContext) error {
