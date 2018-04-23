@@ -58,6 +58,24 @@ var (
 )
 
 func init() {
+	numNotifications.WithLabelValues("email")
+	numNotifications.WithLabelValues("hipchat")
+	numNotifications.WithLabelValues("pagerduty")
+	numNotifications.WithLabelValues("wechat")
+	numNotifications.WithLabelValues("pushover")
+	numNotifications.WithLabelValues("slack")
+	numNotifications.WithLabelValues("opsgenie")
+	numNotifications.WithLabelValues("webhook")
+	numNotifications.WithLabelValues("victorops")
+	numFailedNotifications.WithLabelValues("email")
+	numFailedNotifications.WithLabelValues("hipchat")
+	numFailedNotifications.WithLabelValues("pagerduty")
+	numFailedNotifications.WithLabelValues("wechat")
+	numFailedNotifications.WithLabelValues("pushover")
+	numFailedNotifications.WithLabelValues("slack")
+	numFailedNotifications.WithLabelValues("opsgenie")
+	numFailedNotifications.WithLabelValues("webhook")
+	numFailedNotifications.WithLabelValues("victorops")
 	notificationLatencySeconds.WithLabelValues("email")
 	notificationLatencySeconds.WithLabelValues("hipchat")
 	notificationLatencySeconds.WithLabelValues("pagerduty")
@@ -627,7 +645,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			retry, err := r.integration.Notify(ctx, alerts...)
 			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
 			if err != nil {
-				numFailedNotifications.WithLabelValues(r.integration.name, r.groupName).Inc()
+				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)
 				if !retry {
 					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
@@ -637,7 +655,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				// integration upon context timeout.
 				iErr = err
 			} else {
-				numNotifications.WithLabelValues(r.integration.name, r.groupName).Inc()
+				numNotifications.WithLabelValues(r.integration.name).Inc()
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
