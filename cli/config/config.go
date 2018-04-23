@@ -12,10 +12,12 @@ type getFlagger interface {
 	GetFlag(name string) *kingpin.FlagClause
 }
 
+// Resolver represents a configuration file resolver for kingpin.
 type Resolver struct {
 	flags map[string]string
 }
 
+// NewResolver returns a Resolver structure.
 func NewResolver(files []string, legacyFlags map[string]string) (*Resolver, error) {
 	flags := map[string]string{}
 	for _, f := range files {
