@@ -48,6 +48,13 @@ var (
 		Name:      "notifications_failed_total",
 		Help:      "The total number of failed notifications.",
 	}, []string{"integration"})
+
+	notificationLatencySeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "alertmanager",
+		Name:      "notification_latency_seconds",
+		Help:      "The latency of notifications in seconds.",
+		Buckets:   []float64{1, 5, 10, 15, 20},
+	}, []string{"integration"})
 )
 
 func init() {
@@ -69,9 +76,19 @@ func init() {
 	numFailedNotifications.WithLabelValues("opsgenie")
 	numFailedNotifications.WithLabelValues("webhook")
 	numFailedNotifications.WithLabelValues("victorops")
+	notificationLatencySeconds.WithLabelValues("email")
+	notificationLatencySeconds.WithLabelValues("hipchat")
+	notificationLatencySeconds.WithLabelValues("pagerduty")
+	notificationLatencySeconds.WithLabelValues("wechat")
+	notificationLatencySeconds.WithLabelValues("pushover")
+	notificationLatencySeconds.WithLabelValues("slack")
+	notificationLatencySeconds.WithLabelValues("opsgenie")
+	notificationLatencySeconds.WithLabelValues("webhook")
+	notificationLatencySeconds.WithLabelValues("victorops")
 
 	prometheus.Register(numNotifications)
 	prometheus.Register(numFailedNotifications)
+	prometheus.Register(notificationLatencySeconds)
 }
 
 // MinTimeout is the minimum timeout that is set for the context of a call
@@ -624,7 +641,10 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 
 		select {
 		case <-tick.C:
-			if retry, err := r.integration.Notify(ctx, alerts...); err != nil {
+			now := time.Now()
+			retry, err := r.integration.Notify(ctx, alerts...)
+			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
+			if err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)
 				if !retry {
