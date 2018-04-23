@@ -127,6 +127,18 @@ func TestConfigResolverBind(t *testing.T) {
 			"silence del",
 			[]expectFn{
 				expectURL("url1"), // from amtool.good1.yml
+				expectID("id1"),   // from amtool.good1.yml
+			},
+		},
+		{
+			[]string{"testdata/amtool.good2.yml"},
+			map[string]string{"old-id": "id"},
+			[]string{"silence", "del"},
+
+			false,
+			"silence del",
+			[]expectFn{
+				expectURL("url2"), // from amtool.good2.yml
 				expectID("id2"),   // from amtool.good2.yml
 			},
 		},
