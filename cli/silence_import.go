@@ -28,6 +28,7 @@ This command can be used to bulk import silences from a JSON file
 created by query command. For example:
 
 amtool silence query -o json foo > foo.json
+
 amtool silence import foo.json
 
 JSON data can also come from stdin if no param is specified.
