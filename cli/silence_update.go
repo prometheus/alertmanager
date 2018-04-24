@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/client"
@@ -24,7 +24,7 @@ type silenceUpdateCmd struct {
 	ids      []string
 }
 
-func configureSilenceUpdateCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
+func configureSilenceUpdateCmd(cc *kingpin.CmdClause) {
 	var (
 		c         = &silenceUpdateCmd{}
 		updateCmd = cc.Command("update", "Update silences")
@@ -37,10 +37,9 @@ func configureSilenceUpdateCmd(cc *kingpin.CmdClause, longHelpText map[string]st
 	updateCmd.Arg("update-ids", "Silence IDs to update").StringsVar(&c.ids)
 
 	updateCmd.Action(c.update)
-	longHelpText["silence update"] = `Extend or update existing silence in Alertmanager.`
 }
 
-func (c *silenceUpdateCmd) update(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceUpdateCmd) update(ctx *kingpin.ParseContext) error {
 	if len(c.ids) < 1 {
 		return fmt.Errorf("no silence IDs specified")
 	}

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/client"
@@ -23,18 +23,7 @@ type silenceQueryCmd struct {
 	within   time.Duration
 }
 
-func configureSilenceQueryCmd(cc *kingpin.CmdClause, longHelpText map[string]string) {
-	var (
-		c        = &silenceQueryCmd{}
-		queryCmd = cc.Command("query", "Query Alertmanager silences.").Default()
-	)
-
-	queryCmd.Flag("expired", "Show expired silences instead of active").BoolVar(&c.expired)
-	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
-	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
-	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
-	queryCmd.Action(c.query)
-	longHelpText["silence query"] = `Query Alertmanager silences.
+const querySilenceHelp = `Query Alertmanager silences.
 
 Amtool has a simplified prometheus query syntax, but contains robust support for
 bash variable expansions. The non-option section of arguments constructs a list
@@ -73,10 +62,23 @@ preceding duration.
 
 amtool silence query --within 2h --expired
 
-returns all silences that expired within the preceeding 2 hours.`
+returns all silences that expired within the preceeding 2 hours.
+`
+
+func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
+	var (
+		c        = &silenceQueryCmd{}
+		queryCmd = cc.Command("query", querySilenceHelp).Default()
+	)
+
+	queryCmd.Flag("expired", "Show expired silences instead of active").BoolVar(&c.expired)
+	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
+	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
+	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
+	queryCmd.Action(c.query)
 }
 
-func (c *silenceQueryCmd) query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
 	var filterString = ""
 	if len(c.matchers) == 1 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets

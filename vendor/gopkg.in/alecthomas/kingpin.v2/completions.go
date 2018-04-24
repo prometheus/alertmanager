@@ -3,7 +3,6 @@ package kingpin
 // HintAction is a function type who is expected to return a slice of possible
 // command line arguments.
 type HintAction func() []string
-
 type completionsMixin struct {
 	hintActions        []HintAction
 	builtinHintActions []HintAction

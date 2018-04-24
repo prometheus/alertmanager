@@ -2,6 +2,7 @@ package kingpin
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 	"unicode/utf8"
@@ -21,17 +22,17 @@ const (
 func (t TokenType) String() string {
 	switch t {
 	case TokenShort:
-		return T("short flag")
+		return "short flag"
 	case TokenLong:
-		return T("long flag")
+		return "long flag"
 	case TokenArg:
-		return T("argument")
+		return "argument"
 	case TokenError:
-		return T("error")
+		return "error"
 	case TokenEOL:
-		return T("<EOL>")
+		return "<EOL>"
 	}
-	return T("unknown")
+	return "?"
 }
 
 var (
@@ -65,52 +66,20 @@ func (t *Token) String() string {
 	case TokenArg:
 		return t.Value
 	case TokenError:
-		return T("error: ") + t.Value
+		return "error: " + t.Value
 	case TokenEOL:
-		return T("<EOL>")
+		return "<EOL>"
 	default:
 		panic("unhandled type")
 	}
 }
 
-type OneOfClause struct {
-	Flag *Clause
-	Arg  *Clause
-	Cmd  *CmdClause
-}
-
-// A ParseElement represents the parsers view of each element in the command-line argument slice.
+// A union of possible elements in a parse stack.
 type ParseElement struct {
-	// Clause associated with this element. Exactly one of these will be present.
-	OneOf OneOfClause
-	// Value is corresponding value for an argument or flag. For commands this value will be nil.
+	// Clause is either *CmdClause, *ArgClause or *FlagClause.
+	Clause interface{}
+	// Value is corresponding value for an ArgClause or FlagClause (if any).
 	Value *string
-}
-
-// ParseElements represents each element in the command-line argument slice.
-type ParseElements []*ParseElement
-
-// FlagMap collects all parsed flags into a map keyed by long name.
-func (p ParseElements) FlagMap() map[string]*ParseElement {
-	// Collect flags into maps.
-	flags := map[string]*ParseElement{}
-	for _, element := range p {
-		if element.OneOf.Flag != nil {
-			flags[element.OneOf.Flag.name] = element
-		}
-	}
-	return flags
-}
-
-// ArgMap collects all parsed positional arguments into a map keyed by long name.
-func (p ParseElements) ArgMap() map[string]*ParseElement {
-	flags := map[string]*ParseElement{}
-	for _, element := range p {
-		if element.OneOf.Arg != nil {
-			flags[element.OneOf.Arg.name] = element
-		}
-	}
-	return flags
 }
 
 // ParseContext holds the current context of the parser. When passed to
@@ -118,9 +87,7 @@ func (p ParseElements) ArgMap() map[string]*ParseElement {
 // *ArgClause and *CmdClause values and their corresponding arguments (if
 // any).
 type ParseContext struct {
-	Application     *Application // May be nil in tests.
 	SelectedCommand *CmdClause
-	resolvers       []Resolver
 	ignoreDefault   bool
 	argsOnly        bool
 	peek            []*Token
@@ -131,38 +98,10 @@ type ParseContext struct {
 	arguments       *argGroup
 	argumenti       int // Cursor into arguments
 	// Flags, arguments and commands encountered and collected during parse.
-	Elements ParseElements
+	Elements []*ParseElement
 }
 
-func (p *ParseContext) CombinedFlagsAndArgs() []*Clause {
-	return append(p.Args(), p.Flags()...)
-}
-
-func (p *ParseContext) Args() []*Clause {
-	return p.arguments.args
-}
-
-func (p *ParseContext) Flags() []*Clause {
-	return p.flags.flagOrder
-}
-
-// LastCmd returns true if the element is the last (sub)command being evaluated.
-func (p *ParseContext) LastCmd(element *ParseElement) bool {
-	lastCmdIndex := -1
-	eIndex := -2
-	for i, e := range p.Elements {
-		if element == e {
-			eIndex = i
-		}
-
-		if e.OneOf.Cmd != nil {
-			lastCmdIndex = i
-		}
-	}
-	return lastCmdIndex == eIndex
-}
-
-func (p *ParseContext) nextArg() *Clause {
+func (p *ParseContext) nextArg() *ArgClause {
 	if p.argumenti >= len(p.arguments.args) {
 		return nil
 	}
@@ -184,14 +123,13 @@ func (p *ParseContext) HasTrailingArgs() bool {
 	return len(p.args) > 0
 }
 
-func tokenize(args []string, ignoreDefault bool, resolvers []Resolver) *ParseContext {
+func tokenize(args []string, ignoreDefault bool) *ParseContext {
 	return &ParseContext{
 		ignoreDefault: ignoreDefault,
 		args:          args,
 		rawArgs:       args,
 		flags:         newFlagGroup(),
 		arguments:     newArgGroup(),
-		resolvers:     resolvers,
 	}
 }
 
@@ -206,11 +144,17 @@ func (p *ParseContext) mergeFlags(flags *flagGroup) {
 }
 
 func (p *ParseContext) mergeArgs(args *argGroup) {
-	p.arguments.args = append(p.arguments.args, args.args...)
+	for _, arg := range args.args {
+		p.arguments.args = append(p.arguments.args, arg)
+	}
 }
 
 func (p *ParseContext) EOL() bool {
 	return p.Peek().Type == TokenEOL
+}
+
+func (p *ParseContext) Error() bool {
+	return p.Peek().Type == TokenError
 }
 
 // Next token in the parse context.
@@ -250,26 +194,37 @@ func (p *ParseContext) Next() *Token {
 		if len(arg) == 1 {
 			return &Token{Index: p.argi, Type: TokenShort}
 		}
-		rn, size := utf8.DecodeRuneInString(arg[1:])
-		short := string(rn)
+		shortRune, size := utf8.DecodeRuneInString(arg[1:])
+		short := string(shortRune)
 		flag, ok := p.flags.short[short]
 		// Not a known short flag, we'll just return it anyway.
 		if !ok {
-		} else if isBoolFlag(flag.value) {
+		} else if fb, ok := flag.value.(boolFlag); ok && fb.IsBoolFlag() {
 			// Bool short flag.
 		} else {
 			// Short flag with combined argument: -fARG
 			token := &Token{p.argi, TokenShort, short}
-			if len(arg) > 2 {
-				p.Push(&Token{p.argi, TokenArg, arg[1+size:]})
+			if len(arg) > size+1 {
+				p.Push(&Token{p.argi, TokenArg, arg[size+1:]})
 			}
 			return token
 		}
 
-		if len(arg) > 1+size {
-			p.args = append([]string{"-" + arg[1+size:]}, p.args...)
+		if len(arg) > size+1 {
+			p.args = append([]string{"-" + arg[size+1:]}, p.args...)
 		}
 		return &Token{p.argi, TokenShort, short}
+	} else if strings.HasPrefix(arg, "@") {
+		expanded, err := ExpandArgsFromFile(arg[1:])
+		if err != nil {
+			return &Token{p.argi, TokenError, err.Error()}
+		}
+		if len(p.args) == 0 {
+			p.args = expanded
+		} else {
+			p.args = append(expanded, p.args...)
+		}
+		return p.Next()
 	}
 
 	return &Token{p.argi, TokenArg, arg}
@@ -295,22 +250,19 @@ func (p *ParseContext) pop() *Token {
 }
 
 func (p *ParseContext) String() string {
-	if p.SelectedCommand == nil {
-		return ""
-	}
 	return p.SelectedCommand.FullCommand()
 }
 
-func (p *ParseContext) matchedFlag(flag *Clause, value string) {
-	p.Elements = append(p.Elements, &ParseElement{OneOf: OneOfClause{Flag: flag}, Value: &value})
+func (p *ParseContext) matchedFlag(flag *FlagClause, value string) {
+	p.Elements = append(p.Elements, &ParseElement{Clause: flag, Value: &value})
 }
 
-func (p *ParseContext) matchedArg(arg *Clause, value string) {
-	p.Elements = append(p.Elements, &ParseElement{OneOf: OneOfClause{Arg: arg}, Value: &value})
+func (p *ParseContext) matchedArg(arg *ArgClause, value string) {
+	p.Elements = append(p.Elements, &ParseElement{Clause: arg, Value: &value})
 }
 
 func (p *ParseContext) matchedCmd(cmd *CmdClause) {
-	p.Elements = append(p.Elements, &ParseElement{OneOf: OneOfClause{Cmd: cmd}})
+	p.Elements = append(p.Elements, &ParseElement{Clause: cmd})
 	p.mergeFlags(cmd.flagGroup)
 	p.mergeArgs(cmd.argGroup)
 	p.SelectedCommand = cmd
@@ -318,9 +270,12 @@ func (p *ParseContext) matchedCmd(cmd *CmdClause) {
 
 // Expand arguments from a file. Lines starting with # will be treated as comments.
 func ExpandArgsFromFile(filename string) (out []string, err error) {
+	if filename == "" {
+		return nil, fmt.Errorf("expected @ file to expand arguments from")
+	}
 	r, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open arguments file %q: %s", filename, err)
 	}
 	defer r.Close()
 	scanner := bufio.NewScanner(r)
@@ -332,10 +287,13 @@ func ExpandArgsFromFile(filename string) (out []string, err error) {
 		out = append(out, line)
 	}
 	err = scanner.Err()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read arguments from %q: %s", filename, err)
+	}
 	return
 }
 
-func parse(context *ParseContext, app *Application) (err error) { // nolint: gocyclo
+func parse(context *ParseContext, app *Application) (err error) {
 	context.mergeFlags(app.flagGroup)
 	context.mergeArgs(app.argGroup)
 
@@ -343,7 +301,7 @@ func parse(context *ParseContext, app *Application) (err error) { // nolint: goc
 	ignoreDefault := context.ignoreDefault
 
 loop:
-	for !context.EOL() {
+	for !context.EOL() && !context.Error() {
 		token := context.Peek()
 
 		switch token.Type {
@@ -358,24 +316,11 @@ loop:
 					}
 				}
 				return err
-			} else if flag == app.helpFlag {
+			} else if flag == HelpFlag {
 				ignoreDefault = true
 			}
 
 		case TokenArg:
-			if context.arguments.have() {
-				if app.noInterspersed {
-					// no more flags
-					context.argsOnly = true
-				}
-				arg := context.nextArg()
-				if arg != nil {
-					context.matchedArg(arg, token.String())
-					context.Next()
-					continue
-				}
-			}
-
 			if cmds.have() {
 				selectedDefault := false
 				cmd, ok := cmds.commands[token.String()]
@@ -387,10 +332,10 @@ loop:
 						}
 					}
 					if cmd == nil {
-						return TError("expected command but got {{.Arg0}}", V{"Arg0": token})
+						return fmt.Errorf("expected command but got %q", token)
 					}
 				}
-				if cmd == app.helpCommand {
+				if cmd == HelpCommand {
 					ignoreDefault = true
 				}
 				cmd.completionAlts = nil
@@ -399,10 +344,20 @@ loop:
 				if !selectedDefault {
 					context.Next()
 				}
-				continue
+			} else if context.arguments.have() {
+				if app.noInterspersed {
+					// no more flags
+					context.argsOnly = true
+				}
+				arg := context.nextArg()
+				if arg == nil {
+					break loop
+				}
+				context.matchedArg(arg, token.String())
+				context.Next()
+			} else {
+				break loop
 			}
-
-			break loop
 
 		case TokenEOL:
 			break loop
@@ -420,15 +375,19 @@ loop:
 		}
 	}
 
+	if context.Error() {
+		return fmt.Errorf("%s", context.Peek().Value)
+	}
+
 	if !context.EOL() {
-		return TError("unexpected '{{.Arg0}}'", V{"Arg0": context.Peek()})
+		return fmt.Errorf("unexpected %s", context.Peek())
 	}
 
 	// Set defaults for all remaining args.
 	for arg := context.nextArg(); arg != nil && !arg.consumesRemainder(); arg = context.nextArg() {
 		for _, defaultValue := range arg.defaultValues {
 			if err := arg.value.Set(defaultValue); err != nil {
-				return TError("invalid default value '{{.Arg0}}' for argument '{{.Arg1}}'", V{"Arg0": defaultValue, "Arg1": arg.name})
+				return fmt.Errorf("invalid default value '%s' for argument '%s'", defaultValue, arg.name)
 			}
 		}
 	}
