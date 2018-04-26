@@ -32,7 +32,8 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/prometheus/alertmanager/api"
+	apiv1 "github.com/prometheus/alertmanager/api/v1"
+	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -288,13 +289,25 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(
+	apiV1 := apiv1.New(
 		alerts,
 		silences,
 		marker.Status,
 		peer,
-		logger,
+		log.With(logger, "component", "api/v1"),
 	)
+
+	apiV2, err := apiv2.NewAPI(
+		alerts,
+		marker.Status,
+		silences,
+		peer,
+		log.With(logger, "component", "api/v2"),
+	)
+	if err != nil {
+		level.Error(logger).Log("err", fmt.Errorf("failed to create API v2: %v", err.Error()))
+		os.Exit(1)
+	}
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
@@ -334,7 +347,12 @@ func main() {
 
 		hash = md5HashAsMetricValue(plainCfg)
 
-		err = apiv.Update(conf, time.Duration(conf.Global.ResolveTimeout))
+		err = apiV1.Update(conf, time.Duration(conf.Global.ResolveTimeout))
+		if err != nil {
+			return err
+		}
+
+		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout))
 		if err != nil {
 			return err
 		}
@@ -389,10 +407,11 @@ func main() {
 
 	ui.Register(router, webReload, logger)
 
-	apiv.Register(router.WithPrefix("/api/v1"))
+	apiV1.Register(router.WithPrefix("/api/v1"))
 
-	level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
-	go listen(*listenAddress, router, logger)
+	// TODO: How about having a http.handler for each (web, apiv1, apiv2) and
+	// combine them all together in `listen()`
+	go listen(*listenAddress, router, apiV2.Handler, logger)
 
 	var (
 		hup      = make(chan os.Signal)
@@ -459,8 +478,12 @@ func extURL(listen, external string) (*url.URL, error) {
 	return u, nil
 }
 
-func listen(listen string, router *route.Router, logger log.Logger) {
-	if err := http.ListenAndServe(listen, router); err != nil {
+func listen(listen string, apiV1Handler *route.Router, apiV2Handler http.Handler, logger log.Logger) {
+	level.Info(logger).Log("msg", "Listening", "address", listen)
+	mux := http.NewServeMux()
+	mux.Handle("/", apiV1Handler)
+	mux.Handle("/api/v2/", http.StripPrefix("/api/v2", apiV2Handler))
+	if err := http.ListenAndServe(listen, mux); err != nil {
 		level.Error(logger).Log("msg", "Listen error", "err", err)
 		os.Exit(1)
 	}

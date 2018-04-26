@@ -13,7 +13,7 @@
 
 include Makefile.common
 
-FRONTEND_DIR            = $(BIN_DIR)/ui/app
+FRONTEND_DIR             = $(BIN_DIR)/ui/app
 DOCKER_IMAGE_NAME       ?= alertmanager
 ERRCHECK_BINARY         := $(FIRST_GOPATH)/bin/errcheck
 
@@ -29,7 +29,7 @@ STATICCHECK_IGNORE = \
 # Will build both the front-end as well as the back-end
 build-all: assets build
 
-assets: go-bindata ui/bindata.go template/internal/deftmpl/bindata.go
+assets: go-bindata ui/bindata.go template/internal/deftmpl/bindata.go api/v2/models api/v2/restapi test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client
 
 go-bindata:
 	-@$(GO) get -u github.com/jteeuwen/go-bindata/...
@@ -54,6 +54,20 @@ ui/app/script.js: $(shell find ui/app/src -iname *.elm)
 .PHONY: proto
 proto:
 	scripts/genproto.sh
+
+SWAGGER = docker run \
+	--user=$(shell id -u $(USER)):$(shell id -g $(USER)) \
+	--rm \
+	-v $(shell pwd):/go/src/github.com/prometheus/alertmanager \
+	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:0.16.0
+
+api/v2/models api/v2/restapi: api/v2/openapi.yaml
+	-rm -r api/v2/{models,restapi}
+	$(SWAGGER) generate server -f api/v2/openapi.yaml --exclude-main -A alertmanager --target api/v2/
+
+test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client: api/v2/openapi.yaml
+	-rm -r test/with_api_v1/api_v2_client; mkdir -p test/with_api_v2/api_v2_client
+	$(SWAGGER) generate client -f api/v2/openapi.yaml --target test/with_api_v2/api_v2_client
 
 .PHONY: clean
 clean:

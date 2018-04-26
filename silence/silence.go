@@ -39,7 +39,7 @@ import (
 )
 
 // ErrNotFound is returned if a silence was not found.
-var ErrNotFound = fmt.Errorf("not found")
+var ErrNotFound = fmt.Errorf("silence not found")
 
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = fmt.Errorf("invalid state")
