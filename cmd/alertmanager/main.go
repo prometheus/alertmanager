@@ -42,6 +42,7 @@ import (
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/trigger"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 	"github.com/prometheus/client_golang/prometheus"
@@ -239,6 +240,12 @@ func main() {
 		silences.SetBroadcast(c.Broadcast)
 	}
 
+	triggers := trigger.New()
+	if peer != nil {
+		c := peer.AddState("trigger", triggers)
+		triggers.SetBroadcast(c.Broadcast)
+	}
+
 	// Start providers before router potentially sends updates.
 	wg.Add(1)
 	go func() {
@@ -341,7 +348,15 @@ func main() {
 			peer,
 			logger,
 		)
-		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
+		disp = dispatch.NewDispatcher(
+			alerts,
+			dispatch.NewRoute(conf.Route, nil),
+			pipeline,
+			marker,
+			timeoutFunc,
+			triggers,
+			logger,
+		)
 
 		go disp.Run()
 		go inhibitor.Run()

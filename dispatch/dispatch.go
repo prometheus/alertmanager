@@ -14,15 +14,17 @@ import (
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/trigger"
 	"github.com/prometheus/alertmanager/types"
 )
 
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	route  *Route
-	alerts provider.Alerts
-	stage  notify.Stage
+	route    *Route
+	alerts   provider.Alerts
+	stage    notify.Stage
+	triggers *trigger.Trigger
 
 	marker  types.Marker
 	timeout func(time.Duration) time.Duration
@@ -44,15 +46,17 @@ func NewDispatcher(
 	s notify.Stage,
 	mk types.Marker,
 	to func(time.Duration) time.Duration,
+	triggers *trigger.Trigger,
 	l log.Logger,
 ) *Dispatcher {
 	disp := &Dispatcher{
-		alerts:  ap,
-		stage:   s,
-		route:   r,
-		marker:  mk,
-		timeout: to,
-		logger:  log.With(l, "component", "dispatcher"),
+		alerts:   ap,
+		stage:    s,
+		route:    r,
+		marker:   mk,
+		timeout:  to,
+		triggers: triggers,
+		logger:   log.With(l, "component", "dispatcher"),
 	}
 	return disp
 }
@@ -257,7 +261,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// If the group does not exist, create it.
 	ag, ok := group[fp]
 	if !ok {
-		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.triggers, d.logger)
 		group[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
@@ -281,19 +285,28 @@ type aggrGroup struct {
 	logger   log.Logger
 	routeKey string
 
-	ctx     context.Context
-	cancel  func()
-	done    chan struct{}
-	next    *time.Timer
-	timeout func(time.Duration) time.Duration
+	ctx      context.Context
+	cancel   func()
+	done     chan struct{}
+	next     *time.Timer
+	timeout  func(time.Duration) time.Duration
+	triggers *trigger.Trigger
 
 	mtx        sync.RWMutex
 	alerts     map[model.Fingerprint]*types.Alert
 	hasFlushed bool
+	triggered  bool
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger log.Logger) *aggrGroup {
+func newAggrGroup(
+	ctx context.Context,
+	labels model.LabelSet,
+	r *Route,
+	to func(time.Duration) time.Duration,
+	triggers *trigger.Trigger,
+	logger log.Logger,
+) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
@@ -301,6 +314,7 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		labels:   labels,
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
+		triggers: triggers,
 		timeout:  to,
 		alerts:   map[model.Fingerprint]*types.Alert{},
 	}
@@ -340,16 +354,39 @@ func (ag *aggrGroup) alertSlice() []*types.Alert {
 
 func (ag *aggrGroup) run(nf notifyFunc) {
 	ag.done = make(chan struct{})
+	// fp is the labels causing this grouping.
+	fp := ag.fingerprint()
+	triggers := ag.triggers.Subscribe(fp)
 
+	defer triggers.Close()
 	defer close(ag.done)
 	defer ag.next.Stop()
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	for {
 		select {
+		case <-triggers.Next():
+			// Pipeline flush hasn't started recently, e.g.:
+			// - cooldown is over and pipeline is stuck waiting
+			// - pipeline ticker is out of sync
+			// Set the pipeline to triggered, start the cooldown
+			// timer, and start the flush.
+			if !ag.triggered {
+				ag.triggered = true
+				cancel()
+				ag.next.Reset(0)
+				level.Info(ag.logger).Log("msg", "trigger", "action", "reset")
+
+				continue
+			}
+			// Pipeline flush started within the last Nsec, no need
+			// to start it again.
+			level.Info(ag.logger).Log("msg", "trigger", "action", "no_reset")
 		case now := <-ag.next.C:
 			// Give the notifications time until the next flush to
 			// finish before terminating them.
-			ctx, cancel := context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
+			ctx, cancel = context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
 
 			// The now time we retrieve from the ticker is the only reliable
 			// point of time reference for the subsequent notification pipeline.
@@ -363,17 +400,41 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 
+			// If the pipeline was triggered, we don't want to send
+			// the mesh update to cause a trigger elsewhere.
+			if !ag.triggered {
+				level.Info(ag.logger).Log("msg", "trigger", "action", "send")
+				ag.triggers.Trigger(fp)
+				ag.triggered = true
+			} else {
+				level.Info(ag.logger).Log("msg", "trigger", "action", "no_send")
+			}
+
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
 			ag.next.Reset(ag.opts.GroupInterval)
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
-			ag.flush(func(alerts ...*types.Alert) bool {
-				return nf(ctx, alerts...)
-			})
+			go func() {
+				// TODO: How long is the cooldown?
+				time.Sleep(5 * time.Second)
 
-			cancel()
+				ag.mtx.Lock()
+				ag.triggered = false
+				ag.mtx.Unlock()
+				level.Info(ag.logger).Log("msg", "trigger", "action", "remove_triggered")
+			}()
+
+			// This runs in a goroutine so that it doesn't block a
+			// potential trigger that would stop the WaitGroup.
+			go func() {
+				ag.flush(func(alerts ...*types.Alert) bool {
+					return nf(ctx, alerts...)
+				})
+
+				cancel()
+			}()
 
 		case <-ag.ctx.Done():
 			return

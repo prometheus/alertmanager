@@ -4,13 +4,13 @@ global:
 route:
   group_by: ['alertname']
   group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
+  group_interval: 30s
+  repeat_interval: 30s
   receiver: 'web.hook'
 receivers:
 - name: 'web.hook'
   webhook_configs:
-  - url: 'http://127.0.0.1:5001/'
+  - url: 'http://127.0.0.1:5003/'
 inhibit_rules:
   - source_match:
       severity: 'critical'

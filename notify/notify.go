@@ -440,6 +440,8 @@ func NewWaitStage(wait func() time.Duration) *WaitStage {
 // Exec implements the Stage interface.
 func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	select {
+	// TODO: We need to listen here for updates on the mesh, and filter
+	// alerts that have already been sent.
 	case <-time.After(ws.wait()):
 	case <-ctx.Done():
 		return ctx, nil, ctx.Err()

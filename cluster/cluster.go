@@ -418,6 +418,19 @@ func (d *delegate) NotifyMsg(b []byte) {
 		level.Warn(d.logger).Log("msg", "merge broadcast", "err", err, "key", p.Key)
 		return
 	}
+
+	// TODO: Finish me. Add a way to subscribe, have that as a channel
+	// listening in aggrGroup.run and kick off the pipeline if it's a
+	// "started processing" message. This message type will have to be added and somehow
+	// if p.Key == "startedPipeline" {
+	// 	d.subscribers.Lock()
+	// 	defer d.subscribers.Unlock()
+	//
+	// 	for _, sub := range d.subscribers[p.data.fingerprint] {
+	// 		// fingerprint matches alert group fingerprint
+	// 		sub <- p.ResultOfMerge()
+	// 	}
+	// }
 }
 
 // GetBroadcasts is called when user data messages can be broadcasted.

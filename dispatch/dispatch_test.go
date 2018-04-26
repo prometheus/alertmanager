@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/trigger"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -181,7 +182,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, trigger.New(), log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -229,7 +230,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, trigger.New(), log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
