@@ -15,6 +15,7 @@ package types
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -93,4 +94,79 @@ func TestSilenceExpired(t *testing.T) {
 
 	silence = Silence{StartsAt: now, EndsAt: now.Add(time.Hour)}
 	require.False(t, silence.Expired())
+}
+
+func TestAlertSliceSort(t *testing.T) {
+	var (
+		a1 = &Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"job":       "j1",
+					"instance":  "i1",
+					"alertname": "an1",
+				},
+			},
+		}
+		a2 = &Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"job":       "j1",
+					"instance":  "i1",
+					"alertname": "an2",
+				},
+			},
+		}
+		a3 = &Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"job":       "j2",
+					"instance":  "i1",
+					"alertname": "an1",
+				},
+			},
+		}
+		a4 = &Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "an1",
+				},
+			},
+		}
+		a5 = &Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "an2",
+				},
+			},
+		}
+	)
+
+	cases := []struct {
+		alerts AlertSlice
+		exp    AlertSlice
+	}{
+		{
+			alerts: AlertSlice{a2, a1},
+			exp:    AlertSlice{a1, a2},
+		},
+		{
+			alerts: AlertSlice{a3, a2, a1},
+			exp:    AlertSlice{a1, a2, a3},
+		},
+		{
+			alerts: AlertSlice{a4, a2, a4},
+			exp:    AlertSlice{a2, a4, a4},
+		},
+		{
+			alerts: AlertSlice{a5, a4},
+			exp:    AlertSlice{a4, a5},
+		},
+	}
+
+	for _, tc := range cases {
+		sort.Stable(tc.alerts)
+		if !reflect.DeepEqual(tc.alerts, tc.exp) {
+			t.Fatalf("expected %v but got %v", tc.exp, tc.alerts)
+		}
+	}
 }

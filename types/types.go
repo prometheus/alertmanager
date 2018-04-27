@@ -266,9 +266,28 @@ type Alert struct {
 // AlertSlice is a sortable slice of Alerts.
 type AlertSlice []*Alert
 
-func (as AlertSlice) Less(i, j int) bool { return as[i].UpdatedAt.Before(as[j].UpdatedAt) }
-func (as AlertSlice) Swap(i, j int)      { as[i], as[j] = as[j], as[i] }
-func (as AlertSlice) Len() int           { return len(as) }
+func (as AlertSlice) Less(i, j int) bool {
+	// Look at labels.job, then labels.instance.
+	for _, overrideKey := range [...]model.LabelName{"job", "instance"} {
+		iVal, iOk := as[i].Labels[overrideKey]
+		jVal, jOk := as[j].Labels[overrideKey]
+		if !iOk && !jOk {
+			continue
+		}
+		if !iOk {
+			return false
+		}
+		if !jOk {
+			return true
+		}
+		if iVal != jVal {
+			return iVal < jVal
+		}
+	}
+	return as[i].Labels.Before(as[j].Labels)
+}
+func (as AlertSlice) Swap(i, j int) { as[i], as[j] = as[j], as[i] }
+func (as AlertSlice) Len() int      { return len(as) }
 
 // Alerts turns a sequence of internal alerts into a list of
 // exposable model.Alert structures.
