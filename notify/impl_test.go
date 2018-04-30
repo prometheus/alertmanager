@@ -15,7 +15,6 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 )
 
@@ -260,55 +259,4 @@ func TestOpsGenie(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, retry)
 	require.Equal(t, expectedBody, readBody(t, req))
-}
-
-func TestWechat(t *testing.T) {
-	logger := log.NewNopLogger()
-	tmpl := createTmpl(t)
-
-	conf := &config.WechatConfig{
-		NotifierConfig: config.NotifierConfig{
-			VSendResolved: true,
-		},
-		Message: `{{ template "wechat.default.message" . }}`,
-		APIURL:  config.DefaultGlobalConfig.WeChatAPIURL,
-
-		APISecret: "invalidSecret",
-		CorpID:    "invalidCorpID",
-		AgentID:   "1",
-		ToUser:    "admin",
-
-		HTTPConfig: &commoncfg.HTTPClientConfig{},
-	}
-	notifier := NewWechat(conf, tmpl, logger)
-
-	ctx := context.Background()
-
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"Message":     "message",
-				"Description": "description",
-				"Source":      "http://prometheus",
-				"Teams":       "TeamA,TeamB,",
-				"Tags":        "tag1,tag2",
-				"Note":        "this is a note",
-				"Priotity":    "P1",
-			},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
-
-	// miss group key
-	retry, err := notifier.Notify(ctx, alert)
-	require.False(t, retry)
-	require.Error(t, err)
-
-	ctx = WithGroupKey(ctx, "2")
-
-	// invalid secret
-	retry, err = notifier.Notify(ctx, alert)
-	require.False(t, retry)
-	require.Error(t, err)
 }
