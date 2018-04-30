@@ -316,9 +316,9 @@ func (l *Log) run() {
 		start := l.now()
 		var size int64
 
-		level.Info(l.logger).Log("msg", "Running maintenance")
+		level.Debug(l.logger).Log("msg", "Running maintenance")
 		defer func() {
-			level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+			level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
 			l.metrics.snapshotSize.Set(float64(size))
 		}()
 
