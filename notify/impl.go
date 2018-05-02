@@ -700,6 +700,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 				Type: tmplText(action.Type),
 				Text: tmplText(action.Text),
 				Url: tmplText(action.Url),
+				Style: tmplText(action.Style),
 			}
 		}
 		attachment.Actions = actions
