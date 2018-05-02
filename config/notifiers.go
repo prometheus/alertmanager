@@ -224,10 +224,10 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 // Each action must contain a type, text, and url.
 // See https://api.slack.com/docs/message-attachments#action_fields for more information.
 type SlackAction struct {
-	Type	string 	`yaml:"type,omitempty" json:"type,omitempty"`
-	Text	string 	`yaml:"text,omitempty" json:"text,omitempty"`
-	Url   string 	`yaml:"url,omitempty" json:"url,omitempty"`
-	Style string 	`yaml:"style,omitempty" json:"style,omitempty"`
+  Type  string  `yaml:"type,omitempty" json:"type,omitempty"`
+  Text  string  `yaml:"text,omitempty" json:"text,omitempty"`
+  Url   string  `yaml:"url,omitempty" json:"url,omitempty"`
+  Style string  `yaml:"style,omitempty" json:"style,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
