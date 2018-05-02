@@ -230,7 +230,7 @@ type SlackAction struct {
 	Style string 	`yaml:"style,omitempty" json:"style,omitempty"`
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackField.
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
 func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain SlackAction
 	if err := unmarshal((*plain)(c)); err != nil {
