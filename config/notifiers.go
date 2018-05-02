@@ -220,6 +220,33 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return nil
 }
 
+// SlackAction configures a single Slack action that is sent with each notification.
+// Each action must contain a type, text, and url.
+// See https://api.slack.com/docs/message-attachments#actions for more information.
+type SlackAction struct {
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
+	Url string  `yaml:"url,omitempty" json:"url,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackField.
+func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain SlackAction
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Type == "" {
+		return fmt.Errorf("missing type in Slack action configuration")
+	}
+	if c.Text == "" {
+		return fmt.Errorf("missing value in Slack text configuration")
+	}
+	if c.Url == "" {
+		return fmt.Errorf("missing value in Slack url configuration")
+	}
+	return nil
+}
+
 // SlackField configures a single Slack field that is sent with each notification.
 // Each field must contain a title, value, and optionally, a boolean value to indicate if the field
 // is short enough to be displayed next to other fields designated as short.
@@ -258,17 +285,18 @@ type SlackConfig struct {
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 	Color    string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Title       string        `yaml:"title,omitempty" json:"title,omitempty"`
-	TitleLink   string        `yaml:"title_link,omitempty" json:"title_link,omitempty"`
-	Pretext     string        `yaml:"pretext,omitempty" json:"pretext,omitempty"`
-	Text        string        `yaml:"text,omitempty" json:"text,omitempty"`
-	Fields      []*SlackField `yaml:"fields,omitempty" json:"fields,omitempty"`
-	ShortFields bool          `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
-	Footer      string        `yaml:"footer,omitempty" json:"footer,omitempty"`
-	Fallback    string        `yaml:"fallback,omitempty" json:"fallback,omitempty"`
-	IconEmoji   string        `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
-	IconURL     string        `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
-	LinkNames   bool          `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	Title       string          `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink   string          `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Pretext     string          `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Text        string          `yaml:"text,omitempty" json:"text,omitempty"`
+	Fields      []*SlackField   `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ShortFields bool            `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
+	Footer      string          `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Fallback    string          `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	IconEmoji   string          `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	IconURL     string          `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	LinkNames   bool            `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	Actions     []*SlackAction  `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
