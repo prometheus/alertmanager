@@ -924,10 +924,10 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Text: weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		},
-		ToUser:  n.conf.ToUser,
-		ToParty: n.conf.ToParty,
-		Totag:   n.conf.ToTag,
-		AgentID: n.conf.AgentID,
+		ToUser:  tmpl(n.conf.ToUser),
+		ToParty: tmpl(n.conf.ToParty),
+		Totag:   tmpl(n.conf.ToTag),
+		AgentID: tmpl(n.conf.AgentID),
 		Type:    "text",
 		Safe:    "0",
 	}
