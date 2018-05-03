@@ -108,6 +108,27 @@ receivers:
   email_configs:
   - to: 'team-Y+alerts@example.org'
 
+# To send an email with a Bcc: or CC: in alertmanager, it is not sufficient to
+# add a CC: header because it talks directly to the SMTP server, and those
+# headers are not at the SMTP level.
+
+# Note here we overwrite the To: header and add a CC: header
+- name: 'team-Z-with-copies'
+  email_configs:
+  - to: 'one@foo.com,two@bar.com'
+    headers:
+      subject: 'my subject'
+      To: 'one@foo.com'
+      CC: 'two@bar.com'
+
+# Note here we overwrite the To: header
+- name: 'team-Z-with-blind-copies'
+  email_configs:
+  - to: 'one@foo.com,three@foo.com'
+    headers:
+      subject: 'my subject'
+      To: 'one@foo.com'
+    
 - name: 'team-Y-pager'
   pagerduty_configs:
   - service_key: <team-Y-key>
