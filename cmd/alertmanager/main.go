@@ -370,7 +370,7 @@ func main() {
 
 	ui.Register(router, webReload, logger)
 
-	apiv.Register(router.WithPrefix("/api"))
+	apiv.Register(router.WithPrefix("/api/v1"))
 
 	level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
 	go listen(*listenAddress, router, logger)
