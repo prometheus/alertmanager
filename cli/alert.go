@@ -15,8 +15,8 @@ import (
 )
 
 type alertQueryCmd struct {
-	expired, silenced bool
-	matcherGroups     []string
+	inhibited, silenced bool
+	matcherGroups       []string
 }
 
 const alertHelp = `View and search through current alerts.
@@ -49,7 +49,7 @@ func configureAlertCmd(app *kingpin.Application) {
 		alertCmd = app.Command("alert", alertHelp).PreAction(requireAlertManagerURL)
 		queryCmd = alertCmd.Command("query", alertHelp).Default()
 	)
-	queryCmd.Flag("expired", "Show expired alerts as well as active").BoolVar(&a.expired)
+	queryCmd.Flag("inhibited", "Show inhibited alerts").Short('i').BoolVar(&a.inhibited)
 	queryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
 	queryCmd.Action(a.queryAlerts)
@@ -76,7 +76,7 @@ func (a *alertQueryCmd) queryAlerts(ctx *kingpin.ParseContext) error {
 		return err
 	}
 	alertAPI := client.NewAlertAPI(c)
-	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, a.expired, a.silenced)
+	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, a.silenced, a.inhibited)
 	if err != nil {
 		return err
 	}
