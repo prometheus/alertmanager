@@ -133,16 +133,10 @@ func (api *API) Register(r *route.Router) {
 
 	r.Options("/*path", wrap(func(w http.ResponseWriter, r *http.Request) {}))
 
-	// Register legacy forwarder for alert pushing.
-	r.Post("/alerts", wrap(api.legacyAddAlerts))
-
-	// Register actual API.
-	r = r.WithPrefix("/v1")
-
 	r.Get("/status", wrap(api.status))
 	r.Get("/receivers", wrap(api.receivers))
-	r.Get("/alerts/groups", wrap(api.alertGroups))
 
+	r.Get("/alerts/groups", wrap(api.alertGroups))
 	r.Get("/alerts", wrap(api.listAlerts))
 	r.Post("/alerts", wrap(api.addAlerts))
 
