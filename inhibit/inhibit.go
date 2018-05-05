@@ -15,7 +15,6 @@ package inhibit
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -81,12 +80,7 @@ func (ih *Inhibitor) run(ctx context.Context) {
 				level.Error(ih.logger).Log("msg", "Error iterating alerts", "err", err)
 				continue
 			}
-			if a.Resolved() {
-				// As alerts can also time out without an update, we never
-				// handle new resolved alerts but invalidate the cache on read.
-				continue
-			}
-			// Populate the inhibition rules' cache.
+			// Update the inhibition rules' cache.
 			for _, r := range ih.rules {
 				if r.SourceMatchers.Match(a.Labels) {
 					r.set(a)
@@ -145,7 +139,7 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	for _, r := range ih.rules {
 		// Only inhibit if target matchers match but source matchers don't.
 		if inhibitedByFP, eq := r.hasEqual(lset); !r.SourceMatchers.Match(lset) && r.TargetMatchers.Match(lset) && eq {
-			ih.marker.SetInhibited(fp, fmt.Sprintf("%d", inhibitedByFP))
+			ih.marker.SetInhibited(fp, inhibitedByFP.String())
 			return true
 		}
 	}

@@ -28,9 +28,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/api/alertmanager"
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
+
+	"github.com/prometheus/alertmanager/client"
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected
@@ -128,13 +130,13 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 
 	t.Logf("AM on %s", am.apiAddr)
 
-	client, err := alertmanager.New(alertmanager.Config{
+	c, err := api.NewClient(api.Config{
 		Address: fmt.Sprintf("http://%s", am.apiAddr),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	am.client = client
+	am.client = c
 
 	t.ams = append(t.ams, am)
 
@@ -241,7 +243,7 @@ type Alertmanager struct {
 
 	apiAddr     string
 	clusterAddr string
-	client      alertmanager.Client
+	client      api.Client
 	cmd         *exec.Cmd
 	confFile    *os.File
 	dir         string
@@ -314,16 +316,30 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var nas model.Alerts
-	for _, a := range alerts {
-		nas = append(nas, a.nativeAlert(am.opts))
+	var cas []client.Alert
+	for i := range alerts {
+		a := alerts[i].nativeAlert(am.opts)
+		al := client.Alert{
+			Labels:       client.LabelSet{},
+			Annotations:  client.LabelSet{},
+			StartsAt:     a.StartsAt,
+			EndsAt:       a.EndsAt,
+			GeneratorURL: a.GeneratorURL,
+		}
+		for n, v := range a.Labels {
+			al.Labels[client.LabelName(n)] = client.LabelValue(v)
+		}
+		for n, v := range a.Annotations {
+			al.Annotations[client.LabelName(n)] = client.LabelValue(v)
+		}
+		cas = append(cas, al)
 	}
 
-	alertAPI := alertmanager.NewAlertAPI(am.client)
+	alertAPI := client.NewAlertAPI(am.client)
 
 	am.t.Do(at, func() {
-		if err := alertAPI.Push(context.Background(), nas...); err != nil {
-			am.t.Errorf("Error pushing %v: %s", nas, err)
+		if err := alertAPI.Push(context.Background(), cas...); err != nil {
+			am.t.Errorf("Error pushing %v: %s", cas, err)
 		}
 	})
 }

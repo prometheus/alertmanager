@@ -3,28 +3,34 @@ package cli
 import (
 	"fmt"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-// alertCmd represents the alert command
-var (
-	checkConfigCmd = app.Command("check-config", "Validate alertmanager config files")
-	checkFiles     = checkConfigCmd.Arg("check-files", "Files to be validated").ExistingFiles()
-)
+// TODO: This can just be a type that is []string, doesn't have to be a struct
+type checkConfigCmd struct {
+	files []string
+}
 
-func init() {
-	checkConfigCmd.Action(checkConfig)
-	longHelpText["check-config"] = `Validate alertmanager config files
+const checkConfigHelp = `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
 and associated templates. Non existing templates will not trigger
-errors`
+errors.
+`
+
+func configureCheckConfigCmd(app *kingpin.Application) {
+	var (
+		c        = &checkConfigCmd{}
+		checkCmd = app.Command("check-config", checkConfigHelp)
+	)
+	checkCmd.Arg("check-files", "Files to be validated").ExistingFilesVar(&c.files)
+	checkCmd.Action(c.checkConfig)
 }
 
-func checkConfig(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
-	return CheckConfig(*checkFiles)
+func (c *checkConfigCmd) checkConfig(ctx *kingpin.ParseContext) error {
+	return CheckConfig(c.files)
 }
 
 func CheckConfig(args []string) error {

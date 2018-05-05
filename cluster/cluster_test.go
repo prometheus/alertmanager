@@ -15,8 +15,8 @@ package cluster
 
 import (
 	"context"
-	"time"
 	"testing"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
@@ -32,14 +32,14 @@ func TestJoin(t *testing.T) {
 		"",
 		[]string{},
 		true,
-		0 * time.Second,
-		0 * time.Second,
+		0*time.Second,
+		0*time.Second,
 	)
 	require.NoError(t, err)
 	require.False(t, p == nil)
 	require.False(t, p.Ready())
 	require.Equal(t, p.Status(), "settling")
-	go p.Settle(context.Background(), 0 * time.Second)
+	go p.Settle(context.Background(), 0*time.Second)
 	p.WaitReady()
 	require.Equal(t, p.Status(), "ready")
 }

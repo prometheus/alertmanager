@@ -30,7 +30,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/alertmanager/api"
@@ -50,6 +49,7 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (

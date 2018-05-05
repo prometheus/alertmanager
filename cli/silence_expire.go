@@ -1,53 +1,45 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"net/http"
-	"path"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/prometheus/alertmanager/client"
 )
 
-var (
-	expireCmd = silenceCmd.Command("expire", "expire an alertmanager silence")
-	expireIds = expireCmd.Arg("silence-ids", "Ids of silences to expire").Strings()
-)
-
-func init() {
-	expireCmd.Action(expire)
-	longHelpText["silence expire"] = `Expire an alertmanager silence`
+type silenceExpireCmd struct {
+	ids []string
 }
 
-func expire(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
-	if len(*expireIds) < 1 {
+func configureSilenceExpireCmd(cc *kingpin.CmdClause) {
+	var (
+		c         = &silenceExpireCmd{}
+		expireCmd = cc.Command("expire", "expire an alertmanager silence")
+	)
+	expireCmd.Arg("silence-ids", "Ids of silences to expire").StringsVar(&c.ids)
+	expireCmd.Action(c.expire)
+}
+
+func (c *silenceExpireCmd) expire(ctx *kingpin.ParseContext) error {
+	if len(c.ids) < 1 {
 		return errors.New("no silence IDs specified")
 	}
 
-	basePath := "/api/v1/silence"
-	for _, id := range *expireIds {
-		u := GetAlertmanagerURL(path.Join(basePath, id))
-		req, err := http.NewRequest("DELETE", u.String(), nil)
+	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(apiClient)
+
+	for _, id := range c.ids {
+		err := silenceAPI.Expire(context.Background(), id)
 		if err != nil {
 			return err
-		}
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-
-		defer res.Body.Close()
-		decoder := json.NewDecoder(res.Body)
-
-		response := alertmanagerSilenceResponse{}
-		err = decoder.Decode(&response)
-		if err != nil {
-			return err
-		}
-
-		if response.Status == "error" {
-			return errors.New(response.Error)
 		}
 	}
+
 	return nil
 }

@@ -24,6 +24,10 @@ import (
 func TestInhibiting(t *testing.T) {
 	t.Parallel()
 
+	// This integration test checks that alerts can be inhibited and that an
+	// inhibited alert will be notified again as soon as the inhibiting alert
+	// gets resolved.
+
 	conf := `
 route:
   receiver: "default"
@@ -64,6 +68,10 @@ inhibit_rules:
 	// second batch of notifications.
 	am.Push(At(2.2), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
 
+	// InstanceDown in zone aa should fire again in the third batch of
+	// notifications once JobDown in zone aa gets resolved.
+	am.Push(At(3.6), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2, 3.6))
+
 	co.Want(Between(2, 2.5),
 		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
 		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1),
@@ -74,6 +82,70 @@ inhibit_rules:
 		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
 		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
 		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2),
+	)
+
+	co.Want(Between(4, 4.5),
+		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab").Active(1),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2, 3.6),
+	)
+
+	at.Run()
+}
+
+func TestAlwaysInhibiting(t *testing.T) {
+	t.Parallel()
+
+	// This integration test checks that when inhibited and inhibiting alerts
+	// gets resolved at the same time, the final notification contains both
+	// alerts.
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1s
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+
+inhibit_rules:
+- source_match:
+    alertname: JobDown
+  target_match:
+    alertname: InstanceDown
+  equal:
+    - job
+    - zone
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(co)
+
+	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+
+	am.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"))
+	am.Push(At(1), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
+
+	am.Push(At(2.6), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1, 2.6))
+	am.Push(At(2.6), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1, 2.6))
+
+	co.Want(Between(2, 2.5),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1),
+	)
+
+	co.Want(Between(3, 3.5),
+		Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1, 2.6),
+		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1, 2.6),
 	)
 
 	at.Run()

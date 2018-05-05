@@ -1,60 +1,75 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
-	"github.com/alecthomas/kingpin"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	importCmd  = silenceCmd.Command("import", "Import silences")
-	force      = importCmd.Flag("force", "Force adding new silences even if it already exists").Short('f').Bool()
-	workers    = importCmd.Flag("worker", "Number of concurrent workers to use for import").Short('w').Default("8").Int()
-	importFile = importCmd.Arg("input-file", "JSON file with silences").ExistingFile()
-)
+type silenceImportCmd struct {
+	force   bool
+	workers int
+	file    string
+}
 
-func init() {
-	importCmd.Action(bulkImport)
-	longHelpText["silence import"] = `Import alertmanager silences from JSON file or stdin
+const silenceImportHelp = `Import alertmanager silences from JSON file or stdin
 
 This command can be used to bulk import silences from a JSON file
 created by query command. For example:
 
 amtool silence query -o json foo > foo.json
+
 amtool silence import foo.json
 
-JSON data can also come from stdin if no param is specified.`
+JSON data can also come from stdin if no param is specified.
+`
+
+func configureSilenceImportCmd(cc *kingpin.CmdClause) {
+	var (
+		c         = &silenceImportCmd{}
+		importCmd = cc.Command("import", silenceImportHelp)
+	)
+
+	importCmd.Flag("force", "Force adding new silences even if it already exists").Short('f').BoolVar(&c.force)
+	importCmd.Flag("worker", "Number of concurrent workers to use for import").Short('w').Default("8").IntVar(&c.workers)
+	importCmd.Arg("input-file", "JSON file with silences").ExistingFileVar(&c.file)
+	importCmd.Action(c.bulkImport)
 }
 
-func addSilenceWorker(silencec <-chan *types.Silence, errc chan<- error) {
+func addSilenceWorker(sclient client.SilenceAPI, silencec <-chan *types.Silence, errc chan<- error) {
 	for s := range silencec {
-		silenceId, err := addSilence(s)
+		silenceID, err := sclient.Set(context.Background(), *s)
 		sid := s.ID
-		if err != nil && err.Error() == "[bad_data] not found" {
+		if err != nil && strings.Contains(err.Error(), "not found") {
 			// silence doesn't exists yet, retry to create as a new one
 			s.ID = ""
-			silenceId, err = addSilence(s)
+			silenceID, err = sclient.Set(context.Background(), *s)
 		}
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v", sid, err)
+			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v\n", sid, err)
 		} else {
-			fmt.Println(silenceId)
+			fmt.Println(silenceID)
 		}
 		errc <- err
 	}
 }
 
-func bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceImportCmd) bulkImport(ctx *kingpin.ParseContext) error {
 	input := os.Stdin
 	var err error
-	if *importFile != "" {
-		input, err = os.Open(*importFile)
+	if c.file != "" {
+		input, err = os.Open(c.file)
 		if err != nil {
 			return err
 		}
@@ -68,13 +83,18 @@ func bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error 
 		return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
 	}
 
+	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(apiClient)
 	silencec := make(chan *types.Silence, 100)
 	errc := make(chan error, 100)
 	var wg sync.WaitGroup
-	for w := 0; w < *workers; w++ {
+	for w := 0; w < c.workers; w++ {
 		wg.Add(1)
 		go func() {
-			addSilenceWorker(silencec, errc)
+			addSilenceWorker(silenceAPI, silencec, errc)
 			wg.Done()
 		}()
 	}
@@ -96,7 +116,7 @@ func bulkImport(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error 
 			return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
 		}
 
-		if *force {
+		if c.force {
 			// reset the silence ID so Alertmanager will always create new silence
 			s.ID = ""
 		}

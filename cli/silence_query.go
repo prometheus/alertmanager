@@ -1,30 +1,29 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin"
+	"github.com/prometheus/client_golang/api"
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	queryCmd     = silenceCmd.Command("query", "Query Alertmanager silences.").Default()
-	queryExpired = queryCmd.Flag("expired", "Show expired silences instead of active").Bool()
-	silenceQuery = queryCmd.Arg("matcher-groups", "Query filter").Strings()
-	queryWithin  = queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").Duration()
-)
+type silenceQueryCmd struct {
+	expired  bool
+	quiet    bool
+	matchers []string
+	within   time.Duration
+}
 
-func init() {
-	queryCmd.Action(query)
-	longHelpText["silence query"] = `Query Alertmanager silences.
+const querySilenceHelp = `Query Alertmanager silences.
 
 Amtool has a simplified prometheus query syntax, but contains robust support for
 bash variable expansions. The non-option section of arguments constructs a list
@@ -63,51 +62,44 @@ preceding duration.
 
 amtool silence query --within 2h --expired
 
-returns all silences that expired within the preceeding 2 hours.`
+returns all silences that expired within the preceeding 2 hours.
+`
+
+func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
+	var (
+		c        = &silenceQueryCmd{}
+		queryCmd = cc.Command("query", querySilenceHelp).Default()
+	)
+
+	queryCmd.Flag("expired", "Show expired silences instead of active").BoolVar(&c.expired)
+	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
+	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
+	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
+	queryCmd.Action(c.query)
 }
 
-func fetchSilences(filter string) ([]types.Silence, error) {
-	silenceResponse := alertmanagerSilenceResponse{}
-
-	u := GetAlertmanagerURL("/api/v1/silences")
-	u.RawQuery = "filter=" + url.QueryEscape(filter)
-
-	res, err := http.Get(u.String())
-	if err != nil {
-		return []types.Silence{}, err
-	}
-
-	defer res.Body.Close()
-
-	err = json.NewDecoder(res.Body).Decode(&silenceResponse)
-	if err != nil {
-		return []types.Silence{}, err
-	}
-
-	if silenceResponse.Status != "success" {
-		return []types.Silence{}, fmt.Errorf("[%s] %s", silenceResponse.ErrorType, silenceResponse.Error)
-	}
-
-	return silenceResponse.Data, nil
-}
-
-func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
 	var filterString = ""
-	if len(*silenceQuery) == 1 {
-		// If we only have one argument then it's possible that the user wants me to assume alertname=<arg>
-		// Attempt to use the parser to pare the argument
-		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets prepend `alertname=` to the front
-		_, err := parse.Matcher((*silenceQuery)[0])
+	if len(c.matchers) == 1 {
+		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
+		// assume that the user wants alertname=<arg> and prepend `alertname=`
+		// to the front.
+		_, err := parse.Matcher(c.matchers[0])
 		if err != nil {
-			filterString = fmt.Sprintf("{alertname=%s}", (*silenceQuery)[0])
+			filterString = fmt.Sprintf("{alertname=%s}", c.matchers[0])
 		} else {
-			filterString = fmt.Sprintf("{%s}", strings.Join(*silenceQuery, ","))
+			filterString = fmt.Sprintf("{%s}", strings.Join(c.matchers, ","))
 		}
-	} else if len(*silenceQuery) > 1 {
-		filterString = fmt.Sprintf("{%s}", strings.Join(*silenceQuery, ","))
+	} else if len(c.matchers) > 1 {
+		filterString = fmt.Sprintf("{%s}", strings.Join(c.matchers, ","))
 	}
 
-	fetchedSilences, err := fetchSilences(filterString)
+	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(apiClient)
+	fetchedSilences, err := silenceAPI.List(context.Background(), filterString)
 	if err != nil {
 		return err
 	}
@@ -115,31 +107,31 @@ func query(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	displaySilences := []types.Silence{}
 	for _, silence := range fetchedSilences {
 		// skip expired silences if --expired is not set
-		if !*queryExpired && silence.EndsAt.Before(time.Now()) {
+		if !c.expired && silence.EndsAt.Before(time.Now()) {
 			continue
 		}
 		// skip active silences if --expired is set
-		if *queryExpired && silence.EndsAt.After(time.Now()) {
+		if c.expired && silence.EndsAt.After(time.Now()) {
 			continue
 		}
 		// skip active silences expiring after "--within"
-		if !*queryExpired && int64(*queryWithin) > 0 && silence.EndsAt.After(time.Now().UTC().Add(*queryWithin)) {
+		if !c.expired && int64(c.within) > 0 && silence.EndsAt.After(time.Now().UTC().Add(c.within)) {
 			continue
 		}
 		// skip silences that expired before "--within"
-		if *queryExpired && int64(*queryWithin) > 0 && silence.EndsAt.Before(time.Now().UTC().Add(-*queryWithin)) {
+		if c.expired && int64(c.within) > 0 && silence.EndsAt.Before(time.Now().UTC().Add(-c.within)) {
 			continue
 		}
 
-		displaySilences = append(displaySilences, silence)
+		displaySilences = append(displaySilences, *silence)
 	}
 
-	if *silenceQuiet {
+	if c.quiet {
 		for _, silence := range displaySilences {
 			fmt.Println(silence.ID)
 		}
 	} else {
-		formatter, found := format.Formatters[*output]
+		formatter, found := format.Formatters[output]
 		if !found {
 			return errors.New("unknown output formatter")
 		}

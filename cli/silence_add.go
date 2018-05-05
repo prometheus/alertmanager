@@ -1,27 +1,19 @@
 package cli
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os/user"
 	"time"
 
-	"github.com/alecthomas/kingpin"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
-)
+	"gopkg.in/alecthomas/kingpin.v2"
 
-type addResponse struct {
-	Status string `json:"status"`
-	Data   struct {
-		SilenceID string `json:"silenceId"`
-	} `json:"data,omitempty"`
-	ErrorType string `json:"errorType,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
+	"github.com/prometheus/alertmanager/client"
+	"github.com/prometheus/alertmanager/types"
+)
 
 func username() string {
 	user, err := user.Current()
@@ -31,21 +23,19 @@ func username() string {
 	return user.Username
 }
 
-var (
-	addCmd         = silenceCmd.Command("add", "Add a new alertmanager silence")
-	author         = addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).String()
-	requireComment = addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").Bool()
-	expires        = addCmd.Flag("expires", "Duration of silence").Short('e').Default("1h").String()
-	expireOn       = addCmd.Flag("expire-on", "Expire at a certain time (Overwrites expires) RFC3339 format 2006-01-02T15:04:05Z07:00").String()
-	comment        = addCmd.Flag("comment", "A comment to help describe the silence").Short('c').String()
-	addArgs        = addCmd.Arg("matcher-groups", "Query filter").Strings()
-)
+type silenceAddCmd struct {
+	author         string
+	requireComment bool
+	duration       string
+	start          string
+	end            string
+	comment        string
+	matchers       []string
+}
 
-func init() {
-	addCmd.Action(add)
-	longHelpText["silence add"] = `Add a new alertmanager silence
+const silenceAddHelp = `Add a new alertmanager silence
 
-  Amtool uses a simplified prometheus syntax to represent silences. The
+  Amtool uses a simplified Prometheus syntax to represent silences. The
   non-option section of arguments constructs a list of "Matcher Groups"
   that will be used to create a number of silences. The following examples
   will attempt to show this behaviour in action:
@@ -57,21 +47,36 @@ func init() {
 
   amtool silence add foo node=bar
 
-	If alertname is ommited and the first argument does not contain a '=' or a
+	If alertname is omitted and the first argument does not contain a '=' or a
 	'=~' then it will be assumed to be the value of the alertname pair.
 
   amtool silence add 'alertname=~foo.*'
 
 	As well as direct equality, regex matching is also supported. The '=~' syntax
-	(similar to prometheus) is used to represent a regex match. Regex matching
+	(similar to Prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
 `
+
+func configureSilenceAddCmd(cc *kingpin.CmdClause) {
+	var (
+		c      = &silenceAddCmd{}
+		addCmd = cc.Command("add", silenceAddHelp)
+	)
+	addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).StringVar(&c.author)
+	addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").BoolVar(&c.requireComment)
+	addCmd.Flag("duration", "Duration of silence").Short('d').Default("1h").StringVar(&c.duration)
+	addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.start)
+	addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.end)
+	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
+	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
+	addCmd.Action(c.add)
+
 }
 
-func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
+func (c *silenceAddCmd) add(ctx *kingpin.ParseContext) error {
 	var err error
 
-	matchers, err := parseMatchers(*addArgs)
+	matchers, err := parseMatchers(c.matchers)
 	if err != nil {
 		return err
 	}
@@ -81,24 +86,39 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 	}
 
 	var endsAt time.Time
-	if *expireOn != "" {
-		endsAt, err = time.Parse(time.RFC3339, *expireOn)
+	if c.end != "" {
+		endsAt, err = time.Parse(time.RFC3339, c.end)
 		if err != nil {
 			return err
 		}
 	} else {
-		duration, err := model.ParseDuration(*expires)
+		d, err := model.ParseDuration(c.duration)
 		if err != nil {
 			return err
 		}
-		if duration == 0 {
+		if d == 0 {
 			return fmt.Errorf("silence duration must be greater than 0")
 		}
-		endsAt = time.Now().UTC().Add(time.Duration(duration))
+		endsAt = time.Now().UTC().Add(time.Duration(d))
 	}
 
-	if *requireComment && *comment == "" {
+	if c.requireComment && c.comment == "" {
 		return errors.New("comment required by config")
+	}
+
+	var startsAt time.Time
+	if c.start != "" {
+		startsAt, err = time.Parse(time.RFC3339, c.start)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		startsAt = time.Now().UTC()
+	}
+
+	if startsAt.After(endsAt) {
+		return errors.New("silence cannot start after it ends")
 	}
 
 	typeMatchers, err := TypeMatchers(matchers)
@@ -108,45 +128,22 @@ func add(element *kingpin.ParseElement, ctx *kingpin.ParseContext) error {
 
 	silence := types.Silence{
 		Matchers:  typeMatchers,
-		StartsAt:  time.Now().UTC(),
+		StartsAt:  startsAt,
 		EndsAt:    endsAt,
-		CreatedBy: *author,
-		Comment:   *comment,
+		CreatedBy: c.author,
+		Comment:   c.comment,
 	}
 
-	silenceId, err := addSilence(&silence)
+	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	if err != nil {
+		return err
+	}
+	silenceAPI := client.NewSilenceAPI(apiClient)
+	silenceID, err := silenceAPI.Set(context.Background(), silence)
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Println(silenceId)
+	_, err = fmt.Println(silenceID)
 	return err
-}
-
-func addSilence(silence *types.Silence) (string, error) {
-	u := GetAlertmanagerURL("/api/v1/silences")
-
-	buf := bytes.NewBuffer([]byte{})
-	err := json.NewEncoder(buf).Encode(silence)
-	if err != nil {
-		return "", err
-	}
-
-	res, err := http.Post(u.String(), "application/json", buf)
-	if err != nil {
-		return "", err
-	}
-
-	defer res.Body.Close()
-	response := addResponse{}
-	err = json.NewDecoder(res.Body).Decode(&response)
-	if err != nil {
-		return "", fmt.Errorf("unable to parse silence json response from %s", u.String())
-	}
-
-	if response.Status == "error" {
-		return "", fmt.Errorf("[%s] %s", response.ErrorType, response.Error)
-	}
-
-	return response.Data.SilenceID, nil
 }
