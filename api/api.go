@@ -427,40 +427,6 @@ func alertMatchesFilterLabels(a *model.Alert, matchers []*labels.Matcher) bool {
 	return matchFilterLabels(matchers, sms)
 }
 
-func (api *API) legacyAddAlerts(w http.ResponseWriter, r *http.Request) {
-	var legacyAlerts = []struct {
-		Summary     model.LabelValue `json:"summary"`
-		Description model.LabelValue `json:"description"`
-		Runbook     model.LabelValue `json:"runbook"`
-		Labels      model.LabelSet   `json:"labels"`
-		Payload     model.LabelSet   `json:"payload"`
-	}{}
-	if err := api.receive(r, &legacyAlerts); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	var alerts []*types.Alert
-	for _, la := range legacyAlerts {
-		a := &types.Alert{
-			Alert: model.Alert{
-				Labels:      la.Labels,
-				Annotations: la.Payload,
-			},
-		}
-		if a.Annotations == nil {
-			a.Annotations = model.LabelSet{}
-		}
-		a.Annotations["summary"] = la.Summary
-		a.Annotations["description"] = la.Description
-		a.Annotations["runbook"] = la.Runbook
-
-		alerts = append(alerts, a)
-	}
-
-	api.insertAlerts(w, r, alerts...)
-}
-
 func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 	var alerts []*types.Alert
 	if err := api.receive(r, &alerts); err != nil {
