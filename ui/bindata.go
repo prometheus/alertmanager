@@ -392,19 +392,19 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"ui/app/script.js": uiAppScriptJs,
-	"ui/app/index.html": uiAppIndexHtml,
-	"ui/app/favicon.ico": uiAppFaviconIco,
-	"ui/app/lib/bootstrap-4.0.0-alpha.6-dist/css/bootstrap.min.css": uiAppLibBootstrap400Alpha6DistCssBootstrapMinCss,
+	"ui/app/script.js":                                                  uiAppScriptJs,
+	"ui/app/index.html":                                                 uiAppIndexHtml,
+	"ui/app/favicon.ico":                                                uiAppFaviconIco,
+	"ui/app/lib/bootstrap-4.0.0-alpha.6-dist/css/bootstrap.min.css":     uiAppLibBootstrap400Alpha6DistCssBootstrapMinCss,
 	"ui/app/lib/bootstrap-4.0.0-alpha.6-dist/css/bootstrap.min.css.map": uiAppLibBootstrap400Alpha6DistCssBootstrapMinCssMap,
-	"ui/app/lib/font-awesome-4.7.0/css/font-awesome.css": uiAppLibFontAwesome470CssFontAwesomeCss,
-	"ui/app/lib/font-awesome-4.7.0/css/font-awesome.min.css": uiAppLibFontAwesome470CssFontAwesomeMinCss,
-	"ui/app/lib/font-awesome-4.7.0/fonts/FontAwesome.otf": uiAppLibFontAwesome470FontsFontawesomeOtf,
-	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.eot": uiAppLibFontAwesome470FontsFontawesomeWebfontEot,
-	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.svg": uiAppLibFontAwesome470FontsFontawesomeWebfontSvg,
-	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.ttf": uiAppLibFontAwesome470FontsFontawesomeWebfontTtf,
-	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.woff": uiAppLibFontAwesome470FontsFontawesomeWebfontWoff,
-	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.woff2": uiAppLibFontAwesome470FontsFontawesomeWebfontWoff2,
+	"ui/app/lib/font-awesome-4.7.0/css/font-awesome.css":                uiAppLibFontAwesome470CssFontAwesomeCss,
+	"ui/app/lib/font-awesome-4.7.0/css/font-awesome.min.css":            uiAppLibFontAwesome470CssFontAwesomeMinCss,
+	"ui/app/lib/font-awesome-4.7.0/fonts/FontAwesome.otf":               uiAppLibFontAwesome470FontsFontawesomeOtf,
+	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.eot":       uiAppLibFontAwesome470FontsFontawesomeWebfontEot,
+	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.svg":       uiAppLibFontAwesome470FontsFontawesomeWebfontSvg,
+	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.ttf":       uiAppLibFontAwesome470FontsFontawesomeWebfontTtf,
+	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.woff":      uiAppLibFontAwesome470FontsFontawesomeWebfontWoff,
+	"ui/app/lib/font-awesome-4.7.0/fonts/fontawesome-webfont.woff2":     uiAppLibFontAwesome470FontsFontawesomeWebfontWoff2,
 }
 
 // AssetDir returns the file names below a certain
@@ -446,29 +446,30 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
 	"ui": &bintree{nil, map[string]*bintree{
 		"app": &bintree{nil, map[string]*bintree{
 			"favicon.ico": &bintree{uiAppFaviconIco, map[string]*bintree{}},
-			"index.html": &bintree{uiAppIndexHtml, map[string]*bintree{}},
+			"index.html":  &bintree{uiAppIndexHtml, map[string]*bintree{}},
 			"lib": &bintree{nil, map[string]*bintree{
 				"bootstrap-4.0.0-alpha.6-dist": &bintree{nil, map[string]*bintree{
 					"css": &bintree{nil, map[string]*bintree{
-						"bootstrap.min.css": &bintree{uiAppLibBootstrap400Alpha6DistCssBootstrapMinCss, map[string]*bintree{}},
+						"bootstrap.min.css":     &bintree{uiAppLibBootstrap400Alpha6DistCssBootstrapMinCss, map[string]*bintree{}},
 						"bootstrap.min.css.map": &bintree{uiAppLibBootstrap400Alpha6DistCssBootstrapMinCssMap, map[string]*bintree{}},
 					}},
 				}},
 				"font-awesome-4.7.0": &bintree{nil, map[string]*bintree{
 					"css": &bintree{nil, map[string]*bintree{
-						"font-awesome.css": &bintree{uiAppLibFontAwesome470CssFontAwesomeCss, map[string]*bintree{}},
+						"font-awesome.css":     &bintree{uiAppLibFontAwesome470CssFontAwesomeCss, map[string]*bintree{}},
 						"font-awesome.min.css": &bintree{uiAppLibFontAwesome470CssFontAwesomeMinCss, map[string]*bintree{}},
 					}},
 					"fonts": &bintree{nil, map[string]*bintree{
-						"FontAwesome.otf": &bintree{uiAppLibFontAwesome470FontsFontawesomeOtf, map[string]*bintree{}},
-						"fontawesome-webfont.eot": &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontEot, map[string]*bintree{}},
-						"fontawesome-webfont.svg": &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontSvg, map[string]*bintree{}},
-						"fontawesome-webfont.ttf": &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontTtf, map[string]*bintree{}},
-						"fontawesome-webfont.woff": &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontWoff, map[string]*bintree{}},
+						"FontAwesome.otf":           &bintree{uiAppLibFontAwesome470FontsFontawesomeOtf, map[string]*bintree{}},
+						"fontawesome-webfont.eot":   &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontEot, map[string]*bintree{}},
+						"fontawesome-webfont.svg":   &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontSvg, map[string]*bintree{}},
+						"fontawesome-webfont.ttf":   &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontTtf, map[string]*bintree{}},
+						"fontawesome-webfont.woff":  &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontWoff, map[string]*bintree{}},
 						"fontawesome-webfont.woff2": &bintree{uiAppLibFontAwesome470FontsFontawesomeWebfontWoff2, map[string]*bintree{}},
 					}},
 				}},
@@ -524,4 +525,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-
