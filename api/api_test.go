@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
@@ -20,26 +21,72 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeAlerts is a struct implementing the provider.Alerts interface for tests.
 type fakeAlerts struct {
-	putWithErr bool
+	fps    map[model.Fingerprint]int
+	alerts []*types.Alert
+	err    error
 }
 
-func newEmptyIterator() provider.AlertIterator {
-	return provider.NewAlertIterator(make(chan *types.Alert), make(chan struct{}), nil)
+func newFakeAlerts(alerts []*types.Alert, withErr bool) *fakeAlerts {
+	fps := make(map[model.Fingerprint]int)
+	for i, a := range alerts {
+		fps[a.Fingerprint()] = i
+	}
+	f := &fakeAlerts{
+		alerts: alerts,
+		fps:    fps,
+	}
+	if withErr {
+		f.err = errors.New("Error occured")
+	}
+	return f
 }
 
-func (f *fakeAlerts) Subscribe() provider.AlertIterator           { return newEmptyIterator() }
-func (f *fakeAlerts) GetPending() provider.AlertIterator          { return newEmptyIterator() }
+func (f *fakeAlerts) Subscribe() provider.AlertIterator           { return nil }
 func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, nil }
 func (f *fakeAlerts) Put(alerts ...*types.Alert) error {
-	if f.putWithErr {
-		return errors.New("Error occured")
-	}
-	return nil
+	return f.err
+}
+func (f *fakeAlerts) GetPending() provider.AlertIterator {
+	ch := make(chan *types.Alert)
+	done := make(chan struct{})
+	go func() {
+		defer close(ch)
+		for _, a := range f.alerts {
+			ch <- a
+		}
+	}()
+	return provider.NewAlertIterator(ch, done, f.err)
 }
 
 func groupAlerts([]*labels.Matcher) dispatch.AlertOverview { return dispatch.AlertOverview{} }
-func getAlertStatus(model.Fingerprint) types.AlertStatus   { return types.AlertStatus{} }
+func newGetAlertStatus(f *fakeAlerts) func(model.Fingerprint) types.AlertStatus {
+	return func(fp model.Fingerprint) types.AlertStatus {
+		status := types.AlertStatus{SilencedBy: []string{}, InhibitedBy: []string{}}
+
+		i, ok := f.fps[fp]
+		if !ok {
+			return status
+		}
+		alert := f.alerts[i]
+		switch alert.Labels["state"] {
+		case "active":
+			status.State = types.AlertStateActive
+		case "unprocessed":
+			status.State = types.AlertStateUnprocessed
+		case "suppressed":
+			status.State = types.AlertStateSuppressed
+		}
+		if alert.Labels["silenced_by"] != "" {
+			status.SilencedBy = append(status.SilencedBy, string(alert.Labels["silenced_by"]))
+		}
+		if alert.Labels["inhibited_by"] != "" {
+			status.InhibitedBy = append(status.InhibitedBy, string(alert.Labels["inhibited_by"]))
+		}
+		return status
+	}
+}
 
 func TestAddAlerts(t *testing.T) {
 	now := func(offset int) time.Time {
@@ -72,7 +119,8 @@ func TestAddAlerts(t *testing.T) {
 			t.Errorf("Unexpected error %v", err)
 		}
 
-		api := New(&fakeAlerts{putWithErr: tc.err}, nil, groupAlerts, getAlertStatus, nil, nil)
+		alertsProvider := newFakeAlerts([]*types.Alert{}, tc.err)
+		api := New(alertsProvider, nil, groupAlerts, newGetAlertStatus(alertsProvider), nil, nil)
 
 		r, err := http.NewRequest("POST", "/api/v1/alerts", bytes.NewReader(b))
 		w := httptest.NewRecorder()
@@ -85,6 +133,167 @@ func TestAddAlerts(t *testing.T) {
 		body, _ := ioutil.ReadAll(res.Body)
 
 		require.Equal(t, tc.code, w.Code, fmt.Sprintf("test case: %d, StartsAt %v, EndsAt %v, Response: %s", i, tc.start, tc.end, string(body)))
+	}
+}
+
+func TestListAlerts(t *testing.T) {
+	now := time.Now()
+	alerts := []*types.Alert{
+		&types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		&types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		&types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "silenced_by": "abc", "alertname": "alert3"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		&types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"state": "suppressed", "inhibited_by": "abc", "alertname": "alert4"},
+				StartsAt: now.Add(-time.Minute),
+			},
+		},
+		&types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"alertname": "alert5"},
+				StartsAt: now.Add(-2 * time.Minute),
+				EndsAt:   now.Add(-time.Minute),
+			},
+		},
+	}
+
+	for i, tc := range []struct {
+		err    bool
+		params map[string]string
+
+		code   int
+		anames []string
+	}{
+		{
+			false,
+			map[string]string{},
+			200,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+		},
+		{
+			false,
+			map[string]string{"active": "true", "unprocessed": "true", "silenced": "true", "inhibited": "true"},
+			200,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+		},
+		{
+			false,
+			map[string]string{"active": "false", "unprocessed": "true", "silenced": "true", "inhibited": "true"},
+			200,
+			[]string{"alert2", "alert3", "alert4"},
+		},
+		{
+			false,
+			map[string]string{"active": "true", "unprocessed": "false", "silenced": "true", "inhibited": "true"},
+			200,
+			[]string{"alert1", "alert3", "alert4"},
+		},
+		{
+			false,
+			map[string]string{"active": "true", "unprocessed": "true", "silenced": "false", "inhibited": "true"},
+			200,
+			[]string{"alert1", "alert2", "alert4"},
+		},
+		{
+			false,
+			map[string]string{"active": "true", "unprocessed": "true", "silenced": "true", "inhibited": "false"},
+			200,
+			[]string{"alert1", "alert2", "alert3"},
+		},
+		{
+			false,
+			map[string]string{"filter": "{alertname=\"alert3\""},
+			200,
+			[]string{"alert3"},
+		},
+		{
+			false,
+			map[string]string{"filter": "{alertname"},
+			400,
+			[]string{"alert1", "alert2", "alert3", "alert4"},
+		},
+		{
+			false,
+			map[string]string{"receiver": "other"},
+			200,
+			[]string{},
+		},
+		{
+			false,
+			map[string]string{"active": "invalid"},
+			400,
+			[]string{},
+		},
+		{
+			true,
+			map[string]string{},
+			500,
+			[]string{},
+		},
+	} {
+		alertsProvider := newFakeAlerts(alerts, tc.err)
+		api := New(alertsProvider, nil, groupAlerts, newGetAlertStatus(alertsProvider), nil, nil)
+		api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
+
+		r, err := http.NewRequest("GET", "/api/v1/alerts", nil)
+		if err != nil {
+			t.Fatalf("Unexpected error %v", err)
+		}
+		q := r.URL.Query()
+		for k, v := range tc.params {
+			q.Add(k, v)
+		}
+		r.URL.RawQuery = q.Encode()
+		w := httptest.NewRecorder()
+
+		api.listAlerts(w, r)
+		body, _ := ioutil.ReadAll(w.Result().Body)
+
+		var res response
+		err = json.Unmarshal(body, &res)
+		if err != nil {
+			t.Fatalf("Unexpected error %v", err)
+		}
+
+		require.Equal(t, tc.code, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
+		if w.Code != 200 {
+			continue
+		}
+
+		// Data needs to be serialized/deserialized to be converted to the real type.
+		b, err := json.Marshal(res.Data)
+		if err != nil {
+			t.Fatalf("Unexpected error %v", err)
+		}
+		retAlerts := []*dispatch.APIAlert{}
+		err = json.Unmarshal(b, &retAlerts)
+		if err != nil {
+			t.Fatalf("Unexpected error %v", err)
+		}
+
+		anames := []string{}
+		for _, a := range retAlerts {
+			name, ok := a.Labels["alertname"]
+			if ok {
+				anames = append(anames, string(name))
+			}
+		}
+		require.Equal(t, tc.anames, anames, fmt.Sprintf("test case: %d, alert names are not equal", i))
 	}
 }
 
