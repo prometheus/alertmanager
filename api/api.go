@@ -267,11 +267,31 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		receiverFilter *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res           = []*dispatch.APIAlert{}
-		matchers      = []*labels.Matcher{}
-		showSilenced  = true
-		showInhibited = true
+		res      = []*dispatch.APIAlert{}
+		matchers = []*labels.Matcher{}
+
+		showActive, showInhibited     bool
+		showSilenced, showUnprocessed bool
 	)
+
+	getBoolParam := func(name string) (bool, error) {
+		v := r.FormValue(name)
+		if v == "" {
+			return true, nil
+		}
+		if v == "false" {
+			return false, nil
+		}
+		if v != "true" {
+			err := fmt.Errorf("parameter %q can either be 'true' or 'false', not %q", name, v)
+			api.respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return false, err
+		}
+		return true, nil
+	}
 
 	if filter := r.FormValue("filter"); filter != "" {
 		matchers, err = parse.Matchers(filter)
@@ -284,34 +304,24 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if silencedParam := r.FormValue("silenced"); silencedParam != "" {
-		if silencedParam == "false" {
-			showSilenced = false
-		} else if silencedParam != "true" {
-			api.respondError(w, apiError{
-				typ: errorBadData,
-				err: fmt.Errorf(
-					"parameter 'silenced' can either be 'true' or 'false', not '%v'",
-					silencedParam,
-				),
-			}, nil)
-			return
-		}
+	showActive, err = getBoolParam("active")
+	if err != nil {
+		return
 	}
 
-	if inhibitedParam := r.FormValue("inhibited"); inhibitedParam != "" {
-		if inhibitedParam == "false" {
-			showInhibited = false
-		} else if inhibitedParam != "true" {
-			api.respondError(w, apiError{
-				typ: errorBadData,
-				err: fmt.Errorf(
-					"parameter 'inhibited' can either be 'true' or 'false', not '%v'",
-					inhibitedParam,
-				),
-			}, nil)
-			return
-		}
+	showSilenced, err = getBoolParam("silenced")
+	if err != nil {
+		return
+	}
+
+	showInhibited, err = getBoolParam("inhibited")
+	if err != nil {
+		return
+	}
+
+	showUnprocessed, err = getBoolParam("unprocessed")
+	if err != nil {
+		return
 	}
 
 	if receiverParam := r.FormValue("receiver"); receiverParam != "" {
@@ -352,12 +362,20 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Continue if alert is resolved
+		// Continue if the alert is resolved.
 		if !a.Alert.EndsAt.IsZero() && a.Alert.EndsAt.Before(time.Now()) {
 			continue
 		}
 
 		status := api.getAlertStatus(a.Fingerprint())
+
+		if !showActive && status.State == types.AlertStateActive {
+			continue
+		}
+
+		if !showUnprocessed && status.State == types.AlertStateUnprocessed {
+			continue
+		}
 
 		if !showSilenced && len(status.SilencedBy) != 0 {
 			continue
