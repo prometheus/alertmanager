@@ -15,8 +15,9 @@ import (
 )
 
 type alertQueryCmd struct {
-	inhibited, silenced bool
-	matcherGroups       []string
+	inhibited, silenced, active, unprocessed bool
+
+	matcherGroups []string
 }
 
 const alertHelp = `View and search through current alerts.
@@ -51,6 +52,8 @@ func configureAlertCmd(app *kingpin.Application) {
 	)
 	queryCmd.Flag("inhibited", "Show inhibited alerts").Short('i').BoolVar(&a.inhibited)
 	queryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
+	queryCmd.Flag("active", "Show active alerts").Short('a').BoolVar(&a.active)
+	queryCmd.Flag("unprocessed", "Show unprocessed alerts").Short('u').BoolVar(&a.unprocessed)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
 	queryCmd.Action(a.queryAlerts)
 }
@@ -76,7 +79,11 @@ func (a *alertQueryCmd) queryAlerts(ctx *kingpin.ParseContext) error {
 		return err
 	}
 	alertAPI := client.NewAlertAPI(c)
-	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, a.silenced, a.inhibited)
+	// If no selector was passed, default to showing active alerts.
+	if !a.silenced && !a.inhibited && !a.active && !a.unprocessed {
+		a.active = true
+	}
+	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, a.silenced, a.inhibited, a.active, a.unprocessed)
 	if err != nil {
 		return err
 	}
