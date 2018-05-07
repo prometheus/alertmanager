@@ -225,7 +225,7 @@ func TestListAlerts(t *testing.T) {
 			false,
 			map[string]string{"filter": "{alertname"},
 			400,
-			[]string{"alert1", "alert2", "alert3", "alert4"},
+			[]string{},
 		},
 		{
 			false,
