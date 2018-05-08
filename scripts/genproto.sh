@@ -23,7 +23,7 @@ GOGOPROTO_ROOT="${GOPATH}/src/github.com/gogo/protobuf"
 GOGOPROTO_PATH="${GOGOPROTO_ROOT}:${GOGOPROTO_ROOT}/protobuf"
 GRPC_GATEWAY_ROOT="${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway"
 
-DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb"
+DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb trigger/triggerpb"
 
 for dir in ${DIRS}; do
 	pushd ${dir}

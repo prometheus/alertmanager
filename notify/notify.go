@@ -439,11 +439,14 @@ func NewWaitStage(wait func() time.Duration) *WaitStage {
 
 // Exec implements the Stage interface.
 func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	now := time.Now()
 	select {
 	// TODO: We need to listen here for updates on the mesh, and filter
 	// alerts that have already been sent.
 	case <-time.After(ws.wait()):
+		level.Info(l).Log("msg", "trigger", "action", "wait_stage passed", "duration", time.Since(now))
 	case <-ctx.Done():
+		level.Info(l).Log("msg", "trigger", "action", "wait_stage canceled", "duration", time.Since(now))
 		return ctx, nil, ctx.Err()
 	}
 	return ctx, alerts, nil
@@ -644,6 +647,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		select {
 		case <-tick.C:
 			now := time.Now()
+			level.Info(l).Log("msg", "trigger", "action", "sending")
 			retry, err := r.integration.Notify(ctx, alerts...)
 			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
 			if err != nil {

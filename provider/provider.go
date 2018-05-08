@@ -16,7 +16,7 @@ package provider
 import (
 	"fmt"
 
-	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
+	pb "github.com/prometheus/alertmanager/trigger/triggerpb"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
@@ -56,7 +56,7 @@ type TriggerIterator interface {
 	// exhausted. It is not necessary to exhaust the iterator but Close must
 	// be called in any case to release resources used by the iterator (even
 	// if the iterator is exhausted).
-	Next() <-chan *pb.MeshEntry
+	Next() <-chan *pb.Trigger
 }
 
 // NewAlertIterator returns a new AlertIterator based on the generic alertIterator type

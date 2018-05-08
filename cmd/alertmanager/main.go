@@ -158,6 +158,8 @@ func main() {
 		gossipInterval       = kingpin.Flag("cluster.gossip-interval", "Interval between sending gossip messages. By lowering this value (more frequent) gossip messages are propagated across the cluster more quickly at the expense of increased bandwidth.").Default(cluster.DefaultGossipInterval.String()).Duration()
 		pushPullInterval     = kingpin.Flag("cluster.pushpull-interval", "Interval for gossip state syncs. Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.").Default(cluster.DefaultPushPullInterval.String()).Duration()
 		settleTimeout        = kingpin.Flag("cluster.settle-timeout", "Maximum time to wait for cluster connections to settle before evaluating notifications.").Default(cluster.DefaultPushPullInterval.String()).Duration()
+		triggerCooldown      = kingpin.Flag("cluster.synchronize-cooldown", "After a alert pipeline has been triggered, how long to wait before allowing peers to trigger the pipeline again.").Default("5s").Duration()
+		pipelineDrift        = kingpin.Flag("cluster.drift", "Interval to be added to pipeline execution after each execution. Accumulative.").Default("0s").Duration()
 	)
 
 	kingpin.Version(version.Print("alertmanager"))
@@ -240,7 +242,11 @@ func main() {
 		silences.SetBroadcast(c.Broadcast)
 	}
 
-	triggers := trigger.New()
+	var peerID string
+	if peer != nil {
+		peerID = peer.Name()
+	}
+	triggers := trigger.New(peerID)
 	if peer != nil {
 		c := peer.AddState("trigger", triggers)
 		triggers.SetBroadcast(c.Broadcast)
@@ -355,6 +361,8 @@ func main() {
 			marker,
 			timeoutFunc,
 			triggers,
+			*triggerCooldown,
+			*pipelineDrift,
 			logger,
 		)
 

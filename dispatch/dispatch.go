@@ -25,6 +25,9 @@ type Dispatcher struct {
 	alerts   provider.Alerts
 	stage    notify.Stage
 	triggers *trigger.Trigger
+	cooldown time.Duration
+	// For testing. Accumulates drift in pipeline execution scheduling.
+	drift time.Duration
 
 	marker  types.Marker
 	timeout func(time.Duration) time.Duration
@@ -47,6 +50,8 @@ func NewDispatcher(
 	mk types.Marker,
 	to func(time.Duration) time.Duration,
 	triggers *trigger.Trigger,
+	cooldown time.Duration,
+	drift time.Duration,
 	l log.Logger,
 ) *Dispatcher {
 	disp := &Dispatcher{
@@ -56,6 +61,8 @@ func NewDispatcher(
 		marker:   mk,
 		timeout:  to,
 		triggers: triggers,
+		cooldown: cooldown,
+		drift:    drift,
 		logger:   log.With(l, "component", "dispatcher"),
 	}
 	return disp
@@ -261,7 +268,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// If the group does not exist, create it.
 	ag, ok := group[fp]
 	if !ok {
-		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.triggers, d.logger)
+		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.triggers, d.cooldown, d.logger)
 		group[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
@@ -270,7 +277,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 				level.Error(d.logger).Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
 			}
 			return err == nil
-		})
+		}, d.drift)
 	}
 
 	ag.insert(alert)
@@ -291,6 +298,7 @@ type aggrGroup struct {
 	next     *time.Timer
 	timeout  func(time.Duration) time.Duration
 	triggers *trigger.Trigger
+	cooldown time.Duration
 
 	mtx        sync.RWMutex
 	alerts     map[model.Fingerprint]*types.Alert
@@ -305,6 +313,7 @@ func newAggrGroup(
 	r *Route,
 	to func(time.Duration) time.Duration,
 	triggers *trigger.Trigger,
+	cooldown time.Duration,
 	logger log.Logger,
 ) *aggrGroup {
 	if to == nil {
@@ -315,6 +324,7 @@ func newAggrGroup(
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
 		triggers: triggers,
+		cooldown: cooldown,
 		timeout:  to,
 		alerts:   map[model.Fingerprint]*types.Alert{},
 	}
@@ -352,7 +362,7 @@ func (ag *aggrGroup) alertSlice() []*types.Alert {
 	return alerts
 }
 
-func (ag *aggrGroup) run(nf notifyFunc) {
+func (ag *aggrGroup) run(nf notifyFunc, drift time.Duration) {
 	ag.done = make(chan struct{})
 	// fp is the labels causing this grouping.
 	fp := ag.fingerprint()
@@ -412,13 +422,18 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
+
+			if drift != 0 {
+				ag.opts.GroupInterval += drift
+				level.Info(ag.logger).Log("msg", "trigger", "action", "drift", "group_interval", ag.opts.GroupInterval)
+			}
 			ag.next.Reset(ag.opts.GroupInterval)
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
 			go func() {
-				// TODO: How long is the cooldown?
-				time.Sleep(5 * time.Second)
+				// TODO: Set cooldown via commandline option.
+				time.Sleep(ag.cooldown)
 
 				ag.mtx.Lock()
 				ag.triggered = false

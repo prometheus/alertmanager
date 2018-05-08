@@ -10,8 +10,8 @@ import (
 
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/alertmanager/nflog"
-	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/provider"
+	pb "github.com/prometheus/alertmanager/trigger/triggerpb"
 	"github.com/prometheus/common/model"
 )
 
@@ -23,17 +23,19 @@ import (
 type Trigger struct {
 	st          state
 	now         func() time.Time
-	subscribers map[model.Fingerprint]chan *pb.MeshEntry
+	subscribers map[model.Fingerprint]chan *pb.Trigger
 	broadcast   func([]byte)
+	peerID      string
 
 	sync.Mutex
 }
 
-func New() *Trigger {
+func New(peerID string) *Trigger {
 	return &Trigger{
+		peerID:      peerID,
 		st:          state{},
 		now:         utcNow,
-		subscribers: make(map[model.Fingerprint]chan *pb.MeshEntry),
+		subscribers: make(map[model.Fingerprint]chan *pb.Trigger),
 		broadcast:   func(_ []byte) {},
 	}
 }
@@ -69,13 +71,13 @@ func (t *Trigger) Merge(b []byte) error {
 		// TODO: Is there a purpose in storing these? I think we just
 		// want to send a message and then move on with our lives.
 		// t.st.merge(e)
-		fp, err := model.FingerprintFromString(string(e.Entry.GroupKey))
+		fp, err := model.FingerprintFromString(e.Fingerprint)
 		if err != nil {
-			return fmt.Errorf("failed to parse groupkey to fingerprint %v", err)
+			return fmt.Errorf("failed to parse fingerprint: %v", err)
 		}
 		s, ok := t.subscribers[fp]
 		if !ok {
-			return fmt.Errorf("subscriber for %s does not exist", string(e.Entry.GroupKey))
+			return fmt.Errorf("subscriber for %s does not exist", e.Fingerprint)
 		}
 		s <- e
 	}
@@ -90,18 +92,13 @@ func (t *Trigger) Trigger(fp model.Fingerprint) error {
 	t.Lock()
 	defer t.Unlock()
 
-	e := &pb.MeshEntry{
-		Entry: &pb.Entry{
-			Receiver:       nil,
-			GroupKey:       []byte(fp.String()),
-			Timestamp:      now,
-			FiringAlerts:   nil,
-			ResolvedAlerts: nil,
-		},
-		ExpiresAt: now,
+	e := &pb.Trigger{
+		Fingerprint: fp.String(),
+		PeerId:      t.peerID,
+		Timestamp:   now,
 	}
 
-	b, err := marshalMeshEntry(e)
+	b, err := marshalTrigger(e)
 	if err != nil {
 		return err
 	}
@@ -110,7 +107,7 @@ func (t *Trigger) Trigger(fp model.Fingerprint) error {
 	return nil
 }
 
-func marshalMeshEntry(e *pb.MeshEntry) ([]byte, error) {
+func marshalTrigger(e *pb.Trigger) ([]byte, error) {
 	var buf bytes.Buffer
 	if _, err := pbutil.WriteDelimited(&buf, e); err != nil {
 		return nil, err
@@ -128,7 +125,7 @@ func (t *Trigger) SetBroadcast(f func([]byte)) {
 // Subscribe returns a channel indicating incoming triggers.
 func (t *Trigger) Subscribe(fp model.Fingerprint) provider.TriggerIterator {
 	var (
-		ch          = make(chan *pb.MeshEntry)
+		ch          = make(chan *pb.Trigger)
 		ctx, cancel = context.WithCancel(context.Background())
 	)
 
@@ -154,12 +151,12 @@ func (t *Trigger) Subscribe(fp model.Fingerprint) provider.TriggerIterator {
 // triggerListener alerts subscribers of a particular labelset when a new
 // message arrives.
 type triggerIterator struct {
-	ch     chan *pb.MeshEntry
+	ch     chan *pb.Trigger
 	cancel context.CancelFunc
 }
 
 // Next implements the TriggerIterator interface.
-func (t *triggerIterator) Next() <-chan *pb.MeshEntry {
+func (t *triggerIterator) Next() <-chan *pb.Trigger {
 	return t.ch
 }
 
@@ -174,28 +171,23 @@ func (t *triggerIterator) Close() {
 }
 
 // String is the label fingerprint. Can probably make this "typesafe" later.
-type state map[string]*pb.MeshEntry
+type state map[string]*pb.Trigger
 
-func (s state) merge(e *pb.MeshEntry) {
-	k := string(e.Entry.GroupKey)
-
-	prev, ok := s[k]
-	if !ok || prev.Entry.Timestamp.Before(e.Entry.Timestamp) {
-		s[k] = e
-	}
+func (s state) merge(e *pb.Trigger) {
+	s[e.Fingerprint] = e
 }
 
 func decodeState(r io.Reader) (state, error) {
 	t := state{}
 	for {
-		var e pb.MeshEntry
+		var e pb.Trigger
 		_, err := pbutil.ReadDelimited(r, &e)
 		if err == nil {
-			if e.Entry == nil {
+			if e.Fingerprint == "" {
 				return nil, nflog.ErrInvalidState
 			}
 			// Create own protobuf def, use fingerprint instead of groupkey
-			t[string(e.Entry.GroupKey)] = &e
+			t[e.Fingerprint] = &e
 			continue
 		}
 		if err == io.EOF {

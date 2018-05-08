@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package triggerpb;
+
+import "google/protobuf/timestamp.proto";
+import "gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+message Trigger {
+  // The fingerprint of the pipeline that started execution.
+  string fingerprint = 1;
+  // The peer sending the message.
+  string peer_id = 2;
+
+  // Timestamp for message.
+  google.protobuf.Timestamp timestamp = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
