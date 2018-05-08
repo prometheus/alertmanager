@@ -42,6 +42,10 @@ amtool alert query 'alertname=~foo.*'
 	As well as direct equality, regex matching is also supported. The '=~' syntax
 	(similar to prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
+
+Amtool supports several flags for filtering the returned alerts by state
+(inhibited, silenced, active, unprocessed). If none of these flags is given,
+only active alerts are returned.
 `
 
 func configureAlertCmd(app *kingpin.Application) {
