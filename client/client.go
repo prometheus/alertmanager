@@ -154,7 +154,7 @@ func (h *httpStatusAPI) Get(ctx context.Context) (*ServerStatus, error) {
 // AlertAPI provides bindings for the Alertmanager's alert API.
 type AlertAPI interface {
 	// List returns all the active alerts.
-	List(ctx context.Context, filter string, silenced, inhibited bool) ([]*ExtendedAlert, error)
+	List(ctx context.Context, filter string, silenced, inhibited, active, unprocessed bool) ([]*ExtendedAlert, error)
 	// Push sends a list of alerts to the Alertmanager.
 	Push(ctx context.Context, alerts ...Alert) error
 }
@@ -194,7 +194,7 @@ type httpAlertAPI struct {
 	client api.Client
 }
 
-func (h *httpAlertAPI) List(ctx context.Context, filter string, silenced, inhibited bool) ([]*ExtendedAlert, error) {
+func (h *httpAlertAPI) List(ctx context.Context, filter string, silenced, inhibited, active, unprocessed bool) ([]*ExtendedAlert, error) {
 	u := h.client.URL(epAlerts, nil)
 	params := url.Values{}
 	if filter != "" {
@@ -202,6 +202,8 @@ func (h *httpAlertAPI) List(ctx context.Context, filter string, silenced, inhibi
 	}
 	params.Add("silenced", fmt.Sprintf("%t", silenced))
 	params.Add("inhibited", fmt.Sprintf("%t", inhibited))
+	params.Add("active", fmt.Sprintf("%t", active))
+	params.Add("unprocessed", fmt.Sprintf("%t", unprocessed))
 	u.RawQuery = params.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
