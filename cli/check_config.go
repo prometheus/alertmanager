@@ -38,7 +38,7 @@ func CheckConfig(args []string) error {
 
 	for _, arg := range args {
 		fmt.Printf("Checking '%s'", arg)
-		config, _, err := config.LoadFile(arg)
+		cfg, _, err := config.LoadFile(arg)
 		if err != nil {
 			fmt.Printf("  FAILED: %s\n", err)
 			failed++
@@ -46,10 +46,19 @@ func CheckConfig(args []string) error {
 			fmt.Printf("  SUCCESS\n")
 		}
 
-		if config != nil {
-			fmt.Printf("Found %d templates: ", len(config.Templates))
-			if len(config.Templates) > 0 {
-				_, err = template.FromGlobs(config.Templates...)
+		if cfg != nil {
+			fmt.Println("Found:")
+			if cfg.Global != nil {
+				fmt.Println(" - global config")
+			}
+			if cfg.Route != nil {
+				fmt.Println(" - route")
+			}
+			fmt.Printf(" - %d inhibit rules\n", len(cfg.InhibitRules))
+			fmt.Printf(" - %d receivers\n", len(cfg.Receivers))
+			fmt.Printf(" - %d templates\n", len(cfg.Templates))
+			if len(cfg.Templates) > 0 {
+				_, err = template.FromGlobs(cfg.Templates...)
 				if err != nil {
 					fmt.Printf("  FAILED: %s\n", err)
 					failed++
