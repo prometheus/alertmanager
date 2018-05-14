@@ -638,13 +638,14 @@ type slackReq struct {
 
 // slackAttachment is used to display a richly-formatted message block.
 type slackAttachment struct {
-	Title     string              `json:"title,omitempty"`
-	TitleLink string              `json:"title_link,omitempty"`
-	Pretext   string              `json:"pretext,omitempty"`
-	Text      string              `json:"text"`
-	Fallback  string              `json:"fallback"`
-	Fields    []config.SlackField `json:"fields,omitempty"`
-	Footer    string              `json:"footer"`
+	Title     string               `json:"title,omitempty"`
+	TitleLink string               `json:"title_link,omitempty"`
+	Pretext   string               `json:"pretext,omitempty"`
+	Text      string               `json:"text"`
+	Fallback  string               `json:"fallback"`
+	Fields    []config.SlackField  `json:"fields,omitempty"`
+	Actions   []config.SlackAction `json:"actions,omitempty"`
+	Footer    string               `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
 	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
@@ -689,6 +690,20 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			}
 		}
 		attachment.Fields = fields
+	}
+
+	var numActions = len(n.conf.Actions)
+	if numActions > 0 {
+		var actions = make([]config.SlackAction, numActions)
+		for index, action := range n.conf.Actions {
+			actions[index] = config.SlackAction{
+				Type:  tmplText(action.Type),
+				Text:  tmplText(action.Text),
+				URL:   tmplText(action.URL),
+				Style: tmplText(action.Style),
+			}
+		}
+		attachment.Actions = actions
 	}
 
 	req := &slackReq{
