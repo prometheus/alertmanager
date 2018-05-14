@@ -697,9 +697,9 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		var actions = make([]config.SlackAction, numActions)
 		for index, action := range n.conf.Actions {
 			actions[index] = config.SlackAction{
-				Type: tmplText(action.Type),
-				Text: tmplText(action.Text),
-				Url: tmplText(action.Url),
+				Type:  tmplText(action.Type),
+				Text:  tmplText(action.Text),
+				URL:   tmplText(action.URL),
 				Style: tmplText(action.Style),
 			}
 		}
