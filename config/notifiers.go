@@ -242,7 +242,7 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Text == "" {
 		return fmt.Errorf("missing value in Slack text configuration")
 	}
-	if c.Url == "" {
+	if c.URL == "" {
 		return fmt.Errorf("missing value in Slack url configuration")
 	}
 	return nil
