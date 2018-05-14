@@ -301,6 +301,10 @@ be configured to communicate with each other. This is configured using the
   convergence speeds at expense of bandwidth (default "1m0s")
 - `--cluster.settle-timeout` value: maximum time to wait for cluster
   connections to settle before evaluating notifications.
+- `--cluster.tcp-timeout` value: timeout value for tcp connections, reads and writes (default "10s")
+- `--cluster.probe-timeout` value: time to wait for ack before marking node unhealthy
+  (default "500ms")
+- `--cluster.probe-interval` value: interval between random node probes (default "1s")
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.

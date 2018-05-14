@@ -34,6 +34,9 @@ func TestJoin(t *testing.T) {
 		true,
 		0*time.Second,
 		0*time.Second,
+		0*time.Second,
+		0*time.Second,
+		0*time.Second,
 	)
 	require.NoError(t, err)
 	require.False(t, p == nil)

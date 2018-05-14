@@ -38,6 +38,9 @@ type Peer struct {
 const (
 	DefaultPushPullInterval = 60 * time.Second
 	DefaultGossipInterval   = 200 * time.Millisecond
+	DefaultTcpTimeout       = 10 * time.Second
+	DefaultProbeTimeout     = 500 * time.Millisecond
+	DefaultProbeInterval    = 1 * time.Second
 )
 
 func Join(
@@ -49,6 +52,9 @@ func Join(
 	waitIfEmpty bool,
 	pushPullInterval time.Duration,
 	gossipInterval time.Duration,
+	tcpTimeout time.Duration,
+	probeTimeout time.Duration,
+	probeInterval time.Duration,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -111,6 +117,9 @@ func Join(
 	cfg.Events = p.delegate
 	cfg.GossipInterval = gossipInterval
 	cfg.PushPullInterval = pushPullInterval
+	cfg.TCPTimeout = tcpTimeout
+	cfg.ProbeTimeout = probeTimeout
+	cfg.ProbeInterval = probeInterval
 	cfg.LogOutput = ioutil.Discard
 
 	if advertiseAddr != "" {
