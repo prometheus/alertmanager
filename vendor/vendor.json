@@ -106,30 +106,6 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
-			"checksumSHA1": "+hy2B6e5WWFIm6ch03jMFmrELhc=",
-			"path": "github.com/golang/protobuf/ptypes",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
-		},
-		{
-			"checksumSHA1": "lZFWy27Qo6+m/keDjNFYTxSmvZw=",
-			"path": "github.com/golang/protobuf/ptypes/any",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
-		},
-		{
-			"checksumSHA1": "8gDNKfvEupesDdOCXio3AK/XVaA=",
-			"path": "github.com/golang/protobuf/ptypes/duration",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
-		},
-		{
-			"checksumSHA1": "sfoot+dHmmOgWZS6GJ5X79ClZM0=",
-			"path": "github.com/golang/protobuf/ptypes/timestamp",
-			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
-			"revisionTime": "2016-11-21T14:22:35Z"
-		},
-		{
 			"checksumSHA1": "cdOCt0Yb+hdErz8NAQqayxPmRsY=",
 			"origin": "github.com/hashicorp/go-multierror/vendor/github.com/hashicorp/errwrap",
 			"path": "github.com/hashicorp/errwrap",
@@ -215,30 +191,6 @@
 			"revisionTime": "2017-11-08T10:01:19Z"
 		},
 		{
-			"checksumSHA1": "uEc9/1HbYGeK7wPStF6FmUlfzGE=",
-			"path": "github.com/nicksnyder/go-i18n/i18n",
-			"revision": "aa0ce51472e0a9982717fd19cf02cb08b1e433aa",
-			"revisionTime": "2017-12-06T14:24:11Z"
-		},
-		{
-			"checksumSHA1": "gDe7nlx3FyCVxLkARgl0VAntDRk=",
-			"path": "github.com/nicksnyder/go-i18n/i18n/bundle",
-			"revision": "aa0ce51472e0a9982717fd19cf02cb08b1e433aa",
-			"revisionTime": "2017-12-06T14:24:11Z"
-		},
-		{
-			"checksumSHA1": "VfjBzEJSPi4cExtbsSaTgjWK+6I=",
-			"path": "github.com/nicksnyder/go-i18n/i18n/language",
-			"revision": "aa0ce51472e0a9982717fd19cf02cb08b1e433aa",
-			"revisionTime": "2017-12-06T14:24:11Z"
-		},
-		{
-			"checksumSHA1": "w3aZs/7hxcB5VBC8Z2HKm6jbDSY=",
-			"path": "github.com/nicksnyder/go-i18n/i18n/translation",
-			"revision": "aa0ce51472e0a9982717fd19cf02cb08b1e433aa",
-			"revisionTime": "2017-12-06T14:24:11Z"
-		},
-		{
 			"checksumSHA1": "gkyBg/2hcIWR/8qGEeGVoHwOyfo=",
 			"path": "github.com/oklog/oklog/pkg/group",
 			"revision": "f857583a70c345341d679b3f27aa542c8db70a21",
@@ -249,18 +201,6 @@
 			"path": "github.com/oklog/ulid",
 			"revision": "66bb6560562feca7045b23db1ae85b01260f87c5",
 			"revisionTime": "2017-01-17T20:06:51Z"
-		},
-		{
-			"checksumSHA1": "8Y05Pz7onrQPcVWW6JStSsYRh6E=",
-			"path": "github.com/pelletier/go-buffruneio",
-			"revision": "df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d",
-			"revisionTime": "2016-01-24T19:35:03Z"
-		},
-		{
-			"checksumSHA1": "nt7BOOwTv0OJNSi3R05uk+LLmcU=",
-			"path": "github.com/pelletier/go-toml",
-			"revision": "22139eb5469018e7374b3e7ef653de37ffb44f72",
-			"revisionTime": "2017-02-17T01:27:36Z"
 		},
 		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
