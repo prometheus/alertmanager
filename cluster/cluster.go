@@ -153,6 +153,15 @@ func Join(
 		logger: l,
 		peers:  map[string]peer{},
 	}
+
+	if reconnectInterval != 0 {
+		go p.handleReconnect(reconnectInterval)
+	}
+	if reconnectTimeout != 0 {
+		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
+	}
+	p.register(reg)
+
 	p.delegate = newDelegate(l, reg, p)
 
 	cfg := memberlist.DefaultLANConfig()
@@ -189,14 +198,6 @@ func Join(
 	if n > 0 {
 		go p.warnIfAlone(l, 10*time.Second)
 	}
-
-	if reconnectInterval != 0 {
-		go p.handleReconnect(reconnectInterval)
-	}
-	if reconnectTimeout != 0 {
-		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
-	}
-	p.register(reg)
 
 	return p, nil
 }
@@ -329,6 +330,7 @@ func (p *Peer) peerJoin(n *memberlist.Node) {
 	}
 
 	p.peers[n.Name] = pr
+	p.peerJoinCounter.Inc()
 
 	if oldStatus == StatusFailed {
 		level.Debug(p.logger).Log("msg", "peer rejoined", "peer", pr.Node)
