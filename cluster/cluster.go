@@ -36,6 +36,12 @@ type Peer struct {
 	peers       map[string]peer
 	failedPeers []peer
 
+	failedReconnectionsCounter     prometheus.Counter
+	successfulReconnectionsCounter prometheus.Counter
+	peerLeaveCounter               prometheus.Counter
+	peerUpdateCounter              prometheus.Counter
+	peerJoinCounter                prometheus.Counter
+
 	logger log.Logger
 }
 
@@ -190,6 +196,7 @@ func Join(
 	if reconnectTimeout != 0 {
 		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
 	}
+	p.register(reg)
 
 	return p, nil
 }
@@ -202,6 +209,43 @@ func (l *logWriter) Write(b []byte) (int, error) {
 	return len(b), level.Debug(l.l).Log("memberlist", string(b))
 }
 
+func (p *Peer) register(reg prometheus.Registerer) {
+	clusterFailedPeers := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "alertmanager_cluster_failed_peers",
+		Help: "Number indicating the current number of failed peers in the cluster.",
+	}, func() float64 {
+		p.peerLock.RLock()
+		defer p.peerLock.RUnlock()
+
+		return float64(len(p.failedPeers))
+	})
+	p.failedReconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_failed_reconnections",
+		Help: "A counter of the number of failed cluster peer reconnection attempts.",
+	})
+
+	p.successfulReconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_successful_reconnections",
+		Help: "A counter of the number of successful cluster peer reconnections.",
+	})
+
+	p.peerLeaveCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_peers_left",
+		Help: "A counter of the number of peers that have left.",
+	})
+	p.peerUpdateCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_peers_update",
+		Help: "A counter of the number of peers that have updated metadata.",
+	})
+	p.peerJoinCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_peers_joined",
+		Help: "A counter of the number of peers that have joined.",
+	})
+
+	reg.MustRegister(clusterFailedPeers, p.failedReconnectionsCounter, p.successfulReconnectionsCounter,
+		p.peerLeaveCounter, p.peerUpdateCounter, p.peerJoinCounter)
+}
+
 func (p *Peer) handleReconnectTimeout(d time.Duration, timeout time.Duration) {
 	tick := time.NewTicker(d)
 	defer tick.Stop()
@@ -211,12 +255,12 @@ func (p *Peer) handleReconnectTimeout(d time.Duration, timeout time.Duration) {
 		case <-p.stopc:
 			return
 		case <-tick.C:
-			p.removeDeadPeers(timeout)
+			p.removeFailedPeers(timeout)
 		}
 	}
 }
 
-func (p *Peer) removeDeadPeers(timeout time.Duration) {
+func (p *Peer) removeFailedPeers(timeout time.Duration) {
 	p.peerLock.Lock()
 	defer p.peerLock.Unlock()
 
@@ -256,10 +300,10 @@ func (p *Peer) reconnect() {
 		// reconnect is successful, they will be announced in
 		// peerJoin().
 		if _, err := p.mlist.Join([]string{pr.Address()}); err != nil {
-			// TODO: failedReconnectionsCounter
+			p.failedReconnectionsCounter.Inc()
 			level.Debug(logger).Log("result", "failure", "peer", pr.Node, "addr", pr.Address())
 		} else {
-			// TODO: successfulReconnectionsCounter
+			p.successfulReconnectionsCounter.Inc()
 			level.Debug(logger).Log("result", "success", "peer", pr.Node, "addr", pr.Address())
 		}
 	}
@@ -300,7 +344,6 @@ func (p *Peer) peerLeave(n *memberlist.Node) {
 	if !ok {
 		// Why are we receiving a leave notification from a node that
 		// never joined?
-		// unknownPeerLeaveCounter
 		return
 	}
 
@@ -309,7 +352,7 @@ func (p *Peer) peerLeave(n *memberlist.Node) {
 	p.failedPeers = append(p.failedPeers, pr)
 	p.peers[n.Name] = pr
 
-	// TODO: peerLeaveCounter
+	p.peerLeaveCounter.Inc()
 	level.Debug(p.logger).Log("msg", "peer left", "peer", pr.Node)
 }
 
@@ -321,14 +364,13 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 	if !ok {
 		// Why are we receiving an update from a node that never
 		// joined?
-		// unknownPeerUpdateCounter
 		return
 	}
 
 	pr.Node = n
 	p.peers[n.Name] = pr
 
-	// TODO: peerUpdateCounter
+	p.peerUpdateCounter.Inc()
 	level.Debug(p.logger).Log("msg", "peer updated", "peer", pr.Node)
 }
 
