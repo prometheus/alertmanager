@@ -272,8 +272,8 @@ func (p *Peer) reconnect() {
 }
 
 func (p *Peer) peerJoin(n *memberlist.Node) {
-	p.peerLock.RLock()
-	defer p.peerLock.RUnlock()
+	p.peerLock.Lock()
+	defer p.peerLock.Unlock()
 
 	var oldStatus PeerStatus
 	pr, ok := p.peers[n.Name]
@@ -299,8 +299,8 @@ func (p *Peer) peerJoin(n *memberlist.Node) {
 }
 
 func (p *Peer) peerLeave(n *memberlist.Node) {
-	p.peerLock.RLock()
-	defer p.peerLock.RUnlock()
+	p.peerLock.Lock()
+	defer p.peerLock.Unlock()
 
 	pr, ok := p.peers[n.Name]
 	if !ok {
@@ -320,8 +320,8 @@ func (p *Peer) peerLeave(n *memberlist.Node) {
 }
 
 func (p *Peer) peerUpdate(n *memberlist.Node) {
-	p.peerLock.RLock()
-	defer p.peerLock.RUnlock()
+	p.peerLock.Lock()
+	defer p.peerLock.Unlock()
 
 	pr, ok := p.peers[n.Name]
 	if !ok {
