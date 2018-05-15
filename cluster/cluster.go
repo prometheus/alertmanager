@@ -54,8 +54,6 @@ type PeerStatus int
 const (
 	StatusNone PeerStatus = iota
 	StatusAlive
-	StatusLeaving
-	StatusLeft
 	StatusFailed
 )
 
@@ -65,10 +63,6 @@ func (s PeerStatus) String() string {
 		return "none"
 	case StatusAlive:
 		return "alive"
-	case StatusLeaving:
-		return "leaving"
-	case StatusLeft:
-		return "left"
 	case StatusFailed:
 		return "failed"
 	default:
@@ -292,7 +286,7 @@ func (p *Peer) peerJoin(n *memberlist.Node) {
 
 	p.peers[n.Name] = pr
 
-	if oldStatus == StatusFailed || oldStatus == StatusLeft {
+	if oldStatus == StatusFailed {
 		level.Debug(p.logger).Log("msg", "peer rejoined", "peer", pr.Node)
 		p.failedPeers = removeOldPeer(p.failedPeers, pr.Name)
 	}
