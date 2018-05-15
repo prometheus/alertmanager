@@ -83,6 +83,7 @@ const (
 	DefaultProbeTimeout      = 500 * time.Millisecond
 	DefaultProbeInterval     = 1 * time.Second
 	DefaultReconnectInterval = 10 * time.Second
+	DefaultReconnectTimeout  = 6 * time.Hour
 )
 
 func Join(
@@ -98,6 +99,7 @@ func Join(
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
 	reconnectInterval time.Duration,
+	reconnectTimeout time.Duration,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -191,7 +193,9 @@ func Join(
 	if reconnectInterval != 0 {
 		go p.handleReconnect(reconnectInterval)
 	}
-	// TODO: Add a gc interval for failedPeers.
+	if reconnectTimeout != 0 {
+		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
+	}
 
 	return p, nil
 }
@@ -202,6 +206,36 @@ type logWriter struct {
 
 func (l *logWriter) Write(b []byte) (int, error) {
 	return len(b), level.Debug(l.l).Log("memberlist", string(b))
+}
+
+func (p *Peer) handleReconnectTimeout(d time.Duration, timeout time.Duration) {
+	tick := time.NewTicker(d)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-p.stopc:
+			return
+		case <-tick.C:
+			p.removeDeadPeers(timeout)
+		}
+	}
+}
+
+func (p *Peer) removeDeadPeers(timeout time.Duration) {
+	p.peerLock.Lock()
+	defer p.peerLock.Unlock()
+
+	now := time.Now()
+
+	keep := make([]peer, 0, len(p.failedPeers))
+	for _, pr := range p.failedPeers {
+		if pr.leaveTime.Add(timeout).After(now) {
+			keep = append(keep, pr)
+		}
+	}
+
+	p.failedPeers = keep
 }
 
 func (p *Peer) handleReconnect(d time.Duration) {
