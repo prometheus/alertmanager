@@ -131,3 +131,47 @@ func TestReconnect(t *testing.T) {
 	require.Equal(t, 0, len(p.failedPeers))
 	require.Equal(t, StatusAlive, p.peers[p2.Name()].status)
 }
+
+func TestRemoveFailedPeers(t *testing.T) {
+	logger := log.NewNopLogger()
+	p, err := Join(
+		logger,
+		prometheus.NewRegistry(),
+		"0.0.0.0:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTcpTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	n := p.Self()
+
+	now := time.Now()
+	p1 := peer{
+		status:    StatusFailed,
+		leaveTime: now,
+		Node:      n,
+	}
+	p2 := peer{
+		status:    StatusFailed,
+		leaveTime: now.Add(-time.Hour),
+		Node:      n,
+	}
+	p3 := peer{
+		status:    StatusFailed,
+		leaveTime: now.Add(30 * -time.Minute),
+		Node:      n,
+	}
+	p.failedPeers = []peer{p1, p2, p3}
+
+	p.removeFailedPeers(30 * time.Minute)
+	require.Equal(t, 1, len(p.failedPeers))
+	require.Equal(t, p1, p.failedPeers[0])
+}
