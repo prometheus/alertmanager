@@ -296,10 +296,11 @@ func (p *Peer) handleReconnect(d time.Duration) {
 
 func (p *Peer) reconnect() {
 	p.peerLock.RLock()
-	defer p.peerLock.RUnlock()
+	failedPeers := p.failedPeers
+	p.peerLock.RUnlock()
 
 	logger := log.With(p.logger, "msg", "reconnect")
-	for _, pr := range p.failedPeers {
+	for _, pr := range failedPeers {
 		// No need to do book keeping on failedPeers here. If a
 		// reconnect is successful, they will be announced in
 		// peerJoin().
