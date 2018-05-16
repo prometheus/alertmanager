@@ -271,6 +271,9 @@ func (p *Peer) removeFailedPeers(timeout time.Duration) {
 	for _, pr := range p.failedPeers {
 		if pr.leaveTime.Add(timeout).After(now) {
 			keep = append(keep, pr)
+		} else {
+			level.Debug(p.logger).Log("msg", "failed peer has timed out", "peer", pr.Node, "addr", pr.Address())
+			delete(p.peers, pr.Name)
 		}
 	}
 
