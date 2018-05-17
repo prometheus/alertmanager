@@ -36,11 +36,11 @@ type Peer struct {
 	peers       map[string]peer
 	failedPeers []peer
 
-	failedReconnectionsCounter     prometheus.Counter
-	successfulReconnectionsCounter prometheus.Counter
-	peerLeaveCounter               prometheus.Counter
-	peerUpdateCounter              prometheus.Counter
-	peerJoinCounter                prometheus.Counter
+	failedReconnectionsCounter prometheus.Counter
+	reconnectionsCounter       prometheus.Counter
+	peerLeaveCounter           prometheus.Counter
+	peerUpdateCounter          prometheus.Counter
+	peerJoinCounter            prometheus.Counter
 
 	logger log.Logger
 }
@@ -246,29 +246,29 @@ func (p *Peer) register(reg prometheus.Registerer) {
 		return float64(len(p.failedPeers))
 	})
 	p.failedReconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_failed_reconnections",
+		Name: "alertmanager_cluster_failed_reconnections_total",
 		Help: "A counter of the number of failed cluster peer reconnection attempts.",
 	})
 
-	p.successfulReconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_successful_reconnections",
+	p.reconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_reconnections_total",
 		Help: "A counter of the number of successful cluster peer reconnections.",
 	})
 
 	p.peerLeaveCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_peers_left",
+		Name: "alertmanager_cluster_peers_left_total",
 		Help: "A counter of the number of peers that have left.",
 	})
 	p.peerUpdateCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_peers_update",
+		Name: "alertmanager_cluster_peers_update_total",
 		Help: "A counter of the number of peers that have updated metadata.",
 	})
 	p.peerJoinCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_peers_joined",
+		Name: "alertmanager_cluster_peers_joined_total",
 		Help: "A counter of the number of peers that have joined.",
 	})
 
-	reg.MustRegister(clusterFailedPeers, p.failedReconnectionsCounter, p.successfulReconnectionsCounter,
+	reg.MustRegister(clusterFailedPeers, p.failedReconnectionsCounter, p.reconnectionsCounter,
 		p.peerLeaveCounter, p.peerUpdateCounter, p.peerJoinCounter)
 }
 
@@ -333,7 +333,7 @@ func (p *Peer) reconnect() {
 			p.failedReconnectionsCounter.Inc()
 			level.Debug(logger).Log("result", "failure", "peer", pr.Node, "addr", pr.Address())
 		} else {
-			p.successfulReconnectionsCounter.Inc()
+			p.reconnectionsCounter.Inc()
 			level.Debug(logger).Log("result", "success", "peer", pr.Node, "addr", pr.Address())
 		}
 	}
