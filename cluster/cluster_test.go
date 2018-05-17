@@ -175,3 +175,34 @@ func TestRemoveFailedPeers(t *testing.T) {
 	require.Equal(t, 1, len(p.failedPeers))
 	require.Equal(t, p1, p.failedPeers[0])
 }
+
+func TestInitiallyFailingPeers(t *testing.T) {
+	logger := log.NewNopLogger()
+	peerAddrs := []string{"1.2.3.4:5000", "2.3.4.5:5000", "3.4.5.6:5000"}
+	p, err := Join(
+		logger,
+		prometheus.NewRegistry(),
+		"0.0.0.0:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTcpTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	p.setInitialFailed(peerAddrs)
+
+	require.Equal(t, len(peerAddrs), len(p.failedPeers))
+	for _, addr := range peerAddrs {
+		pr, ok := p.peers[addr]
+		require.True(t, ok)
+		require.Equal(t, StatusFailed, pr.status)
+	}
+}

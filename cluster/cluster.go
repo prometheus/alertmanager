@@ -195,11 +195,40 @@ func Join(
 		level.Debug(l).Log("msg", "joined cluster", "peers", n)
 	}
 
+	p.setInitialFailed(resolvedPeers)
+
 	if n > 0 {
 		go p.warnIfAlone(l, 10*time.Second)
 	}
 
 	return p, nil
+}
+
+func (p *Peer) setInitialFailed(resolvedPeers []string) {
+	if len(resolvedPeers) == 0 {
+		return
+	}
+
+	missingPeers := make(map[string]struct{})
+	for _, peerAddr := range resolvedPeers {
+		missingPeers[peerAddr] = struct{}{}
+
+		for _, pr := range p.mlist.Members() {
+			if pr.Address() == peerAddr {
+				delete(missingPeers, peerAddr)
+			}
+		}
+	}
+
+	now := time.Now()
+	for peerAddr := range missingPeers {
+		pr := peer{
+			status:    StatusFailed,
+			leaveTime: now,
+		}
+		p.failedPeers = append(p.failedPeers, pr)
+		p.peers[peerAddr] = pr
+	}
 }
 
 type logWriter struct {
