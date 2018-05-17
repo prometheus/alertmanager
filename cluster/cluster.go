@@ -197,10 +197,6 @@ func Join(
 
 	p.setInitialFailed(resolvedPeers)
 
-	if n > 0 {
-		go p.warnIfAlone(l, 10*time.Second)
-	}
-
 	return p, nil
 }
 
@@ -407,22 +403,6 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 
 	p.peerUpdateCounter.Inc()
 	level.Debug(p.logger).Log("msg", "peer updated", "peer", pr.Node)
-}
-
-func (p *Peer) warnIfAlone(logger log.Logger, d time.Duration) {
-	tick := time.NewTicker(d)
-	defer tick.Stop()
-
-	for {
-		select {
-		case <-p.stopc:
-			return
-		case <-tick.C:
-			if n := p.mlist.NumMembers(); n <= 1 {
-				level.Warn(logger).Log("NumMembers", n, "msg", "I appear to be alone in the cluster")
-			}
-		}
-	}
 }
 
 // AddState adds a new state that will be gossiped. It returns a channel to which
