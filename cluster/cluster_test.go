@@ -73,7 +73,7 @@ func TestJoinLeave(t *testing.T) {
 	p2.Leave(0 * time.Second)
 	require.Equal(t, 1, p.ClusterSize())
 	require.Equal(t, 1, len(p.failedPeers))
-	require.Equal(t, p2.Self().Address(), p.peers[p2.Name()].Node.Address())
+	require.Equal(t, p2.Self().Address(), p.peers[p2.Self().Address()].Node.Address())
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
 }
 
@@ -129,7 +129,7 @@ func TestReconnect(t *testing.T) {
 
 	require.Equal(t, 2, p.ClusterSize())
 	require.Equal(t, 0, len(p.failedPeers))
-	require.Equal(t, StatusAlive, p.peers[p2.Name()].status)
+	require.Equal(t, StatusAlive, p.peers[p2.Self().Address()].status)
 }
 
 func TestRemoveFailedPeers(t *testing.T) {

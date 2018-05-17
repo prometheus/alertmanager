@@ -319,7 +319,7 @@ func (p *Peer) peerJoin(n *memberlist.Node) {
 	defer p.peerLock.Unlock()
 
 	var oldStatus PeerStatus
-	pr, ok := p.peers[n.Name]
+	pr, ok := p.peers[n.Address()]
 	if !ok {
 		oldStatus = StatusNone
 		pr = peer{
@@ -333,7 +333,7 @@ func (p *Peer) peerJoin(n *memberlist.Node) {
 		pr.leaveTime = time.Time{}
 	}
 
-	p.peers[n.Name] = pr
+	p.peers[n.Address()] = pr
 	p.peerJoinCounter.Inc()
 
 	if oldStatus == StatusFailed {
@@ -346,7 +346,7 @@ func (p *Peer) peerLeave(n *memberlist.Node) {
 	p.peerLock.Lock()
 	defer p.peerLock.Unlock()
 
-	pr, ok := p.peers[n.Name]
+	pr, ok := p.peers[n.Address()]
 	if !ok {
 		// Why are we receiving a leave notification from a node that
 		// never joined?
@@ -356,7 +356,7 @@ func (p *Peer) peerLeave(n *memberlist.Node) {
 	pr.status = StatusFailed
 	pr.leaveTime = time.Now()
 	p.failedPeers = append(p.failedPeers, pr)
-	p.peers[n.Name] = pr
+	p.peers[n.Address()] = pr
 
 	p.peerLeaveCounter.Inc()
 	level.Debug(p.logger).Log("msg", "peer left", "peer", pr.Node)
@@ -366,7 +366,7 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 	p.peerLock.Lock()
 	defer p.peerLock.Unlock()
 
-	pr, ok := p.peers[n.Name]
+	pr, ok := p.peers[n.Address()]
 	if !ok {
 		// Why are we receiving an update from a node that never
 		// joined?
@@ -374,7 +374,7 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 	}
 
 	pr.Node = n
-	p.peers[n.Name] = pr
+	p.peers[n.Address()] = pr
 
 	p.peerUpdateCounter.Inc()
 	level.Debug(p.logger).Log("msg", "peer updated", "peer", pr.Node)
