@@ -335,7 +335,7 @@ Refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
 ## Architecture
 
-![](https://raw.githubusercontent.com/prometheus/alertmanager/master/doc/arch.jpg)
+![](doc/arch.jpg)
 
 
 [travis]: https://travis-ci.org/prometheus/alertmanager
