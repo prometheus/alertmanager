@@ -24,6 +24,7 @@ func TestMatchers(t *testing.T) {
 	testCases := []struct {
 		input string
 		want  []*labels.Matcher
+		err   error
 	}{
 		{
 			input: `{foo="bar"}`,
@@ -122,15 +123,24 @@ func TestMatchers(t *testing.T) {
 				return append(ms, m)
 			}(),
 		},
+		{
+			input: `{foo="bar,quux", job="job1"}`,
+			want: func() []*labels.Matcher {
+				ms := []*labels.Matcher{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar,quux")
+				m2, _ := labels.NewMatcher(labels.MatchEqual, "job", "job1")
+				return append(ms, m, m2)
+			}(),
+		},
 	}
 
 	for i, tc := range testCases {
 		got, err := Matchers(tc.input)
-		if err != nil {
-			t.Fatalf("error (i=%d): %v", i, err)
+		if tc.err != err {
+			t.Fatalf("error not equal (i=%d):\ngot  %v\nwant %v", i, err, tc.err)
 		}
 		if !reflect.DeepEqual(got, tc.want) {
-			t.Fatalf("error not equal (i=%d):\ngot  %v\nwant %v", i, got, tc.want)
+			t.Fatalf("labels not equal (i=%d):\ngot  %v\nwant %v", i, got, tc.want)
 		}
 	}
 

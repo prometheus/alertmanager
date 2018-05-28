@@ -40,13 +40,31 @@ func Matchers(s string) ([]*labels.Matcher, error) {
 		s = s[:len(s)-1]
 	}
 
-	for _, toParse := range strings.Split(s, ",") {
-		m, err := Matcher(toParse)
+	var insideQuotes bool
+	var token string
+	var tokens []string
+	for _, r := range s {
+		if !insideQuotes && r == ',' {
+			tokens = append(tokens, token)
+			token = ""
+			continue
+		}
+		token += string(r)
+		if r == '"' {
+			insideQuotes = !insideQuotes
+		}
+	}
+	if token != "" {
+		tokens = append(tokens, token)
+	}
+	for _, token := range tokens {
+		m, err := Matcher(token)
 		if err != nil {
 			return nil, err
 		}
 		matchers = append(matchers, m)
 	}
+
 	return matchers, nil
 }
 
