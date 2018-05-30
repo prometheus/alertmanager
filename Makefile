@@ -24,6 +24,7 @@ STATICCHECK_IGNORE = \
   github.com/prometheus/alertmanager/notify/notify.go:SA6002
 
 
+.PHONY: build-all
 # Will build both the front-end as well as the back-end
 build-all: assets build
 
@@ -49,12 +50,12 @@ ui/bindata.go: ui/app/script.js ui/app/index.html ui/app/lib
 ui/app/script.js: $(shell find ui/app/src -iname *.elm)
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
 
+.PHONY: proto
 proto:
 	scripts/genproto.sh
 
+.PHONY: clean
 clean:
 	rm template/internal/deftmpl/bindata.go
 	rm ui/bindata.go
 	cd $(FRONTEND_DIR) && $(MAKE) clean
-
-.PHONY: all style format build test vet assets tarball docker promu proto staticcheck
