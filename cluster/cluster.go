@@ -169,7 +169,11 @@ func Join(
 
 	p.register(reg)
 
-	p.delegate = newDelegate(l, reg, p, len(knownPeers)/2)
+	retransmit := len(knownPeers) / 2
+	if retransmit < 3 {
+		retransmit = 3
+	}
+	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()
 	cfg.Name = name.String()
@@ -584,13 +588,10 @@ type delegate struct {
 	messagesSentSize     *prometheus.CounterVec
 }
 
-func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, n int) *delegate {
-	if n < 3 {
-		n = 3
-	}
+func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit int) *delegate {
 	bcast := &memberlist.TransmitLimitedQueue{
 		NumNodes:       p.ClusterSize,
-		RetransmitMult: n,
+		RetransmitMult: retransmit,
 	}
 	messagesReceived := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_received_total",
