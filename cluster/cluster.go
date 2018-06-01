@@ -154,12 +154,6 @@ func Join(
 		peers:  map[string]peer{},
 	}
 
-	if reconnectInterval != 0 {
-		go p.handleReconnect(reconnectInterval)
-	}
-	if reconnectTimeout != 0 {
-		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
-	}
 	p.register(reg)
 
 	p.delegate = newDelegate(l, reg, p)
@@ -188,6 +182,8 @@ func Join(
 	}
 	p.mlist = ml
 
+	p.setInitialFailed(resolvedPeers)
+
 	n, err := ml.Join(resolvedPeers)
 	if err != nil {
 		level.Warn(l).Log("msg", "failed to join cluster", "err", err)
@@ -195,31 +191,27 @@ func Join(
 		level.Debug(l).Log("msg", "joined cluster", "peers", n)
 	}
 
-	p.setInitialFailed(resolvedPeers)
+	if reconnectInterval != 0 {
+		go p.handleReconnect(reconnectInterval)
+	}
+	if reconnectTimeout != 0 {
+		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
+	}
 
 	return p, nil
 }
 
-func (p *Peer) setInitialFailed(resolvedPeers []string) {
-	if len(resolvedPeers) == 0 {
+// All peers are initially added to the failed list. They will be removed from
+// this list in peerJoin when making their initial connection.
+func (p *Peer) setInitialFailed(peers []string) {
+	if len(peers) == 0 {
 		return
 	}
 
-	missingPeers := make(map[string]struct{})
-	for _, peerAddr := range resolvedPeers {
-		missingPeers[peerAddr] = struct{}{}
-
-		for _, pr := range p.mlist.Members() {
-			if pr.Address() == peerAddr {
-				delete(missingPeers, peerAddr)
-			}
-		}
-	}
-
 	now := time.Now()
-	for peerAddr := range missingPeers {
+	for _, peerAddr := range peers {
 		pr := peer{
-			status:    StatusFailed,
+			status:    StatusNone,
 			leaveTime: now,
 		}
 		p.failedPeers = append(p.failedPeers, pr)
@@ -246,13 +238,13 @@ func (p *Peer) register(reg prometheus.Registerer) {
 		return float64(len(p.failedPeers))
 	})
 	p.failedReconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_failed_reconnections_total",
+		Name: "alertmanager_cluster_reconnections_failed_total",
 		Help: "A counter of the number of failed cluster peer reconnection attempts.",
 	})
 
 	p.reconnectionsCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_reconnections_total",
-		Help: "A counter of the number of successful cluster peer reconnections.",
+		Help: "A counter of the number of cluster peer reconnections.",
 	})
 
 	p.peerLeaveCounter = prometheus.NewCounter(prometheus.CounterOpts{

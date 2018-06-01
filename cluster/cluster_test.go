@@ -203,6 +203,6 @@ func TestInitiallyFailingPeers(t *testing.T) {
 	for _, addr := range peerAddrs {
 		pr, ok := p.peers[addr]
 		require.True(t, ok)
-		require.Equal(t, StatusFailed, pr.status)
+		require.Equal(t, StatusNone, pr.status)
 	}
 }
