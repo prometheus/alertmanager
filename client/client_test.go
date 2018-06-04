@@ -118,7 +118,7 @@ func TestAPI(t *testing.T) {
 	}
 	doAlertList := func() (interface{}, error) {
 		api := httpAlertAPI{client: client}
-		return api.List(context.Background(), "", false, false, false, false)
+		return api.List(context.Background(), "", "", false, false, false, false)
 	}
 	doAlertPush := func() (interface{}, error) {
 		api := httpAlertAPI{client: client}
