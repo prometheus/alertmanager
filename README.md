@@ -281,6 +281,9 @@ comment_required: true
 
 # Set a default output format. (unset defaults to simple)
 output: extended
+
+# Set a default receiver
+receiver: team-X-pager
 ```
 
 ## High Availability
