@@ -187,6 +187,7 @@ func Join(
 	cfg.ProbeTimeout = probeTimeout
 	cfg.ProbeInterval = probeInterval
 	cfg.LogOutput = &logWriter{l: l}
+	cfg.GossipNodes = retransmit
 
 	if advertiseAddr != "" {
 		cfg.AdvertiseAddr = advertiseHost
