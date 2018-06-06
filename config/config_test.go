@@ -320,6 +320,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		Global: &GlobalConfig{
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			ResolveTimeout:   model.Duration(5 * time.Minute),
+			AuthHeader:       "X-Auth-Username",
 			SMTPSmarthost:    "localhost:25",
 			SMTPFrom:         "alertmanager@example.org",
 			HipchatAuthToken: "mysecret",

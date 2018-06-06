@@ -523,6 +523,13 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// FEAT(#1196) Overwrite createdBy if value is passed in `AuthHeader` variable
+	// defaults to (x-auth-username)
+	creator, ok := r.Header[api.config.Global.AuthHeader]
+	if ok {
+		sil.CreatedBy = creator[0]
+	}
+
 	// This is an API only validation, it cannot be done internally
 	// because the expired silence is semantically important.
 	// But one should not be able to create expired silences, that
