@@ -45,10 +45,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-type notifierConfig interface {
-	SendResolved() bool
-}
-
 // A Notifier notifies about alerts under constraints of the given context.
 // It returns an error if unsuccessful and a flag whether the error is
 // recoverable. This information is useful for a retry logic.
@@ -67,24 +63,7 @@ type Integration struct {
 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-	var res []*types.Alert
-
-	// Resolved alerts have to be filtered only at this point, because they need
-	// to end up unfiltered in the SetNotifiesStage.
-	if i.conf.SendResolved() {
-		res = alerts
-	} else {
-		for _, a := range alerts {
-			if a.Status() != model.AlertResolved {
-				res = append(res, a)
-			}
-		}
-	}
-	if len(res) == 0 {
-		return false, nil
-	}
-
-	return i.notifier.Notify(ctx, res...)
+	return i.notifier.Notify(ctx, alerts...)
 }
 
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
