@@ -71,7 +71,7 @@ func configureAlertCmd(app *kingpin.Application) {
 	queryCmd.Flag("silenced", "Show silenced alerts").Short('s').BoolVar(&a.silenced)
 	queryCmd.Flag("active", "Show active alerts").Short('a').BoolVar(&a.active)
 	queryCmd.Flag("unprocessed", "Show unprocessed alerts").Short('u').BoolVar(&a.unprocessed)
-	queryCmd.Flag("receiver", "Show alerts matching receiver").Short('r').StringVar(&a.receiver)
+	queryCmd.Flag("receiver", "Show alerts matching receiver (Supports regex syntax)").Short('r').StringVar(&a.receiver)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
 	queryCmd.Action(a.queryAlerts)
 }
