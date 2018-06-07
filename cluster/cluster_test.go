@@ -205,6 +205,8 @@ func TestInitiallyFailingPeers(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, StatusFailed.String(), pr.status.String())
 		require.Equal(t, addr, pr.Address())
-		require.Equal(t, len(peerAddrs)-1, len(removeOldPeer(p.failedPeers, pr.Address())))
+		expectedLen := len(p.failedPeers) - 1
+		p.peerJoin(pr.Node)
+		require.Equal(t, expectedLen, len(p.failedPeers))
 	}
 }
