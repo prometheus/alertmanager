@@ -204,5 +204,6 @@ func TestInitiallyFailingPeers(t *testing.T) {
 		pr, ok := p.peers[addr]
 		require.True(t, ok)
 		require.Equal(t, StatusNone, pr.status)
+		require.Equal(t, addr, pr.Address())
 	}
 }

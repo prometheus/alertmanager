@@ -228,9 +228,22 @@ func (p *Peer) setInitialFailed(peers []string) {
 
 	now := time.Now()
 	for _, peerAddr := range peers {
+		ip, port, err := net.SplitHostPort(peerAddr)
+		if err != nil {
+			continue
+		}
+		portUint, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			continue
+		}
+
 		pr := peer{
 			status:    StatusNone,
 			leaveTime: now,
+			Node: &memberlist.Node{
+				Addr: net.ParseIP(ip),
+				Port: uint16(portUint),
+			},
 		}
 		p.failedPeers = append(p.failedPeers, pr)
 		p.peers[peerAddr] = pr
