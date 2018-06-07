@@ -200,7 +200,7 @@ func Join(
 	}
 	p.mlist = ml
 
-	p.setInitialFailed(resolvedPeers)
+	p.setInitialFailed(resolvedPeers, bindAddr)
 
 	n, err := ml.Join(resolvedPeers)
 	if err != nil {
@@ -221,13 +221,18 @@ func Join(
 
 // All peers are initially added to the failed list. They will be removed from
 // this list in peerJoin when making their initial connection.
-func (p *Peer) setInitialFailed(peers []string) {
+func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 	if len(peers) == 0 {
 		return
 	}
 
 	now := time.Now()
 	for _, peerAddr := range peers {
+		if peerAddr == myAddr {
+			// Don't add ourselves to the initially failing list,
+			// we don't connect to ourselves.
+			continue
+		}
 		ip, port, err := net.SplitHostPort(peerAddr)
 		if err != nil {
 			continue
