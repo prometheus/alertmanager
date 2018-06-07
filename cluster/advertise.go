@@ -38,7 +38,7 @@ func calculateAdvertiseAddress(bindAddr, advertiseAddr string) (net.IP, error) {
 		return ip, nil
 	}
 
-	if bindAddr == "0.0.0.0" {
+	if isAny(bindAddr) {
 		privateIP, err := sockaddr.GetPrivateIP()
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get private IP")

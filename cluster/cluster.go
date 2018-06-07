@@ -122,9 +122,9 @@ func Join(
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid listen address")
 	}
+
 	var advertiseHost string
 	var advertisePort int
-
 	if advertiseAddr != "" {
 		var advertisePortStr string
 		advertiseHost, advertisePortStr, err = net.SplitHostPort(advertiseAddr)
@@ -151,6 +151,11 @@ func Join(
 		level.Warn(l).Log("err", "this node advertises itself on an unroutable address", "addr", addr.String())
 		level.Warn(l).Log("err", "this node will be unreachable in the cluster")
 		level.Warn(l).Log("err", "provide --cluster.advertise-address as a routable IP address or hostname")
+	} else if isAny(bindAddr) && advertiseHost == "" {
+		// memberlist doesn't advertise properly when the bind address is empty or unspecified.
+		level.Info(l).Log("msg", "setting advertise address explicitly", "addr", addr.String(), "port", bindPort)
+		advertiseHost = addr.String()
+		advertisePort = bindPort
 	}
 
 	// TODO(fabxc): generate human-readable but random names?
@@ -184,7 +189,7 @@ func Join(
 	cfg.ProbeInterval = probeInterval
 	cfg.LogOutput = &logWriter{l: l}
 
-	if advertiseAddr != "" {
+	if advertiseHost != "" {
 		cfg.AdvertiseAddr = advertiseHost
 		cfg.AdvertisePort = advertisePort
 	}
@@ -665,6 +670,13 @@ func isUnroutable(addr string) bool {
 		return true
 	}
 	return false
+}
+
+func isAny(addr string) bool {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	return addr == "" || net.ParseIP(addr).IsUnspecified()
 }
 
 // retry executes f every interval seconds until timeout or no error is returned from f.
