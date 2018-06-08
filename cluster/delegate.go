@@ -9,6 +9,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// delegate implements memberlist.Delegate and memberlist.EventDelegate
+// and broadcasts its peer's state in the cluster.
 type delegate struct {
 	*Peer
 
@@ -21,10 +23,10 @@ type delegate struct {
 	messagesSentSize     *prometheus.CounterVec
 }
 
-func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer) *delegate {
+func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit int) *delegate {
 	bcast := &memberlist.TransmitLimitedQueue{
 		NumNodes:       p.ClusterSize,
-		RetransmitMult: 3,
+		RetransmitMult: retransmit,
 	}
 	messagesReceived := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_received_total",
@@ -96,8 +98,6 @@ func (d *delegate) NodeMeta(limit int) []byte {
 }
 
 // NotifyMsg is the callback invoked when a user-level gossip message is received.
-// NOTE: This is where a node could notify others of its intent to leave, and
-// avoid being marked as failed.
 func (d *delegate) NotifyMsg(b []byte) {
 	d.messagesReceived.WithLabelValues("update").Inc()
 	d.messagesReceivedSize.WithLabelValues("update").Add(float64(len(b)))

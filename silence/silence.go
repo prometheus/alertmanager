@@ -105,15 +105,16 @@ type Silences struct {
 }
 
 type metrics struct {
-	gcDuration       prometheus.Summary
-	snapshotDuration prometheus.Summary
-	snapshotSize     prometheus.Gauge
-	queriesTotal     prometheus.Counter
-	queryErrorsTotal prometheus.Counter
-	queryDuration    prometheus.Histogram
-	silencesActive   prometheus.GaugeFunc
-	silencesPending  prometheus.GaugeFunc
-	silencesExpired  prometheus.GaugeFunc
+	gcDuration              prometheus.Summary
+	snapshotDuration        prometheus.Summary
+	snapshotSize            prometheus.Gauge
+	queriesTotal            prometheus.Counter
+	queryErrorsTotal        prometheus.Counter
+	queryDuration           prometheus.Histogram
+	silencesActive          prometheus.GaugeFunc
+	silencesPending         prometheus.GaugeFunc
+	silencesExpired         prometheus.GaugeFunc
+	propagatedMessagesTotal prometheus.Counter
 }
 
 func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
@@ -160,6 +161,10 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Name: "alertmanager_silences_query_duration_seconds",
 		Help: "Duration of silence query evaluation.",
 	})
+	m.propagatedMessagesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_gossip_messages_propagated_total",
+		Help: "Number of received gossip messages that have been further gossiped.",
+	})
 	if s != nil {
 		m.silencesActive = newSilenceMetricByState(s, types.SilenceStateActive)
 		m.silencesPending = newSilenceMetricByState(s, types.SilenceStatePending)
@@ -177,6 +182,7 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 			m.silencesActive,
 			m.silencesPending,
 			m.silencesExpired,
+			m.propagatedMessagesTotal,
 		)
 	}
 	return m
@@ -711,7 +717,13 @@ func (s *Silences) Merge(b []byte) error {
 	defer s.mtx.Unlock()
 
 	for _, e := range st {
-		s.st.merge(e)
+		if merged := s.st.merge(e); merged {
+			// If this is the first we've seen the message, gossip
+			// it to other nodes.
+			s.broadcast(b)
+			s.metrics.propagatedMessagesTotal.Inc()
+			level.Debug(s.logger).Log("msg", "gossiping new silence", "silence", e)
+		}
 	}
 	return nil
 }
@@ -724,7 +736,7 @@ func (s *Silences) SetBroadcast(f func([]byte)) {
 
 type state map[string]*pb.MeshSilence
 
-func (s state) merge(e *pb.MeshSilence) {
+func (s state) merge(e *pb.MeshSilence) bool {
 	// Comments list was moved to a single comment. Apply upgrade
 	// on silences received from peers.
 	if len(e.Silence.Comments) > 0 {
@@ -735,13 +747,11 @@ func (s state) merge(e *pb.MeshSilence) {
 	id := e.Silence.Id
 
 	prev, ok := s[id]
-	if !ok {
+	if !ok || prev.Silence.UpdatedAt.Before(e.Silence.UpdatedAt) {
 		s[id] = e
-		return
+		return true
 	}
-	if prev.Silence.UpdatedAt.Before(e.Silence.UpdatedAt) {
-		s[id] = e
-	}
+	return false
 }
 
 func (s state) MarshalBinary() ([]byte, error) {

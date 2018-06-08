@@ -174,7 +174,11 @@ func Join(
 
 	p.register(reg)
 
-	p.delegate = newDelegate(l, reg, p)
+	retransmit := len(knownPeers) / 2
+	if retransmit < 3 {
+		retransmit = 3
+	}
+	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()
 	cfg.Name = name.String()
@@ -188,6 +192,7 @@ func Join(
 	cfg.ProbeTimeout = probeTimeout
 	cfg.ProbeInterval = probeInterval
 	cfg.LogOutput = &logWriter{l: l}
+	cfg.GossipNodes = retransmit
 
 	if advertiseHost != "" {
 		cfg.AdvertiseAddr = advertiseHost
@@ -575,8 +580,6 @@ func (c *Channel) Broadcast(b []byte) {
 	c.bcast.QueueBroadcast(simpleBroadcast(b))
 }
 
-// delegate implements memberlist.Delegate and memberlist.EventDelegate
-// and broadcasts its peer's state in the cluster.
 func resolvePeers(ctx context.Context, peers []string, myAddress string, res net.Resolver, waitIfEmpty bool) ([]string, error) {
 	var resolvedPeers []string
 
