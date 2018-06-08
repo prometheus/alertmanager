@@ -1,3 +1,15 @@
+## 0.15.0-rc.2 / 2018-05-05
+
+[BUGFIX] Fix wechat templating issue (#1356)
+[BUGFIX] Fix resolved alerts still inhibiting (#1331)
+[BUGFIX] Fix potential panic in decodeState() in nflog and silence
+[BUGFIX] Don't reset timer if flush is in-progress in dispatcher (#1301)
+[ENHANCEMENT] [amtool] Update alerts argument order, rename expired to inhibited (#1360)
+[ENHANCEMENT] [amtool] use kingpin.v2 (#1330)
+[ENHANCEMENT] [amtool] update silence add and update flags (#1298)
+[ENHANCEMENT] [amtool] extract client bindings of the v1 API (#1278)
+
+
 ## 0.15.0-rc.1 / 2018-03-22
 
 * [BUGFIX/CHANGE] The default group_by is no labels. (#1287)
