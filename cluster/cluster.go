@@ -200,7 +200,7 @@ func Join(
 	}
 	p.mlist = ml
 
-	p.setInitialFailed(resolvedPeers, bindAddr)
+	p.setInitialFailed(resolvedPeers, fmt.Sprintf("%s:%d", advertiseHost, advertisePort))
 
 	n, err := ml.Join(resolvedPeers)
 	if err != nil {
