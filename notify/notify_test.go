@@ -106,7 +106,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolvedAlerts: alertHashSet(2, 3, 4),
 			res:            false,
 		}, {
-			// Different sets of firing alarms should update.
+			// Different sets of firing alerts should update.
 			entry:        &nflogpb.Entry{FiringAlerts: []uint64{1, 2, 3}},
 			firingAlerts: alertHashSet(2, 3, 4),
 			res:          true,
@@ -119,7 +119,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
 		}, {
-			// Identical sets of alarms shouldn't update before repeat_interval.
+			// Identical sets of alerts shouldn't update before repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
 				Timestamp:    now.Add(-9 * time.Minute),
@@ -128,7 +128,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          false,
 		}, {
-			// Identical sets of alarms should update after repeat_interval.
+			// Identical sets of alerts should update after repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
 				Timestamp:    now.Add(-11 * time.Minute),
@@ -137,7 +137,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
 		}, {
-			// Different sets of resolved alarms without firing alerts shouldn't update after repeat_interval.
+			// Different sets of resolved alerts without firing alerts shouldn't update after repeat_interval.
 			entry: &nflogpb.Entry{
 				ResolvedAlerts: []uint64{1, 2, 3},
 				Timestamp:      now.Add(-11 * time.Minute),
@@ -147,7 +147,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolve:        true,
 			res:            false,
 		}, {
-			// Different sets of resolved alarms shouldn't update when resolve is false.
+			// Different sets of resolved alerts shouldn't update when resolve is false.
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
@@ -159,7 +159,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolve:        false,
 			res:            false,
 		}, {
-			// Different sets of resolved alarms should update when resolve is true.
+			// Different sets of resolved alerts should update when resolve is true.
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
@@ -171,7 +171,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolve:        true,
 			res:            true,
 		}, {
-			// Empty set of firing alarms should update when resolve is false.
+			// Empty set of firing alerts should update when resolve is false.
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
@@ -183,7 +183,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			resolve:        false,
 			res:            true,
 		}, {
-			// Empty set of firing alarms should update when resolve is true.
+			// Empty set of firing alerts should update when resolve is true.
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
