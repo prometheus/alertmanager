@@ -1,3 +1,26 @@
+## 0.15.0-rc.2 / 2018-06-08
+
+* [CHANGE] [amtool] Update silence add and update flags (#1298)
+* [CHANGE] Replace deprecated InstrumentHandler() (#1302)
+* [CHANGE] Validate Slack field config and only allow the necessary input (#1334)
+* [CHANGE] Remove legacy alert ingest endpoint (#1362)
+* [FEATURE] [amtool] Filter alerts by receiver (#1402)
+* [ENHANCEMENT] Support alert query filters `active` and `unprocessed` (#1366)
+* [ENHANCEMENT] [amtool] Expose alert query flags --active and --unprocessed (#1370)
+* [ENHANCEMENT] Add additional cluster configuration flags (#1379)
+* [ENHANCEMENT] Add Slack actions to notifications (#1355)
+* [BUGFIX] Fix merge broadcast errors with unexpected EOF (#1286)
+* [BUGFIX] Fix potential panic decoding gossip messages (#1316)
+* [BUGFIX] Don't reset initial wait timer if flush is in-progress (#1301)
+* [BUGFIX] Fix resolved alerts still inhibiting (#1331)
+* [BUGFIX] Template wechat config fields (#1356)
+* [BUGFIX] Alertmanager cluster reconnects (#1384)
+* [BUGFIX] Clustering advertises explicitly for empty addresses (#1386)
+* [BUGFIX] Notify resolved alerts properly (#1408)
+* [BUGFIX] Alertmanager gossips notification messages and silences (#1389)
+* [BUGFIX] Fix setting initial peers for clustering (#1407)
+* [BUGFIX] Fix parsing for label values with commas (#1395)
+
 ## 0.15.0-rc.1 / 2018-03-22
 
 * [BUGFIX/CHANGE] The default group_by is no labels. (#1287)
