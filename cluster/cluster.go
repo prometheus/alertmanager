@@ -205,7 +205,7 @@ func Join(
 	}
 	p.mlist = ml
 
-	p.setInitialFailed(resolvedPeers)
+	p.setInitialFailed(resolvedPeers, fmt.Sprintf("%s:%d", advertiseHost, advertisePort))
 
 	n, err := ml.Join(resolvedPeers)
 	if err != nil {
@@ -226,16 +226,34 @@ func Join(
 
 // All peers are initially added to the failed list. They will be removed from
 // this list in peerJoin when making their initial connection.
-func (p *Peer) setInitialFailed(peers []string) {
+func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 	if len(peers) == 0 {
 		return
 	}
 
 	now := time.Now()
 	for _, peerAddr := range peers {
+		if peerAddr == myAddr {
+			// Don't add ourselves to the initially failing list,
+			// we don't connect to ourselves.
+			continue
+		}
+		ip, port, err := net.SplitHostPort(peerAddr)
+		if err != nil {
+			continue
+		}
+		portUint, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			continue
+		}
+
 		pr := peer{
-			status:    StatusNone,
+			status:    StatusFailed,
 			leaveTime: now,
+			Node: &memberlist.Node{
+				Addr: net.ParseIP(ip),
+				Port: uint16(portUint),
+			},
 		}
 		p.failedPeers = append(p.failedPeers, pr)
 		p.peers[peerAddr] = pr
@@ -378,7 +396,7 @@ func (p *Peer) peerJoin(n *memberlist.Node) {
 
 	if oldStatus == StatusFailed {
 		level.Debug(p.logger).Log("msg", "peer rejoined", "peer", pr.Node)
-		p.failedPeers = removeOldPeer(p.failedPeers, pr.Name)
+		p.failedPeers = removeOldPeer(p.failedPeers, pr.Address())
 	}
 }
 
@@ -700,10 +718,10 @@ func retry(interval time.Duration, stopc <-chan struct{}, f func() error) error 
 	}
 }
 
-func removeOldPeer(old []peer, name string) []peer {
+func removeOldPeer(old []peer, addr string) []peer {
 	new := make([]peer, 0, len(old))
 	for _, p := range old {
-		if p.Name != name {
+		if p.Address() != addr {
 			new = append(new, p)
 		}
 	}
