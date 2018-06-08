@@ -91,6 +91,10 @@ func init() {
 	prometheus.Register(notificationLatencySeconds)
 }
 
+type notifierConfig interface {
+	SendResolved() bool
+}
+
 // MinTimeout is the minimum timeout that is set for the context of a call
 // to a notification pipeline.
 const MinTimeout = 10 * time.Second
@@ -262,7 +266,7 @@ func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(notificationLog, recv))
+		s = append(s, NewDedupStage(i, notificationLog, recv))
 		s = append(s, NewRetryStage(i, rc.Name))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
@@ -452,16 +456,18 @@ func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 type DedupStage struct {
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
+	conf  notifierConfig
 
 	now  func() time.Time
 	hash func(*types.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
+func NewDedupStage(i Integration, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
 		nflog: l,
 		recv:  recv,
+		conf:  i.conf,
 		now:   utcNow,
 		hash:  hashAlert,
 	}
@@ -511,28 +517,34 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) (bool, error) {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
-		return len(firing) > 0, nil
+		return len(firing) > 0
 	}
 
 	if !entry.IsFiringSubset(firing) {
-		return true, nil
+		return true
 	}
 
-	// Notify about all alerts being resolved. If the current alert group and
-	// last notification contain no firing alert, it means that some alerts
-	// have been fired and resolved during the last group_wait interval. In
-	// this case, there is no need to notify the receiver since it doesn't know
-	// about them.
+	// Notify about all alerts being resolved.
+	// This is done irrespective of the send_resolved flag to make sure that
+	// the firing alerts are cleared from the notification log.
 	if len(firing) == 0 {
-		return len(entry.FiringAlerts) > 0, nil
+		// If the current alert group and last notification contain no firing
+		// alert, it means that some alerts have been fired and resolved during the
+		// last interval. In this case, there is no need to notify the receiver
+		// since it doesn't know about them.
+		return len(entry.FiringAlerts) > 0
+	}
+
+	if n.conf.SendResolved() && !entry.IsResolvedSubset(resolved) {
+		return true
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat)), nil
+	return entry.Timestamp.Before(n.now().Add(-repeat))
 }
 
 // Exec implements the Stage interface.
@@ -580,9 +592,7 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	case 2:
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
-	if ok, err := n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval); err != nil {
-		return ctx, nil, err
-	} else if ok {
+	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil
@@ -605,17 +615,26 @@ func NewRetryStage(i Integration, groupName string) *RetryStage {
 
 // Exec implements the Stage interface.
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	var sent []*types.Alert
+
 	// If we shouldn't send notifications for resolved alerts, but there are only
 	// resolved alerts, report them all as successfully notified (we still want the
-	// notification log to log them).
+	// notification log to log them for the next run of DedupStage).
 	if !r.integration.conf.SendResolved() {
 		firing, ok := FiringAlerts(ctx)
 		if !ok {
-			return ctx, alerts, fmt.Errorf("firing alerts missing")
+			return ctx, nil, fmt.Errorf("firing alerts missing")
 		}
 		if len(firing) == 0 {
 			return ctx, alerts, nil
 		}
+		for _, a := range alerts {
+			if a.Status() != model.AlertResolved {
+				sent = append(sent, a)
+			}
+		}
+	} else {
+		sent = alerts
 	}
 
 	var (
@@ -642,7 +661,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		select {
 		case <-tick.C:
 			now := time.Now()
-			retry, err := r.integration.Notify(ctx, alerts...)
+			retry, err := r.integration.Notify(ctx, sent...)
 			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
 			if err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()

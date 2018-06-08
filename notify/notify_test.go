@@ -91,26 +91,35 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		firingAlerts   map[uint64]struct{}
 		resolvedAlerts map[uint64]struct{}
 		repeat         time.Duration
+		resolve        bool
 
-		res    bool
-		resErr bool
+		res bool
 	}{
 		{
+			// No matching nflog entry should update.
 			entry:        nil,
 			firingAlerts: alertHashSet(2, 3, 4),
 			res:          true,
 		}, {
+			// No matching nflog entry shouldn't update if no alert fires.
+			entry:          nil,
+			resolvedAlerts: alertHashSet(2, 3, 4),
+			res:            false,
+		}, {
+			// Different sets of firing alerts should update.
 			entry:        &nflogpb.Entry{FiringAlerts: []uint64{1, 2, 3}},
 			firingAlerts: alertHashSet(2, 3, 4),
 			res:          true,
 		}, {
+			// Zero timestamp in the nflog entry should always update.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
-				Timestamp:    time.Time{}, // zero timestamp should always update
+				Timestamp:    time.Time{},
 			},
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
 		}, {
+			// Identical sets of alerts shouldn't update before repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
 				Timestamp:    now.Add(-9 * time.Minute),
@@ -119,6 +128,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          false,
 		}, {
+			// Identical sets of alerts should update after repeat_interval.
 			entry: &nflogpb.Entry{
 				FiringAlerts: []uint64{1, 2, 3},
 				Timestamp:    now.Add(-11 * time.Minute),
@@ -127,24 +137,17 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			firingAlerts: alertHashSet(1, 2, 3),
 			res:          true,
 		}, {
+			// Different sets of resolved alerts without firing alerts shouldn't update after repeat_interval.
 			entry: &nflogpb.Entry{
 				ResolvedAlerts: []uint64{1, 2, 3},
 				Timestamp:      now.Add(-11 * time.Minute),
 			},
 			repeat:         10 * time.Minute,
 			resolvedAlerts: alertHashSet(3, 4, 5),
+			resolve:        true,
 			res:            false,
 		}, {
-			entry: &nflogpb.Entry{
-				FiringAlerts:   []uint64{1, 2},
-				ResolvedAlerts: []uint64{3},
-				Timestamp:      now.Add(-11 * time.Minute),
-			},
-			repeat:         10 * time.Minute,
-			firingAlerts:   alertHashSet(1),
-			resolvedAlerts: alertHashSet(2, 3),
-			res:            true,
-		}, {
+			// Different sets of resolved alerts shouldn't update when resolve is false.
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
@@ -153,8 +156,22 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(1),
 			resolvedAlerts: alertHashSet(2, 3),
+			resolve:        false,
 			res:            false,
 		}, {
+			// Different sets of resolved alerts should update when resolve is true.
+			entry: &nflogpb.Entry{
+				FiringAlerts:   []uint64{1, 2},
+				ResolvedAlerts: []uint64{3},
+				Timestamp:      now.Add(-9 * time.Minute),
+			},
+			repeat:         10 * time.Minute,
+			firingAlerts:   alertHashSet(1),
+			resolvedAlerts: alertHashSet(2, 3),
+			resolve:        true,
+			res:            true,
+		}, {
+			// Empty set of firing alerts should update when resolve is false.
 			entry: &nflogpb.Entry{
 				FiringAlerts:   []uint64{1, 2},
 				ResolvedAlerts: []uint64{3},
@@ -163,6 +180,19 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			repeat:         10 * time.Minute,
 			firingAlerts:   alertHashSet(),
 			resolvedAlerts: alertHashSet(1, 2, 3),
+			resolve:        false,
+			res:            true,
+		}, {
+			// Empty set of firing alerts should update when resolve is true.
+			entry: &nflogpb.Entry{
+				FiringAlerts:   []uint64{1, 2},
+				ResolvedAlerts: []uint64{3},
+				Timestamp:      now.Add(-9 * time.Minute),
+			},
+			repeat:         10 * time.Minute,
+			firingAlerts:   alertHashSet(),
+			resolvedAlerts: alertHashSet(1, 2, 3),
+			resolve:        true,
 			res:            true,
 		},
 	}
@@ -170,15 +200,11 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		t.Log("case", i)
 
 		s := &DedupStage{
-			now: func() time.Time { return now },
+			now:  func() time.Time { return now },
+			conf: notifierConfigFunc(func() bool { return c.resolve }),
 		}
-		ok, err := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
-		if c.resErr {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-		}
-		require.Equal(t, c.res, ok)
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		require.Equal(t, c.res, res)
 	}
 }
 
@@ -194,6 +220,7 @@ func TestDedupStage(t *testing.T) {
 		now: func() time.Time {
 			return now
 		},
+		conf: notifierConfigFunc(func() bool { return false }),
 	}
 
 	ctx := context.Background()
@@ -344,16 +371,62 @@ func TestRoutingStage(t *testing.T) {
 	}
 }
 
-func TestIntegrationNoResolved(t *testing.T) {
-	res := []*types.Alert{}
-	r := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-		res = append(res, alerts...)
-
-		return false, nil
-	})
+func TestRetryStageWithError(t *testing.T) {
+	fail, retry := true, true
+	sent := []*types.Alert{}
 	i := Integration{
-		notifier: r,
-		conf:     notifierConfigFunc(func() bool { return false }),
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			if fail {
+				fail = false
+				return retry, errors.New("fail to deliver notification")
+			}
+			sent = append(sent, alerts...)
+			return false, nil
+		}),
+		conf: notifierConfigFunc(func() bool { return false }),
+	}
+	r := RetryStage{
+		integration: i,
+	}
+
+	alerts := []*types.Alert{
+		&types.Alert{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(time.Hour),
+			},
+		},
+	}
+
+	ctx := context.Background()
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	// Notify with a recoverable error should retry and succeed.
+	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.Equal(t, alerts, sent)
+	require.NotNil(t, resctx)
+
+	// Notify with an unrecoverable error should fail.
+	sent = sent[:0]
+	fail = true
+	retry = false
+	resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.NotNil(t, err)
+	require.NotNil(t, resctx)
+}
+
+func TestRetryStageNoResolved(t *testing.T) {
+	sent := []*types.Alert{}
+	i := Integration{
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			sent = append(sent, alerts...)
+			return false, nil
+		}),
+		conf: notifierConfigFunc(func() bool { return false }),
+	}
+	r := RetryStage{
+		integration: i,
 	}
 
 	alerts := []*types.Alert{
@@ -369,21 +442,44 @@ func TestIntegrationNoResolved(t *testing.T) {
 		},
 	}
 
-	i.Notify(nil, alerts...)
+	ctx := context.Background()
 
-	require.Equal(t, len(res), 1)
+	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.EqualError(t, err, "firing alerts missing")
+	require.Nil(t, res)
+	require.NotNil(t, resctx)
+
+	ctx = WithFiringAlerts(ctx, []uint64{0})
+
+	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.Equal(t, []*types.Alert{alerts[1]}, sent)
+	require.NotNil(t, resctx)
+
+	// All alerts are resolved.
+	sent = sent[:0]
+	ctx = WithFiringAlerts(ctx, []uint64{})
+	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
+
+	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.Equal(t, []*types.Alert{}, sent)
+	require.NotNil(t, resctx)
 }
 
-func TestIntegrationSendResolved(t *testing.T) {
-	res := []*types.Alert{}
-	r := notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-		res = append(res, alerts...)
-
-		return false, nil
-	})
+func TestRetryStageSendResolved(t *testing.T) {
+	sent := []*types.Alert{}
 	i := Integration{
-		notifier: r,
-		conf:     notifierConfigFunc(func() bool { return true }),
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+			sent = append(sent, alerts...)
+			return false, nil
+		}),
+		conf: notifierConfigFunc(func() bool { return true }),
+	}
+	r := RetryStage{
+		integration: i,
 	}
 
 	alerts := []*types.Alert{
@@ -392,12 +488,32 @@ func TestIntegrationSendResolved(t *testing.T) {
 				EndsAt: time.Now().Add(-time.Hour),
 			},
 		},
+		&types.Alert{
+			Alert: model.Alert{
+				EndsAt: time.Now().Add(time.Hour),
+			},
+		},
 	}
 
-	i.Notify(nil, alerts...)
+	ctx := context.Background()
+	ctx = WithFiringAlerts(ctx, []uint64{0})
 
-	require.Equal(t, len(res), 1)
-	require.Equal(t, res, alerts)
+	resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.Equal(t, alerts, sent)
+	require.NotNil(t, resctx)
+
+	// All alerts are resolved.
+	sent = sent[:0]
+	ctx = WithFiringAlerts(ctx, []uint64{})
+	alerts[1].Alert.EndsAt = time.Now().Add(-time.Hour)
+
+	resctx, res, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
+	require.Nil(t, err)
+	require.Equal(t, alerts, res)
+	require.Equal(t, alerts, sent)
+	require.NotNil(t, resctx)
 }
 
 func TestSetNotifiesStage(t *testing.T) {
