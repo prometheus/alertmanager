@@ -443,15 +443,15 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		for _, override_key := range [...]model.LabelName{"job", "instance"} {
 			key_i, ok_i := alertsSlice[i].Labels[override_key]
 			if !ok_i {
-				return true
+				return false
 			}
 			key_j, ok_j := alertsSlice[j].Labels[override_key]
 			if !ok_j {
-				return false
+				return true
 			}
 
 			if key_i != key_j {
-				return key_i > key_j
+				return key_i < key_j
 			}
 		}
 
