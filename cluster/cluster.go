@@ -197,6 +197,9 @@ func Join(
 	if advertiseHost != "" {
 		cfg.AdvertiseAddr = advertiseHost
 		cfg.AdvertisePort = advertisePort
+		p.setInitialFailed(resolvedPeers, fmt.Sprintf("%s:%d", advertiseHost, advertisePort))
+	} else {
+		p.setInitialFailed(resolvedPeers, bindAddr)
 	}
 
 	ml, err := memberlist.Create(cfg)
@@ -204,8 +207,6 @@ func Join(
 		return nil, errors.Wrap(err, "create memberlist")
 	}
 	p.mlist = ml
-
-	p.setInitialFailed(resolvedPeers, fmt.Sprintf("%s:%d", advertiseHost, advertisePort))
 
 	n, err := ml.Join(resolvedPeers)
 	if err != nil {
