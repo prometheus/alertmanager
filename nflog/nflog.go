@@ -135,6 +135,7 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		r.MustRegister(
 			m.gcDuration,
 			m.snapshotDuration,
+			m.snapshotSize,
 			m.queriesTotal,
 			m.queryErrorsTotal,
 			m.queryDuration,
