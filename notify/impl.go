@@ -172,7 +172,7 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("User-Agent", userAgentHeader)
 
-	c, err := commoncfg.NewHTTPClientFromConfig(w.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*w.conf.HTTPConfig, "webhook")
 	if err != nil {
 		return false, err
 	}
@@ -556,7 +556,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "pagerduty")
 	if err != nil {
 		return false, err
 	}
@@ -702,7 +702,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "slack")
 	if err != nil {
 		return false, err
 	}
@@ -784,7 +784,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		return false, err
 	}
 
-	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "hipchat")
 	if err != nil {
 		return false, err
 	}
@@ -865,7 +865,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "wechat")
 	if err != nil {
 		return false, err
 	}
@@ -1005,7 +1005,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return retry, err
 	}
 
-	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "opsgenie")
 	if err != nil {
 		return false, err
 	}
@@ -1198,7 +1198,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "victorops")
 	if err != nil {
 		return false, err
 	}
@@ -1295,7 +1295,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	u.RawQuery = parameters.Encode()
 	level.Debug(n.logger).Log("msg", "Sending Pushover message", "incident", key, "url", u.String())
 
-	c, err := commoncfg.NewHTTPClientFromConfig(n.conf.HTTPConfig)
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "pushover")
 	if err != nil {
 		return false, err
 	}
