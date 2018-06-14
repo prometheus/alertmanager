@@ -57,7 +57,7 @@ func NewChannel(
 		ConstLabels: prometheus.Labels{"key": key},
 	})
 	oversizeGossipDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:        "alertmanager_oversize_gossip_duration_seconds",
+		Name:        "alertmanager_oversize_gossip_message_duration_seconds",
 		Help:        "Duration of oversized gossip message requests.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
