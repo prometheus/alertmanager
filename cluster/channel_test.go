@@ -16,7 +16,6 @@ package cluster
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -63,8 +62,6 @@ func TestOversizedMessagesGossiped(t *testing.T) {
 	} else if n != toCopy {
 		t.Fatalf("wanted to copy %d bytes, only copied %d", toCopy, n)
 	}
-
-	fmt.Println(buf.Len())
 
 	c.Broadcast(buf.Bytes())
 
