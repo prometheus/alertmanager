@@ -53,7 +53,7 @@ func NewChannel(
 ) *Channel {
 	oversizeGossipMessageFailureTotal := prometheus.NewCounter(prometheus.CounterOpts{
 		Name:        "alertmanager_oversized_gossip_message_failure_total",
-		Help:        "Number notification log received queries that failed.",
+		Help:        "Number of oversized gossip message sends that failed.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
 	oversizeGossipDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -117,7 +117,11 @@ func (c *Channel) Broadcast(b []byte) {
 	}
 
 	if OversizedMessage(b) {
-		c.msgc <- b
+		select {
+		case c.msgc <- b:
+		default:
+			level.Warn(c.logger).Log("msg", "oversized gossip channel full")
+		}
 	} else {
 		c.send(b)
 	}
