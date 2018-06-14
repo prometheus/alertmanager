@@ -88,8 +88,8 @@ func (c *Channel) handleOverSizedMessages(stopc chan struct{}) {
 		select {
 		case b := <-c.msgc:
 			for _, n := range c.peers() {
+				wg.Add(1)
 				go func(n *memberlist.Node) {
-					wg.Add(1)
 					defer wg.Done()
 
 					start := time.Now()
