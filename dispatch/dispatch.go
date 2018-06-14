@@ -431,32 +431,13 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	var (
 		alerts      = make(map[model.Fingerprint]*types.Alert, len(ag.alerts))
-		alertsSlice = make([]*types.Alert, 0, len(ag.alerts))
+		alertsSlice = make(types.AlertSlice, 0, len(ag.alerts))
 	)
 	for fp, alert := range ag.alerts {
 		alerts[fp] = alert
 		alertsSlice = append(alertsSlice, alert)
 	}
-
-	sort.SliceStable(alertsSlice, func(i, j int) bool {
-		// Look at labels.job, then labels.instance.
-		for _, override_key := range [...]model.LabelName{"job", "instance"} {
-			key_i, ok_i := alertsSlice[i].Labels[override_key]
-			if !ok_i {
-				return true
-			}
-			key_j, ok_j := alertsSlice[j].Labels[override_key]
-			if !ok_j {
-				return false
-			}
-
-			if key_i != key_j {
-				return key_i > key_j
-			}
-		}
-
-		return alertsSlice[i].Labels.Before(alertsSlice[j].Labels)
-	})
+	sort.Stable(alertsSlice)
 
 	ag.mtx.Unlock()
 
