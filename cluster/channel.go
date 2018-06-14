@@ -123,6 +123,8 @@ func (c *Channel) Broadcast(b []byte) {
 	}
 }
 
+// OversizedMessage indicates whether or not the byte payload should be sent
+// via TCP.
 func OversizedMessage(b []byte) bool {
 	return len(b) > maxGossipPacketSize/2
 }
