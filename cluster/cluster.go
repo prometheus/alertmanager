@@ -95,7 +95,6 @@ const (
 	DefaultProbeInterval     = 1 * time.Second
 	DefaultReconnectInterval = 10 * time.Second
 	DefaultReconnectTimeout  = 6 * time.Hour
-	DefaultMaxQueueSize      = 100
 	maxGossipPacketSize      = 1400
 )
 
@@ -113,7 +112,6 @@ func Join(
 	probeInterval time.Duration,
 	reconnectInterval time.Duration,
 	reconnectTimeout time.Duration,
-	maxQueueSize int,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -222,9 +220,6 @@ func Join(
 	}
 	if reconnectTimeout != 0 {
 		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
-	}
-	if maxQueueSize != 0 {
-		go p.handleQueueDepth(maxQueueSize)
 	}
 
 	return p, nil
@@ -612,21 +607,6 @@ type simpleBroadcast []byte
 func (b simpleBroadcast) Message() []byte                       { return []byte(b) }
 func (b simpleBroadcast) Invalidates(memberlist.Broadcast) bool { return false }
 func (b simpleBroadcast) Finished()                             {}
-
-func (p *Peer) handleQueueDepth(limit int) {
-	for {
-		select {
-		case <-p.stopc:
-			return
-		case <-time.After(30 * time.Second):
-			n := p.delegate.bcast.NumQueued()
-			if n > limit {
-				level.Warn(p.logger).Log("msg", "dropping messages because too many are queued", "current", n, "limit", limit)
-				p.delegate.bcast.Prune(limit)
-			}
-		}
-	}
-}
 
 func resolvePeers(ctx context.Context, peers []string, myAddress string, res net.Resolver, waitIfEmpty bool) ([]string, error) {
 	var resolvedPeers []string
