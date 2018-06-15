@@ -134,7 +134,7 @@ func (c *Channel) Broadcast(b []byte) {
 		select {
 		case c.msgc <- b:
 		default:
-			level.Warn(c.logger).Log("msg", "oversized gossip channel full")
+			level.Debug(c.logger).Log("msg", "oversized gossip channel full")
 			c.oversizeGossipMessageDroppedTotal.Inc()
 		}
 	} else {
