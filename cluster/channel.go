@@ -37,6 +37,7 @@ type Channel struct {
 	logger log.Logger
 
 	oversizeGossipMessageFailureTotal prometheus.Counter
+	oversizeGossipMessageDroppedTotal prometheus.Counter
 	oversizeGossipDuration            prometheus.Histogram
 }
 
@@ -56,13 +57,18 @@ func NewChannel(
 		Help:        "Number of oversized gossip message sends that failed.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
+	oversizeGossipMessageDroppedTotal := prometheus.NewCounter(prometheus.CounterOpts{
+		Name:        "alertmanager_oversized_gossip_message_dropped_total",
+		Help:        "Number of oversized gossip messages that were dropped due to a full message queue.",
+		ConstLabels: prometheus.Labels{"key": key},
+	})
 	oversizeGossipDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:        "alertmanager_oversize_gossip_message_duration_seconds",
 		Help:        "Duration of oversized gossip message requests.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
 
-	reg.MustRegister(oversizeGossipDuration, oversizeGossipMessageFailureTotal)
+	reg.MustRegister(oversizeGossipDuration, oversizeGossipMessageFailureTotal, oversizeGossipMessageDroppedTotal)
 
 	c := &Channel{
 		key:                               key,
@@ -72,6 +78,7 @@ func NewChannel(
 		msgc:                              make(chan []byte, 200),
 		sendOversize:                      sendOversize,
 		oversizeGossipMessageFailureTotal: oversizeGossipMessageFailureTotal,
+		oversizeGossipMessageDroppedTotal: oversizeGossipMessageDroppedTotal,
 		oversizeGossipDuration:            oversizeGossipDuration,
 	}
 
@@ -121,6 +128,7 @@ func (c *Channel) Broadcast(b []byte) {
 		case c.msgc <- b:
 		default:
 			level.Warn(c.logger).Log("msg", "oversized gossip channel full")
+			c.oversizeGossipMessageDroppedTotal.Inc()
 		}
 	} else {
 		c.send(b)
