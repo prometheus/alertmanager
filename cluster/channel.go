@@ -38,6 +38,7 @@ type Channel struct {
 
 	oversizeGossipMessageFailureTotal prometheus.Counter
 	oversizeGossipMessageDroppedTotal prometheus.Counter
+	oversizeGossipMessageSentTotal    prometheus.Counter
 	oversizeGossipDuration            prometheus.Histogram
 }
 
@@ -57,6 +58,11 @@ func NewChannel(
 		Help:        "Number of oversized gossip message sends that failed.",
 		ConstLabels: prometheus.Labels{"key": key},
 	})
+	oversizeGossipMessageSentTotal := prometheus.NewCounter(prometheus.CounterOpts{
+		Name:        "alertmanager_oversized_gossip_message_sent_total",
+		Help:        "Number of oversized gossip message sent.",
+		ConstLabels: prometheus.Labels{"key": key},
+	})
 	oversizeGossipMessageDroppedTotal := prometheus.NewCounter(prometheus.CounterOpts{
 		Name:        "alertmanager_oversized_gossip_message_dropped_total",
 		Help:        "Number of oversized gossip messages that were dropped due to a full message queue.",
@@ -68,7 +74,7 @@ func NewChannel(
 		ConstLabels: prometheus.Labels{"key": key},
 	})
 
-	reg.MustRegister(oversizeGossipDuration, oversizeGossipMessageFailureTotal, oversizeGossipMessageDroppedTotal)
+	reg.MustRegister(oversizeGossipDuration, oversizeGossipMessageFailureTotal, oversizeGossipMessageDroppedTotal, oversizeGossipMessageSentTotal)
 
 	c := &Channel{
 		key:                               key,
@@ -79,6 +85,7 @@ func NewChannel(
 		sendOversize:                      sendOversize,
 		oversizeGossipMessageFailureTotal: oversizeGossipMessageFailureTotal,
 		oversizeGossipMessageDroppedTotal: oversizeGossipMessageDroppedTotal,
+		oversizeGossipMessageSentTotal:    oversizeGossipMessageSentTotal,
 		oversizeGossipDuration:            oversizeGossipDuration,
 	}
 
@@ -98,7 +105,7 @@ func (c *Channel) handleOverSizedMessages(stopc chan struct{}) {
 				wg.Add(1)
 				go func(n *memberlist.Node) {
 					defer wg.Done()
-
+					c.oversizeGossipMessageSentTotal.Inc()
 					start := time.Now()
 					if err := c.sendOversize(n, b); err != nil {
 						level.Debug(c.logger).Log("msg", "failed to send reliable", "key", c.key, "node", n, "err", err)
