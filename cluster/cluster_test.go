@@ -179,7 +179,7 @@ func TestRemoveFailedPeers(t *testing.T) {
 func TestInitiallyFailingPeers(t *testing.T) {
 	logger := log.NewNopLogger()
 	myAddr := "1.2.3.4:5000"
-	peerAddrs := []string{myAddr, "2.3.4.5:5000", "3.4.5.6:5000"}
+	peerAddrs := []string{myAddr, "2.3.4.5:5000", "3.4.5.6:5000", "foo.example.com:5000"}
 	p, err := Join(
 		logger,
 		prometheus.NewRegistry(),
@@ -200,10 +200,11 @@ func TestInitiallyFailingPeers(t *testing.T) {
 
 	p.setInitialFailed(peerAddrs, myAddr)
 
-	// We shouldn't have added "our" bind addr to the failed peers list
-	require.Equal(t, len(peerAddrs)-1, len(p.failedPeers))
+	// We shouldn't have added "our" bind addr and the FQDN address to the
+	// failed peers list.
+	require.Equal(t, len(peerAddrs)-2, len(p.failedPeers))
 	for _, addr := range peerAddrs {
-		if addr == myAddr {
+		if addr == myAddr || addr == "foo.example.com:5000" {
 			continue
 		}
 

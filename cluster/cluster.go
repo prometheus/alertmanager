@@ -232,6 +232,9 @@ func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 		return
 	}
 
+	p.peerLock.RLock()
+	defer p.peerLock.RUnlock()
+
 	now := time.Now()
 	for _, peerAddr := range peers {
 		if peerAddr == myAddr {
@@ -239,8 +242,14 @@ func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 			// we don't connect to ourselves.
 			continue
 		}
-		ip, port, err := net.SplitHostPort(peerAddr)
+		host, port, err := net.SplitHostPort(peerAddr)
 		if err != nil {
+			continue
+		}
+		ip := net.ParseIP(host)
+		if ip == nil {
+			// Don't add textual addresses since memberlist only advertises
+			// dotted decimal or IPv6 addresses.
 			continue
 		}
 		portUint, err := strconv.ParseUint(port, 10, 16)
@@ -252,7 +261,7 @@ func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 			status:    StatusFailed,
 			leaveTime: now,
 			Node: &memberlist.Node{
-				Addr: net.ParseIP(ip),
+				Addr: ip,
 				Port: uint16(portUint),
 			},
 		}
