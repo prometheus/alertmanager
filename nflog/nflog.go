@@ -30,6 +30,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
+	"github.com/prometheus/alertmanager/cluster"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -523,9 +524,11 @@ func (l *Log) Merge(b []byte) error {
 	defer l.mtx.Unlock()
 
 	for _, e := range st {
-		if merged := l.st.merge(e); merged {
-			// If this is the first we've seen the message, gossip
-			// it to other nodes.
+		if merged := l.st.merge(e); merged && !cluster.OversizedMessage(b) {
+			// If this is the first we've seen the message and it's
+			// not oversized, gossip it to other nodes. We don't
+			// propagate oversized messages because they're sent to
+			// all nodes already.
 			l.broadcast(b)
 			l.metrics.propagatedMessagesTotal.Inc()
 			level.Debug(l.logger).Log("msg", "gossiping new entry", "entry", e)

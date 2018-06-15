@@ -227,7 +227,7 @@ func main() {
 		os.Exit(1)
 	}
 	if peer != nil {
-		c := peer.AddState("nfl", notificationLog)
+		c := peer.AddState("nfl", notificationLog, prometheus.DefaultRegisterer)
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
@@ -247,7 +247,7 @@ func main() {
 		os.Exit(1)
 	}
 	if peer != nil {
-		c := peer.AddState("sil", silences)
+		c := peer.AddState("sil", silences, prometheus.DefaultRegisterer)
 		silences.SetBroadcast(c.Broadcast)
 	}
 

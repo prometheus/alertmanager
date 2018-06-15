@@ -30,6 +30,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/pkg/errors"
+	"github.com/prometheus/alertmanager/cluster"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/client_golang/prometheus"
@@ -717,9 +718,11 @@ func (s *Silences) Merge(b []byte) error {
 	defer s.mtx.Unlock()
 
 	for _, e := range st {
-		if merged := s.st.merge(e); merged {
-			// If this is the first we've seen the message, gossip
-			// it to other nodes.
+		if merged := s.st.merge(e); merged && !cluster.OversizedMessage(b) {
+			// If this is the first we've seen the message and it's
+			// not oversized, gossip it to other nodes. We don't
+			// propagate oversized messages because they're sent to
+			// all nodes already.
 			s.broadcast(b)
 			s.metrics.propagatedMessagesTotal.Inc()
 			level.Debug(s.logger).Log("msg", "gossiping new silence", "silence", e)

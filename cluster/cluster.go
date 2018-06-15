@@ -26,12 +26,10 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 
-	"github.com/prometheus/alertmanager/cluster/clusterpb"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -97,6 +95,7 @@ const (
 	DefaultProbeInterval     = 1 * time.Second
 	DefaultReconnectInterval = 10 * time.Second
 	DefaultReconnectTimeout  = 6 * time.Hour
+	maxGossipPacketSize      = 1400
 )
 
 func Join(
@@ -193,6 +192,7 @@ func Join(
 	cfg.ProbeInterval = probeInterval
 	cfg.LogOutput = &logWriter{l: l}
 	cfg.GossipNodes = retransmit
+	cfg.UDPBufferSize = maxGossipPacketSize
 
 	if advertiseHost != "" {
 		cfg.AdvertiseAddr = advertiseHost
@@ -450,9 +450,25 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 
 // AddState adds a new state that will be gossiped. It returns a channel to which
 // broadcast messages for the state can be sent.
-func (p *Peer) AddState(key string, s State) *Channel {
+func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) *Channel {
 	p.states[key] = s
-	return &Channel{key: key, bcast: p.delegate.bcast}
+	send := func(b []byte) {
+		p.delegate.bcast.QueueBroadcast(simpleBroadcast(b))
+	}
+	peers := func() []*memberlist.Node {
+		nodes := p.Peers()
+		for i, n := range nodes {
+			if n.Name == p.Self().Name {
+				nodes = append(nodes[:i], nodes[i+1:]...)
+				break
+			}
+		}
+		return nodes
+	}
+	sendOversize := func(n *memberlist.Node, b []byte) error {
+		return p.mlist.SendReliable(n, b)
+	}
+	return NewChannel(key, send, peers, sendOversize, p.logger, p.stopc, reg)
 }
 
 // Leave the cluster, waiting up to timeout.
@@ -585,28 +601,12 @@ type State interface {
 	Merge(b []byte) error
 }
 
-// Channel allows clients to send messages for a specific state type that will be
-// broadcasted in a best-effort manner.
-type Channel struct {
-	key   string
-	bcast *memberlist.TransmitLimitedQueue
-}
-
 // We use a simple broadcast implementation in which items are never invalidated by others.
 type simpleBroadcast []byte
 
 func (b simpleBroadcast) Message() []byte                       { return []byte(b) }
 func (b simpleBroadcast) Invalidates(memberlist.Broadcast) bool { return false }
 func (b simpleBroadcast) Finished()                             {}
-
-// Broadcast enqueues a message for broadcasting.
-func (c *Channel) Broadcast(b []byte) {
-	b, err := proto.Marshal(&clusterpb.Part{Key: c.key, Data: b})
-	if err != nil {
-		return
-	}
-	c.bcast.QueueBroadcast(simpleBroadcast(b))
-}
 
 func resolvePeers(ctx context.Context, peers []string, myAddress string, res net.Resolver, waitIfEmpty bool) ([]string, error) {
 	var resolvedPeers []string
