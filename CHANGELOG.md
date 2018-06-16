@@ -1,3 +1,12 @@
+## 0.15.0-rc.3 / 2018-06-16
+
+* [BUGFIX] When setting initially failing peers, if advertise address is empty, use bindAddr (#1411)
+* [BUGFIX] Register nflog snapShotSize metric
+* [BUGFIX] Sort alerts in correct order before flushing to notifiers (#1349)
+* [BUGFIX] Don't track FQDN addresses as inital cluster peers (#1416)
+* [BUGFIX] Gossip large messages via SendReliable (TCP) (#1415)
+* [BUGFIX] Prune the gossip message queue if it contains too many items (#1418)
+
 ## 0.15.0-rc.2 / 2018-06-08
 
 * [CHANGE] [amtool] Update silence add and update flags (#1298)
