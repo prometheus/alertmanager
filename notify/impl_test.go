@@ -15,6 +15,7 @@ package notify
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -321,4 +322,52 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 	_, err = email.auth("PLAIN LOGIN")
 	require.Error(t, err)
 	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism")
+}
+
+func TestVictorOpsCustomFields(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+	conf := &config.VictorOpsConfig{
+		APIKey:            `12345`,
+		APIURL:            `http://nowhere.com`,
+		EntityDisplayName: `{{ .CommonLabels.Message }}`,
+		StateMessage:      `{{ .CommonLabels.Message }}`,
+		RoutingKey:        `test`,
+		MessageType:       ``,
+		MonitoringTool:    `AM`,
+		CustomFields: map[string]string{
+			"Field_A": "{{ .CommonLabels.Message }}",
+			//A field that should be ignored
+			"state_message": "discarded",
+		},
+	}
+
+	notifier := NewVictorOps(conf, tmpl, logger)
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "1")
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message": "message",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	msg, err := notifier.createVictorOpsPayload(ctx, alert)
+	require.NoError(t, err)
+
+	var m map[string]string
+	err = json.Unmarshal(msg.Bytes(), &m)
+
+	require.NoError(t, err)
+
+	//Verify the invalid custom field didn't override the static field
+	require.Equal(t, "message", m["state_message"])
+
+	//Verify that a custom field was added to the payload and templatized
+	require.Equal(t, "message", m["Field_A"])
 }

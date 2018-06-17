@@ -486,13 +486,14 @@ type VictorOpsConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey            Secret `yaml:"api_key" json:"api_key"`
-	APIURL            *URL   `yaml:"api_url" json:"api_url"`
-	RoutingKey        string `yaml:"routing_key" json:"routing_key"`
-	MessageType       string `yaml:"message_type" json:"message_type"`
-	StateMessage      string `yaml:"state_message" json:"state_message"`
-	EntityDisplayName string `yaml:"entity_display_name" json:"entity_display_name"`
-	MonitoringTool    string `yaml:"monitoring_tool" json:"monitoring_tool"`
+	APIKey            Secret            `yaml:"api_key" json:"api_key"`
+	APIURL            *URL              `yaml:"api_url" json:"api_url"`
+	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
+	MessageType       string            `yaml:"message_type" json:"message_type"`
+	StateMessage      string            `yaml:"state_message" json:"state_message"`
+	EntityDisplayName string            `yaml:"entity_display_name" json:"entity_display_name"`
+	MonitoringTool    string            `yaml:"monitoring_tool" json:"monitoring_tool"`
+	CustomFields      map[string]string `yaml:"custom_fields,omitempty" json:"custom_fields,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
