@@ -1315,7 +1315,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	return n.retry(resp.StatusCode)
 }
 
-//Create the json payload to be sent to victorops api
+// Create the json payload to be sent to victorops api
 func (n *VictorOps) createVictorOpsPayload(ctx context.Context, as ...*types.Alert) (*bytes.Buffer, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,
@@ -1366,14 +1366,14 @@ func (n *VictorOps) createVictorOpsPayload(ctx context.Context, as ...*types.Ale
 
 	for k, v := range n.conf.CustomFields {
 
-		//Validate if the custom field is not one of the fixed fields above.
-		if _, ok := msg[k]; !ok {
-			msg[k] = tmpl(v)
-			if err != nil {
-				return nil, fmt.Errorf("templating error: %s", err)
-			}
-		} else {
-			level.Debug(n.logger).Log("msg", "Ignoring custom field %q as it is already defined as a fixed field", "omitted_field", k, "incident", key)
+		// Validate if the custom field is not one of the fixed fields above.
+		if _, ok := msg[k]; ok {
+			level.Debug(n.logger).Log("msg", "Ignoring custom field as it is already defined as a fixed field", "omitted_field", k, "incident", key)
+			continue
+		}
+		msg[k] = tmpl(v)
+		if err != nil {
+			return nil, fmt.Errorf("templating error: %s", err)
 		}
 	}
 
