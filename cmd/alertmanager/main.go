@@ -162,6 +162,7 @@ func main() {
 		settleTimeout        = kingpin.Flag("cluster.settle-timeout", "Maximum time to wait for cluster connections to settle before evaluating notifications.").Default(cluster.DefaultPushPullInterval.String()).Duration()
 		reconnectInterval    = kingpin.Flag("cluster.reconnect-interval", "Interval between attempting to reconnect to lost peers.").Default(cluster.DefaultReconnectInterval.String()).Duration()
 		peerReconnectTimeout = kingpin.Flag("cluster.reconnect-timeout", "Length of time to attempt to reconnect to a lost peer.").Default(cluster.DefaultReconnectTimeout.String()).Duration()
+		refreshInterval      = kingpin.Flag("cluster.refresh-interval", "Interval between attempting to refresh cluster.peers DNS records.").Default(cluster.DefaultReconnectInterval.String()).Duration()
 	)
 
 	kingpin.Version(version.Print("alertmanager"))
@@ -196,6 +197,7 @@ func main() {
 			*probeInterval,
 			*reconnectInterval,
 			*peerReconnectTimeout,
+			*refreshInterval,
 		)
 		if err != nil {
 			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
