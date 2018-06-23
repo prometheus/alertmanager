@@ -287,6 +287,49 @@ routing_key: ''
 	}
 }
 
+func TestVictorOpsCustomFieldsValidation(t *testing.T) {
+	in := `
+routing_key: 'test'
+custom_fields:
+  entity_state: 'state_message'
+`
+	var cfg VictorOpsConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "VictorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+
+	in = `
+routing_key: 'test'
+custom_fields:
+  my_special_field: 'special_label'
+`
+
+	err = yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected = "special_label"
+
+	if err != nil {
+		t.Fatalf("Unexpected error returned, got:\n%v", err.Error())
+	}
+
+	val, ok := cfg.CustomFields["my_special_field"]
+
+	if !ok {
+		t.Fatalf("Expected Custom Field to have value %v set, field is empty", expected)
+	}
+	if val != expected {
+		t.Errorf("\nexpected custom field my_special_field value:\n%v\ngot:\n%v", expected, val)
+	}
+
+}
+
 func TestPushoverUserKeyIsPresent(t *testing.T) {
 	in := `
 user_key: ''
