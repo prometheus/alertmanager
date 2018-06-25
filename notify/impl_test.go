@@ -337,8 +337,6 @@ func TestVictorOpsCustomFields(t *testing.T) {
 		MonitoringTool:    `AM`,
 		CustomFields: map[string]string{
 			"Field_A": "{{ .CommonLabels.Message }}",
-			//A field that should be ignored
-			"state_message": "discarded",
 		},
 	}
 
@@ -364,9 +362,6 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	err = json.Unmarshal(msg.Bytes(), &m)
 
 	require.NoError(t, err)
-
-	//Verify the invalid custom field didn't override the static field
-	require.Equal(t, "message", m["state_message"])
 
 	//Verify that a custom field was added to the payload and templatized
 	require.Equal(t, "message", m["Field_A"])

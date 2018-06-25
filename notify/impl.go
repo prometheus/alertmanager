@@ -1364,13 +1364,8 @@ func (n *VictorOps) createVictorOpsPayload(ctx context.Context, as ...*types.Ale
 		return nil, fmt.Errorf("templating error: %s", err)
 	}
 
+	// Add custom fields to the payload.
 	for k, v := range n.conf.CustomFields {
-
-		// Validate if the custom field is not one of the fixed fields above.
-		if _, ok := msg[k]; ok {
-			level.Debug(n.logger).Log("msg", "Ignoring custom field as it is already defined as a fixed field", "omitted_field", k, "incident", key)
-			continue
-		}
 		msg[k] = tmpl(v)
 		if err != nil {
 			return nil, fmt.Errorf("templating error: %s", err)
