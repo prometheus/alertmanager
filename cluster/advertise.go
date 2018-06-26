@@ -49,7 +49,7 @@ func calculateAdvertiseAddress(bindAddr, advertiseAddr string) (net.IP, error) {
 			return nil, errors.Wrap(err, "failed to get private IP")
 		}
 		if privateIP == "" {
-			return nil, errors.Errorf("no private IP found, explicit advertise addr not provided")
+			return nil, errors.New("no private IP found, explicit advertise addr not provided")
 		}
 		ip := net.ParseIP(privateIP)
 		if ip == nil {
