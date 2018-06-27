@@ -310,11 +310,11 @@ func (p *Peer) register(reg prometheus.Registerer) {
 	})
 
 	p.failedRefreshCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_refresh_failed_total",
-		Help: "A counter of the number of failed cluster peer refresh attempts.",
+		Name: "alertmanager_cluster_refresh_join_failed_total",
+		Help: "A counter of the number of failed cluster peer joined attempts via refresh.",
 	})
 	p.refreshCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "alertmanager_cluster_refresh_total",
+		Name: "alertmanager_cluster_refresh_join_total",
 		Help: "A counter of the number of cluster peer joined via refresh.",
 	})
 
@@ -422,6 +422,7 @@ func (p *Peer) refresh() {
 	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, net.Resolver{}, false)
 	if err != nil {
 		level.Debug(logger).Log("peers", p.knownPeers, "err", err)
+		return
 	}
 
 	members := p.mlist.Members()
