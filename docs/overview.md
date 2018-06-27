@@ -1,7 +1,6 @@
 ---
 title: Alerting overview
 sort_rank: 1
-nav_icon: sliders
 ---
 
 # Alerting Overview

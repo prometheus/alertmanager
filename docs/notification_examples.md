@@ -2,6 +2,7 @@
 title: Notification template examples
 sort_rank: 8
 ---
+
 # Notification Template Examples
 
 The following are all different examples of alerts and corresponding Alertmanager configuration file setups (alertmanager.yml).
