@@ -13,5 +13,5 @@ EXPOSE     9093
 WORKDIR    /alertmanager
 VOLUME     [ "/alertmanager" ]
 ENTRYPOINT [ "/bin/alertmanager" ]
-CMD        [ "--config.file=/etc/alertmanager/config.yml", \
+CMD        [ "--config.file=/etc/prometheus/alertmanager.yml", \
              "--storage.path=/alertmanager" ]
