@@ -8,6 +8,7 @@ build:
           path: ./cmd/amtool
     flags: -a -tags netgo
     ldflags: |
+        -s
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Version={{.Version}}
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Revision={{.Revision}}
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Branch={{.Branch}}

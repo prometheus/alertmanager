@@ -1,0 +1,17 @@
+FROM  rhel7:7-released
+LABEL maintainer="OpenShift Development <dev@lists.openshift.redhat.com>" \
+      com.redhat.component="golang-github-prometheus-alertmanager-docker" \
+      name="openshift3/prometheus-alertmanager" \
+      version="v0.15.0" \
+      architecture=x86_64
+
+RUN yum-config-manager --enable rhel-7-server-ose-3.9-rpms && \
+    yum install -y prometheus-alertmanager && \
+    yum clean all
+
+EXPOSE     9093
+WORKDIR    /alertmanager
+VOLUME     [ "/alertmanager" ]
+ENTRYPOINT [ "/bin/alertmanager" ]
+CMD        [ "--config.file=/etc/prometheus/alertmanager.yml", \
+             "--storage.path=/alertmanager" ]
