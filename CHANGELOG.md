@@ -4,7 +4,8 @@
 * [CHANGE] Replace deprecated InstrumentHandler() (#1302)
 * [CHANGE] Validate Slack field config and only allow the necessary input (#1334)
 * [CHANGE] Remove legacy alert ingest endpoint (#1362)
-* [CHANGE] Moved to memberlist as underlying gossip protocol
+* [CHANGE] Move to memberlist as underlying gossip protocol including cluster flag changes from --mesh.xxx to --cluster.xxx (#1232)
+* [CHANGE] Move Alertmanager working directory in Docker image to /etc/alertmanager (#1313)
 * [BUGFIX/CHANGE] The default group by is no labels. (#1287)
 * [FEATURE] [amtool] Filter alerts by receiver (#1402)
 * [FEATURE] Wait for mesh to settle before sending alerts (#1209)
