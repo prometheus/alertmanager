@@ -271,7 +271,9 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	ag, ok := group[fp]
 	if !ok {
 		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+		d.mtx.Lock()
 		group[fp] = ag
+		d.mtx.Unlock()
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
