@@ -116,7 +116,15 @@ func (ao AlertOverview) Len() int           { return len(ao) }
 
 func matchesFilterLabels(a *APIAlert, matchers []*labels.Matcher) bool {
 	for _, m := range matchers {
-		if v, prs := a.Labels[model.LabelName(m.Name)]; !prs || !m.Matches(string(v)) {
+		if v, prs := a.Labels[model.LabelName(m.Name)]; prs {
+			if !m.Matches(string(v)) {
+				return false
+			}
+		} else if v2, prs2 := a.Annotations[model.LabelName(m.Name)]; prs2 {
+			if !m.Matches(string(v2)) {
+				return false
+			}
+		} else {
 			return false
 		}
 	}
@@ -206,7 +214,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				continue
 			}
 
-			for _, r := range d.route.Match(alert.Labels) {
+			for _, r := range d.route.Match(alert.Labels, alert.Annotations) {
 				d.processAlert(alert, r)
 			}
 

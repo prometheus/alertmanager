@@ -68,11 +68,25 @@ func (m *Matcher) Validate() error {
 
 // Match checks whether the label of the matcher has the specified
 // matching value.
-func (m *Matcher) Match(lset model.LabelSet) bool {
+func (m *Matcher) Match(lset ...model.LabelSet) bool {
 	// Unset labels are treated as unset labels globally. Thus, if a
 	// label is not set we retrieve the empty label which is correct
-	// for the comparison below.
-	v := lset[model.LabelName(m.Name)]
+	// for the comparison below. With more than one lset we have to
+	// iterate all the way through to decide that it's empty
+	name := model.LabelName(m.Name)
+	for _, l := range lset {
+		v, ok := l[name]
+		if ok {
+			if m.IsRegex {
+				return m.regex.MatchString(string(v))
+			}
+			return string(v) == m.Value
+		}
+	}
+
+	// this is where we fall through to the empty label. If we have an
+	// empty set of lsets, we should panic, but that's ok.
+	v := lset[0][name]
 
 	if m.IsRegex {
 		return m.regex.MatchString(string(v))
@@ -147,9 +161,9 @@ func (ms Matchers) Equal(o Matchers) bool {
 }
 
 // Match checks whether all matchers are fulfilled against the given label set.
-func (ms Matchers) Match(lset model.LabelSet) bool {
+func (ms Matchers) Match(lset ...model.LabelSet) bool {
 	for _, m := range ms {
-		if !m.Match(lset) {
+		if !m.Match(lset...) {
 			return false
 		}
 	}
