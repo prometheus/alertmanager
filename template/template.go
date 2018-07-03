@@ -128,6 +128,7 @@ var DefaultFuncs = FuncMap{
 	"join": func(sep string, s []string) string {
 		return strings.Join(s, sep)
 	},
+	"match": regexp.MatchString,
 	"safeHtml": func(text string) tmplhtml.HTML {
 		return tmplhtml.HTML(text)
 	},
