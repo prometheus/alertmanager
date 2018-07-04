@@ -91,6 +91,63 @@ service_key: ''
 	}
 }
 
+func TestPagerdutyDetails(t *testing.T) {
+
+	var tests = []struct {
+		in      string
+		checkFn func(map[string]string)
+	}{
+		{
+			in: `
+routing_key: 'xyz'
+`,
+			checkFn: func(d map[string]string) {
+				if len(d) != 4 {
+					t.Errorf("expected 4 items, got: %d", len(d))
+				}
+			},
+		},
+		{
+			in: `
+routing_key: 'xyz'
+details:
+  key1: val1
+`,
+			checkFn: func(d map[string]string) {
+				if len(d) != 5 {
+					t.Errorf("expected 5 items, got: %d", len(d))
+				}
+			},
+		},
+		{
+			in: `
+routing_key: 'xyz'
+details:
+  key1: val1
+  key2: val2
+  firing: firing
+`,
+			checkFn: func(d map[string]string) {
+				if len(d) != 6 {
+					t.Errorf("expected 6 items, got: %d", len(d))
+				}
+			},
+		},
+	}
+	for _, tc := range tests {
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+
+		if err != nil {
+			t.Errorf("expected no error, got:%v", err)
+		}
+
+		if tc.checkFn != nil {
+			tc.checkFn(cfg.Details)
+		}
+	}
+}
+
 func TestHipchatRoomIDIsPresent(t *testing.T) {
 	in := `
 room_id: ''
