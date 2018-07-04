@@ -182,7 +182,7 @@ func main() {
 
 	var peer *cluster.Peer
 	if *clusterBindAddr != "" {
-		peer, err = cluster.Join(
+		peer, err = cluster.Create(
 			log.With(logger, "component", "cluster"),
 			prometheus.DefaultRegisterer,
 			*clusterBindAddr,
@@ -194,8 +194,6 @@ func main() {
 			*tcpTimeout,
 			*probeTimeout,
 			*probeInterval,
-			*reconnectInterval,
-			*peerReconnectTimeout,
 		)
 		if err != nil {
 			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
@@ -206,7 +204,7 @@ func main() {
 			cancel()
 			peer.Leave(10 * time.Second)
 		}()
-		go peer.Settle(ctx, *gossipInterval*10)
+		go peer.Settle(ctx, *pushPullInterval)
 	}
 
 	stopc := make(chan struct{})
@@ -262,6 +260,18 @@ func main() {
 		close(stopc)
 		wg.Wait()
 	}()
+
+	// Peer state listener have been registered, now we can join and get the initial state.
+	if peer != nil {
+		err = peer.Join(
+			*reconnectInterval,
+			*peerReconnectTimeout,
+		)
+		if err != nil {
+			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
+			os.Exit(1)
+		}
+	}
 
 	alerts, err := mem.NewAlerts(marker, *alertGCInterval)
 	if err != nil {
