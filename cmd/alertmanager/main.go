@@ -199,12 +199,6 @@ func main() {
 			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
 			os.Exit(1)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), *settleTimeout)
-		defer func() {
-			cancel()
-			peer.Leave(10 * time.Second)
-		}()
-		go peer.Settle(ctx, *pushPullInterval)
 	}
 
 	stopc := make(chan struct{})
@@ -261,16 +255,22 @@ func main() {
 		wg.Wait()
 	}()
 
-	// Peer state listener have been registered, now we can join and get the initial state.
+	// Peer state listeners have been registered, now we can join and get the initial state.
 	if peer != nil {
 		err = peer.Join(
 			*reconnectInterval,
 			*peerReconnectTimeout,
 		)
 		if err != nil {
-			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
+			level.Error(logger).Log("msg", "Unable to join gossip mesh", "err", err)
 			os.Exit(1)
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), *settleTimeout)
+		defer func() {
+			cancel()
+			peer.Leave(10 * time.Second)
+		}()
+		go peer.Settle(ctx, *pushPullInterval*10)
 	}
 
 	alerts, err := mem.NewAlerts(marker, *alertGCInterval)

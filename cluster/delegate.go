@@ -135,7 +135,7 @@ func (d *delegate) NotifyMsg(b []byte) {
 		level.Warn(d.logger).Log("msg", "decode broadcast", "err", err)
 		return
 	}
-	level.Debug(d.logger).Log("received", "NotifyMsg", "len", len(b), "key", p.Key)
+
 	s, ok := d.states[p.Key]
 	if !ok {
 		return
@@ -194,7 +194,7 @@ func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
 	for _, p := range fs.Parts {
 		s, ok := d.states[p.Key]
 		if !ok {
-			level.Debug(d.logger).Log("received", "unknown state key", "len", len(buf), "key", p.Key)
+			level.Warn(d.logger).Log("received", "unknown state key", "len", len(buf), "key", p.Key)
 			continue
 		}
 		if err := s.Merge(p.Data); err != nil {
