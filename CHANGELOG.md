@@ -1,3 +1,7 @@
+## Next release
+
+* [CHANGE] Revert Alertmanager working directory changes in Docker image back to `/alertmanager` (#1435)
+
 ## 0.15.0 / 2018-06-22
 
 * [CHANGE] [amtool] Update silence add and update flags (#1298)
