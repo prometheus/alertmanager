@@ -875,6 +875,9 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		parameters := url.Values{}
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
+		if err != nil {
+			return false, fmt.Errorf("templating error: %s", err)
+		}
 
 		apiURL := n.conf.APIURL + "gettoken"
 
@@ -884,8 +887,6 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 
 		u.RawQuery = parameters.Encode()
-
-		level.Debug(n.logger).Log("msg", "Sending Wechat message", "incident", key, "url", u.String())
 
 		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
@@ -924,6 +925,9 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		AgentID: tmpl(n.conf.AgentID),
 		Type:    "text",
 		Safe:    "0",
+	}
+	if err != nil {
+		return false, fmt.Errorf("templating error: %s", err)
 	}
 
 	var buf bytes.Buffer
