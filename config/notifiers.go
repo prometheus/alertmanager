@@ -42,6 +42,14 @@ var (
 	// DefaultEmailSubject defines the default Subject header of an Email.
 	DefaultEmailSubject = `{{ template "email.default.subject" . }}`
 
+	// DefaultPagerdutyDetails defines the default values for PagerDuty details.
+	DefaultPagerdutyDetails = map[string]string{
+		"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
+		"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+		"num_firing":   `{{ .Alerts.Firing | len }}`,
+		"num_resolved": `{{ .Alerts.Resolved | len }}`,
+	}
+
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
 	DefaultPagerdutyConfig = PagerdutyConfig{
 		NotifierConfig: NotifierConfig{
@@ -50,12 +58,6 @@ var (
 		Description: `{{ template "pagerduty.default.description" .}}`,
 		Client:      `{{ template "pagerduty.default.client" . }}`,
 		ClientURL:   `{{ template "pagerduty.default.clientURL" . }}`,
-		Details: map[string]string{
-			"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
-			"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
-			"num_firing":   `{{ .Alerts.Firing | len }}`,
-			"num_resolved": `{{ .Alerts.Resolved | len }}`,
-		},
 	}
 
 	// DefaultSlackConfig defines default values for Slack configurations.
@@ -216,6 +218,14 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	}
 	if c.RoutingKey == "" && c.ServiceKey == "" {
 		return fmt.Errorf("missing service or routing key in PagerDuty config")
+	}
+	if c.Details == nil {
+		c.Details = make(map[string]string)
+	}
+	for k, v := range DefaultPagerdutyDetails {
+		if _, ok := c.Details[k]; !ok {
+			c.Details[k] = v
+		}
 	}
 	return nil
 }
