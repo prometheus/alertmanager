@@ -260,20 +260,19 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	fp := groupLabels.Fingerprint()
 
 	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	group, ok := d.aggrGroups[route]
 	if !ok {
 		group = map[model.Fingerprint]*aggrGroup{}
 		d.aggrGroups[route] = group
 	}
-	d.mtx.Unlock()
 
 	// If the group does not exist, create it.
 	ag, ok := group[fp]
 	if !ok {
 		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
-		d.mtx.Lock()
 		group[fp] = ag
-		d.mtx.Unlock()
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
