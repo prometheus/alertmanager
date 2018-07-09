@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
@@ -47,6 +48,14 @@ func (c *checkConfigCmd) checkConfig(ctx *kingpin.ParseContext) error {
 }
 
 func CheckConfig(args []string) error {
+	if len(args) == 0 {
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			kingpin.Fatalf("Failed to read from standard input")
+		}
+		args = []string{os.Stdin.Name()}
+	}
+
 	failed := 0
 
 	for _, arg := range args {
