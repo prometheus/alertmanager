@@ -1,3 +1,12 @@
+## 0.15.1 / 2018-07-10
+
+* [BUGFIX] Fix email template typo in alert-warning style (#1421)
+* [BUGFIX] Fix regression in Pager Duty config (#1455)
+* [BUGFIX] Catch templating errors in Wechat Notify (#1436)
+* [BUGFIX] Fail when no private address can be found for cluster (#1437)
+* [BUGFIX] Make sure we don't miss the first pushPull when joining cluster (#1456)
+* [BUGFIX] Fix concurrent read and wirte group error in dispatch (#1447)
+
 ## 0.15.0 / 2018-06-22
 
 * [CHANGE] [amtool] Update silence add and update flags (#1298)
