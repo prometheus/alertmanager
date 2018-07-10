@@ -354,6 +354,9 @@ type WebhookConfig struct {
 
 	// URL to send POST request to.
 	URL string `yaml:"url" json:"url"`
+
+	// JSON message which will be sent instead of serialized data object
+    Message string `yaml:"message,omitempty" json:"message,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
