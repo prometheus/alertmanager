@@ -260,12 +260,13 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	fp := groupLabels.Fingerprint()
 
 	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	group, ok := d.aggrGroups[route]
 	if !ok {
 		group = map[model.Fingerprint]*aggrGroup{}
 		d.aggrGroups[route] = group
 	}
-	d.mtx.Unlock()
 
 	// If the group does not exist, create it.
 	ag, ok := group[fp]
