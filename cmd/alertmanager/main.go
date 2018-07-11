@@ -196,7 +196,7 @@ func main() {
 			*probeInterval,
 		)
 		if err != nil {
-			level.Error(logger).Log("msg", "Unable to initialize gossip mesh", "err", err)
+			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)
 			os.Exit(1)
 		}
 	}
@@ -262,8 +262,7 @@ func main() {
 			*peerReconnectTimeout,
 		)
 		if err != nil {
-			level.Error(logger).Log("msg", "Unable to join gossip mesh", "err", err)
-			os.Exit(1)
+			level.Warn(logger).Log("msg", "unable to join gossip mesh", "err", err)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), *settleTimeout)
 		defer func() {
