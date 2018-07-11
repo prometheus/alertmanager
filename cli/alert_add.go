@@ -106,12 +106,11 @@ func (a *alertAddCmd) addAlert(ctx *kingpin.ParseContext) error {
 		}
 	}
 
-	err = alertAPI.Push(context.Background(), client.Alert{
+	return alertAPI.Push(context.Background(), client.Alert{
 		Labels:       labels,
 		Annotations:  annotations,
 		StartsAt:     startsAt,
 		EndsAt:       endsAt,
 		GeneratorURL: a.generatorUrl,
 	})
-	return err
 }
