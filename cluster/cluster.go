@@ -217,6 +217,9 @@ func (p *Peer) Join(
 	n, err := p.mlist.Join(p.resolvedPeers)
 	if err != nil {
 		level.Warn(p.logger).Log("msg", "failed to join cluster", "err", err)
+		if reconnectInterval != 0 {
+			level.Info(p.logger).Log("msg", fmt.Sprintf("will retry joining cluster every %v", reconnectInterval.String()))
+		}
 	} else {
 		level.Debug(p.logger).Log("msg", "joined cluster", "peers", n)
 	}
