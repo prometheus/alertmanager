@@ -1,10 +1,20 @@
+## 0.15.1 / 2018-07-10
+
+* [BUGFIX] Fix email template typo in alert-warning style (#1421)
+* [BUGFIX] Fix regression in Pager Duty config (#1455)
+* [BUGFIX] Catch templating errors in Wechat Notify (#1436)
+* [BUGFIX] Fail when no private address can be found for cluster (#1437)
+* [BUGFIX] Make sure we don't miss the first pushPull when joining cluster (#1456)
+* [BUGFIX] Fix concurrent read and wirte group error in dispatch (#1447)
+
 ## 0.15.0 / 2018-06-22
 
 * [CHANGE] [amtool] Update silence add and update flags (#1298)
 * [CHANGE] Replace deprecated InstrumentHandler() (#1302)
 * [CHANGE] Validate Slack field config and only allow the necessary input (#1334)
 * [CHANGE] Remove legacy alert ingest endpoint (#1362)
-* [CHANGE] Moved to memberlist as underlying gossip protocol
+* [CHANGE] Move to memberlist as underlying gossip protocol including cluster flag changes from --mesh.xxx to --cluster.xxx (#1232)
+* [CHANGE] Move Alertmanager working directory in Docker image to /etc/alertmanager (#1313)
 * [BUGFIX/CHANGE] The default group by is no labels. (#1287)
 * [FEATURE] [amtool] Filter alerts by receiver (#1402)
 * [FEATURE] Wait for mesh to settle before sending alerts (#1209)
