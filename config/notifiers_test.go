@@ -166,9 +166,7 @@ room_id: ''
 }
 
 func TestWebhookURLIsPresent(t *testing.T) {
-	in := `
-url: ''
-`
+	in := `{}`
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 

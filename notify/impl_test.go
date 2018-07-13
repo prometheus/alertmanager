@@ -32,7 +32,11 @@ import (
 )
 
 func TestWebhookRetry(t *testing.T) {
-	notifier := &Webhook{conf: &config.WebhookConfig{URL: "http://example.com/"}}
+	u, err := url.Parse("http://example.com")
+	if err != nil {
+		t.Fatalf("failed to parse URL: %v", err)
+	}
+	notifier := &Webhook{conf: &config.WebhookConfig{URL: &config.URL{u}}}
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
@@ -211,6 +215,10 @@ func readBody(t *testing.T, r *http.Request) string {
 }
 
 func TestOpsGenie(t *testing.T) {
+	u, err := url.Parse("https://opsgenie/api")
+	if err != nil {
+		t.Fatalf("failed to parse URL: %v", err)
+	}
 	logger := log.NewNopLogger()
 	tmpl := createTmpl(t)
 	conf := &config.OpsGenieConfig{
@@ -225,7 +233,7 @@ func TestOpsGenie(t *testing.T) {
 		Note:        `{{ .CommonLabels.Note }}`,
 		Priority:    `{{ .CommonLabels.Priority }}`,
 		APIKey:      `s3cr3t`,
-		APIURL:      `https://opsgenie/api`,
+		APIURL:      &config.URL{u},
 	}
 	notifier := NewOpsGenie(conf, tmpl, logger)
 

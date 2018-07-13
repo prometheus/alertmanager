@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -39,7 +40,7 @@ func (s Secret) MarshalYAML() (interface{}, error) {
 	return nil, nil
 }
 
-//UnmarshalYAML implements the yaml.Unmarshaler interface for Secrets.
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Secret.
 func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain Secret
 	return unmarshal((*plain)(s))
@@ -48,6 +49,81 @@ func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // MarshalJSON implements the json.Marshaler interface.
 func (s Secret) MarshalJSON() ([]byte, error) {
 	return json.Marshal("<secret>")
+}
+
+// URL is a custom type that allows validation at configuration load time.
+type URL struct {
+	*url.URL
+}
+
+// MarshalYAML implements the yaml.Marshaler interface for URL.
+func (u URL) MarshalYAML() (interface{}, error) {
+	if u.URL != nil {
+		return u.URL.String(), nil
+	}
+	return nil, nil
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for URL.
+func (u *URL) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	urlp, err := url.Parse(s)
+	if err != nil {
+		return err
+	}
+	u.URL = urlp
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaler interface for URL.
+func (u URL) MarshalJSON() ([]byte, error) {
+	if u.URL != nil {
+		return json.Marshal(u.URL.String())
+	}
+	return nil, nil
+}
+
+// UnmarshalJSON implements the json.Marshaler interface for URL.
+func (u *URL) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	urlp, err := url.Parse(s)
+	if err != nil {
+		return err
+	}
+	u.URL = urlp
+	return nil
+}
+
+// SecretURL is a URL that must not be revealed on marshaling.
+type SecretURL URL
+
+// MarshalYAML implements the yaml.Marshaler interface for SecretURL.
+func (s SecretURL) MarshalYAML() (interface{}, error) {
+	if s.URL != nil {
+		return "<secret>", nil
+	}
+	return nil, nil
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SecretURL.
+func (s *SecretURL) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	return unmarshal((*URL)(s))
+}
+
+// MarshalJSON implements the json.Marshaler interface for SecretURL.
+func (s SecretURL) MarshalJSON() ([]byte, error) {
+	return json.Marshal("<secret>")
+}
+
+// UnmarshalJSON implements the json.Marshaler interface for SecretURL.
+func (s *SecretURL) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, (*URL)(s))
 }
 
 // Load parses the YAML input s into a Config.
@@ -188,8 +264,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if sc.HTTPConfig == nil {
 				sc.HTTPConfig = c.Global.HTTPConfig
 			}
-			if sc.APIURL == "" {
-				if c.Global.SlackAPIURL == "" {
+			if sc.APIURL == nil {
+				if c.Global.SlackAPIURL == nil {
 					return fmt.Errorf("no global Slack API URL set")
 				}
 				sc.APIURL = c.Global.SlackAPIURL
@@ -199,14 +275,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if hc.HTTPConfig == nil {
 				hc.HTTPConfig = c.Global.HTTPConfig
 			}
-			if hc.APIURL == "" {
-				if c.Global.HipchatAPIURL == "" {
+			if hc.APIURL == nil {
+				if c.Global.HipchatAPIURL == nil {
 					return fmt.Errorf("no global Hipchat API URL set")
 				}
 				hc.APIURL = c.Global.HipchatAPIURL
 			}
-			if !strings.HasSuffix(hc.APIURL, "/") {
-				hc.APIURL += "/"
+			if !strings.HasSuffix(hc.APIURL.Path, "/") {
+				hc.APIURL.Path += "/"
 			}
 			if hc.AuthToken == "" {
 				if c.Global.HipchatAuthToken == "" {
@@ -224,8 +300,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if pdc.HTTPConfig == nil {
 				pdc.HTTPConfig = c.Global.HTTPConfig
 			}
-			if pdc.URL == "" {
-				if c.Global.PagerdutyURL == "" {
+			if pdc.URL == nil {
+				if c.Global.PagerdutyURL == nil {
 					return fmt.Errorf("no global PagerDuty URL set")
 				}
 				pdc.URL = c.Global.PagerdutyURL
@@ -235,14 +311,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if ogc.HTTPConfig == nil {
 				ogc.HTTPConfig = c.Global.HTTPConfig
 			}
-			if ogc.APIURL == "" {
-				if c.Global.OpsGenieAPIURL == "" {
+			if ogc.APIURL == nil {
+				if c.Global.OpsGenieAPIURL == nil {
 					return fmt.Errorf("no global OpsGenie URL set")
 				}
 				ogc.APIURL = c.Global.OpsGenieAPIURL
 			}
-			if !strings.HasSuffix(ogc.APIURL, "/") {
-				ogc.APIURL += "/"
+			if !strings.HasSuffix(ogc.APIURL.Path, "/") {
+				ogc.APIURL.Path += "/"
 			}
 			if ogc.APIKey == "" {
 				if c.Global.OpsGenieAPIKey == "" {
@@ -256,8 +332,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				wcc.HTTPConfig = c.Global.HTTPConfig
 			}
 
-			if wcc.APIURL == "" {
-				if c.Global.WeChatAPIURL == "" {
+			if wcc.APIURL == nil {
+				if c.Global.WeChatAPIURL == nil {
 					return fmt.Errorf("no global Wechat URL set")
 				}
 				wcc.APIURL = c.Global.WeChatAPIURL
@@ -277,22 +353,22 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				wcc.CorpID = c.Global.WeChatAPICorpID
 			}
 
-			if !strings.HasSuffix(wcc.APIURL, "/") {
-				wcc.APIURL += "/"
+			if !strings.HasSuffix(wcc.APIURL.Path, "/") {
+				wcc.APIURL.Path += "/"
 			}
 		}
 		for _, voc := range rcv.VictorOpsConfigs {
 			if voc.HTTPConfig == nil {
 				voc.HTTPConfig = c.Global.HTTPConfig
 			}
-			if voc.APIURL == "" {
-				if c.Global.VictorOpsAPIURL == "" {
+			if voc.APIURL == nil {
+				if c.Global.VictorOpsAPIURL == nil {
 					return fmt.Errorf("no global VictorOps URL set")
 				}
 				voc.APIURL = c.Global.VictorOpsAPIURL
 			}
-			if !strings.HasSuffix(voc.APIURL, "/") {
-				voc.APIURL += "/"
+			if !strings.HasSuffix(voc.APIURL.Path, "/") {
+				voc.APIURL.Path += "/"
 			}
 			if voc.APIKey == "" {
 				if c.Global.VictorOpsAPIKey == "" {
@@ -344,11 +420,19 @@ var DefaultGlobalConfig = GlobalConfig{
 
 	SMTPHello:       "localhost",
 	SMTPRequireTLS:  true,
-	PagerdutyURL:    "https://events.pagerduty.com/v2/enqueue",
-	HipchatAPIURL:   "https://api.hipchat.com/",
-	OpsGenieAPIURL:  "https://api.opsgenie.com/",
-	WeChatAPIURL:    "https://qyapi.weixin.qq.com/cgi-bin/",
-	VictorOpsAPIURL: "https://alert.victorops.com/integrations/generic/20131114/alert/",
+	PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+	HipchatAPIURL:   mustParseURL("https://api.hipchat.com/"),
+	OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
+	WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+	VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+}
+
+func mustParseURL(s string) *URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return &URL{u}
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -360,25 +444,25 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	SMTPFrom         string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello        string `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost    string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS   bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL      Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	HipchatAPIURL    string `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
-	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
-	OpsGenieAPIURL   string `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey   Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	WeChatAPIURL     string `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret  Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID  string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	SMTPFrom         string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello        string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost    string     `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername string     `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret   Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS   bool       `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
+	SlackAPIURL      *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	PagerdutyURL     *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	HipchatAPIURL    *URL       `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
+	HipchatAuthToken Secret     `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
+	OpsGenieAPIURL   *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey   Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	WeChatAPIURL     *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret  Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	VictorOpsAPIURL  *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey  Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
