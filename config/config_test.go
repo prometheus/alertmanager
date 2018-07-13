@@ -312,7 +312,7 @@ func TestMarshalSecretURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elidedin YAML.")
+	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
 }
 
 func TestUnmarshalSecretURL(t *testing.T) {

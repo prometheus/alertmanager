@@ -1098,7 +1098,8 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	}
 
 	var (
-		msg       interface{}
+		msg interface{}
+		// n.conf.APIURL is already checked at configuration load time.
 		apiURL, _ = url.Parse(n.conf.APIURL.String())
 		alias     = hashKey(key)
 		alerts    = types.Alerts(as...)
