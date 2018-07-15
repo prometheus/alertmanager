@@ -56,17 +56,17 @@ func configureSilenceImportCmd(cc *kingpin.CmdClause) {
 	importCmd.Flag("force", "Force adding new silences even if it already exists").Short('f').BoolVar(&c.force)
 	importCmd.Flag("worker", "Number of concurrent workers to use for import").Short('w').Default("8").IntVar(&c.workers)
 	importCmd.Arg("input-file", "JSON file with silences").ExistingFileVar(&c.file)
-	importCmd.Action(c.bulkImport)
+	importCmd.Action(execWithTimeout(c.bulkImport))
 }
 
-func addSilenceWorker(sclient client.SilenceAPI, silencec <-chan *types.Silence, errc chan<- error) {
+func addSilenceWorker(ctx context.Context, sclient client.SilenceAPI, silencec <-chan *types.Silence, errc chan<- error) {
 	for s := range silencec {
-		silenceID, err := sclient.Set(context.Background(), *s)
+		silenceID, err := sclient.Set(ctx, *s)
 		sid := s.ID
 		if err != nil && strings.Contains(err.Error(), "not found") {
 			// silence doesn't exists yet, retry to create as a new one
 			s.ID = ""
-			silenceID, err = sclient.Set(context.Background(), *s)
+			silenceID, err = sclient.Set(ctx, *s)
 		}
 
 		if err != nil {
@@ -78,7 +78,7 @@ func addSilenceWorker(sclient client.SilenceAPI, silencec <-chan *types.Silence,
 	}
 }
 
-func (c *silenceImportCmd) bulkImport(ctx *kingpin.ParseContext) error {
+func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseContext) error {
 	input := os.Stdin
 	var err error
 	if c.file != "" {
@@ -107,7 +107,7 @@ func (c *silenceImportCmd) bulkImport(ctx *kingpin.ParseContext) error {
 	for w := 0; w < c.workers; w++ {
 		wg.Add(1)
 		go func() {
-			addSilenceWorker(silenceAPI, silencec, errc)
+			addSilenceWorker(ctx, silenceAPI, silencec, errc)
 			wg.Done()
 		}()
 	}

@@ -13,7 +13,9 @@
 
 package cli
 
-import "gopkg.in/alecthomas/kingpin.v2"
+import (
+	"gopkg.in/alecthomas/kingpin.v2"
+)
 
 // silenceCmd represents the silence command
 func configureSilenceCmd(app *kingpin.Application) {

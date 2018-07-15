@@ -88,10 +88,10 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
-	queryCmd.Action(c.query)
+	queryCmd.Action(execWithTimeout(c.query))
 }
 
-func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
+func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) error {
 	var filterString = ""
 	if len(c.matchers) == 1 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
@@ -112,7 +112,7 @@ func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
 		return err
 	}
 	silenceAPI := client.NewSilenceAPI(apiClient)
-	fetchedSilences, err := silenceAPI.List(context.Background(), filterString)
+	fetchedSilences, err := silenceAPI.List(ctx, filterString)
 	if err != nil {
 		return err
 	}

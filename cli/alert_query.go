@@ -72,10 +72,10 @@ func configureQueryAlertsCmd(cc *kingpin.CmdClause) {
 	queryCmd.Flag("unprocessed", "Show unprocessed alerts").Short('u').BoolVar(&a.unprocessed)
 	queryCmd.Flag("receiver", "Show alerts matching receiver (Supports regex syntax)").Short('r').StringVar(&a.receiver)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&a.matcherGroups)
-	queryCmd.Action(a.queryAlerts)
+	queryCmd.Action(execWithTimeout(a.queryAlerts))
 }
 
-func (a *alertQueryCmd) queryAlerts(ctx *kingpin.ParseContext) error {
+func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext) error {
 	var filterString = ""
 	if len(a.matcherGroups) == 1 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
@@ -100,7 +100,7 @@ func (a *alertQueryCmd) queryAlerts(ctx *kingpin.ParseContext) error {
 	if !a.silenced && !a.inhibited && !a.active && !a.unprocessed {
 		a.active = true
 	}
-	fetchedAlerts, err := alertAPI.List(context.Background(), filterString, a.receiver, a.silenced, a.inhibited, a.active, a.unprocessed)
+	fetchedAlerts, err := alertAPI.List(ctx, filterString, a.receiver, a.silenced, a.inhibited, a.active, a.unprocessed)
 	if err != nil {
 		return err
 	}
