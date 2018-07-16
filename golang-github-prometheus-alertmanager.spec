@@ -14,7 +14,7 @@
 }
 %global shortcommit     %(c=%{commit}; echo ${c:0:7})
 %global gopathdir       %{_sourcedir}/go
-%global upstream_ver    0.15.0
+%global upstream_ver    0.15.1
 %global rpm_ver         %(v=%{upstream_ver}; echo ${v//-/_})
 %global download_prefix %{provider}.%{provider_tld}/openshift/%{repo}
 
@@ -85,6 +85,9 @@ install -d %{buildroot}%{_sharedstatedir}/prometheus-alertmanager
 %{_sharedstatedir}/prometheus-alertmanager
 
 %changelog
+* Mon Jul 16 2018 Simon Pasquier <spasqui@redhat.com> - 0.15.1-1
+- Upgrade to 0.15.1
+
 * Mon Jun 18 2018 Simon Pasquier <spasqui@redhat.com> - 0.15.0-1
 - Upgrade to 0.15.0
 
