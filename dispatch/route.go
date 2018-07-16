@@ -113,15 +113,15 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 
 // Match does a depth-first left-to-right search through the route tree
 // and returns the matching routing nodes.
-func (r *Route) Match(lset model.LabelSet) []*Route {
-	if !r.Matchers.Match(lset) {
+func (r *Route) Match(lset ...model.LabelSet) []*Route {
+	if !r.Matchers.Match(lset...) {
 		return nil
 	}
 
 	var all []*Route
 
 	for _, cr := range r.Routes {
-		matches := cr.Match(lset)
+		matches := cr.Match(lset...)
 
 		all = append(all, matches...)
 
