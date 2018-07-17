@@ -802,8 +802,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 		roomid   = tmplText(n.conf.RoomID)
-		// n.conf.APIURL is already checked at configuration load time.
-		url, _ = url.Parse(n.conf.APIURL.String())
+		url      = *n.conf.APIURL
 	)
 	url.Path += fmt.Sprintf("v2/room/%s/notification?auth_token=%s", roomid, n.conf.AuthToken)
 
@@ -924,8 +923,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return false, fmt.Errorf("templating error: %s", err)
 		}
 
-		// n.conf.APIURL is already checked at configuration load time.
-		u, _ := url.Parse(n.conf.APIURL.String())
+		u := *n.conf.APIURL
 		u.Path += "gettoken"
 		u.RawQuery = parameters.Encode()
 
@@ -976,8 +974,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	// n.conf.APIURL is already checked at configuration load time.
-	postMessageURL, _ := url.Parse(n.conf.APIURL.String())
+	postMessageURL := *n.conf.APIURL
 	postMessageURL.Path += "message/send?access_token=" + n.accessToken
 
 	req, err := http.NewRequest(http.MethodPost, postMessageURL.String(), &buf)
@@ -1098,11 +1095,10 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	}
 
 	var (
-		msg interface{}
-		// n.conf.APIURL is already checked at configuration load time.
-		apiURL, _ = url.Parse(n.conf.APIURL.String())
-		alias     = hashKey(key)
-		alerts    = types.Alerts(as...)
+		msg    interface{}
+		apiURL = *n.conf.APIURL
+		alias  = hashKey(key)
+		alerts = types.Alerts(as...)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
@@ -1208,11 +1204,10 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	var err error
 	var (
-		alerts = types.Alerts(as...)
-		data   = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
-		tmpl   = tmplText(n.tmpl, data, &err)
-		// n.conf.APIURL is already checked at configuration load time.
-		apiURL, _    = url.Parse(n.conf.APIURL.String())
+		alerts       = types.Alerts(as...)
+		data         = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmpl         = tmplText(n.tmpl, data, &err)
+		apiURL       = *n.conf.APIURL
 		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
