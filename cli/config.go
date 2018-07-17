@@ -34,17 +34,17 @@ The amount of output is controlled by the output selection flag:
 
 // configCmd represents the config command
 func configureConfigCmd(app *kingpin.Application) {
-	app.Command("config", configHelp).Action(queryConfig).PreAction(requireAlertManagerURL)
+	app.Command("config", configHelp).Action(execWithTimeout(queryConfig)).PreAction(requireAlertManagerURL)
 
 }
 
-func queryConfig(ctx *kingpin.ParseContext) error {
+func queryConfig(ctx context.Context, _ *kingpin.ParseContext) error {
 	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
 	if err != nil {
 		return err
 	}
 	statusAPI := client.NewStatusAPI(c)
-	status, err := statusAPI.Get(context.Background())
+	status, err := statusAPI.Get(ctx)
 	if err != nil {
 		return err
 	}

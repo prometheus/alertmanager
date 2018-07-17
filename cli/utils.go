@@ -14,12 +14,15 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
 	"path"
 
 	"github.com/prometheus/alertmanager/client"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
@@ -113,4 +116,13 @@ func TypeMatcher(matcher labels.Matcher) (types.Matcher, error) {
 		return types.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
 	}
 	return *typeMatcher, nil
+}
+
+// Helper function for adding the ctx with timeout into an action.
+func execWithTimeout(fn func(context.Context, *kingpin.ParseContext) error) func(*kingpin.ParseContext) error {
+	return func(x *kingpin.ParseContext) error {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return fn(ctx, x)
+	}
 }

@@ -17,10 +17,11 @@ import (
 	"context"
 
 	"fmt"
+	"time"
+
 	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/client_golang/api"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"time"
 )
 
 type alertAddCmd struct {
@@ -64,10 +65,10 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 	addCmd.Flag("start", "Set when the alert should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&a.start)
 	addCmd.Flag("end", "Set when the alert should should end. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&a.end)
 	addCmd.Flag("annotation", "Set an annotation to be included with the alert").StringsVar(&a.annotations)
-	addCmd.Action(a.addAlert)
+	addCmd.Action(execWithTimeout(a.addAlert))
 }
 
-func (a *alertAddCmd) addAlert(ctx *kingpin.ParseContext) error {
+func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) error {
 	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
 	if err != nil {
 		return err
@@ -106,7 +107,7 @@ func (a *alertAddCmd) addAlert(ctx *kingpin.ParseContext) error {
 		}
 	}
 
-	return alertAPI.Push(context.Background(), client.Alert{
+	return alertAPI.Push(ctx, client.Alert{
 		Labels:       labels,
 		Annotations:  annotations,
 		StartsAt:     startsAt,

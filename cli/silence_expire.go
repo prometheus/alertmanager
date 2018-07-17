@@ -33,10 +33,10 @@ func configureSilenceExpireCmd(cc *kingpin.CmdClause) {
 		expireCmd = cc.Command("expire", "expire an alertmanager silence")
 	)
 	expireCmd.Arg("silence-ids", "Ids of silences to expire").StringsVar(&c.ids)
-	expireCmd.Action(c.expire)
+	expireCmd.Action(execWithTimeout(c.expire))
 }
 
-func (c *silenceExpireCmd) expire(ctx *kingpin.ParseContext) error {
+func (c *silenceExpireCmd) expire(ctx context.Context, _ *kingpin.ParseContext) error {
 	if len(c.ids) < 1 {
 		return errors.New("no silence IDs specified")
 	}
@@ -48,7 +48,7 @@ func (c *silenceExpireCmd) expire(ctx *kingpin.ParseContext) error {
 	silenceAPI := client.NewSilenceAPI(apiClient)
 
 	for _, id := range c.ids {
-		err := silenceAPI.Expire(context.Background(), id)
+		err := silenceAPI.Expire(ctx, id)
 		if err != nil {
 			return err
 		}
