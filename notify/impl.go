@@ -477,11 +477,11 @@ func (n *PagerDuty) notifyV1(
 		Details:     details,
 	}
 
-	url, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
+	apiURL, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
 	if err != nil {
 		return false, err
 	}
-	n.conf.URL = &config.URL{url}
+	n.conf.URL = &config.URL{apiURL}
 
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
@@ -802,9 +802,9 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 		roomid   = tmplText(n.conf.RoomID)
-		url      = *n.conf.APIURL
+		apiURL   = *n.conf.APIURL
 	)
-	url.Path += fmt.Sprintf("v2/room/%s/notification?auth_token=%s", roomid, n.conf.AuthToken)
+	apiURL.Path += fmt.Sprintf("v2/room/%s/notification?auth_token=%s", roomid, n.conf.AuthToken)
 
 	if n.conf.MessageFormat == "html" {
 		msg = tmplHTML(n.conf.Message)
@@ -833,7 +833,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, url.String(), contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
