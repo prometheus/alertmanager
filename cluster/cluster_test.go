@@ -28,7 +28,7 @@ import (
 func TestClusterJoinAndReconnect(t *testing.T) {
 	ip, _ := sockaddr.GetPrivateIP()
 	if ip == "" {
-		t.Skipf("skipping tests because there no private IP address can be found")
+		t.Skipf("skipping tests because no private IP address can be found")
 		return
 	}
 	t.Run("TestJoinLeave", testJoinLeave)
