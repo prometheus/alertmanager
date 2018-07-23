@@ -313,13 +313,14 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	var (
-		data = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
-		tmpl = tmplText(n.tmpl, data, &err)
-		from = tmpl(n.conf.From)
-		to   = tmpl(n.conf.To)
+		tmplErr error
+		data    = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmpl    = tmplText(n.tmpl, data, &tmplErr)
+		from    = tmpl(n.conf.From)
+		to      = tmpl(n.conf.To)
 	)
-	if err != nil {
-		return false, err
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template 'from' or 'to': %v", tmplErr)
 	}
 
 	addrs, err := mail.ParseAddressList(from)
@@ -402,8 +403,15 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 	}
 
-	multipartWriter.Close()
-	wc.Write(buffer.Bytes())
+	err = multipartWriter.Close()
+	if err != nil {
+		return false, fmt.Errorf("failed to close multipartWriter: %v", err)
+	}
+
+	_, err = wc.Write(buffer.Bytes())
+	if err != nil {
+		return false, fmt.Errorf("failed to write body buffer: %v", err)
+	}
 
 	return false, nil
 }
@@ -450,7 +458,16 @@ type pagerDutyPayload struct {
 	CustomDetails map[string]string `json:"custom_details,omitempty"`
 }
 
-func (n *PagerDuty) notifyV1(ctx context.Context, c *http.Client, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+func (n *PagerDuty) notifyV1(
+	ctx context.Context,
+	c *http.Client,
+	eventType, key string,
+	data *template.Data,
+	details map[string]string,
+	as ...*types.Alert,
+) (bool, error) {
+	var tmplErr error
+	tmpl := tmplText(n.tmpl, data, &tmplErr)
 
 	msg := &pagerDutyMessage{
 		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
@@ -467,6 +484,10 @@ func (n *PagerDuty) notifyV1(ctx context.Context, c *http.Client, eventType, key
 		msg.ClientURL = tmpl(n.conf.ClientURL)
 	}
 
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template PagerDuty v1 message: %v", tmplErr)
+	}
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return false, err
@@ -481,7 +502,17 @@ func (n *PagerDuty) notifyV1(ctx context.Context, c *http.Client, eventType, key
 	return n.retryV1(resp.StatusCode)
 }
 
-func (n *PagerDuty) notifyV2(ctx context.Context, c *http.Client, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+func (n *PagerDuty) notifyV2(
+	ctx context.Context,
+	c *http.Client,
+	eventType, key string,
+	data *template.Data,
+	details map[string]string,
+	as ...*types.Alert,
+) (bool, error) {
+	var tmplErr error
+	tmpl := tmplText(n.tmpl, data, &tmplErr)
+
 	if n.conf.Severity == "" {
 		n.conf.Severity = "error"
 	}
@@ -511,6 +542,10 @@ func (n *PagerDuty) notifyV2(ctx context.Context, c *http.Client, eventType, key
 		msg.ClientURL = tmpl(n.conf.ClientURL)
 	}
 
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template PagerDuty v2 message: %v", tmplErr)
+	}
+
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return false, err
@@ -538,7 +573,6 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	var (
 		alerts    = types.Alerts(as...)
 		data      = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
-		tmpl      = tmplText(n.tmpl, data, &err)
 		eventType = pagerDutyEventTrigger
 	)
 	if alerts.Status() == model.AlertResolved {
@@ -549,7 +583,11 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {
-		details[k] = tmpl(v)
+		detail, err := n.tmpl.ExecuteTextString(v, data)
+		if err != nil {
+			return false, fmt.Errorf("failed to template %q: %v", v, err)
+		}
+		details[k] = detail
 	}
 
 	if err != nil {
@@ -562,9 +600,9 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	}
 
 	if n.conf.ServiceKey != "" {
-		return n.notifyV1(ctx, c, eventType, key, tmpl, details, as...)
+		return n.notifyV1(ctx, c, eventType, key, data, details, as...)
 	}
-	return n.notifyV2(ctx, c, eventType, key, tmpl, details, as...)
+	return n.notifyV2(ctx, c, eventType, key, data, details, as...)
 }
 
 func (n *PagerDuty) retryV1(statusCode int) (bool, error) {
@@ -1327,6 +1365,8 @@ func (n *Pushover) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
+// tmplText is using monadic error handling in order to make string templating
+// less verbose. Use with care as the final error checking is easily missed.
 func tmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {
@@ -1337,6 +1377,8 @@ func tmplText(tmpl *template.Template, data *template.Data, err *error) func(str
 	}
 }
 
+// tmplHTML is using monadic error handling in order to make string templating
+// less verbose. Use with care as the final error checking is easily missed.
 func tmplHTML(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {
