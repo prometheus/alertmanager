@@ -232,7 +232,7 @@ func TestOpsGenie(t *testing.T) {
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "1")
 
-	expectedUrl, _ := url.Parse("https://opsgenie/apiv2/alerts")
+	expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
 
 	// Empty alert.
 	alert1 := &types.Alert{
@@ -246,7 +246,7 @@ func TestOpsGenie(t *testing.T) {
 	req, retry, err := notifier.createRequest(ctx, alert1)
 	require.NoError(t, err)
 	require.Equal(t, true, retry)
-	require.Equal(t, expectedUrl, req.URL)
+	require.Equal(t, expectedURL, req.URL)
 	require.Equal(t, "GenieKey s3cr3t", req.Header.Get("Authorization"))
 	require.Equal(t, expectedBody, readBody(t, req))
 
