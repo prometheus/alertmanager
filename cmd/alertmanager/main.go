@@ -269,7 +269,7 @@ func main() {
 			cancel()
 			peer.Leave(10 * time.Second)
 		}()
-		go peer.Settle(ctx, *pushPullInterval*10)
+		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
 	alerts, err := mem.NewAlerts(marker, *alertGCInterval)
