@@ -56,6 +56,12 @@ type URL struct {
 	*url.URL
 }
 
+// Copy makes a deep-copy of the struct.
+func (u *URL) Copy() *URL {
+	v := *u.URL
+	return &URL{&v}
+}
+
 // MarshalYAML implements the yaml.Marshaler interface for URL.
 func (u URL) MarshalYAML() (interface{}, error) {
 	if u.URL != nil {

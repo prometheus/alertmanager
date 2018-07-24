@@ -802,7 +802,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 		roomid   = tmplText(n.conf.RoomID)
-		apiURL   = *n.conf.APIURL
+		apiURL   = n.conf.APIURL.Copy()
 	)
 	apiURL.Path += fmt.Sprintf("v2/room/%s/notification?auth_token=%s", roomid, n.conf.AuthToken)
 
@@ -923,7 +923,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return false, fmt.Errorf("templating error: %s", err)
 		}
 
-		u := *n.conf.APIURL
+		u := n.conf.APIURL.Copy()
 		u.Path += "gettoken"
 		u.RawQuery = parameters.Encode()
 
@@ -974,7 +974,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	postMessageURL := *n.conf.APIURL
+	postMessageURL := n.conf.APIURL.Copy()
 	postMessageURL.Path += "message/send?access_token=" + n.accessToken
 
 	req, err := http.NewRequest(http.MethodPost, postMessageURL.String(), &buf)
@@ -1096,7 +1096,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	var (
 		msg    interface{}
-		apiURL = *n.conf.APIURL
+		apiURL = n.conf.APIURL.Copy()
 		alias  = hashKey(key)
 		alerts = types.Alerts(as...)
 	)
@@ -1207,7 +1207,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		alerts       = types.Alerts(as...)
 		data         = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmpl         = tmplText(n.tmpl, data, &err)
-		apiURL       = *n.conf.APIURL
+		apiURL       = n.conf.APIURL.Copy()
 		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
