@@ -165,7 +165,7 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 		return false, err
 	}
 
-	req, err := http.NewRequest("POST", w.conf.URL, &buf)
+	req, err := http.NewRequest("POST", w.conf.URL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
@@ -477,7 +477,11 @@ func (n *PagerDuty) notifyV1(
 		Details:     details,
 	}
 
-	n.conf.URL = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
+	apiURL, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
+	if err != nil {
+		return false, err
+	}
+	n.conf.URL = &config.URL{apiURL}
 
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
@@ -493,7 +497,7 @@ func (n *PagerDuty) notifyV1(
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -551,7 +555,7 @@ func (n *PagerDuty) notifyV2(
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -745,7 +749,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, string(n.conf.APIURL), contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, n.conf.APIURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -798,8 +802,9 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 		roomid   = tmplText(n.conf.RoomID)
-		url      = fmt.Sprintf("%sv2/room/%s/notification?auth_token=%s", n.conf.APIURL, roomid, n.conf.AuthToken)
+		apiURL   = n.conf.APIURL.Copy()
 	)
+	apiURL.Path += fmt.Sprintf("v2/room/%s/notification?auth_token=%s", roomid, n.conf.AuthToken)
 
 	if n.conf.MessageFormat == "html" {
 		msg = tmplHTML(n.conf.Message)
@@ -828,7 +833,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, url, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -918,13 +923,8 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return false, fmt.Errorf("templating error: %s", err)
 		}
 
-		apiURL := n.conf.APIURL + "gettoken"
-
-		u, err := url.Parse(apiURL)
-		if err != nil {
-			return false, err
-		}
-
+		u := n.conf.APIURL.Copy()
+		u.Path += "gettoken"
 		u.RawQuery = parameters.Encode()
 
 		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
@@ -974,9 +974,10 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	postMessageURL := n.conf.APIURL + "message/send?access_token=" + n.accessToken
+	postMessageURL := n.conf.APIURL.Copy()
+	postMessageURL.Path += "message/send?access_token=" + n.accessToken
 
-	req, err := http.NewRequest(http.MethodPost, postMessageURL, &buf)
+	req, err := http.NewRequest(http.MethodPost, postMessageURL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
@@ -1095,13 +1096,13 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	var (
 		msg    interface{}
-		apiURL string
+		apiURL = n.conf.APIURL.Copy()
 		alias  = hashKey(key)
 		alerts = types.Alerts(as...)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
-		apiURL = fmt.Sprintf("%sv2/alerts/%s/close?identifierType=alias", n.conf.APIURL, alias)
+		apiURL.Path += fmt.Sprintf("v2/alerts/%s/close?identifierType=alias", alias)
 		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 	default:
 		message := tmpl(n.conf.Message)
@@ -1110,7 +1111,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 			level.Debug(n.logger).Log("msg", "Truncated message to %q due to OpsGenie message limit", "truncated_message", message, "incident", key)
 		}
 
-		apiURL = n.conf.APIURL + "v2/alerts"
+		apiURL.Path += "v2/alerts"
 		var teams []map[string]string
 		for _, t := range safeSplit(string(tmpl(n.conf.Teams)), ",") {
 			teams = append(teams, map[string]string{"name": t})
@@ -1138,7 +1139,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		return nil, false, err
 	}
 
-	req, err := http.NewRequest("POST", apiURL, &buf)
+	req, err := http.NewRequest("POST", apiURL.String(), &buf)
 	if err != nil {
 		return nil, true, err
 	}
@@ -1206,10 +1207,11 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		alerts       = types.Alerts(as...)
 		data         = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmpl         = tmplText(n.tmpl, data, &err)
-		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, tmpl(n.conf.RoutingKey))
+		apiURL       = n.conf.APIURL.Copy()
 		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
+	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
 
 	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
 		messageType = victorOpsEventTrigger
@@ -1246,7 +1248,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
