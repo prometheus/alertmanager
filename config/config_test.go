@@ -15,6 +15,7 @@ package config
 
 import (
 	"encoding/json"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
@@ -251,7 +252,7 @@ receivers:
 func TestHideConfigSecrets(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	// String method must not reveal authentication credentials.
@@ -292,6 +293,98 @@ func TestJSONMarshalSecret(t *testing.T) {
 	require.Equal(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
 }
 
+func TestMarshalSecretURL(t *testing.T) {
+	urlp, err := url.Parse("http://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := &SecretURL{urlp}
+
+	c, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// u003c -> "<"
+	// u003e -> ">"
+	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
+
+	c, err = yaml.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
+}
+
+func TestUnmarshalSecretURL(t *testing.T) {
+	b := []byte(`"http://example.com/se cret"`)
+	var u SecretURL
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in JSON.")
+
+	err = yaml.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in YAML.")
+}
+
+func TestMarshalURL(t *testing.T) {
+	urlp, err := url.Parse("http://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := &URL{urlp}
+
+	c, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshalled in JSON.")
+
+	c, err = yaml.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshalled in YAML.")
+}
+
+func TestUnmarshalURL(t *testing.T) {
+	b := []byte(`"http://example.com/a b"`)
+	var u URL
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in JSON.")
+
+	err = json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in YAML.")
+}
+
+func TestUnmarshalInvalidURL(t *testing.T) {
+	b := []byte(`"://example.com"`)
+	var u URL
+
+	err := json.Unmarshal(b, &u)
+	if err == nil {
+		t.Errorf("Expected an error parsing URL")
+	}
+
+	err = yaml.Unmarshal(b, &u)
+	if err == nil {
+		t.Errorf("Expected an error parsing URL")
+	}
+}
+
 func TestJSONUnmarshalMarshaled(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
@@ -323,13 +416,13 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPSmarthost:    "localhost:25",
 			SMTPFrom:         "alertmanager@example.org",
 			HipchatAuthToken: "mysecret",
-			HipchatAPIURL:    "https://hipchat.foobar.org/",
-			SlackAPIURL:      "mysecret",
+			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
+			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
 			SMTPRequireTLS:   true,
-			PagerdutyURL:     "https://events.pagerduty.com/v2/enqueue",
-			OpsGenieAPIURL:   "https://api.opsgenie.com/",
-			WeChatAPIURL:     "https://qyapi.weixin.qq.com/cgi-bin/",
-			VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
+			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
+			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		},
 
 		Templates: []string{

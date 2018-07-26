@@ -9,7 +9,7 @@ global:
   hipchat_auth_token: "mysecret"
   # Alternative host for Hipchat.
   hipchat_api_url: 'https://hipchat.foobar.org/'
-  slack_api_url: "mysecret"
+  slack_api_url: "http://mysecret.example.com/"
 
 
 

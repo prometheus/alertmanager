@@ -15,7 +15,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -198,7 +197,7 @@ type PagerdutyConfig struct {
 
 	ServiceKey  Secret            `yaml:"service_key,omitempty" json"service_key,omitempty"`
 	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
-	URL         string            `yaml:"url,omitempty" json:"url,omitempty"`
+	URL         *URL              `yaml:"url,omitempty" json:"url,omitempty"`
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
 	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
@@ -289,7 +288,7 @@ type SlackConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL Secret `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -323,7 +322,7 @@ type HipchatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL        string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
 	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
 	From          string `yaml:"from,omitempty" json:"from,omitempty"`
@@ -353,7 +352,7 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL string `yaml:"url" json:"url"`
+	URL *URL `yaml:"url" json:"url"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -363,17 +362,12 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == "" {
+	if c.URL == nil {
 		return fmt.Errorf("missing URL in webhook config")
 	}
-	url, err := url.Parse(c.URL)
-	if err != nil {
-		return err
-	}
-	if url.Scheme != "https" && url.Scheme != "http" {
+	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
 		return fmt.Errorf("scheme required for webhook url")
 	}
-	c.URL = url.String()
 	return nil
 }
 
@@ -386,7 +380,7 @@ type WechatConfig struct {
 	APISecret Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
 	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
 	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL    *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	ToUser    string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
 	ToParty   string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
 	ToTag     string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
@@ -416,7 +410,7 @@ type OpsGenieConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIKey      Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIURL      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APIURL      *URL              `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Source      string            `yaml:"source,omitempty" json:"source,omitempty"`
@@ -441,7 +435,7 @@ type VictorOpsConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIKey            Secret `yaml:"api_key" json:"api_key"`
-	APIURL            string `yaml:"api_url" json:"api_url"`
+	APIURL            *URL   `yaml:"api_url" json:"api_url"`
 	RoutingKey        string `yaml:"routing_key" json:"routing_key"`
 	MessageType       string `yaml:"message_type" json:"message_type"`
 	StateMessage      string `yaml:"state_message" json:"state_message"`
