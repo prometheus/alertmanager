@@ -521,9 +521,13 @@ func (n *PagerDuty) notifyV2(
 		n.conf.Severity = "error"
 	}
 
-	var payload *pagerDutyPayload
-	if eventType == pagerDutyEventTrigger {
-		payload = &pagerDutyPayload{
+	msg := &pagerDutyMessage{
+		Client:      tmpl(n.conf.Client),
+		ClientURL:   tmpl(n.conf.ClientURL),
+		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
+		EventAction: eventType,
+		DedupKey:    hashKey(key),
+		Payload: &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
 			Source:        tmpl(n.conf.Client),
 			Severity:      tmpl(n.conf.Severity),
@@ -531,19 +535,7 @@ func (n *PagerDuty) notifyV2(
 			Class:         tmpl(n.conf.Class),
 			Component:     tmpl(n.conf.Component),
 			Group:         tmpl(n.conf.Group),
-		}
-	}
-
-	msg := &pagerDutyMessage{
-		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
-		EventAction: eventType,
-		DedupKey:    hashKey(key),
-		Payload:     payload,
-	}
-
-	if eventType == pagerDutyEventTrigger {
-		msg.Client = tmpl(n.conf.Client)
-		msg.ClientURL = tmpl(n.conf.ClientURL)
+		},
 	}
 
 	if tmplErr != nil {
