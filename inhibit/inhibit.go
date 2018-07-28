@@ -25,6 +25,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -54,19 +55,6 @@ func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker,
 	return ih
 }
 
-func (ih *Inhibitor) runGC(ctx context.Context) {
-	for {
-		select {
-		case <-time.After(15 * time.Minute):
-			for _, r := range ih.rules {
-				r.gc()
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (ih *Inhibitor) run(ctx context.Context) {
 	it := ih.alerts.Subscribe()
 	defer it.Close()
@@ -83,7 +71,7 @@ func (ih *Inhibitor) run(ctx context.Context) {
 			// Update the inhibition rules' cache.
 			for _, r := range ih.rules {
 				if r.SourceMatchers.Match(a.Labels) {
-					r.set(a)
+					r.scache.Set(a)
 				}
 			}
 		}
@@ -100,15 +88,8 @@ func (ih *Inhibitor) Run() {
 	ih.mtx.Lock()
 	ctx, ih.cancel = context.WithCancel(context.Background())
 	ih.mtx.Unlock()
-	gcCtx, gcCancel := context.WithCancel(ctx)
 	runCtx, runCancel := context.WithCancel(ctx)
 
-	g.Add(func() error {
-		ih.runGC(gcCtx)
-		return nil
-	}, func(err error) {
-		gcCancel()
-	})
 	g.Add(func() error {
 		ih.run(runCtx)
 		return nil
@@ -168,7 +149,7 @@ type InhibitRule struct {
 
 	mtx sync.RWMutex
 	// Cache of alerts matching source labels.
-	scache map[model.Fingerprint]*types.Alert
+	scache store.Store
 }
 
 // NewInhibitRule returns a new InihibtRule based on a configuration definition.
@@ -201,26 +182,16 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
 		Equal:          equal,
-		scache:         map[model.Fingerprint]*types.Alert{},
+		// Get the correct ctx in here.
+		scache: store.NewAlerts(context.Background(), 15*time.Minute),
 	}
-}
-
-// set the alert in the source cache.
-func (r *InhibitRule) set(a *types.Alert) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.scache[a.Fingerprint()] = a
 }
 
 // hasEqual checks whether the source cache contains alerts matching
 // the equal labels for the given label set.
 func (r *InhibitRule) hasEqual(lset model.LabelSet) (model.Fingerprint, bool) {
-	r.mtx.RLock()
-	defer r.mtx.RUnlock()
-
 Outer:
-	for fp, a := range r.scache {
+	for a := range r.scache.List() {
 		// The cache might be stale and contain resolved alerts.
 		if a.Resolved() {
 			continue
@@ -230,19 +201,7 @@ Outer:
 				continue Outer
 			}
 		}
-		return fp, true
+		return a.Fingerprint(), true
 	}
 	return model.Fingerprint(0), false
-}
-
-// gc clears out resolved alerts from the source cache.
-func (r *InhibitRule) gc() {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	for fp, a := range r.scache {
-		if a.Resolved() {
-			delete(r.scache, fp)
-		}
-	}
 }

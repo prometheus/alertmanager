@@ -14,6 +14,7 @@
 package mem
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -23,9 +24,10 @@ import (
 	"sync"
 
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -132,7 +134,7 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,12 +159,12 @@ func TestAlertsPut(t *testing.T) {
 
 func TestAlertsSubscribe(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// add alert1 to validate if pending alerts will be send
+	// add alert1 to validate if pending alerts will be sent
 	if err := alerts.Put(alert1); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
@@ -246,7 +248,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 func TestAlertsGetPending(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +291,7 @@ func TestAlertsGetPending(t *testing.T) {
 
 func TestAlertsGC(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 200*time.Millisecond)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,9 +313,8 @@ func TestAlertsGC(t *testing.T) {
 
 	for i, a := range insert {
 		_, err := alerts.Get(a.Fingerprint())
-		if err != provider.ErrNotFound {
-			t.Errorf("alert %d didn't get GC'd", i)
-		}
+		require.Error(t, err)
+		require.Equal(t, store.ErrNotFound, err, fmt.Sprintf("alert %d didn't get GC'd: %v", i, err))
 
 		s := marker.Status(a.Fingerprint())
 		if s.State != types.AlertStateUnprocessed {
