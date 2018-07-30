@@ -109,6 +109,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		n := NewHipchat(c, tmpl, logger)
 		add("hipchat", i, n, c)
 	}
+	for i, c := range nc.MatrixConfigs {
+		n := NewMatrix(c, tmpl, logger)
+		add("matrix", i, n, c)
+	}
 	for i, c := range nc.VictorOpsConfigs {
 		n := NewVictorOps(c, tmpl, logger)
 		add("victorops", i, n, c)
@@ -862,6 +866,90 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 
 	return false, nil
 }
+
+// Matrix implements a Notifier for Matrix notifications.
+type Matrix struct {
+	conf   *config.MatrixConfig
+	tmpl   *template.Template
+	logger log.Logger
+}
+
+// NewMatrix returns a new Matrix notification handler.
+func NewMatrix(c *config.MatrixConfig, t *template.Template, l log.Logger) *Matrix {
+	return &Matrix{
+		conf:   c,
+		tmpl:   t,
+		logger: l,
+	}
+}
+
+type hipchatReq struct {
+	Body          string `json:"body"`
+	MessageType   string `json:"msgtype"`
+	Format        string `json:"format"`
+	FormattedBody string `json:"formatted_body"`
+}
+
+// Notify implements the Notifier interface.
+func (n *Matrix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var msg string
+	var (
+		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+		tmplHTML = tmplHTML(n.tmpl, data, &err)
+		roomid   = tmplText(n.conf.RoomID)
+		apiURL   = n.conf.APIURL.Copy()
+	)
+	apiURL.Path += fmt.Sprintf("_matrix/client/r0/rooms/%s/send/m.room.message?access_token=%s", roomid, n.conf.AuthToken)
+
+	if n.conf.MessageFormat == "html" {
+		msg = tmplHTML(n.conf.Message)
+	} else {
+		msg = tmplText(n.conf.Message)
+	}
+
+	req := &hipchatReq{
+		Body:          msg,
+		MessageType:   n.conf.MessageType,
+		Format:        n.conf.Format,
+		FormattedBody: n.conf.FormattedBody,
+	}
+	if err != nil {
+		return false, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return false, err
+	}
+
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "matrix")
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+
+	defer resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Matrix) retry(statusCode int) (bool, error) {
+	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
+	// responce codes indicate successful requests.
+	// Copied from Hipchat - not clear wheather appropriate
+	if statusCode/100 != 2 {
+		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
 
 // Wechat implements a Notfier for wechat notifications
 type Wechat struct {
