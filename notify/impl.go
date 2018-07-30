@@ -503,7 +503,7 @@ func (n *PagerDuty) notifyV1(
 	}
 	defer resp.Body.Close()
 
-	return n.retryV1(resp.StatusCode)
+	return n.retryV1(resp)
 }
 
 func (n *PagerDuty) notifyV2(
@@ -609,14 +609,23 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	return n.notifyV2(ctx, c, eventType, key, data, details, as...)
 }
 
-func (n *PagerDuty) retryV1(statusCode int) (bool, error) {
+func (n *PagerDuty) retryV1(resp *http.Response) (bool, error) {
 	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/trigger-events
+	statusCode := resp.StatusCode
+
+	if statusCode == 400 && resp.Body != nil {
+		bs, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false, fmt.Errorf("unexpected status code %v : problem reading response: %v", statusCode, err)
+		}
+		return false, fmt.Errorf("bad request (status code %v): %v", statusCode, string(bs))
+	}
+
 	if statusCode/100 != 2 {
 		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
-
 	return false, nil
 }
 
