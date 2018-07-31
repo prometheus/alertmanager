@@ -83,6 +83,15 @@ func TestHipchatRetry(t *testing.T) {
 	}
 }
 
+func TestMatrixRetry(t *testing.T) {
+	notifier := new(Matrix)
+	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
+	for statusCode, expected := range retryTests(retryCodes) {
+		actual, _ := notifier.retry(statusCode)
+		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+	}
+}
+
 func TestOpsGenieRetry(t *testing.T) {
 	notifier := new(OpsGenie)
 

@@ -165,6 +165,23 @@ room_id: ''
 	}
 }
 
+func TestMatrixRoomIDIsPresent(t *testing.T) {
+	in := `
+room_id: ''
+`
+	var cfg MatrixConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "missing room id in Matrix config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
 	var cfg WebhookConfig
