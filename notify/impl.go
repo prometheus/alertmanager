@@ -883,7 +883,7 @@ func NewMatrix(c *config.MatrixConfig, t *template.Template, l log.Logger) *Matr
 	}
 }
 
-type hipchatReq struct {
+type MatrixMessage struct {
 	Body          string `json:"body"`
 	MessageType   string `json:"msgtype"`
 	Format        string `json:"format"`
@@ -893,7 +893,7 @@ type hipchatReq struct {
 // Notify implements the Notifier interface.
 func (n *Matrix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
-	var msg string
+	var body string
 	var (
 		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
@@ -901,35 +901,45 @@ func (n *Matrix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		roomid   = tmplText(n.conf.RoomID)
 		apiURL   = n.conf.APIURL.Copy()
 	)
-	apiURL.Path += fmt.Sprintf("_matrix/client/r0/rooms/%s/send/m.room.message?access_token=%s", roomid, n.conf.AuthToken)
+	apiURL.Path += fmt.Sprintf("_matrix/client/r0/rooms/%s/send/m.room.message", roomid)
 
-	if n.conf.MessageFormat == "html" {
-		msg = tmplHTML(n.conf.Message)
+	if n.conf.Format != "m.text" {
+		body = tmplHTML(n.conf.Body)
 	} else {
-		msg = tmplText(n.conf.Message)
+		body = tmplText(n.conf.Body)
 	}
 
-	req := &hipchatReq{
-		Body:          msg,
+	msg := &MatrixMessage{
+		Body:          body,
 		MessageType:   n.conf.MessageType,
 		Format:        n.conf.Format,
 		FormattedBody: n.conf.FormattedBody,
 	}
+
 	if err != nil {
 		return false, err
 	}
 
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return false, err
 	}
+
+	req, err := http.NewRequest("POST", apiURL.String(), &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("User-Agent", userAgentHeader)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", n.conf.AuthToken))
 
 	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "matrix")
 	if err != nil {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	// resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	resp, err := ctxhttp.Do(ctx, c, req)
 	if err != nil {
 		return true, err
 	}
@@ -949,7 +959,6 @@ func (n *Matrix) retry(statusCode int) (bool, error) {
 
 	return false, nil
 }
-
 
 // Wechat implements a Notfier for wechat notifications
 type Wechat struct {

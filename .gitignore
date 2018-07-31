@@ -6,6 +6,7 @@
 /.build
 /.release
 /.tarballs
+.*.swp
 
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml
