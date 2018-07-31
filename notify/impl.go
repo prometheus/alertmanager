@@ -894,6 +894,7 @@ type MatrixMessage struct {
 func (n *Matrix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
 	var body string
+	var formatted_body string
 	var (
 		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
@@ -903,17 +904,19 @@ func (n *Matrix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	)
 	apiURL.Path += fmt.Sprintf("_matrix/client/r0/rooms/%s/send/m.room.message", roomid)
 
-	if n.conf.Format != "m.text" {
-		body = tmplHTML(n.conf.Body)
+	if n.conf.FormattedBody != "" {
+		body = ""
+		formatted_body = tmplHTML(n.conf.FormattedBody)
 	} else {
 		body = tmplText(n.conf.Body)
+		formatted_body = ""
 	}
 
 	msg := &MatrixMessage{
 		Body:          body,
 		MessageType:   n.conf.MessageType,
 		Format:        n.conf.Format,
-		FormattedBody: n.conf.FormattedBody,
+		FormattedBody: formatted_body,
 	}
 
 	if err != nil {
