@@ -88,6 +88,17 @@ var (
 		MessageFormat: `text`,
 	}
 
+	// DefaultMatrixConfig defines default values for Matrix configurations.
+	DefaultMatrixConfig = MatrixConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Body:          ``,
+		MessageType:   `m.text`,
+		Format:        `org.matrix.custom.html`,
+		FormattedBody: `<font color =\"deeppink\">{{ template "matrix.default.message" . }}</font>`,
+	}
+
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		NotifierConfig: NotifierConfig{
@@ -341,6 +352,34 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.RoomID == "" {
 		return fmt.Errorf("missing room id in Hipchat config")
+	}
+	return nil
+}
+
+// MatrixConfig configures notifications via Matrix.
+type MatrixConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
+	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
+	Body          string `yaml:"body,omitempty" json:"body,omitempty"`
+	MessageType   string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	Format        string `yaml:"format,omitempty" json:"format,omitempty"`
+	FormattedBody string `yaml:"formatted_body,omitempty" json:"formatted_body,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *MatrixConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMatrixConfig
+	type plain MatrixConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.RoomID == "" {
+		return fmt.Errorf("missing room id in Matrix config")
 	}
 	return nil
 }

@@ -109,6 +109,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		n := NewHipchat(c, tmpl, logger)
 		add("hipchat", i, n, c)
 	}
+	for i, c := range nc.MatrixConfigs {
+		n := NewMatrix(c, tmpl, logger)
+		add("matrix", i, n, c)
+	}
 	for i, c := range nc.VictorOpsConfigs {
 		n := NewVictorOps(c, tmpl, logger)
 		add("victorops", i, n, c)
@@ -856,6 +860,102 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
 	// responce codes indicate successful requests.
 	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
+	if statusCode/100 != 2 {
+		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// Matrix implements a Notifier for Matrix notifications.
+type Matrix struct {
+	conf   *config.MatrixConfig
+	tmpl   *template.Template
+	logger log.Logger
+}
+
+// NewMatrix returns a new Matrix notification handler.
+func NewMatrix(c *config.MatrixConfig, t *template.Template, l log.Logger) *Matrix {
+	return &Matrix{
+		conf:   c,
+		tmpl:   t,
+		logger: l,
+	}
+}
+
+type MatrixMessage struct {
+	Body          string `json:"body"`
+	MessageType   string `json:"msgtype"`
+	Format        string `json:"format"`
+	FormattedBody string `json:"formatted_body"`
+}
+
+// Notify implements the Notifier interface.
+func (n *Matrix) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var body string
+	var formatted_body string
+	var (
+		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+		tmplHTML = tmplHTML(n.tmpl, data, &err)
+		roomid   = tmplText(n.conf.RoomID)
+		apiURL   = n.conf.APIURL.Copy()
+	)
+	apiURL.Path += fmt.Sprintf("_matrix/client/r0/rooms/%s/send/m.room.message", roomid)
+
+	if n.conf.FormattedBody != "" {
+		body = ""
+		formatted_body = tmplHTML(n.conf.FormattedBody)
+	} else {
+		body = tmplText(n.conf.Body)
+		formatted_body = ""
+	}
+
+	msg := &MatrixMessage{
+		Body:          body,
+		MessageType:   n.conf.MessageType,
+		Format:        n.conf.Format,
+		FormattedBody: formatted_body,
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequest("POST", apiURL.String(), &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("User-Agent", userAgentHeader)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", n.conf.AuthToken))
+
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "matrix")
+	if err != nil {
+		return false, err
+	}
+
+	// resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	resp, err := ctxhttp.Do(ctx, c, req)
+	if err != nil {
+		return true, err
+	}
+
+	defer resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Matrix) retry(statusCode int) (bool, error) {
+	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
+	// responce codes indicate successful requests.
+	// Copied from Hipchat - not clear wheather appropriate
 	if statusCode/100 != 2 {
 		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}

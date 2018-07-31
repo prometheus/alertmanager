@@ -1,0 +1,46 @@
+
+{{/*
+  without specifying here message will be like (no html)
+  as defined in
+  /usr/share/prometheus/alertmanager/default.tmpl
+*/}}
+
+{{ define "matrix.default.message" }}
+{{ if gt (len .Alerts.Firing) 1 }}
+  <ul>
+    {{ range .Alerts }}
+      <li><strong>[{{ .Status | toUpper }}] {{ .Annotations.summary }}</strong>
+      {{ if not .Annotations.link }}
+        <p>{{ .Annotations.description }}</p>
+      {{ else }}
+        <p><a href="{{ .Annotations.link }}">{{ .Annotations.description }}</a>
+        {{ if .Annotations.alt_link_text }}
+          <em><a href="{{ .Annotations.alt_link_url }}">{{ .Annotations.alt_link_text }}</a></em>
+        {{ end }}
+        {{ if .Annotations.alt_link_text2 }}
+          <em><a href="{{ .Annotations.alt_link_url2 }}">{{ .Annotations.alt_link_text2 }}</a></em>
+        {{ end }}
+        </p>
+      {{ end }}
+      </li>
+    {{ end }}
+  </ul>
+{{ else }}
+  {{ range .Alerts }}
+    <strong>[{{ .Status | toUpper }}] {{ .Annotations.summary }}</strong>
+    {{ if not .Annotations.link }}
+      <p>{{ .Annotations.description }}</p>
+    {{ else }}
+      <p><a href="{{ .Annotations.link }}">{{ .Annotations.description }}</a>
+      {{ if .Annotations.alt_link_text }}
+        <em><a href="{{ .Annotations.alt_link_url }}">{{ .Annotations.alt_link_text }}</a></em>
+      {{ end }}
+      {{ if .Annotations.alt_link_text2 }}
+        <em><a href="{{ .Annotations.alt_link_url2 }}">{{ .Annotations.alt_link_text2 }}</a></em>
+      {{ end }}
+      </p>
+    {{ end }}
+  {{ end }}
+{{ end }}
+{{ end }}
+

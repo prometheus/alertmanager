@@ -415,6 +415,8 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPFrom:         "alertmanager@example.org",
 			HipchatAuthToken: "mysecret",
 			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
+			MatrixAuthToken:  "mysecret",
+			MatrixAPIURL:     mustParseURL("https://matrix.org/"),
 			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
 			SMTPRequireTLS:   true,
 			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
