@@ -45,12 +45,12 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(co)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
 	// No repeat interval is configured. Thus, we receive an alert
 	// notification every second.
-	am.Push(At(1), Alert("alertname", "test1").Active(1))
-	am.Push(At(1), Alert("alertname", "test2").Active(1))
+	amc.Push(At(1), Alert("alertname", "test1").Active(1))
+	amc.Push(At(1), Alert("alertname", "test2").Active(1))
 
 	co.Want(Between(2, 2.5),
 		Alert("alertname", "test1").Active(1),
@@ -58,7 +58,7 @@ receivers:
 	)
 
 	// Add a silence that affects the first alert.
-	am.SetSilence(At(2.3), Silence(2.5, 4.5).Match("alertname", "test1"))
+	amc.SetSilence(At(2.3), Silence(2.5, 4.5).Match("alertname", "test1"))
 
 	co.Want(Between(3, 3.5), Alert("alertname", "test2").Active(1))
 	co.Want(Between(4, 4.5), Alert("alertname", "test2").Active(1))
@@ -71,6 +71,8 @@ receivers:
 	)
 
 	at.Run()
+
+	t.Log(co.Check())
 }
 
 func TestSilenceDelete(t *testing.T) {
@@ -97,19 +99,19 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(co)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
 	// No repeat interval is configured. Thus, we receive an alert
 	// notification every second.
-	am.Push(At(1), Alert("alertname", "test1").Active(1))
-	am.Push(At(1), Alert("alertname", "test2").Active(1))
+	amc.Push(At(1), Alert("alertname", "test1").Active(1))
+	amc.Push(At(1), Alert("alertname", "test2").Active(1))
 
 	// Silence everything for a long time and delete the silence after
 	// two iterations.
 	sil := Silence(1.5, 100).MatchRE("alertname", ".*")
 
-	am.SetSilence(At(1.3), sil)
-	am.DelSilence(At(3.5), sil)
+	amc.SetSilence(At(1.3), sil)
+	amc.DelSilence(At(3.5), sil)
 
 	co.Want(Between(3.5, 4.5),
 		Alert("alertname", "test1").Active(1),
@@ -117,4 +119,6 @@ receivers:
 	)
 
 	at.Run()
+
+	t.Log(co.Check())
 }

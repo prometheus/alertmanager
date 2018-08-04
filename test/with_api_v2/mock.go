@@ -243,6 +243,9 @@ type MockWebhook struct {
 	collector *Collector
 	listener  net.Listener
 
+	// Func is called early on when retrieving a notification by an
+	// Alertmanager. If Func returns true, the given notification is dropped.
+	// See sample usage in `send_test.go/TestRetry()`.
 	Func func(timestamp float64) bool
 }
 
