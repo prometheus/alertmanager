@@ -14,6 +14,7 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -37,6 +38,14 @@ type Collector struct {
 
 func (c *Collector) String() string {
 	return c.name
+}
+
+// Collected returns a map of alerts collected by the collector indexed with the
+// receive timestamp.
+func (c *Collector) Collected() map[float64][]models.Alerts {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	return c.collected
 }
 
 func batchesEqual(as, bs models.Alerts, opts *AcceptanceOpts) bool {
@@ -95,7 +104,7 @@ func (c *Collector) add(alerts ...*models.Alert) {
 	c.collected[arrival] = append(c.collected[arrival], models.Alerts(alerts))
 }
 
-func (c *Collector) check() string {
+func (c *Collector) Check() string {
 	report := fmt.Sprintf("\ncollector %q:\n\n", c)
 
 	c.mtx.RLock()
@@ -169,4 +178,81 @@ func (c *Collector) check() string {
 	}
 
 	return report
+}
+
+// alertsToString returns a string representation of the given Alerts. Use for
+// debugging.
+func alertsToString(as []*models.Alert) (string, error) {
+	b, err := json.Marshal(as)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
+}
+
+// CompareCollectors compares two collectors based on their collected alerts
+func CompareCollectors(a, b *Collector, opts *AcceptanceOpts) (bool, error) {
+	f := func(collected map[float64][]models.Alerts) []*models.Alert {
+		result := []*models.Alert{}
+		for _, batches := range collected {
+			for _, batch := range batches {
+				for _, alert := range batch {
+					result = append(result, alert)
+				}
+			}
+		}
+		return result
+	}
+
+	aAlerts := f(a.Collected())
+	bAlerts := f(b.Collected())
+
+	if len(aAlerts) != len(bAlerts) {
+		aAsString, err := alertsToString(aAlerts)
+		if err != nil {
+			return false, err
+		}
+		bAsString, err := alertsToString(bAlerts)
+		if err != nil {
+			return false, err
+		}
+
+		err = fmt.Errorf(
+			"first collector has %v alerts, second collector has %v alerts\n%v\n%v",
+			len(aAlerts), len(bAlerts),
+			aAsString, bAsString,
+		)
+		return false, err
+	}
+
+	for _, aAlert := range aAlerts {
+		found := false
+		for _, bAlert := range bAlerts {
+			if equalAlerts(aAlert, bAlert, opts) {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			aAsString, err := alertsToString([]*models.Alert{aAlert})
+			if err != nil {
+				return false, err
+			}
+			bAsString, err := alertsToString(bAlerts)
+			if err != nil {
+				return false, err
+			}
+
+			err = fmt.Errorf(
+				"could not find matching alert for alert from first collector\n%v\nin alerts of second collector\n%v",
+				aAsString, bAsString,
+			)
+
+			return false, err
+		}
+	}
+
+	return true, nil
 }

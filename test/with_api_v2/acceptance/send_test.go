@@ -51,7 +51,7 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(co)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
 	// Refresh an alert several times. The starting time must remain at the earliest
 	// point in time.
@@ -100,6 +100,8 @@ receivers:
 	//co.Want(Between(7.7, 8), Alert("alertname", "test").Active(5.3))
 
 	at.Run()
+
+	t.Log(co.Check())
 }
 
 func TestRepeat(t *testing.T) {
@@ -134,7 +136,7 @@ receivers:
 	wh := NewWebhook(co)
 
 	// Create a new Alertmanager process listening to a random port
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
 	// Declare pushes to be made to the Alertmanager at the given time.
 	// Times are provided in fractions of seconds.
@@ -155,6 +157,8 @@ receivers:
 
 	// Start the flow as defined above and run the checks afterwards.
 	at.Run()
+
+	t.Log(co.Check())
 }
 
 func TestRetry(t *testing.T) {
@@ -190,19 +194,25 @@ receivers:
 	wh2 := NewWebhook(co2)
 
 	wh2.Func = func(ts float64) bool {
-		// Fail the first two interval periods but eventually
-		// succeed in the third interval after a few failed attempts.
+		// Fail the first interval period but eventually succeed in the third
+		// interval after a few failed attempts.
 		return ts < 4.5
 	}
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh1.Address(), wh2.Address()))
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh1.Address(), wh2.Address()), 1)
 
 	am.Push(At(1), Alert("alertname", "test1"))
 
 	co1.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
-	co1.Want(Between(5, 5.5), Alert("alertname", "test1").Active(1))
+	co1.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1))
 
-	co2.Want(Between(4.5, 5), Alert("alertname", "test1").Active(1))
+	co2.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1))
+
+	at.Run()
+
+	for _, c := range []*Collector{co1, co2} {
+		t.Log(c.Check())
+	}
 }
 
 func TestBatching(t *testing.T) {
@@ -230,7 +240,7 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(co)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
 	am.Push(At(1.1), Alert("alertname", "test1").Active(1))
 	am.Push(At(1.7), Alert("alertname", "test5").Active(1))
@@ -266,6 +276,8 @@ receivers:
 	)
 
 	at.Run()
+
+	t.Log(co.Check())
 }
 
 func TestResolved(t *testing.T) {
@@ -295,7 +307,7 @@ receivers:
 		co := at.Collector("webhook")
 		wh := NewWebhook(co)
 
-		am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+		am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
 		am.Push(At(1),
 			Alert("alertname", "test", "lbl", "v1"),
@@ -315,6 +327,8 @@ receivers:
 		)
 
 		at.Run()
+
+		t.Log(co.Check())
 	}
 }
 
@@ -355,17 +369,17 @@ receivers:
 	co2 := at.Collector("webhook2")
 	wh2 := NewWebhook(co2)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh1.Address(), wh2.Address()))
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh1.Address(), wh2.Address()), 1)
 
-	am.Push(At(1),
+	amc.Push(At(1),
 		Alert("alertname", "test", "lbl", "v1"),
 		Alert("alertname", "test", "lbl", "v2"),
 	)
-	am.Push(At(3),
+	amc.Push(At(3),
 		Alert("alertname", "test", "lbl", "v1").Active(1, 4),
 		Alert("alertname", "test", "lbl", "v3"),
 	)
-	am.Push(At(8),
+	amc.Push(At(8),
 		Alert("alertname", "test", "lbl", "v3").Active(3),
 	)
 
@@ -396,6 +410,10 @@ receivers:
 	co2.Want(Between(12, 12.5))
 
 	at.Run()
+
+	for _, c := range []*Collector{co1, co2} {
+		t.Log(c.Check())
+	}
 }
 
 func TestReload(t *testing.T) {
@@ -425,11 +443,11 @@ receivers:
 	co := at.Collector("webhook")
 	wh := NewWebhook(co)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
-	am.Push(At(1), Alert("alertname", "test1"))
-	at.Do(At(3), am.Reload)
-	am.Push(At(4), Alert("alertname", "test2"))
+	amc.Push(At(1), Alert("alertname", "test1"))
+	at.Do(At(3), amc.Reload)
+	amc.Push(At(4), Alert("alertname", "test2"))
 
 	co.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
 	// Timers are reset on reload regardless, so we count the 6 second group
@@ -440,4 +458,6 @@ receivers:
 	)
 
 	at.Run()
+
+	t.Log(co.Check())
 }
