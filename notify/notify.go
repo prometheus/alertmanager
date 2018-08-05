@@ -86,9 +86,9 @@ func init() {
 	notificationLatencySeconds.WithLabelValues("webhook")
 	notificationLatencySeconds.WithLabelValues("victorops")
 
-	prometheus.Register(numNotifications)
-	prometheus.Register(numFailedNotifications)
-	prometheus.Register(notificationLatencySeconds)
+	prometheus.MustRegister(numNotifications)
+	prometheus.MustRegister(numFailedNotifications)
+	prometheus.MustRegister(notificationLatencySeconds)
 }
 
 type notifierConfig interface {

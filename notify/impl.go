@@ -989,7 +989,10 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return true, err
+	}
 	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
 
 	if resp.StatusCode != 200 {

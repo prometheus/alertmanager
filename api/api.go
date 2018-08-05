@@ -59,8 +59,8 @@ func init() {
 	numReceivedAlerts.WithLabelValues("firing")
 	numReceivedAlerts.WithLabelValues("resolved")
 
-	prometheus.Register(numReceivedAlerts)
-	prometheus.Register(numInvalidAlerts)
+	prometheus.MustRegister(numReceivedAlerts)
+	prometheus.MustRegister(numInvalidAlerts)
 }
 
 var corsHeaders = map[string]string{
