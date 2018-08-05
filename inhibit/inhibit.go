@@ -116,7 +116,9 @@ func (ih *Inhibitor) Run() {
 		runCancel()
 	})
 
-	g.Run()
+	if err := g.Run(); err != nil {
+		level.Warn(ih.logger).Log("msg", "error running inhibitor", "err", err)
+	}
 }
 
 // Stop the Inhibitor's background processing.
