@@ -49,7 +49,10 @@ func (c *checkConfigCmd) checkConfig(ctx *kingpin.ParseContext) error {
 
 func CheckConfig(args []string) error {
 	if len(args) == 0 {
-		stat, _ := os.Stdin.Stat()
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			kingpin.Fatalf("Failed to stat standard input: %v", err)
+		}
 		if (stat.Mode() & os.ModeCharDevice) != 0 {
 			kingpin.Fatalf("Failed to read from standard input")
 		}
