@@ -22,6 +22,8 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+const alertChannelLength = 200
+
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
 	mtx        sync.RWMutex
@@ -88,7 +90,7 @@ func (a *Alerts) Close() error {
 // They are not guaranteed to be in chronological order.
 func (a *Alerts) Subscribe() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, 200)
+		ch   = make(chan *types.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
 	alerts, err := a.getPending()
@@ -125,7 +127,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, 200)
+		ch   = make(chan *types.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
 
