@@ -477,7 +477,7 @@ func (n *PagerDuty) notifyV1(
 		Details:     details,
 	}
 
-	if n.conf.URL.String() == "https://events.pagerduty.com/v2/enqueue" {
+	if n.conf.URL == config.DefaultGlobalConfig.PagerdutyURL {
 		apiURL, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
 		if err != nil {
 			return false, err
