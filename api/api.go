@@ -89,17 +89,20 @@ type API struct {
 	peer           *cluster.Peer
 	logger         log.Logger
 
+	groups         groupsFn
 	getAlertStatus getAlertStatusFn
 
 	mtx sync.RWMutex
 }
 
+type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
 type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
 
 // New returns a new API.
 func New(
 	alerts provider.Alerts,
 	silences *silence.Silences,
+	gf groupsFn,
 	sf getAlertStatusFn,
 	peer *cluster.Peer,
 	l log.Logger,
@@ -111,6 +114,7 @@ func New(
 	return &API{
 		alerts:         alerts,
 		silences:       silences,
+		groups:         gf,
 		getAlertStatus: sf,
 		uptime:         time.Now(),
 		peer:           peer,
@@ -133,6 +137,7 @@ func (api *API) Register(r *route.Router) {
 	r.Get("/status", wrap(api.status))
 	r.Get("/receivers", wrap(api.receivers))
 
+	r.Get("/alerts/groups", wrap(api.alertGroups))
 	r.Get("/alerts", wrap(api.listAlerts))
 	r.Post("/alerts", wrap(api.addAlerts))
 
@@ -235,6 +240,26 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 		})
 	}
 	return s
+}
+
+func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
+	var err error
+	matchers := []*labels.Matcher{}
+
+	if filter := r.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			api.respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	groups := api.groups(matchers)
+
+	api.respond(w, groups)
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {

@@ -125,6 +125,51 @@ func matchesFilterLabels(a *APIAlert, matchers []*labels.Matcher) bool {
 	return true
 }
 
+// Groups populates an AlertOverview from the dispatcher's internal state.
+func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
+	overview := AlertOverview{}
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+	seen := map[model.Fingerprint]*AlertGroup{}
+	for route, ags := range d.aggrGroups {
+		for _, ag := range ags {
+			alertGroup, ok := seen[ag.fingerprint()]
+			if !ok {
+				alertGroup = &AlertGroup{Labels: ag.labels}
+				alertGroup.GroupKey = ag.GroupKey()
+				seen[ag.fingerprint()] = alertGroup
+			}
+			now := time.Now()
+			var apiAlerts []*APIAlert
+			for _, a := range types.Alerts(ag.alertSlice()...) {
+				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
+					continue
+				}
+				status := d.marker.Status(a.Fingerprint())
+				aa := &APIAlert{
+					Alert:       a,
+					Status:      status,
+					Fingerprint: a.Fingerprint().String(),
+				}
+				if !matchesFilterLabels(aa, matchers) {
+					continue
+				}
+				apiAlerts = append(apiAlerts, aa)
+			}
+			if len(apiAlerts) == 0 {
+				continue
+			}
+			alertGroup.Blocks = append(alertGroup.Blocks, &AlertBlock{
+				RouteOpts: &route.RouteOpts,
+				Alerts:    apiAlerts,
+			})
+			overview = append(overview, alertGroup)
+		}
+	}
+	sort.Sort(overview)
+	return overview
+}
+
 func (d *Dispatcher) run(it provider.AlertIterator) {
 	cleanup := time.NewTicker(30 * time.Second)
 	defer cleanup.Stop()
@@ -283,6 +328,17 @@ func (ag *aggrGroup) GroupKey() string {
 
 func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
+}
+
+func (ag *aggrGroup) alertSlice() []*types.Alert {
+	ag.mtx.RLock()
+	defer ag.mtx.RUnlock()
+	var alerts []*types.Alert
+
+	for a := range ag.alerts.List() {
+		alerts = append(alerts, a)
+	}
+	return alerts
 }
 
 func (ag *aggrGroup) run(nf notifyFunc) {
