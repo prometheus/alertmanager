@@ -83,7 +83,7 @@ func init() {
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}

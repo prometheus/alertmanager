@@ -47,7 +47,6 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration) (*
 	a := &Alerts{
 		alerts:    store.NewAlerts(ctx, intervalGC),
 		cancel:    cancel,
-		listeners: map[int]chan *types.Alert{},
 		listeners: map[int]listeningAlerts{},
 		next:      0,
 	}
