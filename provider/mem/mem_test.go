@@ -324,6 +324,9 @@ func TestAlertsGC(t *testing.T) {
 }
 
 func alertsEqual(a1, a2 *types.Alert) bool {
+	if a1 == nil || a2 == nil {
+		return false
+	}
 	if !reflect.DeepEqual(a1.Labels, a2.Labels) {
 		return false
 	}
