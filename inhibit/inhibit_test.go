@@ -14,16 +14,16 @@
 package inhibit
 
 import (
-	"reflect"
+	"context"
 	"testing"
 	"time"
 
 	"github.com/go-kit/kit/log"
-	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -122,21 +122,17 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		r := &InhibitRule{
 			Equal:  map[model.LabelName]struct{}{},
-			scache: map[model.Fingerprint]*types.Alert{},
+			scache: store.NewAlerts(context.Background(), 5*time.Minute),
 		}
 		for _, ln := range c.equal {
 			r.Equal[ln] = struct{}{}
 		}
-		for k, v := range c.initial {
-			r.scache[k] = v
+		for _, v := range c.initial {
+			r.scache.Set(v)
 		}
 
 		if _, have := r.hasEqual(c.input); have != c.result {
 			t.Errorf("Unexpected result %t, expected %t", have, c.result)
-		}
-		if !reflect.DeepEqual(r.scache, c.initial) {
-			t.Errorf("Cache state unexpectedly changed")
-			t.Errorf(pretty.Compare(r.scache, c.initial))
 		}
 	}
 }
@@ -155,14 +151,16 @@ func TestInhibitRuleMatches(t *testing.T) {
 	ir := ih.rules[0]
 	now := time.Now()
 	// Active alert that matches the source filter
-	sourceAlert := types.Alert{
+	sourceAlert := &types.Alert{
 		Alert: model.Alert{
 			Labels:   model.LabelSet{"s": "1", "e": "1"},
 			StartsAt: now.Add(-time.Minute),
 			EndsAt:   now.Add(time.Hour),
 		},
 	}
-	ir.scache = map[model.Fingerprint]*types.Alert{1: &sourceAlert}
+
+	ir.scache = store.NewAlerts(context.Background(), 5*time.Minute)
+	ir.scache.Set(sourceAlert)
 
 	cases := []struct {
 		target   model.LabelSet
@@ -199,40 +197,6 @@ func TestInhibitRuleMatches(t *testing.T) {
 		if actual := ih.Mutes(c.target); actual != c.expected {
 			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
 		}
-	}
-}
-
-func TestInhibitRuleGC(t *testing.T) {
-	// TODO(fabxc): add now() injection function to Resolved() to remove
-	// dependency on machine time in this test.
-	now := time.Now()
-	newAlert := func(start, end time.Duration) *types.Alert {
-		return &types.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{"a": "b"},
-				StartsAt: now.Add(start * time.Minute),
-				EndsAt:   now.Add(end * time.Minute),
-			},
-		}
-	}
-
-	before := map[model.Fingerprint]*types.Alert{
-		0: newAlert(-10, -5),
-		1: newAlert(10, 20),
-		2: newAlert(-10, 10),
-		3: newAlert(-10, -1),
-	}
-	after := map[model.Fingerprint]*types.Alert{
-		1: newAlert(10, 20),
-		2: newAlert(-10, 10),
-	}
-
-	r := &InhibitRule{scache: before}
-	r.gc()
-
-	if !reflect.DeepEqual(r.scache, after) {
-		t.Errorf("Unexpected cache state after GC")
-		t.Errorf(pretty.Compare(r.scache, after))
 	}
 }
 
