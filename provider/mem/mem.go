@@ -145,6 +145,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 		if err := a.alerts.Set(alert); err != nil {
 			// TODO: Log something??
+			continue
 		}
 
 		a.mtx.Lock()
