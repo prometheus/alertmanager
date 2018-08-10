@@ -22,6 +22,8 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+const alertChannelLength = 200
+
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
 	mtx        sync.RWMutex
@@ -29,9 +31,13 @@ type Alerts struct {
 	marker     types.Marker
 	intervalGC time.Duration
 	stopGC     chan struct{}
+	listeners  map[int]listeningAlerts
+	next       int
+}
 
-	listeners map[int]chan *types.Alert
-	next      int
+type listeningAlerts struct {
+	alerts chan *types.Alert
+	done   chan struct{}
 }
 
 // NewAlerts returns a new alert provider.
@@ -41,7 +47,7 @@ func NewAlerts(m types.Marker, intervalGC time.Duration) (*Alerts, error) {
 		marker:     m,
 		intervalGC: intervalGC,
 		stopGC:     make(chan struct{}),
-		listeners:  map[int]chan *types.Alert{},
+		listeners:  map[int]listeningAlerts{},
 		next:       0,
 	}
 	go a.runGC()
@@ -84,7 +90,7 @@ func (a *Alerts) Close() error {
 // They are not guaranteed to be in chronological order.
 func (a *Alerts) Subscribe() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, 200)
+		ch   = make(chan *types.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
 	alerts, err := a.getPending()
@@ -92,7 +98,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 	a.mtx.Lock()
 	i := a.next
 	a.next++
-	a.listeners[i] = ch
+	a.listeners[i] = listeningAlerts{alerts: ch, done: done}
 	a.mtx.Unlock()
 
 	go func() {
@@ -121,7 +127,7 @@ func (a *Alerts) Subscribe() provider.AlertIterator {
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, 200)
+		ch   = make(chan *types.Alert, alertChannelLength)
 		done = make(chan struct{})
 	)
 
@@ -185,8 +191,11 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 		a.alerts[fp] = alert
 
-		for _, ch := range a.listeners {
-			ch <- alert
+		for _, l := range a.listeners {
+			select {
+			case l.alerts <- alert:
+			case <-l.done:
+			}
 		}
 	}
 

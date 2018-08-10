@@ -14,9 +14,14 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
+
+	"github.com/prometheus/alertmanager/client"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/types"
@@ -45,11 +50,11 @@ func GetAlertmanagerURL(p string) url.URL {
 	return amURL
 }
 
-// Parse a list of labels (cli arguments)
-func parseMatchers(inputLabels []string) ([]labels.Matcher, error) {
+// Parse a list of matchers (cli arguments)
+func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0)
 
-	for _, v := range inputLabels {
+	for _, v := range inputMatchers {
 		name, value, matchType, err := parse.Input(v)
 		if err != nil {
 			return []labels.Matcher{}, err
@@ -63,6 +68,25 @@ func parseMatchers(inputLabels []string) ([]labels.Matcher, error) {
 	}
 
 	return matchers, nil
+}
+
+// Parse a list of labels (cli arguments)
+func parseLabels(inputLabels []string) (client.LabelSet, error) {
+	labelSet := make(client.LabelSet, len(inputLabels))
+
+	for _, l := range inputLabels {
+		name, value, matchType, err := parse.Input(l)
+		if err != nil {
+			return client.LabelSet{}, err
+		}
+		if matchType != labels.MatchEqual {
+			return client.LabelSet{}, errors.New("labels must be specified as key=value pairs")
+		}
+
+		labelSet[client.LabelName(name)] = client.LabelValue(value)
+	}
+
+	return labelSet, nil
 }
 
 // Only valid for when you are going to add a silence
@@ -92,4 +116,13 @@ func TypeMatcher(matcher labels.Matcher) (types.Matcher, error) {
 		return types.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
 	}
 	return *typeMatcher, nil
+}
+
+// Helper function for adding the ctx with timeout into an action.
+func execWithTimeout(fn func(context.Context, *kingpin.ParseContext) error) func(*kingpin.ParseContext) error {
+	return func(x *kingpin.ParseContext) error {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return fn(ctx, x)
+	}
 }

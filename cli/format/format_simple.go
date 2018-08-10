@@ -52,8 +52,7 @@ func (formatter *SimpleFormatter) FormatSilences(silences []types.Silence) error
 			silence.Comment,
 		)
 	}
-	w.Flush()
-	return nil
+	return w.Flush()
 }
 
 func (formatter *SimpleFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
@@ -69,8 +68,7 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*client.ExtendedAlert) e
 			alert.Annotations["summary"],
 		)
 	}
-	w.Flush()
-	return nil
+	return w.Flush()
 }
 
 func (formatter *SimpleFormatter) FormatConfig(status *client.ServerStatus) error {

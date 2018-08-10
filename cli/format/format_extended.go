@@ -54,8 +54,7 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) err
 			silence.Comment,
 		)
 	}
-	w.Flush()
-	return nil
+	return w.Flush()
 }
 
 func (formatter *ExtendedFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
@@ -73,8 +72,7 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts []*client.ExtendedAlert)
 			alert.GeneratorURL,
 		)
 	}
-	w.Flush()
-	return nil
+	return w.Flush()
 }
 
 func (formatter *ExtendedFormatter) FormatConfig(status *client.ServerStatus) error {

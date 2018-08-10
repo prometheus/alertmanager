@@ -165,7 +165,7 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 		return false, err
 	}
 
-	req, err := http.NewRequest("POST", w.conf.URL, &buf)
+	req, err := http.NewRequest("POST", w.conf.URL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
@@ -313,13 +313,14 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	var (
-		data = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
-		tmpl = tmplText(n.tmpl, data, &err)
-		from = tmpl(n.conf.From)
-		to   = tmpl(n.conf.To)
+		tmplErr error
+		data    = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmpl    = tmplText(n.tmpl, data, &tmplErr)
+		from    = tmpl(n.conf.From)
+		to      = tmpl(n.conf.To)
 	)
-	if err != nil {
-		return false, err
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template 'from' or 'to': %v", tmplErr)
 	}
 
 	addrs, err := mail.ParseAddressList(from)
@@ -402,8 +403,15 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 	}
 
-	multipartWriter.Close()
-	wc.Write(buffer.Bytes())
+	err = multipartWriter.Close()
+	if err != nil {
+		return false, fmt.Errorf("failed to close multipartWriter: %v", err)
+	}
+
+	_, err = wc.Write(buffer.Bytes())
+	if err != nil {
+		return false, fmt.Errorf("failed to write body buffer: %v", err)
+	}
 
 	return false, nil
 }
@@ -450,7 +458,16 @@ type pagerDutyPayload struct {
 	CustomDetails map[string]string `json:"custom_details,omitempty"`
 }
 
-func (n *PagerDuty) notifyV1(ctx context.Context, c *http.Client, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+func (n *PagerDuty) notifyV1(
+	ctx context.Context,
+	c *http.Client,
+	eventType, key string,
+	data *template.Data,
+	details map[string]string,
+	as ...*types.Alert,
+) (bool, error) {
+	var tmplErr error
+	tmpl := tmplText(n.tmpl, data, &tmplErr)
 
 	msg := &pagerDutyMessage{
 		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
@@ -460,11 +477,19 @@ func (n *PagerDuty) notifyV1(ctx context.Context, c *http.Client, eventType, key
 		Details:     details,
 	}
 
-	n.conf.URL = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
+	apiURL, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
+	if err != nil {
+		return false, err
+	}
+	n.conf.URL = &config.URL{apiURL}
 
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
 		msg.ClientURL = tmpl(n.conf.ClientURL)
+	}
+
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template PagerDuty v1 message: %v", tmplErr)
 	}
 
 	var buf bytes.Buffer
@@ -472,23 +497,37 @@ func (n *PagerDuty) notifyV1(ctx context.Context, c *http.Client, eventType, key
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
 	defer resp.Body.Close()
 
-	return n.retryV1(resp.StatusCode)
+	return n.retryV1(resp)
 }
 
-func (n *PagerDuty) notifyV2(ctx context.Context, c *http.Client, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+func (n *PagerDuty) notifyV2(
+	ctx context.Context,
+	c *http.Client,
+	eventType, key string,
+	data *template.Data,
+	details map[string]string,
+	as ...*types.Alert,
+) (bool, error) {
+	var tmplErr error
+	tmpl := tmplText(n.tmpl, data, &tmplErr)
+
 	if n.conf.Severity == "" {
 		n.conf.Severity = "error"
 	}
 
-	var payload *pagerDutyPayload
-	if eventType == pagerDutyEventTrigger {
-		payload = &pagerDutyPayload{
+	msg := &pagerDutyMessage{
+		Client:      tmpl(n.conf.Client),
+		ClientURL:   tmpl(n.conf.ClientURL),
+		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
+		EventAction: eventType,
+		DedupKey:    hashKey(key),
+		Payload: &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
 			Source:        tmpl(n.conf.Client),
 			Severity:      tmpl(n.conf.Severity),
@@ -496,19 +535,11 @@ func (n *PagerDuty) notifyV2(ctx context.Context, c *http.Client, eventType, key
 			Class:         tmpl(n.conf.Class),
 			Component:     tmpl(n.conf.Component),
 			Group:         tmpl(n.conf.Group),
-		}
+		},
 	}
 
-	msg := &pagerDutyMessage{
-		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
-		EventAction: eventType,
-		DedupKey:    hashKey(key),
-		Payload:     payload,
-	}
-
-	if eventType == pagerDutyEventTrigger {
-		msg.Client = tmpl(n.conf.Client)
-		msg.ClientURL = tmpl(n.conf.ClientURL)
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template PagerDuty v2 message: %v", tmplErr)
 	}
 
 	var buf bytes.Buffer
@@ -516,7 +547,7 @@ func (n *PagerDuty) notifyV2(ctx context.Context, c *http.Client, eventType, key
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -538,7 +569,6 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	var (
 		alerts    = types.Alerts(as...)
 		data      = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
-		tmpl      = tmplText(n.tmpl, data, &err)
 		eventType = pagerDutyEventTrigger
 	)
 	if alerts.Status() == model.AlertResolved {
@@ -549,7 +579,11 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	details := make(map[string]string, len(n.conf.Details))
 	for k, v := range n.conf.Details {
-		details[k] = tmpl(v)
+		detail, err := n.tmpl.ExecuteTextString(v, data)
+		if err != nil {
+			return false, fmt.Errorf("failed to template %q: %v", v, err)
+		}
+		details[k] = detail
 	}
 
 	if err != nil {
@@ -562,19 +596,28 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	}
 
 	if n.conf.ServiceKey != "" {
-		return n.notifyV1(ctx, c, eventType, key, tmpl, details, as...)
+		return n.notifyV1(ctx, c, eventType, key, data, details, as...)
 	}
-	return n.notifyV2(ctx, c, eventType, key, tmpl, details, as...)
+	return n.notifyV2(ctx, c, eventType, key, data, details, as...)
 }
 
-func (n *PagerDuty) retryV1(statusCode int) (bool, error) {
+func (n *PagerDuty) retryV1(resp *http.Response) (bool, error) {
 	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/trigger-events
+	statusCode := resp.StatusCode
+
+	if statusCode == 400 && resp.Body != nil {
+		bs, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false, fmt.Errorf("unexpected status code %v : problem reading response: %v", statusCode, err)
+		}
+		return false, fmt.Errorf("bad request (status code %v): %v", statusCode, string(bs))
+	}
+
 	if statusCode/100 != 2 {
 		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
-
 	return false, nil
 }
 
@@ -707,7 +750,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, string(n.conf.APIURL), contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, n.conf.APIURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -759,8 +802,10 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
-		url      = fmt.Sprintf("%sv2/room/%s/notification?auth_token=%s", n.conf.APIURL, n.conf.RoomID, n.conf.AuthToken)
+		roomid   = tmplText(n.conf.RoomID)
+		apiURL   = n.conf.APIURL.Copy()
 	)
+	apiURL.Path += fmt.Sprintf("v2/room/%s/notification?auth_token=%s", roomid, n.conf.AuthToken)
 
 	if n.conf.MessageFormat == "html" {
 		msg = tmplHTML(n.conf.Message)
@@ -789,7 +834,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, url, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -875,17 +920,13 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		parameters := url.Values{}
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
-
-		apiURL := n.conf.APIURL + "gettoken"
-
-		u, err := url.Parse(apiURL)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("templating error: %s", err)
 		}
 
+		u := n.conf.APIURL.Copy()
+		u.Path += "gettoken"
 		u.RawQuery = parameters.Encode()
-
-		level.Debug(n.logger).Log("msg", "Sending Wechat message", "incident", key, "url", u.String())
 
 		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
@@ -925,15 +966,19 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Type:    "text",
 		Safe:    "0",
 	}
+	if err != nil {
+		return false, fmt.Errorf("templating error: %s", err)
+	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 		return false, err
 	}
 
-	postMessageURL := n.conf.APIURL + "message/send?access_token=" + n.accessToken
+	postMessageURL := n.conf.APIURL.Copy()
+	postMessageURL.Path += "message/send?access_token=" + n.accessToken
 
-	req, err := http.NewRequest(http.MethodPost, postMessageURL, &buf)
+	req, err := http.NewRequest(http.MethodPost, postMessageURL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
@@ -944,7 +989,10 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return true, err
+	}
 	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
 
 	if resp.StatusCode != 200 {
@@ -1052,13 +1100,13 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	var (
 		msg    interface{}
-		apiURL string
+		apiURL = n.conf.APIURL.Copy()
 		alias  = hashKey(key)
 		alerts = types.Alerts(as...)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
-		apiURL = fmt.Sprintf("%sv2/alerts/%s/close?identifierType=alias", n.conf.APIURL, alias)
+		apiURL.Path += fmt.Sprintf("v2/alerts/%s/close?identifierType=alias", alias)
 		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 	default:
 		message := tmpl(n.conf.Message)
@@ -1067,7 +1115,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 			level.Debug(n.logger).Log("msg", "Truncated message to %q due to OpsGenie message limit", "truncated_message", message, "incident", key)
 		}
 
-		apiURL = n.conf.APIURL + "v2/alerts"
+		apiURL.Path += "v2/alerts"
 		var teams []map[string]string
 		for _, t := range safeSplit(string(tmpl(n.conf.Teams)), ",") {
 			teams = append(teams, map[string]string{"name": t})
@@ -1095,7 +1143,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		return nil, false, err
 	}
 
-	req, err := http.NewRequest("POST", apiURL, &buf)
+	req, err := http.NewRequest("POST", apiURL.String(), &buf)
 	if err != nil {
 		return nil, true, err
 	}
@@ -1163,10 +1211,11 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		alerts       = types.Alerts(as...)
 		data         = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmpl         = tmplText(n.tmpl, data, &err)
-		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, tmpl(n.conf.RoutingKey))
+		apiURL       = n.conf.APIURL.Copy()
 		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
+	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
 
 	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
 		messageType = victorOpsEventTrigger
@@ -1203,7 +1252,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL, contentTypeJSON, &buf)
+	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -1322,6 +1371,8 @@ func (n *Pushover) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
+// tmplText is using monadic error handling in order to make string templating
+// less verbose. Use with care as the final error checking is easily missed.
 func tmplText(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {
@@ -1332,6 +1383,8 @@ func tmplText(tmpl *template.Template, data *template.Data, err *error) func(str
 	}
 }
 
+// tmplHTML is using monadic error handling in order to make string templating
+// less verbose. Use with care as the final error checking is easily missed.
 func tmplHTML(tmpl *template.Template, data *template.Data, err *error) func(string) string {
 	return func(name string) (s string) {
 		if *err != nil {

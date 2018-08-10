@@ -7,6 +7,7 @@ COPY examples/ha/alertmanager.yml /etc/alertmanager/alertmanager.yml
 
 EXPOSE     9093
 VOLUME     [ "/alertmanager" ]
-WORKDIR    /etc/alertmanager
+WORKDIR    /alertmanager
 ENTRYPOINT [ "/bin/alertmanager" ]
-CMD        [ "--storage.path=/alertmanager" ]
+CMD        [ "--config.file=/etc/alertmanager/alertmanager.yml", \
+             "--storage.path=/alertmanager" ]

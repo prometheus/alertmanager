@@ -82,11 +82,11 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 	addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.end)
 	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
 	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
-	addCmd.Action(c.add)
+	addCmd.Action(execWithTimeout(c.add))
 
 }
 
-func (c *silenceAddCmd) add(ctx *kingpin.ParseContext) error {
+func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {
 	var err error
 
 	matchers, err := parseMatchers(c.matchers)
@@ -152,7 +152,7 @@ func (c *silenceAddCmd) add(ctx *kingpin.ParseContext) error {
 		return err
 	}
 	silenceAPI := client.NewSilenceAPI(apiClient)
-	silenceID, err := silenceAPI.Set(context.Background(), silence)
+	silenceID, err := silenceAPI.Set(ctx, silence)
 	if err != nil {
 		return err
 	}

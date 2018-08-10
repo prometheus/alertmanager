@@ -38,6 +38,8 @@ type Peer struct {
 	mlist    *memberlist.Memberlist
 	delegate *delegate
 
+	resolvedPeers []string
+
 	mtx    sync.RWMutex
 	states map[string]State
 	stopc  chan struct{}
@@ -104,7 +106,7 @@ const (
 	maxGossipPacketSize      = 1400
 )
 
-func Join(
+func Create(
 	l log.Logger,
 	reg prometheus.Registerer,
 	bindAddr string,
@@ -116,9 +118,6 @@ func Join(
 	tcpTimeout time.Duration,
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
-	reconnectInterval time.Duration,
-	reconnectTimeout time.Duration,
-	refreshInterval time.Duration,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -171,12 +170,12 @@ func Join(
 	}
 
 	p := &Peer{
-		states:     map[string]State{},
-		stopc:      make(chan struct{}),
-		readyc:     make(chan struct{}),
-		logger:     l,
-		peers:      map[string]peer{},
-		knownPeers: knownPeers,
+		states:        map[string]State{},
+		stopc:         make(chan struct{}),
+		readyc:        make(chan struct{}),
+		logger:        l,
+		peers:         map[string]peer{},
+		resolvedPeers: resolvedPeers,
 	}
 
 	p.register(reg)
@@ -215,12 +214,20 @@ func Join(
 		return nil, errors.Wrap(err, "create memberlist")
 	}
 	p.mlist = ml
+	return p, nil
+}
 
-	n, err := ml.Join(resolvedPeers)
+func (p *Peer) Join(
+	reconnectInterval time.Duration,
+	reconnectTimeout time.Duration) error {
+	n, err := p.mlist.Join(p.resolvedPeers)
 	if err != nil {
-		level.Warn(l).Log("msg", "failed to join cluster", "err", err)
+		level.Warn(p.logger).Log("msg", "failed to join cluster", "err", err)
+		if reconnectInterval != 0 {
+			level.Info(p.logger).Log("msg", fmt.Sprintf("will retry joining cluster every %v", reconnectInterval.String()))
+		}
 	} else {
-		level.Debug(l).Log("msg", "joined cluster", "peers", n)
+		level.Debug(p.logger).Log("msg", "joined cluster", "peers", n)
 	}
 
 	if reconnectInterval != 0 {
@@ -233,7 +240,7 @@ func Join(
 		go p.handleRefresh(refreshInterval)
 	}
 
-	return p, nil
+	return err
 }
 
 // All peers are initially added to the failed list. They will be removed from
