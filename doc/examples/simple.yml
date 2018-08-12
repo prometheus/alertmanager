@@ -75,6 +75,7 @@ route:
     - match:
         owner: team-X
       receiver: team-X-pager
+      continue: true
     - match:
         owner: team-Y
       receiver: team-Y-pager

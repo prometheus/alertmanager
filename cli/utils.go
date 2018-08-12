@@ -18,9 +18,12 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path"
 
 	"github.com/prometheus/alertmanager/client"
+	amconfig "github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/client_golang/api"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/pkg/parse"
@@ -68,6 +71,57 @@ func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 	}
 
 	return matchers, nil
+}
+
+// getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager
+func getRemoteAlertmanagerConfigStatus(ctx context.Context, alertmanagerURL *url.URL) (*client.ServerStatus, error) {
+	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	if err != nil {
+		return nil, err
+	}
+	statusAPI := client.NewStatusAPI(c)
+	status, err := statusAPI.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
+func checkRoutingConfigInputFlags(alertmanagerURL *url.URL, configFile string) {
+	if alertmanagerURL != nil && configFile != "" {
+		fmt.Fprintln(os.Stderr, "Warning: --config.file flag overrides the --alertmanager.url.")
+	}
+	if alertmanagerURL == nil && configFile == "" {
+		kingpin.Fatalf("You have to specify one of --config.file or --alertmanager.url flags.")
+	}
+}
+
+func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*amconfig.Config, error) {
+	checkRoutingConfigInputFlags(alertmanagerURL, configFile)
+	if configFile != "" {
+		cfg, _, err := amconfig.LoadFile(configFile)
+		if err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	}
+	if alertmanagerURL != nil {
+		status, err := getRemoteAlertmanagerConfigStatus(ctx, alertmanagerURL)
+		if err != nil {
+			return nil, err
+		}
+		return status.ConfigJSON, nil
+	}
+	return nil, errors.New("Failed to get Alertmanager configuration.")
+}
+
+// convertClientToCommonLabelSet converts client.LabelSet to model.Labelset
+func convertClientToCommonLabelSet(cls client.LabelSet) model.LabelSet {
+	mls := make(model.LabelSet, len(cls))
+	for ln, lv := range cls {
+		mls[model.LabelName(ln)] = model.LabelValue(lv)
+	}
+	return mls
 }
 
 // Parse a list of labels (cli arguments)
