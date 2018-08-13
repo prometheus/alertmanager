@@ -667,6 +667,8 @@ type slackAttachment struct {
 	Fallback  string               `json:"fallback"`
 	Fields    []config.SlackField  `json:"fields,omitempty"`
 	Actions   []config.SlackAction `json:"actions,omitempty"`
+	ImageURL  string               `json:"image_url,omitempty"`
+	ThumbURL  string               `json:"thumb_url,omitempty"`
 	Footer    string               `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
@@ -687,6 +689,8 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Pretext:   tmplText(n.conf.Pretext),
 		Text:      tmplText(n.conf.Text),
 		Fallback:  tmplText(n.conf.Fallback),
+		ImageURL:  tmplText(n.conf.ImageURL),
+		ThumbURL:  tmplText(n.conf.ThumbURL),
 		Footer:    tmplText(n.conf.Footer),
 		Color:     tmplText(n.conf.Color),
 		MrkdwnIn:  []string{"fallback", "pretext", "text"},
