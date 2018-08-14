@@ -90,9 +90,8 @@ func (a *Alerts) runGC() {
 }
 
 // Close the alert provider.
-func (a *Alerts) Close() error {
+func (a *Alerts) Close() {
 	close(a.stopGC)
-	return nil
 }
 
 func max(a, b int) int {

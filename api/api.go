@@ -786,7 +786,10 @@ func (api *API) respond(w http.ResponseWriter, data interface{}) {
 		level.Error(api.logger).Log("msg", "Error marshalling JSON", "err", err)
 		return
 	}
-	w.Write(b)
+
+	if _, err := w.Write(b); err != nil {
+		level.Error(api.logger).Log("msg", "failed to write data to connection", "err", err)
+	}
 }
 
 func (api *API) respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
@@ -812,7 +815,9 @@ func (api *API) respondError(w http.ResponseWriter, apiErr apiError, data interf
 	}
 	level.Error(api.logger).Log("msg", "API error", "err", apiErr.Error())
 
-	w.Write(b)
+	if _, err := w.Write(b); err != nil {
+		level.Error(api.logger).Log("msg", "failed to write data to connection", "err", err)
+	}
 }
 
 func (api *API) receive(r *http.Request, v interface{}) error {

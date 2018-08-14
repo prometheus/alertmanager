@@ -15,6 +15,7 @@ include Makefile.common
 
 FRONTEND_DIR            = $(BIN_DIR)/ui/app
 DOCKER_IMAGE_NAME       ?= alertmanager
+ERRCHECK_BINARY         := $(FIRST_GOPATH)/bin/errcheck
 
 ifdef DEBUG
 	bindata_flags = -debug
@@ -59,3 +60,11 @@ clean:
 	rm template/internal/deftmpl/bindata.go
 	rm ui/bindata.go
 	cd $(FRONTEND_DIR) && $(MAKE) clean
+
+.PHONY: test
+test: common-test $(ERRCHECK_BINARY)
+	@echo ">> running errcheck with exclude file scripts/errcheck_excludes.txt"
+	$(ERRCHECK_BINARY) -verbose -exclude scripts/errcheck_excludes.txt -ignoretests ./...
+
+$(ERRCHECK_BINARY):
+	@go get github.com/kisielk/errcheck
