@@ -14,7 +14,7 @@
 }
 %global shortcommit     %(c=%{commit}; echo ${c:0:7})
 %global gopathdir       %{_sourcedir}/go
-%global upstream_ver    0.15.1
+%global upstream_ver    0.15.2
 %global rpm_ver         %(v=%{upstream_ver}; echo ${v//-/_})
 %global download_prefix %{provider}.%{provider_tld}/openshift/%{repo}
 
@@ -22,7 +22,7 @@ Name:		golang-%{provider}-%{project}-%{repo}
 # Version and release information will be automatically managed by CD
 # It will be kept in sync with OCP builds.
 Version:	%{rpm_ver}
-Release:	2.git%{shortcommit}%{?dist}
+Release:	1.git%{shortcommit}%{?dist}
 Summary:	The Prometheus Alertmanager handles alerts sent by client applications such as the Prometheus server.
 License:	ASL 2.0
 URL:		https://prometheus.io/
@@ -84,6 +84,9 @@ install -d %{buildroot}%{_sharedstatedir}/prometheus-alertmanager
 %{_sharedstatedir}/prometheus-alertmanager
 
 %changelog
+* Tue Aug 14 2018 Simon Pasquier <spasqui@redhat.com> - 0.15.2-1
+- Upgrade to 0.15.2
+
 * Fri Jul 27 2018 Simon Pasquier <spasqui@redhat.com> - 0.15.1-2
 - Enable aarch64
 
