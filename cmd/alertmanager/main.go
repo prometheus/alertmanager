@@ -267,9 +267,11 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), *settleTimeout)
 		defer func() {
 			cancel()
-			peer.Leave(10 * time.Second)
+			if err := peer.Leave(10 * time.Second); err != nil {
+				level.Warn(logger).Log("msg", "unable to leave gossip mesh", "err", err)
+			}
 		}()
-		go peer.Settle(ctx, *pushPullInterval*10)
+		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
 	alerts, err := mem.NewAlerts(marker, *alertGCInterval)
