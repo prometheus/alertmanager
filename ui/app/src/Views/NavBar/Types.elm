@@ -22,6 +22,11 @@ statusTab =
     { link = "#/status", name = "Status" }
 
 
+helpTab : Tab
+helpTab =
+    { link = "https://prometheus.io/docs/alerting/alertmanager/", name = "Help" }
+
+
 noneTab : Tab
 noneTab =
     { link = "", name = "" }
@@ -29,4 +34,4 @@ noneTab =
 
 tabs : List Tab
 tabs =
-    [ alertsTab, silencesTab, statusTab ]
+    [ alertsTab, silencesTab, statusTab, helpTab ]
