@@ -118,7 +118,9 @@ func (c *silenceUpdateCmd) update(ctx *kingpin.ParseContext) error {
 		if !found {
 			return fmt.Errorf("unknown output formatter")
 		}
-		formatter.FormatSilences(updatedSilences)
+		if err := formatter.FormatSilences(updatedSilences); err != nil {
+			return fmt.Errorf("error formatting silences: %v", err)
+		}
 	}
 	return nil
 }

@@ -301,16 +301,22 @@ func (am *Alertmanager) Start() {
 // Terminate kills the underlying Alertmanager process and remove intermediate
 // data.
 func (am *Alertmanager) Terminate() {
-	syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM)
+	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
+		am.t.Fatalf("Error sending SIGTERM to Alertmanager process: %v", err)
+	}
 }
 
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
-	syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP)
+	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
+		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+	}
 }
 
 func (am *Alertmanager) cleanup() {
-	os.RemoveAll(am.confFile.Name())
+	if err := os.RemoveAll(am.confFile.Name()); err != nil {
+		am.t.Errorf("Error removing test config file %q: %v", am.confFile.Name(), err)
+	}
 }
 
 // Push declares alerts that are to be pushed to the Alertmanager

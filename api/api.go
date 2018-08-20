@@ -59,8 +59,8 @@ func init() {
 	numReceivedAlerts.WithLabelValues("firing")
 	numReceivedAlerts.WithLabelValues("resolved")
 
-	prometheus.Register(numReceivedAlerts)
-	prometheus.Register(numInvalidAlerts)
+	prometheus.MustRegister(numReceivedAlerts)
+	prometheus.MustRegister(numInvalidAlerts)
 }
 
 var corsHeaders = map[string]string{
@@ -68,6 +68,7 @@ var corsHeaders = map[string]string{
 	"Access-Control-Allow-Methods":  "GET, DELETE, OPTIONS",
 	"Access-Control-Allow-Origin":   "*",
 	"Access-Control-Expose-Headers": "Date",
+	"Cache-Control":                 "no-cache, no-store, must-revalidate",
 }
 
 // Enables cross-site script calls.
