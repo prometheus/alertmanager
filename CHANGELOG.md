@@ -2,6 +2,21 @@
 
 * [CHANGE] Revert Alertmanager working directory changes in Docker image back to `/alertmanager` (#1435)
 
+## 0.15.2 / 2018-08-14
+
+* [ENHANCEMENT] [amtool] Add support for stdin to check-config (#1431)
+* [ENHANCEMENT] Log PagerDuty v1 response on BadRequest (#1481)
+* [BUGFIX] Correctly encode query strings in notifiers (#1516)
+* [BUGFIX] Add cache control headers to the API responses to avoid IE caching (#1500)
+* [BUGFIX] Avoid listener blocking on unsubscribe (#1482)
+* [BUGFIX] Fix a bunch of unhandled errors (#1501)
+* [BUGFIX] Update PagerDuty API V2 to send full details on resolve (#1483)
+* [BUGFIX] Validate URLs at config load time (#1468)
+* [BUGFIX] Fix Settle() interval (#1478)
+* [BUGFIX] Fix email to be green if only none firing (#1475)
+* [BUGFIX] Handle errors in notify (#1474)
+* [BUGFIX] Fix templating of hipchat room id (#1463)
+
 ## 0.15.1 / 2018-07-10
 
 * [BUGFIX] Fix email template typo in alert-warning style (#1421)
