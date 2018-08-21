@@ -44,7 +44,6 @@ func TestJoinLeave(t *testing.T) {
 	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
-		DefaultRefreshInterval,
 	)
 	require.NoError(t, err)
 	require.False(t, p.Ready())
@@ -72,7 +71,6 @@ func TestJoinLeave(t *testing.T) {
 	err = p2.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
-		DefaultRefreshInterval,
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
@@ -105,7 +103,6 @@ func TestReconnect(t *testing.T) {
 	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
-		DefaultRefreshInterval,
 	)
 	require.NoError(t, err)
 	go p.Settle(context.Background(), 0*time.Second)
@@ -129,7 +126,6 @@ func TestReconnect(t *testing.T) {
 	err = p2.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
-		DefaultRefreshInterval,
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
@@ -168,7 +164,6 @@ func TestRemoveFailedPeers(t *testing.T) {
 	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
-		DefaultRefreshInterval,
 	)
 	require.NoError(t, err)
 	n := p.Self()
@@ -218,7 +213,6 @@ func TestInitiallyFailingPeers(t *testing.T) {
 	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
-		DefaultRefreshInterval,
 	)
 	require.NoError(t, err)
 

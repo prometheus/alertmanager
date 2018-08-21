@@ -176,6 +176,7 @@ func Create(
 		logger:        l,
 		peers:         map[string]peer{},
 		resolvedPeers: resolvedPeers,
+		knownPeers:    knownPeers,
 	}
 
 	p.register(reg)
@@ -236,9 +237,7 @@ func (p *Peer) Join(
 	if reconnectTimeout != 0 {
 		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
 	}
-	if refreshInterval != 0 {
-		go p.handleRefresh(refreshInterval)
-	}
+	go p.handleRefresh(DefaultRefreshInterval)
 
 	return err
 }
