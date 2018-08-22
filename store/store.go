@@ -20,6 +20,7 @@ type Store interface {
 	Delete(model.Fingerprint) error
 	List() <-chan *types.Alert
 	SetGCCallback(func(*types.Alert))
+	Count() int
 }
 
 var (
@@ -126,4 +127,12 @@ func (a *Alerts) List() <-chan *types.Alert {
 	close(c)
 
 	return c
+}
+
+// Count implements Store.
+func (a *Alerts) Count() int {
+	a.Lock()
+	defer a.Unlock()
+
+	return len(a.c)
 }

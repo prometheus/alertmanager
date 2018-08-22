@@ -405,8 +405,7 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 }
 
 func (ag *aggrGroup) empty() bool {
-	// TODO: Does this need to be drained?
-	return len(ag.alerts.List()) == 0
+	return ag.alerts.Count() == 0
 }
 
 // flush sends notifications for all new alerts.
