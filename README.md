@@ -286,6 +286,22 @@ output: extended
 receiver: team-X-pager
 ```
 
+### Routes
+
+Amtool allows you to vizualize the routes of your configuration in form of text tree view.
+Also you can use it to test the routing by passing it label set of an alert
+and it prints out all receivers the alert would match ordered and separated by `,`.
+(If you use `--verify.receivers` amtool returns error code 1 on mismatch)
+
+Example of usage:
+```
+# View routing tree of remote Alertmanager
+amtool config routes --alertmanager.url=http://localhost:9090
+
+# Test if alert matches expected receiver
+./amtool config routes test --config.file=doc/examples/simple.yml --tree --verify.receivers=team-X-pager service=database owner=team-X
+```
+
 ## High Availability
 
 > Warning: High Availability is under active development

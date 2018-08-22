@@ -1,6 +1,7 @@
 ## Next release
 
 * [CHANGE] Revert Alertmanager working directory changes in Docker image back to `/alertmanager` (#1435)
+* [FEATURE] [amtool] Added `config routes` tools for vizualization and testing routes (#1511)
 
 ## 0.15.2 / 2018-08-14
 
