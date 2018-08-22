@@ -243,17 +243,6 @@ func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
 }
 
-func (ag *aggrGroup) alertSlice() []*types.Alert {
-	ag.mtx.RLock()
-	defer ag.mtx.RUnlock()
-
-	var alerts []*types.Alert
-	for _, a := range ag.alerts {
-		alerts = append(alerts, a)
-	}
-	return alerts
-}
-
 func (ag *aggrGroup) run(nf notifyFunc) {
 	ag.done = make(chan struct{})
 
