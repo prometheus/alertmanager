@@ -10,6 +10,10 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+// Store is an interface providing basic data store functionality for Alerts.
+// Resolved alerts should be removed from the store at regular intervals, with
+// a callback function that has the removed alert as its argument executed
+// after every removal.
 type Store interface {
 	Get(model.Fingerprint) (*types.Alert, error)
 	Set(*types.Alert) error
@@ -19,15 +23,18 @@ type Store interface {
 }
 
 var (
+	// ErrNotFound is returned if a Store cannot find the Alert.
 	ErrNotFound = errors.New("alert not found")
 )
 
+// Alerts implements Store using an in-memory map.
 type Alerts struct {
 	sync.Mutex
 	c  map[model.Fingerprint]*types.Alert
 	cb func(*types.Alert)
 }
 
+// NewAlerts returns a new Alerts struct.
 func NewAlerts(ctx context.Context, gcInterval time.Duration) *Alerts {
 	a := &Alerts{
 		c:  make(map[model.Fingerprint]*types.Alert),
@@ -43,6 +50,7 @@ func NewAlerts(ctx context.Context, gcInterval time.Duration) *Alerts {
 	return a
 }
 
+// SetGCCallback implements Store.
 func (a *Alerts) SetGCCallback(cb func(*types.Alert)) {
 	a.Lock()
 	defer a.Unlock()
@@ -75,6 +83,7 @@ func (a *Alerts) gc() {
 	}
 }
 
+// Get implements Store.
 func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	a.Lock()
 	defer a.Unlock()
@@ -86,7 +95,7 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	return alert, nil
 }
 
-// Set unconditionally sets the alert in memory.
+// Set implements Store. It unconditionally sets the alert in memory.
 func (a *Alerts) Set(alert *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()
@@ -95,6 +104,7 @@ func (a *Alerts) Set(alert *types.Alert) error {
 	return nil
 }
 
+// Delete implements Store.
 func (a *Alerts) Delete(fp model.Fingerprint) error {
 	a.Lock()
 	defer a.Unlock()
@@ -103,8 +113,8 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	return nil
 }
 
-// List returns a buffered channel of all current Alerts. It should be entirely
-// consumed.
+// List implements Store. It returns a buffered channel of all current Alerts.
+// It should be entirely consumed.
 func (a *Alerts) List() <-chan *types.Alert {
 	a.Lock()
 	defer a.Unlock()
