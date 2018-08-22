@@ -17,11 +17,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/prometheus/client_golang/api"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/client"
 )
 
 const configHelp = `View current config.
@@ -34,17 +32,13 @@ The amount of output is controlled by the output selection flag:
 
 // configCmd represents the config command
 func configureConfigCmd(app *kingpin.Application) {
-	app.Command("config", configHelp).Action(execWithTimeout(queryConfig)).PreAction(requireAlertManagerURL)
-
+	configCmd := app.Command("config", configHelp)
+	configCmd.Command("show", configHelp).Default().Action(execWithTimeout(queryConfig)).PreAction(requireAlertManagerURL)
+	configureRoutingCmd(configCmd)
 }
 
 func queryConfig(ctx context.Context, _ *kingpin.ParseContext) error {
-	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
-	if err != nil {
-		return err
-	}
-	statusAPI := client.NewStatusAPI(c)
-	status, err := statusAPI.Get(ctx)
+	status, err := getRemoteAlertmanagerConfigStatus(ctx, alertmanagerURL)
 	if err != nil {
 		return err
 	}

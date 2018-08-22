@@ -667,6 +667,8 @@ type slackAttachment struct {
 	Fallback  string               `json:"fallback"`
 	Fields    []config.SlackField  `json:"fields,omitempty"`
 	Actions   []config.SlackAction `json:"actions,omitempty"`
+	ImageURL  string               `json:"image_url,omitempty"`
+	ThumbURL  string               `json:"thumb_url,omitempty"`
 	Footer    string               `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
@@ -687,6 +689,8 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Pretext:   tmplText(n.conf.Pretext),
 		Text:      tmplText(n.conf.Text),
 		Fallback:  tmplText(n.conf.Fallback),
+		ImageURL:  tmplText(n.conf.ImageURL),
+		ThumbURL:  tmplText(n.conf.ThumbURL),
 		Footer:    tmplText(n.conf.Footer),
 		Color:     tmplText(n.conf.Color),
 		MrkdwnIn:  []string{"fallback", "pretext", "text"},
@@ -805,7 +809,10 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		roomid   = tmplText(n.conf.RoomID)
 		apiURL   = n.conf.APIURL.Copy()
 	)
-	apiURL.Path += fmt.Sprintf("v2/room/%s/notification?auth_token=%s", roomid, n.conf.AuthToken)
+	apiURL.Path += fmt.Sprintf("v2/room/%s/notification", roomid)
+	q := apiURL.Query()
+	q.Set("auth_token", fmt.Sprintf("%s", n.conf.AuthToken))
+	apiURL.RawQuery = q.Encode()
 
 	if n.conf.MessageFormat == "html" {
 		msg = tmplHTML(n.conf.Message)
@@ -976,7 +983,10 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	postMessageURL := n.conf.APIURL.Copy()
-	postMessageURL.Path += "message/send?access_token=" + n.accessToken
+	postMessageURL.Path += "message/send"
+	q := postMessageURL.Query()
+	q.Set("access_token", n.accessToken)
+	postMessageURL.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodPost, postMessageURL.String(), &buf)
 	if err != nil {
@@ -1106,7 +1116,10 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
-		apiURL.Path += fmt.Sprintf("v2/alerts/%s/close?identifierType=alias", alias)
+		apiURL.Path += fmt.Sprintf("v2/alerts/%s/close", alias)
+		q := apiURL.Query()
+		q.Set("identifierType", "alias")
+		apiURL.RawQuery = q.Encode()
 		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 	default:
 		message := tmpl(n.conf.Message)

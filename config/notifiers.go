@@ -305,6 +305,8 @@ type SlackConfig struct {
 	Fallback    string         `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	IconEmoji   string         `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	IconURL     string         `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`
+	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
 	LinkNames   bool           `yaml:"link_names,omitempty" json:"link_names,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }

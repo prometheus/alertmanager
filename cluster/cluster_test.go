@@ -19,12 +19,25 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/hashicorp/go-sockaddr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func TestJoinLeave(t *testing.T) {
+func TestClusterJoinAndReconnect(t *testing.T) {
+	ip, _ := sockaddr.GetPrivateIP()
+	if ip == "" {
+		t.Skipf("skipping tests because no private IP address can be found")
+		return
+	}
+	t.Run("TestJoinLeave", testJoinLeave)
+	t.Run("TestReconnect", testReconnect)
+	t.Run("TestRemoveFailedPeers", testRemoveFailedPeers)
+	t.Run("TestInitiallyFailingPeers", testInitiallyFailingPeers)
+}
+
+func testJoinLeave(t *testing.T) {
 	logger := log.NewNopLogger()
 	p, err := Create(
 		logger,
@@ -83,7 +96,7 @@ func TestJoinLeave(t *testing.T) {
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
 }
 
-func TestReconnect(t *testing.T) {
+func testReconnect(t *testing.T) {
 	logger := log.NewNopLogger()
 	p, err := Create(
 		logger,
@@ -144,7 +157,7 @@ func TestReconnect(t *testing.T) {
 	require.Equal(t, StatusAlive, p.peers[p2.Self().Address()].status)
 }
 
-func TestRemoveFailedPeers(t *testing.T) {
+func testRemoveFailedPeers(t *testing.T) {
 	logger := log.NewNopLogger()
 	p, err := Create(
 		logger,
@@ -191,7 +204,7 @@ func TestRemoveFailedPeers(t *testing.T) {
 	require.Equal(t, p1, p.failedPeers[0])
 }
 
-func TestInitiallyFailingPeers(t *testing.T) {
+func testInitiallyFailingPeers(t *testing.T) {
 	logger := log.NewNopLogger()
 	myAddr := "1.2.3.4:5000"
 	peerAddrs := []string{myAddr, "2.3.4.5:5000", "3.4.5.6:5000", "foo.example.com:5000"}

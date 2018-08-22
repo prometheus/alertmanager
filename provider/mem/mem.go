@@ -58,6 +58,20 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 	}
 	a.alerts.SetGCCallback(func(alert *types.Alert) {
 		m.Delete(alert.Fingerprint())
+
+		// TODO: The GC probably needs to execute on every alert
+		// instead of one at a time.
+		a.mtx.Lock()
+		for i, l := range a.listeners {
+			select {
+			case <-l.done:
+				delete(a.listeners, i)
+				close(l.alerts)
+			default:
+				// listener is not closed yet, hence proceed.
+			}
+		}
+		a.mtx.Unlock()
 	})
 
 	return a, nil
@@ -71,38 +85,31 @@ func (a *Alerts) Close() error {
 	return nil
 }
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // Subscribe returns an iterator over active alerts that have not been
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
 func (a *Alerts) Subscribe() provider.AlertIterator {
 	var (
-		ch   = make(chan *types.Alert, alertChannelLength)
+		ch   = make(chan *types.Alert, max(a.alerts.Count(), alertChannelLength))
 		done = make(chan struct{})
 	)
+
+	for a := range a.alerts.List() {
+		ch <- a
+	}
+
 	a.mtx.Lock()
 	i := a.next
 	a.next++
 	a.listeners[i] = listeningAlerts{alerts: ch, done: done}
 	a.mtx.Unlock()
-
-	go func() {
-		defer func() {
-			a.mtx.Lock()
-			delete(a.listeners, i)
-			close(ch)
-			a.mtx.Unlock()
-		}()
-
-		for a := range a.alerts.List() {
-			select {
-			case ch <- a:
-			case <-done:
-				return
-			}
-		}
-
-		<-done
-	}()
 
 	return provider.NewAlertIterator(ch, done, nil)
 }

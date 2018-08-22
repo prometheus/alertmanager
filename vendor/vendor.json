@@ -324,6 +324,12 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		},
 		{
+			"checksumSHA1": "Oen67XBkt5voJj1wya8kIakvdT4=",
+			"path": "github.com/xlab/treeprint",
+			"revision": "d6fb6747feb6e7cfdc44682a024bddf87ef07ec2",
+			"revisionTime": "2018-06-15T14:19:04Z"
+		},
+		{
 			"checksumSHA1": "hKZGpbFuCrkE4s1vxubKK1aFlfI=",
 			"path": "golang.org/x/net/context",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",
