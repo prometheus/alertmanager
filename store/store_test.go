@@ -69,8 +69,10 @@ func TestGC(t *testing.T) {
 	}
 	s := NewAlerts(context.Background(), 5*time.Minute)
 	var n int
-	s.SetGCCallback(func(_ *types.Alert) {
-		n++
+	s.SetGCCallback(func(a []*types.Alert) {
+		for range a {
+			n++
+		}
 	})
 	for _, alert := range append(active, resolved...) {
 		require.NoError(t, s.Set(alert))

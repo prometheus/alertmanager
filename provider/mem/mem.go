@@ -56,11 +56,11 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 		next:      0,
 		logger:    log.With(l, "component", "provider"),
 	}
-	a.alerts.SetGCCallback(func(alert *types.Alert) {
-		m.Delete(alert.Fingerprint())
+	a.alerts.SetGCCallback(func(alerts []*types.Alert) {
+		for _, alert := range alerts {
+			m.Delete(alert.Fingerprint())
+		}
 
-		// TODO: The GC probably needs to execute on every alert
-		// instead of one at a time.
 		a.mtx.Lock()
 		for i, l := range a.listeners {
 			select {

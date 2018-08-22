@@ -19,7 +19,7 @@ type Store interface {
 	Set(*types.Alert) error
 	Delete(model.Fingerprint) error
 	List() <-chan *types.Alert
-	SetGCCallback(func(*types.Alert))
+	SetGCCallback(func([]*types.Alert))
 	Count() int
 }
 
@@ -32,14 +32,14 @@ var (
 type Alerts struct {
 	sync.Mutex
 	c  map[model.Fingerprint]*types.Alert
-	cb func(*types.Alert)
+	cb func([]*types.Alert)
 }
 
 // NewAlerts returns a new Alerts struct.
 func NewAlerts(ctx context.Context, gcInterval time.Duration) *Alerts {
 	a := &Alerts{
 		c:  make(map[model.Fingerprint]*types.Alert),
-		cb: func(_ *types.Alert) {},
+		cb: func(_ []*types.Alert) {},
 	}
 
 	if gcInterval == 0 {
@@ -52,7 +52,7 @@ func NewAlerts(ctx context.Context, gcInterval time.Duration) *Alerts {
 }
 
 // SetGCCallback implements Store.
-func (a *Alerts) SetGCCallback(cb func(*types.Alert)) {
+func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 	a.Lock()
 	defer a.Unlock()
 
@@ -76,12 +76,14 @@ func (a *Alerts) gc() {
 	a.Lock()
 	defer a.Unlock()
 
+	resolved := []*types.Alert{}
 	for fp, alert := range a.c {
 		if alert.Resolved() {
 			delete(a.c, fp)
-			a.cb(alert)
+			resolved = append(resolved, alert)
 		}
 	}
+	a.cb(resolved)
 }
 
 // Get implements Store.
