@@ -18,10 +18,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 )
 
 const alertChannelLength = 200
@@ -34,6 +37,8 @@ type Alerts struct {
 	mtx       sync.Mutex
 	listeners map[int]listeningAlerts
 	next      int
+
+	logger log.Logger
 }
 
 type listeningAlerts struct {
@@ -42,13 +47,14 @@ type listeningAlerts struct {
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l log.Logger) (*Alerts, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
 		alerts:    store.NewAlerts(ctx, intervalGC),
 		cancel:    cancel,
 		listeners: map[int]listeningAlerts{},
 		next:      0,
+		logger:    log.With(l, "component", "provider"),
 	}
 	a.alerts.SetGCCallback(func(alert *types.Alert) {
 		m.Delete(alert.Fingerprint())
@@ -144,7 +150,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		}
 
 		if err := a.alerts.Set(alert); err != nil {
-			// TODO: Log something??
+			level.Error(a.logger).Log("msg", "error on set alert", "err", err)
 			continue
 		}
 

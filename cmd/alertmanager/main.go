@@ -274,7 +274,7 @@ func main() {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval)
+	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, logger)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		os.Exit(1)
