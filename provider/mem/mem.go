@@ -141,6 +141,8 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
 
+		// Check that there's an alert existing within the store before
+		// trying to merge.
 		if old, err := a.alerts.Get(fp); err == nil {
 			// Merge alerts if there is an overlap in activity range.
 			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
