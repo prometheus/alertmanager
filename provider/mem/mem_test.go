@@ -23,6 +23,7 @@ import (
 
 	"sync"
 
+	"github.com/go-kit/kit/log"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
@@ -83,7 +84,7 @@ func init() {
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +135,7 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +160,7 @@ func TestAlertsPut(t *testing.T) {
 
 func TestAlertsSubscribe(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +249,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 func TestAlertsGetPending(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +292,7 @@ func TestAlertsGetPending(t *testing.T) {
 
 func TestAlertsGC(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
