@@ -31,7 +31,7 @@ const alertChannelLength = 200
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
-	alerts store.Store
+	alerts *store.Alerts
 	cancel context.CancelFunc
 
 	mtx       sync.Mutex

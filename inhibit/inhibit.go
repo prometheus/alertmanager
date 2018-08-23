@@ -149,7 +149,7 @@ type InhibitRule struct {
 
 	mtx sync.RWMutex
 	// Cache of alerts matching source labels.
-	scache store.Store
+	scache *store.Alerts
 }
 
 // NewInhibitRule returns a new InihibtRule based on a configuration definition.

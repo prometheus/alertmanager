@@ -10,19 +10,6 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-// Store is an interface providing basic data store functionality for Alerts.
-// Resolved alerts should be removed from the store at regular intervals, with
-// a callback function that has the removed alert as its argument executed
-// after every removal.
-type Store interface {
-	Get(model.Fingerprint) (*types.Alert, error)
-	Set(*types.Alert) error
-	Delete(model.Fingerprint) error
-	List() <-chan *types.Alert
-	SetGCCallback(func([]*types.Alert))
-	Count() int
-}
-
 var (
 	// ErrNotFound is returned if a Store cannot find the Alert.
 	ErrNotFound = errors.New("alert not found")

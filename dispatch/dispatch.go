@@ -291,7 +291,7 @@ type aggrGroup struct {
 	timeout func(time.Duration) time.Duration
 
 	mtx        sync.RWMutex
-	alerts     store.Store
+	alerts     *store.Alerts
 	hasFlushed bool
 }
 
