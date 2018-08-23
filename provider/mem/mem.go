@@ -58,6 +58,9 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 	}
 	a.alerts.SetGCCallback(func(alerts []*types.Alert) {
 		for _, alert := range alerts {
+			// As we don't persist alerts, we no longer consider them after
+			// they are resolved. Alerts waiting for resolved notifications are
+			// held in memory in aggregation groups redundantly.
 			m.Delete(alert.Fingerprint())
 		}
 

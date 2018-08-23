@@ -416,7 +416,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	var (
 		alerts      = ag.alerts.List()
-		alertsSlice = make(types.AlertSlice, 0, len(alerts))
+		alertsSlice = make(types.AlertSlice, 0, ag.alerts.Count())
 	)
 	for alert := range alerts {
 		alertsSlice = append(alertsSlice, alert)
@@ -432,7 +432,9 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 			fp := a.Fingerprint()
 			got, err := ag.alerts.Get(fp)
 			if err != nil {
-				// TODO: Log failure
+				// This should only happen if the Alert was
+				// deleted from the store during the flush.
+				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err)
 				continue
 			}
 			if a.Resolved() && got == a {
