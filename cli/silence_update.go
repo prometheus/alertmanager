@@ -44,8 +44,8 @@ func configureSilenceUpdateCmd(cc *kingpin.CmdClause) {
 	)
 	updateCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
 	updateCmd.Flag("duration", "Duration of silence").Short('d').StringVar(&c.duration)
-	updateCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.start)
-	updateCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.end)
+	updateCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&c.start)
+	updateCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&c.end)
 	updateCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
 	updateCmd.Arg("update-ids", "Silence IDs to update").StringsVar(&c.ids)
 
