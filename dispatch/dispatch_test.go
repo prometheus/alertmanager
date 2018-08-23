@@ -22,86 +22,11 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/types"
 )
-
-func newAPIAlert(labels model.LabelSet) APIAlert {
-	return APIAlert{
-		Alert: &model.Alert{
-			Labels:   labels,
-			StartsAt: time.Now().Add(1 * time.Minute),
-			EndsAt:   time.Now().Add(1 * time.Hour),
-		},
-	}
-}
-
-func TestFilterLabels(t *testing.T) {
-
-	var (
-		a1 = newAPIAlert(model.LabelSet{
-			"a": "v1",
-			"b": "v2",
-			"c": "v3",
-		})
-		a2 = newAPIAlert(model.LabelSet{
-			"a": "v1",
-			"b": "v2",
-			"c": "v4",
-		})
-		a3 = newAPIAlert(model.LabelSet{
-			"a": "v1",
-			"b": "v2",
-			"c": "v5",
-		})
-		a4 = newAPIAlert(model.LabelSet{
-			"foo": "bar",
-			"baz": "qux",
-		})
-		alertsSlices = []struct {
-			in, want []APIAlert
-		}{
-			{
-				in:   []APIAlert{a1, a2, a3},
-				want: []APIAlert{a1, a2, a3},
-			},
-			{
-				in:   []APIAlert{a1, a4},
-				want: []APIAlert{a1},
-			},
-			{
-				in:   []APIAlert{a4},
-				want: []APIAlert{},
-			},
-		}
-	)
-
-	matcher, err := labels.NewMatcher(labels.MatchRegexp, "c", "v.*")
-	if err != nil {
-		t.Fatalf("error making matcher: %v", err)
-	}
-	matcher2, err := labels.NewMatcher(labels.MatchEqual, "a", "v1")
-	if err != nil {
-		t.Fatalf("error making matcher: %v", err)
-	}
-
-	matchers := []*labels.Matcher{matcher, matcher2}
-
-	for _, alerts := range alertsSlices {
-		got := []APIAlert{}
-		for _, a := range alerts.in {
-			if matchesFilterLabels(&a, matchers) {
-				got = append(got, a)
-			}
-		}
-		if !reflect.DeepEqual(got, alerts.want) {
-			t.Fatalf("error: returned alerts do not match:\ngot  %v\nwant %v", got, alerts.want)
-		}
-	}
-}
 
 func TestAggrGroup(t *testing.T) {
 	lset := model.LabelSet{
