@@ -71,6 +71,15 @@ var corsHeaders = map[string]string{
 	"Cache-Control":                 "no-cache, no-store, must-revalidate",
 }
 
+// Alert is the API representation of an alert, which is a regular alert
+// annotated with silencing and inhibition info.
+type Alert struct {
+	*model.Alert
+	Status      types.AlertStatus `json:"status"`
+	Receivers   []string          `json:"receivers"`
+	Fingerprint string            `json:"fingerprint"`
+}
+
 // Enables cross-site script calls.
 func setCORS(w http.ResponseWriter) {
 	for h, v := range corsHeaders {
@@ -89,20 +98,17 @@ type API struct {
 	peer           *cluster.Peer
 	logger         log.Logger
 
-	groups         groupsFn
 	getAlertStatus getAlertStatusFn
 
 	mtx sync.RWMutex
 }
 
-type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
 type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
 
 // New returns a new API.
 func New(
 	alerts provider.Alerts,
 	silences *silence.Silences,
-	gf groupsFn,
 	sf getAlertStatusFn,
 	peer *cluster.Peer,
 	l log.Logger,
@@ -114,7 +120,6 @@ func New(
 	return &API{
 		alerts:         alerts,
 		silences:       silences,
-		groups:         gf,
 		getAlertStatus: sf,
 		uptime:         time.Now(),
 		peer:           peer,
@@ -137,7 +142,6 @@ func (api *API) Register(r *route.Router) {
 	r.Get("/status", wrap(api.status))
 	r.Get("/receivers", wrap(api.receivers))
 
-	r.Get("/alerts/groups", wrap(api.alertGroups))
 	r.Get("/alerts", wrap(api.listAlerts))
 	r.Post("/alerts", wrap(api.addAlerts))
 
@@ -242,33 +246,13 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 	return s
 }
 
-func (api *API) alertGroups(w http.ResponseWriter, r *http.Request) {
-	var err error
-	matchers := []*labels.Matcher{}
-
-	if filter := r.FormValue("filter"); filter != "" {
-		matchers, err = parse.Matchers(filter)
-		if err != nil {
-			api.respondError(w, apiError{
-				typ: errorBadData,
-				err: err,
-			}, nil)
-			return
-		}
-	}
-
-	groups := api.groups(matchers)
-
-	api.respond(w, groups)
-}
-
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	var (
 		err            error
 		receiverFilter *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res      = []*dispatch.APIAlert{}
+		res      = []*Alert{}
 		matchers = []*labels.Matcher{}
 
 		showActive, showInhibited     bool
@@ -386,14 +370,14 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		apiAlert := &dispatch.APIAlert{
+		alert := &Alert{
 			Alert:       &a.Alert,
 			Status:      status,
 			Receivers:   receivers,
 			Fingerprint: a.Fingerprint().String(),
 		}
 
-		res = append(res, apiAlert)
+		res = append(res, alert)
 	}
 	api.mtx.RUnlock()
 

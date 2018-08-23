@@ -73,7 +73,6 @@ func (f *fakeAlerts) GetPending() provider.AlertIterator {
 	return provider.NewAlertIterator(ch, done, f.err)
 }
 
-func groupAlerts([]*labels.Matcher) dispatch.AlertOverview { return dispatch.AlertOverview{} }
 func newGetAlertStatus(f *fakeAlerts) func(model.Fingerprint) types.AlertStatus {
 	return func(fp model.Fingerprint) types.AlertStatus {
 		status := types.AlertStatus{SilencedBy: []string{}, InhibitedBy: []string{}}
@@ -133,7 +132,7 @@ func TestAddAlerts(t *testing.T) {
 		}
 
 		alertsProvider := newFakeAlerts([]*types.Alert{}, tc.err)
-		api := New(alertsProvider, nil, groupAlerts, newGetAlertStatus(alertsProvider), nil, nil)
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil)
 
 		r, err := http.NewRequest("POST", "/api/v1/alerts", bytes.NewReader(b))
 		w := httptest.NewRecorder()
@@ -260,7 +259,7 @@ func TestListAlerts(t *testing.T) {
 		},
 	} {
 		alertsProvider := newFakeAlerts(alerts, tc.err)
-		api := New(alertsProvider, nil, groupAlerts, newGetAlertStatus(alertsProvider), nil, nil)
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil)
 		api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
 
 		r, err := http.NewRequest("GET", "/api/v1/alerts", nil)
@@ -293,7 +292,7 @@ func TestListAlerts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error %v", err)
 		}
-		retAlerts := []*dispatch.APIAlert{}
+		retAlerts := []*Alert{}
 		err = json.Unmarshal(b, &retAlerts)
 		if err != nil {
 			t.Fatalf("Unexpected error %v", err)

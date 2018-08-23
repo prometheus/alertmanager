@@ -62,8 +62,8 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 	)
 	addCmd.Arg("labels", "List of labels to be included with the alert").StringsVar(&a.labels)
 	addCmd.Flag("generator-url", "Set the URL of the source that generated the alert").StringVar(&a.generatorUrl)
-	addCmd.Flag("start", "Set when the alert should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&a.start)
-	addCmd.Flag("end", "Set when the alert should should end. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&a.end)
+	addCmd.Flag("start", "Set when the alert should start. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&a.start)
+	addCmd.Flag("end", "Set when the alert should should end. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&a.end)
 	addCmd.Flag("annotation", "Set an annotation to be included with the alert").StringsVar(&a.annotations)
 	addCmd.Action(execWithTimeout(a.addAlert))
 }

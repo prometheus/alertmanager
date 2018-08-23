@@ -49,7 +49,6 @@ import (
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -292,9 +291,6 @@ func main() {
 	apiv := api.New(
 		alerts,
 		silences,
-		func(matchers []*labels.Matcher) dispatch.AlertOverview {
-			return disp.Groups(matchers)
-		},
 		marker.Status,
 		peer,
 		logger,
