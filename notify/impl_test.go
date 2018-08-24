@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -41,6 +42,29 @@ func TestWebhookRetry(t *testing.T) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
+}
+
+func TestPagerDutyCustomURLV1(t *testing.T) {
+	var customRouteCalled = false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		customRouteCalled = true
+	}))
+	defer server.Close()
+
+	customUrl, _ := url.Parse(server.URL)
+
+	notifier := new(PagerDuty)
+	notifier.conf = &config.PagerdutyConfig{
+		URL: &config.URL{
+			URL: customUrl,
+		},
+	}
+
+	_, err := notifier.notifyV1(context.Background(), nil, "", "", nil, nil)
+
+	require.NoError(t, err)
+	require.True(t, customRouteCalled)
 }
 
 func TestPagerDutyRetryV1(t *testing.T) {

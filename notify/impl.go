@@ -477,11 +477,13 @@ func (n *PagerDuty) notifyV1(
 		Details:     details,
 	}
 
-	apiURL, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
-	if err != nil {
-		return false, err
+	if n.conf.URL == config.DefaultGlobalConfig.PagerdutyURL {
+		apiURL, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
+		if err != nil {
+			return false, err
+		}
+		n.conf.URL = &config.URL{apiURL}
 	}
-	n.conf.URL = &config.URL{apiURL}
 
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
