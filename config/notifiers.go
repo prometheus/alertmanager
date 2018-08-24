@@ -151,18 +151,19 @@ type EmailConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	// Email address to notify.
-	To           string            `yaml:"to,omitempty" json:"to,omitempty"`
-	From         string            `yaml:"from,omitempty" json:"from,omitempty"`
-	Hello        string            `yaml:"hello,omitempty" json:"hello,omitempty"`
-	Smarthost    string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
-	AuthUsername string            `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
-	AuthPassword Secret            `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
-	AuthSecret   Secret            `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
-	AuthIdentity string            `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
-	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-	HTML         string            `yaml:"html,omitempty" json:"html,omitempty"`
-	Text         string            `yaml:"text,omitempty" json:"text,omitempty"`
-	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	To           string              `yaml:"to,omitempty" json:"to,omitempty"`
+	From         string              `yaml:"from,omitempty" json:"from,omitempty"`
+	Hello        string              `yaml:"hello,omitempty" json:"hello,omitempty"`
+	Smarthost    string              `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
+	AuthUsername string              `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
+	AuthPassword Secret              `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
+	AuthSecret   Secret              `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
+	AuthIdentity string              `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
+	Headers      map[string]string   `yaml:"headers,omitempty" json:"headers,omitempty"`
+	HTML         string              `yaml:"html,omitempty" json:"html,omitempty"`
+	Text         string              `yaml:"text,omitempty" json:"text,omitempty"`
+	RequireTLS   *bool               `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	TLSConfig    commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -195,7 +196,7 @@ type PagerdutyConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	ServiceKey  Secret            `yaml:"service_key,omitempty" json"service_key,omitempty"`
+	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
 	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
 	URL         *URL              `yaml:"url,omitempty" json:"url,omitempty"`
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`

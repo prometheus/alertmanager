@@ -264,7 +264,15 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	if port == "465" {
-		conn, err := tls.Dial("tcp", n.conf.Smarthost, &tls.Config{ServerName: host})
+		tlsConfig, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
+		if err != nil {
+			return false, err
+		}
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = host
+		}
+
+		conn, err := tls.Dial("tcp", n.conf.Smarthost, tlsConfig)
 		if err != nil {
 			return true, err
 		}
@@ -294,7 +302,15 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return true, fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
-		tlsConf := &tls.Config{ServerName: host}
+
+		tlsConf, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
+		if err != nil {
+			return false, err
+		}
+		if tlsConf.ServerName == "" {
+			tlsConf.ServerName = host
+		}
+
 		if err := c.StartTLS(tlsConf); err != nil {
 			return true, fmt.Errorf("starttls failed: %s", err)
 		}
