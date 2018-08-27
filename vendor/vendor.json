@@ -510,6 +510,30 @@
 			"revisionTime": "2017-03-13T16:33:22Z"
 		},
 		{
+			"checksumSHA1": "fSVkjXu8SIkCLI9RTt/vnkg9M5A=",
+			"path": "github.com/shurcooL/httpfs/filter",
+			"revision": "809beceb23714880abc4a382a00c05f89d13b1cc",
+			"revisionTime": "2017-11-19T17:43:26Z"
+		},
+		{
+			"checksumSHA1": "NJs03JE5kTrf/0jMSQzn6GGnqtI=",
+			"path": "github.com/shurcooL/httpfs/union",
+			"revision": "809beceb23714880abc4a382a00c05f89d13b1cc",
+			"revisionTime": "2017-11-19T17:43:26Z"
+		},
+		{
+			"checksumSHA1": "fhngc51BJ8gGzM5b8BpSuWjCLao=",
+			"path": "github.com/shurcooL/httpfs/vfsutil",
+			"revision": "809beceb23714880abc4a382a00c05f89d13b1cc",
+			"revisionTime": "2017-11-19T17:43:26Z"
+		},
+		{
+			"checksumSHA1": "VWvna0FKOZGpr1h+cgdgTN6BiEU=",
+			"path": "github.com/shurcooL/vfsgen",
+			"revision": "02ddb050ef6bbe4c2900677ac0df7e9e336d7032",
+			"revisionTime": "2018-06-29T18:06:13Z"
+		},
+		{
 			"checksumSHA1": "iydUphwYqZRq3WhstEdGsbvBAKs=",
 			"path": "github.com/stretchr/testify/assert",
 			"revision": "1e01b2bdbae8edb393fcf555732304f34d192fc9",

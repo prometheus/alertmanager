@@ -14,61 +14,45 @@
 package ui
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path/filepath"
 
 	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
+
+	"github.com/prometheus/alertmanager/asset"
 )
-
-func serveAsset(w http.ResponseWriter, req *http.Request, fp string, logger log.Logger) {
-	info, err := AssetInfo(fp)
-	if err != nil {
-		level.Warn(logger).Log("msg", "Could not get file", "err", err)
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	file, err := Asset(fp)
-	if err != nil {
-		if err != io.EOF {
-			level.Warn(logger).Log("msg", "Could not get file", "file", fp, "err", err)
-		}
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	http.ServeContent(w, req, info.Name(), info.ModTime(), bytes.NewReader(file))
-}
 
 // Register registers handlers to serve files for the web interface.
 func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
-	r.Get("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		serveAsset(w, req, "ui/app/index.html", logger)
-	}))
+	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+		req.URL.Path = "/static/"
+		fs := http.FileServer(asset.Assets)
+		fs.ServeHTTP(w, req)
+	})
 
-	r.Get("/script.js", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		serveAsset(w, req, "ui/app/script.js", logger)
-	}))
+	r.Get("/script.js", func(w http.ResponseWriter, req *http.Request) {
+		req.URL.Path = "/static/script.js"
+		fs := http.FileServer(asset.Assets)
+		fs.ServeHTTP(w, req)
+	})
 
-	r.Get("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		serveAsset(w, req, "ui/app/favicon.ico", logger)
-	}))
+	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
+		req.URL.Path = "/static/favicon.ico"
+		fs := http.FileServer(asset.Assets)
+		fs.ServeHTTP(w, req)
+	})
 
-	r.Get("/lib/*filepath", http.HandlerFunc(
-		func(w http.ResponseWriter, req *http.Request) {
-			fp := route.Param(req.Context(), "filepath")
-			serveAsset(w, req, filepath.Join("ui/app/lib", fp), logger)
-		},
-	))
+	r.Get("/lib/*filepath", func(w http.ResponseWriter, req *http.Request) {
+		req.URL.Path = filepath.Join("/static/lib", route.Param(req.Context(), "filepath"))
+		fs := http.FileServer(asset.Assets)
+		fs.ServeHTTP(w, req)
+	})
 
 	r.Post("/-/reload", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		errc := make(chan error)
