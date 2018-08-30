@@ -78,7 +78,7 @@ func (ih *Inhibitor) run(ctx context.Context) {
 	}
 }
 
-// Run the Inihibitor's background processing.
+// Run the Inhibitor's background processing.
 func (ih *Inhibitor) Run() {
 	var (
 		g   group.Group
@@ -156,7 +156,7 @@ type InhibitRule struct {
 	scache *store.Alerts
 }
 
-// NewInhibitRule returns a new InihibtRule based on a configuration definition.
+// NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	var (
 		sourcem types.Matchers
