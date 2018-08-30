@@ -280,7 +280,11 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return true, err
 		}
 	}
-	defer c.Quit()
+	defer func() {
+		if err := c.Quit(); err != nil {
+			level.Error(n.logger).Log("msg", "failed to close SMTP connection", "err", err)
+		}
+	}()
 
 	if n.conf.Hello != "" {
 		err := c.Hello(n.conf.Hello)

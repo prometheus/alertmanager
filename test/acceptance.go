@@ -94,7 +94,11 @@ func freeAddress() string {
 	if err != nil {
 		panic(err)
 	}
-	defer l.Close()
+	defer func() {
+		if err := l.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	return l.Addr().String()
 }

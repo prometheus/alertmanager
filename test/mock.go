@@ -257,7 +257,11 @@ func NewWebhook(c *Collector) *MockWebhook {
 		collector: c,
 		opts:      c.opts,
 	}
-	go http.Serve(l, wh)
+	go func() {
+		if err := http.Serve(l, wh); err != nil {
+			panic(err)
+		}
+	}()
 
 	return wh
 }
