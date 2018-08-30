@@ -18,19 +18,14 @@ package main
 import (
 	"log"
 
-	"github.com/shurcooL/vfsgen"
-
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/pkg/idemvfs"
+	"github.com/prometheus/alertmanager/pkg/idemvfsgen"
 )
 
 func main() {
 	fs := idemvfs.NewFileSystem(asset.Assets, identifier)
-	err := vfsgen.Generate(fs, vfsgen.Options{
-		PackageName:  "asset",
-		BuildTags:    "!dev",
-		VariableName: "Assets",
-	})
+	err := idemvfsgen.Generate(fs, idemvfsgen.Options{Filename: "assets_ident.go", VariableName: "identifier"})
 	if err != nil {
 		log.Fatalln(err)
 	}
