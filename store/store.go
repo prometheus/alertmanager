@@ -38,7 +38,7 @@ func NewAlerts(ctx context.Context, gcInterval time.Duration) *Alerts {
 	return a
 }
 
-// SetGCCallback implements Store.
+// SetGCCallback sets a GC callback to be executed after each GC.
 func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 	a.Lock()
 	defer a.Unlock()
@@ -73,7 +73,8 @@ func (a *Alerts) gc() {
 	a.cb(resolved)
 }
 
-// Get implements Store.
+// Get returns the Alert with the matching fingerprint, or an error if it is
+// not found.
 func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	a.Lock()
 	defer a.Unlock()
@@ -85,7 +86,7 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	return alert, nil
 }
 
-// Set implements Store. It unconditionally sets the alert in memory.
+// Set unconditionally sets the alert in memory.
 func (a *Alerts) Set(alert *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()
@@ -94,7 +95,7 @@ func (a *Alerts) Set(alert *types.Alert) error {
 	return nil
 }
 
-// Delete implements Store.
+// Delete removes the Alert with th matching fingerprint from the store.
 func (a *Alerts) Delete(fp model.Fingerprint) error {
 	a.Lock()
 	defer a.Unlock()
@@ -103,8 +104,7 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	return nil
 }
 
-// List implements Store. It returns a buffered channel of all current Alerts.
-// It should be entirely consumed.
+// List returns a buffered channel of Alerts currently held in memory.
 func (a *Alerts) List() <-chan *types.Alert {
 	a.Lock()
 	defer a.Unlock()
@@ -118,7 +118,7 @@ func (a *Alerts) List() <-chan *types.Alert {
 	return c
 }
 
-// Count implements Store.
+// Count returns the number of items within the store.
 func (a *Alerts) Count() int {
 	a.Lock()
 	defer a.Unlock()
