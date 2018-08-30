@@ -219,9 +219,10 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
 		timeout:  to,
-		alerts:   store.NewAlerts(ctx, 15*time.Minute),
+		alerts:   store.NewAlerts(15 * time.Minute),
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
+	ag.alerts.Run(ag.ctx)
 
 	ag.logger = log.With(logger, "aggrGroup", ag)
 

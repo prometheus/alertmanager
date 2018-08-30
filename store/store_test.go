@@ -15,7 +15,8 @@ func TestSetGet(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	a := NewAlerts(ctx, d)
+	a := NewAlerts(d)
+	a.Run(ctx)
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -32,7 +33,8 @@ func TestDelete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	a := NewAlerts(ctx, d)
+	a := NewAlerts(d)
+	a.Run(ctx)
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -67,7 +69,7 @@ func TestGC(t *testing.T) {
 		newAlert("a", -10, -5),
 		newAlert("d", -10, -1),
 	}
-	s := NewAlerts(context.Background(), 5*time.Minute)
+	s := NewAlerts(5 * time.Minute)
 	var n int
 	s.SetGCCallback(func(a []*types.Alert) {
 		for range a {

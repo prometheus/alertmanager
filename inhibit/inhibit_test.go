@@ -14,7 +14,6 @@
 package inhibit
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -122,7 +121,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		r := &InhibitRule{
 			Equal:  map[model.LabelName]struct{}{},
-			scache: store.NewAlerts(context.Background(), 5*time.Minute),
+			scache: store.NewAlerts(5 * time.Minute),
 		}
 		for _, ln := range c.equal {
 			r.Equal[ln] = struct{}{}
@@ -159,7 +158,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	ir.scache = store.NewAlerts(context.Background(), 5*time.Minute)
+	ir.scache = store.NewAlerts(5 * time.Minute)
 	ir.scache.Set(sourceAlert)
 
 	cases := []struct {

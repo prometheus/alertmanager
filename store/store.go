@@ -17,23 +17,24 @@ var (
 
 // Alerts implements Store using an in-memory map.
 type Alerts struct {
+	gcInterval time.Duration
+
 	sync.Mutex
 	c  map[model.Fingerprint]*types.Alert
 	cb func([]*types.Alert)
 }
 
 // NewAlerts returns a new Alerts struct.
-func NewAlerts(ctx context.Context, gcInterval time.Duration) *Alerts {
+func NewAlerts(gcInterval time.Duration) *Alerts {
 	a := &Alerts{
-		c:  make(map[model.Fingerprint]*types.Alert),
-		cb: func(_ []*types.Alert) {},
+		c:          make(map[model.Fingerprint]*types.Alert),
+		cb:         func(_ []*types.Alert) {},
+		gcInterval: gcInterval,
 	}
 
 	if gcInterval == 0 {
 		gcInterval = time.Minute
 	}
-
-	go a.run(ctx, gcInterval)
 
 	return a
 }
@@ -46,17 +47,18 @@ func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 	a.cb = cb
 }
 
-func (a *Alerts) run(ctx context.Context, d time.Duration) {
-	t := time.NewTicker(d)
-	for {
-		select {
-		case <-ctx.Done():
-			// cleanup
-			return
-		case <-t.C:
-			a.gc()
+// Run starts the GC loop.
+func (a *Alerts) Run(ctx context.Context) {
+	go func(t *time.Ticker) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				a.gc()
+			}
 		}
-	}
+	}(time.NewTicker(a.gcInterval))
 }
 
 func (a *Alerts) gc() {

@@ -50,7 +50,7 @@ type listeningAlerts struct {
 func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l log.Logger) (*Alerts, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		alerts:    store.NewAlerts(ctx, intervalGC),
+		alerts:    store.NewAlerts(intervalGC),
 		cancel:    cancel,
 		listeners: map[int]listeningAlerts{},
 		next:      0,
@@ -76,6 +76,7 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 		}
 		a.mtx.Unlock()
 	})
+	a.alerts.Run(ctx)
 
 	return a, nil
 }

@@ -90,6 +90,10 @@ func (ih *Inhibitor) Run() {
 	ih.mtx.Unlock()
 	runCtx, runCancel := context.WithCancel(ctx)
 
+	for _, rule := range ih.rules {
+		rule.scache.Run(runCtx)
+	}
+
 	g.Add(func() error {
 		ih.run(runCtx)
 		return nil
@@ -182,8 +186,7 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
 		Equal:          equal,
-		// Get the correct ctx in here.
-		scache: store.NewAlerts(context.Background(), 15*time.Minute),
+		scache:         store.NewAlerts(15 * time.Minute),
 	}
 }
 
