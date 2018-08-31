@@ -64,7 +64,7 @@ jaro s1 s2 =
 
 
 winkler : String -> String -> Float -> Float
-winkler s1 s2 jaro =
+winkler s1 s2 jaro_ =
     if s1 == "" || s2 == "" then
         0.0
 
@@ -81,7 +81,7 @@ winkler s1 s2 jaro =
             p =
                 0.25
         in
-        jaro + ((l * p) * (1.0 - jaro))
+        jaro_ + ((l * p) * (1.0 - jaro_))
 
 
 jaroWinkler : String -> String -> Float
@@ -131,7 +131,7 @@ cp l1 l2 acc =
             acc
 
 
-charMatch : number -> List ( number, number ) -> ( number, number ) -> List ( number, number )
+charMatch : Int -> List ( Int, Int ) -> ( Int, Int ) -> List ( Int, Int )
 charMatch matchRange list ( p, q ) =
     list
         |> List.drop (p - matchRange - 1)
@@ -139,7 +139,7 @@ charMatch matchRange list ( p, q ) =
         |> List.filter (Tuple.second >> (==) q)
 
 
-transposition : List ( number, number ) -> ( number, number ) -> Int
+transposition : List ( Int, Int ) -> ( Int, Int ) -> Int
 transposition list ( p, q ) =
     list
         |> List.filter

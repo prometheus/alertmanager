@@ -1,8 +1,8 @@
-module Utils.Api exposing (defaultTimeout, delete, errorToString, fromResult, get, iso8601Time, makeApiUrl, map, parseError, post, request, send, withDefault)
+module Utils.Api exposing (andMap, delete, errorToString, fromResult, get, iso8601Time, makeApiUrl, map, parseError, post, request, send, withDefault)
 
 import Http exposing (Error(..))
 import Json.Decode as Json exposing (field)
-import Time exposing (Time)
+import Time exposing (Posix)
 import Utils.Date
 import Utils.Types exposing (ApiData(..))
 
@@ -49,11 +49,11 @@ errorToString err =
 
         BadStatus resp ->
             parseError resp.body
-                |> Maybe.withDefault (toString resp.status.code ++ " " ++ resp.status.message)
+                |> Maybe.withDefault (String.fromInt resp.status.code ++ " " ++ resp.status.message)
 
-        BadPayload err resp ->
+        BadPayload err_ resp ->
             -- OK status, unexpected payload
-            "Unexpected response from api: " ++ err
+            "Unexpected response from api: " ++ err_
 
         BadUrl url ->
             "Malformed url: " ++ url
@@ -102,7 +102,7 @@ request method headers url body decoder =
         }
 
 
-iso8601Time : Json.Decoder Time
+iso8601Time : Json.Decoder Posix
 iso8601Time =
     Json.andThen
         (\strTime ->
@@ -129,12 +129,6 @@ makeApiUrl externalUrl =
     url ++ "/api/v1"
 
 
-defaultTimeout : Time.Time
-defaultTimeout =
-    1000 * Time.millisecond
-
-
-(|:) : Json.Decoder (a -> b) -> Json.Decoder a -> Json.Decoder b
-(|:) =
-    -- Taken from elm-community/json-extra
-    \b a -> Json.map2 (|>) a b
+andMap : Json.Decoder a -> Json.Decoder (a -> b) -> Json.Decoder b
+andMap =
+    Json.map2 (|>)

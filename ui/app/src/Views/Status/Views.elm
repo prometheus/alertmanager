@@ -54,12 +54,12 @@ viewConfig config =
 viewClusterStatus : Maybe ClusterStatus -> Html Types.Msg
 viewClusterStatus clusterStatus =
     case clusterStatus of
-        Just clusterStatus ->
+        Just { name, status, peers } ->
             span []
                 [ h2 [] [ text "Cluster Status" ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Name:" ]
-                    , div [ class "col-sm-10" ] [ text clusterStatus.name ]
+                    , div [ class "col-sm-10" ] [ text name ]
                     ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Status:" ]
@@ -67,17 +67,17 @@ viewClusterStatus clusterStatus =
                         [ span
                             [ classList
                                 [ ( "badge", True )
-                                , ( "badge-success", clusterStatus.status == "ready" )
-                                , ( "badge-warning", clusterStatus.status == "settling" )
+                                , ( "badge-success", status == "ready" )
+                                , ( "badge-warning", status == "settling" )
                                 ]
                             ]
-                            [ text clusterStatus.status ]
+                            [ text status ]
                         ]
                     ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Peers:" ]
                     , ul [ class "col-sm-10" ] <|
-                        List.map viewClusterPeer clusterStatus.peers
+                        List.map viewClusterPeer peers
                     ]
                 ]
 

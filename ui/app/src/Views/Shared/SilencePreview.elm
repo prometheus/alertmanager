@@ -18,7 +18,7 @@ view alertsResponse =
 
             else
                 div [ class "w-100" ]
-                    [ p [] [ strong [] [ text ("Silenced alerts: " ++ toString (List.length alerts)) ] ]
+                    [ p [] [ strong [] [ text ("Silenced alerts: " ++ String.fromInt (List.length alerts)) ] ]
                     , Views.Shared.AlertListCompact.view alerts
                     ]
 

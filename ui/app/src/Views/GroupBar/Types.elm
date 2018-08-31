@@ -1,5 +1,6 @@
 module Views.GroupBar.Types exposing (Model, Msg(..), initGroupBar)
 
+import Browser.Navigation exposing (Key)
 import Set exposing (Set)
 
 
@@ -12,6 +13,7 @@ type alias Model =
     , focused : Bool
     , resultsHovered : Bool
     , maybeSelectedMatch : Maybe String
+    , key : Key
     }
 
 
@@ -26,8 +28,8 @@ type Msg
     | Noop
 
 
-initGroupBar : Model
-initGroupBar =
+initGroupBar : Key -> Model
+initGroupBar key =
     { list = Set.empty
     , fieldText = ""
     , fields = []
@@ -36,4 +38,5 @@ initGroupBar =
     , resultsHovered = False
     , backspacePressed = False
     , maybeSelectedMatch = Nothing
+    , key = key
     }

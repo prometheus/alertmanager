@@ -1,15 +1,12 @@
 module Main exposing (main)
 
+import Browser
+import Browser.Navigation exposing (Key)
 import Json.Decode as Json
-import Navigation
 import Parsing
-import Types
-    exposing
-        ( Model
-        , Msg(..)
-        , Route(..)
-        )
+import Types exposing (Model, Msg(..), Route(..))
 import Updates exposing (update)
+import Url exposing (Url)
 import Utils.Api as Api
 import Utils.Filter exposing (nullFilter)
 import Utils.Types exposing (ApiData(..))
@@ -23,27 +20,33 @@ import Views.Status.Types exposing (StatusModel, initStatusModel)
 
 main : Program Json.Value Model Msg
 main =
-    Navigation.programWithFlags urlUpdate
+    Browser.application
         { init = init
         , update = update
-        , view = Views.view
+        , view =
+            \model ->
+                { title = "Alertmanager"
+                , body = [ Views.view model ]
+                }
         , subscriptions = always Sub.none
+        , onUrlRequest = always Noop
+        , onUrlChange = urlUpdate
         }
 
 
-init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
-init flags location =
+init : Json.Value -> Url -> Key -> ( Model, Cmd Msg )
+init flags url key =
     let
         route =
-            Parsing.urlParser location
+            Parsing.urlParser url
 
         filter =
             case route of
-                AlertsRoute filter ->
-                    filter
+                AlertsRoute filter_ ->
+                    filter_
 
-                SilenceListRoute filter ->
-                    filter
+                SilenceListRoute filter_ ->
+                    filter_
 
                 _ ->
                     nullFilter
@@ -60,41 +63,42 @@ init flags location =
 
         apiUrl =
             if prod then
-                Api.makeApiUrl location.pathname
+                Api.makeApiUrl url.path
 
             else
                 Api.makeApiUrl "http://localhost:9093/"
 
         libUrl =
             if prod then
-                location.pathname
+                url.path
 
             else
                 "/"
     in
-    update (urlUpdate location)
+    update (urlUpdate url)
         (Model
-            initSilenceList
-            initSilenceView
-            initSilenceForm
-            initAlertList
+            (initSilenceList key)
+            (initSilenceView key)
+            (initSilenceForm key)
+            (initAlertList key)
             route
             filter
             initStatusModel
-            location.pathname
+            url.path
             apiUrl
             libUrl
             Loading
             Loading
             defaultCreator
+            key
         )
 
 
-urlUpdate : Navigation.Location -> Msg
-urlUpdate location =
+urlUpdate : Url -> Msg
+urlUpdate url =
     let
         route =
-            Parsing.urlParser location
+            Parsing.urlParser url
     in
     case route of
         SilenceListRoute maybeFilter ->

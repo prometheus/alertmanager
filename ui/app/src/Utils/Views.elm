@@ -8,13 +8,13 @@ import Utils.String
 
 
 tab : tab -> tab -> (tab -> msg) -> List (Html msg) -> Html msg
-tab tab currentTab msg content =
+tab tab_ currentTab msg content =
     li [ class "nav-item" ]
-        [ if tab == currentTab then
+        [ if tab_ == currentTab then
             span [ class "nav-link active" ] content
 
           else
-            a [ class "nav-link", onClick (msg tab) ] content
+            a [ class "nav-link", onClick (msg tab_) ] content
         ]
 
 
@@ -94,7 +94,7 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     []
                 ]
 
-        Invalid error ->
+        Invalid error_ ->
             div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
                 , htmlField
@@ -104,7 +104,7 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , class "form-control form-control-danger"
                     ]
                     []
-                , div [ class "form-control-feedback" ] [ text error ]
+                , div [ class "form-control-feedback" ] [ text error_ ]
                 ]
 
 

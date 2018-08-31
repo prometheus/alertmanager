@@ -1,25 +1,48 @@
-module Utils.Date exposing (dateFormat, dateTimeFormat, durationFormat, durationParser, encode, fromTime, parseDuration, term, timeFormat, timeFromString, timeToString, units)
+module Utils.Date exposing
+    ( addDuration
+    , dateFormat
+    , dateTimeFormat
+    , durationFormat
+    , durationParser
+    , encode
+    , fromTime
+    , parseDuration
+    , term
+    , timeDifference
+    , timeFormat
+    , timeFromString
+    , timeToString
+    , units
+    )
 
-import Date
-import Date.Extra.Config.Config_en_us exposing (config)
-import Date.Extra.Format
-import ISO8601
+import Iso8601
 import Parser exposing ((|.), (|=), Parser)
-import Time
+import Time exposing (Month(..), Posix, toDay, toHour, toMinute, toMonth, toSecond, toYear, utc)
 import Tuple
 import Utils.Types as Types
 
 
-parseDuration : String -> Result String Time.Time
+parseDuration : String -> Result String Float
 parseDuration =
     Parser.run durationParser >> Result.mapError (always "Wrong duration format")
 
 
-durationParser : Parser Time.Time
+durationParser : Parser Float
 durationParser =
-    Parser.succeed (List.foldr (+) 0)
-        |= Parser.repeat Parser.zeroOrMore term
+    Parser.succeed identity
+        |= Parser.loop 0 durationHelp
+        |. Parser.spaces
         |. Parser.end
+
+
+durationHelp : Float -> Parser (Parser.Step Float Float)
+durationHelp duration =
+    Parser.oneOf
+        [ Parser.succeed (\d -> Parser.Loop (d + duration))
+            |= term
+            |. Parser.spaces
+        , Parser.succeed (Parser.Done duration)
+        ]
 
 
 units : List ( String, number )
@@ -32,36 +55,47 @@ units =
     ]
 
 
-timeToString : Time.Time -> String
+timeToString : Posix -> String
 timeToString =
-    round >> ISO8601.fromTime >> ISO8601.toString
+    Iso8601.fromTime
 
 
-term : Parser Time.Time
+term : Parser Float
 term =
-    Parser.map2 (*)
-        Parser.float
-        (units
-            |> List.map (\( unit, ms ) -> Parser.succeed ms |. Parser.symbol unit)
-            |> Parser.oneOf
-        )
-        |. Parser.ignore Parser.zeroOrMore ((==) ' ')
+    Parser.succeed (*)
+        |= Parser.float
+        |= (units
+                |> List.map (\( unit, ms ) -> Parser.succeed ms |. Parser.symbol unit)
+                |> Parser.oneOf
+           )
 
 
-durationFormat : Time.Time -> Maybe String
-durationFormat time =
-    if time >= 0 then
+addDuration : Float -> Posix -> Posix
+addDuration duration time =
+    Time.millisToPosix <|
+        (Time.posixToMillis time + round duration)
+
+
+timeDifference : Posix -> Posix -> Float
+timeDifference startsAt endsAt =
+    toFloat <|
+        (Time.posixToMillis endsAt - Time.posixToMillis startsAt)
+
+
+durationFormat : Float -> Maybe String
+durationFormat duration =
+    if duration >= 0 then
         List.foldl
             (\( unit, ms ) ( result, curr ) ->
                 ( if curr // ms == 0 then
                     result
 
                   else
-                    result ++ toString (curr // ms) ++ unit ++ " "
+                    result ++ String.fromInt (curr // ms) ++ unit ++ " "
                 , modBy ms curr
                 )
             )
-            ( "", round time )
+            ( "", round duration )
             units
             |> Tuple.first
             |> String.trim
@@ -71,39 +105,98 @@ durationFormat time =
         Nothing
 
 
-dateFormat : Time.Time -> String
-dateFormat =
-    Date.fromTime >> Date.Extra.Format.formatUtc config Date.Extra.Format.isoDateFormat
+dateFormat : Posix -> String
+dateFormat time =
+    timeFormat time
+        ++ ", "
+        ++ String.fromInt (toYear utc time)
+        ++ "-"
+        ++ padWithZero (monthFormat (toMonth utc time))
+        ++ "-"
+        ++ padWithZero (toDay utc time)
+        ++ " (UTC)"
 
 
-timeFormat : Time.Time -> String
-timeFormat =
-    Date.fromTime >> Date.Extra.Format.formatUtc config Date.Extra.Format.isoTimeFormat
+timeFormat : Posix -> String
+timeFormat time =
+    padWithZero (toHour utc time)
+        ++ ":"
+        ++ padWithZero (toMinute utc time)
+        ++ ":"
+        ++ padWithZero (toSecond utc time)
 
 
-dateTimeFormat : Time.Time -> String
+padWithZero : Int -> String
+padWithZero n =
+    if n < 10 then
+        "0" ++ String.fromInt n
+
+    else
+        String.fromInt n
+
+
+monthFormat : Month -> Int
+monthFormat month =
+    case month of
+        Jan ->
+            1
+
+        Feb ->
+            2
+
+        Mar ->
+            3
+
+        Apr ->
+            4
+
+        May ->
+            5
+
+        Jun ->
+            6
+
+        Jul ->
+            7
+
+        Aug ->
+            8
+
+        Sep ->
+            9
+
+        Oct ->
+            10
+
+        Nov ->
+            11
+
+        Dec ->
+            12
+
+
+dateTimeFormat : Posix -> String
 dateTimeFormat t =
     dateFormat t ++ " " ++ timeFormat t
 
 
-encode : Time.Time -> String
+encode : Posix -> String
 encode =
-    round >> ISO8601.fromTime >> ISO8601.toString
+    Iso8601.fromTime
 
 
-timeFromString : String -> Result String Time.Time
+timeFromString : String -> Result String Posix
 timeFromString string =
     if string == "" then
         Err "Should not be empty"
 
     else
-        ISO8601.fromString string
-            |> Result.map (ISO8601.toTime >> toFloat)
+        Iso8601.toTime string
             |> Result.mapError (always "Wrong ISO8601 format")
 
 
-fromTime : Time.Time -> Types.Time
+fromTime : Posix -> Types.Time
 fromTime time =
-    { s = round time |> ISO8601.fromTime |> ISO8601.toString
+    { s = Iso8601.fromTime time
     , t = Just time
     }

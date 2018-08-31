@@ -18,8 +18,8 @@ view maybeId matchers defaultCreator { form, silenceId, alerts } =
     let
         ( title, resetClick ) =
             case maybeId of
-                Just silenceId ->
-                    ( "Edit Silence", FetchSilence silenceId )
+                Just silenceId_ ->
+                    ( "Edit Silence", FetchSilence silenceId_ )
 
                 Nothing ->
                     ( "New Silence", NewSilenceFromMatchers defaultCreator matchers )

@@ -1,8 +1,8 @@
 module Views.ReceiverBar.Updates exposing (fetchReceivers, update)
 
 import Alerts.Api as Api
-import Dom
-import Navigation
+import Browser.Dom as Dom
+import Browser.Navigation as Navigation
 import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
 import Utils.Match exposing (jaroWinkler)
@@ -59,7 +59,7 @@ update url filter msg model =
 
         FilterByReceiver regex ->
             ( { model | showReceivers = False, resultsHovered = False }
-            , Navigation.newUrl
+            , Navigation.pushUrl model.key
                 (url
                     ++ generateQueryString
                         { filter

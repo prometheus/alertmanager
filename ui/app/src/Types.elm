@@ -1,5 +1,6 @@
 module Types exposing (Model, Msg(..), Route(..))
 
+import Browser.Navigation exposing (Key)
 import Utils.Filter exposing (Filter, Matcher)
 import Utils.Types exposing (ApiData)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
@@ -23,6 +24,7 @@ type alias Model =
     , bootstrapCSS : ApiData String
     , fontAwesomeCSS : ApiData String
     , defaultCreator : String
+    , key : Key
     }
 
 

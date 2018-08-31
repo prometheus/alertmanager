@@ -1,7 +1,7 @@
 port module Views.SilenceForm.Updates exposing (update)
 
 import Alerts.Api
-import Navigation
+import Browser.Navigation as Navigation
 import Silences.Api
 import Task
 import Time
@@ -41,7 +41,7 @@ updateForm msg form =
                     Utils.Date.timeFromString form.endsAt.value
 
                 durationValue =
-                    case Result.map2 (-) endsAt startsAt of
+                    case Result.map2 Utils.Date.timeDifference startsAt endsAt of
                         Ok duration ->
                             case Utils.Date.durationFormat duration of
                                 Just value ->
@@ -67,7 +67,7 @@ updateForm msg form =
                     Utils.Date.timeFromString form.startsAt.value
 
                 durationValue =
-                    case Result.map2 (-) endsAt startsAt of
+                    case Result.map2 Utils.Date.timeDifference startsAt endsAt of
                         Ok duration ->
                             case Utils.Date.durationFormat duration of
                                 Just value ->
@@ -93,7 +93,7 @@ updateForm msg form =
                     Utils.Date.timeFromString form.startsAt.value
 
                 endsAtValue =
-                    case Result.map2 (+) startsAt duration of
+                    case Result.map2 Utils.Date.addDuration duration startsAt of
                         Ok endsAt ->
                             Utils.Date.timeToString endsAt
 
@@ -200,7 +200,7 @@ update msg model basePath apiUrl =
                 cmd =
                     case silenceId of
                         Success id ->
-                            Navigation.newUrl (basePath ++ "#/silences/" ++ id)
+                            Navigation.pushUrl model.key (basePath ++ "#/silences/" ++ id)
 
                         _ ->
                             Cmd.none
@@ -214,6 +214,7 @@ update msg model basePath apiUrl =
             ( { form = fromMatchersAndTime defaultCreator matchers time
               , alerts = Initial
               , silenceId = Initial
+              , key = model.key
               }
             , Cmd.none
             )
@@ -256,6 +257,7 @@ update msg model basePath apiUrl =
             ( { form = updateForm fieldMsg model.form
               , alerts = Initial
               , silenceId = Initial
+              , key = model.key
               }
             , Cmd.none
             )

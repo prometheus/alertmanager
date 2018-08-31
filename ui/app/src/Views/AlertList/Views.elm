@@ -61,8 +61,8 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
                 ]
             ]
         , case alerts of
-            Success alerts ->
-                alertGroups activeId filter groupBar alerts
+            Success alerts_ ->
+                alertGroups activeId filter groupBar alerts_
 
             Loading ->
                 Utils.Views.loading

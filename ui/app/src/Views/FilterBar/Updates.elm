@@ -1,7 +1,7 @@
 module Views.FilterBar.Updates exposing (setMatchers, update)
 
-import Dom
-import Navigation
+import Browser.Dom as Dom
+import Browser.Navigation as Navigation
 import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseFilter, stringifyFilter)
 import Views.FilterBar.Types exposing (Model, Msg(..))
@@ -59,7 +59,7 @@ immediatelyFilter url filter model =
     in
     ( { model | matchers = [] }
     , Cmd.batch
-        [ Navigation.newUrl (url ++ generateQueryString newFilter)
+        [ Navigation.pushUrl model.key (url ++ generateQueryString newFilter)
         , Dom.focus "filter-bar-matcher" |> Task.attempt (always Noop)
         ]
     )

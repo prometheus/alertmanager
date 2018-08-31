@@ -1,11 +1,10 @@
 module Views.SilenceList.SilenceView exposing (deleteButton, editButton, view)
 
-import Dialog
 import Html exposing (Html, a, b, button, div, h3, i, li, p, small, span, text)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
 import Silences.Types exposing (Silence, State(..))
-import Time exposing (Time)
+import Time exposing (Posix)
 import Types exposing (Msg(..))
 import Utils.Date
 import Utils.Filter
@@ -13,6 +12,7 @@ import Utils.List
 import Utils.Types exposing (Matcher)
 import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
+import Views.Shared.Dialog as Dialog
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 
@@ -52,22 +52,19 @@ view showConfirmationDialog silence =
 
 confirmSilenceDeleteView : Silence -> Bool -> Dialog.Config Msg
 confirmSilenceDeleteView silence refresh =
-    { closeMessage = Just (MsgForSilenceList Views.SilenceList.Types.FetchSilences)
-    , containerClass = Nothing
-    , header = Just (h3 [] [ text "Expire Silence" ])
-    , body = Just (text "Are you sure you want to expire this silence?")
+    { onClose = MsgForSilenceList Views.SilenceList.Types.FetchSilences
+    , header = h3 [] [ text "Expire Silence" ]
+    , body = text "Are you sure you want to expire this silence?"
     , footer =
-        Just
-            (button
-                [ class "btn btn-success"
-                , onClick (MsgForSilenceList (Views.SilenceList.Types.DestroySilence silence refresh))
-                ]
-                [ text "Confirm" ]
-            )
+        button
+            [ class "btn btn-success"
+            , onClick (MsgForSilenceList (Views.SilenceList.Types.DestroySilence silence refresh))
+            ]
+            [ text "Confirm" ]
     }
 
 
-dateView : String -> Time -> Html Msg
+dateView : String -> Posix -> Html Msg
 dateView string time =
     span
         [ class "text-muted align-self-center mr-2"

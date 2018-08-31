@@ -16,9 +16,7 @@
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
             "jweir/elm-iso8601": "4.0.3",
-            "elm-lang/navigation": "2.0.1",
-            "krisajenkins/elm-dialog": "4.0.3",
-            "rluiten/elm-date-extra": "8.5.0"
+            "rtfeldman/elm-iso8601-date-strings": "1.0.0"
         },
         "indirect": {
             "elm/virtual-dom": "1.0.0"

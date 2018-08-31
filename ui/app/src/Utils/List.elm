@@ -64,7 +64,7 @@ mstring m =
             else
                 "="
     in
-    String.join sep [ m.name, toString m.value ]
+    String.join sep [ m.name, m.value ]
 
 
 {-| Takes a key-fn and a list.
@@ -89,4 +89,4 @@ groupBy keyfn list =
 
 zip : List a -> List b -> List ( a, b )
 zip a b =
-    List.map2 (\a b -> ( a, b )) a b
+    List.map2 (\a1 b1 -> ( a1, b1 )) a b

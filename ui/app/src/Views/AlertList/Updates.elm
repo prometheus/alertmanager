@@ -1,7 +1,7 @@
 module Views.AlertList.Updates exposing (update)
 
 import Alerts.Api as Api
-import Navigation
+import Browser.Navigation as Navigation
 import Set
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter, generateQueryString, parseFilter)
@@ -55,35 +55,35 @@ update msg ({ groupBar, filterBar, receiverBar } as model) filter apiUrl basePat
 
         ToggleSilenced showSilenced ->
             ( model
-            , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | showSilenced = Just showSilenced })
+            , Navigation.pushUrl model.key (alertsUrl ++ generateQueryString { filter | showSilenced = Just showSilenced })
             )
 
         ToggleInhibited showInhibited ->
             ( model
-            , Navigation.newUrl (alertsUrl ++ generateQueryString { filter | showInhibited = Just showInhibited })
+            , Navigation.pushUrl model.key (alertsUrl ++ generateQueryString { filter | showInhibited = Just showInhibited })
             )
 
         SetTab tab ->
             ( { model | tab = tab }, Cmd.none )
 
-        MsgForFilterBar msg ->
+        MsgForFilterBar subMsg ->
             let
                 ( newFilterBar, cmd ) =
-                    FilterBar.update alertsUrl filter msg filterBar
+                    FilterBar.update alertsUrl filter subMsg filterBar
             in
             ( { model | filterBar = newFilterBar, tab = FilterTab }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
 
-        MsgForGroupBar msg ->
+        MsgForGroupBar subMsg ->
             let
                 ( newGroupBar, cmd ) =
-                    GroupBar.update alertsUrl filter msg groupBar
+                    GroupBar.update alertsUrl filter subMsg groupBar
             in
             ( { model | groupBar = newGroupBar }, Cmd.map (MsgForGroupBar >> MsgForAlertList) cmd )
 
-        MsgForReceiverBar msg ->
+        MsgForReceiverBar subMsg ->
             let
                 ( newReceiverBar, cmd ) =
-                    ReceiverBar.update alertsUrl filter msg receiverBar
+                    ReceiverBar.update alertsUrl filter subMsg receiverBar
             in
             ( { model | receiverBar = newReceiverBar }, Cmd.map (MsgForReceiverBar >> MsgForAlertList) cmd )
 

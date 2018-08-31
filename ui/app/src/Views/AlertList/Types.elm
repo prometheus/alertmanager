@@ -1,6 +1,7 @@
 module Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..), initAlertList)
 
 import Alerts.Types exposing (Alert)
+import Browser.Navigation exposing (Key)
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 import Views.GroupBar.Types as GroupBar
@@ -31,15 +32,17 @@ type alias Model =
     , filterBar : FilterBar.Model
     , tab : Tab
     , activeId : Maybe String
+    , key : Key
     }
 
 
-initAlertList : Model
-initAlertList =
+initAlertList : Key -> Model
+initAlertList key =
     { alerts = Initial
-    , receiverBar = ReceiverBar.initReceiverBar
-    , groupBar = GroupBar.initGroupBar
-    , filterBar = FilterBar.initFilterBar
+    , receiverBar = ReceiverBar.initReceiverBar key
+    , groupBar = GroupBar.initGroupBar key
+    , filterBar = FilterBar.initFilterBar key
     , tab = FilterTab
     , activeId = Nothing
+    , key = key
     }

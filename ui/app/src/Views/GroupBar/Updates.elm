@@ -1,7 +1,7 @@
 module Views.GroupBar.Updates exposing (setFields, update)
 
-import Dom
-import Navigation
+import Browser.Dom as Dom
+import Browser.Navigation as Navigation
 import Set
 import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
@@ -79,7 +79,7 @@ immediatelyFilter url filter model =
     in
     ( model
     , Cmd.batch
-        [ Navigation.newUrl (url ++ generateQueryString newFilter)
+        [ Navigation.pushUrl model.key (url ++ generateQueryString newFilter)
         , Dom.focus "group-by-field" |> Task.attempt (always Noop)
         ]
     )

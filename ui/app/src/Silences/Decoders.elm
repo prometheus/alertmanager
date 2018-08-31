@@ -2,7 +2,7 @@ module Silences.Decoders exposing (create, destroy, list, show)
 
 import Json.Decode as Json exposing (fail, field, succeed)
 import Silences.Types exposing (Silence, State(..), Status)
-import Utils.Api exposing ((|:), iso8601Time)
+import Utils.Api exposing (andMap, iso8601Time)
 import Utils.Types exposing (ApiData(..), Matcher, Time)
 
 
@@ -29,24 +29,25 @@ destroy =
 silenceDecoder : Json.Decoder Silence
 silenceDecoder =
     Json.succeed Silence
-        |: field "id" Json.string
-        |: field "createdBy" Json.string
+        |> andMap (field "id" Json.string)
+        |> andMap (field "createdBy" Json.string)
         -- Remove this maybe once the api either disallows empty comments on
         -- creation, or returns an empty string.
-        |: (Json.maybe (field "comment" Json.string)
+        |> andMap
+            (Json.maybe (field "comment" Json.string)
                 |> Json.andThen (\x -> Json.succeed <| Maybe.withDefault "" x)
-           )
-        |: field "startsAt" iso8601Time
-        |: field "endsAt" iso8601Time
-        |: field "updatedAt" iso8601Time
-        |: field "matchers" (Json.list matcherDecoder)
-        |: field "status" statusDecoder
+            )
+        |> andMap (field "startsAt" iso8601Time)
+        |> andMap (field "endsAt" iso8601Time)
+        |> andMap (field "updatedAt" iso8601Time)
+        |> andMap (field "matchers" (Json.list matcherDecoder))
+        |> andMap (field "status" statusDecoder)
 
 
 statusDecoder : Json.Decoder Status
 statusDecoder =
     Json.succeed Status
-        |: (field "state" Json.string |> Json.andThen stateDecoder)
+        |> andMap (field "state" Json.string |> Json.andThen stateDecoder)
 
 
 stateDecoder : String -> Json.Decoder State

@@ -7,14 +7,14 @@ import Utils.Types exposing (Matcher)
 
 
 silence : Silence -> Encode.Value
-silence silence =
+silence silence_ =
     Encode.object
-        [ ( "id", Encode.string silence.id )
-        , ( "createdBy", Encode.string silence.createdBy )
-        , ( "comment", Encode.string silence.comment )
-        , ( "startsAt", Encode.string (Utils.Date.encode silence.startsAt) )
-        , ( "endsAt", Encode.string (Utils.Date.encode silence.endsAt) )
-        , ( "matchers", Encode.list (List.map matcher silence.matchers) )
+        [ ( "id", Encode.string silence_.id )
+        , ( "createdBy", Encode.string silence_.createdBy )
+        , ( "comment", Encode.string silence_.comment )
+        , ( "startsAt", Encode.string (Utils.Date.encode silence_.startsAt) )
+        , ( "endsAt", Encode.string (Utils.Date.encode silence_.endsAt) )
+        , ( "matchers", Encode.list matcher silence_.matchers )
         ]
 
 

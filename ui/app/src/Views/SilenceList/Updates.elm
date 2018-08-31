@@ -1,6 +1,6 @@
 module Views.SilenceList.Updates exposing (update, urlUpdate)
 
-import Navigation
+import Browser.Navigation as Navigation
 import Silences.Api as Api
 import Silences.Types exposing (Silence, State(..))
 import Utils.Api as ApiData
@@ -44,17 +44,17 @@ update msg model filter basePath apiUrl =
             , Cmd.batch
                 [ Api.destroy apiUrl silence (always FetchSilences)
                 , if refresh then
-                    Navigation.newUrl (basePath ++ "#/silences")
+                    Navigation.pushUrl model.key (basePath ++ "#/silences")
 
                   else
                     Cmd.none
                 ]
             )
 
-        MsgForFilterBar msg ->
+        MsgForFilterBar subMsg ->
             let
                 ( filterBar, cmd ) =
-                    FilterBar.update (basePath ++ "#/silences") filter msg model.filterBar
+                    FilterBar.update (basePath ++ "#/silences") filter subMsg model.filterBar
             in
             ( { model | filterBar = filterBar }, Cmd.map MsgForFilterBar cmd )
 

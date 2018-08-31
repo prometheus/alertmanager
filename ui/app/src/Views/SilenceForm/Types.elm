@@ -14,9 +14,10 @@ module Views.SilenceForm.Types exposing
     )
 
 import Alerts.Types exposing (Alert)
+import Browser.Navigation exposing (Key)
 import Silences.Types exposing (Silence, SilenceId, nullSilence)
-import Time exposing (Time)
-import Utils.Date exposing (durationFormat, parseDuration, timeFromString, timeToString)
+import Time exposing (Posix)
+import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
 import Utils.Filter
 import Utils.FormValidation
     exposing
@@ -33,6 +34,7 @@ type alias Model =
     { form : SilenceForm
     , silenceId : ApiData String
     , alerts : ApiData (List Alert)
+    , key : Key
     }
 
 
@@ -61,7 +63,7 @@ type SilenceFormMsg
     | AlertGroupsPreview (ApiData (List Alert))
     | FetchSilence String
     | NewSilenceFromMatchers String (List Utils.Filter.Matcher)
-    | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Time
+    | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Posix
     | SilenceFetch (ApiData Silence)
     | SilenceCreate (ApiData SilenceId)
 
@@ -84,11 +86,12 @@ type SilenceFormFieldMsg
     | UpdateMatcherRegex Int Bool
 
 
-initSilenceForm : Model
-initSilenceForm =
+initSilenceForm : Key -> Model
+initSilenceForm key =
     { form = empty
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
+    , key = key
     }
 
 
@@ -120,7 +123,7 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , comment = initialField comment
     , startsAt = initialField (timeToString startsAt)
     , endsAt = initialField (timeToString endsAt)
-    , duration = initialField (durationFormat (endsAt - startsAt) |> Maybe.withDefault "")
+    , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
     , matchers = List.map fromMatcher matchers
     }
 
@@ -137,11 +140,11 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
     }
 
 
-parseEndsAt : String -> String -> Result String Time.Time
+parseEndsAt : String -> String -> Result String Posix
 parseEndsAt startsAt endsAt =
     case ( timeFromString startsAt, timeFromString endsAt ) of
         ( Ok starts, Ok ends ) ->
-            if starts > ends then
+            if Time.posixToMillis starts > Time.posixToMillis ends then
                 Err "Can't be in the past"
 
             else
@@ -179,16 +182,17 @@ emptyMatcher =
     }
 
 
-defaultDuration : Time
+defaultDuration : Float
 defaultDuration =
-    2 * Time.hour
+    -- 2 hours
+    2 * 60 * 60 * 1000
 
 
-fromMatchersAndTime : String -> List Utils.Filter.Matcher -> Time -> SilenceForm
+fromMatchersAndTime : String -> List Utils.Filter.Matcher -> Posix -> SilenceForm
 fromMatchersAndTime defaultCreator matchers now =
     { empty
         | startsAt = initialField (timeToString now)
-        , endsAt = initialField (timeToString (now + defaultDuration))
+        , endsAt = initialField (timeToString (addDuration defaultDuration now))
         , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
         , createdBy = initialField defaultCreator
         , matchers =
@@ -209,7 +213,7 @@ appendMatcher { isRegex, name, value } =
 
 filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher
 filterMatcherToMatcher { key, op, value } =
-    Maybe.map (\op -> Matcher op key value) <|
+    Maybe.map (\operator -> Matcher operator key value) <|
         case op of
             Utils.Filter.Eq ->
                 Just False

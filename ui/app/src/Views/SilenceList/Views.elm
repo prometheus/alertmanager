@@ -49,7 +49,7 @@ tabView currentTab count tab =
                 [ text (StringUtils.capitalizeFirst (stateToString tab))
                 , span
                     [ class "badge badge-pillow badge-default align-text-top ml-2" ]
-                    [ text (toString n) ]
+                    [ text (String.fromInt n) ]
                 ]
 
 
