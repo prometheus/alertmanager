@@ -1,17 +1,19 @@
-module Utils.Match exposing (jaro, jaroWinkler, consecutiveChars)
+module Utils.Match exposing (consecutiveChars, jaro, jaroWinkler)
 
-import Utils.List exposing (zip)
 import Char
+import Utils.List exposing (zip)
 
 
 {-|
 
     Adapted from https://blog.art-of-coding.eu/comparing-strings-with-metrics-in-haskell/
+
 -}
 jaro : String -> String -> Float
 jaro s1 s2 =
     if s1 == s2 then
         1.0
+
     else
         let
             l1 =
@@ -30,7 +32,7 @@ jaro s1 s2 =
                 -- a match.
                 -- (//) is integer division, which removes the need to floor
                 -- the result.
-                ((max l1 l2) // 2) - 1
+                (max l1 l2 // 2) - 1
 
             m =
                 zip (List.range 1 l1) (String.toList s1)
@@ -42,7 +44,7 @@ jaro s1 s2 =
 
             t =
                 m
-                    |> List.map (transposition z2 >> toFloat >> ((*) 0.5))
+                    |> List.map (transposition z2 >> toFloat >> (*) 0.5)
                     |> List.sum
 
             ml1 =
@@ -54,18 +56,21 @@ jaro s1 s2 =
             mtm =
                 (toFloat ml - t) / toFloat ml
         in
-            if ml == 0 then
-                0
-            else
-                (1 / 3) * (ml1 + ml2 + mtm)
+        if ml == 0 then
+            0
+
+        else
+            (1 / 3) * (ml1 + ml2 + mtm)
 
 
 winkler : String -> String -> Float -> Float
 winkler s1 s2 jaro =
     if s1 == "" || s2 == "" then
         0.0
+
     else if s1 == s2 then
         1.0
+
     else
         let
             l =
@@ -76,15 +81,17 @@ winkler s1 s2 jaro =
             p =
                 0.25
         in
-            jaro + ((l * p) * (1.0 - jaro))
+        jaro + ((l * p) * (1.0 - jaro))
 
 
 jaroWinkler : String -> String -> Float
 jaroWinkler s1 s2 =
     if s1 == "" || s2 == "" then
         0.0
+
     else if s1 == s2 then
         1.0
+
     else
         jaro s1 s2
             |> winkler s1 s2
@@ -94,8 +101,10 @@ consecutiveChars : String -> String -> String
 consecutiveChars s1 s2 =
     if s1 == "" || s2 == "" then
         ""
+
     else if s1 == s2 then
         s1
+
     else
         cp (String.toList s1) (String.toList s2) []
             |> String.fromList
@@ -107,10 +116,12 @@ cp l1 l2 acc =
         ( x :: xs, y :: ys ) ->
             if x == y then
                 cp xs ys (acc ++ [ x ])
+
             else if List.length acc > 0 then
                 -- If we have already found matches, we bail. We only want
                 -- consecutive matches.
                 acc
+
             else
                 -- Go through every character in l1 until it matches the first
                 -- character in l2, and then start counting from there.

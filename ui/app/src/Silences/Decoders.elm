@@ -1,9 +1,9 @@
-module Silences.Decoders exposing (show, list, create, destroy)
+module Silences.Decoders exposing (create, destroy, list, show)
 
-import Json.Decode as Json exposing (field, succeed, fail)
-import Utils.Api exposing (iso8601Time, (|:))
-import Silences.Types exposing (Silence, Status, State(Active, Pending, Expired))
-import Utils.Types exposing (Matcher, Time, ApiData(Initial))
+import Json.Decode as Json exposing (fail, field, succeed)
+import Silences.Types exposing (Silence, State(..), Status)
+import Utils.Api exposing ((|:), iso8601Time)
+import Utils.Types exposing (ApiData(..), Matcher, Time)
 
 
 show : Json.Decoder Silence
@@ -29,18 +29,18 @@ destroy =
 silenceDecoder : Json.Decoder Silence
 silenceDecoder =
     Json.succeed Silence
-        |: (field "id" Json.string)
-        |: (field "createdBy" Json.string)
+        |: field "id" Json.string
+        |: field "createdBy" Json.string
         -- Remove this maybe once the api either disallows empty comments on
         -- creation, or returns an empty string.
-        |: ((Json.maybe (field "comment" Json.string))
+        |: (Json.maybe (field "comment" Json.string)
                 |> Json.andThen (\x -> Json.succeed <| Maybe.withDefault "" x)
            )
-        |: (field "startsAt" iso8601Time)
-        |: (field "endsAt" iso8601Time)
-        |: (field "updatedAt" iso8601Time)
-        |: (field "matchers" (Json.list matcherDecoder))
-        |: (field "status" statusDecoder)
+        |: field "startsAt" iso8601Time
+        |: field "endsAt" iso8601Time
+        |: field "updatedAt" iso8601Time
+        |: field "matchers" (Json.list matcherDecoder)
+        |: field "status" statusDecoder
 
 
 statusDecoder : Json.Decoder Status

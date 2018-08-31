@@ -1,4 +1,4 @@
-module Views.NavBar.Types exposing (Tab, alertsTab, silencesTab, statusTab, noneTab, tabs)
+module Views.NavBar.Types exposing (Tab, alertsTab, noneTab, silencesTab, statusTab, tabs)
 
 
 type alias Tab =

@@ -1,9 +1,9 @@
-module Utils.Views exposing (..)
+module Utils.Views exposing (buttonLink, checkbox, error, formField, formInput, iconButtonMsg, labelButton, linkifyText, loading, tab, textField, validatedField)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onCheck, onInput, onClick, onBlur)
-import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
+import Html.Events exposing (onBlur, onCheck, onClick, onInput)
+import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.String
 
 
@@ -12,6 +12,7 @@ tab tab currentTab msg content =
     li [ class "nav-item" ]
         [ if tab == currentTab then
             span [ class "nav-link active" ] content
+
           else
             a [ class "nav-link", onClick (msg tab) ] content
         ]
@@ -23,11 +24,9 @@ labelButton maybeMsg labelText =
         Nothing ->
             span
                 [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
-                , style
-                    [ ( "user-select", "text" )
-                    , ( "-moz-user-select", "text" )
-                    , ( "-webkit-user-select", "text" )
-                    ]
+                , style "user-select" "text"
+                , style "-moz-user-select" "text"
+                , style "-webkit-user-select" "text"
                 ]
                 [ text labelText ]
 

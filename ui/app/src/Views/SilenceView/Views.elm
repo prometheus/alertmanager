@@ -6,15 +6,15 @@ import Html exposing (Html, b, button, div, h1, h2, h3, label, p, span, text)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
 import Silences.Types exposing (Silence, stateToString)
-import Types exposing (Msg(MsgForSilenceList, MsgForSilenceView))
+import Types exposing (Msg(..))
 import Utils.Date exposing (dateTimeFormat)
 import Utils.List
-import Utils.Types exposing (ApiData(Failure, Initial, Loading, Success))
+import Utils.Types exposing (ApiData(..))
 import Utils.Views exposing (error, loading)
 import Views.Shared.SilencePreview
 import Views.SilenceList.SilenceView exposing (editButton)
-import Views.SilenceList.Types exposing (SilenceListMsg(DestroySilence))
-import Views.SilenceView.Types exposing (Model, SilenceViewMsg(ConfirmDestroySilence, Reload))
+import Views.SilenceList.Types exposing (SilenceListMsg(..))
+import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
 
 
 view : Model -> Html Msg
@@ -23,6 +23,7 @@ view { silence, alerts, showConfirmationDialog } =
         Success sil ->
             if showConfirmationDialog then
                 viewSilence alerts sil True
+
             else
                 viewSilence alerts sil False
 
@@ -61,6 +62,7 @@ viewSilence alerts silence showPromptDialog =
         , Dialog.view
             (if showPromptDialog then
                 Just (confirmSilenceDeleteView silence True)
+
              else
                 Nothing
             )

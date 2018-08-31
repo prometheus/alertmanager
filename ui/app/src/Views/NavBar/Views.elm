@@ -1,16 +1,16 @@
 module Views.NavBar.Views exposing (navBar)
 
-import Html exposing (Html, header, text, a, nav, ul, li, div)
-import Html.Attributes exposing (class, href, title, style)
+import Html exposing (Html, a, div, header, li, nav, text, ul)
+import Html.Attributes exposing (class, href, style, title)
 import Types exposing (Route(..))
-import Views.NavBar.Types exposing (Tab, alertsTab, silencesTab, statusTab, noneTab, tabs)
+import Views.NavBar.Types exposing (Tab, alertsTab, noneTab, silencesTab, statusTab, tabs)
 
 
 navBar : Route -> Html msg
 navBar currentRoute =
     header
         [ class "navbar navbar-toggleable-md navbar-light bg-faded mb-5 pt-3 pb-3"
-        , style [ ( "border-bottom", "1px solid rgba(0, 0, 0, .125)" ) ]
+        , style "border-bottom" "1px solid rgba(0, 0, 0, .125)"
         ]
         [ nav [ class "container" ]
             [ a [ class "navbar-brand", href "#" ] [ text "Alertmanager" ]
@@ -41,7 +41,7 @@ navBarItems currentRoute =
 
 navBarItem : Route -> Tab -> Html msg
 navBarItem currentRoute tab =
-    li [ class <| "nav-item" ++ (isActive currentRoute tab) ]
+    li [ class <| "nav-item" ++ isActive currentRoute tab ]
         [ a [ class "nav-link", href tab.link, title tab.name ]
             [ text tab.name ]
         ]
@@ -51,6 +51,7 @@ isActive : Route -> Tab -> String
 isActive currentRoute tab =
     if routeToTab currentRoute == tab then
         " active"
+
     else
         ""
 

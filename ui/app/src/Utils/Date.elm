@@ -1,13 +1,13 @@
-module Utils.Date exposing (..)
+module Utils.Date exposing (dateFormat, dateTimeFormat, durationFormat, durationParser, encode, fromTime, parseDuration, term, timeFormat, timeFromString, timeToString, units)
 
-import ISO8601
-import Parser exposing (Parser, (|.), (|=))
-import Time
-import Utils.Types as Types
-import Tuple
 import Date
-import Date.Extra.Format
 import Date.Extra.Config.Config_en_us exposing (config)
+import Date.Extra.Format
+import ISO8601
+import Parser exposing ((|.), (|=), Parser)
+import Time
+import Tuple
+import Utils.Types as Types
 
 
 parseDuration : String -> Result String Time.Time
@@ -55,9 +55,10 @@ durationFormat time =
             (\( unit, ms ) ( result, curr ) ->
                 ( if curr // ms == 0 then
                     result
+
                   else
                     result ++ toString (curr // ms) ++ unit ++ " "
-                , curr % ms
+                , modBy ms curr
                 )
             )
             ( "", round time )
@@ -65,23 +66,24 @@ durationFormat time =
             |> Tuple.first
             |> String.trim
             |> Just
+
     else
         Nothing
 
 
 dateFormat : Time.Time -> String
 dateFormat =
-    Date.fromTime >> (Date.Extra.Format.formatUtc config Date.Extra.Format.isoDateFormat)
+    Date.fromTime >> Date.Extra.Format.formatUtc config Date.Extra.Format.isoDateFormat
 
 
 timeFormat : Time.Time -> String
 timeFormat =
-    Date.fromTime >> (Date.Extra.Format.formatUtc config Date.Extra.Format.isoTimeFormat)
+    Date.fromTime >> Date.Extra.Format.formatUtc config Date.Extra.Format.isoTimeFormat
 
 
 dateTimeFormat : Time.Time -> String
 dateTimeFormat t =
-    (dateFormat t) ++ " " ++ (timeFormat t)
+    dateFormat t ++ " " ++ timeFormat t
 
 
 encode : Time.Time -> String
@@ -93,6 +95,7 @@ timeFromString : String -> Result String Time.Time
 timeFromString string =
     if string == "" then
         Err "Should not be empty"
+
     else
         ISO8601.fromString string
             |> Result.map (ISO8601.toTime >> toFloat)

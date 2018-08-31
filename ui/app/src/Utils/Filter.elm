@@ -1,23 +1,22 @@
-module Utils.Filter
-    exposing
-        ( Matcher
-        , MatchOperator(..)
-        , Filter
-        , nullFilter
-        , generateQueryParam
-        , generateQueryString
-        , stringifyMatcher
-        , stringifyFilter
-        , stringifyGroup
-        , parseGroup
-        , parseFilter
-        , parseMatcher
-        )
+module Utils.Filter exposing
+    ( Filter
+    , MatchOperator(..)
+    , Matcher
+    , generateQueryParam
+    , generateQueryString
+    , nullFilter
+    , parseFilter
+    , parseGroup
+    , parseMatcher
+    , stringifyFilter
+    , stringifyGroup
+    , stringifyMatcher
+    )
 
-import Http exposing (encodeUri)
-import Parser exposing (Parser, (|.), (|=), zeroOrMore, ignore)
-import Parser.LanguageKit as Parser exposing (Trailing(..))
 import Char
+import Http exposing (encodeUri)
+import Parser exposing ((|.), (|=), Parser, ignore, zeroOrMore)
+import Parser.LanguageKit as Parser exposing (Trailing(..))
 import Set
 
 
@@ -55,14 +54,15 @@ generateQueryString { receiver, showSilenced, showInhibited, text, group } =
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )
             ]
-                |> List.filterMap (uncurry generateQueryParam)
+                |> List.filterMap (\( a, b ) -> generateQueryParam a b)
     in
-        if List.length parts > 0 then
-            parts
-                |> String.join "&"
-                |> (++) "?"
-        else
-            ""
+    if List.length parts > 0 then
+        parts
+            |> String.join "&"
+            |> (++) "?"
+
+    else
+        ""
 
 
 emptyToNothing : Maybe String -> Maybe String
@@ -114,8 +114,10 @@ stringifyGroup : List String -> Maybe String
 stringifyGroup list =
     if List.isEmpty list then
         Just ""
+
     else if list == [ "alertname" ] then
         Nothing
+
     else
         Just (String.join "," list)
 

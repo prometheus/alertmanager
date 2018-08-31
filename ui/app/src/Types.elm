@@ -1,12 +1,12 @@
 module Types exposing (Model, Msg(..), Route(..))
 
-import Views.AlertList.Types as AlertList exposing (AlertListMsg)
-import Views.SilenceList.Types as SilenceList exposing (SilenceListMsg)
-import Views.SilenceView.Types as SilenceView exposing (SilenceViewMsg)
-import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
-import Views.Status.Types exposing (StatusModel, StatusMsg)
 import Utils.Filter exposing (Filter, Matcher)
 import Utils.Types exposing (ApiData)
+import Views.AlertList.Types as AlertList exposing (AlertListMsg)
+import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
+import Views.SilenceList.Types as SilenceList exposing (SilenceListMsg)
+import Views.SilenceView.Types as SilenceView exposing (SilenceViewMsg)
+import Views.Status.Types exposing (StatusModel, StatusMsg)
 
 
 type alias Model =

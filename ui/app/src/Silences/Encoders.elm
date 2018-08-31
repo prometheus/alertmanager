@@ -1,9 +1,9 @@
-module Silences.Encoders exposing (..)
+module Silences.Encoders exposing (matcher, silence)
 
 import Json.Encode as Encode
 import Silences.Types exposing (Silence)
-import Utils.Types exposing (Matcher)
 import Utils.Date
+import Utils.Types exposing (Matcher)
 
 
 silence : Silence -> Encode.Value

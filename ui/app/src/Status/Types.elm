@@ -1,4 +1,4 @@
-module Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
+module Status.Types exposing (ClusterPeer, ClusterStatus, StatusResponse, VersionInfo)
 
 
 type alias StatusResponse =

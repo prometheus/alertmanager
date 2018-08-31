@@ -1,7 +1,7 @@
 module Views.AlertList.Parsing exposing (alertsParser)
 
 import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
-import Utils.Filter exposing (Filter, parseMatcher, MatchOperator(RegexMatch))
+import Utils.Filter exposing (Filter, MatchOperator(..), parseMatcher)
 
 
 boolParam : String -> UrlParser.QueryParser (Maybe Bool -> a) a

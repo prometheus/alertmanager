@@ -1,33 +1,24 @@
 module Main exposing (main)
 
+import Json.Decode as Json
 import Navigation
 import Parsing
-import Views
 import Types
     exposing
-        ( Route(..)
-        , Msg
-            ( NavigateToSilenceList
-            , NavigateToSilenceView
-            , NavigateToSilenceFormEdit
-            , NavigateToSilenceFormNew
-            , NavigateToAlerts
-            , NavigateToNotFound
-            , NavigateToStatus
-            , RedirectAlerts
-            )
-        , Model
+        ( Model
+        , Msg(..)
+        , Route(..)
         )
-import Utils.Filter exposing (nullFilter)
-import Views.SilenceForm.Types exposing (initSilenceForm)
-import Views.Status.Types exposing (StatusModel, initStatusModel)
-import Views.AlertList.Types exposing (initAlertList)
-import Views.SilenceList.Types exposing (initSilenceList)
-import Views.SilenceView.Types exposing (initSilenceView)
 import Updates exposing (update)
 import Utils.Api as Api
-import Utils.Types exposing (ApiData(Loading))
-import Json.Decode as Json
+import Utils.Filter exposing (nullFilter)
+import Utils.Types exposing (ApiData(..))
+import Views
+import Views.AlertList.Types exposing (initAlertList)
+import Views.SilenceForm.Types exposing (initSilenceForm)
+import Views.SilenceList.Types exposing (initSilenceList)
+import Views.SilenceView.Types exposing (initSilenceView)
+import Views.Status.Types exposing (StatusModel, initStatusModel)
 
 
 main : Program Json.Value Model Msg
@@ -70,31 +61,33 @@ init flags location =
         apiUrl =
             if prod then
                 Api.makeApiUrl location.pathname
+
             else
                 Api.makeApiUrl "http://localhost:9093/"
 
         libUrl =
             if prod then
                 location.pathname
+
             else
                 "/"
     in
-        update (urlUpdate location)
-            (Model
-                initSilenceList
-                initSilenceView
-                initSilenceForm
-                initAlertList
-                route
-                filter
-                initStatusModel
-                location.pathname
-                apiUrl
-                libUrl
-                Loading
-                Loading
-                defaultCreator
-            )
+    update (urlUpdate location)
+        (Model
+            initSilenceList
+            initSilenceView
+            initSilenceForm
+            initAlertList
+            route
+            filter
+            initStatusModel
+            location.pathname
+            apiUrl
+            libUrl
+            Loading
+            Loading
+            defaultCreator
+        )
 
 
 urlUpdate : Navigation.Location -> Msg
@@ -103,27 +96,27 @@ urlUpdate location =
         route =
             Parsing.urlParser location
     in
-        case route of
-            SilenceListRoute maybeFilter ->
-                NavigateToSilenceList maybeFilter
+    case route of
+        SilenceListRoute maybeFilter ->
+            NavigateToSilenceList maybeFilter
 
-            SilenceViewRoute silenceId ->
-                NavigateToSilenceView silenceId
+        SilenceViewRoute silenceId ->
+            NavigateToSilenceView silenceId
 
-            SilenceFormEditRoute silenceId ->
-                NavigateToSilenceFormEdit silenceId
+        SilenceFormEditRoute silenceId ->
+            NavigateToSilenceFormEdit silenceId
 
-            SilenceFormNewRoute matchers ->
-                NavigateToSilenceFormNew matchers
+        SilenceFormNewRoute matchers ->
+            NavigateToSilenceFormNew matchers
 
-            AlertsRoute filter ->
-                NavigateToAlerts filter
+        AlertsRoute filter ->
+            NavigateToAlerts filter
 
-            StatusRoute ->
-                NavigateToStatus
+        StatusRoute ->
+            NavigateToStatus
 
-            TopLevelRoute ->
-                RedirectAlerts
+        TopLevelRoute ->
+            RedirectAlerts
 
-            NotFoundRoute ->
-                NavigateToNotFound
+        NotFoundRoute ->
+            NavigateToNotFound

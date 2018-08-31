@@ -1,9 +1,9 @@
 module Status.Api exposing (getStatus)
 
-import Utils.Api exposing (send, get)
+import Json.Decode exposing (Decoder, at, bool, field, int, list, map2, maybe, string)
+import Status.Types exposing (ClusterPeer, ClusterStatus, StatusResponse, VersionInfo)
+import Utils.Api exposing (get, send)
 import Utils.Types exposing (ApiData)
-import Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
-import Json.Decode exposing (Decoder, map2, string, field, at, list, int, maybe, bool)
 
 
 getStatus : String -> (ApiData StatusResponse -> msg) -> Cmd msg
@@ -15,7 +15,7 @@ getStatus apiUrl msg =
         request =
             get url decodeStatusResponse
     in
-        Cmd.map msg <| send request
+    Cmd.map msg <| send request
 
 
 decodeStatusResponse : Decoder StatusResponse

@@ -1,10 +1,10 @@
-module Views.FilterBar.Updates exposing (update, setMatchers)
+module Views.FilterBar.Updates exposing (setMatchers, update)
 
-import Views.FilterBar.Types exposing (Msg(..), Model)
-import Task
 import Dom
 import Navigation
-import Utils.Filter exposing (Filter, generateQueryString, stringifyFilter, parseFilter)
+import Task
+import Utils.Filter exposing (Filter, generateQueryString, parseFilter, stringifyFilter)
+import Views.FilterBar.Types exposing (Model, Msg(..))
 
 
 update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
@@ -17,11 +17,13 @@ update url filter msg model =
                     | matchers =
                         if List.member matcher model.matchers then
                             model.matchers
+
                         else
                             model.matchers ++ [ matcher ]
                     , matcherText =
                         if emptyMatcherText then
                             ""
+
                         else
                             model.matcherText
                 }
@@ -34,6 +36,7 @@ update url filter msg model =
                     , matcherText =
                         if setMatcherText then
                             Utils.Filter.stringifyMatcher matcher
+
                         else
                             model.matcherText
                 }
@@ -54,12 +57,12 @@ immediatelyFilter url filter model =
         newFilter =
             { filter | text = Just (stringifyFilter model.matchers) }
     in
-        ( { model | matchers = [] }
-        , Cmd.batch
-            [ Navigation.newUrl (url ++ generateQueryString newFilter)
-            , Dom.focus "filter-bar-matcher" |> Task.attempt (always Noop)
-            ]
-        )
+    ( { model | matchers = [] }
+    , Cmd.batch
+        [ Navigation.newUrl (url ++ generateQueryString newFilter)
+        , Dom.focus "filter-bar-matcher" |> Task.attempt (always Noop)
+        ]
+    )
 
 
 setMatchers : Filter -> Model -> Model

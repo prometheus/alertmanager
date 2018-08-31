@@ -1,7 +1,7 @@
 module Utils.String exposing (capitalizeFirst, linkify)
 
-import String
 import Char
+import String
 
 
 capitalizeFirst : String -> String
@@ -38,6 +38,7 @@ linkifyHelp words linkified =
 
                     _ ->
                         linkifyHelp restWords (Ok word :: linkified)
+
             else
                 case linkified of
                     (Err lastWord) :: restLinkified ->
@@ -54,4 +55,4 @@ linkifyHelp words linkified =
 
 isUrl : String -> Bool
 isUrl =
-    flip String.startsWith >> (flip List.any) [ "http://", "https://" ]
+    (\b a -> String.startsWith a b) >> (\b a -> List.any a b) [ "http://", "https://" ]

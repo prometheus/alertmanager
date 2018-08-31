@@ -1,17 +1,17 @@
-module Views.SilenceList.Views exposing (..)
+module Views.SilenceList.Views exposing (filterSilencesByState, groupSilencesByState, silencesView, states, tabView, tabsView, view)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Silences.Types exposing (Silence, State(..), stateToString, SilenceId)
-import Types exposing (Msg(MsgForSilenceList, Noop, UpdateFilter))
+import Html.Keyed
+import Html.Lazy exposing (lazy, lazy2, lazy3)
+import Silences.Types exposing (Silence, SilenceId, State(..), stateToString)
+import Types exposing (Msg(..))
 import Utils.String as StringUtils
 import Utils.Types exposing (ApiData(..), Matcher)
 import Utils.Views exposing (buttonLink, checkbox, error, formField, formInput, iconButtonMsg, loading, textField)
 import Views.FilterBar.Views as FilterBar
 import Views.SilenceList.SilenceView
 import Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab)
-import Html.Lazy exposing (lazy, lazy2, lazy3)
-import Html.Keyed
 
 
 view : Model -> Html Msg
@@ -65,6 +65,7 @@ silencesView showConfirmationDialog tab silencesTab =
                 |> (\silences ->
                         if List.isEmpty silences then
                             Utils.Views.error "No silences found"
+
                         else
                             Html.Keyed.ul [ class "list-group" ]
                                 (List.map

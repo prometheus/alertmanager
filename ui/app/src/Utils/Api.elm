@@ -1,4 +1,4 @@
-module Utils.Api exposing (..)
+module Utils.Api exposing (defaultTimeout, delete, errorToString, fromResult, get, iso8601Time, makeApiUrl, map, parseError, post, request, send, withDefault)
 
 import Http exposing (Error(..))
 import Json.Decode as Json exposing (field)
@@ -122,10 +122,11 @@ makeApiUrl externalUrl =
         url =
             if String.endsWith "/" externalUrl then
                 String.dropRight 1 externalUrl
+
             else
                 externalUrl
     in
-        url ++ "/api/v1"
+    url ++ "/api/v1"
 
 
 defaultTimeout : Time.Time
@@ -136,4 +137,4 @@ defaultTimeout =
 (|:) : Json.Decoder (a -> b) -> Json.Decoder a -> Json.Decoder b
 (|:) =
     -- Taken from elm-community/json-extra
-    flip (Json.map2 (|>))
+    \b a -> Json.map2 (|>) a b

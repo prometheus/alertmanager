@@ -1,13 +1,12 @@
-module Utils.FormValidation
-    exposing
-        ( initialField
-        , ValidationState(..)
-        , ValidatedField
-        , validate
-        , fromResult
-        , stringNotEmpty
-        , updateValue
-        )
+module Utils.FormValidation exposing
+    ( ValidatedField
+    , ValidationState(..)
+    , fromResult
+    , initialField
+    , stringNotEmpty
+    , updateValue
+    , validate
+    )
 
 
 type ValidationState
@@ -53,5 +52,6 @@ stringNotEmpty : String -> Result String String
 stringNotEmpty string =
     if String.isEmpty (String.trim string) then
         Err "Should not be empty"
+
     else
         Ok string

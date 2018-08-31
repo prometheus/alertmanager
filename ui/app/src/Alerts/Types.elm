@@ -1,7 +1,7 @@
 module Alerts.Types exposing (Alert, Receiver)
 
-import Utils.Types exposing (Labels)
 import Time exposing (Time)
+import Utils.Types exposing (Labels)
 
 
 type alias Alert =

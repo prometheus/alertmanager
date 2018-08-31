@@ -1,7 +1,7 @@
 module Views.Shared.AlertCompact exposing (view)
 
 import Alerts.Types exposing (Alert)
-import Html exposing (Html, span, div, text, li)
+import Html exposing (Html, div, li, span, text)
 import Html.Attributes exposing (class)
 import Utils.Views exposing (labelButton)
 

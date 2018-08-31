@@ -1,18 +1,17 @@
-module Silences.Types
-    exposing
-        ( Silence
-        , SilenceId
-        , Status
-        , State(Active, Pending, Expired)
-        , nullSilence
-        , nullSilenceStatus
-        , nullMatcher
-        , nullTime
-        , stateToString
-        )
+module Silences.Types exposing
+    ( Silence
+    , SilenceId
+    , State(..)
+    , Status
+    , nullMatcher
+    , nullSilence
+    , nullSilenceStatus
+    , nullTime
+    , stateToString
+    )
 
-import Utils.Types exposing (Matcher)
 import Time exposing (Time)
+import Utils.Types exposing (Matcher)
 
 
 nullSilence : Silence

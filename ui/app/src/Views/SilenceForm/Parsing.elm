@@ -1,8 +1,8 @@
-module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, silenceFormNewParser, silenceFormEditParser)
+module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, silenceFormEditParser, silenceFormNewParser)
 
-import UrlParser exposing (Parser, s, (</>), (<?>), string, stringParam, oneOf, map)
-import Utils.Filter exposing (parseFilter, Matcher)
 import Http exposing (encodeUri)
+import UrlParser exposing ((</>), (<?>), Parser, map, oneOf, s, string, stringParam)
+import Utils.Filter exposing (Matcher, parseFilter)
 
 
 newSilenceFromAlertLabels : List ( String, String ) -> String

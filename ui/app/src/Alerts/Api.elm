@@ -1,11 +1,11 @@
-module Alerts.Api exposing (..)
+module Alerts.Api exposing (alertDecoder, alertsDecoder, fetchAlerts, fetchReceivers)
 
 import Alerts.Types exposing (Alert, Receiver)
 import Json.Decode as Json exposing (..)
+import Regex
 import Utils.Api exposing (iso8601Time)
 import Utils.Filter exposing (Filter, generateQueryString)
 import Utils.Types exposing (ApiData)
-import Regex
 
 
 fetchReceivers : String -> Cmd (ApiData (List Receiver))
@@ -23,7 +23,7 @@ fetchAlerts apiUrl filter =
         url =
             String.join "/" [ apiUrl, "alerts" ++ generateQueryString filter ]
     in
-        Utils.Api.send (Utils.Api.get url alertsDecoder)
+    Utils.Api.send (Utils.Api.get url alertsDecoder)
 
 
 alertsDecoder : Json.Decoder (List Alert)

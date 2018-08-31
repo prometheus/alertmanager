@@ -1,34 +1,32 @@
-module Views.SilenceForm.Types
-    exposing
-        ( SilenceFormMsg(..)
-        , SilenceFormFieldMsg(..)
-        , Model
-        , SilenceForm
-        , MatcherForm
-        , fromMatchersAndTime
-        , fromSilence
-        , toSilence
-        , initSilenceForm
-        , emptyMatcher
-        , validateForm
-        , parseEndsAt
-        )
+module Views.SilenceForm.Types exposing
+    ( MatcherForm
+    , Model
+    , SilenceForm
+    , SilenceFormFieldMsg(..)
+    , SilenceFormMsg(..)
+    , emptyMatcher
+    , fromMatchersAndTime
+    , fromSilence
+    , initSilenceForm
+    , parseEndsAt
+    , toSilence
+    , validateForm
+    )
 
-import Silences.Types exposing (Silence, SilenceId, nullSilence)
 import Alerts.Types exposing (Alert)
-import Utils.Types exposing (Matcher, Duration, ApiData(..))
+import Silences.Types exposing (Silence, SilenceId, nullSilence)
 import Time exposing (Time)
-import Utils.Date exposing (timeFromString, timeToString, durationFormat, parseDuration)
-import Time exposing (Time)
+import Utils.Date exposing (durationFormat, parseDuration, timeFromString, timeToString)
 import Utils.Filter
 import Utils.FormValidation
     exposing
-        ( initialField
+        ( ValidatedField
         , ValidationState(..)
-        , ValidatedField
-        , validate
+        , initialField
         , stringNotEmpty
+        , validate
         )
+import Utils.Types exposing (ApiData(..), Duration, Matcher)
 
 
 type alias Model =
@@ -145,6 +143,7 @@ parseEndsAt startsAt endsAt =
         ( Ok starts, Ok ends ) ->
             if starts > ends then
                 Err "Can't be in the past"
+
             else
                 Ok ends
 
@@ -196,6 +195,7 @@ fromMatchersAndTime defaultCreator matchers now =
             -- If no matchers were specified, add an empty row
             if List.isEmpty matchers then
                 [ emptyMatcher ]
+
             else
                 List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
     }

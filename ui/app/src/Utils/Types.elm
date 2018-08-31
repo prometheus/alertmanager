@@ -1,4 +1,4 @@
-module Utils.Types exposing (..)
+module Utils.Types exposing (ApiData(..), Duration, Label, Labels, Matcher, Matchers, Time)
 
 import Time
 

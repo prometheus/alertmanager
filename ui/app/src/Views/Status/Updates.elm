@@ -1,8 +1,8 @@
 module Views.Status.Updates exposing (update)
 
-import Types exposing (Msg(MsgForStatus), Model)
-import Views.Status.Types exposing (StatusMsg(..))
 import Status.Api exposing (getStatus)
+import Types exposing (Model, Msg(..))
+import Views.Status.Types exposing (StatusMsg(..))
 
 
 update : StatusMsg -> Model -> String -> ( Model, Cmd Msg )

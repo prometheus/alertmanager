@@ -1,22 +1,21 @@
 module Views.AlertList.Views exposing (view)
 
 import Alerts.Types exposing (Alert)
+import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
-import Types exposing (Msg(Noop, MsgForAlertList))
+import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter)
-import Views.FilterBar.Views as FilterBar
-import Views.ReceiverBar.Views as ReceiverBar
-import Utils.Types exposing (ApiData(Initial, Success, Loading, Failure), Labels)
-import Utils.Views
 import Utils.List
+import Utils.Types exposing (ApiData(..), Labels)
+import Utils.Views
 import Views.AlertList.AlertView as AlertView
-import Views.GroupBar.Types as GroupBar
 import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
-import Types exposing (Msg(Noop, MsgForAlertList))
+import Views.FilterBar.Views as FilterBar
+import Views.GroupBar.Types as GroupBar
 import Views.GroupBar.Views as GroupBar
-import Dict exposing (Dict)
+import Views.ReceiverBar.Views as ReceiverBar
 
 
 renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
@@ -84,23 +83,24 @@ alertGroups activeId filter { fields } alerts =
                 |> Utils.List.groupBy
                     (.labels >> List.filter (\( key, _ ) -> List.member key fields))
     in
-        grouped
-            |> Dict.keys
-            |> List.partition ((/=) [])
-            |> uncurry (++)
-            |> List.filterMap
-                (\labels ->
-                    Maybe.map
-                        (alertList activeId labels filter)
-                        (Dict.get labels grouped)
-                )
-            |> (\list ->
-                    if List.isEmpty list then
-                        [ Utils.Views.error "No alerts found" ]
-                    else
-                        list
-               )
-            |> div []
+    grouped
+        |> Dict.keys
+        |> List.partition ((/=) [])
+        |> (\( a, b ) -> (++) a b)
+        |> List.filterMap
+            (\labels ->
+                Maybe.map
+                    (alertList activeId labels filter)
+                    (Dict.get labels grouped)
+            )
+        |> (\list ->
+                if List.isEmpty list then
+                    [ Utils.Views.error "No alerts found" ]
+
+                else
+                    list
+           )
+        |> div []
 
 
 alertList : Maybe String -> Labels -> Filter -> List Alert -> Html Msg
@@ -117,12 +117,10 @@ alertList activeId labels filter alerts =
                             div [ class "btn-group mr-1 mb-3" ]
                                 [ span
                                     [ class "btn text-muted"
-                                    , style
-                                        [ ( "user-select", "initial" )
-                                        , ( "-moz-user-select", "initial" )
-                                        , ( "-webkit-user-select", "initial" )
-                                        , ( "border-color", "#5bc0de" )
-                                        ]
+                                    , style "user-select" "initial"
+                                    , style "-moz-user-select" "initial"
+                                    , style "-webkit-user-select" "initial"
+                                    , style "border-color" "#5bc0de"
                                     ]
                                     [ text (key ++ "=\"" ++ value ++ "\"") ]
                                 , button
