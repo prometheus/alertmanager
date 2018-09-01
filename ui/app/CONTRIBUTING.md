@@ -30,13 +30,6 @@ If you prefer, there's a make target available to format all elm source files:
 # make format
 ```
 
-Once you've installed Elm, install the dependencies listed in
-`elm-package.json`:
-
-```
-# elm package install -y
-```
-
 ## Elm Resources
 
 - The [Official Elm Guide](https://guide.elm-lang.org/) is a great place to

@@ -1,6 +1,5 @@
 module Utils.Date exposing
     ( addDuration
-    , dateFormat
     , dateTimeFormat
     , durationFormat
     , durationParser
@@ -105,8 +104,8 @@ durationFormat duration =
         Nothing
 
 
-dateFormat : Posix -> String
-dateFormat time =
+dateTimeFormat : Posix -> String
+dateTimeFormat time =
     timeFormat time
         ++ ", "
         ++ String.fromInt (toYear utc time)
@@ -173,11 +172,6 @@ monthFormat month =
 
         Dec ->
             12
-
-
-dateTimeFormat : Posix -> String
-dateTimeFormat t =
-    dateFormat t ++ " " ++ timeFormat t
 
 
 encode : Posix -> String

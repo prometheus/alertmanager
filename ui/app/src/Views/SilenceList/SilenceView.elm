@@ -53,11 +53,11 @@ view showConfirmationDialog silence =
 confirmSilenceDeleteView : Silence -> Bool -> Dialog.Config Msg
 confirmSilenceDeleteView silence refresh =
     { onClose = MsgForSilenceList Views.SilenceList.Types.FetchSilences
-    , header = h3 [] [ text "Expire Silence" ]
+    , title = "Expire Silence"
     , body = text "Are you sure you want to expire this silence?"
     , footer =
         button
-            [ class "btn btn-success"
+            [ class "btn btn-primary"
             , onClick (MsgForSilenceList (Views.SilenceList.Types.DestroySilence silence refresh))
             ]
             [ text "Confirm" ]
@@ -69,7 +69,7 @@ dateView string time =
     span
         [ class "text-muted align-self-center mr-2"
         ]
-        [ text (string ++ " " ++ Utils.Date.timeFormat time ++ ", " ++ Utils.Date.dateFormat time)
+        [ text (string ++ " " ++ Utils.Date.dateTimeFormat time)
         ]
 
 

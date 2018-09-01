@@ -14,7 +14,15 @@ tab tab_ currentTab msg content =
             span [ class "nav-link active" ] content
 
           else
-            a [ class "nav-link", onClick (msg tab_) ] content
+            button
+                [ style "background" "transparent"
+                , style "font" "inherit"
+                , style "cursor" "pointer"
+                , style "outline" "none"
+                , class "nav-link"
+                , onClick (msg tab_)
+                ]
+                content
         ]
 
 
@@ -139,8 +147,7 @@ formInput inputValue classes msg =
 loading : Html msg
 loading =
     div []
-        [ i [ class "fa fa-cog fa-spin fa-3x fa-fw" ] []
-        , span [ class "sr-only" ] [ text "Loading..." ]
+        [ span [] [ text "Loading..." ]
         ]
 
 

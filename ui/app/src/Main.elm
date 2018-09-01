@@ -1,6 +1,6 @@
 module Main exposing (main)
 
-import Browser
+import Browser exposing (UrlRequest(..))
 import Browser.Navigation exposing (Key)
 import Json.Decode as Json
 import Parsing
@@ -29,7 +29,14 @@ main =
                 , body = [ Views.view model ]
                 }
         , subscriptions = always Sub.none
-        , onUrlRequest = always Noop
+        , onUrlRequest =
+            \request ->
+                case request of
+                    Internal url ->
+                        NavigateToInternalUrl (Url.toString url)
+
+                    External url ->
+                        NavigateToExternalUrl url
         , onUrlChange = urlUpdate
         }
 

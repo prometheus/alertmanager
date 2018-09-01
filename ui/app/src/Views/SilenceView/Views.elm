@@ -72,11 +72,11 @@ viewSilence alerts silence showPromptDialog =
 confirmSilenceDeleteView : Silence -> Bool -> Dialog.Config Msg
 confirmSilenceDeleteView silence refresh =
     { onClose = MsgForSilenceView (SilenceViewTypes.Reload silence.id)
-    , header = h3 [] [ text "Expire Silence" ]
+    , title = "Expire Silence"
     , body = text "Are you sure you want to expire this silence?"
     , footer =
         button
-            [ class "btn btn-success"
+            [ class "btn btn-primary"
             , onClick (MsgForSilenceList (DestroySilence silence refresh))
             ]
             [ text "Confirm" ]

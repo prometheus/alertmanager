@@ -15,11 +15,11 @@
             "elm/regex": "1.0.0",
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
-            "jweir/elm-iso8601": "4.0.3",
-            "rtfeldman/elm-iso8601-date-strings": "1.0.0"
+            "rtfeldman/elm-iso8601-date-strings": "1.1.2"
         },
         "indirect": {
-            "elm/virtual-dom": "1.0.0"
+            "elm/virtual-dom": "1.0.0",
+            "elm/random": "1.0.0"
         }
     },
     "test-dependencies": {

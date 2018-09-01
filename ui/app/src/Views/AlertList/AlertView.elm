@@ -62,9 +62,7 @@ titleView { startsAt, isInhibited } =
     span
         [ class ("align-self-center mr-2 " ++ className) ]
         [ text
-            (Utils.Date.timeFormat startsAt
-                ++ ", "
-                ++ Utils.Date.dateFormat startsAt
+            (Utils.Date.dateTimeFormat startsAt
                 ++ inhibited
             )
         ]
