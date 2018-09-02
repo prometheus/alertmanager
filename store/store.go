@@ -15,7 +15,10 @@ var (
 	ErrNotFound = errors.New("alert not found")
 )
 
-// Alerts implements Store using an in-memory map.
+// Alerts provides lock-coordinated to an in-memory map of alerts, keyed by
+// their fingerprint. Resolved alerts are removed from the map based on
+// gcInterval. An optional callback can be set which receives a slice of all
+// resolved alerts that have been removed.
 type Alerts struct {
 	gcInterval time.Duration
 
