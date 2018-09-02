@@ -151,7 +151,6 @@ type InhibitRule struct {
 	// target alerts in order for the inhibition to take effect.
 	Equal map[model.LabelName]struct{}
 
-	mtx sync.RWMutex
 	// Cache of alerts matching source labels.
 	scache *store.Alerts
 }

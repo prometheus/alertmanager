@@ -198,6 +198,7 @@ type aggrGroup struct {
 	logger   log.Logger
 	routeKey string
 
+	alerts  *store.Alerts
 	ctx     context.Context
 	cancel  func()
 	done    chan struct{}
@@ -205,7 +206,6 @@ type aggrGroup struct {
 	timeout func(time.Duration) time.Duration
 
 	mtx        sync.RWMutex
-	alerts     *store.Alerts
 	hasFlushed bool
 }
 
