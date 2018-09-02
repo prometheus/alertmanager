@@ -82,11 +82,10 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 }
 
 // Close the alert provider.
-func (a *Alerts) Close() error {
+func (a *Alerts) Close() {
 	if a.cancel != nil {
 		a.cancel()
 	}
-	return nil
 }
 
 func max(a, b int) int {

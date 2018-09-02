@@ -407,7 +407,8 @@ func main() {
 		for {
 			select {
 			case <-hup:
-				reload()
+				// ignore error, already logged in `reload()`
+				_ = reload()
 			case errc := <-webReload:
 				errc <- reload()
 			}
