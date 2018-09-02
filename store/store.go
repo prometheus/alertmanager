@@ -100,7 +100,7 @@ func (a *Alerts) Set(alert *types.Alert) error {
 	return nil
 }
 
-// Delete removes the Alert with th matching fingerprint from the store.
+// Delete removes the Alert with the matching fingerprint from the store.
 func (a *Alerts) Delete(fp model.Fingerprint) error {
 	a.Lock()
 	defer a.Unlock()
