@@ -71,7 +71,9 @@ func (ih *Inhibitor) run(ctx context.Context) {
 			// Update the inhibition rules' cache.
 			for _, r := range ih.rules {
 				if r.SourceMatchers.Match(a.Labels) {
-					r.scache.Set(a)
+					if err := r.scache.Set(a); err != nil {
+						level.Error(ih.logger).Log("msg", "error on set alert", "err", err)
+					}
 				}
 			}
 		}

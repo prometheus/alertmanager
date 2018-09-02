@@ -297,7 +297,9 @@ func (ag *aggrGroup) stop() {
 
 // insert inserts the alert into the aggregation group.
 func (ag *aggrGroup) insert(alert *types.Alert) {
-	ag.alerts.Set(alert)
+	if err := ag.alerts.Set(alert); err != nil {
+		level.Error(ag.logger).Log("msg", "error on set alert", "err", err)
+	}
 
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
@@ -342,7 +344,9 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				continue
 			}
 			if a.Resolved() && got == a {
-				ag.alerts.Delete(fp)
+				if err := ag.alerts.Delete(fp); err != nil {
+					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err)
+				}
 			}
 		}
 	}
