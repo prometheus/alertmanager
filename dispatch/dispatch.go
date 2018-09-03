@@ -26,6 +26,7 @@ import (
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -197,6 +198,7 @@ type aggrGroup struct {
 	logger   log.Logger
 	routeKey string
 
+	alerts  *store.Alerts
 	ctx     context.Context
 	cancel  func()
 	done    chan struct{}
@@ -204,7 +206,6 @@ type aggrGroup struct {
 	timeout func(time.Duration) time.Duration
 
 	mtx        sync.RWMutex
-	alerts     map[model.Fingerprint]*types.Alert
 	hasFlushed bool
 }
 
@@ -218,9 +219,10 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
 		timeout:  to,
-		alerts:   map[model.Fingerprint]*types.Alert{},
+		alerts:   store.NewAlerts(15 * time.Minute),
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
+	ag.alerts.Run(ag.ctx)
 
 	ag.logger = log.With(logger, "aggrGroup", ag)
 
@@ -295,23 +297,21 @@ func (ag *aggrGroup) stop() {
 
 // insert inserts the alert into the aggregation group.
 func (ag *aggrGroup) insert(alert *types.Alert) {
-	ag.mtx.Lock()
-	defer ag.mtx.Unlock()
-
-	ag.alerts[alert.Fingerprint()] = alert
+	if err := ag.alerts.Set(alert); err != nil {
+		level.Error(ag.logger).Log("msg", "error on set alert", "err", err)
+	}
 
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
+	ag.mtx.Lock()
+	defer ag.mtx.Unlock()
 	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
 		ag.next.Reset(0)
 	}
 }
 
 func (ag *aggrGroup) empty() bool {
-	ag.mtx.RLock()
-	defer ag.mtx.RUnlock()
-
-	return len(ag.alerts) == 0
+	return ag.alerts.Count() == 0
 }
 
 // flush sends notifications for all new alerts.
@@ -319,31 +319,35 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	if ag.empty() {
 		return
 	}
-	ag.mtx.Lock()
 
 	var (
-		alerts      = make(map[model.Fingerprint]*types.Alert, len(ag.alerts))
-		alertsSlice = make(types.AlertSlice, 0, len(ag.alerts))
+		alerts      = ag.alerts.List()
+		alertsSlice = make(types.AlertSlice, 0, ag.alerts.Count())
 	)
-	for fp, alert := range ag.alerts {
-		alerts[fp] = alert
+	for alert := range alerts {
 		alertsSlice = append(alertsSlice, alert)
 	}
 	sort.Stable(alertsSlice)
 
-	ag.mtx.Unlock()
-
-	level.Debug(ag.logger).Log("msg", "Flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
+	level.Debug(ag.logger).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
 	if notify(alertsSlice...) {
-		ag.mtx.Lock()
-		for fp, a := range alerts {
+		for _, a := range alertsSlice {
 			// Only delete if the fingerprint has not been inserted
 			// again since we notified about it.
-			if a.Resolved() && ag.alerts[fp] == a {
-				delete(ag.alerts, fp)
+			fp := a.Fingerprint()
+			got, err := ag.alerts.Get(fp)
+			if err != nil {
+				// This should only happen if the Alert was
+				// deleted from the store during the flush.
+				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err)
+				continue
+			}
+			if a.Resolved() && got == a {
+				if err := ag.alerts.Delete(fp); err != nil {
+					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err)
+				}
 			}
 		}
-		ag.mtx.Unlock()
 	}
 }
