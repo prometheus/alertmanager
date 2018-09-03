@@ -3,6 +3,7 @@
 * [CHANGE] Revert Alertmanager working directory changes in Docker image back to `/alertmanager` (#1435)
 * [CHANGE] Remove `api/v1/alerts/groups` GET endpoint (#1508)
 * [FEATURE] [amtool] Added `config routes` tools for vizualization and testing routes (#1511)
+* [BUGFIX] [amtool] Fixed issue with loading path of a default configs (#1529)
 
 ## 0.15.2 / 2018-08-14
 
