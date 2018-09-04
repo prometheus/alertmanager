@@ -25,6 +25,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
@@ -181,16 +182,16 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 	if err != nil {
 		return true, err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 
-	return w.retry(resp.StatusCode)
+	return w.retry(req, resp)
 }
 
-func (w *Webhook) retry(statusCode int) (bool, error) {
+func (w *Webhook) retry(req *http.Request, resp *http.Response) (bool, error) {
 	// Webhooks are assumed to respond with 2xx response codes on a successful
 	// request and 5xx response codes are assumed to be recoverable.
-	if statusCode/100 != 2 {
-		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.conf.URL)
+	if resp.StatusCode/100 != 2 {
+		return (resp.StatusCode/100 == 5), formatErr(req, resp)
 	}
 
 	return false, nil
@@ -501,13 +502,18 @@ func (n *PagerDuty) notifyV1(
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
+	req, err := http.NewRequest("POST", n.conf.URL.String(), &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	resp, err := ctxhttp.Do(ctx, c, req)
 	if err != nil {
 		return true, err
 	}
 	defer resp.Body.Close()
 
-	return n.retryV1(resp)
+	return n.retryV1(req, resp)
 }
 
 func (n *PagerDuty) notifyV2(
@@ -551,13 +557,18 @@ func (n *PagerDuty) notifyV2(
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
+	req, err := http.NewRequest("POST", n.conf.URL.String(), &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	resp, err := ctxhttp.Do(ctx, c, req)
 	if err != nil {
 		return true, err
 	}
 	defer resp.Body.Close()
 
-	return n.retryV2(resp.StatusCode)
+	return n.retryV2(req, resp)
 }
 
 // Notify implements the Notifier interface.
@@ -605,32 +616,28 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	return n.notifyV2(ctx, c, eventType, key, data, details, as...)
 }
 
-func (n *PagerDuty) retryV1(resp *http.Response) (bool, error) {
+func (n *PagerDuty) retryV1(req *http.Request, resp *http.Response) (bool, error) {
 	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/trigger-events
 	statusCode := resp.StatusCode
 
 	if statusCode == 400 && resp.Body != nil {
-		bs, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return false, fmt.Errorf("unexpected status code %v : problem reading response: %v", statusCode, err)
-		}
-		return false, fmt.Errorf("bad request (status code %v): %v", statusCode, string(bs))
+		return false, formatErr(req, resp)
 	}
 
 	if statusCode/100 != 2 {
-		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+		return (statusCode == 403 || statusCode/100 == 5), formatErr(req, resp)
 	}
 	return false, nil
 }
 
-func (n *PagerDuty) retryV2(statusCode int) (bool, error) {
+func (n *PagerDuty) retryV2(req *http.Request, resp *http.Response) (bool, error) {
 	// Retrying can solve the issue on 429 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/events-api-v2#api-response-codes--retry-logic
-	if statusCode/100 != 2 {
-		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	if resp.StatusCode/100 != 2 {
+		return (resp.StatusCode == 429 || resp.StatusCode/100 == 5), formatErr(req, resp)
 	}
 
 	return false, nil
@@ -758,21 +765,26 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.APIURL.String(), contentTypeJSON, &buf)
+	r, err := http.NewRequest("POST", n.conf.APIURL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
-	resp.Body.Close()
+	r.Header.Set("Content-Type", contentTypeJSON)
+	resp, err := ctxhttp.Do(ctx, c, r)
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
 
-	return n.retry(resp.StatusCode)
+	return n.retry(r, resp)
 }
 
-func (n *Slack) retry(statusCode int) (bool, error) {
+func (n *Slack) retry(req *http.Request, resp *http.Response) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
-	if statusCode/100 != 2 {
-		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	if resp.StatusCode/100 != 2 {
+		return (resp.StatusCode/100 == 5), formatErr(req, resp)
 	}
 
 	return false, nil
@@ -845,22 +857,26 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	r, err := http.NewRequest("POST", apiURL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
-
+	r.Header.Set("Content-Type", contentTypeJSON)
+	resp, err := ctxhttp.Do(ctx, c, r)
+	if err != nil {
+		return true, err
+	}
 	defer resp.Body.Close()
 
-	return n.retry(resp.StatusCode)
+	return n.retry(r, resp)
 }
 
-func (n *Hipchat) retry(statusCode int) (bool, error) {
+func (n *Hipchat) retry(req *http.Request, resp *http.Response) (bool, error) {
 	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
 	// responce codes indicate successful requests.
 	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
-	if statusCode/100 != 2 {
-		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	if resp.StatusCode/100 != 2 {
+		return (resp.StatusCode == 429 || resp.StatusCode/100 == 5), formatErr(req, resp)
 	}
 
 	return false, nil
@@ -1010,7 +1026,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
 
 	if resp.StatusCode != 200 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+		return true, formatErr(req, resp)
 	} else {
 		var weResp weChatResponse
 		if err := json.Unmarshal(body, &weResp); err != nil {
@@ -1079,7 +1095,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer resp.Body.Close()
 
-	return n.retry(resp.StatusCode)
+	return n.retry(req, resp)
 }
 
 // Like Split but filter out empty strings.
@@ -1169,13 +1185,13 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	return req, true, nil
 }
 
-func (n *OpsGenie) retry(statusCode int) (bool, error) {
+func (n *OpsGenie) retry(req *http.Request, resp *http.Response) (bool, error) {
 	// https://docs.opsgenie.com/docs/response#section-response-codes
 	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
-	if statusCode/100 == 5 || statusCode == 429 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
+	if resp.StatusCode/100 == 5 || resp.StatusCode == 429 {
+		return true, formatErr(req, resp)
+	} else if resp.StatusCode/100 != 2 {
+		return false, formatErr(req, resp)
 	}
 
 	return false, nil
@@ -1269,23 +1285,27 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	req, err := http.NewRequest("POST", apiURL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
-
+	req.Header.Set("Content-Type", contentTypeJSON)
+	resp, err := ctxhttp.Do(ctx, c, req)
+	if err != nil {
+		return true, err
+	}
 	defer resp.Body.Close()
 
-	return n.retry(resp.StatusCode)
+	return n.retry(req, resp)
 }
 
-func (n *VictorOps) retry(statusCode int) (bool, error) {
+func (n *VictorOps) retry(req *http.Request, resp *http.Response) (bool, error) {
 	// Missing documentation therefore assuming only 5xx response codes are
 	// recoverable.
-	if statusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
+	if resp.StatusCode/100 == 5 {
+		return true, formatErr(req, resp)
+	} else if resp.StatusCode/100 != 2 {
+		return false, formatErr(req, resp)
 	}
 
 	return false, nil
@@ -1366,23 +1386,28 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, u.String(), "text/plain", nil)
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+	resp, err := ctxhttp.Do(ctx, c, req)
 	if err != nil {
 		return true, err
 	}
 	defer resp.Body.Close()
 
-	return n.retry(resp.StatusCode)
+	return n.retry(req, resp)
 }
 
-func (n *Pushover) retry(statusCode int) (bool, error) {
+func (n *Pushover) retry(req *http.Request, resp *http.Response) (bool, error) {
 	// Only documented behaviour is that 2xx response codes are successful and
 	// 4xx are unsuccessful, therefore assuming only 5xx are recoverable.
 	// https://pushover.net/api#response
-	if statusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
+	if resp.StatusCode/100 == 5 {
+		return true, formatErr(req, resp)
+	} else if resp.StatusCode/100 != 2 {
+		return false, formatErr(req, resp)
 	}
 
 	return false, nil
@@ -1445,4 +1470,17 @@ func hashKey(s string) string {
 	h := sha256.New()
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func formatErr(req *http.Request, resp *http.Response) error {
+	msg := fmt.Sprintf("unexpected status code %v", resp.StatusCode)
+	dump, err := httputil.DumpRequest(req, true)
+	if err == nil {
+		msg += fmt.Sprintf("\nRequest:\n%s", string(dump))
+	}
+	dump, err = httputil.DumpResponse(resp, true)
+	if err == nil {
+		msg += fmt.Sprintf("\nResponse:\n%s", string(dump))
+	}
+	return errors.New(msg)
 }
