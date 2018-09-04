@@ -33,7 +33,7 @@ dev-server:
 script.js: elm-env format $(ELM_FILES)
 	@echo ">> building script.js"
 	@$(DOCKER_CMD) rm -rf elm-stuff
-	@$(DOCKER_CMD) elm make src/Main.elm --output $(TEMPFILE_JS)
+	@$(DOCKER_CMD) elm make src/Main.elm --optimize --output $(TEMPFILE_JS)
 	@$(DOCKER_CMD) uglifyjs $(TEMPFILE_JS) --compress 'pure_funcs="F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9",pure_getters,keep_fargs=false,unsafe_comps,unsafe' --mangle --output=$(@)
 	@rm -rf $(TEMPFILE_JS)
 	@rm -rf $(TEMPFILE)
