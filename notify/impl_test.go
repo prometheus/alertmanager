@@ -38,7 +38,8 @@ func TestWebhookRetry(t *testing.T) {
 	}
 	notifier := &Webhook{conf: &config.WebhookConfig{URL: &config.URL{u}}}
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
-		actual, _ := notifier.retry(statusCode)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retry(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
@@ -48,10 +49,8 @@ func TestPagerDutyRetryV1(t *testing.T) {
 
 	retryCodes := append(defaultRetryCodes(), http.StatusForbidden)
 	for statusCode, expected := range retryTests(retryCodes) {
-		resp := &http.Response{
-			StatusCode: statusCode,
-		}
-		actual, _ := notifier.retryV1(resp)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retryV1(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("retryv1 - error on status %d", statusCode))
 	}
 }
@@ -61,7 +60,8 @@ func TestPagerDutyRetryV2(t *testing.T) {
 
 	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range retryTests(retryCodes) {
-		actual, _ := notifier.retryV2(statusCode)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retryV2(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("retryv2 - error on status %d", statusCode))
 	}
 }
@@ -69,7 +69,8 @@ func TestPagerDutyRetryV2(t *testing.T) {
 func TestSlackRetry(t *testing.T) {
 	notifier := new(Slack)
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
-		actual, _ := notifier.retry(statusCode)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retry(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
@@ -78,7 +79,8 @@ func TestHipchatRetry(t *testing.T) {
 	notifier := new(Hipchat)
 	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range retryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retry(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
@@ -88,7 +90,8 @@ func TestOpsGenieRetry(t *testing.T) {
 
 	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range retryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retry(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
@@ -96,7 +99,8 @@ func TestOpsGenieRetry(t *testing.T) {
 func TestVictorOpsRetry(t *testing.T) {
 	notifier := new(VictorOps)
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
-		actual, _ := notifier.retry(statusCode)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retry(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
@@ -104,7 +108,8 @@ func TestVictorOpsRetry(t *testing.T) {
 func TestPushoverRetry(t *testing.T) {
 	notifier := new(Pushover)
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
-		actual, _ := notifier.retry(statusCode)
+		req, resp := createRequest(statusCode)
+		actual, _ := notifier.retry(req, resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
@@ -283,4 +288,20 @@ func TestOpsGenie(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, retry)
 	require.Equal(t, expectedBody, readBody(t, req))
+}
+
+func TestFormatErr(t *testing.T) {
+	statusCode := 404
+	req, resp := createRequest(statusCode)
+	expected := fmt.Errorf("unexpected status code %v\nRequest:\nPOST / HTTP/1.1\r\nHost: localhost\r\n\r\n\nResponse:\nHTTP/0.0 %v Not Found\r\nContent-Length: 0\r\n\r\n", statusCode, statusCode)
+	actual := formatErr(req, resp)
+	require.Equal(t, expected, actual, "error not formatted correctly")
+}
+
+func createRequest(statusCode int) (*http.Request, *http.Response) {
+	req, _ := http.NewRequest("POST", "http://localhost", nil)
+	resp := &http.Response{
+		StatusCode: statusCode,
+	}
+	return req, resp
 }
