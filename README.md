@@ -171,6 +171,21 @@ receivers:
   - routing_key: <team-DB-key>
 ```
 
+## API
+
+The current Alertmanager API is version 2. This API is fully generated via the
+[OpenAPI
+project](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md)
+and [Go Swagger](https://github.com/go-swagger/go-swagger/) with the exception
+of the HTTP handlers themselves. The API specification can be found in
+[api/v2/openapi.yaml](api/v2/openapi.yaml). A HTML rendered version can be
+accessed
+[here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/alertmanager/alertmanager/master/api/v2/openapi.yaml).
+Clients can be easily generated via any OpenAPI generator for all major
+languages.
+
+_API v2 is still under heavy development and thereby subject to change._
+
 ## Amtool
 
 `amtool` is a cli tool for interacting with the alertmanager api. It is bundled with all releases of alertmanager.
