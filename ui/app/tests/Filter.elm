@@ -1,10 +1,10 @@
-module Filter exposing (..)
+module Filter exposing (generateQueryString, parseMatcher, stringifyFilter)
 
-import Test exposing (..)
 import Expect
-import Fuzz exposing (list, int, tuple, string)
-import Utils.Filter exposing (Matcher, MatchOperator(Eq, RegexMatch))
+import Fuzz exposing (int, list, string, tuple)
 import Helpers exposing (isNotEmptyTrimmedAlphabetWord)
+import Test exposing (..)
+import Utils.Filter exposing (MatchOperator(..), Matcher)
 
 
 parseMatcher : Test
@@ -22,6 +22,7 @@ parseMatcher =
                     Expect.equal
                         Nothing
                         (Utils.Filter.parseMatcher <| String.join "" [ key, "=", value ])
+
                 else
                     Expect.equal
                         (Just (Matcher key Eq value))

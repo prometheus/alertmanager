@@ -1,7 +1,7 @@
 module Views.SilenceView.Updates exposing (update)
 
 import Alerts.Api
-import Navigation exposing (newUrl)
+import Browser.Navigation as Navigation
 import Silences.Api exposing (getSilence)
 import Utils.Filter exposing (nullFilter)
 import Utils.List
@@ -43,4 +43,4 @@ update msg model apiUrl =
             ( { model | showConfirmationDialog = False }, getSilence apiUrl silenceId SilenceFetched )
 
         Reload silenceId ->
-            ( { model | showConfirmationDialog = False }, newUrl ("#/silences/" ++ silenceId) )
+            ( { model | showConfirmationDialog = False }, Navigation.pushUrl model.key ("#/silences/" ++ silenceId) )

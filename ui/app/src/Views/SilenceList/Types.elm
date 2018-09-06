@@ -1,7 +1,8 @@
-module Views.SilenceList.Types exposing (Model, SilenceTab, SilenceListMsg(..), initSilenceList)
+module Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab, initSilenceList)
 
-import Silences.Types exposing (Silence, State(Active), SilenceId)
-import Utils.Types exposing (ApiData(Initial))
+import Browser.Navigation exposing (Key)
+import Silences.Types exposing (Silence, SilenceId, State(..))
+import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 
 
@@ -26,13 +27,15 @@ type alias Model =
     , filterBar : FilterBar.Model
     , tab : State
     , showConfirmationDialog : Maybe SilenceId
+    , key : Key
     }
 
 
-initSilenceList : Model
-initSilenceList =
+initSilenceList : Key -> Model
+initSilenceList key =
     { silences = Initial
-    , filterBar = FilterBar.initFilterBar
+    , filterBar = FilterBar.initFilterBar key
     , tab = Active
     , showConfirmationDialog = Nothing
+    , key = key
     }

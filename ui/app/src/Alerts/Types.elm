@@ -1,7 +1,7 @@
 module Alerts.Types exposing (Alert, Receiver)
 
+import Time exposing (Posix)
 import Utils.Types exposing (Labels)
-import Time exposing (Time)
 
 
 type alias Alert =
@@ -9,7 +9,7 @@ type alias Alert =
     , labels : Labels
     , silenceId : Maybe String
     , isInhibited : Bool
-    , startsAt : Time
+    , startsAt : Posix
     , generatorUrl : String
     , id : String
     }

@@ -1,6 +1,6 @@
 module Views.Status.Parsing exposing (statusParser)
 
-import UrlParser exposing (Parser, s)
+import Url.Parser exposing (Parser, s)
 
 
 statusParser : Parser a a

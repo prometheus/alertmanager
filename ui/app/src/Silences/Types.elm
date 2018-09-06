@@ -1,18 +1,16 @@
-module Silences.Types
-    exposing
-        ( Silence
-        , SilenceId
-        , Status
-        , State(Active, Pending, Expired)
-        , nullSilence
-        , nullSilenceStatus
-        , nullMatcher
-        , nullTime
-        , stateToString
-        )
+module Silences.Types exposing
+    ( Silence
+    , SilenceId
+    , State(..)
+    , Status
+    , nullMatcher
+    , nullSilence
+    , nullSilenceStatus
+    , stateToString
+    )
 
+import Time exposing (Posix)
 import Utils.Types exposing (Matcher)
-import Time exposing (Time)
 
 
 nullSilence : Silence
@@ -20,9 +18,9 @@ nullSilence =
     { id = ""
     , createdBy = ""
     , comment = ""
-    , startsAt = 0
-    , endsAt = 0
-    , updatedAt = 0
+    , startsAt = Time.millisToPosix 0
+    , endsAt = Time.millisToPosix 0
+    , updatedAt = Time.millisToPosix 0
     , matchers = [ nullMatcher ]
     , status = nullSilenceStatus
     }
@@ -39,18 +37,13 @@ nullMatcher =
     Matcher False "" ""
 
 
-nullTime : Time
-nullTime =
-    0
-
-
 type alias Silence =
     { id : SilenceId
     , createdBy : String
     , comment : String
-    , startsAt : Time
-    , endsAt : Time
-    , updatedAt : Time
+    , startsAt : Posix
+    , endsAt : Posix
+    , updatedAt : Posix
     , matchers : List Matcher
     , status : Status
     }

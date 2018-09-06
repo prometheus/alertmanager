@@ -1,19 +1,19 @@
-module Views exposing (..)
+module Views exposing (cssNode, currentView, failureView, renderCSS, view)
 
-import Html exposing (Html, node, text, div)
-import Html.Attributes exposing (class, rel, href, src, style)
+import Html exposing (Html, div, node, text)
+import Html.Attributes exposing (class, href, rel, src, style)
 import Html.Events exposing (on)
 import Json.Decode exposing (succeed)
-import Types exposing (Msg(MsgForSilenceForm, MsgForSilenceView, BootstrapCSSLoaded, FontAwesomeCSSLoaded), Model, Route(..))
+import Types exposing (Model, Msg(..), Route(..))
+import Utils.Types exposing (ApiData(..))
 import Utils.Views exposing (error, loading)
-import Utils.Types exposing (ApiData(Failure, Success))
-import Views.SilenceList.Views as SilenceList
-import Views.SilenceForm.Views as SilenceForm
 import Views.AlertList.Views as AlertList
-import Views.SilenceView.Views as SilenceView
-import Views.NotFound.Views as NotFound
-import Views.Status.Views as Status
 import Views.NavBar.Views exposing (navBar)
+import Views.NotFound.Views as NotFound
+import Views.SilenceForm.Views as SilenceForm
+import Views.SilenceList.Views as SilenceList
+import Views.SilenceView.Views as SilenceView
+import Views.Status.Views as Status
 
 
 view : Model -> Html Msg
@@ -41,7 +41,7 @@ view model =
 failureView : Model -> String -> Html Msg
 failureView model err =
     div []
-        [ div [ style [ ( "padding", "40px" ), ( "color", "red" ) ] ] [ text err ]
+        [ div [ style "padding" "40px", style "color" "red" ] [ text err ]
         , navBar model.route
         , div [ class "container pb-4" ] [ currentView model ]
         ]

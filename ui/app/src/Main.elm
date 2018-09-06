@@ -1,58 +1,59 @@
 module Main exposing (main)
 
-import Navigation
+import Browser exposing (UrlRequest(..))
+import Browser.Navigation exposing (Key)
+import Json.Decode as Json
 import Parsing
-import Views
-import Types
-    exposing
-        ( Route(..)
-        , Msg
-            ( NavigateToSilenceList
-            , NavigateToSilenceView
-            , NavigateToSilenceFormEdit
-            , NavigateToSilenceFormNew
-            , NavigateToAlerts
-            , NavigateToNotFound
-            , NavigateToStatus
-            , RedirectAlerts
-            )
-        , Model
-        )
+import Types exposing (Model, Msg(..), Route(..))
+import Updates exposing (update)
+import Url exposing (Url)
+import Utils.Api as Api
 import Utils.Filter exposing (nullFilter)
-import Views.SilenceForm.Types exposing (initSilenceForm)
-import Views.Status.Types exposing (StatusModel, initStatusModel)
+import Utils.Types exposing (ApiData(..))
+import Views
 import Views.AlertList.Types exposing (initAlertList)
+import Views.SilenceForm.Types exposing (initSilenceForm)
 import Views.SilenceList.Types exposing (initSilenceList)
 import Views.SilenceView.Types exposing (initSilenceView)
-import Updates exposing (update)
-import Utils.Api as Api
-import Utils.Types exposing (ApiData(Loading))
-import Json.Decode as Json
+import Views.Status.Types exposing (StatusModel, initStatusModel)
 
 
 main : Program Json.Value Model Msg
 main =
-    Navigation.programWithFlags urlUpdate
+    Browser.application
         { init = init
         , update = update
-        , view = Views.view
+        , view =
+            \model ->
+                { title = "Alertmanager"
+                , body = [ Views.view model ]
+                }
         , subscriptions = always Sub.none
+        , onUrlRequest =
+            \request ->
+                case request of
+                    Internal url ->
+                        NavigateToInternalUrl (Url.toString url)
+
+                    External url ->
+                        NavigateToExternalUrl url
+        , onUrlChange = urlUpdate
         }
 
 
-init : Json.Value -> Navigation.Location -> ( Model, Cmd Msg )
-init flags location =
+init : Json.Value -> Url -> Key -> ( Model, Cmd Msg )
+init flags url key =
     let
         route =
-            Parsing.urlParser location
+            Parsing.urlParser url
 
         filter =
             case route of
-                AlertsRoute filter ->
-                    filter
+                AlertsRoute filter_ ->
+                    filter_
 
-                SilenceListRoute filter ->
-                    filter
+                SilenceListRoute filter_ ->
+                    filter_
 
                 _ ->
                     nullFilter
@@ -69,61 +70,64 @@ init flags location =
 
         apiUrl =
             if prod then
-                Api.makeApiUrl location.pathname
+                Api.makeApiUrl url.path
+
             else
                 Api.makeApiUrl "http://localhost:9093/"
 
         libUrl =
             if prod then
-                location.pathname
+                url.path
+
             else
                 "/"
     in
-        update (urlUpdate location)
-            (Model
-                initSilenceList
-                initSilenceView
-                initSilenceForm
-                initAlertList
-                route
-                filter
-                initStatusModel
-                location.pathname
-                apiUrl
-                libUrl
-                Loading
-                Loading
-                defaultCreator
-            )
+    update (urlUpdate url)
+        (Model
+            (initSilenceList key)
+            (initSilenceView key)
+            (initSilenceForm key)
+            (initAlertList key)
+            route
+            filter
+            initStatusModel
+            url.path
+            apiUrl
+            libUrl
+            Loading
+            Loading
+            defaultCreator
+            key
+        )
 
 
-urlUpdate : Navigation.Location -> Msg
-urlUpdate location =
+urlUpdate : Url -> Msg
+urlUpdate url =
     let
         route =
-            Parsing.urlParser location
+            Parsing.urlParser url
     in
-        case route of
-            SilenceListRoute maybeFilter ->
-                NavigateToSilenceList maybeFilter
+    case route of
+        SilenceListRoute maybeFilter ->
+            NavigateToSilenceList maybeFilter
 
-            SilenceViewRoute silenceId ->
-                NavigateToSilenceView silenceId
+        SilenceViewRoute silenceId ->
+            NavigateToSilenceView silenceId
 
-            SilenceFormEditRoute silenceId ->
-                NavigateToSilenceFormEdit silenceId
+        SilenceFormEditRoute silenceId ->
+            NavigateToSilenceFormEdit silenceId
 
-            SilenceFormNewRoute matchers ->
-                NavigateToSilenceFormNew matchers
+        SilenceFormNewRoute matchers ->
+            NavigateToSilenceFormNew matchers
 
-            AlertsRoute filter ->
-                NavigateToAlerts filter
+        AlertsRoute filter ->
+            NavigateToAlerts filter
 
-            StatusRoute ->
-                NavigateToStatus
+        StatusRoute ->
+            NavigateToStatus
 
-            TopLevelRoute ->
-                RedirectAlerts
+        TopLevelRoute ->
+            RedirectAlerts
 
-            NotFoundRoute ->
-                NavigateToNotFound
+        NotFoundRoute ->
+            NavigateToNotFound

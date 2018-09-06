@@ -1,7 +1,8 @@
 module Views.ReceiverBar.Types exposing (Model, Msg(..), initReceiverBar)
 
-import Utils.Types exposing (ApiData(Initial))
 import Alerts.Types exposing (Receiver)
+import Browser.Navigation exposing (Key)
+import Utils.Types exposing (ApiData(..))
 
 
 type Msg
@@ -22,15 +23,17 @@ type alias Model =
     , selectedReceiver : Maybe Receiver
     , showReceivers : Bool
     , resultsHovered : Bool
+    , key : Key
     }
 
 
-initReceiverBar : Model
-initReceiverBar =
+initReceiverBar : Key -> Model
+initReceiverBar key =
     { receivers = []
     , matches = []
     , fieldText = ""
     , selectedReceiver = Nothing
     , showReceivers = False
     , resultsHovered = False
+    , key = key
     }

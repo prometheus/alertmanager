@@ -1,8 +1,8 @@
 module Views.AlertList.Filter exposing (matchers)
 
 import Alerts.Types exposing (Alert, AlertGroup, Block)
+import Regex exposing (contains, regex)
 import Utils.Types exposing (Matchers)
-import Regex exposing (regex, contains)
 
 
 matchers : Maybe Utils.Types.Matchers -> List AlertGroup -> List AlertGroup
@@ -21,10 +21,11 @@ alertsFromBlock fn block =
         alerts =
             List.filter fn block.alerts
     in
-        if not <| List.isEmpty alerts then
-            Just { block | alerts = alerts }
-        else
-            Nothing
+    if not <| List.isEmpty alerts then
+        Just { block | alerts = alerts }
+
+    else
+        Nothing
 
 
 byLabel : Utils.Types.Matchers -> Block -> Maybe Block
@@ -44,13 +45,14 @@ byLabel matchers block =
                             regex =
                                 Regex.regex m.value
                         in
-                            -- No regex match
-                            case x of
-                                Just ( _, value ) ->
-                                    Regex.contains regex value
+                        -- No regex match
+                        case x of
+                            Just ( _, value ) ->
+                                Regex.contains regex value
 
-                                Nothing ->
-                                    False
+                            Nothing ->
+                                False
+
                     else
                         List.member ( m.name, m.value ) a.labels
                 )
@@ -65,10 +67,11 @@ filterAlertGroupLabels matchers alertGroup =
         blocks =
             List.filterMap (byLabel matchers) alertGroup.blocks
     in
-        if not <| List.isEmpty blocks then
-            Just { alertGroup | blocks = blocks }
-        else
-            Nothing
+    if not <| List.isEmpty blocks then
+        Just { alertGroup | blocks = blocks }
+
+    else
+        Nothing
 
 
 by : (a -> Maybe a) -> List a -> List a

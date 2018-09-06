@@ -1,12 +1,12 @@
 module Views.Status.Views exposing (view)
 
 import Html exposing (..)
-import Html.Attributes exposing (class, style, classList)
-import Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
-import Types exposing (Msg(MsgForStatus))
-import Utils.Types exposing (ApiData(Failure, Success, Loading, Initial))
-import Views.Status.Types exposing (StatusModel)
+import Html.Attributes exposing (class, classList, style)
+import Status.Types exposing (ClusterPeer, ClusterStatus, StatusResponse, VersionInfo)
+import Types exposing (Msg(..))
+import Utils.Types exposing (ApiData(..))
 import Utils.Views
+import Views.Status.Types exposing (StatusModel)
 
 
 view : StatusModel -> Html Types.Msg
@@ -43,7 +43,7 @@ viewConfig : String -> Html Types.Msg
 viewConfig config =
     div []
         [ h2 [] [ text "Config" ]
-        , pre [ class "p-4", style [ ( "background", "#f7f7f9" ), ( "font-family", "monospace" ) ] ]
+        , pre [ class "p-4", style "background" "#f7f7f9", style "font-family" "monospace" ]
             [ code []
                 [ text config
                 ]
@@ -54,12 +54,12 @@ viewConfig config =
 viewClusterStatus : Maybe ClusterStatus -> Html Types.Msg
 viewClusterStatus clusterStatus =
     case clusterStatus of
-        Just clusterStatus ->
+        Just { name, status, peers } ->
             span []
                 [ h2 [] [ text "Cluster Status" ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Name:" ]
-                    , div [ class "col-sm-10" ] [ text clusterStatus.name ]
+                    , div [ class "col-sm-10" ] [ text name ]
                     ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Status:" ]
@@ -67,17 +67,17 @@ viewClusterStatus clusterStatus =
                         [ span
                             [ classList
                                 [ ( "badge", True )
-                                , ( "badge-success", clusterStatus.status == "ready" )
-                                , ( "badge-warning", clusterStatus.status == "settling" )
+                                , ( "badge-success", status == "ready" )
+                                , ( "badge-warning", status == "settling" )
                                 ]
                             ]
-                            [ text clusterStatus.status ]
+                            [ text status ]
                         ]
                     ]
                 , div [ class "form-group row" ]
                     [ b [ class "col-sm-2" ] [ text "Peers:" ]
                     , ul [ class "col-sm-10" ] <|
-                        List.map viewClusterPeer clusterStatus.peers
+                        List.map viewClusterPeer peers
                     ]
                 ]
 

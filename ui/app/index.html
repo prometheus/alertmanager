@@ -9,16 +9,21 @@
         <script>
             // If there is no trailing slash at the end of the path in the url,
             // add one. This ensures assets like script.js are loaded properly
-            if (window.location.pathname.substr(-1) != '/') {
-                window.location.pathname = window.location.pathname + '/';
+            if (location.pathname.substr(-1) != '/') {
+                location.pathname = location.pathname + '/';
                 console.log('added slash');
             }
         </script>
         <script src="script.js"></script>
         <script>
-            var app = Elm.Main.embed(document.body, { production: true, defaultCreator: window.localStorage.getItem('defaultCreator') });
+            var app = Elm.Main.init({
+                flags: {
+                    production: true,
+                    defaultCreator: localStorage.getItem('defaultCreator')
+                }
+            });
             app.ports.persistDefaultCreator.subscribe(function(name) {
-                window.localStorage.setItem('defaultCreator', name);
+                localStorage.setItem('defaultCreator', name);
             });
         </script>
     </body>

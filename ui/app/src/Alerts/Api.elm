@@ -1,11 +1,20 @@
-module Alerts.Api exposing (..)
+module Alerts.Api exposing (alertDecoder, alertsDecoder, fetchAlerts, fetchReceivers)
 
 import Alerts.Types exposing (Alert, Receiver)
 import Json.Decode as Json exposing (..)
+import Regex
 import Utils.Api exposing (iso8601Time)
 import Utils.Filter exposing (Filter, generateQueryString)
 import Utils.Types exposing (ApiData)
-import Regex
+
+
+escapeRegExp : String -> String
+escapeRegExp text =
+    let
+        reg =
+            Regex.fromString "/[-[\\]{}()*+?.,\\\\^$|#\\s]/g" |> Maybe.withDefault Regex.never
+    in
+    Regex.replace reg (.match >> (++) "\\") text
 
 
 fetchReceivers : String -> Cmd (ApiData (List Receiver))
@@ -13,7 +22,7 @@ fetchReceivers apiUrl =
     Utils.Api.send
         (Utils.Api.get
             (apiUrl ++ "/receivers")
-            (field "data" (list (Json.map (\receiver -> Receiver receiver (Regex.escape receiver)) string)))
+            (field "data" (list (Json.map (\receiver -> Receiver receiver (escapeRegExp receiver)) string)))
         )
 
 
@@ -23,14 +32,14 @@ fetchAlerts apiUrl filter =
         url =
             String.join "/" [ apiUrl, "alerts" ++ generateQueryString filter ]
     in
-        Utils.Api.send (Utils.Api.get url alertsDecoder)
+    Utils.Api.send (Utils.Api.get url alertsDecoder)
 
 
 alertsDecoder : Json.Decoder (List Alert)
 alertsDecoder =
     Json.list alertDecoder
         -- populate alerts with ids:
-        |> Json.map (List.indexedMap (toString >> (|>)))
+        |> Json.map (List.indexedMap (String.fromInt >> (|>)))
         |> field "data"
 
 
