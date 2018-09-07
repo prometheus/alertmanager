@@ -15,7 +15,6 @@ include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
 DOCKER_IMAGE_NAME       ?= alertmanager
-ERRCHECK_BINARY         := $(FIRST_GOPATH)/bin/errcheck
 
 STATICCHECK_IGNORE = \
   github.com/prometheus/alertmanager/notify/notify.go:SA6002
@@ -59,9 +58,8 @@ clean:
 	cd $(FRONTEND_DIR) && $(MAKE) clean
 
 .PHONY: test
-test: common-test $(ERRCHECK_BINARY)
+test: common-test
 	@echo ">> running errcheck with exclude file scripts/errcheck_excludes.txt"
-	$(ERRCHECK_BINARY) -verbose -exclude scripts/errcheck_excludes.txt -ignoretests ./...
 
 $(ERRCHECK_BINARY):
 	@go get github.com/kisielk/errcheck

@@ -10,7 +10,7 @@ require (
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
 	github.com/cenkalti/backoff v2.0.0+incompatible
 	github.com/cespare/xxhash v1.0.0
-	github.com/davecgh/go-spew v1.1.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/go-units v0.3.3
 	github.com/go-kit/kit v0.0.0-20171021132459-e2b298466b32
 	github.com/go-logfmt/logfmt v0.3.0
@@ -38,11 +38,11 @@ require (
 	github.com/julienschmidt/httprouter v0.0.0-20170430222011-975b5c4c7c21
 	github.com/kisielk/gotool v1.0.0 // indirect
 	github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515
-	github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348 // indirect
+	github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348
 	github.com/mailru/easyjson v0.0.0-20171022173215-4d347d79dea0
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/miekg/dns v0.0.0-20171108100119-388f6eea2949
-	github.com/mitchellh/mapstructure v0.0.0-20180220230111-00c29f56e238
+	github.com/mitchellh/mapstructure v1.0.0
 	github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223
 	github.com/oklog/oklog v0.0.0-20170918173356-f857583a70c3
 	github.com/oklog/ulid v0.0.0-20170117200651-66bb6560562f
@@ -53,13 +53,16 @@ require (
 	github.com/prometheus/common v0.0.0-20180518154759-7600349dcfe1
 	github.com/prometheus/procfs v0.0.0-20180725123919-05ee40e3a273 // indirect
 	github.com/prometheus/prometheus v0.0.0-20180315085919-58e2a31db8de
+	github.com/prometheus/promu v0.1.0 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
-	github.com/stretchr/testify v1.2.2 // indirect
+	github.com/spf13/cobra v0.0.3 // indirect
+	github.com/spf13/viper v1.2.0 // indirect
+	github.com/stretchr/testify v1.2.2
 	github.com/tylerb/graceful v0.0.0-20170221171003-d72b0151351a
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
 	golang.org/x/net v0.0.0-20180611182652-db08ff08e862
-	golang.org/x/text v0.0.0-20180410181320-7922cc490dd5
+	golang.org/x/text v0.3.0
 	golang.org/x/tools v0.0.0-20180904205237-0aa4b8830f48 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528

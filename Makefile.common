@@ -16,7 +16,7 @@
 # !!! Open PRs only against the prometheus/prometheus/Makefile.common repository!
 
 # Example usage :
-# Create the main Makefile in the root project directory. 
+# Create the main Makefile in the root project directory.
 # include Makefile.common
 # customTarget:
 # 	@echo ">> Running customTarget"
@@ -30,7 +30,6 @@ GOFMT        ?= $(GO)fmt
 FIRST_GOPATH := $(firstword $(subst :, ,$(shell $(GO) env GOPATH)))
 PROMU        := $(FIRST_GOPATH)/bin/promu
 STATICCHECK  := $(FIRST_GOPATH)/bin/staticcheck
-GOVENDOR     := $(FIRST_GOPATH)/bin/govendor
 pkgs          = ./...
 
 PREFIX                  ?= $(shell pwd)
@@ -39,7 +38,7 @@ DOCKER_IMAGE_TAG        ?= $(subst /,-,$(shell git rev-parse --abbrev-ref HEAD))
 DOCKER_REPO             ?= prom
 
 .PHONY: all
-all: style staticcheck unused build test
+all: style build test
 
 # This rule is used to forward a target like "build" to "common-build".  This
 # allows a new "build" target to be defined in a Makefile which includes this
@@ -86,16 +85,6 @@ common-format:
 common-vet:
 	@echo ">> vetting code"
 	$(GO) vet $(pkgs)
-
-.PHONY: common-staticcheck
-common-staticcheck: $(STATICCHECK)
-	@echo ">> running staticcheck"
-	$(STATICCHECK) -ignore "$(STATICCHECK_IGNORE)" $(pkgs)
-
-.PHONY: common-unused
-common-unused: $(GOVENDOR)
-	@echo ">> running check for unused packages"
-	@$(GOVENDOR) list +unused | grep . && exit 1 || echo 'No unused packages'
 
 .PHONY: common-build
 common-build: promu
