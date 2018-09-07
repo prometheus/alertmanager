@@ -270,7 +270,7 @@ receivers:
 }
 
 func TestResolved(t *testing.T) {
-	t.Parallel()
+	//TODO: run this test in parallel with other tests. For now it causes test failures on Travis CI.
 
 	var wg sync.WaitGroup
 	wg.Add(10)
