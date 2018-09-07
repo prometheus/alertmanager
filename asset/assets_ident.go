@@ -61,9 +61,9 @@ var identifier = fileIdentifier{
 		size:     15086,
 	},
 	"/static/index.html": identity{
-		checksum: "b92333e982a0c5f11150e68b6cd9e211bc6230ac23170c31d03d2484d44b0c96",
-		modTime:  time.Date(2018, 8, 27, 17, 5, 10, 237696286, time.UTC),
-		size:     1009,
+		checksum: "63fed0f0876002450143556b3ad546bb7cefb8b8b42966d9a48e11f6885d4ded",
+		modTime:  time.Date(2018, 9, 7, 12, 3, 48, 151326386, time.UTC),
+		size:     1053,
 	},
 	"/static/lib": identity{
 		checksum: "",
@@ -146,9 +146,9 @@ var identifier = fileIdentifier{
 		size:     77160,
 	},
 	"/static/script.js": identity{
-		checksum: "6836c36619be75f3a4796cddd38e5c8775258d6306f293a2432405ac350725c5",
-		modTime:  time.Date(2018, 8, 30, 16, 41, 6, 815490622, time.UTC),
-		size:     191271,
+		checksum: "f9cdfdd514697be47f7c0ee67e3b514017208d3bcb26817593d707045ae26098",
+		modTime:  time.Date(2018, 9, 7, 12, 6, 8, 462256850, time.UTC),
+		size:     93329,
 	},
 	"/templates": identity{
 		checksum: "",
