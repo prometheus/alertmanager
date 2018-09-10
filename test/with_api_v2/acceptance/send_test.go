@@ -15,7 +15,6 @@ package test
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -271,12 +270,12 @@ receivers:
 
 func TestResolved(t *testing.T) {
 	//TODO: run this test in parallel with other tests. For now it causes test failures on Travis CI.
-
-	var wg sync.WaitGroup
-	wg.Add(10)
+	ch := make(chan struct{}, 2)
 
 	for i := 0; i < 10; i++ {
+		ch <- struct{}{}
 		go func() {
+			defer func() { <-ch }()
 			conf := `
 global:
   resolve_timeout: 10s
@@ -320,11 +319,12 @@ receivers:
 			)
 
 			at.Run()
-			wg.Done()
 		}()
 	}
 
-	wg.Wait()
+	for i := 0; i < cap(ch); i++ {
+		ch <- struct{}{}
+	}
 }
 
 func TestResolvedFilter(t *testing.T) {
