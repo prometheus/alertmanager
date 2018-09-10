@@ -271,7 +271,7 @@ receivers:
 func TestResolved(t *testing.T) {
 	t.Parallel()
 
-	ch := make(chan struct{}, 2)
+	ch := make(chan struct{}, 1)
 	for i := 0; i < 10; i++ {
 		ch <- struct{}{}
 		go func() {
