@@ -269,9 +269,9 @@ receivers:
 }
 
 func TestResolved(t *testing.T) {
-	//TODO: run this test in parallel with other tests. For now it causes test failures on Travis CI.
-	ch := make(chan struct{}, 2)
+	t.Parallel()
 
+	ch := make(chan struct{}, 2)
 	for i := 0; i < 10; i++ {
 		ch <- struct{}{}
 		go func() {
