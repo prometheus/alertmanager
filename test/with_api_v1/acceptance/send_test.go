@@ -271,12 +271,8 @@ receivers:
 func TestResolved(t *testing.T) {
 	t.Parallel()
 
-	ch := make(chan struct{}, 1)
-	for i := 0; i < 10; i++ {
-		ch <- struct{}{}
-		go func() {
-			defer func() { <-ch }()
-			conf := `
+	for i := 0; i < 2; i++ {
+		conf := `
 global:
   resolve_timeout: 10s
 
@@ -292,38 +288,33 @@ receivers:
   - url: 'http://%s'
 `
 
-			at := NewAcceptanceTest(t, &AcceptanceOpts{
-				Tolerance: 150 * time.Millisecond,
-			})
+		at := NewAcceptanceTest(t, &AcceptanceOpts{
+			Tolerance: 150 * time.Millisecond,
+		})
 
-			co := at.Collector("webhook")
-			wh := NewWebhook(co)
+		co := at.Collector("webhook")
+		wh := NewWebhook(co)
 
-			am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+		am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
 
-			am.Push(At(1),
-				Alert("alertname", "test", "lbl", "v1"),
-				Alert("alertname", "test", "lbl", "v2"),
-				Alert("alertname", "test", "lbl", "v3"),
-			)
+		am.Push(At(1),
+			Alert("alertname", "test", "lbl", "v1"),
+			Alert("alertname", "test", "lbl", "v2"),
+			Alert("alertname", "test", "lbl", "v3"),
+		)
 
-			co.Want(Between(2, 2.5),
-				Alert("alertname", "test", "lbl", "v1").Active(1),
-				Alert("alertname", "test", "lbl", "v2").Active(1),
-				Alert("alertname", "test", "lbl", "v3").Active(1),
-			)
-			co.Want(Between(12, 13),
-				Alert("alertname", "test", "lbl", "v1").Active(1, 11),
-				Alert("alertname", "test", "lbl", "v2").Active(1, 11),
-				Alert("alertname", "test", "lbl", "v3").Active(1, 11),
-			)
+		co.Want(Between(2, 2.5),
+			Alert("alertname", "test", "lbl", "v1").Active(1),
+			Alert("alertname", "test", "lbl", "v2").Active(1),
+			Alert("alertname", "test", "lbl", "v3").Active(1),
+		)
+		co.Want(Between(12, 13),
+			Alert("alertname", "test", "lbl", "v1").Active(1, 11),
+			Alert("alertname", "test", "lbl", "v2").Active(1, 11),
+			Alert("alertname", "test", "lbl", "v3").Active(1, 11),
+		)
 
-			at.Run()
-		}()
-	}
-
-	for i := 0; i < cap(ch); i++ {
-		ch <- struct{}{}
+		at.Run()
 	}
 }
 
