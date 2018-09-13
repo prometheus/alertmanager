@@ -62,7 +62,7 @@ linkifyText str =
 
 iconButtonMsg : String -> String -> msg -> Html msg
 iconButtonMsg classString icon msg =
-    a [ class classString, onClick msg ]
+    button [ class classString, onClick msg ]
         [ i [ class <| "fa fa-3 " ++ icon ] []
         ]
 
