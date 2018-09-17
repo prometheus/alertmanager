@@ -146,8 +146,8 @@ var identifier = fileIdentifier{
 		size:     77160,
 	},
 	"/static/script.js": identity{
-		checksum: "f9cdfdd514697be47f7c0ee67e3b514017208d3bcb26817593d707045ae26098",
-		modTime:  time.Date(2018, 9, 7, 12, 6, 8, 462256850, time.UTC),
+		checksum: "21478a8222daa420e564178a3e3ac7fa335e3c56784a5048733b52e04f1264c0",
+		modTime:  time.Date(2018, 9, 17, 22, 49, 10, 620294713, time.UTC),
 		size:     93329,
 	},
 	"/templates": identity{
