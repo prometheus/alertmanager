@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
-	"path/filepath"
+	"path"
 
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -48,8 +48,8 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		fs.ServeHTTP(w, req)
 	})
 
-	r.Get("/lib/*filepath", func(w http.ResponseWriter, req *http.Request) {
-		req.URL.Path = filepath.Join("/static/lib", route.Param(req.Context(), "filepath"))
+	r.Get("/lib/*path", func(w http.ResponseWriter, req *http.Request) {
+		req.URL.Path = path.Join("/static/lib", route.Param(req.Context(), "path"))
 		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
