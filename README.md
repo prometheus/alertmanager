@@ -180,7 +180,7 @@ and [Go Swagger](https://github.com/go-swagger/go-swagger/) with the exception
 of the HTTP handlers themselves. The API specification can be found in
 [api/v2/openapi.yaml](api/v2/openapi.yaml). A HTML rendered version can be
 accessed
-[here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/alertmanager/alertmanager/master/api/v2/openapi.yaml).
+[here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml).
 Clients can be easily generated via any OpenAPI generator for all major
 languages.
 
