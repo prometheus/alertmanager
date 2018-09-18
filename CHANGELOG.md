@@ -1,9 +1,28 @@
-## Next release
+## 0.16.0-beta.0 / 2018-09-18
 
-* [CHANGE] Revert Alertmanager working directory changes in Docker image back to `/alertmanager` (#1435)
+This release introduces a new API v2, fully generated via the OpenAPI project
+[1]. At the same time with this release the previous API v1 is being
+deprecated. API v1 will be removed with Alertmanager release v0.18.0.
+
+* [CHANGE] Deprecate API v1
 * [CHANGE] Remove `api/v1/alerts/groups` GET endpoint (#1508)
+* [CHANGE] Revert Alertmanager working directory changes in Docker image back to `/alertmanager` (#1435)
+* [CHANGE] Using the recommended label syntax for maintainer in Dockerfile (#1533)
+* [FEATURE] Introduce OpenAPI generated API v2
+* [FEATURE] Lookup parts in strings using regexp.MatchString in templates (#1452)
+* [FEATURE] Support image/thumb url in attachment in Slack notifier (#1506)
+* [FEATURE] [amtool] Add timeout support to amtool commands (#1471)
 * [FEATURE] [amtool] Added `config routes` tools for vizualization and testing routes (#1511)
+* [FEATURE] [amtool] Support adding alerts using amtool (#1461)
+* [ENHANCEMENT] Add help link in UI to Alertmanager documentation (#1522)
+* [BUGFIX] Catch templating errors in Wechat notifier (#1436)
+* [BUGFIX] Fix email template typo in alert-warning style (#1421)
+* [BUGFIX] Fix silence redirect on silence creation UI page (#1548)
+* [BUGFIX] [amtool] Fix config path check in amtool (#1538)
+* [BUGFIX] [amtool] Fix rfc3339 example texts (#1526)
 * [BUGFIX] [amtool] Fixed issue with loading path of a default configs (#1529)
+
+[1] https://github.com/prometheus/alertmanager#api
 
 ## 0.15.2 / 2018-08-14
 
