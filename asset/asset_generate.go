@@ -17,15 +17,16 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/shurcooL/vfsgen"
 
 	"github.com/prometheus/alertmanager/asset"
-	"github.com/prometheus/alertmanager/pkg/idemvfs"
+	"github.com/prometheus/alertmanager/pkg/modtimevfs"
 )
 
 func main() {
-	fs := idemvfs.NewFileSystem(asset.Assets, identifier)
+	fs := modtimevfs.New(asset.Assets, time.Unix(1, 0))
 	err := vfsgen.Generate(fs, vfsgen.Options{
 		PackageName:  "asset",
 		BuildTags:    "!dev",
