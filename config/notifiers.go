@@ -203,10 +203,25 @@ type PagerdutyConfig struct {
 	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+	Images      []PagerdutyImage  `yaml:"images,omitempty" json:"images,omitempty"`
+	Links       []PagerdutyLink   `yaml:"links,omitempty" json:"links,omitempty"`
 	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
 	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
+}
+
+// PagerdutyLink is a link
+type PagerdutyLink struct {
+	HRef string `json:"href"`
+	Text string `json:"text"`
+}
+
+// PagerdutyImage is an image
+type PagerdutyImage struct {
+	Src  string `json:"src"`
+	Alt  string `json:"alt"`
+	Text string `json:"text"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

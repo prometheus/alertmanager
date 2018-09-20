@@ -465,6 +465,19 @@ type pagerDutyMessage struct {
 	Client      string            `json:"client,omitempty"`
 	ClientURL   string            `json:"client_url,omitempty"`
 	Details     map[string]string `json:"details,omitempty"`
+	Images      []pagerDutyImage  `json:"images,omitempty"`
+	Links       []pagerDutyLink   `json:"links,omitempty"`
+}
+
+type pagerDutyLink struct {
+	HRef string `json:"href"`
+	Text string `json:"text"`
+}
+
+type pagerDutyImage struct {
+	Src  string `json:"src"`
+	Alt  string `json:"alt"`
+	Text string `json:"text"`
 }
 
 type pagerDutyPayload struct {
@@ -532,6 +545,8 @@ func (n *PagerDuty) notifyV2(
 	eventType, key string,
 	data *template.Data,
 	details map[string]string,
+	images []pagerDutyImage,
+	links []pagerDutyLink,
 	as ...*types.Alert,
 ) (bool, error) {
 	var tmplErr error
@@ -547,6 +562,8 @@ func (n *PagerDuty) notifyV2(
 		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
 		EventAction: eventType,
 		DedupKey:    hashKey(key),
+		Images:      images,
+		Links:       links,
 		Payload: &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
 			Source:        tmpl(n.conf.Client),
@@ -606,6 +623,42 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		details[k] = detail
 	}
 
+	images := make([]pagerDutyImage, len(n.conf.Images))
+	for index, item := range n.conf.Images {
+		text, err := n.tmpl.ExecuteTextString(item.Text, data)
+		if err != nil {
+			return false, fmt.Errorf("failed to template %q: %v", item.Text, err)
+		}
+		images[index].Text = text
+
+		alt, err := n.tmpl.ExecuteTextString(item.Alt, data)
+		if err != nil {
+			return false, fmt.Errorf("failed to template %q: %v", item.Alt, err)
+		}
+		images[index].Alt = alt
+
+		src, err := n.tmpl.ExecuteTextString(item.Src, data)
+		if err != nil {
+			return false, fmt.Errorf("failed to template %q: %v", item.Src, err)
+		}
+		images[index].Src = src
+	}
+
+	links := make([]pagerDutyLink, len(n.conf.Links))
+	for index, item := range n.conf.Links {
+		text, err := n.tmpl.ExecuteTextString(item.Text, data)
+		if err != nil {
+			return false, fmt.Errorf("failed to template %q: %v", item.Text, err)
+		}
+		links[index].Text = text
+
+		href, err := n.tmpl.ExecuteTextString(item.HRef, data)
+		if err != nil {
+			return false, fmt.Errorf("failed to template %q: %v", item.HRef, err)
+		}
+		links[index].HRef = href
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -618,7 +671,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	if n.conf.ServiceKey != "" {
 		return n.notifyV1(ctx, c, eventType, key, data, details, as...)
 	}
-	return n.notifyV2(ctx, c, eventType, key, data, details, as...)
+	return n.notifyV2(ctx, c, eventType, key, data, details, images, links, as...)
 }
 
 func (n *PagerDuty) retryV1(resp *http.Response) (bool, error) {
