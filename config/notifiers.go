@@ -213,15 +213,15 @@ type PagerdutyConfig struct {
 
 // PagerdutyLink is a link
 type PagerdutyLink struct {
-	HRef string `json:"href"`
-	Text string `json:"text"`
+	HRef string `yaml:"href,omitempty" json:"href,omitempty"`
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
 // PagerdutyImage is an image
 type PagerdutyImage struct {
-	Src  string `json:"src"`
-	Alt  string `json:"alt"`
-	Text string `json:"text"`
+	Src  string `yaml:"src,omitempty" json:"src,omitempty"`
+	Alt  string `yaml:"alt,omitempty" json:"alt,omitempty"`
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
