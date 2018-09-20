@@ -247,12 +247,15 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 
 // SlackAction configures a single Slack action that is sent with each notification.
 // Each action must contain a type, text, and url.
-// See https://api.slack.com/docs/message-attachments#action_fields for more information.
+// See https://api.slack.com/docs/message-attachments#action_fields and https://api.slack.com/docs/message-buttons
+// for more information
 type SlackAction struct {
 	Type  string `yaml:"type,omitempty"  json:"type,omitempty"`
 	Text  string `yaml:"text,omitempty"  json:"text,omitempty"`
 	URL   string `yaml:"url,omitempty"   json:"url,omitempty"`
 	Style string `yaml:"style,omitempty" json:"style,omitempty"`
+	Name  string `yaml:"name,omitempty"  json:"name,omitempty"`
+	Value string `yaml:"value,omitempty"  json:"value,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
@@ -267,8 +270,12 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Text == "" {
 		return fmt.Errorf("missing value in Slack text configuration")
 	}
-	if c.URL == "" {
+	// either URL or Name and Value need to be provided
+	if c.URL != "" && c.Name != "" && c.Value != "" {
 		return fmt.Errorf("missing value in Slack url configuration")
+	}
+	if (c.Name == "" || c.Value == "") && c.URL == "" {
+		return fmt.Errorf("missing value in either Slack name and/or value configuration")
 	}
 	return nil
 }

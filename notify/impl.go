@@ -773,6 +773,8 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 				Text:  tmplText(action.Text),
 				URL:   tmplText(action.URL),
 				Style: tmplText(action.Style),
+				Name:  tmplText(action.Name),
+				Value: tmplText(action.Value),
 			}
 		}
 		attachment.Actions = actions
