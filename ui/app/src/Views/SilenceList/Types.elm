@@ -1,7 +1,9 @@
 module Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab, initSilenceList)
 
 import Browser.Navigation exposing (Key)
-import Silences.Types exposing (Silence, SilenceId, State(..))
+import Data.Silence exposing (Silence)
+import Data.SilenceStatus exposing (State(..))
+import Data.Silences exposing (Silences)
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 
@@ -16,7 +18,7 @@ type SilenceListMsg
 
 
 type alias SilenceTab =
-    { silences : List Silence
+    { silences : Silences
     , tab : State
     , count : Int
     }
@@ -26,7 +28,7 @@ type alias Model =
     { silences : ApiData (List SilenceTab)
     , filterBar : FilterBar.Model
     , tab : State
-    , showConfirmationDialog : Maybe SilenceId
+    , showConfirmationDialog : Maybe String
     , key : Key
     }
 

@@ -207,9 +207,26 @@ definitions:
   alertmanagerStatus:
     type: object
     properties:
+      cluster:
+        $ref: '#/definitions/clusterStatus'
+      versionInfo:
+        $ref: '#/definitions/versionInfo'
+      config:
+        $ref: '#/definitions/alertmanagerConfig'
+      uptime:
+        type: string
+        format: date-time
+    required:
+      - cluster
+      - versionInfo
+      - config
+      - uptime
+  clusterStatus:
+    type: object
+    properties:
       name:
         type: string
-      statusInCluster:
+      status:
         type: string
       peers:
         type: array
@@ -218,8 +235,37 @@ definitions:
           $ref: '#/definitions/peerStatus'
     required:
       - name
-      - statusInCluster
+      - status
       - peers
+  alertmanagerConfig:
+    type: object
+    properties:
+      original:
+        type: string
+    required:
+      - original
+  versionInfo:
+    type: object
+    properties:
+      version:
+        type: string
+      revision:
+        type: string
+      branch:
+        type: string
+      buildUser:
+        type: string
+      buildDate:
+        type: string
+      goVersion:
+        type: string
+    required:
+      - version
+      - revision
+      - branch
+      - buildUser
+      - buildDate
+      - goVersion
   peerStatus:
     type: object
     properties:
@@ -227,6 +273,9 @@ definitions:
         type: string
       address:
         type: string
+    required:
+      - name
+      - address
   silence:
     type: object
     properties:
@@ -243,18 +292,27 @@ definitions:
       updatedAt:
         type: string
         format: date-time
+        x-nullable: true
       createdBy:
         type: string
       comment:
         type: string
       status:
-        type: object
-        properties:
-          state:
-            type: string
-            enum: ["expired", "active", "pending"]
+        $ref: '#/definitions/silenceStatus'
     required:
       - matchers
+      - startsAt
+      - endsAt
+      - createdBy
+      - comment
+  silenceStatus:
+    type: object
+    properties:
+      state:
+        type: string
+        enum: ["expired", "active", "pending"]
+    required:
+      - state
   silences:
     type: array
     items:
@@ -273,8 +331,10 @@ definitions:
         type: string
       isRegex:
         type: boolean
-      regex:
-        type: string
+    required:
+      - name
+      - value
+      - isRegex
   # Define required properties for 'alert'
   alerts:
     type: array
@@ -306,24 +366,34 @@ definitions:
       fingerprint:
         type: string
       status:
-        type: object
-        properties:
-          state:
-            type: string
-            enum: ['unprocessed', 'active', 'suppressed']
-          silencedBy:
-            type: array
-            items:
-              type: string
-          inhibitedBy:
-            type: array
-            items:
-              type: string
+        $ref: '#/definitions/alertStatus'
+    required:
+      - labels
+  alertStatus:
+    type: object
+    properties:
+      state:
+        type: string
+        enum: ['unprocessed', 'active', 'suppressed']
+      silencedBy:
+        type: array
+        items:
+          type: string
+      inhibitedBy:
+        type: array
+        items:
+          type: string
+    required:
+      - state
+      - silencedBy
+      - inhibitedBy
   receiver:
     type: object
     properties:
       name:
         type: string
+    required:
+      - name
   labelSet:
     type: object
     additionalProperties:

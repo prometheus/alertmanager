@@ -1,10 +1,11 @@
 module Views.SilenceForm.Views exposing (view)
 
-import Alerts.Types exposing (Alert)
+import Data.Alert exposing (Alert)
+import Data.Alerts exposing (Alerts)
+import Data.Silence exposing (Silence)
 import Html exposing (Html, a, button, div, fieldset, h1, input, label, legend, span, strong, text, textarea)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence, SilenceId)
 import Utils.Filter
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
@@ -13,7 +14,7 @@ import Views.Shared.SilencePreview
 import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
-view : Maybe SilenceId -> List Utils.Filter.Matcher -> String -> Model -> Html SilenceFormMsg
+view : Maybe String -> List Utils.Filter.Matcher -> String -> Model -> Html SilenceFormMsg
 view maybeId matchers defaultCreator { form, silenceId, alerts } =
     let
         ( title, resetClick ) =
@@ -94,7 +95,7 @@ matcherInput matchers =
         ]
 
 
-informationBlock : ApiData SilenceId -> ApiData (List Alert) -> Html SilenceFormMsg
+informationBlock : ApiData String -> ApiData Alerts -> Html SilenceFormMsg
 informationBlock silence alerts =
     case silence of
         Utils.Types.Success _ ->

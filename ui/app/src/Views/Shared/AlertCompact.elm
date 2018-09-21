@@ -1,6 +1,7 @@
 module Views.Shared.AlertCompact exposing (view)
 
-import Alerts.Types exposing (Alert)
+import Data.Alert exposing (Alert)
+import Dict exposing (Dict)
 import Html exposing (Html, div, li, span, text)
 import Html.Attributes exposing (class)
 import Utils.Views exposing (labelButton)
@@ -13,4 +14,5 @@ view alert =
             (\( key, value ) ->
                 labelButton Nothing (key ++ "=" ++ value)
             )
-            alert.labels
+        <|
+            Dict.toList alert.labels

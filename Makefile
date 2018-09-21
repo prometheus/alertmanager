@@ -29,7 +29,7 @@ assets: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl
 	cd $(PREFIX)/asset && $(GO) generate
 	@$(GOFMT) -w ./asset
 
-ui/app/script.js: $(shell find ui/app/src -iname *.elm)
+ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
 
 .PHONY: proto
@@ -56,6 +56,7 @@ test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client: api
 .PHONY: clean
 clean:
 	rm -f asset/assets_vfsdata.go
+	rm -r api/v2/models api/v2/restapi test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client
 	cd $(FRONTEND_DIR) && $(MAKE) clean
 
 .PHONY: test

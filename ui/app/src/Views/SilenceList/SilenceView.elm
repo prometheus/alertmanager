@@ -1,15 +1,18 @@
 module Views.SilenceList.SilenceView exposing (deleteButton, editButton, view)
 
+import Data.Matcher exposing (Matcher)
+import Data.Matchers exposing (Matchers)
+import Data.Silence exposing (Silence)
+import Data.SilenceStatus exposing (State(..))
+import Dict exposing (Dict)
 import Html exposing (Html, a, b, button, div, h3, i, li, p, small, span, text)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence, State(..))
 import Time exposing (Posix)
 import Types exposing (Msg(..))
 import Utils.Date
 import Utils.Filter
 import Utils.List
-import Utils.Types exposing (Matcher)
 import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Dialog as Dialog
@@ -26,15 +29,20 @@ view showConfirmationDialog silence =
         , class "align-items-start list-group-item border-0 p-0 mb-4"
         ]
         [ div [ class "w-100 mb-2 d-flex align-items-start" ]
-            [ case silence.status.state of
-                Active ->
-                    dateView "Ends" silence.endsAt
+            [ case silence.status of
+                Just status ->
+                    case status.state of
+                        Active ->
+                            dateView "Ends" silence.endsAt
 
-                Pending ->
-                    dateView "Starts" silence.startsAt
+                        Pending ->
+                            dateView "Starts" silence.startsAt
 
-                Expired ->
-                    dateView "Expired" silence.endsAt
+                        Expired ->
+                            dateView "Expired" silence.endsAt
+
+                Nothing ->
+                    text ""
             , detailsButton silence.id
             , editButton silence
             , deleteButton silence False
@@ -100,53 +108,73 @@ editButton silence =
     let
         matchers =
             List.map (\s -> ( s.name, s.value )) silence.matchers
-    in
-    case silence.status.state of
-        -- If the silence is expired, do not edit it, but instead create a new
-        -- one with the old matchers
-        Expired ->
-            a
-                [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels matchers)
-                ]
-                [ text "Recreate"
-                ]
 
-        _ ->
-            let
-                editUrl =
-                    String.join "/" [ "#/silences", silence.id, "edit" ]
-            in
+        editUrl =
+            -- TODO: silence.id should always be set. Can this be done nicer?
+            String.join "/" [ "#/silences", Maybe.withDefault "" silence.id, "edit" ]
+
+        default =
             a [ class "btn btn-outline-info border-0", href editUrl ]
                 [ text "Edit"
                 ]
+    in
+    case silence.status of
+        Just status ->
+            case status.state of
+                -- If the silence is expired, do not edit it, but instead create a new
+                -- one with the old matchers
+                Expired ->
+                    a
+                        [ class "btn btn-outline-info border-0"
+                        , href (newSilenceFromAlertLabels <| Dict.fromList matchers)
+                        ]
+                        [ text "Recreate"
+                        ]
+
+                _ ->
+                    default
+
+        Nothing ->
+            default
 
 
 deleteButton : Silence -> Bool -> Html Msg
 deleteButton silence refresh =
-    case silence.status.state of
-        Expired ->
+    -- TODO: status should always be set, how to solve this better?
+    case silence.status of
+        Just status ->
+            case status.state of
+                Expired ->
+                    text ""
+
+                Active ->
+                    button
+                        [ class "btn btn-outline-danger border-0"
+                        , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
+                        ]
+                        [ text "Expire"
+                        ]
+
+                Pending ->
+                    button
+                        [ class "btn btn-outline-danger border-0"
+                        , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
+                        ]
+                        [ text "Delete"
+                        ]
+
+        Nothing ->
             text ""
 
-        Active ->
-            button
-                [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
-                ]
-                [ text "Expire"
+
+detailsButton : Maybe String -> Html Msg
+detailsButton maybeSilenceId =
+    -- TODO: Again, silence.id should not be Nothing here, how can this be done better?
+    case maybeSilenceId of
+        Just id ->
+            a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ id) ]
+                [ text "View"
                 ]
 
-        Pending ->
-            button
-                [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
-                ]
-                [ text "Delete"
-                ]
-
-
-detailsButton : String -> Html Msg
-detailsButton silenceId =
-    a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ silenceId) ]
-        [ text "View"
-        ]
+        Nothing ->
+            text ""

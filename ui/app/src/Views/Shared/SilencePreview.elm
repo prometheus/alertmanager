@@ -1,6 +1,6 @@
 module Views.Shared.SilencePreview exposing (view)
 
-import Alerts.Types exposing (Alert)
+import Data.Alerts exposing (Alerts)
 import Html exposing (Html, div, p, strong, text)
 import Html.Attributes exposing (class)
 import Utils.Types exposing (ApiData(..))
@@ -8,7 +8,7 @@ import Utils.Views exposing (loading)
 import Views.Shared.AlertListCompact
 
 
-view : ApiData (List Alert) -> Html msg
+view : ApiData Alerts -> Html msg
 view alertsResponse =
     case alertsResponse of
         Success alerts ->

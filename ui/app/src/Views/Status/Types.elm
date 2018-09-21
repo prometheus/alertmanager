@@ -1,16 +1,17 @@
 module Views.Status.Types exposing (StatusModel, StatusMsg(..), initStatusModel)
 
+import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
 import Status.Types exposing (StatusResponse)
 import Utils.Types exposing (ApiData(..))
 
 
 type StatusMsg
-    = NewStatus (ApiData StatusResponse)
+    = NewStatus (ApiData AlertmanagerStatus)
     | InitStatusView
 
 
 type alias StatusModel =
-    { statusInfo : ApiData StatusResponse
+    { statusInfo : ApiData AlertmanagerStatus
     }
 
 

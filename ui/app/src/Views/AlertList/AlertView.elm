@@ -1,6 +1,8 @@
 module Views.AlertList.AlertView exposing (addLabelMsg, view)
 
-import Alerts.Types exposing (Alert)
+import Data.Alert exposing (Alert)
+import Data.Alerts exposing (Alerts)
+import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (class, href, readonly, style, title, value)
 import Html.Events exposing (onClick)
@@ -19,6 +21,7 @@ view labels maybeActiveId alert =
         -- remove the grouping labels, and bring the alertname to front
         ungroupedLabels =
             alert.labels
+                |> Dict.toList
                 |> List.filter ((\b a -> List.member a b) labels >> not)
                 |> List.partition (Tuple.first >> (==) "alertname")
                 |> (\( a, b ) -> (++) a b)
@@ -32,16 +35,23 @@ view labels maybeActiveId alert =
         [ div
             [ class "w-100 mb-2 d-flex align-items-start" ]
             [ titleView alert
-            , if List.length alert.annotations > 0 then
-                annotationsButton maybeActiveId alert
+            , case alert.annotations of
+                Just a ->
+                    if List.length (Dict.toList a) > 0 then
+                        annotationsButton maybeActiveId alert
 
-              else
-                text ""
-            , generatorUrlButton alert.generatorUrl
+                    else
+                        text ""
+
+                Nothing ->
+                    text ""
+            , generatorUrlButton alert.generatorURL
             , silenceButton alert
             ]
-        , if maybeActiveId == Just alert.id then
-            table [ class "table w-100 mb-1" ] (List.map annotation alert.annotations)
+
+        -- TODO: Moving activeId to fingerprint. Is that correct?
+        , if maybeActiveId == alert.fingerprint then
+            annotations alert.annotations
 
           else
             text ""
@@ -49,28 +59,45 @@ view labels maybeActiveId alert =
         ]
 
 
-titleView : Alert -> Html Msg
-titleView { startsAt, isInhibited } =
-    let
-        ( className, inhibited ) =
-            if isInhibited then
-                ( "text-muted", " (inhibited)" )
+annotations : Maybe (Dict String String) -> Html Msg
+annotations maybeAnnotations =
+    case maybeAnnotations of
+        Just a ->
+            table [ class "table w-100 mb-1" ] (List.map annotation <| Dict.toList a)
 
-            else
-                ( "", "" )
-    in
-    span
-        [ class ("align-self-center mr-2 " ++ className) ]
-        [ text
-            (Utils.Date.dateTimeFormat startsAt
-                ++ inhibited
-            )
-        ]
+        Nothing ->
+            text ""
+
+
+titleView : Alert -> Html Msg
+titleView { startsAt, status } =
+    case status of
+        Just status_ ->
+            let
+                ( className, inhibited ) =
+                    if not <| List.isEmpty status_.inhibitedBy then
+                        ( "text-muted", " (inhibited)" )
+
+                    else
+                        ( "", "" )
+            in
+            span
+                [ class ("align-self-center mr-2 " ++ className) ]
+                [ text
+                    (Maybe.withDefault "" (Maybe.map Utils.Date.dateTimeFormat startsAt)
+                        ++ inhibited
+                    )
+                ]
+
+        Nothing ->
+            -- TODO: What to return here? This case should never happen.
+            span [] []
 
 
 annotationsButton : Maybe String -> Alert -> Html Msg
 annotationsButton maybeActiveId alert =
-    if maybeActiveId == Just alert.id then
+    -- TODO: Moving activeId to fingerprint. Is that correct?
+    if maybeActiveId == alert.fingerprint then
         button
             [ onClick (SetActive Nothing |> MsgForAlertList)
             , class "btn btn-outline-info border-0 active"
@@ -79,7 +106,8 @@ annotationsButton maybeActiveId alert =
 
     else
         button
-            [ onClick (SetActive (Just alert.id) |> MsgForAlertList)
+            -- TODO: Moving activeId to fingerprint. Is that correct?
+            [ onClick (SetActive alert.fingerprint |> MsgForAlertList)
             , class "btn btn-outline-info border-0"
             ]
             [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
@@ -135,30 +163,41 @@ addLabelMsg ( key, value ) =
 
 silenceButton : Alert -> Html Msg
 silenceButton alert =
-    case alert.silenceId of
-        Just sId ->
+    case alert.status of
+        Just status ->
+            case List.head status.silencedBy of
+                Just sId ->
+                    a
+                        [ class "btn btn-outline-danger border-0"
+                        , href ("#/silences/" ++ sId)
+                        ]
+                        [ i [ class "fa fa-bell-slash mr-2" ] []
+                        , text "Silenced"
+                        ]
+
+                Nothing ->
+                    a
+                        [ class "btn btn-outline-info border-0"
+                        , href (newSilenceFromAlertLabels alert.labels)
+                        ]
+                        [ i [ class "fa fa-bell-slash-o mr-2" ] []
+                        , text "Silence"
+                        ]
+
+        Nothing ->
+            -- TODO: What to return here? This case should never happen.
+            a [] [ text "Alert has no status" ]
+
+
+generatorUrlButton : Maybe String -> Html Msg
+generatorUrlButton maybeUrl =
+    case maybeUrl of
+        Just url ->
             a
-                [ class "btn btn-outline-danger border-0"
-                , href ("#/silences/" ++ sId)
-                ]
-                [ i [ class "fa fa-bell-slash mr-2" ] []
-                , text "Silenced"
+                [ class "btn btn-outline-info border-0", href url ]
+                [ i [ class "fa fa-line-chart mr-2" ] []
+                , text "Source"
                 ]
 
         Nothing ->
-            a
-                [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels alert.labels)
-                ]
-                [ i [ class "fa fa-bell-slash-o mr-2" ] []
-                , text "Silence"
-                ]
-
-
-generatorUrlButton : String -> Html Msg
-generatorUrlButton url =
-    a
-        [ class "btn btn-outline-info border-0", href url ]
-        [ i [ class "fa fa-line-chart mr-2" ] []
-        , text "Source"
-        ]
+            text ""

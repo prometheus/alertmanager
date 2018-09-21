@@ -1,23 +1,24 @@
 module Views.SilenceView.Types exposing (Model, SilenceViewMsg(..), initSilenceView)
 
-import Alerts.Types exposing (Alert)
 import Browser.Navigation exposing (Key)
-import Silences.Types exposing (Silence, SilenceId)
+import Data.Alerts exposing (Alerts)
+import Data.Silence exposing (Silence)
+import Data.Silences exposing (Silences)
 import Utils.Types exposing (ApiData(..))
 
 
 type SilenceViewMsg
     = FetchSilence String
     | SilenceFetched (ApiData Silence)
-    | AlertGroupsPreview (ApiData (List Alert))
-    | InitSilenceView SilenceId
+    | AlertGroupsPreview (ApiData Alerts)
+    | InitSilenceView String
     | ConfirmDestroySilence Silence Bool
     | Reload String
 
 
 type alias Model =
     { silence : ApiData Silence
-    , alerts : ApiData (List Alert)
+    , alerts : ApiData Alerts
     , showConfirmationDialog : Bool
     , key : Key
     }
