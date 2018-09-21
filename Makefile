@@ -55,6 +55,7 @@ test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client: api
 
 .PHONY: clean
 clean:
+	rm -f asset/assets_vfsdata.go
 	cd $(FRONTEND_DIR) && $(MAKE) clean
 
 .PHONY: test
