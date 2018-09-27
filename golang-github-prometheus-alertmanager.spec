@@ -84,6 +84,9 @@ install -d %{buildroot}%{_sharedstatedir}/prometheus-alertmanager
 %{_sharedstatedir}/prometheus-alertmanager
 
 %changelog
+* Thu Sep 27 2018 Simon Pasquier <spasqui@redhat.com> - 0.15.2-2
+- Fix stop command in systemd unit
+
 * Tue Aug 14 2018 Simon Pasquier <spasqui@redhat.com> - 0.15.2-1
 - Upgrade to 0.15.2
 

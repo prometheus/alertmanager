@@ -7,7 +7,6 @@ Type=simple
 EnvironmentFile=-/etc/sysconfig/prometheus-alertmanager
 ExecStart=/usr/bin/alertmanager $CONFIG_FILE $STORAGE_PATH $CLUSTER_PEERS $OTHER_ARGS
 ExecReload=/bin/kill -SIGHUP $MAINPID
-ExecStop=/bin/kill -SIGKILL $MAINPID
 
 [Install]
 WantedBy=multi-user.target
