@@ -554,50 +554,14 @@ func (n *PagerDuty) notifyV2(
 		n.conf.Severity = "error"
 	}
 
-	images := make([]pagerDutyImage, len(n.conf.Images))
-	for index, item := range n.conf.Images {
-		text, err := n.tmpl.ExecuteTextString(item.Text, data)
-		if err != nil {
-			return false, fmt.Errorf("failed to template %q: %v", item.Text, err)
-		}
-		images[index].Text = text
-
-		alt, err := n.tmpl.ExecuteTextString(item.Alt, data)
-		if err != nil {
-			return false, fmt.Errorf("failed to template %q: %v", item.Alt, err)
-		}
-		images[index].Alt = alt
-
-		src, err := n.tmpl.ExecuteTextString(item.Src, data)
-		if err != nil {
-			return false, fmt.Errorf("failed to template %q: %v", item.Src, err)
-		}
-		images[index].Src = src
-	}
-
-	links := make([]pagerDutyLink, len(n.conf.Links))
-	for index, item := range n.conf.Links {
-		text, err := n.tmpl.ExecuteTextString(item.Text, data)
-		if err != nil {
-			return false, fmt.Errorf("failed to template %q: %v", item.Text, err)
-		}
-		links[index].Text = text
-
-		href, err := n.tmpl.ExecuteTextString(item.HRef, data)
-		if err != nil {
-			return false, fmt.Errorf("failed to template %q: %v", item.HRef, err)
-		}
-		links[index].HRef = href
-	}
-
 	msg := &pagerDutyMessage{
 		Client:      tmpl(n.conf.Client),
 		ClientURL:   tmpl(n.conf.ClientURL),
 		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
 		EventAction: eventType,
 		DedupKey:    hashKey(key),
-		Images:      images,
-		Links:       links,
+		Images:      make([]pagerDutyImage, len(n.conf.Images)),
+		Links:       make([]pagerDutyLink, len(n.conf.Links)),
 		Payload: &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
 			Source:        tmpl(n.conf.Client),
@@ -607,6 +571,17 @@ func (n *PagerDuty) notifyV2(
 			Component:     tmpl(n.conf.Component),
 			Group:         tmpl(n.conf.Group),
 		},
+	}
+
+	for index, item := range n.conf.Images {
+		msg.Images[index].Src = tmpl(item.Src)
+		msg.Images[index].Alt = tmpl(item.Alt)
+		msg.Images[index].Text = tmpl(item.Text)
+	}
+
+	for index, item := range n.conf.Links {
+		msg.Links[index].HRef = tmpl(item.HRef)
+		msg.Links[index].Text = tmpl(item.Text)
 	}
 
 	if tmplErr != nil {
