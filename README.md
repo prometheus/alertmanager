@@ -321,6 +321,8 @@ amtool config routes --alertmanager.url=http://localhost:9090
 
 AlertManager's high availability is in production use at many companies.
 
+> Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
+
 To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
 `--cluster.*` flags.
@@ -342,8 +344,6 @@ be configured to communicate with each other. This is configured using the
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.
-
-> Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
 
 The `cluster.advertise-address` flag is required if the instance doesn't have
 an IP address that is part of [RFC 6980](https://tools.ietf.org/html/rfc6890)
