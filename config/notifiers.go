@@ -250,12 +250,13 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 // See https://api.slack.com/docs/message-attachments#action_fields and https://api.slack.com/docs/message-buttons
 // for more information
 type SlackAction struct {
-	Type  string `yaml:"type,omitempty"  json:"type,omitempty"`
-	Text  string `yaml:"text,omitempty"  json:"text,omitempty"`
-	URL   string `yaml:"url,omitempty"   json:"url,omitempty"`
-	Style string `yaml:"style,omitempty" json:"style,omitempty"`
-	Name  string `yaml:"name,omitempty"  json:"name,omitempty"`
-	Value string `yaml:"value,omitempty"  json:"value,omitempty"`
+	Type         string                  `yaml:"type,omitempty"  json:"type,omitempty"`
+	Text         string                  `yaml:"text,omitempty"  json:"text,omitempty"`
+	URL          string                  `yaml:"url,omitempty"   json:"url,omitempty"`
+	Style        string                  `yaml:"style,omitempty" json:"style,omitempty"`
+	Name         string                  `yaml:"name,omitempty"  json:"name,omitempty"`
+	Value        string                  `yaml:"value,omitempty"  json:"value,omitempty"`
+	ConfirmField *SlackConfirmationField `yaml:"confirm,omitempty"  json:"confirm,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
@@ -277,6 +278,38 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if (c.Name == "" || c.Value == "") && c.URL == "" {
 		return fmt.Errorf("missing value in either Slack name and/or value configuration")
 	}
+	return nil
+}
+
+// SlackConfirmationField protect users from destructive actions or particularly distinguished decisions
+// by asking them to confirm their button click one more time.
+// See https://api.slack.com/docs/interactive-message-field-guide#confirmation_fields for more information.
+type SlackConfirmationField struct {
+	Text        string `yaml:"text,omitempty"  json:"text,omitempty"`
+	Title       string `yaml:"title,omitempty"  json:"title,omitempty"`
+	OkText      string `yaml:"ok_text,omitempty"  json:"ok_text,omitempty"`
+	DismissText string `yaml:"dismiss_text,omitempty"  json:"dismiss_text,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackConfirmationField
+func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain SlackConfirmationField
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Text == "" {
+		return fmt.Errorf("missing text in slack action confirm")
+	}
+	if c.Title == "" {
+		return fmt.Errorf("missing title in slack action confirm")
+	}
+	if c.OkText == "" {
+		return fmt.Errorf("missing ok_text in slack action confirm")
+	}
+	if c.DismissText == "" {
+		return fmt.Errorf("missing dismiss_text in slack action confirm")
+	}
+
 	return nil
 }
 
