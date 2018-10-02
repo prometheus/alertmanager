@@ -465,6 +465,19 @@ type pagerDutyMessage struct {
 	Client      string            `json:"client,omitempty"`
 	ClientURL   string            `json:"client_url,omitempty"`
 	Details     map[string]string `json:"details,omitempty"`
+	Images      []pagerDutyImage  `json:"images,omitempty"`
+	Links       []pagerDutyLink   `json:"links,omitempty"`
+}
+
+type pagerDutyLink struct {
+	HRef string `json:"href"`
+	Text string `json:"text"`
+}
+
+type pagerDutyImage struct {
+	Src  string `json:"src"`
+	Alt  string `json:"alt"`
+	Text string `json:"text"`
 }
 
 type pagerDutyPayload struct {
@@ -547,6 +560,8 @@ func (n *PagerDuty) notifyV2(
 		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
 		EventAction: eventType,
 		DedupKey:    hashKey(key),
+		Images:      make([]pagerDutyImage, len(n.conf.Images)),
+		Links:       make([]pagerDutyLink, len(n.conf.Links)),
 		Payload: &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
 			Source:        tmpl(n.conf.Client),
@@ -556,6 +571,17 @@ func (n *PagerDuty) notifyV2(
 			Component:     tmpl(n.conf.Component),
 			Group:         tmpl(n.conf.Group),
 		},
+	}
+
+	for index, item := range n.conf.Images {
+		msg.Images[index].Src = tmpl(item.Src)
+		msg.Images[index].Alt = tmpl(item.Alt)
+		msg.Images[index].Text = tmpl(item.Text)
+	}
+
+	for index, item := range n.conf.Links {
+		msg.Links[index].HRef = tmpl(item.HRef)
+		msg.Links[index].Text = tmpl(item.Text)
 	}
 
 	if tmplErr != nil {
