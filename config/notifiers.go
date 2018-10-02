@@ -268,11 +268,11 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing type in Slack action configuration")
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing value in Slack text configuration")
+		return fmt.Errorf("missing text value in Slack text configuration")
 	}
 	// either URL or Name and Value need to be provided
-	if c.URL != "" && c.Name != "" && c.Value != "" {
-		return fmt.Errorf("missing value in Slack url configuration")
+	if c.URL == "" && c.Name == "" {
+		return fmt.Errorf("missing name or url in Slack action configuration")
 	}
 	if (c.Name == "" || c.Value == "") && c.URL == "" {
 		return fmt.Errorf("missing value in either Slack name and/or value configuration")
