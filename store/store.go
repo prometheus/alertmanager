@@ -29,14 +29,14 @@ type Alerts struct {
 
 // NewAlerts returns a new Alerts struct.
 func NewAlerts(gcInterval time.Duration) *Alerts {
+	if gcInterval == 0 {
+		gcInterval = time.Minute
+	}
+
 	a := &Alerts{
 		c:          make(map[model.Fingerprint]*types.Alert),
 		cb:         func(_ []*types.Alert) {},
 		gcInterval: gcInterval,
-	}
-
-	if gcInterval == 0 {
-		gcInterval = time.Minute
 	}
 
 	return a
