@@ -248,7 +248,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 // SlackAction configures a single Slack action that is sent with each notification.
 // Each action must contain a type, text, and url.
 // See https://api.slack.com/docs/message-attachments#action_fields and https://api.slack.com/docs/message-buttons
-// for more information
+// for more information.
 type SlackAction struct {
 	Type         string                  `yaml:"type,omitempty"  json:"type,omitempty"`
 	Text         string                  `yaml:"text,omitempty"  json:"text,omitempty"`
@@ -271,12 +271,15 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Text == "" {
 		return fmt.Errorf("missing text value in Slack text configuration")
 	}
-	// either URL or Name and Value need to be provided
-	if c.URL == "" && c.Name == "" {
+	if c.URL != "" {
+		// Clear all message action fields.
+		c.Name = ""
+		c.Value = ""
+		c.ConfirmField = nil
+	} else if c.Name != "" {
+		c.URL = ""
+	} else {
 		return fmt.Errorf("missing name or url in Slack action configuration")
-	}
-	if (c.Name == "" || c.Value == "") && c.URL == "" {
-		return fmt.Errorf("missing value in either Slack name and/or value configuration")
 	}
 	return nil
 }
@@ -291,7 +294,7 @@ type SlackConfirmationField struct {
 	DismissText string `yaml:"dismiss_text,omitempty"  json:"dismiss_text,omitempty"`
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackConfirmationField
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackConfirmationField.
 func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain SlackConfirmationField
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -300,16 +303,6 @@ func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error
 	if c.Text == "" {
 		return fmt.Errorf("missing text in slack action confirm")
 	}
-	if c.Title == "" {
-		return fmt.Errorf("missing title in slack action confirm")
-	}
-	if c.OkText == "" {
-		return fmt.Errorf("missing ok_text in slack action confirm")
-	}
-	if c.DismissText == "" {
-		return fmt.Errorf("missing dismiss_text in slack action confirm")
-	}
-
 	return nil
 }
 
