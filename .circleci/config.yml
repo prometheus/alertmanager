@@ -12,6 +12,12 @@ jobs:
     - setup_remote_docker
     - run: make promu
     - run: make
+    - store_artifacts:
+        path: alertmanager
+        destination: /build/alertmanager
+    - store_artifacts:
+        path: amtool
+        destination: /build/amtool
     - run: rm -v alertmanager amtool
 
   build:
@@ -26,6 +32,9 @@ jobs:
         root: .
         paths:
         - .build
+    - store_artifacts:
+        path: .build
+        destination: /build
 
   docker_hub_master:
     docker:
