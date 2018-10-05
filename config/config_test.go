@@ -369,7 +369,28 @@ func TestUnmarshalURL(t *testing.T) {
 }
 
 func TestUnmarshalInvalidURL(t *testing.T) {
-	b := []byte(`"://example.com"`)
+	for _, b := range [][]byte{
+		[]byte(`"://example.com"`),
+		[]byte(`"http:example.com"`),
+		[]byte(`"telnet://example.com"`),
+	} {
+		var u URL
+
+		err := json.Unmarshal(b, &u)
+		if err == nil {
+			t.Errorf("Expected an error unmarshalling %q from JSON", string(b))
+		}
+
+		err = yaml.Unmarshal(b, &u)
+		if err == nil {
+			t.Errorf("Expected an error unmarshalling %q from YAML", string(b))
+		}
+		t.Logf("%s", err)
+	}
+}
+
+func TestUnmarshalRelativeURL(t *testing.T) {
+	b := []byte(`"/home"`)
 	var u URL
 
 	err := json.Unmarshal(b, &u)
@@ -383,21 +404,15 @@ func TestUnmarshalInvalidURL(t *testing.T) {
 	}
 }
 
-func TestJSONUnmarshalMarshaled(t *testing.T) {
+func TestJSONUnmarshal(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
-	plainCfg, err := json.Marshal(c)
+	_, err = json.Marshal(c)
 	if err != nil {
 		t.Fatal("JSON Marshaling failed:", err)
-	}
-
-	cfg := Config{}
-	err = json.Unmarshal(plainCfg, &cfg)
-	if err != nil {
-		t.Fatal("JSON Unmarshaling failed:", err)
 	}
 }
 
