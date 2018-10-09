@@ -663,6 +663,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
+			numNotifications.WithLabelValues(r.integration.name).Inc()
 			if err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)
@@ -674,7 +675,6 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				// integration upon context timeout.
 				iErr = err
 			} else {
-				numNotifications.WithLabelValues(r.integration.name).Inc()
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
