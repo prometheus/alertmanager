@@ -269,7 +269,7 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing type in Slack action configuration")
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing text value in Slack text configuration")
+		return fmt.Errorf("missing text in Slack action configuration")
 	}
 	if c.URL != "" {
 		// Clear all message action fields.
@@ -301,7 +301,7 @@ func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error
 		return err
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing text in slack action confirm")
+		return fmt.Errorf("missing text in Slack confirmation configuration")
 	}
 	return nil
 }
