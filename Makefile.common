@@ -29,7 +29,6 @@ GO           ?= go
 GOFMT        ?= $(GO)fmt
 FIRST_GOPATH := $(firstword $(subst :, ,$(shell $(GO) env GOPATH)))
 PROMU        := $(FIRST_GOPATH)/bin/promu
-STATICCHECK  := $(FIRST_GOPATH)/bin/staticcheck
 pkgs          = ./...
 
 PREFIX                  ?= $(shell pwd)
@@ -69,27 +68,32 @@ common-check_license:
 .PHONY: common-test-short
 common-test-short:
 	@echo ">> running short tests"
-	$(GO) test -short $(pkgs)
+	GO111MODULE=on $(GO) test -short $(pkgs)
 
 .PHONY: common-test
 common-test:
 	@echo ">> running all tests"
-	$(GO) test -race $(pkgs)
+	GO111MODULE=on $(GO) test -race $(pkgs)
 
 .PHONY: common-format
 common-format:
 	@echo ">> formatting code"
-	$(GO) fmt $(pkgs)
+	GO111MODULE=on $(GO) fmt $(pkgs)
 
 .PHONY: common-vet
 common-vet:
 	@echo ">> vetting code"
-	$(GO) vet $(pkgs)
+	GO111MODULE=on $(GO) vet $(pkgs)
+
+.PHONY: common-staticcheck
+common-staticcheck: $(STATICCHECK)
+	@echo ">> running staticcheck"
+	$(STATICCHECK) -ignore "$(STATICCHECK_IGNORE)" $(pkgs)
 
 .PHONY: common-build
 common-build: promu
 	@echo ">> building binaries"
-	$(PROMU) build --prefix $(PREFIX)
+	GO111MODULE=on $(PROMU) build --prefix $(PREFIX)
 
 .PHONY: common-tarball
 common-tarball: promu
@@ -110,12 +114,4 @@ common-docker-tag-latest:
 
 .PHONY: promu
 promu:
-	GOOS= GOARCH= $(GO) get -u github.com/prometheus/promu
-
-.PHONY: $(STATICCHECK)
-$(STATICCHECK):
-	GOOS= GOARCH= $(GO) get -u honnef.co/go/tools/cmd/staticcheck
-
-.PHONY: $(GOVENDOR)
-$(GOVENDOR):
-	GOOS= GOARCH= $(GO) get -u github.com/kardianos/govendor
+	GO111MODULE=on GOOS= GOARCH= $(GO) get -u github.com/prometheus/promu
