@@ -14,6 +14,9 @@ script:
 - make clean
 - cd ui/app/ && make && cd ../..
 - make assets
+# Revendor everything to make sure vendor/vendor.json matches /vendor.
+- cd vendor && find . ! -name 'vendor.json' -mindepth 1 -type d -exec rm -fr {} + && cd .. && govendor sync
+# Ensure both `make assets` and vendoring didn't change anything.
 - git diff --exit-code
 # test back-end
 - make
