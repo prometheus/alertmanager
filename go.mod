@@ -56,6 +56,8 @@ require (
 	github.com/prometheus/promu v0.1.0 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
+	github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371 // indirect
+	github.com/shurcooL/vfsgen v0.0.0-20180915214035-33ae1944be3f
 	github.com/spf13/cobra v0.0.3 // indirect
 	github.com/spf13/viper v1.2.0 // indirect
 	github.com/stretchr/testify v1.2.2
