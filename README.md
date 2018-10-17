@@ -71,7 +71,10 @@ route:
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
   group_by: ['alertname', 'cluster']
-
+  
+  # if true all labels of alert will be used for grouping. If true then group_by should be empty.
+  group_by_all: false
+  
   # When a new group of alerts is created by an incoming alert, wait at
   # least 'group_wait' to send the initial notification.
   # This way ensures that you get multiple alerts for the same group that start

@@ -144,6 +144,27 @@ receivers:
 
 }
 
+func TestNonEmptyGroupByAndGroupByAl(t *testing.T) {
+	in := `
+route:
+  group_by: ['alertname', 'cluster']
+  group_by_all: true	
+
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "cannot have group_by_all is true and non-empty group_by"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
 func TestRootRouteExists(t *testing.T) {
 	in := `
 receivers:
@@ -448,6 +469,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				"cluster",
 				"service",
 			},
+			GroupByAll: false,
 			Routes: []*Route{
 				{
 					Receiver: "team-X-mails",
@@ -503,6 +525,17 @@ func TestSMTPHello(t *testing.T) {
 	var hostName = c.Global.SMTPHello
 	if hostName != refValue {
 		t.Errorf("Invalid SMTP Hello hostname: %s\nExpected: %s", hostName, refValue)
+	}
+}
+
+func TestGroupByAll(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.group-by-all.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.group-by-all.yml", err)
+	}
+
+	if !c.Route.GroupByAll {
+		t.Errorf("Invalid group by all param: expected to by true")
 	}
 }
 

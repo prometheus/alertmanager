@@ -496,6 +496,7 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Route struct {
 	Receiver string            `yaml:"receiver,omitempty" json:"receiver,omitempty"`
 	GroupBy  []model.LabelName `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	GroupByAll bool `yaml:"group_by_all,omitempty" json:"group_by_all,omitempty"`
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
@@ -524,6 +525,10 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
 		}
+	}
+
+	if len(r.GroupBy) > 0 && r.GroupByAll {
+		return fmt.Errorf("cannot have group_by_all is true and non-empty group_by")
 	}
 
 	groupBy := map[model.LabelName]struct{}{}
