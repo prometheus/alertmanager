@@ -494,9 +494,9 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
-	Receiver string            `yaml:"receiver,omitempty" json:"receiver,omitempty"`
-	GroupBy  []model.LabelName `yaml:"group_by,omitempty" json:"group_by,omitempty"`
-	GroupByAll bool `yaml:"group_by_all,omitempty" json:"group_by_all,omitempty"`
+	Receiver   string            `yaml:"receiver,omitempty" json:"receiver,omitempty"`
+	GroupBy    []model.LabelName `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	GroupByAll bool              `yaml:"group_by_all,omitempty" json:"group_by_all,omitempty"`
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`

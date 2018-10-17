@@ -111,7 +111,7 @@ routes:
 				{
 					Receiver:       "notify-A",
 					GroupBy:        def.GroupBy,
-					GroupByAll: 	false,
+					GroupByAll:     false,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -128,7 +128,7 @@ routes:
 				{
 					Receiver:       "notify-A",
 					GroupBy:        def.GroupBy,
-					GroupByAll:		false,
+					GroupByAll:     false,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -144,7 +144,7 @@ routes:
 				{
 					Receiver:       "notify-BC",
 					GroupBy:        lset("foo", "bar"),
-					GroupByAll:		false,
+					GroupByAll:     false,
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -161,7 +161,7 @@ routes:
 				{
 					Receiver:       "notify-testing",
 					GroupBy:        lset(),
-					GroupByAll: 	true,
+					GroupByAll:     true,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -178,7 +178,7 @@ routes:
 				{
 					Receiver:       "notify-productionA",
 					GroupBy:        def.GroupBy,
-					GroupByAll:		false,
+					GroupByAll:     false,
 					GroupWait:      1 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -186,7 +186,7 @@ routes:
 				{
 					Receiver:       "notify-productionB",
 					GroupBy:        lset("job"),
-					GroupByAll:		false,
+					GroupByAll:     false,
 					GroupWait:      30 * time.Second,
 					GroupInterval:  5 * time.Minute,
 					RepeatInterval: 1 * time.Hour,
@@ -205,7 +205,7 @@ routes:
 				{
 					Receiver:       "notify-def",
 					GroupBy:        lset("role"),
-					GroupByAll:		false,
+					GroupByAll:     false,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -222,7 +222,7 @@ routes:
 				{
 					Receiver:       "notify-testing",
 					GroupBy:        lset("role"),
-					GroupByAll:		false,
+					GroupByAll:     false,
 					GroupWait:      def.GroupWait,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,
@@ -240,7 +240,7 @@ routes:
 				{
 					Receiver:       "notify-testing",
 					GroupBy:        lset("role"),
-					GroupByAll:		false,
+					GroupByAll:     false,
 					GroupWait:      2 * time.Minute,
 					GroupInterval:  def.GroupInterval,
 					RepeatInterval: def.RepeatInterval,

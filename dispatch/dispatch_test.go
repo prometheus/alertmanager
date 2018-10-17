@@ -254,11 +254,11 @@ func TestGroupLabels(t *testing.T) {
 
 	route := &Route{
 		RouteOpts: RouteOpts{
-			GroupBy:        map[model.LabelName]struct{}{
+			GroupBy: map[model.LabelName]struct{}{
 				"a": struct{}{},
 				"b": struct{}{},
 			},
-			GroupByAll: 	false,
+			GroupByAll: false,
 		},
 	}
 
@@ -287,8 +287,8 @@ func TestGroupByAllLabels(t *testing.T) {
 
 	route := &Route{
 		RouteOpts: RouteOpts{
-			GroupBy:        map[model.LabelName]struct{}{},
-			GroupByAll: 	true,
+			GroupBy:    map[model.LabelName]struct{}{},
+			GroupByAll: true,
 		},
 	}
 

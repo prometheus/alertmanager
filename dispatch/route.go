@@ -32,7 +32,7 @@ var DefaultRouteOpts = RouteOpts{
 	GroupInterval:  5 * time.Minute,
 	RepeatInterval: 4 * time.Hour,
 	GroupBy:        map[model.LabelName]struct{}{},
-	GroupByAll:		false,
+	GroupByAll:     false,
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -186,13 +186,13 @@ func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
 	v := struct {
 		Receiver       string           `json:"receiver"`
 		GroupBy        model.LabelNames `json:"groupBy"`
-		GroupByAll	   bool 			`json:"groupByAll"`
+		GroupByAll     bool             `json:"groupByAll"`
 		GroupWait      time.Duration    `json:"groupWait"`
 		GroupInterval  time.Duration    `json:"groupInterval"`
 		RepeatInterval time.Duration    `json:"repeatInterval"`
 	}{
 		Receiver:       ro.Receiver,
-		GroupByAll:		ro.GroupByAll,
+		GroupByAll:     ro.GroupByAll,
 		GroupWait:      ro.GroupWait,
 		GroupInterval:  ro.GroupInterval,
 		RepeatInterval: ro.RepeatInterval,
