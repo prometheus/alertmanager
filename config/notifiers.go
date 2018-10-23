@@ -246,7 +246,6 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 }
 
 // SlackAction configures a single Slack action that is sent with each notification.
-// Each action must contain a type, text, and url.
 // See https://api.slack.com/docs/message-attachments#action_fields and https://api.slack.com/docs/message-buttons
 // for more information.
 type SlackAction struct {
