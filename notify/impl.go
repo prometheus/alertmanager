@@ -1524,28 +1524,28 @@ func NewDingtalk(conf *config.DingtalkConfig, tmpl *template.Template, l log.Log
 
 // Notify implements the Notifier interface.
 func (d *Dingtalk) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	var tmplErr error
 	data := d.tmpl.Data(receiverName(ctx, d.logger), groupLabels(ctx, d.logger), alerts...)
+	tmpl := tmplText(d.tmpl, data, &tmplErr)
 
-	// groupKey, ok := GroupKey(ctx)
-	// if !ok {
-	// 	level.Error(d.logger).Log("msg", "group key missing")
-	// }
-	token, ok := d.conf.GroupToken[d.conf.Group]
-	if !ok {
+	token := d.conf.Token
+	if token == "" {
+		token, _ = d.conf.GroupToken[d.conf.Group]
+	}
+	if token == "" {
 		level.Error(d.logger).Log("msg", "invalid group")
 		return false, fmt.Errorf("invalid group=%s", d.conf.Group)
 	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(data); err != nil {
-		return false, err
-	}
-
 	msg := DingtalkMessage{
 		Msgtype: "text",
-		Text:    TextContent{Content: buf.String()},
+		Text:    TextContent{Content: tmpl(d.conf.Content)},
 		At:      &AtContent{IsAtAll: true},
 	}
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template: %v", tmplErr)
+	}
+
 	var msgBuf bytes.Buffer
 	if err := json.NewEncoder(&msgBuf).Encode(msg); err != nil {
 		return false, err

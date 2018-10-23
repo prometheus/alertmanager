@@ -531,6 +531,8 @@ type DingtalkConfig struct {
 	GroupToken     map[string]string
 	APIURL         *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Group          string `yaml:"group,omitempty" json:"group,omitempty"`
+	Token          string `yaml:"token,omitempty" json:"token,omitempty"`
+	Content        string `yaml:"content,omitempty" json:"content,omitempty"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 }

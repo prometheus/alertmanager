@@ -9,10 +9,15 @@ route:
   group_interval: 10s
   repeat_interval: 1h
   receiver: 'dingtalk.test'
+
 receivers:
 - name: 'dingtalk.test'
   dingtalk_configs:
-  - group: 'xxx1'
+  - group: 'xxx'
+    content: '{{ template "dingtalk.content" . }}'
+
+templates:
+  - '/Users/haituncun/Desktop/workspace/go/src/github.com/prometheus/alertmanager/template/dingtalk.tmpl'
     
 inhibit_rules:
   - source_match:
