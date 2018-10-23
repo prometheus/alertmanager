@@ -135,6 +135,13 @@ var (
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
 	}
+
+	// DefaultDingtalkConfig defines default values for Dingtalk configurations.
+	DefaultDingtalkConfig = DingtalkConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -516,5 +523,28 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if c.Token == "" {
 		return fmt.Errorf("missing token in Pushover config")
 	}
+	return nil
+}
+
+type DingtalkConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	GroupToken     map[string]string
+	APIURL         *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Group          string `yaml:"group,omitempty" json:"group,omitempty"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *DingtalkConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultDingtalkConfig
+	type plain DingtalkConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Group == "" {
+		return fmt.Errorf("missing group in dingtalk config")
+	}
+
 	return nil
 }

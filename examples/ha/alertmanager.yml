@@ -1,16 +1,19 @@
 global:
   resolve_timeout: 5m
+  dingtalk_group_token:
+    'xxx': '63425f63ada59d23fb04fd8648f8af3e277d5870a176d83cd0e4a3e67ca35929'
 
 route:
   group_by: ['alertname']
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 1h
-  receiver: 'web.hook'
+  receiver: 'dingtalk.test'
 receivers:
-- name: 'web.hook'
-  webhook_configs:
-  - url: 'http://127.0.0.1:5001/'
+- name: 'dingtalk.test'
+  dingtalk_configs:
+  - group: 'xxx1'
+    
 inhibit_rules:
   - source_match:
       severity: 'critical'
