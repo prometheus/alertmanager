@@ -1193,6 +1193,9 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 			Priority:    tmpl(n.conf.Priority),
 		}
 	}
+
+	apiKey := tmpl(string(n.conf.APIKey))
+
 	if err != nil {
 		return nil, false, fmt.Errorf("templating error: %s", err)
 	}
@@ -1207,7 +1210,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		return nil, true, err
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
-	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", n.conf.APIKey))
+	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", apiKey))
 	return req, true, nil
 }
 
