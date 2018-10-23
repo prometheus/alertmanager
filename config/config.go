@@ -277,6 +277,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sc.APIURL = c.Global.SlackAPIURL
 			}
 		}
+		for _, sc := range rcv.RocketChatConfigs {
+			if sc.HTTPConfig == nil {
+				sc.HTTPConfig = c.Global.HTTPConfig
+			}
+			if sc.APIURL == nil {
+				if c.Global.RocketChatAPIURL == nil {
+					return fmt.Errorf("no global RocketChat API URL set")
+				}
+				sc.APIURL = c.Global.RocketChatAPIURL
+			}
+		}
 		for _, hc := range rcv.HipchatConfigs {
 			if hc.HTTPConfig == nil {
 				hc.HTTPConfig = c.Global.HTTPConfig
@@ -605,15 +616,16 @@ type Receiver struct {
 	// A unique identifier for this receiver.
 	Name string `yaml:"name" json:"name"`
 
-	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
-	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
-	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
-	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
-	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
-	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	EmailConfigs      []*EmailConfig      `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	PagerdutyConfigs  []*PagerdutyConfig  `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
+	HipchatConfigs    []*HipchatConfig    `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
+	SlackConfigs      []*SlackConfig      `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	WebhookConfigs    []*WebhookConfig    `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	OpsGenieConfigs   []*OpsGenieConfig   `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	RocketChatConfigs []*RocketChatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
+	WechatConfigs     []*WechatConfig     `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	PushoverConfigs   []*PushoverConfig   `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
+	VictorOpsConfigs  []*VictorOpsConfig  `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

@@ -100,6 +100,21 @@ var (
 		// TODO: Add a details field with all the alerts.
 	}
 
+	// DefaultRocketChatConfig defines default values for RocketChat configurations.
+	// I need to check the RocketChat API
+	DefaultRocketChatConfig = RocketChatConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:   `{{ template "rocketchat.default.username" . }}`,
+		Title:      `{{ template "rocketchat.default.title" . }}`,
+		TitleLink:  `{{ template "rocketchat.default.titlelink" . }}`,
+		Text:       `{{ template "rocketchat.default.text" . }}`,
+		Fallback:   `{{ template "rocketchat.default.fallback" . }}`,
+		CallbackID: `{{ template "rocketchat.default.callbackid" . }}`,
+	}
+
 	// DefaultWechatConfig defines default values for wechat configurations.
 	DefaultWechatConfig = WechatConfig{
 		NotifierConfig: NotifierConfig{
@@ -327,6 +342,25 @@ type SlackConfig struct {
 	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
 	LinkNames   bool           `yaml:"link_names,omitempty" json:"link_names,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+}
+
+// RocketChatConfig configures notifications via RocketChat.
+type RocketChatConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+
+	// Slack channel override, (like #other-channel or @username).
+	Channel    string `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Username   string `yaml:"username,omitempty" json:"username,omitempty"`
+	Color      string `yaml:"color,omitempty" json:"color,omitempty"`
+	Title      string `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink  string `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Text       string `yaml:"text,omitempty" json:"text,omitempty"`
+	Fallback   string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	CallbackID string `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

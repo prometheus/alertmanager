@@ -105,6 +105,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		n := NewSlack(c, tmpl, logger)
 		add("slack", i, n, c)
 	}
+	for i, c := range nc.RocketChatConfigs {
+		n := NewRocketChat(c, tmpl, logger)
+		add("rocketchat", i, n, c)
+	}
 	for i, c := range nc.HipchatConfigs {
 		n := NewHipchat(c, tmpl, logger)
 		add("hipchat", i, n, c)
