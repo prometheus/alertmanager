@@ -106,17 +106,16 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
-		Username:   `{{ template "rocketchat.default.username" . }}`,
-		Title:      `{{ template "rocketchat.default.title" . }}`,
-		TitleLink:  `{{ template "rocketchat.default.titlelink" . }}`,
-		IconEmoji:  `{{ template "rocketchat.default.iconemoji" . }}`,
-		IconURL:    `{{ template "rocketchat.default.iconurl" . }}`,
-		Pretext:    `{{ template "rocketchat.default.pretext" . }}`,
-		Text:       `{{ template "rocketchat.default.text" . }}`,
-		Fallback:   `{{ template "rocketchat.default.fallback" . }}`,
-		CallbackID: `{{ template "rocketchat.default.callbackid" . }}`,
-		Footer:     `{{ template "rocketchat.default.footer" . }}`,
+		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:  `{{ template "rocketchat.default.username" . }}`,
+		Title:     `{{ template "rocketchat.default.title" . }}`,
+		TitleLink: `{{ template "rocketchat.default.titlelink" . }}`,
+		IconEmoji: `{{ template "rocketchat.default.iconemoji" . }}`,
+		IconURL:   `{{ template "rocketchat.default.iconurl" . }}`,
+		Pretext:   `{{ template "rocketchat.default.pretext" . }}`,
+		Text:      `{{ template "rocketchat.default.text" . }}`,
+		Fallback:  `{{ template "rocketchat.default.fallback" . }}`,
+		Footer:    `{{ template "rocketchat.default.footer" . }}`,
 	}
 
 	// DefaultWechatConfig defines default values for wechat configurations.
@@ -349,43 +348,11 @@ type SlackConfig struct {
 }
 
 // RocketChatConfig configures notifications via RocketChat.
-
-// SlackField configures a single Slack field that is sent with each notification.
-// Each field must contain a title, value, and optionally, a boolean value to indicate if the field
-// is short enough to be displayed next to other fields designated as short.
-// See https://api.slack.com/docs/message-attachments#fields for more information.
+//
 type RocketChatField struct {
 	Title string `yaml:"title,omitempty" json:"title,omitempty"`
 	Value string `yaml:"value,omitempty" json:"value,omitempty"`
 	Short *bool  `yaml:"short,omitempty" json:"short,omitempty"`
-}
-
-// SlackAction configures a single Slack action that is sent with each notification.
-// Each action must contain a type, text, and url.
-// See https://api.slack.com/docs/message-attachments#action_fields for more information.
-type RocketChatAction struct {
-	Type  string `yaml:"type,omitempty"  json:"type,omitempty"`
-	Text  string `yaml:"text,omitempty"  json:"text,omitempty"`
-	URL   string `yaml:"url,omitempty"   json:"url,omitempty"`
-	Style string `yaml:"style,omitempty" json:"style,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
-func (c *RocketChatAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain RocketChatAction
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.Type == "" {
-		return fmt.Errorf("missing type in Rocket action configuration")
-	}
-	if c.Text == "" {
-		return fmt.Errorf("missing value in Rocket text configuration")
-	}
-	if c.URL == "" {
-		return fmt.Errorf("missing value in Rocket url configuration")
-	}
-	return nil
 }
 
 type RocketChatConfig struct {
@@ -395,26 +362,25 @@ type RocketChatConfig struct {
 
 	APIURL *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
-	// Slack channel override, (like #other-channel or @username).
+	// RocketChat channel override, (like #other-channel or @username).
+	// API documentation https://rocket.chat/docs/developer-guides/rest-api/chat/postmessage/
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 	Color    string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Title       string              `yaml:"title,omitempty" json:"title,omitempty"`
-	TitleLink   string              `yaml:"title_link,omitempty" json:"title_link,omitempty"`
-	Pretext     string              `yaml:"pretext,omitempty" json:"pretext,omitempty"`
-	Text        string              `yaml:"text,omitempty" json:"text,omitempty"`
-	Fields      []*RocketChatField  `yaml:"fields,omitempty" json:"fields,omitempty"`
-	ShortFields bool                `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
-	Footer      string              `yaml:"footer,omitempty" json:"footer,omitempty"`
-	Fallback    string              `yaml:"fallback,omitempty" json:"fallback,omitempty"`
-	CallbackID  string              `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
-	IconEmoji   string              `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
-	IconURL     string              `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
-	ImageURL    string              `yaml:"image_url,omitempty" json:"image_url,omitempty"`
-	ThumbURL    string              `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
-	LinkNames   bool                `yaml:"link_names,omitempty" json:"link_names,omitempty"`
-	Actions     []*RocketChatAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+	Title       string             `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink   string             `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Pretext     string             `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Text        string             `yaml:"text,omitempty" json:"text,omitempty"`
+	Fields      []*RocketChatField `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ShortFields bool               `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
+	Footer      string             `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Fallback    string             `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	IconEmoji   string             `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"` //emoji
+	IconURL     string             `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`     //avatar
+	ImageURL    string             `yaml:"image_url,omitempty" json:"image_url,omitempty"`
+	ThumbURL    string             `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
+	LinkNames   bool               `yaml:"link_names,omitempty" json:"link_names,omitempty"` //
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

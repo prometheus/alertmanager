@@ -855,17 +855,15 @@ type rocketChatReq struct {
 
 // slackAttachment is used to display a richly-formatted message block.
 type rocketChatAttachment struct {
-	Title      string                    `json:"title,omitempty"`
-	TitleLink  string                    `json:"title_link,omitempty"`
-	Pretext    string                    `json:"pretext,omitempty"`
-	Text       string                    `json:"text"`
-	Fallback   string                    `json:"fallback"`
-	CallbackID string                    `json:"callback_id"`
-	Fields     []config.RocketChatField  `json:"fields,omitempty"`
-	Actions    []config.RocketChatAction `json:"actions,omitempty"`
-	ImageURL   string                    `json:"image_url,omitempty"`
-	ThumbURL   string                    `json:"thumb_url,omitempty"`
-	Footer     string                    `json:"footer"`
+	Title     string                   `json:"title,omitempty"`
+	TitleLink string                   `json:"title_link,omitempty"`
+	Pretext   string                   `json:"pretext,omitempty"`
+	Text      string                   `json:"text"`
+	Fallback  string                   `json:"fallback"`
+	Fields    []config.RocketChatField `json:"fields,omitempty"`
+	ImageURL  string                   `json:"image_url,omitempty"`
+	ThumbURL  string                   `json:"thumb_url,omitempty"`
+	Footer    string                   `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
 	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
@@ -880,17 +878,16 @@ func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, erro
 	)
 
 	attachment := &rocketChatAttachment{
-		Title:      tmplText(n.conf.Title),
-		TitleLink:  tmplText(n.conf.TitleLink),
-		Pretext:    tmplText(n.conf.Pretext),
-		Text:       tmplText(n.conf.Text),
-		Fallback:   tmplText(n.conf.Fallback),
-		CallbackID: tmplText(n.conf.CallbackID),
-		ImageURL:   tmplText(n.conf.ImageURL),
-		ThumbURL:   tmplText(n.conf.ThumbURL),
-		Footer:     tmplText(n.conf.Footer),
-		Color:      tmplText(n.conf.Color),
-		MrkdwnIn:   []string{"fallback", "pretext", "text"},
+		Title:     tmplText(n.conf.Title),
+		TitleLink: tmplText(n.conf.TitleLink),
+		Pretext:   tmplText(n.conf.Pretext),
+		Text:      tmplText(n.conf.Text),
+		Fallback:  tmplText(n.conf.Fallback),
+		ImageURL:  tmplText(n.conf.ImageURL),
+		ThumbURL:  tmplText(n.conf.ThumbURL),
+		Footer:    tmplText(n.conf.Footer),
+		Color:     tmplText(n.conf.Color),
+		MrkdwnIn:  []string{"fallback", "pretext", "text"},
 	}
 
 	var numFields = len(n.conf.Fields)
@@ -913,20 +910,6 @@ func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, erro
 			}
 		}
 		attachment.Fields = fields
-	}
-
-	var numActions = len(n.conf.Actions)
-	if numActions > 0 {
-		var actions = make([]config.RocketChatAction, numActions)
-		for index, action := range n.conf.Actions {
-			actions[index] = config.RocketChatAction{
-				Type:  tmplText(action.Type),
-				Text:  tmplText(action.Text),
-				URL:   tmplText(action.URL),
-				Style: tmplText(action.Style),
-			}
-		}
-		attachment.Actions = actions
 	}
 
 	req := &rocketChatReq{
