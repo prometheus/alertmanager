@@ -349,6 +349,45 @@ type SlackConfig struct {
 }
 
 // RocketChatConfig configures notifications via RocketChat.
+
+// SlackField configures a single Slack field that is sent with each notification.
+// Each field must contain a title, value, and optionally, a boolean value to indicate if the field
+// is short enough to be displayed next to other fields designated as short.
+// See https://api.slack.com/docs/message-attachments#fields for more information.
+type RocketChatField struct {
+	Title string `yaml:"title,omitempty" json:"title,omitempty"`
+	Value string `yaml:"value,omitempty" json:"value,omitempty"`
+	Short *bool  `yaml:"short,omitempty" json:"short,omitempty"`
+}
+
+// SlackAction configures a single Slack action that is sent with each notification.
+// Each action must contain a type, text, and url.
+// See https://api.slack.com/docs/message-attachments#action_fields for more information.
+type RocketChatAction struct {
+	Type  string `yaml:"type,omitempty"  json:"type,omitempty"`
+	Text  string `yaml:"text,omitempty"  json:"text,omitempty"`
+	URL   string `yaml:"url,omitempty"   json:"url,omitempty"`
+	Style string `yaml:"style,omitempty" json:"style,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
+func (c *RocketChatAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain RocketChatAction
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Type == "" {
+		return fmt.Errorf("missing type in Rocket action configuration")
+	}
+	if c.Text == "" {
+		return fmt.Errorf("missing value in Rocket text configuration")
+	}
+	if c.URL == "" {
+		return fmt.Errorf("missing value in Rocket url configuration")
+	}
+	return nil
+}
+
 type RocketChatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 

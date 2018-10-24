@@ -489,6 +489,7 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret     `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIURL   *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey   Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	RocketChatAPIURL *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	WeChatAPIURL     *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret  Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`

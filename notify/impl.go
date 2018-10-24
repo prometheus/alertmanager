@@ -826,6 +826,153 @@ func (n *Slack) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
+// RocketCHATTTT
+// Slack implements a Notifier for Slack notifications.
+type RocketChat struct {
+	conf   *config.RocketChatConfig
+	tmpl   *template.Template
+	logger log.Logger
+}
+
+// NewSlack returns a new Slack notification handler.
+func NewRocketChat(c *config.RocketChatConfig, t *template.Template, l log.Logger) *RocketChat {
+	return &RocketChat{
+		conf:   c,
+		tmpl:   t,
+		logger: l,
+	}
+}
+
+// slackReq is the request for sending a slack notification.
+type rocketChatReq struct {
+	Channel     string                 `json:"channel,omitempty"`
+	Username    string                 `json:"username,omitempty"`
+	IconEmoji   string                 `json:"icon_emoji,omitempty"`
+	IconURL     string                 `json:"icon_url,omitempty"`
+	LinkNames   bool                   `json:"link_names,omitempty"`
+	Attachments []rocketChatAttachment `json:"attachments"`
+}
+
+// slackAttachment is used to display a richly-formatted message block.
+type rocketChatAttachment struct {
+	Title      string                    `json:"title,omitempty"`
+	TitleLink  string                    `json:"title_link,omitempty"`
+	Pretext    string                    `json:"pretext,omitempty"`
+	Text       string                    `json:"text"`
+	Fallback   string                    `json:"fallback"`
+	CallbackID string                    `json:"callback_id"`
+	Fields     []config.RocketChatField  `json:"fields,omitempty"`
+	Actions    []config.RocketChatAction `json:"actions,omitempty"`
+	ImageURL   string                    `json:"image_url,omitempty"`
+	ThumbURL   string                    `json:"thumb_url,omitempty"`
+	Footer     string                    `json:"footer"`
+
+	Color    string   `json:"color,omitempty"`
+	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
+}
+
+// Notify implements the Notifier interface.
+func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var err error
+	var (
+		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+	)
+
+	attachment := &rocketChatAttachment{
+		Title:      tmplText(n.conf.Title),
+		TitleLink:  tmplText(n.conf.TitleLink),
+		Pretext:    tmplText(n.conf.Pretext),
+		Text:       tmplText(n.conf.Text),
+		Fallback:   tmplText(n.conf.Fallback),
+		CallbackID: tmplText(n.conf.CallbackID),
+		ImageURL:   tmplText(n.conf.ImageURL),
+		ThumbURL:   tmplText(n.conf.ThumbURL),
+		Footer:     tmplText(n.conf.Footer),
+		Color:      tmplText(n.conf.Color),
+		MrkdwnIn:   []string{"fallback", "pretext", "text"},
+	}
+
+	var numFields = len(n.conf.Fields)
+	if numFields > 0 {
+		var fields = make([]config.RocketChatField, numFields)
+		for index, field := range n.conf.Fields {
+			// Check if short was defined for the field otherwise fallback to the global setting
+			var short bool
+			if field.Short != nil {
+				short = *field.Short
+			} else {
+				short = n.conf.ShortFields
+			}
+
+			// Rebuild the field by executing any templates and setting the new value for short
+			fields[index] = config.RocketChatField{
+				Title: tmplText(field.Title),
+				Value: tmplText(field.Value),
+				Short: &short,
+			}
+		}
+		attachment.Fields = fields
+	}
+
+	var numActions = len(n.conf.Actions)
+	if numActions > 0 {
+		var actions = make([]config.RocketChatAction, numActions)
+		for index, action := range n.conf.Actions {
+			actions[index] = config.RocketChatAction{
+				Type:  tmplText(action.Type),
+				Text:  tmplText(action.Text),
+				URL:   tmplText(action.URL),
+				Style: tmplText(action.Style),
+			}
+		}
+		attachment.Actions = actions
+	}
+
+	req := &rocketChatReq{
+		Channel:     tmplText(n.conf.Channel),
+		Username:    tmplText(n.conf.Username),
+		IconEmoji:   tmplText(n.conf.IconEmoji),
+		IconURL:     tmplText(n.conf.IconURL),
+		LinkNames:   n.conf.LinkNames,
+		Attachments: []rocketChatAttachment{*attachment},
+	}
+	if err != nil {
+		return false, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return false, err
+	}
+
+	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "rocketchat")
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, c, n.conf.APIURL.String(), contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+	resp.Body.Close()
+
+	return n.retry(resp.StatusCode)
+}
+
+func (n *RocketChat) retry(statusCode int) (bool, error) {
+	// Only 5xx response codes are recoverable and 2xx codes are successful.
+	// https://api.slack.com/incoming-webhooks#handling_errors
+	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
+	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// ---- END ROCKETCHAT
+
 // Hipchat implements a Notifier for Hipchat notifications.
 type Hipchat struct {
 	conf   *config.HipchatConfig
