@@ -832,7 +832,6 @@ type RocketChat struct {
 	logger log.Logger
 }
 
-// Not sure if we need this for Rocket
 func NewRocketChat(c *config.RocketChatConfig, t *template.Template, l log.Logger) *RocketChat {
 	return &RocketChat{
 		conf:   c,
@@ -841,7 +840,6 @@ func NewRocketChat(c *config.RocketChatConfig, t *template.Template, l log.Logge
 	}
 }
 
-// not sure if we need this for rocket
 type rocketChatReq struct {
 	Channel     string                 `json:"channel,omitempty"`
 	Username    string                 `json:"username,omitempty"`
@@ -851,7 +849,6 @@ type rocketChatReq struct {
 	Attachments []rocketChatAttachment `json:"attachments"`
 }
 
-// this is used to display a richly-formatted message block.
 type rocketChatAttachment struct {
 	Title     string                   `json:"title,omitempty"`
 	TitleLink string                   `json:"title_link,omitempty"`
@@ -862,7 +859,6 @@ type rocketChatAttachment struct {
 	Color     string                   `json:"color,omitempty"`
 }
 
-// Notify implements the Notifier interface.
 func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
 	var (
@@ -934,9 +930,6 @@ func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, erro
 
 // This needs to be check
 func (n *RocketChat) retry(statusCode int) (bool, error) {
-	// Only 5xx response codes are recoverable and 2xx codes are successful.
-	// https://api.slack.com/incoming-webhooks#handling_errors
-	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
 	if statusCode/100 != 2 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
