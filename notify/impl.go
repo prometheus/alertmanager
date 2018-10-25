@@ -855,7 +855,6 @@ type rocketChatReq struct {
 type rocketChatAttachment struct {
 	Title     string                   `json:"title,omitempty"`
 	TitleLink string                   `json:"title_link,omitempty"`
-	Pretext   string                   `json:"pretext,omitempty"`
 	Text      string                   `json:"text"`
 	Fields    []config.RocketChatField `json:"fields,omitempty"`
 	ImageURL  string                   `json:"image_url,omitempty"`
@@ -874,7 +873,6 @@ func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, erro
 	attachment := &rocketChatAttachment{
 		Title:     tmplText(n.conf.Title),
 		TitleLink: tmplText(n.conf.TitleLink),
-		Pretext:   tmplText(n.conf.Pretext),
 		Text:      tmplText(n.conf.Text),
 		ImageURL:  tmplText(n.conf.ImageURL),
 		ThumbURL:  tmplText(n.conf.ThumbURL),

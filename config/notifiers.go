@@ -111,7 +111,6 @@ var (
 		TitleLink: `{{ template "rocketchat.default.titlelink" . }}`,
 		IconEmoji: `{{ template "rocketchat.default.iconemoji" . }}`,
 		IconURL:   `{{ template "rocketchat.default.iconurl" . }}`,
-		Pretext:   `{{ template "rocketchat.default.pretext" . }}`,
 		Text:      `{{ template "rocketchat.default.text" . }}`,
 	}
 
