@@ -344,6 +344,7 @@ type SlackConfig struct {
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultSlackConfig
 	type plain SlackConfig
