@@ -101,7 +101,6 @@ var (
 	}
 
 	// DefaultRocketChatConfig defines default values for RocketChat configurations.
-	// I need to check the RocketChat API
 	DefaultRocketChatConfig = RocketChatConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
