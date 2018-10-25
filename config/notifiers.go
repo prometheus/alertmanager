@@ -113,8 +113,6 @@ var (
 		IconURL:   `{{ template "rocketchat.default.iconurl" . }}`,
 		Pretext:   `{{ template "rocketchat.default.pretext" . }}`,
 		Text:      `{{ template "rocketchat.default.text" . }}`,
-		Fallback:  `{{ template "rocketchat.default.fallback" . }}`,
-		Footer:    `{{ template "rocketchat.default.footer" . }}`,
 	}
 
 	// DefaultWechatConfig defines default values for wechat configurations.
@@ -373,8 +371,6 @@ type RocketChatConfig struct {
 	Text        string             `yaml:"text,omitempty" json:"text,omitempty"`
 	Fields      []*RocketChatField `yaml:"fields,omitempty" json:"fields,omitempty"`
 	ShortFields bool               `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
-	Footer      string             `yaml:"footer,omitempty" json:"footer,omitempty"`
-	Fallback    string             `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	IconEmoji   string             `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"` //emoji
 	IconURL     string             `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`     //avatar
 	ImageURL    string             `yaml:"image_url,omitempty" json:"image_url,omitempty"`
