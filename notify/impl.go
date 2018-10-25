@@ -826,15 +826,13 @@ func (n *Slack) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
-// RocketCHATTTT
-// Slack implements a Notifier for Slack notifications.
 type RocketChat struct {
 	conf   *config.RocketChatConfig
 	tmpl   *template.Template
 	logger log.Logger
 }
 
-// NewSlack returns a new Slack notification handler.
+// Not sure if we need this for Rocket
 func NewRocketChat(c *config.RocketChatConfig, t *template.Template, l log.Logger) *RocketChat {
 	return &RocketChat{
 		conf:   c,
@@ -843,7 +841,7 @@ func NewRocketChat(c *config.RocketChatConfig, t *template.Template, l log.Logge
 	}
 }
 
-// slackReq is the request for sending a slack notification.
+// not sure if we need this for rocket
 type rocketChatReq struct {
 	Channel     string                 `json:"channel,omitempty"`
 	Username    string                 `json:"username,omitempty"`
@@ -853,7 +851,7 @@ type rocketChatReq struct {
 	Attachments []rocketChatAttachment `json:"attachments"`
 }
 
-// slackAttachment is used to display a richly-formatted message block.
+// this is used to display a richly-formatted message block.
 type rocketChatAttachment struct {
 	Title     string                   `json:"title,omitempty"`
 	TitleLink string                   `json:"title_link,omitempty"`
@@ -862,9 +860,7 @@ type rocketChatAttachment struct {
 	Fields    []config.RocketChatField `json:"fields,omitempty"`
 	ImageURL  string                   `json:"image_url,omitempty"`
 	ThumbURL  string                   `json:"thumb_url,omitempty"`
-
-	Color    string   `json:"color,omitempty"`
-	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
+	Color     string                   `json:"color,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -883,7 +879,6 @@ func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, erro
 		ImageURL:  tmplText(n.conf.ImageURL),
 		ThumbURL:  tmplText(n.conf.ThumbURL),
 		Color:     tmplText(n.conf.Color),
-		MrkdwnIn:  []string{"fallback", "pretext", "text"},
 	}
 
 	var numFields = len(n.conf.Fields)
@@ -939,6 +934,7 @@ func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, erro
 	return n.retry(resp.StatusCode)
 }
 
+// This needs to be check
 func (n *RocketChat) retry(statusCode int) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
@@ -949,8 +945,6 @@ func (n *RocketChat) retry(statusCode int) (bool, error) {
 
 	return false, nil
 }
-
-// ---- END ROCKETCHAT
 
 // Hipchat implements a Notifier for Hipchat notifications.
 type Hipchat struct {
