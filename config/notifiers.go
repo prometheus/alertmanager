@@ -344,6 +344,12 @@ type SlackConfig struct {
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
+func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSlackConfig
+	type plain SlackConfig
+	return unmarshal((*plain)(c))
+}
+
 // RocketChatConfig configures notifications via RocketChat.
 //
 type RocketChatField struct {
