@@ -826,6 +826,7 @@ func (n *Slack) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultSlackConfig
 	type plain SlackConfig
