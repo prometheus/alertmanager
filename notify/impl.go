@@ -711,16 +711,17 @@ type slackReq struct {
 
 // slackAttachment is used to display a richly-formatted message block.
 type slackAttachment struct {
-	Title     string               `json:"title,omitempty"`
-	TitleLink string               `json:"title_link,omitempty"`
-	Pretext   string               `json:"pretext,omitempty"`
-	Text      string               `json:"text"`
-	Fallback  string               `json:"fallback"`
-	Fields    []config.SlackField  `json:"fields,omitempty"`
-	Actions   []config.SlackAction `json:"actions,omitempty"`
-	ImageURL  string               `json:"image_url,omitempty"`
-	ThumbURL  string               `json:"thumb_url,omitempty"`
-	Footer    string               `json:"footer"`
+	Title      string               `json:"title,omitempty"`
+	TitleLink  string               `json:"title_link,omitempty"`
+	Pretext    string               `json:"pretext,omitempty"`
+	Text       string               `json:"text"`
+	Fallback   string               `json:"fallback"`
+	CallbackID string               `json:"callback_id"`
+	Fields     []config.SlackField  `json:"fields,omitempty"`
+	Actions    []config.SlackAction `json:"actions,omitempty"`
+	ImageURL   string               `json:"image_url,omitempty"`
+	ThumbURL   string               `json:"thumb_url,omitempty"`
+	Footer     string               `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
 	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
@@ -735,16 +736,17 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	)
 
 	attachment := &slackAttachment{
-		Title:     tmplText(n.conf.Title),
-		TitleLink: tmplText(n.conf.TitleLink),
-		Pretext:   tmplText(n.conf.Pretext),
-		Text:      tmplText(n.conf.Text),
-		Fallback:  tmplText(n.conf.Fallback),
-		ImageURL:  tmplText(n.conf.ImageURL),
-		ThumbURL:  tmplText(n.conf.ThumbURL),
-		Footer:    tmplText(n.conf.Footer),
-		Color:     tmplText(n.conf.Color),
-		MrkdwnIn:  []string{"fallback", "pretext", "text"},
+		Title:      tmplText(n.conf.Title),
+		TitleLink:  tmplText(n.conf.TitleLink),
+		Pretext:    tmplText(n.conf.Pretext),
+		Text:       tmplText(n.conf.Text),
+		Fallback:   tmplText(n.conf.Fallback),
+		CallbackID: tmplText(n.conf.CallbackID),
+		ImageURL:   tmplText(n.conf.ImageURL),
+		ThumbURL:   tmplText(n.conf.ThumbURL),
+		Footer:     tmplText(n.conf.Footer),
+		Color:      tmplText(n.conf.Color),
+		MrkdwnIn:   []string{"fallback", "pretext", "text"},
 	}
 
 	var numFields = len(n.conf.Fields)
@@ -1198,6 +1200,9 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 			Priority:    tmpl(n.conf.Priority),
 		}
 	}
+
+	apiKey := tmpl(string(n.conf.APIKey))
+
 	if err != nil {
 		return nil, false, fmt.Errorf("templating error: %s", err)
 	}
@@ -1212,7 +1217,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		return nil, true, err
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
-	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", n.conf.APIKey))
+	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", apiKey))
 	return req, true, nil
 }
 

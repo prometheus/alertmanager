@@ -64,16 +64,17 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
-		Username:  `{{ template "slack.default.username" . }}`,
-		Title:     `{{ template "slack.default.title" . }}`,
-		TitleLink: `{{ template "slack.default.titlelink" . }}`,
-		IconEmoji: `{{ template "slack.default.iconemoji" . }}`,
-		IconURL:   `{{ template "slack.default.iconurl" . }}`,
-		Pretext:   `{{ template "slack.default.pretext" . }}`,
-		Text:      `{{ template "slack.default.text" . }}`,
-		Fallback:  `{{ template "slack.default.fallback" . }}`,
-		Footer:    `{{ template "slack.default.footer" . }}`,
+		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:   `{{ template "slack.default.username" . }}`,
+		Title:      `{{ template "slack.default.title" . }}`,
+		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
+		IconEmoji:  `{{ template "slack.default.iconemoji" . }}`,
+		IconURL:    `{{ template "slack.default.iconurl" . }}`,
+		Pretext:    `{{ template "slack.default.pretext" . }}`,
+		Text:       `{{ template "slack.default.text" . }}`,
+		Fallback:   `{{ template "slack.default.fallback" . }}`,
+		CallbackID: `{{ template "slack.default.callbackid" . }}`,
+		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
@@ -326,6 +327,7 @@ type SlackConfig struct {
 	ShortFields bool           `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
 	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
 	Fallback    string         `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	CallbackID  string         `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
 	IconEmoji   string         `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	IconURL     string         `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
 	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`

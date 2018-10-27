@@ -235,7 +235,7 @@ func TestOpsGenie(t *testing.T) {
 		Tags:        `{{ .CommonLabels.Tags }}`,
 		Note:        `{{ .CommonLabels.Note }}`,
 		Priority:    `{{ .CommonLabels.Priority }}`,
-		APIKey:      `s3cr3t`,
+		APIKey:      `{{ .ExternalURL }}`,
 		APIURL:      &config.URL{u},
 	}
 	notifier := NewOpsGenie(conf, tmpl, logger)
@@ -258,7 +258,7 @@ func TestOpsGenie(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, retry)
 	require.Equal(t, expectedURL, req.URL)
-	require.Equal(t, "GenieKey s3cr3t", req.Header.Get("Authorization"))
+	require.Equal(t, "GenieKey http://am", req.Header.Get("Authorization"))
 	require.Equal(t, expectedBody, readBody(t, req))
 
 	// Fully defined alert.
@@ -283,4 +283,10 @@ func TestOpsGenie(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, retry)
 	require.Equal(t, expectedBody, readBody(t, req))
+
+	// Broken API Key Template.
+	conf.APIKey = "{{ kaput "
+	_, _, err = notifier.createRequest(ctx, alert2)
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
 }
