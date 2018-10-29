@@ -929,7 +929,6 @@ func (n *RocketChat) Notify(ctx context.Context, as ...*types.Alert) (bool, erro
 	return n.retry(resp.StatusCode)
 }
 
-// This needs to be check
 func (n *RocketChat) retry(statusCode int) (bool, error) {
 	if statusCode/100 != 2 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
