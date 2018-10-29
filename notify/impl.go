@@ -770,12 +770,25 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if numActions > 0 {
 		var actions = make([]config.SlackAction, numActions)
 		for index, action := range n.conf.Actions {
-			actions[index] = config.SlackAction{
+			slackAction := config.SlackAction{
 				Type:  tmplText(action.Type),
 				Text:  tmplText(action.Text),
 				URL:   tmplText(action.URL),
 				Style: tmplText(action.Style),
+				Name:  tmplText(action.Name),
+				Value: tmplText(action.Value),
 			}
+
+			if action.ConfirmField != nil {
+				slackAction.ConfirmField = &config.SlackConfirmationField{
+					Title:       tmplText(action.ConfirmField.Title),
+					Text:        tmplText(action.ConfirmField.Text),
+					OkText:      tmplText(action.ConfirmField.OkText),
+					DismissText: tmplText(action.ConfirmField.DismissText),
+				}
+			}
+
+			actions[index] = slackAction
 		}
 		attachment.Actions = actions
 	}

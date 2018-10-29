@@ -435,6 +435,89 @@ fields:
 	}
 }
 
+func TestSlackActionsValidation(t *testing.T) {
+	in := `
+actions:
+- type: button
+  text: hello
+  url: https://localhost
+  style: danger
+- type: button
+  text: hello
+  name: something
+  style: default
+  confirm:
+    title: please confirm
+    text: are you sure?
+    ok_text: yes
+    dismiss_text: no
+`
+	expected := []*SlackAction{
+		{
+			Type:  "button",
+			Text:  "hello",
+			URL:   "https://localhost",
+			Style: "danger",
+		},
+		{
+			Type:  "button",
+			Text:  "hello",
+			Name:  "something",
+			Style: "default",
+			ConfirmField: &SlackConfirmationField{
+				Title:       "please confirm",
+				Text:        "are you sure?",
+				OkText:      "yes",
+				DismissText: "no",
+			},
+		},
+	}
+
+	var cfg SlackConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+	}
+
+	for index, action := range cfg.Actions {
+		exp := expected[index]
+		if action.Type != exp.Type {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Type, action.Type)
+		}
+		if action.Text != exp.Text {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Text, action.Text)
+		}
+		if action.URL != exp.URL {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.URL, action.URL)
+		}
+		if action.Style != exp.Style {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Style, action.Style)
+		}
+		if action.Name != exp.Name {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Name, action.Name)
+		}
+		if action.Value != exp.Value {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Value, action.Value)
+		}
+		if action.ConfirmField != nil && exp.ConfirmField == nil || action.ConfirmField == nil && exp.ConfirmField != nil {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField, action.ConfirmField)
+		} else if action.ConfirmField != nil && exp.ConfirmField != nil {
+			if action.ConfirmField.Title != exp.ConfirmField.Title {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.Title, action.ConfirmField.Title)
+			}
+			if action.ConfirmField.Text != exp.ConfirmField.Text {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.Text, action.ConfirmField.Text)
+			}
+			if action.ConfirmField.OkText != exp.ConfirmField.OkText {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.OkText, action.ConfirmField.OkText)
+			}
+			if action.ConfirmField.DismissText != exp.ConfirmField.DismissText {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.DismissText, action.ConfirmField.DismissText)
+			}
+		}
+	}
+}
+
 func newBoolPointer(b bool) *bool {
 	return &b
 }
