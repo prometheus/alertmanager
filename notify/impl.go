@@ -826,6 +826,7 @@ func (n *Slack) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
+// RocketChat Configuration
 type RocketChat struct {
 	conf   *config.RocketChatConfig
 	tmpl   *template.Template
