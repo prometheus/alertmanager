@@ -1,16 +1,63 @@
 module Views.Shared.AlertCompact exposing (view)
 
 import Alerts.Types exposing (Alert)
-import Html exposing (Html, div, li, span, text)
-import Html.Attributes exposing (class)
+import Html exposing (Html, button, div, i, li, span, table, text)
+import Html.Attributes exposing (class, style)
+import Html.Events exposing (onClick)
 import Utils.Views exposing (labelButton)
+import Views.AlertList.AlertView exposing (annotation, generatorUrlButton, titleView)
+import Views.Shared.Types exposing (Msg(..))
 
 
-view : Alert -> Html msg
-view alert =
-    li [ class "mb2 w-80-l w-100-m" ] <|
-        List.map
-            (\( key, value ) ->
-                labelButton Nothing (key ++ "=" ++ value)
-            )
+view : Maybe String -> Alert -> Html Msg
+view maybeActiveId alert =
+    let
+        -- remove the grouping labels, and bring the alertname to front
+        ungroupedLabels =
             alert.labels
+                |> List.partition (Tuple.first >> (==) "alertname")
+                |> (\( a, b ) -> (++) a b)
+                |> List.map (\( a, b ) -> String.join "=" [ a, b ])
+    in
+    li
+        [ -- speedup rendering in Chrome, because list-group-item className
+          -- creates a new layer in the rendering engine
+          style "position" "static"
+        , class "align-items-start list-group-item border-0 p-0 mb-4"
+        ]
+        [ div
+            [ class "w-100 mb-2 d-flex align-items-start" ]
+            [ titleView alert
+            , if List.length alert.annotations > 0 then
+                annotationsButton maybeActiveId alert
+
+              else
+                text ""
+            , generatorUrlButton alert.generatorUrl
+            ]
+        , if maybeActiveId == Just alert.id then
+            table
+                [ class "table w-100 mb-1" ]
+                (List.map annotation alert.annotations)
+
+          else
+            text ""
+        , div [] (List.map (labelButton Nothing) ungroupedLabels)
+        ]
+
+
+annotationsButton : Maybe String -> Alert -> Html Msg
+annotationsButton maybeActiveId alert =
+    if maybeActiveId == Just alert.id then
+        button
+            [ onClick (OptionalValue Nothing)
+            , class "btn btn-outline-info border-0 active"
+            ]
+            [ i [ class "fa fa-minus mr-2" ] [], text "Info" ]
+
+    else
+        button
+            [ class "btn btn-outline-info border-0"
+            , onClick (OptionalValue (Just alert.id))
+            ]
+            [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]

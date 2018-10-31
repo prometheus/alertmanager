@@ -1,4 +1,4 @@
-module Views.AlertList.AlertView exposing (addLabelMsg, view)
+module Views.AlertList.AlertView exposing (addLabelMsg, annotation, annotationsButton, generatorUrlButton, titleView, view)
 
 import Alerts.Types exposing (Alert)
 import Html exposing (..)
@@ -49,7 +49,7 @@ view labels maybeActiveId alert =
         ]
 
 
-titleView : Alert -> Html Msg
+titleView : Alert -> Html msg
 titleView { startsAt, isInhibited } =
     let
         ( className, inhibited ) =
@@ -85,7 +85,7 @@ annotationsButton maybeActiveId alert =
             [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
 
 
-annotation : ( String, String ) -> Html Msg
+annotation : ( String, String ) -> Html msg
 annotation ( key, value ) =
     tr []
         [ th [ class "text-nowrap" ] [ text (key ++ ":") ]
@@ -155,7 +155,7 @@ silenceButton alert =
                 ]
 
 
-generatorUrlButton : String -> Html Msg
+generatorUrlButton : String -> Html msg
 generatorUrlButton url =
     a
         [ class "btn btn-outline-info border-0", href url ]

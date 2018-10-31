@@ -6,20 +6,21 @@ import Html.Attributes exposing (class)
 import Utils.Types exposing (ApiData(..))
 import Utils.Views exposing (loading)
 import Views.Shared.AlertListCompact
+import Views.Shared.Types exposing (Msg(..))
 
 
-view : ApiData (List Alert) -> Html msg
-view alertsResponse =
+view : Maybe String -> ApiData (List Alert) -> Html Msg
+view maybeActiveId alertsResponse =
     case alertsResponse of
         Success alerts ->
             if List.isEmpty alerts then
                 div [ class "w-100" ]
-                    [ p [] [ strong [] [ text "No silenced alerts" ] ] ]
+                    [ p [] [ strong [] [ text "No affected alerts" ] ] ]
 
             else
                 div [ class "w-100" ]
-                    [ p [] [ strong [] [ text ("Silenced alerts: " ++ String.fromInt (List.length alerts)) ] ]
-                    , Views.Shared.AlertListCompact.view alerts
+                    [ p [] [ strong [] [ text ("Affected alerts: " ++ String.fromInt (List.length alerts)) ] ]
+                    , Views.Shared.AlertListCompact.view maybeActiveId alerts
                     ]
 
         Initial ->
