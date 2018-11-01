@@ -1,11 +1,11 @@
-module Views.Shared.AlertCompact exposing (view)
+module Views.Shared.AlertCompact exposing (annotation, annotationsButton, generatorUrlButton, titleView, view)
 
 import Alerts.Types exposing (Alert)
-import Html exposing (Html, button, div, i, li, span, table, text)
-import Html.Attributes exposing (class, style)
+import Html exposing (Html, a, button, div, i, li, span, table, td, text, th, tr)
+import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
+import Utils.Date
 import Utils.Views exposing (labelButton)
-import Views.AlertList.AlertView exposing (annotation, generatorUrlButton, titleView)
 import Views.Shared.Types exposing (Msg(..))
 
 
@@ -61,3 +61,39 @@ annotationsButton maybeActiveId alert =
             , onClick (OptionalValue (Just alert.id))
             ]
             [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
+
+
+annotation : ( String, String ) -> Html msg
+annotation ( key, value ) =
+    tr []
+        [ th [ class "text-nowrap" ] [ text (key ++ ":") ]
+        , td [ class "w-100" ] (Utils.Views.linkifyText value)
+        ]
+
+
+titleView : Alert -> Html msg
+titleView { startsAt, isInhibited } =
+    let
+        ( className, inhibited ) =
+            if isInhibited then
+                ( "text-muted", " (inhibited)" )
+
+            else
+                ( "", "" )
+    in
+    span
+        [ class ("align-self-center mr-2 " ++ className) ]
+        [ text
+            (Utils.Date.dateTimeFormat startsAt
+                ++ inhibited
+            )
+        ]
+
+
+generatorUrlButton : String -> Html msg
+generatorUrlButton url =
+    a
+        [ class "btn btn-outline-info border-0", href url ]
+        [ i [ class "fa fa-line-chart mr-2" ] []
+        , text "Source"
+        ]
