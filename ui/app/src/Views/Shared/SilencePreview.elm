@@ -10,7 +10,7 @@ import Views.Shared.Types exposing (Msg(..))
 
 
 view : Maybe String -> ApiData (List Alert) -> Html Msg
-view maybeActiveId alertsResponse =
+view activeAlertId alertsResponse =
     case alertsResponse of
         Success alerts ->
             if List.isEmpty alerts then
@@ -20,7 +20,7 @@ view maybeActiveId alertsResponse =
             else
                 div [ class "w-100" ]
                     [ p [] [ strong [] [ text ("Affected alerts: " ++ String.fromInt (List.length alerts)) ] ]
-                    , Views.Shared.AlertListCompact.view maybeActiveId alerts
+                    , Views.Shared.AlertListCompact.view activeAlertId alerts
                     ]
 
         Initial ->

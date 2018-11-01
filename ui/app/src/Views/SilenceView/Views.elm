@@ -39,15 +39,15 @@ view { silence, alerts, activeAlertId, showConfirmationDialog } =
 
 
 viewSilence : Maybe String -> ApiData (List Alert) -> Silence -> Bool -> Html Msg
-viewSilence maybeAlertId alerts silence showPromptDialog =
+viewSilence activeAlertId alerts silence showPromptDialog =
     let
         form =
-            Views.Shared.SilencePreview.view maybeAlertId alerts
+            Views.Shared.SilencePreview.view activeAlertId alerts
                 |> Html.map
                     (\msg ->
                         case msg of
-                            SharedTypes.OptionalValue activeAlertId ->
-                                MsgForSilenceView (SilenceViewTypes.SetActiveAlert activeAlertId)
+                            SharedTypes.OptionalValue alertId ->
+                                MsgForSilenceView (SilenceViewTypes.SetActiveAlert alertId)
                     )
     in
     div []

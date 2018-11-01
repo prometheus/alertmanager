@@ -96,18 +96,18 @@ matcherInput matchers =
 
 
 informationBlock : Maybe String -> ApiData SilenceId -> ApiData (List Alert) -> Html SilenceFormMsg
-informationBlock maybeAlertId silence alerts =
+informationBlock activeAlertId silence alerts =
     case silence of
         Utils.Types.Success _ ->
             text ""
 
         Utils.Types.Initial ->
-            Views.Shared.SilencePreview.view maybeAlertId alerts
+            Views.Shared.SilencePreview.view activeAlertId alerts
                 |> Html.map
                     (\msg ->
                         case msg of
-                            OptionalValue activeAlertId ->
-                                SetActiveAlert activeAlertId
+                            OptionalValue alertId ->
+                                SetActiveAlert alertId
                     )
 
         Utils.Types.Failure error ->

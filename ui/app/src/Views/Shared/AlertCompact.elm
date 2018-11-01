@@ -10,7 +10,7 @@ import Views.Shared.Types exposing (Msg(..))
 
 
 view : Maybe String -> Alert -> Html Msg
-view maybeActiveId alert =
+view activeAlertId alert =
     let
         -- remove the grouping labels, and bring the alertname to front
         ungroupedLabels =
@@ -29,13 +29,13 @@ view maybeActiveId alert =
             [ class "w-100 mb-2 d-flex align-items-start" ]
             [ titleView alert
             , if List.length alert.annotations > 0 then
-                annotationsButton maybeActiveId alert
+                annotationsButton activeAlertId alert
 
               else
                 text ""
             , generatorUrlButton alert.generatorUrl
             ]
-        , if maybeActiveId == Just alert.id then
+        , if activeAlertId == Just alert.id then
             table
                 [ class "table w-100 mb-1" ]
                 (List.map annotation alert.annotations)
@@ -47,8 +47,8 @@ view maybeActiveId alert =
 
 
 annotationsButton : Maybe String -> Alert -> Html Msg
-annotationsButton maybeActiveId alert =
-    if maybeActiveId == Just alert.id then
+annotationsButton activeAlertId alert =
+    if activeAlertId == Just alert.id then
         button
             [ onClick (OptionalValue Nothing)
             , class "btn btn-outline-info border-0 active"
