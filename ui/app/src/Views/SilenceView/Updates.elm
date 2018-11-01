@@ -21,7 +21,7 @@ update msg model apiUrl =
             )
 
         SetActiveAlert activeAlertId ->
-            ( { model | maybeAlertId = activeAlertId }
+            ( { model | activeAlertId = activeAlertId }
             , Cmd.none
             )
 

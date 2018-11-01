@@ -19,7 +19,7 @@ type SilenceViewMsg
 type alias Model =
     { silence : ApiData Silence
     , alerts : ApiData (List Alert)
-    , maybeAlertId : Maybe String
+    , activeAlertId : Maybe String
     , showConfirmationDialog : Bool
     , key : Key
     }
@@ -29,7 +29,7 @@ initSilenceView : Key -> Model
 initSilenceView key =
     { silence = Initial
     , alerts = Initial
-    , maybeAlertId = Nothing
+    , activeAlertId = Nothing
     , showConfirmationDialog = False
     , key = key
     }

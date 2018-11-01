@@ -19,14 +19,14 @@ import Views.SilenceView.Types as SilenceViewTypes exposing (Model)
 
 
 view : Model -> Html Msg
-view { silence, alerts, maybeAlertId, showConfirmationDialog } =
+view { silence, alerts, activeAlertId, showConfirmationDialog } =
     case silence of
         Success sil ->
             if showConfirmationDialog then
-                viewSilence maybeAlertId alerts sil True
+                viewSilence activeAlertId alerts sil True
 
             else
-                viewSilence maybeAlertId alerts sil False
+                viewSilence activeAlertId alerts sil False
 
         Initial ->
             loading
