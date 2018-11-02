@@ -39,8 +39,7 @@ routes:
       env: 'testing'
 
     receiver: 'notify-testing'
-    group_by: []
-    group_by_all: true
+    group_by: [...]
 
   - match:
       env: "production"
