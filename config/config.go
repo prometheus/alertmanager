@@ -494,9 +494,10 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
-	Receiver   string            `yaml:"receiver,omitempty" json:"receiver,omitempty"`
-	GroupBy    []model.LabelName `yaml:"group_by,omitempty" json:"group_by,omitempty"`
-	GroupByAll bool              `yaml:"group_by_all,omitempty" json:"group_by_all,omitempty"`
+	Receiver   string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
+	GroupBy    []model.LabelName
+	GroupByStr []string `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	GroupByAll bool
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
@@ -526,9 +527,20 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return fmt.Errorf("invalid label name %q", k)
 		}
 	}
+	for _, l := range r.GroupByStr {
+		if l == "..." {
+			r.GroupByAll = true
+		} else {
+			labelName := model.LabelName(l)
+			if !labelName.IsValid() {
+				return fmt.Errorf("invalid label name %q in group_by list", l)
+			}
+			r.GroupBy = append(r.GroupBy, labelName)
+		}
+	}
 
 	if len(r.GroupBy) > 0 && r.GroupByAll {
-		return fmt.Errorf("cannot have group_by_all is true and non-empty group_by")
+		return fmt.Errorf("cannot have wildcard group_by and other other labels at same time")
 	}
 
 	groupBy := map[model.LabelName]struct{}{}

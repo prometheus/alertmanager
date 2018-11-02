@@ -22,10 +22,11 @@ route:
   # The labels by which incoming alerts are grouped together. For example,
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
+  # To aggregate by all labels use '...' instead of label names.
+  # The wildcard label should be used only alone.
+  # For example: group_by: [...]
   group_by: ['alertname', 'cluster', 'service']
 
-  # If true, each unique set of labels will constitute new group.
-  group_by_all: false
 
   # When a new group of alerts is created by an incoming alert, wait at
   # least 'group_wait' to send the initial notification.

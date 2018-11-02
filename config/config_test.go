@@ -144,18 +144,17 @@ receivers:
 
 }
 
-func TestNonEmptyGroupByAndGroupByAl(t *testing.T) {
+func TestWildcardGroupByWithOtherGroupByLabels(t *testing.T) {
 	in := `
 route:
-  group_by: ['alertname', 'cluster']
-  group_by_all: true	
-
+  group_by: ['alertname', 'cluster', '...']
+  receiver: team-X-mails
 receivers:
 - name: 'team-X-mails'
 `
 	_, err := Load(in)
 
-	expected := "cannot have group_by_all is true and non-empty group_by"
+	expected := "cannot have wildcard group_by and other other labels at same time"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
@@ -163,6 +162,27 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
+}
+
+func TestGroupByInvalidLabel(t *testing.T) {
+	in := `
+route:
+  group_by: ['-invalid-']
+  receiver: team-X-mails
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "invalid label name \"-invalid-\" in group_by list"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
 }
 
 func TestRootRouteExists(t *testing.T) {
@@ -465,6 +485,11 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		Route: &Route{
 			Receiver: "team-X-mails",
 			GroupBy: []model.LabelName{
+				"alertname",
+				"cluster",
+				"service",
+			},
+			GroupByStr: []string{
 				"alertname",
 				"cluster",
 				"service",
