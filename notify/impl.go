@@ -251,7 +251,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 			return LoginAuth(username, password), nil
 		}
 	}
-	return nil, nil
+	return nil, errors.New("Unknown auth mechanism: " + mechs)
 }
 
 // Notify implements the Notifier interface.
