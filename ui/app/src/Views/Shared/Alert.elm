@@ -6,14 +6,14 @@ import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
 import Utils.Date exposing (dateTimeFormat)
 import Utils.Views exposing (linkifyText)
-import Views.Shared.Types exposing (Msg(..))
+import Views.Shared.Types exposing (Msg)
 
 
 annotationsButton : Maybe String -> Alert -> Html Msg
 annotationsButton activeAlertId alert =
     if activeAlertId == Just alert.id then
         button
-            [ onClick (OptionalValue Nothing)
+            [ onClick Nothing
             , class "btn btn-outline-info border-0 active"
             ]
             [ i [ class "fa fa-minus mr-2" ] [], text "Info" ]
@@ -21,7 +21,7 @@ annotationsButton activeAlertId alert =
     else
         button
             [ class "btn btn-outline-info border-0"
-            , onClick (OptionalValue (Just alert.id))
+            , onClick (Just alert.id)
             ]
             [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
 

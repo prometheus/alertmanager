@@ -1,5 +1,5 @@
-module Views.Shared.Types exposing (Msg(..))
+module Views.Shared.Types exposing (Msg)
 
 
-type Msg
-    = OptionalValue (Maybe String)
+type alias Msg =
+    Maybe String

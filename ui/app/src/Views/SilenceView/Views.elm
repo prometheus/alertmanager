@@ -43,12 +43,7 @@ viewSilence activeAlertId alerts silence showPromptDialog =
     let
         form =
             Views.Shared.SilencePreview.view activeAlertId alerts
-                |> Html.map
-                    (\msg ->
-                        case msg of
-                            SharedTypes.OptionalValue alertId ->
-                                MsgForSilenceView (SilenceViewTypes.SetActiveAlert alertId)
-                    )
+                |> Html.map (\msg -> MsgForSilenceView (SilenceViewTypes.SetActiveAlert msg))
     in
     div []
         [ h1 []

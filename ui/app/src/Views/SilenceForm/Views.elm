@@ -10,7 +10,7 @@ import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField)
 import Views.Shared.SilencePreview
-import Views.Shared.Types exposing (Msg(..))
+import Views.Shared.Types exposing (Msg)
 import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
@@ -103,12 +103,7 @@ informationBlock activeAlertId silence alerts =
 
         Utils.Types.Initial ->
             Views.Shared.SilencePreview.view activeAlertId alerts
-                |> Html.map
-                    (\msg ->
-                        case msg of
-                            OptionalValue alertId ->
-                                SetActiveAlert alertId
-                    )
+                |> Html.map SetActiveAlert
 
         Utils.Types.Failure error ->
             Utils.Views.error error

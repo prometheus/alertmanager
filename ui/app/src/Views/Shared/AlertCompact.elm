@@ -5,7 +5,7 @@ import Html exposing (Html, a, button, div, i, li, span, table, td, text, th, tr
 import Html.Attributes exposing (class, href, style)
 import Utils.Views exposing (labelButton)
 import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
-import Views.Shared.Types exposing (Msg(..))
+import Views.Shared.Types exposing (Msg)
 
 
 view : Maybe String -> Alert -> Html Msg

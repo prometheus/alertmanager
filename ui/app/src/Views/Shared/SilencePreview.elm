@@ -6,7 +6,7 @@ import Html.Attributes exposing (class)
 import Utils.Types exposing (ApiData(..))
 import Utils.Views exposing (loading)
 import Views.Shared.AlertListCompact
-import Views.Shared.Types exposing (Msg(..))
+import Views.Shared.Types exposing (Msg)
 
 
 view : Maybe String -> ApiData (List Alert) -> Html Msg

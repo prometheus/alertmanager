@@ -4,7 +4,7 @@ import Alerts.Types exposing (Alert)
 import Html exposing (Html, ol)
 import Html.Attributes exposing (class)
 import Views.Shared.AlertCompact
-import Views.Shared.Types exposing (Msg(..))
+import Views.Shared.Types exposing (Msg)
 
 
 view : Maybe String -> List Alert -> Html Msg

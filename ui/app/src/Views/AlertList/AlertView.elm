@@ -10,7 +10,6 @@ import Utils.Views
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
-import Views.Shared.Types as SharedTypes
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
@@ -35,12 +34,7 @@ view labels maybeActiveId alert =
             [ titleView alert
             , if List.length alert.annotations > 0 then
                 annotationsButton maybeActiveId alert
-                    |> Html.map
-                        (\msg ->
-                            case msg of
-                                SharedTypes.OptionalValue opt ->
-                                    MsgForAlertList (SetActive opt)
-                        )
+                    |> Html.map (\msg -> MsgForAlertList (SetActive msg))
 
               else
                 text ""
