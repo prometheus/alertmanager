@@ -9,7 +9,7 @@ import Utils.Filter
 import Utils.Views
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.FilterBar.Types as FilterBarTypes
-import Views.Shared.AlertCompact exposing (annotation, annotationsButton, generatorUrlButton, titleView)
+import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
 import Views.Shared.Types as SharedTypes
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
