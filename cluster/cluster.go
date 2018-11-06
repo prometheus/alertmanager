@@ -102,7 +102,7 @@ const (
 	DefaultProbeInterval     = 1 * time.Second
 	DefaultReconnectInterval = 10 * time.Second
 	DefaultReconnectTimeout  = 6 * time.Hour
-	DefaultRefreshInterval   = 30 * time.Second
+	DefaultRefreshInterval   = 15 * time.Second
 	maxGossipPacketSize      = 1400
 )
 
@@ -444,7 +444,7 @@ func (p *Peer) refresh() {
 		if !isPeerFound {
 			if _, err := p.mlist.Join([]string{peer}); err != nil {
 				p.failedRefreshCounter.Inc()
-				level.Debug(logger).Log("result", "failure", "addr", peer)
+				level.Warn(logger).Log("result", "failure", "addr", peer)
 			} else {
 				p.refreshCounter.Inc()
 				level.Debug(logger).Log("result", "success", "addr", peer)
