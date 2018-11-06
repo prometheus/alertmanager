@@ -220,12 +220,13 @@ func NewEmail(c *config.EmailConfig, t *template.Template, l log.Logger) *Email 
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	username := n.conf.AuthUsername
-
+	err := &types.MultiError{}
 	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
 			secret := string(n.conf.AuthSecret)
 			if secret == "" {
+				err.Add(errors.New("Missing secret for CRAM-MD5 auth mechanism"))
 				continue
 			}
 			return smtp.CRAMMD5Auth(username, secret), nil
@@ -233,6 +234,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 		case "PLAIN":
 			password := string(n.conf.AuthPassword)
 			if password == "" {
+				err.Add(errors.New("Missing password for PLAIN auth mechanism"))
 				continue
 			}
 			identity := n.conf.AuthIdentity
@@ -246,12 +248,16 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 		case "LOGIN":
 			password := string(n.conf.AuthPassword)
 			if password == "" {
+				err.Add(errors.New("Missing password for LOGIN auth mechanism"))
 				continue
 			}
 			return LoginAuth(username, password), nil
 		}
 	}
-	return nil, errors.New("Unknown auth mechanism: " + mechs)
+	if err.Len() == 0 {
+		err.Add(errors.New("Unknown auth mechanism: " + mechs))
+	}
+	return nil, err
 }
 
 // Notify implements the Notifier interface.
