@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"mime/quotedprintable"
 	"net"
 	"net/http"
 	"net/mail"
@@ -391,7 +392,10 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	if len(n.conf.Text) > 0 {
 		// Text template
-		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/plain; charset=UTF-8"}})
+		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{
+			"Content-Transfer-Encoding": {"quoted-printable"},
+			"Content-Type":              {"text/plain; charset=UTF-8"},
+		})
 		if err != nil {
 			return false, fmt.Errorf("creating part for text template: %s", err)
 		}
@@ -399,7 +403,12 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("executing email text template: %s", err)
 		}
-		_, err = w.Write([]byte(body))
+		qw := quotedprintable.NewWriter(w)
+		_, err = qw.Write([]byte(body))
+		if err != nil {
+			return true, err
+		}
+		err = qw.Close()
 		if err != nil {
 			return true, err
 		}
@@ -409,7 +418,10 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		// Html template
 		// Preferred alternative placed last per section 5.1.4 of RFC 2046
 		// https://www.ietf.org/rfc/rfc2046.txt
-		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/html; charset=UTF-8"}})
+		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{
+			"Content-Transfer-Encoding": {"quoted-printable"},
+			"Content-Type":              {"text/html; charset=UTF-8"},
+		})
 		if err != nil {
 			return false, fmt.Errorf("creating part for html template: %s", err)
 		}
@@ -417,7 +429,12 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("executing email html template: %s", err)
 		}
-		_, err = w.Write([]byte(body))
+		qw := quotedprintable.NewWriter(w)
+		_, err = qw.Write([]byte(body))
+		if err != nil {
+			return true, err
+		}
+		err = qw.Close()
 		if err != nil {
 			return true, err
 		}
