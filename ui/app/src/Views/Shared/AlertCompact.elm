@@ -1,7 +1,7 @@
 module Views.Shared.AlertCompact exposing (view)
 
 import Alerts.Types exposing (Alert)
-import Html exposing (Html, a, button, div, i, li, span, table, td, text, th, tr)
+import Html exposing (Html, div, table, text)
 import Html.Attributes exposing (class, href, style)
 import Utils.Views exposing (labelButton)
 import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
@@ -18,14 +18,14 @@ view activeAlertId alert =
                 |> (\( a, b ) -> (++) a b)
                 |> List.map (\( a, b ) -> String.join "=" [ a, b ])
     in
-    li
+    div
         [ -- speedup rendering in Chrome, because list-group-item className
           -- creates a new layer in the rendering engine
           style "position" "static"
-        , class "align-items-start list-group-item border-0 p-0 mb-4"
+        , class "border-0 p-0 mb-4"
         ]
         [ div
-            [ class "w-100 mb-2 d-flex align-items-start" ]
+            [ class "w-100 mb-2 d-flex" ]
             [ titleView alert
             , if List.length alert.annotations > 0 then
                 annotationsButton activeAlertId alert

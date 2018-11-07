@@ -41,7 +41,7 @@ view { silence, alerts, activeAlertId, showConfirmationDialog } =
 viewSilence : Maybe String -> ApiData (List Alert) -> Silence -> Bool -> Html Msg
 viewSilence activeAlertId alerts silence showPromptDialog =
     let
-        form =
+        affectedAlerts =
             Views.Shared.SilencePreview.view activeAlertId alerts
                 |> Html.map (\msg -> MsgForSilenceView (SilenceViewTypes.SetActiveAlert msg))
     in
@@ -64,7 +64,7 @@ viewSilence activeAlertId alerts silence showPromptDialog =
         , formGroup "Matchers" <|
             div [] <|
                 List.map (Utils.List.mstring >> Utils.Views.labelButton Nothing) silence.matchers
-        , formGroup "Affected alerts" form
+        , affectedAlerts
         , Dialog.view
             (if showPromptDialog then
                 Just (confirmSilenceDeleteView silence True)
