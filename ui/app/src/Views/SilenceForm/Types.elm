@@ -34,6 +34,7 @@ type alias Model =
     { form : SilenceForm
     , silenceId : ApiData String
     , alerts : ApiData (List Alert)
+    , activeAlertId : Maybe String
     , key : Key
     }
 
@@ -61,6 +62,7 @@ type SilenceFormMsg
     | CreateSilence
     | PreviewSilence
     | AlertGroupsPreview (ApiData (List Alert))
+    | SetActiveAlert (Maybe String)
     | FetchSilence String
     | NewSilenceFromMatchers String (List Utils.Filter.Matcher)
     | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Posix
@@ -91,6 +93,7 @@ initSilenceForm key =
     { form = empty
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
+    , activeAlertId = Nothing
     , key = key
     }
 

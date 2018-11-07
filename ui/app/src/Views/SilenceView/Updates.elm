@@ -20,6 +20,11 @@ update msg model apiUrl =
             , Cmd.none
             )
 
+        SetActiveAlert activeAlertId ->
+            ( { model | activeAlertId = activeAlertId }
+            , Cmd.none
+            )
+
         SilenceFetched (Success silence) ->
             ( { model
                 | silence = Success silence

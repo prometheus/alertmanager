@@ -9,6 +9,7 @@ import Utils.Types exposing (ApiData(..))
 type SilenceViewMsg
     = FetchSilence String
     | SilenceFetched (ApiData Silence)
+    | SetActiveAlert (Maybe String)
     | AlertGroupsPreview (ApiData (List Alert))
     | InitSilenceView SilenceId
     | ConfirmDestroySilence Silence Bool
@@ -18,6 +19,7 @@ type SilenceViewMsg
 type alias Model =
     { silence : ApiData Silence
     , alerts : ApiData (List Alert)
+    , activeAlertId : Maybe String
     , showConfirmationDialog : Bool
     , key : Key
     }
@@ -27,6 +29,7 @@ initSilenceView : Key -> Model
 initSilenceView key =
     { silence = Initial
     , alerts = Initial
+    , activeAlertId = Nothing
     , showConfirmationDialog = False
     , key = key
     }

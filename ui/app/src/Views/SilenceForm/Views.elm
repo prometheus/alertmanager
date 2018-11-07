@@ -10,11 +10,12 @@ import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField)
 import Views.Shared.SilencePreview
+import Views.Shared.Types exposing (Msg)
 import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
 view : Maybe SilenceId -> List Utils.Filter.Matcher -> String -> Model -> Html SilenceFormMsg
-view maybeId matchers defaultCreator { form, silenceId, alerts } =
+view maybeId matchers defaultCreator { form, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -41,7 +42,7 @@ view maybeId matchers defaultCreator { form, silenceId, alerts } =
             (ValidateComment |> UpdateField)
             form.comment
         , div [ class inputSectionPadding ]
-            [ informationBlock silenceId alerts
+            [ informationBlock activeAlertId silenceId alerts
             , silenceActionButtons maybeId form resetClick
             ]
         ]
@@ -94,14 +95,15 @@ matcherInput matchers =
         ]
 
 
-informationBlock : ApiData SilenceId -> ApiData (List Alert) -> Html SilenceFormMsg
-informationBlock silence alerts =
+informationBlock : Maybe String -> ApiData SilenceId -> ApiData (List Alert) -> Html SilenceFormMsg
+informationBlock activeAlertId silence alerts =
     case silence of
         Utils.Types.Success _ ->
             text ""
 
         Utils.Types.Initial ->
-            Views.Shared.SilencePreview.view alerts
+            Views.Shared.SilencePreview.view activeAlertId alerts
+                |> Html.map SetActiveAlert
 
         Utils.Types.Failure error ->
             Utils.Views.error error

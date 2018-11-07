@@ -12,20 +12,21 @@ import Utils.Types exposing (ApiData(..))
 import Utils.Views exposing (error, loading)
 import Views.Shared.Dialog as Dialog
 import Views.Shared.SilencePreview
+import Views.Shared.Types as SharedTypes
 import Views.SilenceList.SilenceView exposing (editButton)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 import Views.SilenceView.Types as SilenceViewTypes exposing (Model)
 
 
 view : Model -> Html Msg
-view { silence, alerts, showConfirmationDialog } =
+view { silence, alerts, activeAlertId, showConfirmationDialog } =
     case silence of
         Success sil ->
             if showConfirmationDialog then
-                viewSilence alerts sil True
+                viewSilence activeAlertId alerts sil True
 
             else
-                viewSilence alerts sil False
+                viewSilence activeAlertId alerts sil False
 
         Initial ->
             loading
@@ -37,8 +38,13 @@ view { silence, alerts, showConfirmationDialog } =
             error msg
 
 
-viewSilence : ApiData (List Alert) -> Silence -> Bool -> Html Msg
-viewSilence alerts silence showPromptDialog =
+viewSilence : Maybe String -> ApiData (List Alert) -> Silence -> Bool -> Html Msg
+viewSilence activeAlertId alerts silence showPromptDialog =
+    let
+        affectedAlerts =
+            Views.Shared.SilencePreview.view activeAlertId alerts
+                |> Html.map (\msg -> MsgForSilenceView (SilenceViewTypes.SetActiveAlert msg))
+    in
     div []
         [ h1 []
             [ text "Silence"
@@ -58,7 +64,7 @@ viewSilence alerts silence showPromptDialog =
         , formGroup "Matchers" <|
             div [] <|
                 List.map (Utils.List.mstring >> Utils.Views.labelButton Nothing) silence.matchers
-        , formGroup "Affected alerts" <| Views.Shared.SilencePreview.view alerts
+        , affectedAlerts
         , Dialog.view
             (if showPromptDialog then
                 Just (confirmSilenceDeleteView silence True)
