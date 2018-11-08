@@ -45,6 +45,7 @@ update msg model apiUrl =
             ( { model | silence = silence, alerts = Initial }, Cmd.none )
 
         InitSilenceView silenceId ->
+            -- TODO: silenceId should never be Nothing, can this be done cleaner?
             ( { model | showConfirmationDialog = False }, getSilence apiUrl silenceId SilenceFetched )
 
         Reload silenceId ->

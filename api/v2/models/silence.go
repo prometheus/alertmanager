@@ -6,8 +6,6 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	"encoding/json"
-
 	strfmt "github.com/go-openapi/strfmt"
 
 	"github.com/go-openapi/errors"
@@ -20,14 +18,17 @@ import (
 type Silence struct {
 
 	// comment
-	Comment string `json:"comment,omitempty"`
+	// Required: true
+	Comment *string `json:"comment"`
 
 	// created by
-	CreatedBy string `json:"createdBy,omitempty"`
+	// Required: true
+	CreatedBy *string `json:"createdBy"`
 
 	// ends at
+	// Required: true
 	// Format: date-time
-	EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
+	EndsAt *strfmt.DateTime `json:"endsAt"`
 
 	// id
 	ID string `json:"id,omitempty"`
@@ -37,20 +38,29 @@ type Silence struct {
 	Matchers Matchers `json:"matchers"`
 
 	// starts at
+	// Required: true
 	// Format: date-time
-	StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
+	StartsAt *strfmt.DateTime `json:"startsAt"`
 
 	// status
 	Status *SilenceStatus `json:"status,omitempty"`
 
 	// updated at
 	// Format: date-time
-	UpdatedAt strfmt.DateTime `json:"updatedAt,omitempty"`
+	UpdatedAt *strfmt.DateTime `json:"updatedAt,omitempty"`
 }
 
 // Validate validates this silence
 func (m *Silence) Validate(formats strfmt.Registry) error {
 	var res []error
+
+	if err := m.validateComment(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateCreatedBy(formats); err != nil {
+		res = append(res, err)
+	}
 
 	if err := m.validateEndsAt(formats); err != nil {
 		res = append(res, err)
@@ -78,10 +88,28 @@ func (m *Silence) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
+func (m *Silence) validateComment(formats strfmt.Registry) error {
+
+	if err := validate.Required("comment", "body", m.Comment); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Silence) validateCreatedBy(formats strfmt.Registry) error {
+
+	if err := validate.Required("createdBy", "body", m.CreatedBy); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *Silence) validateEndsAt(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.EndsAt) { // not required
-		return nil
+	if err := validate.Required("endsAt", "body", m.EndsAt); err != nil {
+		return err
 	}
 
 	if err := validate.FormatOf("endsAt", "body", "date-time", m.EndsAt.String(), formats); err != nil {
@@ -109,8 +137,8 @@ func (m *Silence) validateMatchers(formats strfmt.Registry) error {
 
 func (m *Silence) validateStartsAt(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.StartsAt) { // not required
-		return nil
+	if err := validate.Required("startsAt", "body", m.StartsAt); err != nil {
+		return err
 	}
 
 	if err := validate.FormatOf("startsAt", "body", "date-time", m.StartsAt.String(), formats); err != nil {
@@ -162,93 +190,6 @@ func (m *Silence) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (m *Silence) UnmarshalBinary(b []byte) error {
 	var res Silence
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*m = res
-	return nil
-}
-
-// SilenceStatus silence status
-// swagger:model SilenceStatus
-type SilenceStatus struct {
-
-	// state
-	// Enum: [expired active pending]
-	State string `json:"state,omitempty"`
-}
-
-// Validate validates this silence status
-func (m *SilenceStatus) Validate(formats strfmt.Registry) error {
-	var res []error
-
-	if err := m.validateState(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
-	return nil
-}
-
-var silenceStatusTypeStatePropEnum []interface{}
-
-func init() {
-	var res []string
-	if err := json.Unmarshal([]byte(`["expired","active","pending"]`), &res); err != nil {
-		panic(err)
-	}
-	for _, v := range res {
-		silenceStatusTypeStatePropEnum = append(silenceStatusTypeStatePropEnum, v)
-	}
-}
-
-const (
-
-	// SilenceStatusStateExpired captures enum value "expired"
-	SilenceStatusStateExpired string = "expired"
-
-	// SilenceStatusStateActive captures enum value "active"
-	SilenceStatusStateActive string = "active"
-
-	// SilenceStatusStatePending captures enum value "pending"
-	SilenceStatusStatePending string = "pending"
-)
-
-// prop value enum
-func (m *SilenceStatus) validateStateEnum(path, location string, value string) error {
-	if err := validate.Enum(path, location, value, silenceStatusTypeStatePropEnum); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *SilenceStatus) validateState(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.State) { // not required
-		return nil
-	}
-
-	// value enum
-	if err := m.validateStateEnum("status"+"."+"state", "body", m.State); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (m *SilenceStatus) MarshalBinary() ([]byte, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(m)
-}
-
-// UnmarshalBinary interface implementation
-func (m *SilenceStatus) UnmarshalBinary(b []byte) error {
-	var res SilenceStatus
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

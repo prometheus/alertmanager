@@ -1,9 +1,9 @@
 module Silences.Api exposing (create, destroy, getSilence, getSilences)
 
+import Data.Silence exposing (Silence)
+import Data.Silences
 import Http
-import Silences.Decoders exposing (create, destroy, list, show)
-import Silences.Encoders
-import Silences.Types exposing (Silence)
+import Silences.Decoders
 import Utils.Api
 import Utils.Filter exposing (Filter, generateQueryString)
 import Utils.Types exposing (ApiData(..))
@@ -15,7 +15,7 @@ getSilences apiUrl filter msg =
         url =
             String.join "/" [ apiUrl, "silences" ++ generateQueryString filter ]
     in
-    Utils.Api.send (Utils.Api.get url list)
+    Utils.Api.send (Utils.Api.get url Data.Silences.decoder)
         |> Cmd.map msg
 
 
@@ -25,7 +25,7 @@ getSilence apiUrl uuid msg =
         url =
             String.join "/" [ apiUrl, "silence", uuid ]
     in
-    Utils.Api.send (Utils.Api.get url show)
+    Utils.Api.send (Utils.Api.get url Data.Silence.decoder)
         |> Cmd.map msg
 
 
@@ -36,7 +36,7 @@ create apiUrl silence =
             String.join "/" [ apiUrl, "silences" ]
 
         body =
-            Http.jsonBody <| Silences.Encoders.silence silence
+            Http.jsonBody <| Data.Silence.encoder silence
     in
     -- TODO: This should return the silence, not just the ID, so that we can
     -- redirect to the silence show page.
@@ -50,7 +50,9 @@ destroy apiUrl silence msg =
     -- be matching on /silences and ignoring the :sid, should be getting a 404.
     let
         url =
-            String.join "/" [ apiUrl, "silence", silence.id ]
+            -- TODO: Maybe.withDefault is not perfect. Silences should always
+            -- have an id, what should we do?
+            String.join "/" [ apiUrl, "silence", Maybe.withDefault "" silence.id ]
 
         responseDecoder =
             -- Silences.Encoders.silence silence

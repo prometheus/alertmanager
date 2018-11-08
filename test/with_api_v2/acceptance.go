@@ -59,9 +59,9 @@ type AcceptanceOpts struct {
 
 func (opts *AcceptanceOpts) alertString(a *models.Alert) string {
 	if time.Time(a.EndsAt).IsZero() {
-		return fmt.Sprintf("%s[%v:]", a, opts.relativeTime(time.Time(a.StartsAt)))
+		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(a.StartsAt)))
 	}
-	return fmt.Sprintf("%s[%v:%v]", a, opts.relativeTime(time.Time(a.StartsAt)), opts.relativeTime(time.Time(a.EndsAt)))
+	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(a.StartsAt)), opts.relativeTime(time.Time(a.EndsAt)))
 }
 
 // expandTime returns the absolute time for the relative time
@@ -352,7 +352,7 @@ func (am *Alertmanager) WaitForCluster(size int) error {
 			return err
 		}
 
-		if len(status.Payload.Peers) == size {
+		if len(status.Payload.Cluster.Peers) == size {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -362,7 +362,7 @@ func (am *Alertmanager) WaitForCluster(size int) error {
 		"failed to wait for Alertmanager instance %q to join cluster: expected %v peers, but got %v",
 		am.clusterAddr,
 		size,
-		len(status.Payload.Peers),
+		len(status.Payload.Cluster.Peers),
 	)
 }
 
@@ -437,7 +437,7 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 
 		_, err := am.clientV2.Alert.PostAlerts(&params)
 		if err != nil {
-			am.t.Errorf("Error pushing %v: %s", cas, err)
+			am.t.Errorf("Error pushing %v: %v", cas, err)
 		}
 	})
 }

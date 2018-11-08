@@ -1,10 +1,13 @@
 module Views.SilenceList.Views exposing (filterSilencesByState, groupSilencesByState, silencesView, states, tabView, tabsView, view)
 
+import Data.Silence exposing (Silence)
+import Data.SilenceStatus exposing (State(..))
+import Data.Silences exposing (Silences)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Keyed
 import Html.Lazy exposing (lazy, lazy2, lazy3)
-import Silences.Types exposing (Silence, SilenceId, State(..), stateToString)
+import Silences.Types exposing (stateToString)
 import Types exposing (Msg(..))
 import Utils.String as StringUtils
 import Utils.Types exposing (ApiData(..), Matcher)
@@ -53,7 +56,7 @@ tabView currentTab count tab =
                 ]
 
 
-silencesView : Maybe SilenceId -> State -> ApiData (List SilenceTab) -> Html Msg
+silencesView : Maybe String -> State -> ApiData (List SilenceTab) -> Html Msg
 silencesView showConfirmationDialog tab silencesTab =
     case silencesTab of
         Success tabs ->
@@ -70,9 +73,9 @@ silencesView showConfirmationDialog tab silencesTab =
                             Html.Keyed.ul [ class "list-group" ]
                                 (List.map
                                     (\silence ->
-                                        ( silence.id
+                                        ( Maybe.withDefault "" silence.id
                                         , Views.SilenceList.SilenceView.view
-                                            (showConfirmationDialog == Just silence.id)
+                                            (showConfirmationDialog == silence.id)
                                             silence
                                         )
                                     )
@@ -97,6 +100,23 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> List Silence -> List Silence
+filterSilencesByState : State -> Silences -> Silences
 filterSilencesByState state =
-    List.filter (.status >> .state >> (==) state)
+    List.filter (filterSilenceByState state)
+
+
+filterSilenceByState : State -> Silence -> Bool
+filterSilenceByState state silence =
+    -- TODO: Can this be done cleaner?
+    Maybe.withDefault False <| Maybe.map (.state >> (==) state) <| .status silence
+
+
+
+{-
+   case silence.status of
+       Just status ->
+           status.state == state
+
+       Nothing ->
+           False
+-}

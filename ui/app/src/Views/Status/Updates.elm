@@ -12,4 +12,4 @@ update msg model basePath =
             ( { model | status = { statusInfo = apiResponse } }, Cmd.none )
 
         InitStatusView ->
-            ( model, getStatus basePath (NewStatus >> MsgForStatus) )
+            ( model, getStatus "/api/v2/" (NewStatus >> MsgForStatus) )

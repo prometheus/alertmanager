@@ -2,7 +2,8 @@ module Views.SilenceView.Types exposing (Model, SilenceViewMsg(..), initSilenceV
 
 import Alerts.Types exposing (Alert)
 import Browser.Navigation exposing (Key)
-import Silences.Types exposing (Silence, SilenceId)
+import Data.Silence exposing (Silence)
+import Data.Silences exposing (Silences)
 import Utils.Types exposing (ApiData(..))
 
 
@@ -11,7 +12,7 @@ type SilenceViewMsg
     | SilenceFetched (ApiData Silence)
     | SetActiveAlert (Maybe String)
     | AlertGroupsPreview (ApiData (List Alert))
-    | InitSilenceView SilenceId
+    | InitSilenceView String
     | ConfirmDestroySilence Silence Bool
     | Reload String
 
