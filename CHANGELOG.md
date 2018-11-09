@@ -1,3 +1,7 @@
+## 0.15.3 / 2018-11-09
+
+* [BUGFIX] Fix alert merging supporting both empty and set EndsAt property for firing alerts send by Prometheus (#1611)
+
 ## 0.15.2 / 2018-08-14
 
 * [ENHANCEMENT] [amtool] Add support for stdin to check-config (#1431)
