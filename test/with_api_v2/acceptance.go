@@ -15,6 +15,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -35,7 +36,6 @@ import (
 
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
-	"golang.org/x/net/context"
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected

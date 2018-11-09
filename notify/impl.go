@@ -15,11 +15,13 @@ package notify
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
@@ -37,8 +39,6 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
@@ -177,7 +177,7 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 		return false, err
 	}
 
-	resp, err := ctxhttp.Do(ctx, c, req)
+	resp, err := c.Do(req.WithContext(ctx))
 	if err != nil {
 		return true, err
 	}
@@ -530,7 +530,7 @@ func (n *PagerDuty) notifyV1(
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
+	resp, err := post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -593,7 +593,7 @@ func (n *PagerDuty) notifyV2(
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
+	resp, err := post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -815,7 +815,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, n.conf.APIURL.String(), contentTypeJSON, &buf)
+	resp, err := post(ctx, c, n.conf.APIURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -902,7 +902,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	resp, err := post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -1129,7 +1129,7 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := ctxhttp.Do(ctx, c, req)
+	resp, err := c.Do(req.WithContext(ctx))
 
 	if err != nil {
 		return true, err
@@ -1329,7 +1329,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
+	resp, err := post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -1426,7 +1426,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, u.String(), "text/plain", nil)
+	resp, err := post(ctx, c, u.String(), "text/plain", nil)
 	if err != nil {
 		return true, err
 	}
@@ -1505,4 +1505,13 @@ func hashKey(s string) string {
 	h := sha256.New()
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func post(ctx context.Context, client *http.Client, url string, bodyType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", bodyType)
+	return client.Do(req.WithContext(ctx))
 }
