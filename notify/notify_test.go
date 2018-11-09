@@ -13,6 +13,7 @@
 package notify
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,7 +24,6 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -617,7 +617,7 @@ func TestSilenceStage(t *testing.T) {
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
 
-	_, alerts, err := silencer.Exec(nil, log.NewNopLogger(), inAlerts...)
+	_, alerts, err := silencer.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -665,7 +665,7 @@ func TestInhibitStage(t *testing.T) {
 		})
 	}
 
-	_, alerts, err := inhibitor.Exec(nil, log.NewNopLogger(), inAlerts...)
+	_, alerts, err := inhibitor.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}

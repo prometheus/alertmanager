@@ -15,6 +15,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,7 +31,6 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/client"
 )
