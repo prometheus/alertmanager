@@ -298,7 +298,7 @@ func TestEmailConfigNoAuthMechs(t *testing.T) {
 	}
 	_, err := email.auth("")
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "Unknown auth mechanism: ")
+	require.Equal(t, err.Error(), "unknown auth mechanism: ")
 }
 
 func TestEmailConfigMissingAuthParam(t *testing.T) {
@@ -308,17 +308,17 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 	}
 	_, err := email.auth("CRAM-MD5")
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "Missing secret for CRAM-MD5 auth mechanism")
+	require.Equal(t, err.Error(), "missing secret for CRAM-MD5 auth mechanism")
 
 	_, err = email.auth("PLAIN")
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "Missing password for PLAIN auth mechanism")
+	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism")
 
 	_, err = email.auth("LOGIN")
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "Missing password for LOGIN auth mechanism")
+	require.Equal(t, err.Error(), "missing password for LOGIN auth mechanism")
 
 	_, err = email.auth("PLAIN LOGIN")
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "Missing password for PLAIN auth mechanism; Missing password for LOGIN auth mechanism")
+	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism")
 }
