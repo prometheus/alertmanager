@@ -295,9 +295,8 @@ func Alerts(alerts ...*Alert) model.Alerts {
 	res := make(model.Alerts, 0, len(alerts))
 	for _, a := range alerts {
 		v := a.Alert
-		// If the end timestamp was set as the expected value in case
-		// of a timeout but is not reached yet, do not expose it.
-		if a.Timeout && !a.Resolved() {
+		// If the end timestamp is not reached yet, do not expose it.
+		if !a.Resolved() {
 			v.EndsAt = time.Time{}
 		}
 		res = append(res, &v)
@@ -321,10 +320,16 @@ func (a *Alert) Merge(o *Alert) *Alert {
 		res.StartsAt = a.StartsAt
 	}
 
-	// A non-timeout resolved timestamp always rules.
-	// The latest explicit resolved timestamp wins.
-	if a.EndsAt.After(o.EndsAt) && !a.Timeout {
-		res.EndsAt = a.EndsAt
+	if o.Resolved() {
+		// The latest explicit resolved timestamp wins if both alerts are effectively resolved.
+		if a.Resolved() && a.EndsAt.After(o.EndsAt) {
+			res.EndsAt = a.EndsAt
+		}
+	} else {
+		// A non-timeout timestamp always rules if it is the latest.
+		if a.EndsAt.After(o.EndsAt) && !a.Timeout {
+			res.EndsAt = a.EndsAt
+		}
 	}
 
 	return &res
