@@ -9,8 +9,8 @@ import Utils.Types exposing (ApiData(..))
 import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
 
 
-update : SilenceViewMsg -> Model -> String -> ( Model, Cmd SilenceViewMsg )
-update msg model apiUrl =
+update : SilenceViewMsg -> Model -> String -> String -> ( Model, Cmd SilenceViewMsg )
+update msg model basePath apiUrl =
     case msg of
         FetchSilence id ->
             ( model, getSilence apiUrl id SilenceFetched )
@@ -31,7 +31,7 @@ update msg model apiUrl =
                 , alerts = Loading
               }
             , Alerts.Api.fetchAlerts
-                apiUrl
+                basePath
                 { nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True }
                 |> Cmd.map AlertGroupsPreview
             )
