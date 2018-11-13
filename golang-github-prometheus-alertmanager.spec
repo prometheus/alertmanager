@@ -14,7 +14,7 @@
 }
 %global shortcommit     %(c=%{commit}; echo ${c:0:7})
 %global gopathdir       %{_sourcedir}/go
-%global upstream_ver    0.15.2
+%global upstream_ver    0.15.3
 %global rpm_ver         %(v=%{upstream_ver}; echo ${v//-/_})
 %global download_prefix %{provider}.%{provider_tld}/openshift/%{repo}
 
@@ -84,6 +84,9 @@ install -d %{buildroot}%{_sharedstatedir}/prometheus-alertmanager
 %{_sharedstatedir}/prometheus-alertmanager
 
 %changelog
+* Tue Nov 13 2018 Paul Gier <pgier@redhat.com> - 0.15.3-1
+- Upgrade to 0.15.3
+
 * Thu Sep 27 2018 Simon Pasquier <spasqui@redhat.com> - 0.15.2-2
 - Fix stop command in systemd unit
 
