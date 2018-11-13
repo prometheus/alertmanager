@@ -46,7 +46,7 @@ durationHelp duration =
 
 units : List ( String, number )
 units =
-    [ ( "y", 31556926000 )
+    [ ( "w", 604800000 )
     , ( "d", 86400000 )
     , ( "h", 3600000 )
     , ( "m", 60000 )
