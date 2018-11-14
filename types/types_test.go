@@ -16,6 +16,7 @@ package types
 import (
 	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -26,13 +27,17 @@ import (
 func TestAlertMerge(t *testing.T) {
 	now := time.Now()
 
+	// By convention, alert A is always older than alert B.
 	pairs := []struct {
 		A, B, Res *Alert
 	}{
 		{
+			// Both alerts have the Timeout flag set.
+			// StartsAt is defined by Alert A.
+			// EndsAt is defined by Alert B.
 			A: &Alert{
 				Alert: model.Alert{
-					StartsAt: now.Add(-time.Minute),
+					StartsAt: now.Add(-2 * time.Minute),
 					EndsAt:   now.Add(2 * time.Minute),
 				},
 				UpdatedAt: now,
@@ -48,6 +53,61 @@ func TestAlertMerge(t *testing.T) {
 			},
 			Res: &Alert{
 				Alert: model.Alert{
+					StartsAt: now.Add(-2 * time.Minute),
+					EndsAt:   now.Add(3 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+				Timeout:   true,
+			},
+		},
+		{
+			// Alert A has the Timeout flag set while Alert B has it unset.
+			// StartsAt is defined by Alert A.
+			// EndsAt is defined by Alert B.
+			A: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(3 * time.Minute),
+				},
+				UpdatedAt: now,
+				Timeout:   true,
+			},
+			B: &Alert{
+				Alert: model.Alert{
+					StartsAt: now,
+					EndsAt:   now.Add(2 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+			Res: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(2 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+		},
+		{
+			// Alert A has the Timeout flag unset while Alert B has it set.
+			// StartsAt is defined by Alert A.
+			// EndsAt is defined by Alert A.
+			A: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(3 * time.Minute),
+				},
+				UpdatedAt: now,
+			},
+			B: &Alert{
+				Alert: model.Alert{
+					StartsAt: now,
+					EndsAt:   now.Add(2 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+				Timeout:   true,
+			},
+			Res: &Alert{
+				Alert: model.Alert{
 					StartsAt: now.Add(-time.Minute),
 					EndsAt:   now.Add(3 * time.Minute),
 				},
@@ -55,12 +115,148 @@ func TestAlertMerge(t *testing.T) {
 				Timeout:   true,
 			},
 		},
+		{
+			// Both alerts have the Timeout flag unset and are not resolved.
+			// StartsAt is defined by Alert A.
+			// EndsAt is defined by Alert A.
+			A: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(3 * time.Minute),
+				},
+				UpdatedAt: now,
+			},
+			B: &Alert{
+				Alert: model.Alert{
+					StartsAt: now,
+					EndsAt:   now.Add(2 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+			Res: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(3 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+		},
+		{
+			// Both alerts have the Timeout flag unset and are not resolved.
+			// StartsAt is defined by Alert A.
+			// EndsAt is defined by Alert B.
+			A: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(3 * time.Minute),
+				},
+				UpdatedAt: now,
+			},
+			B: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(4 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+			Res: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-time.Minute),
+					EndsAt:   now.Add(4 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+		},
+		{
+			// Both alerts have the Timeout flag unset, A is resolved while B isn't.
+			// StartsAt is defined by Alert A.
+			// EndsAt is defined by Alert B.
+			A: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-3 * time.Minute),
+					EndsAt:   now.Add(-time.Minute),
+				},
+				UpdatedAt: now,
+			},
+			B: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-2 * time.Minute),
+					EndsAt:   now.Add(time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+			Res: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-3 * time.Minute),
+					EndsAt:   now.Add(time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+		},
+		{
+			// Both alerts have the Timeout flag unset, B is resolved while A isn't.
+			// StartsAt is defined by Alert A.
+			// EndsAt is defined by Alert B.
+			A: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-2 * time.Minute),
+					EndsAt:   now.Add(3 * time.Minute),
+				},
+				UpdatedAt: now,
+			},
+			B: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-2 * time.Minute),
+					EndsAt:   now,
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+			Res: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-2 * time.Minute),
+					EndsAt:   now,
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+		},
+		{
+			// Both alerts are resolved (EndsAt < now).
+			// StartsAt is defined by Alert B.
+			// EndsAt is defined by Alert A.
+			A: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-3 * time.Minute),
+					EndsAt:   now.Add(-time.Minute),
+				},
+				UpdatedAt: now.Add(-time.Minute),
+			},
+			B: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-4 * time.Minute),
+					EndsAt:   now.Add(-2 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+			Res: &Alert{
+				Alert: model.Alert{
+					StartsAt: now.Add(-4 * time.Minute),
+					EndsAt:   now.Add(-1 * time.Minute),
+				},
+				UpdatedAt: now.Add(time.Minute),
+			},
+		},
 	}
 
-	for _, p := range pairs {
-		if res := p.A.Merge(p.B); !reflect.DeepEqual(p.Res, res) {
-			t.Errorf("unexpected merged alert %#v", res)
-		}
+	for i, p := range pairs {
+		p := p
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			if res := p.A.Merge(p.B); !reflect.DeepEqual(p.Res, res) {
+				t.Errorf("unexpected merged alert %#v", res)
+			}
+			if res := p.B.Merge(p.A); !reflect.DeepEqual(p.Res, res) {
+				t.Errorf("unexpected merged alert %#v", res)
+			}
+		})
 	}
 }
 
