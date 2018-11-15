@@ -48,8 +48,8 @@ update msg ({ groupBar, filterBar, receiverBar } as model) filter apiUrl basePat
             in
             ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
             , Cmd.batch
-                [ Api.fetchAlerts basePath filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
-                , ReceiverBar.fetchReceivers basePath |> Cmd.map (MsgForReceiverBar >> MsgForAlertList)
+                [ Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                , ReceiverBar.fetchReceivers apiUrl |> Cmd.map (MsgForReceiverBar >> MsgForAlertList)
                 ]
             )
 

@@ -126,7 +126,7 @@ makeApiUrl externalUrl =
             else
                 externalUrl
     in
-    url ++ "/api/v2"
+    url ++ "/api/v1"
 
 
 andMap : Json.Decoder a -> Json.Decoder (a -> b) -> Json.Decoder b

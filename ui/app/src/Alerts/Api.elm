@@ -18,19 +18,19 @@ escapeRegExp text =
 
 
 fetchReceivers : String -> Cmd (ApiData (List Receiver))
-fetchReceivers basePath =
+fetchReceivers apiUrl =
     Utils.Api.send
         (Utils.Api.get
-            (makeApiUrl basePath ++ "/receivers")
+            (apiUrl ++ "/receivers")
             (field "data" (list (Json.map (\receiver -> Receiver receiver (escapeRegExp receiver)) string)))
         )
 
 
 fetchAlerts : String -> Filter -> Cmd (ApiData (List Alert))
-fetchAlerts basePath filter =
+fetchAlerts apiUrl filter =
     let
         url =
-            String.join "/" [ makeApiUrl basePath, "alerts" ++ generateQueryString filter ]
+            String.join "/" [ apiUrl, "alerts" ++ generateQueryString filter ]
     in
     Utils.Api.send (Utils.Api.get url alertsDecoder)
 
@@ -58,17 +58,3 @@ alertDecoder =
         )
         (field "startsAt" iso8601Time)
         (field "generatorURL" Json.string)
-
-
-makeApiUrl : String -> String
-makeApiUrl externalUrl =
-    let
-        url =
-            if String.endsWith "/" externalUrl then
-                String.dropRight 1 externalUrl
-
-            else
-                externalUrl
-    in
-    -- For now alerts are still fetched from the v1 API.
-    url ++ "/api/v1"
