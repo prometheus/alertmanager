@@ -26,8 +26,15 @@ import (
 // notification is eventually sent at least once and ideally exactly
 // once.
 
-func TestMergeAlerts(t *testing.T) {
+func testMergeAlerts(t *testing.T, endsAt bool) {
 	t.Parallel()
+
+	timerange := func(ts float64) []float64 {
+		if !endsAt {
+			return []float64{ts}
+		}
+		return []float64{ts, ts + 3.0}
+	}
 
 	conf := `
 route:
@@ -55,18 +62,18 @@ receivers:
 
 	// Refresh an alert several times. The starting time must remain at the earliest
 	// point in time.
-	am.Push(At(1), Alert("alertname", "test").Active(1.1))
+	am.Push(At(1), Alert("alertname", "test").Active(timerange(1.1)...))
 	// Another Prometheus server might be sending later but with an earlier start time.
 	am.Push(At(1.2), Alert("alertname", "test").Active(1))
 
 	co.Want(Between(2, 2.5), Alert("alertname", "test").Active(1))
 
-	am.Push(At(2.1), Alert("alertname", "test").Annotate("ann", "v1").Active(2))
+	am.Push(At(2.1), Alert("alertname", "test").Annotate("ann", "v1").Active(timerange(2)...))
 
 	co.Want(Between(3, 3.5), Alert("alertname", "test").Annotate("ann", "v1").Active(1))
 
 	// Annotations are always overwritten by the alert that arrived most recently.
-	am.Push(At(3.6), Alert("alertname", "test").Annotate("ann", "v2").Active(1.5))
+	am.Push(At(3.6), Alert("alertname", "test").Annotate("ann", "v2").Active(timerange(1.5)...))
 
 	co.Want(Between(4, 4.5), Alert("alertname", "test").Annotate("ann", "v2").Active(1))
 
@@ -80,28 +87,24 @@ receivers:
 
 	// Reactivate an alert after a previous occurrence has been resolved.
 	// No overlap, no merge must occur.
-	am.Push(At(5.3), Alert("alertname", "test"))
+	am.Push(At(5.3), Alert("alertname", "test").Active(timerange(5)...))
 
-	co.Want(Between(6, 6.5), Alert("alertname", "test").Active(5.3))
-
-	// Test against a bug which ocurrec after a restart. The previous occurrence of
-	// the alert was sent rather than the most recent one.
-	//
-	// XXX(fabxc) disabled as notification info won't be persisted. Thus, with a mesh
-	// notifier we lose the state in this single-node setup.
-	//at.Do(At(6.7), func() {
-	//	am.Terminate()
-	//	am.Start()
-	//})
-
-	// On restart the alert is flushed right away as the group_wait has already passed.
-	// However, it must be caught in the deduplication stage.
-	// The next attempt will be 1s later and won't be filtered in deduping.
-	//co.Want(Between(7.7, 8), Alert("alertname", "test").Active(5.3))
+	co.Want(Between(6, 6.5), Alert("alertname", "test").Active(5))
 
 	at.Run()
 
 	t.Log(co.Check())
+}
+
+func TestMergeAlerts(t *testing.T) {
+	testMergeAlerts(t, false)
+}
+
+// This test is similar to TestMergeAlerts except that the firing alerts have
+// the EndsAt field set to StartsAt + 3s. This is what Prometheus starting from
+// version 2.4.0 sends to AlertManager.
+func TestMergeAlertsWithEndsAt(t *testing.T) {
+	testMergeAlerts(t, true)
 }
 
 func TestRepeat(t *testing.T) {
