@@ -166,7 +166,7 @@ func init() {
           "200": {
             "description": "Get silence response",
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/gettableSilence"
             }
           },
           "404": {
@@ -235,7 +235,7 @@ func init() {
           "200": {
             "description": "Get silences response",
             "schema": {
-              "$ref": "#/definitions/silences"
+              "$ref": "#/definitions/gettableSilences"
             }
           },
           "500": {
@@ -256,7 +256,7 @@ func init() {
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/postableSilence"
             }
           }
         ],
@@ -433,6 +433,39 @@ func init() {
         }
       }
     },
+    "gettableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "status",
+            "updatedAt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/definitions/silenceStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
+    "gettableSilences": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/gettableSilence"
+      }
+    },
     "labelSet": {
       "type": "object",
       "additionalProperties": {
@@ -480,6 +513,21 @@ func init() {
         }
       }
     },
+    "postableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
     "receiver": {
       "type": "object",
       "required": [
@@ -511,23 +559,12 @@ func init() {
           "type": "string",
           "format": "date-time"
         },
-        "id": {
-          "type": "string"
-        },
         "matchers": {
           "$ref": "#/definitions/matchers"
         },
         "startsAt": {
           "type": "string",
           "format": "date-time"
-        },
-        "status": {
-          "$ref": "#/definitions/silenceStatus"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "x-nullable": true
         }
       }
     },
@@ -545,12 +582,6 @@ func init() {
             "pending"
           ]
         }
-      }
-    },
-    "silences": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/silence"
       }
     },
     "versionInfo": {
@@ -779,7 +810,7 @@ func init() {
           "200": {
             "description": "Get silence response",
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/gettableSilence"
             }
           },
           "404": {
@@ -854,7 +885,7 @@ func init() {
           "200": {
             "description": "Get silences response",
             "schema": {
-              "$ref": "#/definitions/silences"
+              "$ref": "#/definitions/gettableSilences"
             }
           },
           "500": {
@@ -878,7 +909,7 @@ func init() {
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/postableSilence"
             }
           }
         ],
@@ -1058,6 +1089,39 @@ func init() {
         }
       }
     },
+    "gettableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "status",
+            "updatedAt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/definitions/silenceStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
+    "gettableSilences": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/gettableSilence"
+      }
+    },
     "labelSet": {
       "type": "object",
       "additionalProperties": {
@@ -1105,6 +1169,21 @@ func init() {
         }
       }
     },
+    "postableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
     "receiver": {
       "type": "object",
       "required": [
@@ -1136,23 +1215,12 @@ func init() {
           "type": "string",
           "format": "date-time"
         },
-        "id": {
-          "type": "string"
-        },
         "matchers": {
           "$ref": "#/definitions/matchers"
         },
         "startsAt": {
           "type": "string",
           "format": "date-time"
-        },
-        "status": {
-          "$ref": "#/definitions/silenceStatus"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "x-nullable": true
         }
       }
     },
@@ -1170,12 +1238,6 @@ func init() {
             "pending"
           ]
         }
-      }
-    },
-    "silences": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/silence"
       }
     },
     "versionInfo": {

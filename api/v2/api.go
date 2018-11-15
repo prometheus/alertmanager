@@ -450,14 +450,14 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
 	}
 
-	sils := []*open_api_models.Silence{}
+	sils := open_api_models.GettableSilences{}
 	for _, ps := range psils {
-		silence, err := silenceFromProto(ps)
+		silence, err := gettableSilenceFromProto(ps)
 		if err != nil {
 			level.Error(api.logger).Log("msg", "failed to unmarshal silence from proto", "err", err)
 			return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
 		}
-		if !silenceMatchesFilterLabels(silence, matchers) {
+		if !gettableSilenceMatchesFilterLabels(silence, matchers) {
 			continue
 		}
 		sils = append(sils, &silence)
@@ -466,7 +466,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	return silence_ops.NewGetSilencesOK().WithPayload(sils)
 }
 
-func silenceMatchesFilterLabels(s open_api_models.Silence, matchers []*labels.Matcher) bool {
+func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, matchers []*labels.Matcher) bool {
 	sms := make(map[string]string)
 	for _, m := range s.Matchers {
 		sms[*m.Name] = *m.Value
@@ -487,7 +487,7 @@ func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middlewar
 		return silence_ops.NewGetSilenceNotFound()
 	}
 
-	sil, err := silenceFromProto(sils[0])
+	sil, err := gettableSilenceFromProto(sils[0])
 	if err != nil {
 		level.Error(api.logger).Log("msg", "failed to convert unmarshal from proto", "err", err)
 		return silence_ops.NewGetSilenceInternalServerError().WithPayload(err.Error())
@@ -506,21 +506,23 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 	return silence_ops.NewDeleteSilenceOK()
 }
 
-func silenceFromProto(s *silencepb.Silence) (open_api_models.Silence, error) {
+func gettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSilence, error) {
 	start := strfmt.DateTime(s.StartsAt)
 	end := strfmt.DateTime(s.EndsAt)
 	updated := strfmt.DateTime(s.UpdatedAt)
 	state := string(types.CalcSilenceState(s.StartsAt, s.EndsAt))
-	sil := open_api_models.Silence{
-		ID:        s.Id,
-		StartsAt:  &start,
-		EndsAt:    &end,
+	sil := open_api_models.GettableSilence{
+		Silence: open_api_models.Silence{
+			StartsAt:  &start,
+			EndsAt:    &end,
+			Comment:   &s.Comment,
+			CreatedBy: &s.CreatedBy,
+		},
+		ID:        &s.Id,
 		UpdatedAt: &updated,
 		Status: &open_api_models.SilenceStatus{
 			State: &state,
 		},
-		Comment:   &s.Comment,
-		CreatedBy: &s.CreatedBy,
 	}
 
 	for _, m := range s.Matchers {
@@ -550,7 +552,7 @@ func silenceFromProto(s *silencepb.Silence) (open_api_models.Silence, error) {
 
 func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middleware.Responder {
 
-	sil, err := silenceToProto(params.Silence)
+	sil, err := postableSilenceToProto(params.Silence)
 	if err != nil {
 		level.Error(api.logger).Log("msg", "failed to marshal silence to proto", "err", err)
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(
@@ -581,17 +583,11 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	})
 }
 
-func silenceToProto(s *open_api_models.Silence) (*silencepb.Silence, error) {
-	// updatedAt is optional, make sure to check if nil.
-	updated := time.Time{}
-	if s.UpdatedAt != nil {
-		updated = time.Time(*s.UpdatedAt)
-	}
+func postableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Silence, error) {
 	sil := &silencepb.Silence{
 		Id:        s.ID,
 		StartsAt:  time.Time(*s.StartsAt),
 		EndsAt:    time.Time(*s.EndsAt),
-		UpdatedAt: updated,
 		Comment:   *s.Comment,
 		CreatedBy: *s.CreatedBy,
 	}

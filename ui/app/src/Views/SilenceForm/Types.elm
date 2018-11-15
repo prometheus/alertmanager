@@ -15,8 +15,9 @@ module Views.SilenceForm.Types exposing
 
 import Alerts.Types exposing (Alert)
 import Browser.Navigation exposing (Key)
+import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
-import Data.Silence exposing (Silence)
+import Data.PostableSilence exposing (PostableSilence)
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix)
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
@@ -68,7 +69,7 @@ type SilenceFormMsg
     | FetchSilence String
     | NewSilenceFromMatchers String (List Utils.Filter.Matcher)
     | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Posix
-    | SilenceFetch (ApiData Silence)
+    | SilenceFetch (ApiData GettableSilence)
     | SilenceCreate (ApiData String)
 
 
@@ -100,7 +101,7 @@ initSilenceForm key =
     }
 
 
-toSilence : SilenceForm -> Maybe Silence
+toSilence : SilenceForm -> Maybe PostableSilence
 toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
     Result.map5
         (\nonEmptyComment validMatchers nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
@@ -121,9 +122,9 @@ toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
         |> Result.toMaybe
 
 
-fromSilence : Silence -> SilenceForm
+fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
-    { id = id
+    { id = Just id
     , createdBy = initialField createdBy
     , comment = initialField comment
     , startsAt = initialField (timeToString startsAt)

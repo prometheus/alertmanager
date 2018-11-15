@@ -30,9 +30,6 @@ type Silence struct {
 	// Format: date-time
 	EndsAt *strfmt.DateTime `json:"endsAt"`
 
-	// id
-	ID string `json:"id,omitempty"`
-
 	// matchers
 	// Required: true
 	Matchers Matchers `json:"matchers"`
@@ -41,13 +38,6 @@ type Silence struct {
 	// Required: true
 	// Format: date-time
 	StartsAt *strfmt.DateTime `json:"startsAt"`
-
-	// status
-	Status *SilenceStatus `json:"status,omitempty"`
-
-	// updated at
-	// Format: date-time
-	UpdatedAt *strfmt.DateTime `json:"updatedAt,omitempty"`
 }
 
 // Validate validates this silence
@@ -71,14 +61,6 @@ func (m *Silence) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateStartsAt(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStatus(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateUpdatedAt(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -142,37 +124,6 @@ func (m *Silence) validateStartsAt(formats strfmt.Registry) error {
 	}
 
 	if err := validate.FormatOf("startsAt", "body", "date-time", m.StartsAt.String(), formats); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *Silence) validateStatus(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.Status) { // not required
-		return nil
-	}
-
-	if m.Status != nil {
-		if err := m.Status.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("status")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m *Silence) validateUpdatedAt(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.UpdatedAt) { // not required
-		return nil
-	}
-
-	if err := validate.FormatOf("updatedAt", "body", "date-time", m.UpdatedAt.String(), formats); err != nil {
 		return err
 	}
 

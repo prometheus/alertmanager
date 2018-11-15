@@ -7,21 +7,19 @@ module Silences.Types exposing
 
 import Data.Matcher exposing (Matcher)
 import Data.Matchers exposing (Matchers)
-import Data.Silence exposing (Silence)
+import Data.PostableSilence exposing (PostableSilence)
 import Data.SilenceStatus exposing (SilenceStatus, State(..))
 import Time exposing (Posix)
 
 
-nullSilence : Silence
+nullSilence : PostableSilence
 nullSilence =
     { id = Nothing
     , createdBy = ""
     , comment = ""
     , startsAt = Time.millisToPosix 0
     , endsAt = Time.millisToPosix 0
-    , updatedAt = Nothing
     , matchers = nullMatchers
-    , status = Nothing
     }
 
 

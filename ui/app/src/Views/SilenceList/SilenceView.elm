@@ -1,8 +1,8 @@
 module Views.SilenceList.SilenceView exposing (deleteButton, editButton, view)
 
+import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.Matchers exposing (Matchers)
-import Data.Silence exposing (Silence)
 import Data.SilenceStatus exposing (State(..))
 import Dict exposing (Dict)
 import Html exposing (Html, a, b, button, div, h3, i, li, p, small, span, text)
@@ -20,7 +20,7 @@ import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 
 
-view : Bool -> Silence -> Html Msg
+view : Bool -> GettableSilence -> Html Msg
 view showConfirmationDialog silence =
     li
         [ -- speedup rendering in Chrome, because list-group-item className
@@ -29,20 +29,15 @@ view showConfirmationDialog silence =
         , class "align-items-start list-group-item border-0 p-0 mb-4"
         ]
         [ div [ class "w-100 mb-2 d-flex align-items-start" ]
-            [ case silence.status of
-                Just status ->
-                    case status.state of
-                        Active ->
-                            dateView "Ends" silence.endsAt
+            [ case silence.status.state of
+                Active ->
+                    dateView "Ends" silence.endsAt
 
-                        Pending ->
-                            dateView "Starts" silence.startsAt
+                Pending ->
+                    dateView "Starts" silence.startsAt
 
-                        Expired ->
-                            dateView "Expired" silence.endsAt
-
-                Nothing ->
-                    text ""
+                Expired ->
+                    dateView "Expired" silence.endsAt
             , detailsButton silence.id
             , editButton silence
             , deleteButton silence False
@@ -58,7 +53,7 @@ view showConfirmationDialog silence =
         ]
 
 
-confirmSilenceDeleteView : Silence -> Bool -> Dialog.Config Msg
+confirmSilenceDeleteView : GettableSilence -> Bool -> Dialog.Config Msg
 confirmSilenceDeleteView silence refresh =
     { onClose = MsgForSilenceList Views.SilenceList.Types.FetchSilences
     , title = "Expire Silence"
@@ -103,78 +98,60 @@ matcherButton matcher =
     Utils.Views.labelButton (Just msg) (Utils.List.mstring matcher)
 
 
-editButton : Silence -> Html Msg
+editButton : GettableSilence -> Html Msg
 editButton silence =
     let
         matchers =
             List.map (\s -> ( s.name, s.value )) silence.matchers
 
         editUrl =
-            -- TODO: silence.id should always be set. Can this be done nicer?
-            String.join "/" [ "#/silences", Maybe.withDefault "" silence.id, "edit" ]
+            String.join "/" [ "#/silences", silence.id, "edit" ]
 
         default =
             a [ class "btn btn-outline-info border-0", href editUrl ]
                 [ text "Edit"
                 ]
     in
-    case silence.status of
-        Just status ->
-            case status.state of
-                -- If the silence is expired, do not edit it, but instead create a new
-                -- one with the old matchers
-                Expired ->
-                    a
-                        [ class "btn btn-outline-info border-0"
-                        , href (newSilenceFromAlertLabels <| Dict.fromList matchers)
-                        ]
-                        [ text "Recreate"
-                        ]
+    case silence.status.state of
+        -- If the silence is expired, do not edit it, but instead create a new
+        -- one with the old matchers
+        Expired ->
+            a
+                [ class "btn btn-outline-info border-0"
+                , href (newSilenceFromAlertLabels <| Dict.fromList matchers)
+                ]
+                [ text "Recreate"
+                ]
 
-                _ ->
-                    default
-
-        Nothing ->
+        _ ->
             default
 
 
-deleteButton : Silence -> Bool -> Html Msg
+deleteButton : GettableSilence -> Bool -> Html Msg
 deleteButton silence refresh =
-    -- TODO: status should always be set, how to solve this better?
-    case silence.status of
-        Just status ->
-            case status.state of
-                Expired ->
-                    text ""
-
-                Active ->
-                    button
-                        [ class "btn btn-outline-danger border-0"
-                        , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
-                        ]
-                        [ text "Expire"
-                        ]
-
-                Pending ->
-                    button
-                        [ class "btn btn-outline-danger border-0"
-                        , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
-                        ]
-                        [ text "Delete"
-                        ]
-
-        Nothing ->
+    case silence.status.state of
+        Expired ->
             text ""
 
-
-detailsButton : Maybe String -> Html Msg
-detailsButton maybeSilenceId =
-    -- TODO: Again, silence.id should not be Nothing here, how can this be done better?
-    case maybeSilenceId of
-        Just id ->
-            a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ id) ]
-                [ text "View"
+        Active ->
+            button
+                [ class "btn btn-outline-danger border-0"
+                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
+                ]
+                [ text "Expire"
                 ]
 
-        Nothing ->
-            text ""
+        Pending ->
+            button
+                [ class "btn btn-outline-danger border-0"
+                , onClick (MsgForSilenceList (ConfirmDestroySilence silence refresh))
+                ]
+                [ text "Delete"
+                ]
+
+
+detailsButton : String -> Html Msg
+detailsButton id =
+    a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ id) ]
+        [ text "View"
+        ]

@@ -1,24 +1,24 @@
 module Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab, initSilenceList)
 
 import Browser.Navigation exposing (Key)
-import Data.Silence exposing (Silence)
+import Data.GettableSilence exposing (GettableSilence)
+import Data.GettableSilences exposing (GettableSilences)
 import Data.SilenceStatus exposing (State(..))
-import Data.Silences exposing (Silences)
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 
 
 type SilenceListMsg
-    = ConfirmDestroySilence Silence Bool
-    | DestroySilence Silence Bool
-    | SilencesFetch (ApiData (List Silence))
+    = ConfirmDestroySilence GettableSilence Bool
+    | DestroySilence GettableSilence Bool
+    | SilencesFetch (ApiData (List GettableSilence))
     | FetchSilences
     | MsgForFilterBar FilterBar.Msg
     | SetTab State
 
 
 type alias SilenceTab =
-    { silences : Silences
+    { silences : GettableSilences
     , tab : State
     , count : Int
     }

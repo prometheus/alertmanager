@@ -10,24 +10,24 @@
 -}
 
 
-module Data.Silences exposing (Silences, decoder, encoder)
+module Data.GettableSilences exposing (GettableSilences, decoder, encoder)
 
-import Data.Silence as Silence exposing (Silence)
+import Data.GettableSilence as GettableSilence exposing (GettableSilence)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 
 
-type alias Silences =
-    List Silence
+type alias GettableSilences =
+    List GettableSilence
 
 
-decoder : Decoder Silences
+decoder : Decoder GettableSilences
 decoder =
-    Decode.list Silence.decoder
+    Decode.list GettableSilence.decoder
 
 
-encoder : Silences -> Encode.Value
+encoder : GettableSilences -> Encode.Value
 encoder items =
-    Encode.list Silence.encoder items
+    Encode.list GettableSilence.encoder items

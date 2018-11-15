@@ -61,7 +61,7 @@ func NewGetSilenceOK() *GetSilenceOK {
 Get silence response
 */
 type GetSilenceOK struct {
-	Payload *models.Silence
+	Payload *models.GettableSilence
 }
 
 func (o *GetSilenceOK) Error() string {
@@ -70,7 +70,7 @@ func (o *GetSilenceOK) Error() string {
 
 func (o *GetSilenceOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
-	o.Payload = new(models.Silence)
+	o.Payload = new(models.GettableSilence)
 
 	// response payload
 	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {

@@ -1,8 +1,8 @@
 module Views.SilenceList.Views exposing (filterSilencesByState, groupSilencesByState, silencesView, states, tabView, tabsView, view)
 
-import Data.Silence exposing (Silence)
+import Data.GettableSilence exposing (GettableSilence)
+import Data.GettableSilences exposing (GettableSilences)
 import Data.SilenceStatus exposing (State(..))
-import Data.Silences exposing (Silences)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Keyed
@@ -73,9 +73,9 @@ silencesView showConfirmationDialog tab silencesTab =
                             Html.Keyed.ul [ class "list-group" ]
                                 (List.map
                                     (\silence ->
-                                        ( Maybe.withDefault "" silence.id
+                                        ( silence.id
                                         , Views.SilenceList.SilenceView.view
-                                            (showConfirmationDialog == silence.id)
+                                            (showConfirmationDialog == Just silence.id)
                                             silence
                                         )
                                     )
@@ -90,7 +90,7 @@ silencesView showConfirmationDialog tab silencesTab =
             loading
 
 
-groupSilencesByState : List Silence -> List ( State, List Silence )
+groupSilencesByState : GettableSilences -> List ( State, GettableSilences )
 groupSilencesByState silences =
     List.map (\state -> ( state, filterSilencesByState state silences )) states
 
@@ -100,23 +100,11 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> Silences -> Silences
+filterSilencesByState : State -> GettableSilences -> GettableSilences
 filterSilencesByState state =
     List.filter (filterSilenceByState state)
 
 
-filterSilenceByState : State -> Silence -> Bool
+filterSilenceByState : State -> GettableSilence -> Bool
 filterSilenceByState state silence =
-    -- TODO: Can this be done cleaner?
-    Maybe.withDefault False <| Maybe.map (.state >> (==) state) <| .status silence
-
-
-
-{-
-   case silence.status of
-       Just status ->
-           status.state == state
-
-       Nothing ->
-           False
--}
+    silence.status.state == state

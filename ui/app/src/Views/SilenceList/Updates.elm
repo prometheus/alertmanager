@@ -1,9 +1,9 @@
 module Views.SilenceList.Updates exposing (update, urlUpdate)
 
 import Browser.Navigation as Navigation
-import Data.Silence exposing (Silence)
+import Data.GettableSilence exposing (GettableSilence)
+import Data.GettableSilences exposing (GettableSilences)
 import Data.SilenceStatus exposing (State(..))
-import Data.Silences exposing (Silences)
 import Silences.Api as Api
 import Utils.Api as ApiData
 import Utils.Filter exposing (Filter, generateQueryString)
@@ -35,7 +35,7 @@ update msg model filter basePath apiUrl =
             )
 
         ConfirmDestroySilence silence refresh ->
-            ( { model | showConfirmationDialog = silence.id }
+            ( { model | showConfirmationDialog = Just silence.id }
             , Cmd.none
             )
 
@@ -64,7 +64,7 @@ update msg model filter basePath apiUrl =
             ( { model | tab = tab }, Cmd.none )
 
 
-groupSilencesByState : List Silence -> State -> SilenceTab
+groupSilencesByState : List GettableSilence -> State -> SilenceTab
 groupSilencesByState silences state =
     let
         silencesInTab =
@@ -81,19 +81,14 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> Silences -> Silences
+filterSilencesByState : State -> GettableSilences -> GettableSilences
 filterSilencesByState state =
     List.filter (filterSilenceByState state)
 
 
-filterSilenceByState : State -> Silence -> Bool
+filterSilenceByState : State -> GettableSilence -> Bool
 filterSilenceByState state silence =
-    case silence.status of
-        Just status ->
-            status.state == state
-
-        Nothing ->
-            False
+    silence.status.state == state
 
 
 urlUpdate : Maybe String -> ( SilenceListMsg, Filter )

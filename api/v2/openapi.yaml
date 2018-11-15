@@ -50,7 +50,7 @@ paths:
         '200':
           description: Get silences response
           schema:
-            $ref: '#/definitions/silences'
+            $ref: '#/definitions/gettableSilences'
         '500':
           $ref: '#/responses/InternalServerError'
       parameters:
@@ -72,7 +72,7 @@ paths:
           description: The silence to create
           required: true
           schema:
-            $ref: '#/definitions/silence'
+            $ref: '#/definitions/postableSilence'
       responses:
         '200':
           description: Create / update silence response
@@ -100,7 +100,7 @@ paths:
         '200':
           description: Get silence response
           schema:
-            $ref: '#/definitions/silence'
+            $ref: '#/definitions/gettableSilence'
         '404':
           description: A silence with the specified ID was not found
         '500':
@@ -279,8 +279,6 @@ definitions:
   silence:
     type: object
     properties:
-      id:
-        type: string
       matchers:
         $ref: '#/definitions/matchers'
       startsAt:
@@ -289,22 +287,39 @@ definitions:
       endsAt:
         type: string
         format: date-time
-      updatedAt:
-        type: string
-        format: date-time
-        x-nullable: true
       createdBy:
         type: string
       comment:
         type: string
-      status:
-        $ref: '#/definitions/silenceStatus'
     required:
       - matchers
       - startsAt
       - endsAt
       - createdBy
       - comment
+  gettableSilence:
+    allOf:
+      - type: object
+        properties:
+          id:
+            type: string
+          status:
+            $ref: '#/definitions/silenceStatus'
+          updatedAt:
+            type: string
+            format: date-time
+        required:
+          - id
+          - status
+          - updatedAt
+      - $ref: '#/definitions/silence'
+  postableSilence:
+    allOf:
+      - type: object
+        properties:
+          id:
+            type: string
+      - $ref: '#/definitions/silence'
   silenceStatus:
     type: object
     properties:
@@ -313,10 +328,10 @@ definitions:
         enum: ["expired", "active", "pending"]
     required:
       - state
-  silences:
+  gettableSilences:
     type: array
     items:
-      $ref: '#/definitions/silence'
+      $ref: '#/definitions/gettableSilence'
   matchers:
     type: array
     items:
