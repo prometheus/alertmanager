@@ -6,8 +6,6 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	"strconv"
-
 	strfmt "github.com/go-openapi/strfmt"
 
 	"github.com/go-openapi/errors"
@@ -19,33 +17,41 @@ import (
 // swagger:model alertmanagerStatus
 type AlertmanagerStatus struct {
 
-	// name
+	// cluster
 	// Required: true
-	Name *string `json:"name"`
+	Cluster *ClusterStatus `json:"cluster"`
 
-	// peers
+	// config
 	// Required: true
-	// Minimum: 0
-	Peers []*PeerStatus `json:"peers"`
+	Config *AlertmanagerConfig `json:"config"`
 
-	// status in cluster
+	// uptime
 	// Required: true
-	StatusInCluster *string `json:"statusInCluster"`
+	// Format: date-time
+	Uptime *strfmt.DateTime `json:"uptime"`
+
+	// version info
+	// Required: true
+	VersionInfo *VersionInfo `json:"versionInfo"`
 }
 
 // Validate validates this alertmanager status
 func (m *AlertmanagerStatus) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateName(formats); err != nil {
+	if err := m.validateCluster(formats); err != nil {
 		res = append(res, err)
 	}
 
-	if err := m.validatePeers(formats); err != nil {
+	if err := m.validateConfig(formats); err != nil {
 		res = append(res, err)
 	}
 
-	if err := m.validateStatusInCluster(formats); err != nil {
+	if err := m.validateUptime(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateVersionInfo(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -55,44 +61,68 @@ func (m *AlertmanagerStatus) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *AlertmanagerStatus) validateName(formats strfmt.Registry) error {
+func (m *AlertmanagerStatus) validateCluster(formats strfmt.Registry) error {
 
-	if err := validate.Required("name", "body", m.Name); err != nil {
+	if err := validate.Required("cluster", "body", m.Cluster); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (m *AlertmanagerStatus) validatePeers(formats strfmt.Registry) error {
-
-	if err := validate.Required("peers", "body", m.Peers); err != nil {
-		return err
-	}
-
-	for i := 0; i < len(m.Peers); i++ {
-		if swag.IsZero(m.Peers[i]) { // not required
-			continue
-		}
-
-		if m.Peers[i] != nil {
-			if err := m.Peers[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
-					return ve.ValidateName("peers" + "." + strconv.Itoa(i))
-				}
-				return err
+	if m.Cluster != nil {
+		if err := m.Cluster.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("cluster")
 			}
+			return err
 		}
-
 	}
 
 	return nil
 }
 
-func (m *AlertmanagerStatus) validateStatusInCluster(formats strfmt.Registry) error {
+func (m *AlertmanagerStatus) validateConfig(formats strfmt.Registry) error {
 
-	if err := validate.Required("statusInCluster", "body", m.StatusInCluster); err != nil {
+	if err := validate.Required("config", "body", m.Config); err != nil {
 		return err
+	}
+
+	if m.Config != nil {
+		if err := m.Config.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("config")
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *AlertmanagerStatus) validateUptime(formats strfmt.Registry) error {
+
+	if err := validate.Required("uptime", "body", m.Uptime); err != nil {
+		return err
+	}
+
+	if err := validate.FormatOf("uptime", "body", "date-time", m.Uptime.String(), formats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *AlertmanagerStatus) validateVersionInfo(formats strfmt.Registry) error {
+
+	if err := validate.Required("versionInfo", "body", m.VersionInfo); err != nil {
+		return err
+	}
+
+	if m.VersionInfo != nil {
+		if err := m.VersionInfo.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("versionInfo")
+			}
+			return err
+		}
 	}
 
 	return nil

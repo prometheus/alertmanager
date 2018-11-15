@@ -108,26 +108,31 @@ func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *models.Silence {
 
 	for i := 0; i < len(s.match); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &models.Matcher{
-			Name:  s.match[i],
-			Value: s.match[i+1],
+			Name:  &s.match[i],
+			Value: &s.match[i+1],
 		})
 	}
+	t := true
 	for i := 0; i < len(s.matchRE); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &models.Matcher{
-			Name:    s.matchRE[i],
-			Value:   s.matchRE[i+1],
-			IsRegex: true,
+			Name:    &s.matchRE[i],
+			Value:   &s.matchRE[i+1],
+			IsRegex: &t,
 		})
 	}
 
 	if s.startsAt > 0 {
-		nsil.StartsAt = strfmt.DateTime(opts.expandTime(s.startsAt))
+		start := strfmt.DateTime(opts.expandTime(s.startsAt))
+		nsil.StartsAt = &start
 	}
 	if s.endsAt > 0 {
-		nsil.EndsAt = strfmt.DateTime(opts.expandTime(s.endsAt))
+		end := strfmt.DateTime(opts.expandTime(s.endsAt))
+		nsil.EndsAt = &end
 	}
-	nsil.Comment = "some comment"
-	nsil.CreatedBy = "admin@example.com"
+	comment := "some comment"
+	createdBy := "admin@example.com"
+	nsil.Comment = &comment
+	nsil.CreatedBy = &createdBy
 
 	return nsil
 }
@@ -161,7 +166,7 @@ func Alert(keyval ...interface{}) *TestAlert {
 }
 
 // nativeAlert converts the declared test alert into a full alert based
-// on the given paramters.
+// on the given parameters.
 func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *models.Alert {
 	na := &models.Alert{
 		Labels:      a.labels,
@@ -169,7 +174,8 @@ func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *models.Alert {
 	}
 
 	if a.startsAt > 0 {
-		na.StartsAt = strfmt.DateTime(opts.expandTime(a.startsAt))
+		start := strfmt.DateTime(opts.expandTime(a.startsAt))
+		na.StartsAt = start
 	}
 	if a.endsAt > 0 {
 		na.EndsAt = strfmt.DateTime(opts.expandTime(a.endsAt))
@@ -301,10 +307,12 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			annotations[k] = v
 		}
 
+		start := strfmt.DateTime(a.StartsAt)
+
 		alerts = append(alerts, &models.Alert{
 			Labels:       labels,
 			Annotations:  annotations,
-			StartsAt:     strfmt.DateTime(a.StartsAt),
+			StartsAt:     start,
 			EndsAt:       strfmt.DateTime(a.EndsAt),
 			GeneratorURL: strfmt.URI(a.GeneratorURL),
 		})

@@ -166,7 +166,7 @@ func init() {
           "200": {
             "description": "Get silence response",
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/gettableSilence"
             }
           },
           "404": {
@@ -235,7 +235,7 @@ func init() {
           "200": {
             "description": "Get silences response",
             "schema": {
-              "$ref": "#/definitions/silences"
+              "$ref": "#/definitions/gettableSilences"
             }
           },
           "500": {
@@ -256,7 +256,7 @@ func init() {
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/postableSilence"
             }
           }
         ],
@@ -299,6 +299,9 @@ func init() {
   "definitions": {
     "alert": {
       "type": "object",
+      "required": [
+        "labels"
+      ],
       "properties": {
         "annotations": {
           "$ref": "#/definitions/labelSet"
@@ -328,29 +331,7 @@ func init() {
           "format": "date-time"
         },
         "status": {
-          "type": "object",
-          "properties": {
-            "inhibitedBy": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "silencedBy": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "state": {
-              "type": "string",
-              "enum": [
-                "unprocessed",
-                "active",
-                "suppressed"
-              ]
-            }
-          }
+          "$ref": "#/definitions/alertStatus"
         },
         "updatedAt": {
           "type": "string",
@@ -358,11 +339,82 @@ func init() {
         }
       }
     },
+    "alertStatus": {
+      "type": "object",
+      "required": [
+        "state",
+        "silencedBy",
+        "inhibitedBy"
+      ],
+      "properties": {
+        "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "silencedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "unprocessed",
+            "active",
+            "suppressed"
+          ]
+        }
+      }
+    },
+    "alertmanagerConfig": {
+      "type": "object",
+      "required": [
+        "original"
+      ],
+      "properties": {
+        "original": {
+          "type": "string"
+        }
+      }
+    },
     "alertmanagerStatus": {
       "type": "object",
       "required": [
+        "cluster",
+        "versionInfo",
+        "config",
+        "uptime"
+      ],
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/clusterStatus"
+        },
+        "config": {
+          "$ref": "#/definitions/alertmanagerConfig"
+        },
+        "uptime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "versionInfo": {
+          "$ref": "#/definitions/versionInfo"
+        }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/alert"
+      }
+    },
+    "clusterStatus": {
+      "type": "object",
+      "required": [
         "name",
-        "statusInCluster",
+        "status",
         "peers"
       ],
       "properties": {
@@ -376,15 +428,42 @@ func init() {
             "$ref": "#/definitions/peerStatus"
           }
         },
-        "statusInCluster": {
+        "status": {
           "type": "string"
         }
       }
     },
-    "alerts": {
+    "gettableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "status",
+            "updatedAt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/definitions/silenceStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
+    "gettableSilences": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/alert"
+        "$ref": "#/definitions/gettableSilence"
       }
     },
     "labelSet": {
@@ -395,14 +474,16 @@ func init() {
     },
     "matcher": {
       "type": "object",
+      "required": [
+        "name",
+        "value",
+        "isRegex"
+      ],
       "properties": {
         "isRegex": {
           "type": "boolean"
         },
         "name": {
-          "type": "string"
-        },
-        "regex": {
           "type": "string"
         },
         "value": {
@@ -419,6 +500,10 @@ func init() {
     },
     "peerStatus": {
       "type": "object",
+      "required": [
+        "name",
+        "address"
+      ],
       "properties": {
         "address": {
           "type": "string"
@@ -428,8 +513,26 @@ func init() {
         }
       }
     },
+    "postableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
     "receiver": {
       "type": "object",
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -439,7 +542,11 @@ func init() {
     "silence": {
       "type": "object",
       "required": [
-        "matchers"
+        "matchers",
+        "startsAt",
+        "endsAt",
+        "createdBy",
+        "comment"
       ],
       "properties": {
         "comment": {
@@ -452,39 +559,60 @@ func init() {
           "type": "string",
           "format": "date-time"
         },
-        "id": {
-          "type": "string"
-        },
         "matchers": {
           "$ref": "#/definitions/matchers"
         },
         "startsAt": {
           "type": "string",
           "format": "date-time"
-        },
-        "status": {
-          "type": "object",
-          "properties": {
-            "state": {
-              "type": "string",
-              "enum": [
-                "expired",
-                "active",
-                "pending"
-              ]
-            }
-          }
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
         }
       }
     },
-    "silences": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/silence"
+    "silenceStatus": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "expired",
+            "active",
+            "pending"
+          ]
+        }
+      }
+    },
+    "versionInfo": {
+      "type": "object",
+      "required": [
+        "version",
+        "revision",
+        "branch",
+        "buildUser",
+        "buildDate",
+        "goVersion"
+      ],
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "buildDate": {
+          "type": "string"
+        },
+        "buildUser": {
+          "type": "string"
+        },
+        "goVersion": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
       }
     }
   },
@@ -682,7 +810,7 @@ func init() {
           "200": {
             "description": "Get silence response",
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/gettableSilence"
             }
           },
           "404": {
@@ -757,7 +885,7 @@ func init() {
           "200": {
             "description": "Get silences response",
             "schema": {
-              "$ref": "#/definitions/silences"
+              "$ref": "#/definitions/gettableSilences"
             }
           },
           "500": {
@@ -781,7 +909,7 @@ func init() {
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/silence"
+              "$ref": "#/definitions/postableSilence"
             }
           }
         ],
@@ -827,6 +955,9 @@ func init() {
   "definitions": {
     "alert": {
       "type": "object",
+      "required": [
+        "labels"
+      ],
       "properties": {
         "annotations": {
           "$ref": "#/definitions/labelSet"
@@ -856,29 +987,7 @@ func init() {
           "format": "date-time"
         },
         "status": {
-          "type": "object",
-          "properties": {
-            "inhibitedBy": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "silencedBy": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "state": {
-              "type": "string",
-              "enum": [
-                "unprocessed",
-                "active",
-                "suppressed"
-              ]
-            }
-          }
+          "$ref": "#/definitions/alertStatus"
         },
         "updatedAt": {
           "type": "string",
@@ -886,11 +995,82 @@ func init() {
         }
       }
     },
+    "alertStatus": {
+      "type": "object",
+      "required": [
+        "state",
+        "silencedBy",
+        "inhibitedBy"
+      ],
+      "properties": {
+        "inhibitedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "silencedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "unprocessed",
+            "active",
+            "suppressed"
+          ]
+        }
+      }
+    },
+    "alertmanagerConfig": {
+      "type": "object",
+      "required": [
+        "original"
+      ],
+      "properties": {
+        "original": {
+          "type": "string"
+        }
+      }
+    },
     "alertmanagerStatus": {
       "type": "object",
       "required": [
+        "cluster",
+        "versionInfo",
+        "config",
+        "uptime"
+      ],
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/clusterStatus"
+        },
+        "config": {
+          "$ref": "#/definitions/alertmanagerConfig"
+        },
+        "uptime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "versionInfo": {
+          "$ref": "#/definitions/versionInfo"
+        }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/alert"
+      }
+    },
+    "clusterStatus": {
+      "type": "object",
+      "required": [
         "name",
-        "statusInCluster",
+        "status",
         "peers"
       ],
       "properties": {
@@ -904,15 +1084,42 @@ func init() {
             "$ref": "#/definitions/peerStatus"
           }
         },
-        "statusInCluster": {
+        "status": {
           "type": "string"
         }
       }
     },
-    "alerts": {
+    "gettableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "status",
+            "updatedAt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/definitions/silenceStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
+    "gettableSilences": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/alert"
+        "$ref": "#/definitions/gettableSilence"
       }
     },
     "labelSet": {
@@ -923,14 +1130,16 @@ func init() {
     },
     "matcher": {
       "type": "object",
+      "required": [
+        "name",
+        "value",
+        "isRegex"
+      ],
       "properties": {
         "isRegex": {
           "type": "boolean"
         },
         "name": {
-          "type": "string"
-        },
-        "regex": {
           "type": "string"
         },
         "value": {
@@ -947,6 +1156,10 @@ func init() {
     },
     "peerStatus": {
       "type": "object",
+      "required": [
+        "name",
+        "address"
+      ],
       "properties": {
         "address": {
           "type": "string"
@@ -956,8 +1169,26 @@ func init() {
         }
       }
     },
+    "postableSilence": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/silence"
+        }
+      ]
+    },
     "receiver": {
       "type": "object",
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -967,7 +1198,11 @@ func init() {
     "silence": {
       "type": "object",
       "required": [
-        "matchers"
+        "matchers",
+        "startsAt",
+        "endsAt",
+        "createdBy",
+        "comment"
       ],
       "properties": {
         "comment": {
@@ -980,39 +1215,60 @@ func init() {
           "type": "string",
           "format": "date-time"
         },
-        "id": {
-          "type": "string"
-        },
         "matchers": {
           "$ref": "#/definitions/matchers"
         },
         "startsAt": {
           "type": "string",
           "format": "date-time"
-        },
-        "status": {
-          "type": "object",
-          "properties": {
-            "state": {
-              "type": "string",
-              "enum": [
-                "expired",
-                "active",
-                "pending"
-              ]
-            }
-          }
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
         }
       }
     },
-    "silences": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/silence"
+    "silenceStatus": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "expired",
+            "active",
+            "pending"
+          ]
+        }
+      }
+    },
+    "versionInfo": {
+      "type": "object",
+      "required": [
+        "version",
+        "revision",
+        "branch",
+        "buildUser",
+        "buildDate",
+        "goVersion"
+      ],
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "buildDate": {
+          "type": "string"
+        },
+        "buildUser": {
+          "type": "string"
+        },
+        "goVersion": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
       }
     }
   },

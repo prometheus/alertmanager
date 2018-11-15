@@ -36,7 +36,7 @@ type PostSilencesParams struct {
 	  Required: true
 	  In: body
 	*/
-	Silence *models.Silence
+	Silence *models.PostableSilence
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -50,7 +50,7 @@ func (o *PostSilencesParams) BindRequest(r *http.Request, route *middleware.Matc
 
 	if runtime.HasBody(r) {
 		defer r.Body.Close()
-		var body models.Silence
+		var body models.PostableSilence
 		if err := route.Consumer.Consume(r.Body, &body); err != nil {
 			if err == io.EOF {
 				res = append(res, errors.Required("silence", "body"))

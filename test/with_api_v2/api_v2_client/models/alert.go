@@ -6,7 +6,6 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	"encoding/json"
 	"strconv"
 
 	strfmt "github.com/go-openapi/strfmt"
@@ -35,7 +34,8 @@ type Alert struct {
 	GeneratorURL strfmt.URI `json:"generatorURL,omitempty"`
 
 	// labels
-	Labels LabelSet `json:"labels,omitempty"`
+	// Required: true
+	Labels LabelSet `json:"labels"`
 
 	// receivers
 	Receivers []*Receiver `json:"receivers"`
@@ -138,10 +138,6 @@ func (m *Alert) validateGeneratorURL(formats strfmt.Registry) error {
 
 func (m *Alert) validateLabels(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Labels) { // not required
-		return nil
-	}
-
 	if err := m.Labels.Validate(formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("labels")
@@ -232,99 +228,6 @@ func (m *Alert) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (m *Alert) UnmarshalBinary(b []byte) error {
 	var res Alert
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*m = res
-	return nil
-}
-
-// AlertStatus alert status
-// swagger:model AlertStatus
-type AlertStatus struct {
-
-	// inhibited by
-	InhibitedBy []string `json:"inhibitedBy"`
-
-	// silenced by
-	SilencedBy []string `json:"silencedBy"`
-
-	// state
-	// Enum: [unprocessed active suppressed]
-	State string `json:"state,omitempty"`
-}
-
-// Validate validates this alert status
-func (m *AlertStatus) Validate(formats strfmt.Registry) error {
-	var res []error
-
-	if err := m.validateState(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
-	}
-	return nil
-}
-
-var alertStatusTypeStatePropEnum []interface{}
-
-func init() {
-	var res []string
-	if err := json.Unmarshal([]byte(`["unprocessed","active","suppressed"]`), &res); err != nil {
-		panic(err)
-	}
-	for _, v := range res {
-		alertStatusTypeStatePropEnum = append(alertStatusTypeStatePropEnum, v)
-	}
-}
-
-const (
-
-	// AlertStatusStateUnprocessed captures enum value "unprocessed"
-	AlertStatusStateUnprocessed string = "unprocessed"
-
-	// AlertStatusStateActive captures enum value "active"
-	AlertStatusStateActive string = "active"
-
-	// AlertStatusStateSuppressed captures enum value "suppressed"
-	AlertStatusStateSuppressed string = "suppressed"
-)
-
-// prop value enum
-func (m *AlertStatus) validateStateEnum(path, location string, value string) error {
-	if err := validate.Enum(path, location, value, alertStatusTypeStatePropEnum); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *AlertStatus) validateState(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.State) { // not required
-		return nil
-	}
-
-	// value enum
-	if err := m.validateStateEnum("status"+"."+"state", "body", m.State); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (m *AlertStatus) MarshalBinary() ([]byte, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(m)
-}
-
-// UnmarshalBinary interface implementation
-func (m *AlertStatus) UnmarshalBinary(b []byte) error {
-	var res AlertStatus
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

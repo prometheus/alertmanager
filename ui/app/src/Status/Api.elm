@@ -1,19 +1,20 @@
 module Status.Api exposing (getStatus)
 
+import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
 import Json.Decode exposing (Decoder, at, bool, field, int, list, map2, maybe, string)
 import Status.Types exposing (ClusterPeer, ClusterStatus, StatusResponse, VersionInfo)
 import Utils.Api exposing (get, send)
 import Utils.Types exposing (ApiData)
 
 
-getStatus : String -> (ApiData StatusResponse -> msg) -> Cmd msg
+getStatus : String -> (ApiData AlertmanagerStatus -> msg) -> Cmd msg
 getStatus apiUrl msg =
     let
         url =
             String.join "/" [ apiUrl, "status" ]
 
         request =
-            get url decodeStatusResponse
+            get url Data.AlertmanagerStatus.decoder
     in
     Cmd.map msg <| send request
 

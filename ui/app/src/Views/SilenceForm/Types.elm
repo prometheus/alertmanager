@@ -15,7 +15,10 @@ module Views.SilenceForm.Types exposing
 
 import Alerts.Types exposing (Alert)
 import Browser.Navigation exposing (Key)
-import Silences.Types exposing (Silence, SilenceId, nullSilence)
+import Data.GettableSilence exposing (GettableSilence)
+import Data.Matcher exposing (Matcher)
+import Data.PostableSilence exposing (PostableSilence)
+import Silences.Types exposing (nullSilence)
 import Time exposing (Posix)
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
 import Utils.Filter
@@ -27,7 +30,7 @@ import Utils.FormValidation
         , stringNotEmpty
         , validate
         )
-import Utils.Types exposing (ApiData(..), Duration, Matcher)
+import Utils.Types exposing (ApiData(..), Duration)
 
 
 type alias Model =
@@ -40,7 +43,7 @@ type alias Model =
 
 
 type alias SilenceForm =
-    { id : String
+    { id : Maybe String
     , createdBy : ValidatedField
     , comment : ValidatedField
     , startsAt : ValidatedField
@@ -66,8 +69,8 @@ type SilenceFormMsg
     | FetchSilence String
     | NewSilenceFromMatchers String (List Utils.Filter.Matcher)
     | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Posix
-    | SilenceFetch (ApiData Silence)
-    | SilenceCreate (ApiData SilenceId)
+    | SilenceFetch (ApiData GettableSilence)
+    | SilenceCreate (ApiData String)
 
 
 type SilenceFormFieldMsg
@@ -98,7 +101,7 @@ initSilenceForm key =
     }
 
 
-toSilence : SilenceForm -> Maybe Silence
+toSilence : SilenceForm -> Maybe PostableSilence
 toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
     Result.map5
         (\nonEmptyComment validMatchers nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
@@ -119,9 +122,9 @@ toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
         |> Result.toMaybe
 
 
-fromSilence : Silence -> SilenceForm
+fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
-    { id = id
+    { id = Just id
     , createdBy = initialField createdBy
     , comment = initialField comment
     , startsAt = initialField (timeToString startsAt)
@@ -167,7 +170,7 @@ validateMatcherForm { name, value, isRegex } =
 
 empty : SilenceForm
 empty =
-    { id = ""
+    { id = Nothing
     , createdBy = initialField ""
     , comment = initialField ""
     , startsAt = initialField ""
@@ -211,12 +214,12 @@ fromMatchersAndTime defaultCreator matchers now =
 appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (List Matcher)
 appendMatcher { isRegex, name, value } =
     Result.map2 (::)
-        (Result.map2 (Matcher isRegex) (stringNotEmpty name.value) (Ok value.value))
+        (Result.map2 (\k v -> Matcher k v isRegex) (stringNotEmpty name.value) (Ok value.value))
 
 
 filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher
 filterMatcherToMatcher { key, op, value } =
-    Maybe.map (\operator -> Matcher operator key value) <|
+    Maybe.map (\operator -> Matcher key value operator) <|
         case op of
             Utils.Filter.Eq ->
                 Just False

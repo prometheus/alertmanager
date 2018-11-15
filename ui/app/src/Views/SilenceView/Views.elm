@@ -1,10 +1,13 @@
 module Views.SilenceView.Views exposing (view)
 
 import Alerts.Types exposing (Alert)
+import Data.GettableSilence exposing (GettableSilence)
+import Data.GettableSilences exposing (GettableSilences)
+import Data.SilenceStatus
 import Html exposing (Html, b, button, div, h1, h2, h3, label, p, span, text)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence, stateToString)
+import Silences.Types exposing (stateToString)
 import Types exposing (Msg(..))
 import Utils.Date exposing (dateTimeFormat)
 import Utils.List
@@ -38,7 +41,7 @@ view { silence, alerts, activeAlertId, showConfirmationDialog } =
             error msg
 
 
-viewSilence : Maybe String -> ApiData (List Alert) -> Silence -> Bool -> Html Msg
+viewSilence : Maybe String -> ApiData (List Alert) -> GettableSilence -> Bool -> Html Msg
 viewSilence activeAlertId alerts silence showPromptDialog =
     let
         affectedAlerts =
@@ -58,7 +61,7 @@ viewSilence activeAlertId alerts silence showPromptDialog =
         , formGroup "Starts at" <| text <| dateTimeFormat silence.startsAt
         , formGroup "Ends at" <| text <| dateTimeFormat silence.endsAt
         , formGroup "Updated at" <| text <| dateTimeFormat silence.updatedAt
-        , formGroup "Created by" <| text silence.createdBy
+        , formGroup "Created by" <| text <| silence.createdBy
         , formGroup "Comment" <| text silence.comment
         , formGroup "State" <| text <| stateToString silence.status.state
         , formGroup "Matchers" <|
@@ -75,9 +78,9 @@ viewSilence activeAlertId alerts silence showPromptDialog =
         ]
 
 
-confirmSilenceDeleteView : Silence -> Bool -> Dialog.Config Msg
+confirmSilenceDeleteView : GettableSilence -> Bool -> Dialog.Config Msg
 confirmSilenceDeleteView silence refresh =
-    { onClose = MsgForSilenceView (SilenceViewTypes.Reload silence.id)
+    { onClose = MsgForSilenceView (SilenceViewTypes.Reload <| silence.id)
     , title = "Expire Silence"
     , body = text "Are you sure you want to expire this silence?"
     , footer =
@@ -99,13 +102,13 @@ formGroup key content =
         ]
 
 
-expireButton : Silence -> Bool -> Html Msg
+expireButton : GettableSilence -> Bool -> Html Msg
 expireButton silence refresh =
     case silence.status.state of
-        Silences.Types.Expired ->
+        Data.SilenceStatus.Expired ->
             text ""
 
-        Silences.Types.Active ->
+        Data.SilenceStatus.Active ->
             button
                 [ class "btn btn-outline-danger border-0"
                 , onClick (MsgForSilenceView (SilenceViewTypes.ConfirmDestroySilence silence refresh))
@@ -113,7 +116,7 @@ expireButton silence refresh =
                 [ text "Expire"
                 ]
 
-        Silences.Types.Pending ->
+        Data.SilenceStatus.Pending ->
             button
                 [ class "btn btn-outline-danger border-0"
                 , onClick (MsgForSilenceView (SilenceViewTypes.ConfirmDestroySilence silence refresh))

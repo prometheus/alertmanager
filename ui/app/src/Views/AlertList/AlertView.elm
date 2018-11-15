@@ -1,6 +1,7 @@
 module Views.AlertList.AlertView exposing (addLabelMsg, view)
 
 import Alerts.Types exposing (Alert)
+import Dict
 import Html exposing (..)
 import Html.Attributes exposing (class, href, readonly, style, title, value)
 import Html.Events exposing (onClick)
@@ -105,7 +106,7 @@ silenceButton alert =
         Nothing ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels alert.labels)
+                , href (newSilenceFromAlertLabels <| Dict.fromList alert.labels)
                 ]
                 [ i [ class "fa fa-bell-slash-o mr-2" ] []
                 , text "Silence"

@@ -1,15 +1,18 @@
 module Views.SilenceList.SilenceView exposing (deleteButton, editButton, view)
 
+import Data.GettableSilence exposing (GettableSilence)
+import Data.Matcher exposing (Matcher)
+import Data.Matchers exposing (Matchers)
+import Data.SilenceStatus exposing (State(..))
+import Dict exposing (Dict)
 import Html exposing (Html, a, b, button, div, h3, i, li, p, small, span, text)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence, State(..))
 import Time exposing (Posix)
 import Types exposing (Msg(..))
 import Utils.Date
 import Utils.Filter
 import Utils.List
-import Utils.Types exposing (Matcher)
 import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Dialog as Dialog
@@ -17,7 +20,7 @@ import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 
 
-view : Bool -> Silence -> Html Msg
+view : Bool -> GettableSilence -> Html Msg
 view showConfirmationDialog silence =
     li
         [ -- speedup rendering in Chrome, because list-group-item className
@@ -50,7 +53,7 @@ view showConfirmationDialog silence =
         ]
 
 
-confirmSilenceDeleteView : Silence -> Bool -> Dialog.Config Msg
+confirmSilenceDeleteView : GettableSilence -> Bool -> Dialog.Config Msg
 confirmSilenceDeleteView silence refresh =
     { onClose = MsgForSilenceList Views.SilenceList.Types.FetchSilences
     , title = "Expire Silence"
@@ -95,11 +98,19 @@ matcherButton matcher =
     Utils.Views.labelButton (Just msg) (Utils.List.mstring matcher)
 
 
-editButton : Silence -> Html Msg
+editButton : GettableSilence -> Html Msg
 editButton silence =
     let
         matchers =
             List.map (\s -> ( s.name, s.value )) silence.matchers
+
+        editUrl =
+            String.join "/" [ "#/silences", silence.id, "edit" ]
+
+        default =
+            a [ class "btn btn-outline-info border-0", href editUrl ]
+                [ text "Edit"
+                ]
     in
     case silence.status.state of
         -- If the silence is expired, do not edit it, but instead create a new
@@ -107,22 +118,16 @@ editButton silence =
         Expired ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels matchers)
+                , href (newSilenceFromAlertLabels <| Dict.fromList matchers)
                 ]
                 [ text "Recreate"
                 ]
 
         _ ->
-            let
-                editUrl =
-                    String.join "/" [ "#/silences", silence.id, "edit" ]
-            in
-            a [ class "btn btn-outline-info border-0", href editUrl ]
-                [ text "Edit"
-                ]
+            default
 
 
-deleteButton : Silence -> Bool -> Html Msg
+deleteButton : GettableSilence -> Bool -> Html Msg
 deleteButton silence refresh =
     case silence.status.state of
         Expired ->
@@ -146,7 +151,7 @@ deleteButton silence refresh =
 
 
 detailsButton : String -> Html Msg
-detailsButton silenceId =
-    a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ silenceId) ]
+detailsButton id =
+    a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ id) ]
         [ text "View"
         ]

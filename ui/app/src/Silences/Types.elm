@@ -1,63 +1,42 @@
 module Silences.Types exposing
-    ( Silence
-    , SilenceId
-    , State(..)
-    , Status
-    , nullMatcher
+    ( nullMatcher
     , nullSilence
     , nullSilenceStatus
     , stateToString
     )
 
+import Data.Matcher exposing (Matcher)
+import Data.Matchers exposing (Matchers)
+import Data.PostableSilence exposing (PostableSilence)
+import Data.SilenceStatus exposing (SilenceStatus, State(..))
 import Time exposing (Posix)
-import Utils.Types exposing (Matcher)
 
 
-nullSilence : Silence
+nullSilence : PostableSilence
 nullSilence =
-    { id = ""
+    { id = Nothing
     , createdBy = ""
     , comment = ""
     , startsAt = Time.millisToPosix 0
     , endsAt = Time.millisToPosix 0
-    , updatedAt = Time.millisToPosix 0
-    , matchers = [ nullMatcher ]
-    , status = nullSilenceStatus
+    , matchers = nullMatchers
     }
 
 
-nullSilenceStatus : Status
+nullSilenceStatus : SilenceStatus
 nullSilenceStatus =
     { state = Expired
     }
 
 
+nullMatchers : Matchers
+nullMatchers =
+    [ nullMatcher ]
+
+
 nullMatcher : Matcher
 nullMatcher =
-    Matcher False "" ""
-
-
-type alias Silence =
-    { id : SilenceId
-    , createdBy : String
-    , comment : String
-    , startsAt : Posix
-    , endsAt : Posix
-    , updatedAt : Posix
-    , matchers : List Matcher
-    , status : Status
-    }
-
-
-type alias Status =
-    { state : State
-    }
-
-
-type State
-    = Active
-    | Pending
-    | Expired
+    Matcher "" "" False
 
 
 stateToString : State -> String
@@ -71,7 +50,3 @@ stateToString state =
 
         Expired ->
             "expired"
-
-
-type alias SilenceId =
-    String
