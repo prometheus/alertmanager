@@ -17,3 +17,4 @@ script:
 - git diff --exit-code
 # test back-end
 - make
+- git diff --exit-code

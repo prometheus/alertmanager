@@ -21,6 +21,10 @@ STATICCHECK_IGNORE = \
   github.com/prometheus/alertmanager/notify/notify.go:SA6002
 
 
+# Go modules needs the bzr binary because of the dependency on launchpad.net/gocheck.
+$(eval $(call PRECHECK_COMMAND_template,bzr))
+PRECHECK_OPTIONS_bzr = version
+
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
 build-all: assets apiv2 build
@@ -31,10 +35,6 @@ assets: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
-
-.PHONY: proto
-proto:
-	scripts/genproto.sh
 
 .PHONY: apiv2
 apiv2: api/v2/models api/v2/restapi test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client
@@ -65,4 +65,11 @@ test: common-test $(ERRCHECK_BINARY)
 	$(ERRCHECK_BINARY) -verbose -exclude scripts/errcheck_excludes.txt -ignoretests ./...
 
 $(ERRCHECK_BINARY):
-	@go get github.com/kisielk/errcheck
+# Get errcheck from a temporary directory to avoid modifying the local go.{mod,sum}.
+# See https://github.com/golang/go/issues/27643.
+	tmpModule=$$(mktemp -d 2>&1) && \
+	mkdir -p $${tmpModule}/staticcheck && \
+	cd "$${tmpModule}"/staticcheck && \
+	GO111MODULE=on $(GO) mod init example.com/staticcheck && \
+	GO111MODULE=on GOOS= GOARCH= $(GO) get -u github.com/kisielk/errcheck && \
+	rm -rf $${tmpModule};
