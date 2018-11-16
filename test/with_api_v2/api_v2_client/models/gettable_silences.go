@@ -14,12 +14,12 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// Silences silences
-// swagger:model silences
-type Silences []*Silence
+// GettableSilences gettable silences
+// swagger:model gettableSilences
+type GettableSilences []*GettableSilence
 
-// Validate validates this silences
-func (m Silences) Validate(formats strfmt.Registry) error {
+// Validate validates this gettable silences
+func (m GettableSilences) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	for i := 0; i < len(m); i++ {

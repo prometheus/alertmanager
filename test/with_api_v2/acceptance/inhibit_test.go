@@ -58,19 +58,19 @@ inhibit_rules:
 	co := at.Collector("webhook")
 	wh := NewWebhook(co)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
-	am.Push(At(1), Alert("alertname", "test1", "job", "testjob", "zone", "aa"))
-	am.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"))
-	am.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab"))
+	amc.Push(At(1), Alert("alertname", "test1", "job", "testjob", "zone", "aa"))
+	amc.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"))
+	amc.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "ab"))
 
 	// This JobDown in zone aa should inhibit InstanceDown in zone aa in the
 	// second batch of notifications.
-	am.Push(At(2.2), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
+	amc.Push(At(2.2), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
 
 	// InstanceDown in zone aa should fire again in the third batch of
 	// notifications once JobDown in zone aa gets resolved.
-	am.Push(At(3.6), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2, 3.6))
+	amc.Push(At(3.6), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(2.2, 3.6))
 
 	co.Want(Between(2, 2.5),
 		Alert("alertname", "test1", "job", "testjob", "zone", "aa").Active(1),
@@ -92,6 +92,8 @@ inhibit_rules:
 	)
 
 	at.Run()
+
+	t.Log(co.Check())
 }
 
 func TestAlwaysInhibiting(t *testing.T) {
@@ -131,13 +133,13 @@ inhibit_rules:
 	co := at.Collector("webhook")
 	wh := NewWebhook(co)
 
-	am := at.Alertmanager(fmt.Sprintf(conf, wh.Address()))
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 
-	am.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"))
-	am.Push(At(1), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
+	amc.Push(At(1), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa"))
+	amc.Push(At(1), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa"))
 
-	am.Push(At(2.6), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1, 2.6))
-	am.Push(At(2.6), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1, 2.6))
+	amc.Push(At(2.6), Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1, 2.6))
+	amc.Push(At(2.6), Alert("alertname", "InstanceDown", "job", "testjob", "zone", "aa").Active(1, 2.6))
 
 	co.Want(Between(2, 2.5),
 		Alert("alertname", "JobDown", "job", "testjob", "zone", "aa").Active(1),
@@ -149,4 +151,6 @@ inhibit_rules:
 	)
 
 	at.Run()
+
+	t.Log(co.Check())
 }

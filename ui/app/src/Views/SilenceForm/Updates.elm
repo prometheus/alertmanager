@@ -213,6 +213,7 @@ update msg model basePath apiUrl =
         NewSilenceFromMatchersAndTime defaultCreator matchers time ->
             ( { form = fromMatchersAndTime defaultCreator matchers time
               , alerts = Initial
+              , activeAlertId = Nothing
               , silenceId = Initial
               , key = model.key
               }
@@ -235,7 +236,7 @@ update msg model basePath apiUrl =
                 Just silence ->
                     ( { model | alerts = Loading }
                     , Alerts.Api.fetchAlerts
-                        apiUrl
+                        basePath
                         { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
                         |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
                     )
@@ -253,11 +254,17 @@ update msg model basePath apiUrl =
             , Cmd.none
             )
 
+        SetActiveAlert maybeAlertId ->
+            ( { model | activeAlertId = maybeAlertId }
+            , Cmd.none
+            )
+
         UpdateField fieldMsg ->
             ( { form = updateForm fieldMsg model.form
               , alerts = Initial
               , silenceId = Initial
               , key = model.key
+              , activeAlertId = model.activeAlertId
               }
             , Cmd.none
             )

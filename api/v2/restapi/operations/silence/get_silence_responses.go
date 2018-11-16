@@ -25,7 +25,7 @@ type GetSilenceOK struct {
 	/*
 	  In: Body
 	*/
-	Payload *models.Silence `json:"body,omitempty"`
+	Payload *models.GettableSilence `json:"body,omitempty"`
 }
 
 // NewGetSilenceOK creates GetSilenceOK with default headers values
@@ -35,13 +35,13 @@ func NewGetSilenceOK() *GetSilenceOK {
 }
 
 // WithPayload adds the payload to the get silence o k response
-func (o *GetSilenceOK) WithPayload(payload *models.Silence) *GetSilenceOK {
+func (o *GetSilenceOK) WithPayload(payload *models.GettableSilence) *GetSilenceOK {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get silence o k response
-func (o *GetSilenceOK) SetPayload(payload *models.Silence) {
+func (o *GetSilenceOK) SetPayload(payload *models.GettableSilence) {
 	o.Payload = payload
 }
 

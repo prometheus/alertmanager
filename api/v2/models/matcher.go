@@ -8,7 +8,9 @@ package models
 import (
 	strfmt "github.com/go-openapi/strfmt"
 
+	"github.com/go-openapi/errors"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // Matcher matcher
@@ -16,20 +18,64 @@ import (
 type Matcher struct {
 
 	// is regex
-	IsRegex bool `json:"isRegex,omitempty"`
+	// Required: true
+	IsRegex *bool `json:"isRegex"`
 
 	// name
-	Name string `json:"name,omitempty"`
-
-	// regex
-	Regex string `json:"regex,omitempty"`
+	// Required: true
+	Name *string `json:"name"`
 
 	// value
-	Value string `json:"value,omitempty"`
+	// Required: true
+	Value *string `json:"value"`
 }
 
 // Validate validates this matcher
 func (m *Matcher) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.validateIsRegex(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateName(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateValue(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *Matcher) validateIsRegex(formats strfmt.Registry) error {
+
+	if err := validate.Required("isRegex", "body", m.IsRegex); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Matcher) validateName(formats strfmt.Registry) error {
+
+	if err := validate.Required("name", "body", m.Name); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Matcher) validateValue(formats strfmt.Registry) error {
+
+	if err := validate.Required("value", "body", m.Value); err != nil {
+		return err
+	}
+
 	return nil
 }
 

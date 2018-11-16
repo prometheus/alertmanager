@@ -15,7 +15,8 @@
             "elm/regex": "1.0.0",
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
-            "rtfeldman/elm-iso8601-date-strings": "1.1.2"
+            "rtfeldman/elm-iso8601-date-strings": "1.1.2",
+            "NoRedInk/elm-json-decode-pipeline": "1.0.0"
         },
         "indirect": {
             "elm/virtual-dom": "1.0.0",

@@ -50,7 +50,7 @@ paths:
         '200':
           description: Get silences response
           schema:
-            $ref: '#/definitions/silences'
+            $ref: '#/definitions/gettableSilences'
         '500':
           $ref: '#/responses/InternalServerError'
       parameters:
@@ -72,7 +72,7 @@ paths:
           description: The silence to create
           required: true
           schema:
-            $ref: '#/definitions/silence'
+            $ref: '#/definitions/postableSilence'
       responses:
         '200':
           description: Create / update silence response
@@ -100,7 +100,7 @@ paths:
         '200':
           description: Get silence response
           schema:
-            $ref: '#/definitions/silence'
+            $ref: '#/definitions/gettableSilence'
         '404':
           description: A silence with the specified ID was not found
         '500':
@@ -207,9 +207,26 @@ definitions:
   alertmanagerStatus:
     type: object
     properties:
+      cluster:
+        $ref: '#/definitions/clusterStatus'
+      versionInfo:
+        $ref: '#/definitions/versionInfo'
+      config:
+        $ref: '#/definitions/alertmanagerConfig'
+      uptime:
+        type: string
+        format: date-time
+    required:
+      - cluster
+      - versionInfo
+      - config
+      - uptime
+  clusterStatus:
+    type: object
+    properties:
       name:
         type: string
-      statusInCluster:
+      status:
         type: string
       peers:
         type: array
@@ -218,8 +235,37 @@ definitions:
           $ref: '#/definitions/peerStatus'
     required:
       - name
-      - statusInCluster
+      - status
       - peers
+  alertmanagerConfig:
+    type: object
+    properties:
+      original:
+        type: string
+    required:
+      - original
+  versionInfo:
+    type: object
+    properties:
+      version:
+        type: string
+      revision:
+        type: string
+      branch:
+        type: string
+      buildUser:
+        type: string
+      buildDate:
+        type: string
+      goVersion:
+        type: string
+    required:
+      - version
+      - revision
+      - branch
+      - buildUser
+      - buildDate
+      - goVersion
   peerStatus:
     type: object
     properties:
@@ -227,11 +273,12 @@ definitions:
         type: string
       address:
         type: string
+    required:
+      - name
+      - address
   silence:
     type: object
     properties:
-      id:
-        type: string
       matchers:
         $ref: '#/definitions/matchers'
       startsAt:
@@ -240,25 +287,51 @@ definitions:
       endsAt:
         type: string
         format: date-time
-      updatedAt:
-        type: string
-        format: date-time
       createdBy:
         type: string
       comment:
         type: string
-      status:
-        type: object
-        properties:
-          state:
-            type: string
-            enum: ["expired", "active", "pending"]
     required:
       - matchers
-  silences:
+      - startsAt
+      - endsAt
+      - createdBy
+      - comment
+  gettableSilence:
+    allOf:
+      - type: object
+        properties:
+          id:
+            type: string
+          status:
+            $ref: '#/definitions/silenceStatus'
+          updatedAt:
+            type: string
+            format: date-time
+        required:
+          - id
+          - status
+          - updatedAt
+      - $ref: '#/definitions/silence'
+  postableSilence:
+    allOf:
+      - type: object
+        properties:
+          id:
+            type: string
+      - $ref: '#/definitions/silence'
+  silenceStatus:
+    type: object
+    properties:
+      state:
+        type: string
+        enum: ["expired", "active", "pending"]
+    required:
+      - state
+  gettableSilences:
     type: array
     items:
-      $ref: '#/definitions/silence'
+      $ref: '#/definitions/gettableSilence'
   matchers:
     type: array
     items:
@@ -273,8 +346,10 @@ definitions:
         type: string
       isRegex:
         type: boolean
-      regex:
-        type: string
+    required:
+      - name
+      - value
+      - isRegex
   # Define required properties for 'alert'
   alerts:
     type: array
@@ -306,24 +381,34 @@ definitions:
       fingerprint:
         type: string
       status:
-        type: object
-        properties:
-          state:
-            type: string
-            enum: ['unprocessed', 'active', 'suppressed']
-          silencedBy:
-            type: array
-            items:
-              type: string
-          inhibitedBy:
-            type: array
-            items:
-              type: string
+        $ref: '#/definitions/alertStatus'
+    required:
+      - labels
+  alertStatus:
+    type: object
+    properties:
+      state:
+        type: string
+        enum: ['unprocessed', 'active', 'suppressed']
+      silencedBy:
+        type: array
+        items:
+          type: string
+      inhibitedBy:
+        type: array
+        items:
+          type: string
+    required:
+      - state
+      - silencedBy
+      - inhibitedBy
   receiver:
     type: object
     properties:
       name:
         type: string
+    required:
+      - name
   labelSet:
     type: object
     additionalProperties:

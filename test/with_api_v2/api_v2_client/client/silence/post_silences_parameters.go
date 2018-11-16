@@ -68,7 +68,7 @@ type PostSilencesParams struct {
 	  The silence to create
 
 	*/
-	Silence *models.Silence
+	Silence *models.PostableSilence
 
 	timeout    time.Duration
 	Context    context.Context
@@ -109,13 +109,13 @@ func (o *PostSilencesParams) SetHTTPClient(client *http.Client) {
 }
 
 // WithSilence adds the silence to the post silences params
-func (o *PostSilencesParams) WithSilence(silence *models.Silence) *PostSilencesParams {
+func (o *PostSilencesParams) WithSilence(silence *models.PostableSilence) *PostSilencesParams {
 	o.SetSilence(silence)
 	return o
 }
 
 // SetSilence adds the silence to the post silences params
-func (o *PostSilencesParams) SetSilence(silence *models.Silence) {
+func (o *PostSilencesParams) SetSilence(silence *models.PostableSilence) {
 	o.Silence = silence
 }
 

@@ -14,6 +14,7 @@
 package dispatch
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"sync"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/common/model"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/types"

@@ -54,7 +54,7 @@ func NewGetSilencesOK() *GetSilencesOK {
 Get silences response
 */
 type GetSilencesOK struct {
-	Payload models.Silences
+	Payload models.GettableSilences
 }
 
 func (o *GetSilencesOK) Error() string {

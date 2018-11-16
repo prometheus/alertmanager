@@ -1,10 +1,13 @@
 module Views.SilenceList.Views exposing (filterSilencesByState, groupSilencesByState, silencesView, states, tabView, tabsView, view)
 
+import Data.GettableSilence exposing (GettableSilence)
+import Data.GettableSilences exposing (GettableSilences)
+import Data.SilenceStatus exposing (State(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Keyed
 import Html.Lazy exposing (lazy, lazy2, lazy3)
-import Silences.Types exposing (Silence, SilenceId, State(..), stateToString)
+import Silences.Types exposing (stateToString)
 import Types exposing (Msg(..))
 import Utils.String as StringUtils
 import Utils.Types exposing (ApiData(..), Matcher)
@@ -53,7 +56,7 @@ tabView currentTab count tab =
                 ]
 
 
-silencesView : Maybe SilenceId -> State -> ApiData (List SilenceTab) -> Html Msg
+silencesView : Maybe String -> State -> ApiData (List SilenceTab) -> Html Msg
 silencesView showConfirmationDialog tab silencesTab =
     case silencesTab of
         Success tabs ->
@@ -87,7 +90,7 @@ silencesView showConfirmationDialog tab silencesTab =
             loading
 
 
-groupSilencesByState : List Silence -> List ( State, List Silence )
+groupSilencesByState : GettableSilences -> List ( State, GettableSilences )
 groupSilencesByState silences =
     List.map (\state -> ( state, filterSilencesByState state silences )) states
 
@@ -97,6 +100,11 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> List Silence -> List Silence
+filterSilencesByState : State -> GettableSilences -> GettableSilences
 filterSilencesByState state =
-    List.filter (.status >> .state >> (==) state)
+    List.filter (filterSilenceByState state)
+
+
+filterSilenceByState : State -> GettableSilence -> Bool
+filterSilenceByState state silence =
+    silence.status.state == state

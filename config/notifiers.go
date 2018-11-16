@@ -64,16 +64,17 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
-		Username:  `{{ template "slack.default.username" . }}`,
-		Title:     `{{ template "slack.default.title" . }}`,
-		TitleLink: `{{ template "slack.default.titlelink" . }}`,
-		IconEmoji: `{{ template "slack.default.iconemoji" . }}`,
-		IconURL:   `{{ template "slack.default.iconurl" . }}`,
-		Pretext:   `{{ template "slack.default.pretext" . }}`,
-		Text:      `{{ template "slack.default.text" . }}`,
-		Fallback:  `{{ template "slack.default.fallback" . }}`,
-		Footer:    `{{ template "slack.default.footer" . }}`,
+		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:   `{{ template "slack.default.username" . }}`,
+		Title:      `{{ template "slack.default.title" . }}`,
+		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
+		IconEmoji:  `{{ template "slack.default.iconemoji" . }}`,
+		IconURL:    `{{ template "slack.default.iconurl" . }}`,
+		Pretext:    `{{ template "slack.default.pretext" . }}`,
+		Text:       `{{ template "slack.default.text" . }}`,
+		Fallback:   `{{ template "slack.default.fallback" . }}`,
+		CallbackID: `{{ template "slack.default.callbackid" . }}`,
+		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
@@ -253,13 +254,16 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 }
 
 // SlackAction configures a single Slack action that is sent with each notification.
-// Each action must contain a type, text, and url.
-// See https://api.slack.com/docs/message-attachments#action_fields for more information.
+// See https://api.slack.com/docs/message-attachments#action_fields and https://api.slack.com/docs/message-buttons
+// for more information.
 type SlackAction struct {
-	Type  string `yaml:"type,omitempty"  json:"type,omitempty"`
-	Text  string `yaml:"text,omitempty"  json:"text,omitempty"`
-	URL   string `yaml:"url,omitempty"   json:"url,omitempty"`
-	Style string `yaml:"style,omitempty" json:"style,omitempty"`
+	Type         string                  `yaml:"type,omitempty"  json:"type,omitempty"`
+	Text         string                  `yaml:"text,omitempty"  json:"text,omitempty"`
+	URL          string                  `yaml:"url,omitempty"   json:"url,omitempty"`
+	Style        string                  `yaml:"style,omitempty" json:"style,omitempty"`
+	Name         string                  `yaml:"name,omitempty"  json:"name,omitempty"`
+	Value        string                  `yaml:"value,omitempty"  json:"value,omitempty"`
+	ConfirmField *SlackConfirmationField `yaml:"confirm,omitempty"  json:"confirm,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
@@ -272,10 +276,39 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing type in Slack action configuration")
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing value in Slack text configuration")
+		return fmt.Errorf("missing text in Slack action configuration")
 	}
-	if c.URL == "" {
-		return fmt.Errorf("missing value in Slack url configuration")
+	if c.URL != "" {
+		// Clear all message action fields.
+		c.Name = ""
+		c.Value = ""
+		c.ConfirmField = nil
+	} else if c.Name != "" {
+		c.URL = ""
+	} else {
+		return fmt.Errorf("missing name or url in Slack action configuration")
+	}
+	return nil
+}
+
+// SlackConfirmationField protect users from destructive actions or particularly distinguished decisions
+// by asking them to confirm their button click one more time.
+// See https://api.slack.com/docs/interactive-message-field-guide#confirmation_fields for more information.
+type SlackConfirmationField struct {
+	Text        string `yaml:"text,omitempty"  json:"text,omitempty"`
+	Title       string `yaml:"title,omitempty"  json:"title,omitempty"`
+	OkText      string `yaml:"ok_text,omitempty"  json:"ok_text,omitempty"`
+	DismissText string `yaml:"dismiss_text,omitempty"  json:"dismiss_text,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackConfirmationField.
+func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain SlackConfirmationField
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Text == "" {
+		return fmt.Errorf("missing text in Slack confirmation configuration")
 	}
 	return nil
 }
@@ -326,6 +359,7 @@ type SlackConfig struct {
 	ShortFields bool           `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
 	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
 	Fallback    string         `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	CallbackID  string         `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
 	IconEmoji   string         `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	IconURL     string         `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
 	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`

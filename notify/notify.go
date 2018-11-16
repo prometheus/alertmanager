@@ -14,6 +14,7 @@
 package notify
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -25,7 +26,6 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"

@@ -414,7 +414,7 @@ func main() {
 	go listen(*listenAddress, router, apiV2.Handler, logger)
 
 	var (
-		hup      = make(chan os.Signal)
+		hup      = make(chan os.Signal, 1)
 		hupReady = make(chan bool)
 		term     = make(chan os.Signal, 1)
 	)

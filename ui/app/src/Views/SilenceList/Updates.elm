@@ -1,8 +1,10 @@
 module Views.SilenceList.Updates exposing (update, urlUpdate)
 
 import Browser.Navigation as Navigation
+import Data.GettableSilence exposing (GettableSilence)
+import Data.GettableSilences exposing (GettableSilences)
+import Data.SilenceStatus exposing (State(..))
 import Silences.Api as Api
-import Silences.Types exposing (Silence, State(..))
 import Utils.Api as ApiData
 import Utils.Filter exposing (Filter, generateQueryString)
 import Utils.Types as Types exposing (ApiData(..), Matchers, Time)
@@ -62,7 +64,7 @@ update msg model filter basePath apiUrl =
             ( { model | tab = tab }, Cmd.none )
 
 
-groupSilencesByState : List Silence -> State -> SilenceTab
+groupSilencesByState : List GettableSilence -> State -> SilenceTab
 groupSilencesByState silences state =
     let
         silencesInTab =
@@ -79,9 +81,14 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> List Silence -> List Silence
+filterSilencesByState : State -> GettableSilences -> GettableSilences
 filterSilencesByState state =
-    List.filter (.status >> .state >> (==) state)
+    List.filter (filterSilenceByState state)
+
+
+filterSilenceByState : State -> GettableSilence -> Bool
+filterSilenceByState state silence =
+    silence.status.state == state
 
 
 urlUpdate : Maybe String -> ( SilenceListMsg, Filter )

@@ -1,15 +1,16 @@
 module Views.AlertList.AlertView exposing (addLabelMsg, view)
 
 import Alerts.Types exposing (Alert)
+import Dict
 import Html exposing (..)
 import Html.Attributes exposing (class, href, readonly, style, title, value)
 import Html.Events exposing (onClick)
 import Types exposing (Msg(..))
-import Utils.Date
 import Utils.Filter
 import Utils.Views
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.FilterBar.Types as FilterBarTypes
+import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
@@ -34,6 +35,7 @@ view labels maybeActiveId alert =
             [ titleView alert
             , if List.length alert.annotations > 0 then
                 annotationsButton maybeActiveId alert
+                    |> Html.map (\msg -> MsgForAlertList (SetActive msg))
 
               else
                 text ""
@@ -46,50 +48,6 @@ view labels maybeActiveId alert =
           else
             text ""
         , div [] (List.map labelButton ungroupedLabels)
-        ]
-
-
-titleView : Alert -> Html Msg
-titleView { startsAt, isInhibited } =
-    let
-        ( className, inhibited ) =
-            if isInhibited then
-                ( "text-muted", " (inhibited)" )
-
-            else
-                ( "", "" )
-    in
-    span
-        [ class ("align-self-center mr-2 " ++ className) ]
-        [ text
-            (Utils.Date.dateTimeFormat startsAt
-                ++ inhibited
-            )
-        ]
-
-
-annotationsButton : Maybe String -> Alert -> Html Msg
-annotationsButton maybeActiveId alert =
-    if maybeActiveId == Just alert.id then
-        button
-            [ onClick (SetActive Nothing |> MsgForAlertList)
-            , class "btn btn-outline-info border-0 active"
-            ]
-            [ i [ class "fa fa-minus mr-2" ] [], text "Info" ]
-
-    else
-        button
-            [ onClick (SetActive (Just alert.id) |> MsgForAlertList)
-            , class "btn btn-outline-info border-0"
-            ]
-            [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
-
-
-annotation : ( String, String ) -> Html Msg
-annotation ( key, value ) =
-    tr []
-        [ th [ class "text-nowrap" ] [ text (key ++ ":") ]
-        , td [ class "w-100" ] (Utils.Views.linkifyText value)
         ]
 
 
@@ -148,17 +106,8 @@ silenceButton alert =
         Nothing ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels alert.labels)
+                , href (newSilenceFromAlertLabels <| Dict.fromList alert.labels)
                 ]
                 [ i [ class "fa fa-bell-slash-o mr-2" ] []
                 , text "Silence"
                 ]
-
-
-generatorUrlButton : String -> Html Msg
-generatorUrlButton url =
-    a
-        [ class "btn btn-outline-info border-0", href url ]
-        [ i [ class "fa fa-line-chart mr-2" ] []
-        , text "Source"
-        ]
