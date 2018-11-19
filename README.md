@@ -77,7 +77,7 @@ route:
   # a very low alert volume or your upstream notification system performs 
   # its own grouping. Example: group_by: [...]
   group_by: ['alertname', 'cluster']
-  
+
   # When a new group of alerts is created by an incoming alert, wait at
   # least 'group_wait' to send the initial notification.
   # This way ensures that you get multiple alerts for the same group that start
