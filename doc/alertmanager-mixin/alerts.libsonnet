@@ -5,19 +5,6 @@
         name: 'alertmanager.rules',
         rules: [
           {
-            alert: 'AlertmanagerConfigInconsistent',
-            expr: |||
-              count_values("config_hash", alertmanager_config_hash{%(alertmanagerSelector)s}) BY (service) / ON(service) GROUP_LEFT() label_replace(prometheus_operator_spec_replicas{%(prometheusOperatorSelector)s,controller="alertmanager"}, "service", "alertmanager-$1", "name", "(.*)") != 1
-            ||| % $._config,
-            'for': '5m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'The configuration of the instances of the Alertmanager cluster `{{$labels.service}}` are out of sync.',
-            },
-          },
-          {
             alert: 'AlertmanagerFailedReload',
             expr: |||
               alertmanager_config_last_reload_successful{%(alertmanagerSelector)s} == 0
