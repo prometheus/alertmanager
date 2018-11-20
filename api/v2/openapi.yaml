@@ -165,9 +165,7 @@ paths:
         '200':
           description: Get alerts response
           schema:
-            type: array
-            items:
-              '$ref': '#/definitions/alert'
+            '$ref': '#/definitions/gettableAlerts'
         '400':
           $ref: '#/responses/BadRequest'
         '500':
@@ -183,7 +181,7 @@ paths:
           description: The alerts to create
           required: true
           schema:
-            $ref: '#/definitions/alerts'
+            $ref: '#/definitions/postableAlerts'
       responses:
         '200':
           description: Create alerts response
@@ -350,40 +348,72 @@ definitions:
       - name
       - value
       - isRegex
-  # Define required properties for 'alert'
-  alerts:
+  gettableAlerts:
     type: array
     items:
-      $ref: '#/definitions/alert'
-  alert:
-    type: object
-    properties:
-      startsAt:
-        type: string
-        format: date-time
-      updatedAt:
-        type: string
-        format: date-time
-      endsAt:
-        type: string
-        format: date-time
-      generatorURL:
-        type: string
-        format: uri
-      labels:
-        $ref: '#/definitions/labelSet'
-      annotations:
-        $ref: '#/definitions/labelSet'
-      receivers:
-        type: array
-        items:
-          $ref: '#/definitions/receiver'
-      fingerprint:
-        type: string
-      status:
-        $ref: '#/definitions/alertStatus'
-    required:
-      - labels
+      $ref: '#/definitions/gettableAlert'
+  # Shared properties in gettableAlert and postableAlert could also be
+  # de-duplicated via the `allOf` parameter like it is done with silences. So
+  # far this is blocked as the elm generator does not support it. For more
+  # details see https://github.com/OpenAPITools/openapi-generator/issues/1465.
+  gettableAlert:
+        type: object
+        properties:
+          generatorURL:
+            type: string
+            format: uri
+          labels:
+            $ref: '#/definitions/labelSet'
+          annotations:
+            $ref: '#/definitions/labelSet'
+          receivers:
+            type: array
+            items:
+              $ref: '#/definitions/receiver'
+          fingerprint:
+            type: string
+          startsAt:
+            type: string
+            format: date-time
+          updatedAt:
+            type: string
+            format: date-time
+          endsAt:
+            type: string
+            format: date-time
+          status:
+            $ref: '#/definitions/alertStatus'
+        required:
+          - labels
+          - receivers
+          - fingerprint
+          - startsAt
+          - updatedAt
+          - endsAt
+          - annotations
+          - status
+  postableAlerts:
+    type: array
+    items:
+      $ref: '#/definitions/postableAlert'
+  postableAlert:
+        type: object
+        properties:
+          generatorURL:
+            type: string
+            format: uri
+          labels:
+            $ref: '#/definitions/labelSet'
+          startsAt:
+            type: string
+            format: date-time
+          endsAt:
+            type: string
+            format: date-time
+          annotations:
+            $ref: '#/definitions/labelSet'
+        required:
+          - labels
   alertStatus:
     type: object
     properties:

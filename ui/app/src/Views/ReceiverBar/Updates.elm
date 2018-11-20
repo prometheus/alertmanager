@@ -7,14 +7,14 @@ import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
 import Utils.Match exposing (jaroWinkler)
 import Utils.Types exposing (ApiData(..))
-import Views.ReceiverBar.Types exposing (Model, Msg(..))
+import Views.ReceiverBar.Types exposing (Model, Msg(..), apiReceiverToReceiver)
 
 
 update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
 update url filter msg model =
     case msg of
         ReceiversFetched (Success receivers) ->
-            ( { model | receivers = receivers }, Cmd.none )
+            ( { model | receivers = List.map apiReceiverToReceiver receivers }, Cmd.none )
 
         ReceiversFetched _ ->
             ( model, Cmd.none )

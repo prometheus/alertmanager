@@ -2,6 +2,7 @@ module Views.AlertList.Updates exposing (update)
 
 import Alerts.Api as Api
 import Browser.Navigation as Navigation
+import Dict
 import Set
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter, generateQueryString, parseFilter)
@@ -27,7 +28,7 @@ update msg ({ groupBar, filterBar, receiverBar } as model) filter apiUrl basePat
                         Success alerts ->
                             { groupBar
                                 | list =
-                                    List.concatMap .labels alerts
+                                    List.concatMap (.labels >> Dict.toList) alerts
                                         |> List.map Tuple.first
                                         |> Set.fromList
                             }

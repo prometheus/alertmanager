@@ -14,12 +14,12 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// Alerts alerts
-// swagger:model alerts
-type Alerts []*Alert
+// GettableAlerts gettable alerts
+// swagger:model gettableAlerts
+type GettableAlerts []*GettableAlert
 
-// Validate validates this alerts
-func (m Alerts) Validate(formats strfmt.Registry) error {
+// Validate validates this gettable alerts
+func (m GettableAlerts) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	for i := 0; i < len(m); i++ {

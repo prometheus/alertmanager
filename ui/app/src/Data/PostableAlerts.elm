@@ -10,24 +10,24 @@
 -}
 
 
-module Data.Alerts exposing (Alerts, decoder, encoder)
+module Data.PostableAlerts exposing (PostableAlerts, decoder, encoder)
 
-import Data.Alert as Alert exposing (Alert)
+import Data.PostableAlert as PostableAlert exposing (PostableAlert)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 
 
-type alias Alerts =
-    List Alert
+type alias PostableAlerts =
+    List PostableAlert
 
 
-decoder : Decoder Alerts
+decoder : Decoder PostableAlerts
 decoder =
-    Decode.list Alert.decoder
+    Decode.list PostableAlert.decoder
 
 
-encoder : Alerts -> Encode.Value
+encoder : PostableAlerts -> Encode.Value
 encoder items =
-    Encode.list Alert.encoder items
+    Encode.list PostableAlert.encoder items

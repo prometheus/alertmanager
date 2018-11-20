@@ -1,6 +1,7 @@
 module Views.Shared.AlertCompact exposing (view)
 
-import Alerts.Types exposing (Alert)
+import Data.GettableAlert exposing (GettableAlert)
+import Dict
 import Html exposing (Html, div, table, text)
 import Html.Attributes exposing (class, href, style)
 import Utils.Views exposing (labelButton)
@@ -8,12 +9,13 @@ import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlB
 import Views.Shared.Types exposing (Msg)
 
 
-view : Maybe String -> Alert -> Html Msg
+view : Maybe String -> GettableAlert -> Html Msg
 view activeAlertId alert =
     let
         -- remove the grouping labels, and bring the alertname to front
         ungroupedLabels =
             alert.labels
+                |> Dict.toList
                 |> List.partition (Tuple.first >> (==) "alertname")
                 |> (\( a, b ) -> (++) a b)
                 |> List.map (\( a, b ) -> String.join "=" [ a, b ])
@@ -27,17 +29,22 @@ view activeAlertId alert =
         [ div
             [ class "w-100 mb-2 d-flex" ]
             [ titleView alert
-            , if List.length alert.annotations > 0 then
+            , if Dict.size alert.annotations > 0 then
                 annotationsButton activeAlertId alert
 
               else
                 text ""
-            , generatorUrlButton alert.generatorUrl
+            , case alert.generatorURL of
+                Just url ->
+                    generatorUrlButton url
+
+                Nothing ->
+                    text ""
             ]
-        , if activeAlertId == Just alert.id then
+        , if activeAlertId == Just alert.fingerprint then
             table
                 [ class "table w-100 mb-1" ]
-                (List.map annotation alert.annotations)
+                (List.map annotation <| Dict.toList alert.annotations)
 
           else
             text ""

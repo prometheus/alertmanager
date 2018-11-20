@@ -54,8 +54,8 @@ src/Data: ../../api/v2/openapi.yaml
 	# openapi-generator still generates LabelSet, will be resolved with
 	# https://github.com/OpenAPITools/openapi-generator/issues/1140#issuecomment-432796436
 	rm src/Data/LabelSet.elm
-	# openapi-generator tries to expose Silence as a union type (`Silence(..)`)
-	git checkout src/Data/Silence.elm
+	# TODO: openapi-generator tries to expose Silence as a union type (`Silence(..)`)
+	rm src/Data/Silence.elm
 	rm -rf $(TEMPOPENAPI)
 
 
