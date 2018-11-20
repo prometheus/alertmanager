@@ -269,7 +269,7 @@ func TestStateDataCoding(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	nl, err := New()
+	nl, err := New(WithRetention(time.Second))
 	if err != nil {
 		require.NoError(t, err, "constructing nflog failed")
 	}
