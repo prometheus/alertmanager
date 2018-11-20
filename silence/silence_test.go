@@ -988,11 +988,14 @@ func TestStateMerge(t *testing.T) {
 
 	// We only care about key names and timestamps for the
 	// merging logic.
-	newSilence := func(id string, ts time.Time) *pb.MeshSilence {
+	newSilence := func(id string, ts, exp time.Time) *pb.MeshSilence {
 		return &pb.MeshSilence{
-			Silence: &pb.Silence{Id: id, UpdatedAt: ts},
+			Silence:   &pb.Silence{Id: id, UpdatedAt: ts},
+			ExpiresAt: exp,
 		}
 	}
+
+	exp := now.Add(time.Minute)
 
 	cases := []struct {
 		a, b  state
@@ -1000,27 +1003,28 @@ func TestStateMerge(t *testing.T) {
 	}{
 		{
 			a: state{
-				"a1": newSilence("a1", now),
-				"a2": newSilence("a2", now),
-				"a3": newSilence("a3", now),
+				"a1": newSilence("a1", now, exp),
+				"a2": newSilence("a2", now, exp),
+				"a3": newSilence("a3", now, exp),
 			},
 			b: state{
-				"b1": newSilence("b1", now),                   // new key, should be added
-				"a2": newSilence("a2", now.Add(-time.Minute)), // older timestamp, should be dropped
-				"a3": newSilence("a3", now.Add(time.Minute)),  // newer timestamp, should overwrite
+				"b1": newSilence("b1", now, exp),                                          // new key, should be added
+				"a2": newSilence("a2", now.Add(-time.Minute), exp),                        // older timestamp, should be dropped
+				"a3": newSilence("a3", now.Add(time.Minute), exp),                         // newer timestamp, should overwrite
+				"a4": newSilence("a4", now.Add(-time.Minute), now.Add(-time.Millisecond)), // new key, expired, should not be added
 			},
 			final: state{
-				"a1": newSilence("a1", now),
-				"a2": newSilence("a2", now),
-				"a3": newSilence("a3", now.Add(time.Minute)),
-				"b1": newSilence("b1", now),
+				"a1": newSilence("a1", now, exp),
+				"a2": newSilence("a2", now, exp),
+				"a3": newSilence("a3", now.Add(time.Minute), exp),
+				"b1": newSilence("b1", now, exp),
 			},
 		},
 	}
 
 	for _, c := range cases {
 		for _, e := range c.b {
-			c.a.merge(e)
+			c.a.merge(e, now)
 		}
 
 		require.Equal(t, c.final, c.a, "Merge result should match expectation")
