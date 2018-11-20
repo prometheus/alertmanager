@@ -156,7 +156,7 @@ func TestStateMerge(t *testing.T) {
 
 	// We only care about key names and timestamps for the
 	// merging logic.
-	newEntry := func(ts time.Time, name string) *pb.MeshEntry {
+	newEntry := func(name string, ts, exp time.Time) *pb.MeshEntry {
 		return &pb.MeshEntry{
 			Entry: &pb.Entry{
 				Timestamp: ts,
@@ -167,28 +167,33 @@ func TestStateMerge(t *testing.T) {
 					Integration: "integr",
 				},
 			},
+			ExpiresAt: exp,
 		}
 	}
+
+	exp := now.Add(time.Minute)
+
 	cases := []struct {
 		a, b  state
 		final state
 	}{
 		{
 			a: state{
-				"key:a1/integr/1": newEntry(now, "a1"),
-				"key:a2/integr/1": newEntry(now, "a2"),
-				"key:a3/integr/1": newEntry(now, "a3"),
+				"key:a1/integr/1": newEntry("a1", now, exp),
+				"key:a2/integr/1": newEntry("a2", now, exp),
+				"key:a3/integr/1": newEntry("a3", now, exp),
 			},
 			b: state{
-				"key:b1/integr/1": newEntry(now, "b1"),                   // new key, should be added
-				"key:a2/integr/1": newEntry(now.Add(-time.Minute), "a2"), // older timestamp, should be dropped
-				"key:a3/integr/1": newEntry(now.Add(time.Minute), "a3"),  // newer timestamp, should overwrite
+				"key:b1/integr/1": newEntry("b1", now, exp),                                          // new key, should be added
+				"key:b2/integr/1": newEntry("b2", now.Add(-time.Minute), now.Add(-time.Millisecond)), // new key, expired, should not be added
+				"key:a2/integr/1": newEntry("a2", now.Add(-time.Minute), exp),                        // older timestamp, should be dropped
+				"key:a3/integr/1": newEntry("a3", now.Add(time.Minute), exp),                         // newer timestamp, should overwrite
 			},
 			final: state{
-				"key:a1/integr/1": newEntry(now, "a1"),
-				"key:a2/integr/1": newEntry(now, "a2"),
-				"key:a3/integr/1": newEntry(now.Add(time.Minute), "a3"),
-				"key:b1/integr/1": newEntry(now, "b1"),
+				"key:a1/integr/1": newEntry("a1", now, exp),
+				"key:a2/integr/1": newEntry("a2", now, exp),
+				"key:a3/integr/1": newEntry("a3", now.Add(time.Minute), exp),
+				"key:b1/integr/1": newEntry("b1", now, exp),
 			},
 		},
 	}
@@ -198,7 +203,7 @@ func TestStateMerge(t *testing.T) {
 
 		res := c.a.clone()
 		for _, e := range cb {
-			res.merge(e)
+			res.merge(e, now)
 		}
 		require.Equal(t, c.final, res, "Merge result should match expectation")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")

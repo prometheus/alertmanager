@@ -226,7 +226,10 @@ func (s state) clone() state {
 
 // merge returns true or false whether the MeshEntry was merged or
 // not. This information is used to decide to gossip the message further.
-func (s state) merge(e *pb.MeshEntry) bool {
+func (s state) merge(e *pb.MeshEntry, now time.Time) bool {
+	if e.ExpiresAt.Before(now) {
+		return false
+	}
 	k := stateKey(string(e.Entry.GroupKey), e.Entry.Receiver)
 
 	prev, ok := s[k]
@@ -411,7 +414,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 	if err != nil {
 		return err
 	}
-	l.st.merge(e)
+	l.st.merge(e, l.now())
 	l.broadcast(b)
 
 	return nil
@@ -522,9 +525,10 @@ func (l *Log) Merge(b []byte) error {
 	}
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
+	now := l.now()
 
 	for _, e := range st {
-		if merged := l.st.merge(e); merged && !cluster.OversizedMessage(b) {
+		if merged := l.st.merge(e, now); merged && !cluster.OversizedMessage(b) {
 			// If this is the first we've seen the message and it's
 			// not oversized, gossip it to other nodes. We don't
 			// propagate oversized messages because they're sent to
