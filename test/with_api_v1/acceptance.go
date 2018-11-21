@@ -50,8 +50,9 @@ type AcceptanceTest struct {
 
 // AcceptanceOpts defines configuration paramters for an acceptance test.
 type AcceptanceOpts struct {
-	Tolerance time.Duration
-	baseTime  time.Time
+	RoutePrefix string
+	Tolerance   time.Duration
+	baseTime    time.Time
 }
 
 func (opts *AcceptanceOpts) alertString(a *model.Alert) string {
@@ -135,7 +136,7 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 	t.Logf("AM on %s", am.apiAddr)
 
 	c, err := api.NewClient(api.Config{
-		Address: fmt.Sprintf("http://%s", am.apiAddr),
+		Address: am.getURL(""),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -257,14 +258,18 @@ type Alertmanager struct {
 
 // Start the alertmanager and wait until it is ready to receive.
 func (am *Alertmanager) Start() {
-	cmd := exec.Command("../../../alertmanager",
+	args := []string{
 		"--config.file", am.confFile.Name(),
 		"--log.level", "debug",
 		"--web.listen-address", am.apiAddr,
 		"--storage.path", am.dir,
 		"--cluster.listen-address", am.clusterAddr,
 		"--cluster.settle-timeout", "0s",
-	)
+	}
+	if am.opts.RoutePrefix != "" {
+		args = append(args, "--web.route-prefix", am.opts.RoutePrefix)
+	}
+	cmd := exec.Command("../../../alertmanager", args...)
 
 	if am.cmd == nil {
 		var outb, errb buffer
@@ -288,16 +293,21 @@ func (am *Alertmanager) Start() {
 
 	time.Sleep(50 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://%s/status", am.apiAddr))
-		if err == nil {
-			_, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				am.t.Fatalf("Starting alertmanager failed: %s", err)
-			}
-			resp.Body.Close()
-			return
+		resp, err := http.Get(am.getURL("/"))
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
 		}
-		time.Sleep(500 * time.Millisecond)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			am.t.Fatalf("Starting alertmanager failed: expected HTTP status '200', got '%d'", resp.StatusCode)
+		}
+		_, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			am.t.Fatalf("Starting alertmanager failed: %s", err)
+		}
+		resp.Body.Close()
+		return
 	}
 	am.t.Fatalf("Starting alertmanager failed: timeout")
 }
@@ -363,7 +373,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 			return
 		}
 
-		resp, err := http.Post(fmt.Sprintf("http://%s/api/v1/silences", am.apiAddr), "application/json", &buf)
+		resp, err := http.Post(am.getURL("/api/v1/silences"), "application/json", &buf)
 		if err != nil {
 			am.t.Errorf("Error setting silence %v: %s", sil, err)
 			return
@@ -392,7 +402,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 // DelSilence deletes the silence with the sid at the given time.
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
-		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/v1/silence/%s", am.apiAddr, sil.ID()), nil)
+		req, err := http.NewRequest("DELETE", am.getURL(fmt.Sprintf("/api/v1/silence/%s", sil.ID())), nil)
 		if err != nil {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 			return
@@ -417,4 +427,8 @@ func (am *Alertmanager) UpdateConfig(conf string) {
 		am.t.Fatal(err)
 		return
 	}
+}
+
+func (am *Alertmanager) getURL(path string) string {
+	return fmt.Sprintf("http://%s%s%s", am.apiAddr, am.opts.RoutePrefix, path)
 }
