@@ -1421,6 +1421,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = "(no details)"
 	}
 	parameters.Add("message", message)
+	parameters.Add("html", "1")
 
 	supplementaryURL := tmpl(n.conf.URL)
 	if len(supplementaryURL) > 512 {
