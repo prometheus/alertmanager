@@ -162,7 +162,7 @@ type RouteOpts struct {
 	// What labels to group alerts by for notifications.
 	GroupBy map[model.LabelName]struct{}
 
-	// Use all alert's labels to group
+	// Use all alert labels to group.
 	GroupByAll bool
 
 	// How long to wait to group matching alerts before sending
