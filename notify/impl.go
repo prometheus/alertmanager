@@ -283,7 +283,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		c, err = smtp.NewClient(conn, n.conf.Smarthost)
+		c, err = smtp.NewClient(conn, host)
 		if err != nil {
 			return true, err
 		}
