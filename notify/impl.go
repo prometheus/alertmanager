@@ -1397,7 +1397,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	level.Debug(n.logger).Log("msg", "Notifying Pushover", "incident", key)
 
 	var (
-		err error
+		err     error
 		message string
 	)
 	tmpl := tmplText(n.tmpl, data, &err)
@@ -1414,7 +1414,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	parameters.Add("title", title)
 
-	if (n.conf.HTML) {
+	if n.conf.HTML {
 		parameters.Add("html", "1")
 		message = tmplHTML(n.conf.Message)
 	} else {
