@@ -1396,7 +1396,10 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	level.Debug(n.logger).Log("msg", "Notifying Pushover", "incident", key)
 
-	var err error
+	var (
+		err error
+		message string
+	)
 	tmpl := tmplText(n.tmpl, data, &err)
 	tmplHTML := tmplHTML(n.tmpl, data, &err)
 
@@ -1411,7 +1414,13 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	parameters.Add("title", title)
 
-	message := tmplHTML(n.conf.Message)
+	if (n.conf.HTML) {
+		parameters.Add("html", "1")
+		message = tmplHTML(n.conf.Message)
+	} else {
+		message = tmpl(n.conf.Message)
+	}
+
 	if len(message) > 1024 {
 		message = message[:1021] + "..."
 		level.Debug(n.logger).Log("msg", "Truncated message due to Pushover message limit", "truncated_message", message, "incident", key)
@@ -1422,7 +1431,6 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = "(no details)"
 	}
 	parameters.Add("message", message)
-	parameters.Add("html", "1")
 
 	supplementaryURL := tmpl(n.conf.URL)
 	if len(supplementaryURL) > 512 {
