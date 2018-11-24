@@ -132,8 +132,6 @@ var (
 		Title:    `{{ template "pushover.default.title" . }}`,
 		Message:  `{{ template "pushover.default.message" . }}`,
 		URL:      `{{ template "pushover.default.url" . }}`,
-		URLTitle: `{{ template "pushover.default.url_title" . }}`,
-		Sound:    `{{ template "pushover.default.sound" . }}`,
 		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
