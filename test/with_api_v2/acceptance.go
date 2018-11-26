@@ -58,11 +58,11 @@ type AcceptanceOpts struct {
 	baseTime    time.Time
 }
 
-func (opts *AcceptanceOpts) alertString(a *models.Alert) string {
-	if time.Time(a.EndsAt).IsZero() {
-		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(a.StartsAt)))
+func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
+	if a.EndsAt == nil || time.Time(*a.EndsAt).IsZero() {
+		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(*a.StartsAt)))
 	}
-	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(a.StartsAt)), opts.relativeTime(time.Time(a.EndsAt)))
+	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(*a.StartsAt)), opts.relativeTime(time.Time(*a.EndsAt)))
 }
 
 // expandTime returns the absolute time for the relative time
@@ -159,8 +159,8 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 		t:         t.T,
 		name:      name,
 		opts:      t.opts,
-		collected: map[float64][]models.Alerts{},
-		expected:  map[Interval][]models.Alerts{},
+		collected: map[float64][]models.GettableAlerts{},
+		expected:  map[Interval][]models.GettableAlerts{},
 	}
 	t.collectors = append(t.collectors, co)
 
@@ -425,16 +425,21 @@ func (amc *AlertmanagerCluster) Push(at float64, alerts ...*TestAlert) {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas models.Alerts
+	var cas models.PostableAlerts
 	for i := range alerts {
 		a := alerts[i].nativeAlert(am.opts)
-		cas = append(cas, &models.Alert{
+		alert := &models.PostableAlert{
 			Labels:       a.Labels,
 			Annotations:  a.Annotations,
-			StartsAt:     a.StartsAt,
-			EndsAt:       a.EndsAt,
 			GeneratorURL: a.GeneratorURL,
-		})
+		}
+		if a.StartsAt != nil {
+			alert.StartsAt = *a.StartsAt
+		}
+		if a.EndsAt != nil {
+			alert.EndsAt = *a.EndsAt
+		}
+		cas = append(cas, alert)
 	}
 
 	am.t.Do(at, func() {

@@ -1,6 +1,6 @@
 module Views.AlertList.AlertView exposing (addLabelMsg, view)
 
-import Alerts.Types exposing (Alert)
+import Data.GettableAlert exposing (GettableAlert)
 import Dict
 import Html exposing (..)
 import Html.Attributes exposing (class, href, readonly, style, title, value)
@@ -14,12 +14,13 @@ import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlB
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
-view : List ( String, String ) -> Maybe String -> Alert -> Html Msg
+view : List ( String, String ) -> Maybe String -> GettableAlert -> Html Msg
 view labels maybeActiveId alert =
     let
         -- remove the grouping labels, and bring the alertname to front
         ungroupedLabels =
             alert.labels
+                |> Dict.toList
                 |> List.filter ((\b a -> List.member a b) labels >> not)
                 |> List.partition (Tuple.first >> (==) "alertname")
                 |> (\( a, b ) -> (++) a b)
@@ -33,17 +34,22 @@ view labels maybeActiveId alert =
         [ div
             [ class "w-100 mb-2 d-flex align-items-start" ]
             [ titleView alert
-            , if List.length alert.annotations > 0 then
+            , if Dict.size alert.annotations > 0 then
                 annotationsButton maybeActiveId alert
                     |> Html.map (\msg -> MsgForAlertList (SetActive msg))
 
               else
                 text ""
-            , generatorUrlButton alert.generatorUrl
+            , case alert.generatorURL of
+                Just url ->
+                    generatorUrlButton url
+
+                Nothing ->
+                    text ""
             , silenceButton alert
             ]
-        , if maybeActiveId == Just alert.id then
-            table [ class "table w-100 mb-1" ] (List.map annotation alert.annotations)
+        , if maybeActiveId == Just alert.fingerprint then
+            table [ class "table w-100 mb-1" ] (List.map annotation <| Dict.toList alert.annotations)
 
           else
             text ""
@@ -91,9 +97,9 @@ addLabelMsg ( key, value ) =
         |> MsgForAlertList
 
 
-silenceButton : Alert -> Html Msg
+silenceButton : GettableAlert -> Html Msg
 silenceButton alert =
-    case alert.silenceId of
+    case List.head alert.status.silencedBy of
         Just sId ->
             a
                 [ class "btn btn-outline-danger border-0"
@@ -106,7 +112,7 @@ silenceButton alert =
         Nothing ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromAlertLabels <| Dict.fromList alert.labels)
+                , href (newSilenceFromAlertLabels alert.labels)
                 ]
                 [ i [ class "fa fa-bell-slash-o mr-2" ] []
                 , text "Silence"

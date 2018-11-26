@@ -61,7 +61,7 @@ func NewGetAlertsOK() *GetAlertsOK {
 Get alerts response
 */
 type GetAlertsOK struct {
-	Payload []*models.Alert
+	Payload models.GettableAlerts
 }
 
 func (o *GetAlertsOK) Error() string {

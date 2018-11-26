@@ -1,74 +1,27 @@
-module Alerts.Api exposing (alertDecoder, alertsDecoder, fetchAlerts, fetchReceivers)
+module Alerts.Api exposing (fetchAlerts, fetchReceivers)
 
-import Alerts.Types exposing (Alert, Receiver)
-import Json.Decode as Json exposing (..)
+import Data.GettableAlerts exposing (GettableAlerts)
+import Data.Receiver exposing (Receiver)
+import Json.Decode
 import Regex
 import Utils.Api exposing (iso8601Time)
 import Utils.Filter exposing (Filter, generateQueryString)
 import Utils.Types exposing (ApiData)
 
 
-escapeRegExp : String -> String
-escapeRegExp text =
-    let
-        reg =
-            Regex.fromString "/[-[\\]{}()*+?.,\\\\^$|#\\s]/g" |> Maybe.withDefault Regex.never
-    in
-    Regex.replace reg (.match >> (++) "\\") text
-
-
 fetchReceivers : String -> Cmd (ApiData (List Receiver))
-fetchReceivers basePath =
+fetchReceivers apiUrl =
     Utils.Api.send
         (Utils.Api.get
-            (makeApiUrl basePath ++ "/receivers")
-            (field "data" (list (Json.map (\receiver -> Receiver receiver (escapeRegExp receiver)) string)))
+            (apiUrl ++ "/receivers")
+            (Json.Decode.list Data.Receiver.decoder)
         )
 
 
-fetchAlerts : String -> Filter -> Cmd (ApiData (List Alert))
-fetchAlerts basePath filter =
+fetchAlerts : String -> Filter -> Cmd (ApiData GettableAlerts)
+fetchAlerts apiUrl filter =
     let
         url =
-            String.join "/" [ makeApiUrl basePath, "alerts" ++ generateQueryString filter ]
+            String.join "/" [ apiUrl, "alerts" ++ generateQueryString filter ]
     in
-    Utils.Api.send (Utils.Api.get url alertsDecoder)
-
-
-alertsDecoder : Json.Decoder (List Alert)
-alertsDecoder =
-    Json.list alertDecoder
-        -- populate alerts with ids:
-        |> Json.map (List.indexedMap (String.fromInt >> (|>)))
-        |> field "data"
-
-
-{-| TODO: decode alert id when provided
--}
-alertDecoder : Json.Decoder (String -> Alert)
-alertDecoder =
-    Json.map6 Alert
-        (Json.maybe (field "annotations" (Json.keyValuePairs Json.string))
-            |> andThen (Maybe.withDefault [] >> Json.succeed)
-        )
-        (field "labels" (Json.keyValuePairs Json.string))
-        (Json.maybe (Json.at [ "status", "silencedBy", "0" ] Json.string))
-        (Json.maybe (Json.at [ "status", "inhibitedBy", "0" ] Json.string)
-            |> Json.map ((/=) Nothing)
-        )
-        (field "startsAt" iso8601Time)
-        (field "generatorURL" Json.string)
-
-
-makeApiUrl : String -> String
-makeApiUrl externalUrl =
-    let
-        url =
-            if String.endsWith "/" externalUrl then
-                String.dropRight 1 externalUrl
-
-            else
-                externalUrl
-    in
-    -- For now alerts are still fetched from the v1 API.
-    url ++ "/api/v1"
+    Utils.Api.send (Utils.Api.get url Data.GettableAlerts.decoder)

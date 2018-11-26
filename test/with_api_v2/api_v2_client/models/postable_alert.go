@@ -6,8 +6,6 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	"strconv"
-
 	strfmt "github.com/go-openapi/strfmt"
 
 	"github.com/go-openapi/errors"
@@ -15,9 +13,9 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-// Alert alert
-// swagger:model alert
-type Alert struct {
+// PostableAlert postable alert
+// swagger:model postableAlert
+type PostableAlert struct {
 
 	// annotations
 	Annotations LabelSet `json:"annotations,omitempty"`
@@ -25,9 +23,6 @@ type Alert struct {
 	// ends at
 	// Format: date-time
 	EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
-
-	// fingerprint
-	Fingerprint string `json:"fingerprint,omitempty"`
 
 	// generator URL
 	// Format: uri
@@ -37,23 +32,13 @@ type Alert struct {
 	// Required: true
 	Labels LabelSet `json:"labels"`
 
-	// receivers
-	Receivers []*Receiver `json:"receivers"`
-
 	// starts at
 	// Format: date-time
 	StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
-
-	// status
-	Status *AlertStatus `json:"status,omitempty"`
-
-	// updated at
-	// Format: date-time
-	UpdatedAt strfmt.DateTime `json:"updatedAt,omitempty"`
 }
 
-// Validate validates this alert
-func (m *Alert) Validate(formats strfmt.Registry) error {
+// Validate validates this postable alert
+func (m *PostableAlert) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateAnnotations(formats); err != nil {
@@ -72,19 +57,7 @@ func (m *Alert) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
-	if err := m.validateReceivers(formats); err != nil {
-		res = append(res, err)
-	}
-
 	if err := m.validateStartsAt(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStatus(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateUpdatedAt(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -94,7 +67,7 @@ func (m *Alert) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Alert) validateAnnotations(formats strfmt.Registry) error {
+func (m *PostableAlert) validateAnnotations(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.Annotations) { // not required
 		return nil
@@ -110,7 +83,7 @@ func (m *Alert) validateAnnotations(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Alert) validateEndsAt(formats strfmt.Registry) error {
+func (m *PostableAlert) validateEndsAt(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.EndsAt) { // not required
 		return nil
@@ -123,7 +96,7 @@ func (m *Alert) validateEndsAt(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Alert) validateGeneratorURL(formats strfmt.Registry) error {
+func (m *PostableAlert) validateGeneratorURL(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.GeneratorURL) { // not required
 		return nil
@@ -136,7 +109,7 @@ func (m *Alert) validateGeneratorURL(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Alert) validateLabels(formats strfmt.Registry) error {
+func (m *PostableAlert) validateLabels(formats strfmt.Registry) error {
 
 	if err := m.Labels.Validate(formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
@@ -148,32 +121,7 @@ func (m *Alert) validateLabels(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Alert) validateReceivers(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.Receivers) { // not required
-		return nil
-	}
-
-	for i := 0; i < len(m.Receivers); i++ {
-		if swag.IsZero(m.Receivers[i]) { // not required
-			continue
-		}
-
-		if m.Receivers[i] != nil {
-			if err := m.Receivers[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
-					return ve.ValidateName("receivers" + "." + strconv.Itoa(i))
-				}
-				return err
-			}
-		}
-
-	}
-
-	return nil
-}
-
-func (m *Alert) validateStartsAt(formats strfmt.Registry) error {
+func (m *PostableAlert) validateStartsAt(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.StartsAt) { // not required
 		return nil
@@ -186,39 +134,8 @@ func (m *Alert) validateStartsAt(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Alert) validateStatus(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.Status) { // not required
-		return nil
-	}
-
-	if m.Status != nil {
-		if err := m.Status.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("status")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m *Alert) validateUpdatedAt(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.UpdatedAt) { // not required
-		return nil
-	}
-
-	if err := validate.FormatOf("updatedAt", "body", "date-time", m.UpdatedAt.String(), formats); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // MarshalBinary interface implementation
-func (m *Alert) MarshalBinary() ([]byte, error) {
+func (m *PostableAlert) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -226,8 +143,8 @@ func (m *Alert) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary interface implementation
-func (m *Alert) UnmarshalBinary(b []byte) error {
-	var res Alert
+func (m *PostableAlert) UnmarshalBinary(b []byte) error {
+	var res PostableAlert
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}
