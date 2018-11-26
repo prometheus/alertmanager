@@ -129,6 +129,10 @@ func newMarkerMetrics(marker types.Marker) {
 const defaultClusterAddr = "0.0.0.0:9094"
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	if os.Getenv("DEBUG") != "" {
 		runtime.SetBlockProfileRate(20)
 		runtime.SetMutexProfileFraction(20)
@@ -177,7 +181,7 @@ func main() {
 	err := os.MkdirAll(*dataDir, 0777)
 	if err != nil {
 		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
-		os.Exit(1)
+		return 1
 	}
 
 	var peer *cluster.Peer
@@ -197,7 +201,7 @@ func main() {
 		)
 		if err != nil {
 			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 
@@ -216,7 +220,7 @@ func main() {
 	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 	if peer != nil {
 		c := peer.AddState("nfl", notificationLog, prometheus.DefaultRegisterer)
@@ -236,7 +240,7 @@ func main() {
 	silences, err := silence.New(silenceOpts)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 	if peer != nil {
 		c := peer.AddState("sil", silences, prometheus.DefaultRegisterer)
@@ -277,7 +281,7 @@ func main() {
 	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, logger)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 	defer alerts.Close()
 
@@ -306,13 +310,13 @@ func main() {
 	)
 	if err != nil {
 		level.Error(logger).Log("err", fmt.Errorf("failed to create API v2: %v", err.Error()))
-		os.Exit(1)
+		return 1
 	}
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 
 	waitFunc := func() time.Duration { return 0 }
@@ -387,7 +391,7 @@ func main() {
 	}
 
 	if err := reload(); err != nil {
-		os.Exit(1)
+		return 1
 	}
 
 	// Make routePrefix default to externalURL path if empty string.
@@ -409,9 +413,30 @@ func main() {
 
 	apiV1.Register(router.WithPrefix("/api/v1"))
 
-	// TODO: How about having a http.handler for each (web, apiv1, apiv2) and
-	// combine them all together in `listen()`
-	go listen(*listenAddress, router, apiV2.Handler, logger)
+	mux := http.NewServeMux()
+	mux.Handle("/", router)
+
+	apiPrefix := ""
+	if *routePrefix != "/" {
+		apiPrefix = *routePrefix
+	}
+	mux.Handle(apiPrefix+"/api/v2/", http.StripPrefix(apiPrefix+"/api/v2", apiV2.Handler))
+
+	srv := http.Server{Addr: *listenAddress, Handler: mux}
+	srvc := make(chan struct{})
+
+	go func() {
+		level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			level.Error(logger).Log("msg", "Listen error", "err", err)
+			close(srvc)
+		}
+		defer func() {
+			if err := srv.Close(); err != nil {
+				level.Error(logger).Log("msg", "Error on closing the server", "err", err)
+			}
+		}()
+	}()
 
 	var (
 		hup      = make(chan os.Signal, 1)
@@ -437,9 +462,15 @@ func main() {
 	// Wait for reload or termination signals.
 	close(hupReady) // Unblock SIGHUP handler.
 
-	<-term
-
-	level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+	for {
+		select {
+		case <-term:
+			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+			return 0
+		case <-srvc:
+			return 1
+		}
+	}
 }
 
 // clusterWait returns a function that inspects the current peer state and returns
@@ -476,17 +507,6 @@ func extURL(listen, external string) (*url.URL, error) {
 	u.Path = ppref
 
 	return u, nil
-}
-
-func listen(listen string, apiV1Handler *route.Router, apiV2Handler http.Handler, logger log.Logger) {
-	level.Info(logger).Log("msg", "Listening", "address", listen)
-	mux := http.NewServeMux()
-	mux.Handle("/", apiV1Handler)
-	mux.Handle("/api/v2/", http.StripPrefix("/api/v2", apiV2Handler))
-	if err := http.ListenAndServe(listen, mux); err != nil {
-		level.Error(logger).Log("msg", "Listen error", "err", err)
-		os.Exit(1)
-	}
 }
 
 func md5HashAsMetricValue(data []byte) float64 {
