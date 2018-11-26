@@ -36,7 +36,7 @@ update msg ({ basePath, apiUrl } as model) =
             )
 
         NavigateToStatus ->
-            ( { model | route = StatusRoute }, Task.perform identity (Task.succeed <| MsgForStatus InitStatusView) )
+            ( { model | route = StatusRoute }, Task.perform identity (Task.succeed <| MsgForStatus <| InitStatusView apiUrl) )
 
         NavigateToSilenceView silenceId ->
             let
