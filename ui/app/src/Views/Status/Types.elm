@@ -7,7 +7,8 @@ import Utils.Types exposing (ApiData(..))
 
 type StatusMsg
     = NewStatus (ApiData AlertmanagerStatus)
-    | InitStatusView
+      -- String carries the api url.
+    | InitStatusView String
 
 
 type alias StatusModel =
