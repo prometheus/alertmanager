@@ -6,7 +6,6 @@ module Silences.Types exposing
     )
 
 import Data.Matcher exposing (Matcher)
-import Data.Matchers exposing (Matchers)
 import Data.PostableSilence exposing (PostableSilence)
 import Data.SilenceStatus exposing (SilenceStatus, State(..))
 import Time exposing (Posix)
@@ -29,7 +28,7 @@ nullSilenceStatus =
     }
 
 
-nullMatchers : Matchers
+nullMatchers : List Matcher
 nullMatchers =
     [ nullMatcher ]
 

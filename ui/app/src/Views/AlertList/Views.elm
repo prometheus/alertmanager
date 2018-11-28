@@ -1,6 +1,6 @@
 module Views.AlertList.Views exposing (view)
 
-import Data.GettableAlerts exposing (GettableAlerts)
+import Data.GettableAlert exposing (GettableAlert)
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -75,7 +75,7 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
         ]
 
 
-alertGroups : Maybe String -> Filter -> GroupBar.Model -> GettableAlerts -> Html Msg
+alertGroups : Maybe String -> Filter -> GroupBar.Model -> List GettableAlert -> Html Msg
 alertGroups activeId filter { fields } alerts =
     let
         grouped =
@@ -103,7 +103,7 @@ alertGroups activeId filter { fields } alerts =
         |> div []
 
 
-alertList : Maybe String -> Labels -> Filter -> GettableAlerts -> Html Msg
+alertList : Maybe String -> Labels -> Filter -> List GettableAlert -> Html Msg
 alertList activeId labels filter alerts =
     div []
         [ div []

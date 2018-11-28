@@ -32,14 +32,6 @@ type GettableAlert struct {
 	// Required: true
 	Fingerprint *string `json:"fingerprint"`
 
-	// generator URL
-	// Format: uri
-	GeneratorURL strfmt.URI `json:"generatorURL,omitempty"`
-
-	// labels
-	// Required: true
-	Labels LabelSet `json:"labels"`
-
 	// receivers
 	// Required: true
 	Receivers []*Receiver `json:"receivers"`
@@ -57,6 +49,103 @@ type GettableAlert struct {
 	// Required: true
 	// Format: date-time
 	UpdatedAt *strfmt.DateTime `json:"updatedAt"`
+
+	Alert
+}
+
+// UnmarshalJSON unmarshals this object from a JSON structure
+func (m *GettableAlert) UnmarshalJSON(raw []byte) error {
+	// AO0
+	var dataAO0 struct {
+		Annotations LabelSet `json:"annotations"`
+
+		EndsAt *strfmt.DateTime `json:"endsAt"`
+
+		Fingerprint *string `json:"fingerprint"`
+
+		Receivers []*Receiver `json:"receivers"`
+
+		StartsAt *strfmt.DateTime `json:"startsAt"`
+
+		Status *AlertStatus `json:"status"`
+
+		UpdatedAt *strfmt.DateTime `json:"updatedAt"`
+	}
+	if err := swag.ReadJSON(raw, &dataAO0); err != nil {
+		return err
+	}
+
+	m.Annotations = dataAO0.Annotations
+
+	m.EndsAt = dataAO0.EndsAt
+
+	m.Fingerprint = dataAO0.Fingerprint
+
+	m.Receivers = dataAO0.Receivers
+
+	m.StartsAt = dataAO0.StartsAt
+
+	m.Status = dataAO0.Status
+
+	m.UpdatedAt = dataAO0.UpdatedAt
+
+	// AO1
+	var aO1 Alert
+	if err := swag.ReadJSON(raw, &aO1); err != nil {
+		return err
+	}
+	m.Alert = aO1
+
+	return nil
+}
+
+// MarshalJSON marshals this object to a JSON structure
+func (m GettableAlert) MarshalJSON() ([]byte, error) {
+	_parts := make([][]byte, 0, 2)
+
+	var dataAO0 struct {
+		Annotations LabelSet `json:"annotations"`
+
+		EndsAt *strfmt.DateTime `json:"endsAt"`
+
+		Fingerprint *string `json:"fingerprint"`
+
+		Receivers []*Receiver `json:"receivers"`
+
+		StartsAt *strfmt.DateTime `json:"startsAt"`
+
+		Status *AlertStatus `json:"status"`
+
+		UpdatedAt *strfmt.DateTime `json:"updatedAt"`
+	}
+
+	dataAO0.Annotations = m.Annotations
+
+	dataAO0.EndsAt = m.EndsAt
+
+	dataAO0.Fingerprint = m.Fingerprint
+
+	dataAO0.Receivers = m.Receivers
+
+	dataAO0.StartsAt = m.StartsAt
+
+	dataAO0.Status = m.Status
+
+	dataAO0.UpdatedAt = m.UpdatedAt
+
+	jsonDataAO0, errAO0 := swag.WriteJSON(dataAO0)
+	if errAO0 != nil {
+		return nil, errAO0
+	}
+	_parts = append(_parts, jsonDataAO0)
+
+	aO1, err := swag.WriteJSON(m.Alert)
+	if err != nil {
+		return nil, err
+	}
+	_parts = append(_parts, aO1)
+
+	return swag.ConcatJSON(_parts...), nil
 }
 
 // Validate validates this gettable alert
@@ -75,14 +164,6 @@ func (m *GettableAlert) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
-	if err := m.validateGeneratorURL(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateLabels(formats); err != nil {
-		res = append(res, err)
-	}
-
 	if err := m.validateReceivers(formats); err != nil {
 		res = append(res, err)
 	}
@@ -96,6 +177,11 @@ func (m *GettableAlert) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateUpdatedAt(formats); err != nil {
+		res = append(res, err)
+	}
+
+	// validation for a type composition with Alert
+	if err := m.Alert.Validate(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -133,31 +219,6 @@ func (m *GettableAlert) validateEndsAt(formats strfmt.Registry) error {
 func (m *GettableAlert) validateFingerprint(formats strfmt.Registry) error {
 
 	if err := validate.Required("fingerprint", "body", m.Fingerprint); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *GettableAlert) validateGeneratorURL(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.GeneratorURL) { // not required
-		return nil
-	}
-
-	if err := validate.FormatOf("generatorURL", "body", "uri", m.GeneratorURL.String(), formats); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *GettableAlert) validateLabels(formats strfmt.Registry) error {
-
-	if err := m.Labels.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("labels")
-		}
 		return err
 	}
 

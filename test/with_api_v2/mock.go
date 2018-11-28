@@ -169,7 +169,9 @@ func Alert(keyval ...interface{}) *TestAlert {
 // on the given parameters.
 func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *models.GettableAlert {
 	na := &models.GettableAlert{
-		Labels:      a.labels,
+		Alert: models.Alert{
+			Labels: a.labels,
+		},
 		Annotations: a.annotations,
 		StartsAt:    &strfmt.DateTime{},
 		EndsAt:      &strfmt.DateTime{},
@@ -318,11 +320,13 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		end := strfmt.DateTime(a.EndsAt)
 
 		alerts = append(alerts, &models.GettableAlert{
-			Labels:       labels,
-			Annotations:  annotations,
-			StartsAt:     &start,
-			EndsAt:       &end,
-			GeneratorURL: strfmt.URI(a.GeneratorURL),
+			Alert: models.Alert{
+				Labels:       labels,
+				GeneratorURL: strfmt.URI(a.GeneratorURL),
+			},
+			Annotations: annotations,
+			StartsAt:    &start,
+			EndsAt:      &end,
 		})
 	}
 

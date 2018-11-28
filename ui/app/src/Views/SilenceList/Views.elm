@@ -1,7 +1,6 @@
 module Views.SilenceList.Views exposing (filterSilencesByState, groupSilencesByState, silencesView, states, tabView, tabsView, view)
 
 import Data.GettableSilence exposing (GettableSilence)
-import Data.GettableSilences exposing (GettableSilences)
 import Data.SilenceStatus exposing (State(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -90,7 +89,7 @@ silencesView showConfirmationDialog tab silencesTab =
             loading
 
 
-groupSilencesByState : GettableSilences -> List ( State, GettableSilences )
+groupSilencesByState : List GettableSilence -> List ( State, List GettableSilence )
 groupSilencesByState silences =
     List.map (\state -> ( state, filterSilencesByState state silences )) states
 
@@ -100,7 +99,7 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> GettableSilences -> GettableSilences
+filterSilencesByState : State -> List GettableSilence -> List GettableSilence
 filterSilencesByState state =
     List.filter (filterSilenceByState state)
 

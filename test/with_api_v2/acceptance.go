@@ -429,9 +429,11 @@ func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
 	for i := range alerts {
 		a := alerts[i].nativeAlert(am.opts)
 		alert := &models.PostableAlert{
-			Labels:       a.Labels,
-			Annotations:  a.Annotations,
-			GeneratorURL: a.GeneratorURL,
+			Alert: models.Alert{
+				Labels:       a.Labels,
+				GeneratorURL: a.GeneratorURL,
+			},
+			Annotations: a.Annotations,
 		}
 		if a.StartsAt != nil {
 			alert.StartsAt = *a.StartsAt

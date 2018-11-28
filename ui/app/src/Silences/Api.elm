@@ -1,9 +1,9 @@
 module Silences.Api exposing (create, destroy, getSilence, getSilences)
 
 import Data.GettableSilence exposing (GettableSilence)
-import Data.GettableSilences
 import Data.PostableSilence exposing (PostableSilence)
 import Http
+import Json.Decode
 import Silences.Decoders
 import Utils.Api
 import Utils.Filter exposing (Filter, generateQueryString)
@@ -16,7 +16,7 @@ getSilences apiUrl filter msg =
         url =
             String.join "/" [ apiUrl, "silences" ++ generateQueryString filter ]
     in
-    Utils.Api.send (Utils.Api.get url Data.GettableSilences.decoder)
+    Utils.Api.send (Utils.Api.get url (Json.Decode.list Data.GettableSilence.decoder))
         |> Cmd.map msg
 
 

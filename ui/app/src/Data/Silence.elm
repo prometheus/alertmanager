@@ -10,10 +10,9 @@
 -}
 
 
-module Data.GettableSilence exposing (GettableSilence, decoder, encoder)
+module Data.Silence exposing (Silence(..), decoder, encoder)
 
 import Data.Matcher as Matcher exposing (Matcher)
-import Data.SilenceStatus as SilenceStatus exposing (SilenceStatus)
 import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
@@ -21,32 +20,26 @@ import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode
 
 
-type alias GettableSilence =
+type alias Silence =
     { matchers : List Matcher
     , startsAt : DateTime
     , endsAt : DateTime
     , createdBy : String
     , comment : String
-    , id : String
-    , status : SilenceStatus
-    , updatedAt : DateTime
     }
 
 
-decoder : Decoder GettableSilence
+decoder : Decoder Silence
 decoder =
-    Decode.succeed GettableSilence
+    Decode.succeed Silence
         |> required "matchers" (Decode.list Matcher.decoder)
         |> required "startsAt" DateTime.decoder
         |> required "endsAt" DateTime.decoder
         |> required "createdBy" Decode.string
         |> required "comment" Decode.string
-        |> required "id" Decode.string
-        |> required "status" SilenceStatus.decoder
-        |> required "updatedAt" DateTime.decoder
 
 
-encoder : GettableSilence -> Encode.Value
+encoder : Silence -> Encode.Value
 encoder model =
     Encode.object
         [ ( "matchers", Encode.list Matcher.encoder model.matchers )
@@ -54,7 +47,4 @@ encoder model =
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
         , ( "comment", Encode.string model.comment )
-        , ( "id", Encode.string model.id )
-        , ( "status", SilenceStatus.encoder model.status )
-        , ( "updatedAt", DateTime.encoder model.updatedAt )
         ]

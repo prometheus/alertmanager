@@ -1,7 +1,7 @@
 module Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..), initAlertList)
 
 import Browser.Navigation exposing (Key)
-import Data.GettableAlerts exposing (GettableAlerts)
+import Data.GettableAlert exposing (GettableAlert)
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 import Views.GroupBar.Types as GroupBar
@@ -9,7 +9,7 @@ import Views.ReceiverBar.Types as ReceiverBar
 
 
 type AlertListMsg
-    = AlertsFetched (ApiData GettableAlerts)
+    = AlertsFetched (ApiData (List GettableAlert))
     | FetchAlerts
     | MsgForReceiverBar ReceiverBar.Msg
     | MsgForFilterBar FilterBar.Msg
@@ -26,7 +26,7 @@ type Tab
 
 
 type alias Model =
-    { alerts : ApiData GettableAlerts
+    { alerts : ApiData (List GettableAlert)
     , receiverBar : ReceiverBar.Model
     , groupBar : GroupBar.Model
     , filterBar : FilterBar.Model

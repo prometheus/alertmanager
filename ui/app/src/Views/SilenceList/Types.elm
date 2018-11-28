@@ -2,7 +2,6 @@ module Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab, 
 
 import Browser.Navigation exposing (Key)
 import Data.GettableSilence exposing (GettableSilence)
-import Data.GettableSilences exposing (GettableSilences)
 import Data.SilenceStatus exposing (State(..))
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
@@ -18,7 +17,7 @@ type SilenceListMsg
 
 
 type alias SilenceTab =
-    { silences : GettableSilences
+    { silences : List GettableSilence
     , tab : State
     , count : Int
     }

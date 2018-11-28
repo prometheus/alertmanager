@@ -348,22 +348,24 @@ definitions:
       - name
       - value
       - isRegex
+  alert:
+    type: object
+    properties:
+      labels:
+        $ref: '#/definitions/labelSet'
+      generatorURL:
+        type: string
+        format: uri
+    required:
+      - labels
   gettableAlerts:
     type: array
     items:
       $ref: '#/definitions/gettableAlert'
-  # Shared properties in gettableAlert and postableAlert could also be
-  # de-duplicated via the `allOf` parameter like it is done with silences. So
-  # far this is blocked as the elm generator does not support it. For more
-  # details see https://github.com/OpenAPITools/openapi-generator/issues/1465.
   gettableAlert:
-        type: object
+    allOf:
+      - type: object
         properties:
-          generatorURL:
-            type: string
-            format: uri
-          labels:
-            $ref: '#/definitions/labelSet'
           annotations:
             $ref: '#/definitions/labelSet'
           receivers:
@@ -384,7 +386,6 @@ definitions:
           status:
             $ref: '#/definitions/alertStatus'
         required:
-          - labels
           - receivers
           - fingerprint
           - startsAt
@@ -392,18 +393,15 @@ definitions:
           - endsAt
           - annotations
           - status
+      - $ref: '#/definitions/alert'
   postableAlerts:
     type: array
     items:
       $ref: '#/definitions/postableAlert'
   postableAlert:
-        type: object
+    allOf:
+      - type: object
         properties:
-          generatorURL:
-            type: string
-            format: uri
-          labels:
-            $ref: '#/definitions/labelSet'
           startsAt:
             type: string
             format: date-time
@@ -412,8 +410,7 @@ definitions:
             format: date-time
           annotations:
             $ref: '#/definitions/labelSet'
-        required:
-          - labels
+      - $ref: '#/definitions/alert'
   alertStatus:
     type: object
     properties:

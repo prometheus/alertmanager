@@ -294,6 +294,21 @@ func init() {
     }
   },
   "definitions": {
+    "alert": {
+      "type": "object",
+      "required": [
+        "labels"
+      ],
+      "properties": {
+        "generatorURL": {
+          "type": "string",
+          "format": "uri"
+        },
+        "labels": {
+          "$ref": "#/definitions/labelSet"
+        }
+      }
+    },
     "alertStatus": {
       "type": "object",
       "required": [
@@ -383,53 +398,52 @@ func init() {
       }
     },
     "gettableAlert": {
-      "type": "object",
-      "required": [
-        "labels",
-        "receivers",
-        "fingerprint",
-        "startsAt",
-        "updatedAt",
-        "endsAt",
-        "annotations",
-        "status"
-      ],
-      "properties": {
-        "annotations": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "endsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "fingerprint": {
-          "type": "string"
-        },
-        "generatorURL": {
-          "type": "string",
-          "format": "uri"
-        },
-        "labels": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "receivers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/receiver"
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "receivers",
+            "fingerprint",
+            "startsAt",
+            "updatedAt",
+            "endsAt",
+            "annotations",
+            "status"
+          ],
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "fingerprint": {
+              "type": "string"
+            },
+            "receivers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/receiver"
+              }
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "status": {
+              "$ref": "#/definitions/alertStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         },
-        "startsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "status": {
-          "$ref": "#/definitions/alertStatus"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
+        {
+          "$ref": "#/definitions/alert"
         }
-      }
+      ]
     },
     "gettableAlerts": {
       "type": "array",
@@ -518,30 +532,27 @@ func init() {
       }
     },
     "postableAlert": {
-      "type": "object",
-      "required": [
-        "labels"
-      ],
-      "properties": {
-        "annotations": {
-          "$ref": "#/definitions/labelSet"
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         },
-        "endsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "generatorURL": {
-          "type": "string",
-          "format": "uri"
-        },
-        "labels": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "startsAt": {
-          "type": "string",
-          "format": "date-time"
+        {
+          "$ref": "#/definitions/alert"
         }
-      }
+      ]
     },
     "postableAlerts": {
       "type": "array",
@@ -986,6 +997,21 @@ func init() {
     }
   },
   "definitions": {
+    "alert": {
+      "type": "object",
+      "required": [
+        "labels"
+      ],
+      "properties": {
+        "generatorURL": {
+          "type": "string",
+          "format": "uri"
+        },
+        "labels": {
+          "$ref": "#/definitions/labelSet"
+        }
+      }
+    },
     "alertStatus": {
       "type": "object",
       "required": [
@@ -1075,53 +1101,52 @@ func init() {
       }
     },
     "gettableAlert": {
-      "type": "object",
-      "required": [
-        "labels",
-        "receivers",
-        "fingerprint",
-        "startsAt",
-        "updatedAt",
-        "endsAt",
-        "annotations",
-        "status"
-      ],
-      "properties": {
-        "annotations": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "endsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "fingerprint": {
-          "type": "string"
-        },
-        "generatorURL": {
-          "type": "string",
-          "format": "uri"
-        },
-        "labels": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "receivers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/receiver"
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "receivers",
+            "fingerprint",
+            "startsAt",
+            "updatedAt",
+            "endsAt",
+            "annotations",
+            "status"
+          ],
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "fingerprint": {
+              "type": "string"
+            },
+            "receivers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/receiver"
+              }
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "status": {
+              "$ref": "#/definitions/alertStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         },
-        "startsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "status": {
-          "$ref": "#/definitions/alertStatus"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
+        {
+          "$ref": "#/definitions/alert"
         }
-      }
+      ]
     },
     "gettableAlerts": {
       "type": "array",
@@ -1210,30 +1235,27 @@ func init() {
       }
     },
     "postableAlert": {
-      "type": "object",
-      "required": [
-        "labels"
-      ],
-      "properties": {
-        "annotations": {
-          "$ref": "#/definitions/labelSet"
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         },
-        "endsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "generatorURL": {
-          "type": "string",
-          "format": "uri"
-        },
-        "labels": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "startsAt": {
-          "type": "string",
-          "format": "date-time"
+        {
+          "$ref": "#/definitions/alert"
         }
-      }
+      ]
     },
     "postableAlerts": {
       "type": "array",

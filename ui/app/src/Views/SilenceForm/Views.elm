@@ -1,6 +1,6 @@
 module Views.SilenceForm.Views exposing (view)
 
-import Data.GettableAlerts exposing (GettableAlerts)
+import Data.GettableAlert exposing (GettableAlert)
 import Html exposing (Html, a, button, div, fieldset, h1, input, label, legend, span, strong, text, textarea)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
@@ -94,7 +94,7 @@ matcherInput matchers =
         ]
 
 
-informationBlock : Maybe String -> ApiData String -> ApiData GettableAlerts -> Html SilenceFormMsg
+informationBlock : Maybe String -> ApiData String -> ApiData (List GettableAlert) -> Html SilenceFormMsg
 informationBlock activeAlertId silence alerts =
     case silence of
         Utils.Types.Success _ ->
