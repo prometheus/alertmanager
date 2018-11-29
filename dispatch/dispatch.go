@@ -152,13 +152,7 @@ type notifyFunc func(context.Context, ...*types.Alert) bool
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.
 func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
-	groupLabels := model.LabelSet{}
-
-	for ln, lv := range alert.Labels {
-		if _, ok := route.RouteOpts.GroupBy[ln]; ok {
-			groupLabels[ln] = lv
-		}
-	}
+	groupLabels := getGroupLabels(alert, route)
 
 	fp := groupLabels.Fingerprint()
 
@@ -187,6 +181,17 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	}
 
 	ag.insert(alert)
+}
+
+func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
+	groupLabels := model.LabelSet{}
+	for ln, lv := range alert.Labels {
+		if _, ok := route.RouteOpts.GroupBy[ln]; ok || route.RouteOpts.GroupByAll {
+			groupLabels[ln] = lv
+		}
+	}
+
+	return groupLabels
 }
 
 // aggrGroup aggregates alert fingerprints into groups to which a
