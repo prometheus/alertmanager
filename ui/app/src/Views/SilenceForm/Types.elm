@@ -14,7 +14,7 @@ module Views.SilenceForm.Types exposing
     )
 
 import Browser.Navigation exposing (Key)
-import Data.GettableAlerts exposing (GettableAlerts)
+import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.PostableSilence exposing (PostableSilence)
@@ -36,7 +36,7 @@ import Utils.Types exposing (ApiData(..), Duration)
 type alias Model =
     { form : SilenceForm
     , silenceId : ApiData String
-    , alerts : ApiData GettableAlerts
+    , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
     , key : Key
     }
@@ -64,7 +64,7 @@ type SilenceFormMsg
     = UpdateField SilenceFormFieldMsg
     | CreateSilence
     | PreviewSilence
-    | AlertGroupsPreview (ApiData GettableAlerts)
+    | AlertGroupsPreview (ApiData (List GettableAlert))
     | SetActiveAlert (Maybe String)
     | FetchSilence String
     | NewSilenceFromMatchers String (List Utils.Filter.Matcher)

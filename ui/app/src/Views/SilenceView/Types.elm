@@ -1,9 +1,8 @@
 module Views.SilenceView.Types exposing (Model, SilenceViewMsg(..), initSilenceView)
 
 import Browser.Navigation exposing (Key)
-import Data.GettableAlerts exposing (GettableAlerts)
+import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
-import Data.GettableSilences exposing (GettableSilences)
 import Utils.Types exposing (ApiData(..))
 
 
@@ -11,7 +10,7 @@ type SilenceViewMsg
     = FetchSilence String
     | SilenceFetched (ApiData GettableSilence)
     | SetActiveAlert (Maybe String)
-    | AlertGroupsPreview (ApiData GettableAlerts)
+    | AlertGroupsPreview (ApiData (List GettableAlert))
     | InitSilenceView String
     | ConfirmDestroySilence GettableSilence Bool
     | Reload String
@@ -19,7 +18,7 @@ type SilenceViewMsg
 
 type alias Model =
     { silence : ApiData GettableSilence
-    , alerts : ApiData GettableAlerts
+    , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
     , showConfirmationDialog : Bool
     , key : Key

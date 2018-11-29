@@ -2,7 +2,6 @@ module Views.SilenceList.Updates exposing (update, urlUpdate)
 
 import Browser.Navigation as Navigation
 import Data.GettableSilence exposing (GettableSilence)
-import Data.GettableSilences exposing (GettableSilences)
 import Data.SilenceStatus exposing (State(..))
 import Silences.Api as Api
 import Utils.Api as ApiData
@@ -81,7 +80,7 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> GettableSilences -> GettableSilences
+filterSilencesByState : State -> List GettableSilence -> List GettableSilence
 filterSilencesByState state =
     List.filter (filterSilenceByState state)
 

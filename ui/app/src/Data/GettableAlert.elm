@@ -22,8 +22,8 @@ import Json.Encode as Encode
 
 
 type alias GettableAlert =
-    { generatorURL : Maybe String
-    , labels : Dict String String
+    { labels : Dict String String
+    , generatorURL : Maybe String
     , annotations : Dict String String
     , receivers : List Receiver
     , fingerprint : String
@@ -37,8 +37,8 @@ type alias GettableAlert =
 decoder : Decoder GettableAlert
 decoder =
     Decode.succeed GettableAlert
-        |> optional "generatorURL" (Decode.nullable Decode.string) Nothing
         |> required "labels" (Decode.dict Decode.string)
+        |> optional "generatorURL" (Decode.nullable Decode.string) Nothing
         |> required "annotations" (Decode.dict Decode.string)
         |> required "receivers" (Decode.list Receiver.decoder)
         |> required "fingerprint" Decode.string
@@ -51,8 +51,8 @@ decoder =
 encoder : GettableAlert -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "generatorURL", Maybe.withDefault Encode.null (Maybe.map Encode.string model.generatorURL) )
-        , ( "labels", Encode.dict identity Encode.string model.labels )
+        [ ( "labels", Encode.dict identity Encode.string model.labels )
+        , ( "generatorURL", Maybe.withDefault Encode.null (Maybe.map Encode.string model.generatorURL) )
         , ( "annotations", Encode.dict identity Encode.string model.annotations )
         , ( "receivers", Encode.list Receiver.encoder model.receivers )
         , ( "fingerprint", Encode.string model.fingerprint )

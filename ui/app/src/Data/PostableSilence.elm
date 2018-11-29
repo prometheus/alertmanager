@@ -12,7 +12,7 @@
 
 module Data.PostableSilence exposing (PostableSilence, decoder, encoder)
 
-import Data.Matchers as Matchers exposing (Matchers)
+import Data.Matcher as Matcher exposing (Matcher)
 import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
@@ -21,7 +21,7 @@ import Json.Encode as Encode
 
 
 type alias PostableSilence =
-    { matchers : Matchers
+    { matchers : List Matcher
     , startsAt : DateTime
     , endsAt : DateTime
     , createdBy : String
@@ -33,7 +33,7 @@ type alias PostableSilence =
 decoder : Decoder PostableSilence
 decoder =
     Decode.succeed PostableSilence
-        |> required "matchers" Matchers.decoder
+        |> required "matchers" (Decode.list Matcher.decoder)
         |> required "startsAt" DateTime.decoder
         |> required "endsAt" DateTime.decoder
         |> required "createdBy" Decode.string
@@ -44,7 +44,7 @@ decoder =
 encoder : PostableSilence -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "matchers", Matchers.encoder model.matchers )
+        [ ( "matchers", Encode.list Matcher.encoder model.matchers )
         , ( "startsAt", DateTime.encoder model.startsAt )
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )

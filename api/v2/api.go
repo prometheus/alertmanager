@@ -257,14 +257,16 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		fingerprint := a.Fingerprint().String()
 
 		alert := open_api_models.GettableAlert{
-			Annotations:  modelLabelSetToAPILabelSet(a.Annotations),
-			StartsAt:     &startsAt,
-			UpdatedAt:    &updatedAt,
-			EndsAt:       &endsAt,
-			Fingerprint:  &fingerprint,
-			GeneratorURL: strfmt.URI(a.GeneratorURL),
-			Labels:       modelLabelSetToAPILabelSet(a.Labels),
-			Receivers:    receivers,
+			Alert: open_api_models.Alert{
+				GeneratorURL: strfmt.URI(a.GeneratorURL),
+				Labels:       modelLabelSetToAPILabelSet(a.Labels),
+			},
+			Annotations: modelLabelSetToAPILabelSet(a.Annotations),
+			StartsAt:    &startsAt,
+			UpdatedAt:   &updatedAt,
+			EndsAt:      &endsAt,
+			Fingerprint: &fingerprint,
+			Receivers:   receivers,
 			Status: &open_api_models.AlertStatus{
 				State:       &state,
 				SilencedBy:  status.SilencedBy,
