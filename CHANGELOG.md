@@ -1,4 +1,4 @@
-## 0.16.0-alpha.0 / 2018-09-18
+## 0.16.0-alpha.0 / 2018-11-30
 
 This release introduces a new API v2, fully generated via the OpenAPI project
 [1]. At the same time with this release the previous API v1 is being
