@@ -2,10 +2,13 @@ module github.com/prometheus/alertmanager
 
 require (
 	github.com/DataDog/datadog-go v0.0.0-20180822151419-281ae9f2d895 // indirect
+	github.com/Masterminds/semver v1.4.2 // indirect
+	github.com/Masterminds/sprig v2.16.0+incompatible
 	github.com/PuerkitoBio/purell v0.0.0-20170917143911-fd18e053af8a // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
+	github.com/aokoli/goutils v1.0.1 // indirect
 	github.com/armon/go-metrics v0.0.0-20171002182731-9a4b6e10bed6 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20180319081651-7d2e70ef918f // indirect
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
@@ -42,6 +45,8 @@ require (
 	github.com/hashicorp/serf v0.8.1 // indirect
 	github.com/hashicorp/uuid v0.0.0-20160311170451-ebb0a03e909c // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
+	github.com/huandu/xstrings v1.2.0 // indirect
+	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/jessevdk/go-flags v0.0.0-20180331124232-1c38ed7ad0cc
 	github.com/julienschmidt/httprouter v0.0.0-20170430222011-975b5c4c7c21 // indirect
 	github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515 // indirect
@@ -69,6 +74,7 @@ require (
 	github.com/stretchr/testify v0.0.0-20160615092844-d77da356e56a
 	github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926 // indirect
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
+	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9 // indirect
 	golang.org/x/net v0.0.0-20180811021610-c39426892332
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
 	golang.org/x/text v0.3.1-0.20180805044716-cb6730876b98 // indirect

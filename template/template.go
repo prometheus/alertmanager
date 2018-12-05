@@ -15,21 +15,20 @@ package template
 
 import (
 	"bytes"
+	tmplhtml "html/template"
 	"io/ioutil"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	tmpltext "text/template"
 	"time"
 
-	tmplhtml "html/template"
-	tmpltext "text/template"
-
-	"github.com/prometheus/common/model"
-
+	"github.com/Masterminds/sprig"
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 // Template bundles a text and a html template instance.
@@ -49,8 +48,9 @@ func FromGlobs(paths ...string) (*Template, error) {
 	}
 	var err error
 
-	t.text = t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
-	t.html = t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
+	funcMap := getExtendedFuncMap()
+	t.text = t.text.Funcs(tmpltext.FuncMap(funcMap))
+	t.html = t.html.Funcs(tmplhtml.FuncMap(funcMap))
 
 	f, err := asset.Assets.Open("/templates/default.tmpl")
 	if err != nil {
@@ -142,6 +142,21 @@ var DefaultFuncs = FuncMap{
 		re := regexp.MustCompile(pattern)
 		return re.ReplaceAllString(text, repl)
 	},
+}
+
+// getFuncMap returns a FuncMap DefaultFuncs + sprig.FuncMap()
+func getExtendedFuncMap() FuncMap {
+	sprigFuncMap := sprig.FuncMap()
+
+	extendedFuncMap := DefaultFuncs
+
+	for key, fn := range sprigFuncMap {
+		if _, ok := extendedFuncMap[key]; !ok {
+			extendedFuncMap[key] = fn
+		}
+	}
+
+	return extendedFuncMap
 }
 
 // Pair is a key/value string pair.
