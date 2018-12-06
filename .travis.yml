@@ -1,5 +1,6 @@
 sudo: false
 language: go
+go_import_path: github.com/prometheus/alertmanager
 
 services:
 - docker
