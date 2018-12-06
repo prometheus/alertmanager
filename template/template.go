@@ -227,6 +227,22 @@ func (kv KV) Remove(keys []string) KV {
 	return res
 }
 
+// Select returns a copy of the key/value set with the given keys.
+func (kv KV) Select(keys []string) KV {
+	keySet := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		keySet[k] = struct{}{}
+	}
+
+	res := KV{}
+	for k, v := range kv {
+		if _, ok := keySet[k]; ok {
+			res[k] = v
+		}
+	}
+	return res
+}
+
 // Names returns the names of the label names in the LabelSet.
 func (kv KV) Names() []string {
 	return kv.SortedPairs().Names()
