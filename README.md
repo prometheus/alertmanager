@@ -363,8 +363,6 @@ Procfile within this repository.
 To point your Prometheus 1.4, or later, instance to multiple Alertmanagers, configure them
 in your `prometheus.yml` configuration file, for example:
 
-
-
 ```yaml
 alerting:
   alertmanagers:
