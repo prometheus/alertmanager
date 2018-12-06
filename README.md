@@ -363,6 +363,8 @@ Procfile within this repository.
 To point your Prometheus 1.4, or later, instance to multiple Alertmanagers, configure them
 in your `prometheus.yml` configuration file, for example:
 
+
+
 ```yaml
 alerting:
   alertmanagers:
@@ -374,6 +376,11 @@ alerting:
 ```
 
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
+
+### Disabling high availability
+Alertmanager by default listens on port `:9094` to be contacted by peers. If this is not desired,
+setting `--cluster.listen-address=` will stop alertmanager to listen on that port disabling the HA feature.
+
 
 ## Contributing to the Front-End
 
