@@ -69,7 +69,10 @@ func TestPagerDutyRetryV2(t *testing.T) {
 func TestSlackRetry(t *testing.T) {
 	notifier := new(Slack)
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
-		actual, _ := notifier.retry(statusCode)
+		resp := &http.Response{
+			StatusCode: statusCode,
+		}
+		actual, _ := notifier.retry(resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
