@@ -842,15 +842,25 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 
-	return n.retry(resp.StatusCode)
+	return n.retry(resp)
 }
 
-func (n *Slack) retry(statusCode int) (bool, error) {
+func (n *Slack) retry(resp *http.Response) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
+	statusCode := resp.StatusCode
+
+	if statusCode/100 == 4 && resp.Body != nil {
+		bs, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false, fmt.Errorf("unexpected status code %v: problem reading response: %v", statusCode, err)
+		}
+		return false, fmt.Errorf("unexpected status code %v: %v", statusCode, string(bs))
+	}
+
 	if statusCode/100 != 2 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
 	}
