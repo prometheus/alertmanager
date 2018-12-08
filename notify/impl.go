@@ -679,7 +679,7 @@ func (n *PagerDuty) retryV1(resp *http.Response) (bool, error) {
 	if statusCode == 400 && resp.Body != nil {
 		bs, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return false, fmt.Errorf("unexpected status code %v : problem reading response: %v", statusCode, err)
+			return false, fmt.Errorf("unexpected status code %v: problem reading response: %v", statusCode, err)
 		}
 		return false, fmt.Errorf("bad request (status code %v): %v", statusCode, string(bs))
 	}
@@ -956,7 +956,7 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
-// Wechat implements a Notfier for wechat notifications
+// Wechat implements a Notifier for wechat notifications
 type Wechat struct {
 	conf   *config.WechatConfig
 	tmpl   *template.Template
@@ -966,7 +966,7 @@ type Wechat struct {
 	accessTokenAt time.Time
 }
 
-// Wechat AccessToken with corpid and corpsecret.
+// WechatToken is the AccessToken with corpid and corpsecret.
 type WechatToken struct {
 	AccessToken string `json:"access_token"`
 }
