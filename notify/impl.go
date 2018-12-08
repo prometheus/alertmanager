@@ -699,7 +699,7 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
-// Wechat implements a Notfier for wechat notifications
+// Wechat implements a Notifier for wechat notifications
 type Wechat struct {
 	conf   *config.WechatConfig
 	tmpl   *template.Template
@@ -709,7 +709,7 @@ type Wechat struct {
 	accessTokenAt time.Time
 }
 
-// Wechat AccessToken with corpid and corpsecret.
+// WechatToken is the AccessToken with corpid and corpsecret.
 type WechatToken struct {
 	AccessToken string `json:"access_token"`
 }
