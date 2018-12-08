@@ -376,8 +376,8 @@ alerting:
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
 
 ### Disabling high availability
-Alertmanager by default listens on port `:9094` to be contacted by peers. If this is not desired,
-setting `--cluster.listen-address=` will stop alertmanager to listen on that port disabling the HA feature.
+
+If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` will prevent Alertmanager from listening to incoming peer requests.
 
 
 ## Contributing to the Front-End
