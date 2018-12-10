@@ -1292,8 +1292,9 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	var (
 		data   = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmpl   = tmplText(n.tmpl, data, &err)
-		apiURL = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, tmpl(n.conf.RoutingKey))
+		apiURL = n.conf.APIURL.Copy()
 	)
+	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
 
 	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "victorops")
 	if err != nil {
@@ -1305,7 +1306,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return true, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, c, apiURL, contentTypeJSON, buf)
+	resp, err := post(ctx, c, apiURL.String(), contentTypeJSON, buf)
 	if err != nil {
 		return true, err
 	}
@@ -1315,7 +1316,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	return n.retry(resp.StatusCode)
 }
 
-// Create the json payload to be sent to victorops api
+// Create the json payload to be sent to victorops api.
 func (n *VictorOps) createVictorOpsPayload(ctx context.Context, as ...*types.Alert) (*bytes.Buffer, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,
@@ -1330,14 +1331,13 @@ func (n *VictorOps) createVictorOpsPayload(ctx context.Context, as ...*types.Ale
 
 	var err error
 	var (
-		alerts       = types.Alerts(as...)
-		data         = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
-		tmpl         = tmplText(n.tmpl, data, &err)
-		apiURL       = n.conf.APIURL.Copy()
+		alerts = types.Alerts(as...)
+		data   = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmpl   = tmplText(n.tmpl, data, &err)
+
 		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
-	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
 
 	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
 		messageType = victorOpsEventTrigger

@@ -327,9 +327,14 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 func TestVictorOpsCustomFields(t *testing.T) {
 	logger := log.NewNopLogger()
 	tmpl := createTmpl(t)
+
+	url, err := url.Parse("http://nowhere.com")
+
+	require.NoError(t, err, "unexpected error parsing mock url")
+
 	conf := &config.VictorOpsConfig{
 		APIKey:            `12345`,
-		APIURL:            `http://nowhere.com`,
+		APIURL:            &config.URL{url},
 		EntityDisplayName: `{{ .CommonLabels.Message }}`,
 		StateMessage:      `{{ .CommonLabels.Message }}`,
 		RoutingKey:        `test`,
@@ -363,6 +368,6 @@ func TestVictorOpsCustomFields(t *testing.T) {
 
 	require.NoError(t, err)
 
-	//Verify that a custom field was added to the payload and templatized
+	// Verify that a custom field was added to the payload and templatized.
 	require.Equal(t, "message", m["Field_A"])
 }
