@@ -1316,7 +1316,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	return n.retry(resp.StatusCode)
 }
 
-// Create the json payload to be sent to victorops api.
+// Create the JSON payload to be sent to the VictorOps API.
 func (n *VictorOps) createVictorOpsPayload(ctx context.Context, as ...*types.Alert) (*bytes.Buffer, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,
