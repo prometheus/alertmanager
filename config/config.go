@@ -421,18 +421,18 @@ func checkReceiver(r *Route, receivers map[string]struct{}) error {
 
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
-    return GlobalConfig{
-	  ResolveTimeout: model.Duration(5 * time.Minute),
-      HTTPConfig:     &commoncfg.HTTPClientConfig{},
+	return GlobalConfig{
+		ResolveTimeout: model.Duration(5 * time.Minute),
+		HTTPConfig:     &commoncfg.HTTPClientConfig{},
 
-	  SMTPHello:       "localhost",
-	  SMTPRequireTLS:  true,
-	  PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-	  HipchatAPIURL:   mustParseURL("https://api.hipchat.com/"),
-	  OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
-	  WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-	  VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
-    }
+		SMTPHello:       "localhost",
+		SMTPRequireTLS:  true,
+		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+		HipchatAPIURL:   mustParseURL("https://api.hipchat.com/"),
+		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
+		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+	}
 }
 
 func mustParseURL(s string) *URL {
