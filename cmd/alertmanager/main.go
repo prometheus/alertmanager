@@ -38,6 +38,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/inhibit"
+
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -48,6 +49,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promlog"
+	promlogflag "github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -84,6 +86,7 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
+	promlogConfig = promlog.Config{}
 )
 
 func init() {
@@ -138,16 +141,11 @@ func run() int {
 		runtime.SetMutexProfileFraction(20)
 	}
 
-	logLevel := &promlog.AllowedLevel{}
-	if err := logLevel.Set("info"); err != nil {
-		panic(err)
-	}
 	var (
 		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
-		logLevelString  = kingpin.Flag("log.level", "Only log messages with the given severity or above.").Default("info").Enum("debug", "info", "warn", "error")
 
 		externalURL   = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
 		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
@@ -168,12 +166,13 @@ func run() int {
 		peerReconnectTimeout = kingpin.Flag("cluster.reconnect-timeout", "Length of time to attempt to reconnect to a lost peer.").Default(cluster.DefaultReconnectTimeout.String()).Duration()
 	)
 
+	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
+
 	kingpin.Version(version.Print("alertmanager"))
 	kingpin.CommandLine.GetFlag("help").Short('h')
 	kingpin.Parse()
 
-	logLevel.Set(*logLevelString)
-	logger := promlog.New(*logLevel)
+	logger := promlog.New(&promlogConfig)
 
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
