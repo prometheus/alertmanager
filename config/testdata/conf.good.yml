@@ -10,6 +10,8 @@ global:
   # Alternative host for Hipchat.
   hipchat_api_url: 'https://hipchat.foobar.org/'
   slack_api_url: "http://mysecret.example.com/"
+  http_config:
+    proxy_url:
 
 
 
