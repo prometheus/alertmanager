@@ -32,20 +32,6 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	apiv1 "github.com/prometheus/alertmanager/api/v1"
-	apiv2 "github.com/prometheus/alertmanager/api/v2"
-	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/inhibit"
-
-	"github.com/prometheus/alertmanager/nflog"
-	"github.com/prometheus/alertmanager/notify"
-	"github.com/prometheus/alertmanager/provider/mem"
-	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/alertmanager/ui"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promlog"
@@ -53,6 +39,20 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
+
+	apiv1 "github.com/prometheus/alertmanager/api/v1"
+	apiv2 "github.com/prometheus/alertmanager/api/v2"
+	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/nflog"
+	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/provider/mem"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/ui"
 )
 
 var (
