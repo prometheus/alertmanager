@@ -11,7 +11,7 @@ global:
   hipchat_api_url: 'https://hipchat.foobar.org/'
   slack_api_url: "http://mysecret.example.com/"
   http_config:
-    proxy_url:
+    proxy_url: 'http://127.0.0.1:1025'
 
 
 
