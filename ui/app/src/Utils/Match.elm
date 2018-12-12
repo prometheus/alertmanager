@@ -1,7 +1,30 @@
-module Utils.Match exposing (consecutiveChars, jaro, jaroWinkler)
+module Utils.Match exposing (consecutiveChars, filter, jaro, jaroWinkler)
 
 import Char
+import Regex
 import Utils.List exposing (zip)
+
+
+filter : String -> List { a | name : String } -> List { a | name : String }
+filter search list =
+    let
+        re =
+            "(.+)?"
+                ++ (String.split "" search |> String.join "(.+)?")
+                ++ "(.+)?"
+                |> Regex.fromString
+                |> Maybe.withDefault Regex.never
+    in
+    list
+        |> List.filter
+            (\x ->
+                case Regex.find re x.name |> List.head of
+                    Just match ->
+                        True
+
+                    Nothing ->
+                        False
+            )
 
 
 {-|

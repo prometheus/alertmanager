@@ -3,9 +3,10 @@ module Views.ReceiverBar.Updates exposing (fetchReceivers, update)
 import Alerts.Api as Api
 import Browser.Dom as Dom
 import Browser.Navigation as Navigation
+import Regex
 import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
-import Utils.Match exposing (jaroWinkler)
+import Utils.Match as Match
 import Utils.Types exposing (ApiData(..))
 import Views.ReceiverBar.Types exposing (Model, Msg(..), apiReceiverToReceiver)
 
@@ -39,7 +40,8 @@ update url filter msg model =
             let
                 matches =
                     model.receivers
-                        |> List.sortBy (.name >> jaroWinkler receiver)
+                        |> Match.filter receiver
+                        |> List.sortBy (.name >> Match.jaroWinkler receiver)
                         |> List.reverse
                         |> List.take 10
                         |> (::) { name = "All", regex = "" }
