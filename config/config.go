@@ -135,6 +135,9 @@ func (s *SecretURL) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
+	// In order to deserialize a previously serialized configuration (eg from
+	// the Alertmanager API with amtool), `<secret>` needs to be treated
+	// specially, as it isn't a valid URL.
 	if str == secretToken {
 		s.URL = &url.URL{}
 		return nil
@@ -149,6 +152,9 @@ func (s SecretURL) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements the json.Marshaler interface for SecretURL.
 func (s *SecretURL) UnmarshalJSON(data []byte) error {
+	// In order to deserialize a previously serialized configuration (eg from
+	// the Alertmanager API with amtool), `<secret>` needs to be treated
+	// specially, as it isn't a valid URL.
 	if string(data) == secretToken || string(data) == secretTokenJSON {
 		s.URL = &url.URL{}
 		return nil
