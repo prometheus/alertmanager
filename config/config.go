@@ -526,9 +526,9 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Route struct {
 	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
 
-	GroupByStr []string `yaml:"group_by,omitempty" json:"group_by,omitempty"`
-	GroupBy    []model.LabelName
-	GroupByAll bool
+	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	GroupBy    []model.LabelName `yaml:"-" json:"-"`
+	GroupByAll bool              `yaml:"-" json:"-"`
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
