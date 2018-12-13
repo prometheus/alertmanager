@@ -346,12 +346,24 @@ func TestMarshalSecretURL(t *testing.T) {
 	// u003c -> "<"
 	// u003e -> ">"
 	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
+	// Check that the marshaled data can be unmarshaled again.
+	out := &SecretURL{}
+	err = json.Unmarshal(c, out)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	c, err = yaml.Marshal(u)
 	if err != nil {
 		t.Fatal(err)
 	}
 	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
+	// Check that the marshaled data can be unmarshaled again.
+	out = &SecretURL{}
+	err = yaml.Unmarshal(c, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestUnmarshalSecretURL(t *testing.T) {
