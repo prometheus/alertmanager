@@ -469,6 +469,47 @@ func TestJSONUnmarshal(t *testing.T) {
 	}
 }
 
+func TestMarshalIdempotency(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	marshaled, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	c = new(Config)
+	if err := yaml.Unmarshal(marshaled, c); err != nil {
+		t.Fatal("YAML Unmarshaling failed:", err)
+	}
+}
+
+func TestGroupByAllNotMarshaled(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-mails
+    group_by: [...]
+
+receivers:
+- name: 'team-X-mails'
+`
+	c, err := Load(in)
+	if err != nil {
+		t.Fatal("load failed:", err)
+	}
+
+	dat, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	if strings.Contains(string(dat), "groupbyall") {
+		t.Fatal("groupbyall found in config file")
+	}
+}
+
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
 	var regexpFoo Regexp
