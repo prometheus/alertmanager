@@ -102,7 +102,7 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 
 	openAPI.Logger = func(s string, i ...interface{}) { level.Error(api.logger).Log(i...) }
 
-	handleCORS := cors.New(cors.Options{}).Handler
+	handleCORS := cors.Default().Handler
 	api.Handler = handleCORS(openAPI.Serve(nil))
 
 	return &api, nil
