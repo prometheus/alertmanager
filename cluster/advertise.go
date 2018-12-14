@@ -22,13 +22,13 @@ import (
 
 type getPrivateIPFunc func() (string, error)
 
-// This is overriden in unit tests to mock the sockaddr.GetPrivateIP function.
+// This is overridden in unit tests to mock the sockaddr.GetPrivateIP function.
 var getPrivateAddress getPrivateIPFunc = sockaddr.GetPrivateIP
 
 // calculateAdvertiseAddress attempts to clone logic from deep within memberlist
 // (NetTransport.FinalAdvertiseAddr) in order to surface its conclusions to the
 // application, so we can provide more actionable error messages if the user has
-// inadvertantly misconfigured their cluster.
+// inadvertently misconfigured their cluster.
 //
 // https://github.com/hashicorp/memberlist/blob/022f081/net_transport.go#L126
 func calculateAdvertiseAddress(bindAddr, advertiseAddr string) (net.IP, error) {
