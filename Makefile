@@ -31,7 +31,7 @@ build-all: assets build
 assets: go-bindata ui/bindata.go template/internal/deftmpl/bindata.go
 
 go-bindata:
-	-@$(GO) get -u github.com/jteeuwen/go-bindata/...
+	-@$(GO) get -u github.com/jteeuwen/go-bindata/go-bindata
 
 template/internal/deftmpl/bindata.go: template/default.tmpl
 	@go-bindata $(bindata_flags) -mode 420 -modtime 1 -pkg deftmpl -o template/internal/deftmpl/bindata.go template/default.tmpl
