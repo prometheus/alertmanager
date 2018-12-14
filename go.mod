@@ -62,6 +62,7 @@ require (
 	github.com/prometheus/common v0.0.0-20181126121408-4724e9255275
 	github.com/prometheus/procfs v0.0.0-20160411190841-abf152e5f3e9 // indirect
 	github.com/prometheus/prometheus v0.0.0-20180315085919-58e2a31db8de
+	github.com/rs/cors v1.6.0
 	github.com/satori/go.uuid v0.0.0-20160603004225-b111a074d5ef
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371
