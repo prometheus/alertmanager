@@ -21,6 +21,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/go-openapi/loads"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/strfmt"
+	prometheus_model "github.com/prometheus/common/model"
+	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/rs/cors"
+
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
@@ -28,7 +38,6 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
-
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -37,16 +46,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-
-	prometheus_model "github.com/prometheus/common/model"
-	"github.com/prometheus/common/version"
-	"github.com/prometheus/prometheus/pkg/labels"
-
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-openapi/loads"
-	"github.com/go-openapi/runtime/middleware"
-	"github.com/go-openapi/strfmt"
 )
 
 // API represents an Alertmanager API v2
@@ -103,7 +102,8 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 
 	openAPI.Logger = func(s string, i ...interface{}) { level.Error(api.logger).Log(i...) }
 
-	api.Handler = openAPI.Serve(nil)
+	handleCORS := cors.Default().Handler
+	api.Handler = handleCORS(openAPI.Serve(nil))
 
 	return &api, nil
 }
