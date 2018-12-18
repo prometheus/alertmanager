@@ -1396,8 +1396,12 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	level.Debug(n.logger).Log("msg", "Notifying Pushover", "incident", key)
 
-	var err error
+	var (
+		err     error
+		message string
+	)
 	tmpl := tmplText(n.tmpl, data, &err)
+	tmplHTML := tmplHTML(n.tmpl, data, &err)
 
 	parameters := url.Values{}
 	parameters.Add("token", tmpl(string(n.conf.Token)))
@@ -1410,7 +1414,13 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	parameters.Add("title", title)
 
-	message := tmpl(n.conf.Message)
+	if n.conf.HTML {
+		parameters.Add("html", "1")
+		message = tmplHTML(n.conf.Message)
+	} else {
+		message = tmpl(n.conf.Message)
+	}
+
 	if len(message) > 1024 {
 		message = message[:1021] + "..."
 		level.Debug(n.logger).Log("msg", "Truncated message due to Pushover message limit", "truncated_message", message, "incident", key)
@@ -1428,10 +1438,12 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		level.Debug(n.logger).Log("msg", "Truncated URL due to Pushover url limit", "truncated_url", supplementaryURL, "incident", key)
 	}
 	parameters.Add("url", supplementaryURL)
+	parameters.Add("url_title", tmpl(n.conf.URLTitle))
 
 	parameters.Add("priority", tmpl(n.conf.Priority))
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
+	parameters.Add("sound", tmpl(n.conf.Sound))
 	if err != nil {
 		return false, err
 	}
