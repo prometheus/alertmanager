@@ -135,7 +135,7 @@ var (
 		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
-		HTML:     true,
+		HTML:     false,
 	}
 )
 
