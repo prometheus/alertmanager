@@ -68,7 +68,7 @@ func (a *Alerts) gc() {
 	a.Lock()
 	defer a.Unlock()
 
-	resolved := []*types.Alert{}
+	var resolved []*types.Alert
 	for fp, alert := range a.c {
 		if alert.Resolved() {
 			delete(a.c, fp)
