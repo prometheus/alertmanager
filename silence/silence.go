@@ -511,22 +511,11 @@ type query struct {
 // should be dropped from a result set for a given time.
 type silenceFilter func(*pb.Silence, *Silences, time.Time) (bool, error)
 
-var errNotSupported = errors.New("query parameter not supported")
-
 // QIDs configures a query to select the given silence IDs.
 func QIDs(ids ...string) QueryParam {
 	return func(q *query) error {
 		q.ids = append(q.ids, ids...)
 		return nil
-	}
-}
-
-// QTimeRange configures a query to search for silences that are active
-// in the given time range.
-// TODO(fabxc): not supported yet.
-func QTimeRange(start, end time.Time) QueryParam {
-	return func(q *query) error {
-		return errNotSupported
 	}
 }
 
