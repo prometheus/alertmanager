@@ -1,23 +1,28 @@
 global:
   resolve_timeout: 5m
-  dingtalk_group_token:
-    'xxx': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+  # dingtalk_group_token:
+  #   'xxx': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 route:
   group_by: ['alertname']
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 1h
-  receiver: 'dingtalk.test'
+  receiver: 'web.hook'
+  #receiver: 'dingtalk.test'
 
 receivers:
-- name: 'dingtalk.test'
-  dingtalk_configs:
-  - group: 'xxx'
-    content: '{{ template "dingtalk.content" . }}'
+- name: 'web.hook'
+  webhook_configs:
+    - url: 'http://127.0.0.1:5001/'
 
-templates:
-  - '~/alertmanager/template/dingtalk.tmpl'
+# - name: 'dingtalk.test'
+#   dingtalk_configs:
+#   - group: 'xxx'
+#     content: '{{ template "dingtalk.content" . }}'
+
+# templates:
+#   - '~/alertmanager/template/dingtalk.tmpl'
     
 inhibit_rules:
   - source_match:
