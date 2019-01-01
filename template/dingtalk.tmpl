@@ -1,9 +1,9 @@
 {{ define "dingtalk.content" }}
-报警分组: {{ .GroupLabels.alertname }}
-详细: 
+Group: {{ .GroupLabels.alertname }}
+Detail: 
   {{ range .Alerts }}
-    开始时间: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-    结束时间: {{ .EndsAt.Format "2006-01-02 15:04:05" }}
-    描述: {{ .Annotations.info }}
+    Begin At: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+    End At: {{ .EndsAt.Format "2006-01-02 15:04:05" }}
+    Description: {{ .Annotations.info }}
   {{ end }}
 {{ end }}

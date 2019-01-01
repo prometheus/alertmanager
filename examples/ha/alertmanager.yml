@@ -1,7 +1,7 @@
 global:
   resolve_timeout: 5m
   dingtalk_group_token:
-    'xxx': '63425f63ada59d23fb04fd8648f8af3e277d5870a176d83cd0e4a3e67ca35929'
+    'xxx': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 route:
   group_by: ['alertname']
@@ -17,7 +17,7 @@ receivers:
     content: '{{ template "dingtalk.content" . }}'
 
 templates:
-  - '/Users/haituncun/Desktop/workspace/go/src/github.com/prometheus/alertmanager/template/dingtalk.tmpl'
+  - '~/alertmanager/template/dingtalk.tmpl'
     
 inhibit_rules:
   - source_match:
