@@ -14,7 +14,7 @@ route:
 receivers:
 - name: 'web.hook'
   webhook_configs:
-    - url: 'http://127.0.0.1:5001/'
+  - url: 'http://127.0.0.1:5001/'
 
 # - name: 'dingtalk.test'
 #   dingtalk_configs:
