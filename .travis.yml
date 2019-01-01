@@ -1,5 +1,6 @@
 sudo: false
 language: go
+go_import_path: github.com/prometheus/alertmanager
 
 services:
 - docker
@@ -17,3 +18,4 @@ script:
 - git diff --exit-code
 # test back-end
 - make
+- git diff --exit-code

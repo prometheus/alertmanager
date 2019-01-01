@@ -70,6 +70,12 @@ route:
   # The labels by which incoming alerts are grouped together. For example,
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
+  #
+  # To aggregate by all possible labels use '...' as the sole label name. 
+  # This effectively disables aggregation entirely, passing through all 
+  # alerts as-is. This is unlikely to be what you want, unless you have 
+  # a very low alert volume or your upstream notification system performs 
+  # its own grouping. Example: group_by: [...]
   group_by: ['alertname', 'cluster']
 
   # When a new group of alerts is created by an incoming alert, wait at
@@ -368,6 +374,11 @@ alerting:
 ```
 
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
+
+### Disabling high availability
+
+If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` will prevent Alertmanager from listening to incoming peer requests.
+
 
 ## Contributing to the Front-End
 

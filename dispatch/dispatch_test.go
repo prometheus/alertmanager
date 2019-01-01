@@ -240,3 +240,67 @@ func TestAggrGroup(t *testing.T) {
 
 	ag.stop()
 }
+
+func TestGroupLabels(t *testing.T) {
+	var a = &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v3",
+			},
+		},
+	}
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			GroupBy: map[model.LabelName]struct{}{
+				"a": struct{}{},
+				"b": struct{}{},
+			},
+			GroupByAll: false,
+		},
+	}
+
+	expLs := model.LabelSet{
+		"a": "v1",
+		"b": "v2",
+	}
+
+	ls := getGroupLabels(a, route)
+
+	if !reflect.DeepEqual(ls, expLs) {
+		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
+	}
+}
+
+func TestGroupByAllLabels(t *testing.T) {
+	var a = &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v3",
+			},
+		},
+	}
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			GroupBy:    map[model.LabelName]struct{}{},
+			GroupByAll: true,
+		},
+	}
+
+	expLs := model.LabelSet{
+		"a": "v1",
+		"b": "v2",
+		"c": "v3",
+	}
+
+	ls := getGroupLabels(a, route)
+
+	if !reflect.DeepEqual(ls, expLs) {
+		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
+	}
+}

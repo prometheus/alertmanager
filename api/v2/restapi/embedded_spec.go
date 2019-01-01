@@ -91,10 +91,7 @@ func init() {
           "200": {
             "description": "Get alerts response",
             "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/alert"
-              }
+              "$ref": "#/definitions/gettableAlerts"
             }
           },
           "400": {
@@ -118,7 +115,7 @@ func init() {
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/alerts"
+              "$ref": "#/definitions/postableAlerts"
             }
           }
         ],
@@ -303,39 +300,12 @@ func init() {
         "labels"
       ],
       "properties": {
-        "annotations": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "endsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "fingerprint": {
-          "type": "string"
-        },
         "generatorURL": {
           "type": "string",
           "format": "uri"
         },
         "labels": {
           "$ref": "#/definitions/labelSet"
-        },
-        "receivers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/receiver"
-          }
-        },
-        "startsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "status": {
-          "$ref": "#/definitions/alertStatus"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
         }
       }
     },
@@ -404,12 +374,6 @@ func init() {
         }
       }
     },
-    "alerts": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/alert"
-      }
-    },
     "clusterStatus": {
       "type": "object",
       "required": [
@@ -431,6 +395,60 @@ func init() {
         "status": {
           "type": "string"
         }
+      }
+    },
+    "gettableAlert": {
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "receivers",
+            "fingerprint",
+            "startsAt",
+            "updatedAt",
+            "endsAt",
+            "annotations",
+            "status"
+          ],
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "fingerprint": {
+              "type": "string"
+            },
+            "receivers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/receiver"
+              }
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "status": {
+              "$ref": "#/definitions/alertStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/alert"
+        }
+      ]
+    },
+    "gettableAlerts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/gettableAlert"
       }
     },
     "gettableSilence": {
@@ -511,6 +529,35 @@ func init() {
         "name": {
           "type": "string"
         }
+      }
+    },
+    "postableAlert": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/alert"
+        }
+      ]
+    },
+    "postableAlerts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/postableAlert"
       }
     },
     "postableSilence": {
@@ -723,10 +770,7 @@ func init() {
           "200": {
             "description": "Get alerts response",
             "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/alert"
-              }
+              "$ref": "#/definitions/gettableAlerts"
             }
           },
           "400": {
@@ -756,7 +800,7 @@ func init() {
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/alerts"
+              "$ref": "#/definitions/postableAlerts"
             }
           }
         ],
@@ -959,39 +1003,12 @@ func init() {
         "labels"
       ],
       "properties": {
-        "annotations": {
-          "$ref": "#/definitions/labelSet"
-        },
-        "endsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "fingerprint": {
-          "type": "string"
-        },
         "generatorURL": {
           "type": "string",
           "format": "uri"
         },
         "labels": {
           "$ref": "#/definitions/labelSet"
-        },
-        "receivers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/receiver"
-          }
-        },
-        "startsAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "status": {
-          "$ref": "#/definitions/alertStatus"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
         }
       }
     },
@@ -1060,12 +1077,6 @@ func init() {
         }
       }
     },
-    "alerts": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/alert"
-      }
-    },
     "clusterStatus": {
       "type": "object",
       "required": [
@@ -1087,6 +1098,60 @@ func init() {
         "status": {
           "type": "string"
         }
+      }
+    },
+    "gettableAlert": {
+      "allOf": [
+        {
+          "type": "object",
+          "required": [
+            "receivers",
+            "fingerprint",
+            "startsAt",
+            "updatedAt",
+            "endsAt",
+            "annotations",
+            "status"
+          ],
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "fingerprint": {
+              "type": "string"
+            },
+            "receivers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/receiver"
+              }
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "status": {
+              "$ref": "#/definitions/alertStatus"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/alert"
+        }
+      ]
+    },
+    "gettableAlerts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/gettableAlert"
       }
     },
     "gettableSilence": {
@@ -1167,6 +1232,35 @@ func init() {
         "name": {
           "type": "string"
         }
+      }
+    },
+    "postableAlert": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "annotations": {
+              "$ref": "#/definitions/labelSet"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/alert"
+        }
+      ]
+    },
+    "postableAlerts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/postableAlert"
       }
     },
     "postableSilence": {

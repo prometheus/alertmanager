@@ -10,11 +10,8 @@
 -}
 
 
-module Data.Alert exposing (Alert, decoder, encoder)
+module Data.Alert exposing (Alert(..), decoder, encoder)
 
-import Data.AlertStatus as AlertStatus exposing (AlertStatus)
-import Data.Receiver as Receiver exposing (Receiver)
-import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -22,42 +19,21 @@ import Json.Encode as Encode
 
 
 type alias Alert =
-    { startsAt : Maybe DateTime
-    , updatedAt : Maybe DateTime
-    , endsAt : Maybe DateTime
+    { labels : Dict String String
     , generatorURL : Maybe String
-    , labels : Dict String String
-    , annotations : Maybe (Dict String String)
-    , receivers : Maybe (List Receiver)
-    , fingerprint : Maybe String
-    , status : Maybe AlertStatus
     }
 
 
 decoder : Decoder Alert
 decoder =
     Decode.succeed Alert
-        |> optional "startsAt" (Decode.nullable DateTime.decoder) Nothing
-        |> optional "updatedAt" (Decode.nullable DateTime.decoder) Nothing
-        |> optional "endsAt" (Decode.nullable DateTime.decoder) Nothing
-        |> optional "generatorURL" (Decode.nullable Decode.string) Nothing
         |> required "labels" (Decode.dict Decode.string)
-        |> optional "annotations" (Decode.nullable (Decode.dict Decode.string)) Nothing
-        |> optional "receivers" (Decode.nullable (Decode.list Receiver.decoder)) Nothing
-        |> optional "fingerprint" (Decode.nullable Decode.string) Nothing
-        |> optional "status" (Decode.nullable AlertStatus.decoder) Nothing
+        |> optional "generatorURL" (Decode.nullable Decode.string) Nothing
 
 
 encoder : Alert -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "startsAt", Maybe.withDefault Encode.null (Maybe.map DateTime.encoder model.startsAt) )
-        , ( "updatedAt", Maybe.withDefault Encode.null (Maybe.map DateTime.encoder model.updatedAt) )
-        , ( "endsAt", Maybe.withDefault Encode.null (Maybe.map DateTime.encoder model.endsAt) )
+        [ ( "labels", Encode.dict identity Encode.string model.labels )
         , ( "generatorURL", Maybe.withDefault Encode.null (Maybe.map Encode.string model.generatorURL) )
-        , ( "labels", Encode.dict identity Encode.string model.labels )
-        , ( "annotations", Maybe.withDefault Encode.null (Maybe.map (Encode.dict identity Encode.string) model.annotations) )
-        , ( "receivers", Maybe.withDefault Encode.null (Maybe.map (Encode.list Receiver.encoder) model.receivers) )
-        , ( "fingerprint", Maybe.withDefault Encode.null (Maybe.map Encode.string model.fingerprint) )
-        , ( "status", Maybe.withDefault Encode.null (Maybe.map AlertStatus.encoder model.status) )
         ]

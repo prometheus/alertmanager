@@ -29,13 +29,25 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const secretToken = "<secret>"
+
+var secretTokenJSON string
+
+func init() {
+	b, err := json.Marshal(secretToken)
+	if err != nil {
+		panic(err)
+	}
+	secretTokenJSON = string(b)
+}
+
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
 
 // MarshalYAML implements the yaml.Marshaler interface.
 func (s Secret) MarshalYAML() (interface{}, error) {
 	if s != "" {
-		return "<secret>", nil
+		return secretToken, nil
 	}
 	return nil, nil
 }
@@ -48,7 +60,7 @@ func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // MarshalJSON implements the json.Marshaler interface.
 func (s Secret) MarshalJSON() ([]byte, error) {
-	return json.Marshal("<secret>")
+	return json.Marshal(secretToken)
 }
 
 // URL is a custom type that represents an HTTP or HTTPS URL and allows validation at configuration load time.
@@ -112,23 +124,41 @@ type SecretURL URL
 // MarshalYAML implements the yaml.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalYAML() (interface{}, error) {
 	if s.URL != nil {
-		return "<secret>", nil
+		return secretToken, nil
 	}
 	return nil, nil
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SecretURL.
 func (s *SecretURL) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	// In order to deserialize a previously serialized configuration (eg from
+	// the Alertmanager API with amtool), `<secret>` needs to be treated
+	// specially, as it isn't a valid URL.
+	if str == secretToken {
+		s.URL = &url.URL{}
+		return nil
+	}
 	return unmarshal((*URL)(s))
 }
 
 // MarshalJSON implements the json.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalJSON() ([]byte, error) {
-	return json.Marshal("<secret>")
+	return json.Marshal(secretToken)
 }
 
 // UnmarshalJSON implements the json.Marshaler interface for SecretURL.
 func (s *SecretURL) UnmarshalJSON(data []byte) error {
+	// In order to deserialize a previously serialized configuration (eg from
+	// the Alertmanager API with amtool), `<secret>` needs to be treated
+	// specially, as it isn't a valid URL.
+	if string(data) == secretToken || string(data) == secretTokenJSON {
+		s.URL = &url.URL{}
+		return nil
+	}
 	return json.Unmarshal(data, (*URL)(s))
 }
 
@@ -519,8 +549,11 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
-	Receiver string            `yaml:"receiver,omitempty" json:"receiver,omitempty"`
-	GroupBy  []model.LabelName `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
+
+	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	GroupBy    []model.LabelName `yaml:"-" json:"-"`
+	GroupByAll bool              `yaml:"-" json:"-"`
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
@@ -549,6 +582,21 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
 		}
+	}
+	for _, l := range r.GroupByStr {
+		if l == "..." {
+			r.GroupByAll = true
+		} else {
+			labelName := model.LabelName(l)
+			if !labelName.IsValid() {
+				return fmt.Errorf("invalid label name %q in group_by list", l)
+			}
+			r.GroupBy = append(r.GroupBy, labelName)
+		}
+	}
+
+	if len(r.GroupBy) > 0 && r.GroupByAll {
+		return fmt.Errorf("cannot have wildcard group_by (`...`) and other other labels at the same time")
 	}
 
 	groupBy := map[model.LabelName]struct{}{}

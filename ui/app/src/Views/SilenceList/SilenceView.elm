@@ -2,7 +2,6 @@ module Views.SilenceList.SilenceView exposing (deleteButton, editButton, view)
 
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
-import Data.Matchers exposing (Matchers)
 import Data.SilenceStatus exposing (State(..))
 import Dict exposing (Dict)
 import Html exposing (Html, a, b, button, div, h3, i, li, p, small, span, text)

@@ -6,8 +6,6 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	"strconv"
-
 	strfmt "github.com/go-openapi/strfmt"
 
 	"github.com/go-openapi/errors"
@@ -19,16 +17,6 @@ import (
 // swagger:model alert
 type Alert struct {
 
-	// annotations
-	Annotations LabelSet `json:"annotations,omitempty"`
-
-	// ends at
-	// Format: date-time
-	EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
-
-	// fingerprint
-	Fingerprint string `json:"fingerprint,omitempty"`
-
 	// generator URL
 	// Format: uri
 	GeneratorURL strfmt.URI `json:"generatorURL,omitempty"`
@@ -36,33 +24,11 @@ type Alert struct {
 	// labels
 	// Required: true
 	Labels LabelSet `json:"labels"`
-
-	// receivers
-	Receivers []*Receiver `json:"receivers"`
-
-	// starts at
-	// Format: date-time
-	StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
-
-	// status
-	Status *AlertStatus `json:"status,omitempty"`
-
-	// updated at
-	// Format: date-time
-	UpdatedAt strfmt.DateTime `json:"updatedAt,omitempty"`
 }
 
 // Validate validates this alert
 func (m *Alert) Validate(formats strfmt.Registry) error {
 	var res []error
-
-	if err := m.validateAnnotations(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateEndsAt(formats); err != nil {
-		res = append(res, err)
-	}
 
 	if err := m.validateGeneratorURL(formats); err != nil {
 		res = append(res, err)
@@ -72,54 +38,9 @@ func (m *Alert) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
-	if err := m.validateReceivers(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStartsAt(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateStatus(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateUpdatedAt(formats); err != nil {
-		res = append(res, err)
-	}
-
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
-	return nil
-}
-
-func (m *Alert) validateAnnotations(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.Annotations) { // not required
-		return nil
-	}
-
-	if err := m.Annotations.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("annotations")
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *Alert) validateEndsAt(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.EndsAt) { // not required
-		return nil
-	}
-
-	if err := validate.FormatOf("endsAt", "body", "date-time", m.EndsAt.String(), formats); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -142,75 +63,6 @@ func (m *Alert) validateLabels(formats strfmt.Registry) error {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("labels")
 		}
-		return err
-	}
-
-	return nil
-}
-
-func (m *Alert) validateReceivers(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.Receivers) { // not required
-		return nil
-	}
-
-	for i := 0; i < len(m.Receivers); i++ {
-		if swag.IsZero(m.Receivers[i]) { // not required
-			continue
-		}
-
-		if m.Receivers[i] != nil {
-			if err := m.Receivers[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
-					return ve.ValidateName("receivers" + "." + strconv.Itoa(i))
-				}
-				return err
-			}
-		}
-
-	}
-
-	return nil
-}
-
-func (m *Alert) validateStartsAt(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.StartsAt) { // not required
-		return nil
-	}
-
-	if err := validate.FormatOf("startsAt", "body", "date-time", m.StartsAt.String(), formats); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *Alert) validateStatus(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.Status) { // not required
-		return nil
-	}
-
-	if m.Status != nil {
-		if err := m.Status.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("status")
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m *Alert) validateUpdatedAt(formats strfmt.Registry) error {
-
-	if swag.IsZero(m.UpdatedAt) { // not required
-		return nil
-	}
-
-	if err := validate.FormatOf("updatedAt", "body", "date-time", m.UpdatedAt.String(), formats); err != nil {
 		return err
 	}
 

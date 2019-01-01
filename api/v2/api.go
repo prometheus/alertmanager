@@ -21,6 +21,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/go-openapi/loads"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/strfmt"
+	prometheus_model "github.com/prometheus/common/model"
+	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/rs/cors"
+
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
@@ -28,7 +38,6 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
-
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -37,16 +46,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-
-	prometheus_model "github.com/prometheus/common/model"
-	"github.com/prometheus/common/version"
-	"github.com/prometheus/prometheus/pkg/labels"
-
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-openapi/loads"
-	"github.com/go-openapi/runtime/middleware"
-	"github.com/go-openapi/strfmt"
 )
 
 // API represents an Alertmanager API v2
@@ -103,7 +102,8 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 
 	openAPI.Logger = func(s string, i ...interface{}) { level.Error(api.logger).Log(i...) }
 
-	api.Handler = openAPI.Serve(nil)
+	handleCORS := cors.Default().Handler
+	api.Handler = handleCORS(openAPI.Serve(nil))
 
 	return &api, nil
 }
@@ -176,7 +176,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		receiverFilter *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res      = []*open_api_models.Alert{}
+		res      = open_api_models.GettableAlerts{}
 		matchers = []*labels.Matcher{}
 	)
 
@@ -251,20 +251,35 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		}
 
 		state := string(status.State)
+		startsAt := strfmt.DateTime(a.StartsAt)
+		updatedAt := strfmt.DateTime(a.UpdatedAt)
+		endsAt := strfmt.DateTime(a.EndsAt)
+		fingerprint := a.Fingerprint().String()
 
-		alert := open_api_models.Alert{
-			Annotations:  modelLabelSetToAPILabelSet(a.Annotations),
-			EndsAt:       strfmt.DateTime(a.EndsAt),
-			Fingerprint:  a.Fingerprint().String(),
-			GeneratorURL: strfmt.URI(a.GeneratorURL),
-			Labels:       modelLabelSetToAPILabelSet(a.Labels),
-			Receivers:    receivers,
-			StartsAt:     strfmt.DateTime(a.StartsAt),
+		alert := open_api_models.GettableAlert{
+			Alert: open_api_models.Alert{
+				GeneratorURL: strfmt.URI(a.GeneratorURL),
+				Labels:       modelLabelSetToAPILabelSet(a.Labels),
+			},
+			Annotations: modelLabelSetToAPILabelSet(a.Annotations),
+			StartsAt:    &startsAt,
+			UpdatedAt:   &updatedAt,
+			EndsAt:      &endsAt,
+			Fingerprint: &fingerprint,
+			Receivers:   receivers,
 			Status: &open_api_models.AlertStatus{
 				State:       &state,
 				SilencedBy:  status.SilencedBy,
 				InhibitedBy: status.InhibitedBy,
 			},
+		}
+
+		if alert.Status.SilencedBy == nil {
+			alert.Status.SilencedBy = []string{}
+		}
+
+		if alert.Status.InhibitedBy == nil {
+			alert.Status.InhibitedBy = []string{}
 		}
 
 		res = append(res, &alert)
@@ -276,7 +291,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		return alert_ops.NewGetAlertsInternalServerError().WithPayload(err.Error())
 	}
 	sort.Slice(res, func(i, j int) bool {
-		return res[i].Fingerprint < res[j].Fingerprint
+		return *res[i].Fingerprint < *res[j].Fingerprint
 	})
 
 	return alert_ops.NewGetAlertsOK().WithPayload(res)
@@ -343,11 +358,10 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	return alert_ops.NewPostAlertsOK()
 }
 
-func openAPIAlertsToAlerts(apiAlerts open_api_models.Alerts) []*types.Alert {
+func openAPIAlertsToAlerts(apiAlerts open_api_models.PostableAlerts) []*types.Alert {
 	alerts := []*types.Alert{}
 	for _, apiAlert := range apiAlerts {
 		alert := types.Alert{
-			UpdatedAt: time.Time(apiAlert.UpdatedAt),
 			Alert: prometheus_model.Alert{
 				Labels:       apiLabelSetToModelLabelSet(apiAlert.Labels),
 				Annotations:  apiLabelSetToModelLabelSet(apiAlert.Annotations),

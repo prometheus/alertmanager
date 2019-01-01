@@ -10,9 +10,9 @@
 -}
 
 
-module Data.Silence exposing (Silence, decoder, encoder)
+module Data.Silence exposing (Silence(..), decoder, encoder)
 
-import Data.Matchers as Matchers exposing (Matchers)
+import Data.Matcher as Matcher exposing (Matcher)
 import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
@@ -21,7 +21,7 @@ import Json.Encode as Encode
 
 
 type alias Silence =
-    { matchers : Matchers
+    { matchers : List Matcher
     , startsAt : DateTime
     , endsAt : DateTime
     , createdBy : String
@@ -32,7 +32,7 @@ type alias Silence =
 decoder : Decoder Silence
 decoder =
     Decode.succeed Silence
-        |> required "matchers" Matchers.decoder
+        |> required "matchers" (Decode.list Matcher.decoder)
         |> required "startsAt" DateTime.decoder
         |> required "endsAt" DateTime.decoder
         |> required "createdBy" Decode.string
@@ -42,7 +42,7 @@ decoder =
 encoder : Silence -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "matchers", Matchers.encoder model.matchers )
+        [ ( "matchers", Encode.list Matcher.encoder model.matchers )
         , ( "startsAt", DateTime.encoder model.startsAt )
         , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )

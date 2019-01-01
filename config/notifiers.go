@@ -135,6 +135,7 @@ var (
 		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
+		HTML:     false,
 	}
 
 	// DefaultDingtalkConfig defines default values for Dingtalk configurations.
@@ -539,9 +540,12 @@ type PushoverConfig struct {
 	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
 	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
 	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
+	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty`
+	Sound    string   `yaml:"sound,omitempty" json:"sound,omitempty"`
 	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Expire   duration `yaml:"expire,omitempty" json:"expire,omitempty"`
+	HTML     bool     `yaml:"html,omitempty" json:"html,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

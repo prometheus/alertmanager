@@ -11,5 +11,5 @@ update msg model basePath =
         NewStatus apiResponse ->
             ( { model | status = { statusInfo = apiResponse } }, Cmd.none )
 
-        InitStatusView ->
-            ( model, getStatus "/api/v2/" (NewStatus >> MsgForStatus) )
+        InitStatusView apiUrl ->
+            ( model, getStatus apiUrl (NewStatus >> MsgForStatus) )

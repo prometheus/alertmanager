@@ -53,15 +53,16 @@ type AcceptanceTest struct {
 
 // AcceptanceOpts defines configuration paramters for an acceptance test.
 type AcceptanceOpts struct {
-	Tolerance time.Duration
-	baseTime  time.Time
+	RoutePrefix string
+	Tolerance   time.Duration
+	baseTime    time.Time
 }
 
-func (opts *AcceptanceOpts) alertString(a *models.Alert) string {
-	if time.Time(a.EndsAt).IsZero() {
-		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(a.StartsAt)))
+func (opts *AcceptanceOpts) alertString(a *models.GettableAlert) string {
+	if a.EndsAt == nil || time.Time(*a.EndsAt).IsZero() {
+		return fmt.Sprintf("%v[%v:]", a, opts.relativeTime(time.Time(*a.StartsAt)))
 	}
-	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(a.StartsAt)), opts.relativeTime(time.Time(a.EndsAt)))
+	return fmt.Sprintf("%v[%v:%v]", a, opts.relativeTime(time.Time(*a.StartsAt)), opts.relativeTime(time.Time(*a.EndsAt)))
 }
 
 // expandTime returns the absolute time for the relative time
@@ -141,7 +142,7 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 		am.apiAddr = freeAddress()
 		am.clusterAddr = freeAddress()
 
-		transport := httptransport.New(am.apiAddr, "/api/v2/", nil)
+		transport := httptransport.New(am.apiAddr, t.opts.RoutePrefix+"/api/v2/", nil)
 		am.clientV2 = apiclient.New(transport, strfmt.Default)
 
 		amc.ams = append(amc.ams, am)
@@ -158,8 +159,8 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 		t:         t.T,
 		name:      name,
 		opts:      t.opts,
-		collected: map[float64][]models.Alerts{},
-		expected:  map[Interval][]models.Alerts{},
+		collected: map[float64][]models.GettableAlerts{},
+		expected:  map[Interval][]models.GettableAlerts{},
 	}
 	t.collectors = append(t.collectors, co)
 
@@ -290,6 +291,7 @@ func (amc *AlertmanagerCluster) Start() error {
 
 // Start the alertmanager and wait until it is ready to receive.
 func (am *Alertmanager) Start(additionalArg []string) error {
+	am.t.Helper()
 	args := []string{
 		"--config.file", am.confFile.Name(),
 		"--log.level", "debug",
@@ -297,6 +299,9 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		"--storage.path", am.dir,
 		"--cluster.listen-address", am.clusterAddr,
 		"--cluster.settle-timeout", "0s",
+	}
+	if am.opts.RoutePrefix != "" {
+		args = append(args, "--web.route-prefix", am.opts.RoutePrefix)
 	}
 	args = append(args, additionalArg...)
 
@@ -324,16 +329,20 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 
 	time.Sleep(50 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://%s/status", am.apiAddr))
-		if err == nil {
-			_, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return fmt.Errorf("starting alertmanager failed: %s", err)
-			}
-			resp.Body.Close()
-			return nil
+		resp, err := http.Get(am.getURL("/"))
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
 		}
-		time.Sleep(500 * time.Millisecond)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("starting alertmanager failed: expected HTTP status '200', got '%d'", resp.StatusCode)
+		}
+		_, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("starting alertmanager failed: %s", err)
+		}
+		return nil
 	}
 	return fmt.Errorf("starting alertmanager failed: timeout")
 }
@@ -377,6 +386,7 @@ func (amc *AlertmanagerCluster) Terminate() {
 // Terminate kills the underlying Alertmanager process and remove intermediate
 // data.
 func (am *Alertmanager) Terminate() {
+	am.t.Helper()
 	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		am.t.Fatalf("Error sending SIGTERM to Alertmanager process: %v", err)
 	}
@@ -391,18 +401,14 @@ func (amc *AlertmanagerCluster) Reload() {
 
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
+	am.t.Helper()
 	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
 		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
 	}
 }
 
-func (amc *AlertmanagerCluster) cleanup() {
-	for _, am := range amc.ams {
-		am.cleanup()
-	}
-}
-
 func (am *Alertmanager) cleanup() {
+	am.t.Helper()
 	if err := os.RemoveAll(am.confFile.Name()); err != nil {
 		am.t.Errorf("Error removing test config file %q: %v", am.confFile.Name(), err)
 	}
@@ -419,16 +425,23 @@ func (amc *AlertmanagerCluster) Push(at float64, alerts ...*TestAlert) {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas models.Alerts
+	var cas models.PostableAlerts
 	for i := range alerts {
 		a := alerts[i].nativeAlert(am.opts)
-		cas = append(cas, &models.Alert{
-			Labels:       a.Labels,
-			Annotations:  a.Annotations,
-			StartsAt:     a.StartsAt,
-			EndsAt:       a.EndsAt,
-			GeneratorURL: a.GeneratorURL,
-		})
+		alert := &models.PostableAlert{
+			Alert: models.Alert{
+				Labels:       a.Labels,
+				GeneratorURL: a.GeneratorURL,
+			},
+			Annotations: a.Annotations,
+		}
+		if a.StartsAt != nil {
+			alert.StartsAt = *a.StartsAt
+		}
+		if a.EndsAt != nil {
+			alert.EndsAt = *a.EndsAt
+		}
+		cas = append(cas, alert)
 	}
 
 	am.t.Do(at, func() {
@@ -458,7 +471,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 			return
 		}
 
-		resp, err := http.Post(fmt.Sprintf("http://%s/api/v1/silences", am.apiAddr), "application/json", &buf)
+		resp, err := http.Post(am.getURL("/api/v1/silences"), "application/json", &buf)
 		if err != nil {
 			am.t.Errorf("Error setting silence %v: %s", sil, err)
 			return
@@ -494,7 +507,7 @@ func (amc *AlertmanagerCluster) DelSilence(at float64, sil *TestSilence) {
 // DelSilence deletes the silence with the sid at the given time.
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
-		req, err := http.NewRequest("DELETE", fmt.Sprintf("http://%s/api/v1/silence/%s", am.apiAddr, sil.ID()), nil)
+		req, err := http.NewRequest("DELETE", am.getURL(fmt.Sprintf("/api/v1/silence/%s", sil.ID())), nil)
 		if err != nil {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
 			return
@@ -540,4 +553,8 @@ func (amc *AlertmanagerCluster) GenericAPIV2Call(at float64, f func()) {
 // GenericAPIV2Call takes a time slot and a function to run against the API v2
 func (am *Alertmanager) GenericAPIV2Call(at float64, f func()) {
 	am.t.Do(at, f)
+}
+
+func (am *Alertmanager) getURL(path string) string {
+	return fmt.Sprintf("http://%s%s%s", am.apiAddr, am.opts.RoutePrefix, path)
 }

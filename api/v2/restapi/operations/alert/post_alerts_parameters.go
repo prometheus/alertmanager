@@ -36,7 +36,7 @@ type PostAlertsParams struct {
 	  Required: true
 	  In: body
 	*/
-	Alerts models.Alerts
+	Alerts models.PostableAlerts
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -50,7 +50,7 @@ func (o *PostAlertsParams) BindRequest(r *http.Request, route *middleware.Matche
 
 	if runtime.HasBody(r) {
 		defer r.Body.Close()
-		var body models.Alerts
+		var body models.PostableAlerts
 		if err := route.Consumer.Consume(r.Body, &body); err != nil {
 			if err == io.EOF {
 				res = append(res, errors.Required("alerts", "body"))

@@ -1,8 +1,7 @@
 module Views.SilenceView.Views exposing (view)
 
-import Alerts.Types exposing (Alert)
+import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
-import Data.GettableSilences exposing (GettableSilences)
 import Data.SilenceStatus
 import Html exposing (Html, b, button, div, h1, h2, h3, label, p, span, text)
 import Html.Attributes exposing (class, href)
@@ -41,7 +40,7 @@ view { silence, alerts, activeAlertId, showConfirmationDialog } =
             error msg
 
 
-viewSilence : Maybe String -> ApiData (List Alert) -> GettableSilence -> Bool -> Html Msg
+viewSilence : Maybe String -> ApiData (List GettableAlert) -> GettableSilence -> Bool -> Html Msg
 viewSilence activeAlertId alerts silence showPromptDialog =
     let
         affectedAlerts =
