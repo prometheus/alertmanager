@@ -2,11 +2,12 @@ module Views.GroupBar.Updates exposing (setFields, update)
 
 import Browser.Dom as Dom
 import Browser.Navigation as Navigation
+import Debouncer.Messages as Debouncer
 import Set
 import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
 import Utils.Match exposing (jaroWinkler)
-import Views.GroupBar.Types exposing (Model, Msg(..))
+import Views.GroupBar.Types exposing (Model, Msg(..), updateDebouncer)
 
 
 update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
@@ -61,11 +62,20 @@ update url filter msg model =
         PressingBackspace pressed ->
             ( { model | backspacePressed = pressed }, Cmd.none )
 
+        DebounceGroupList subMsg ->
+            Debouncer.update (update url filter) updateDebouncer subMsg model
+
+        FilterGroupList ->
+            updateAutoComplete model
+
         UpdateFieldText text ->
-            updateAutoComplete
-                { model
-                    | fieldText = text
-                }
+            ( { model | fieldText = text }
+            , FilterGroupList
+                |> Debouncer.provideInput
+                |> DebounceGroupList
+                |> Task.succeed
+                |> Task.perform identity
+            )
 
         Noop ->
             ( model, Cmd.none )
