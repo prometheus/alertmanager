@@ -3,12 +3,13 @@ module Views.ReceiverBar.Updates exposing (fetchReceivers, update)
 import Alerts.Api as Api
 import Browser.Dom as Dom
 import Browser.Navigation as Navigation
+import Debouncer.Messages as Debouncer
 import Regex
 import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
 import Utils.Match as Match
 import Utils.Types exposing (ApiData(..))
-import Views.ReceiverBar.Types exposing (Model, Msg(..), apiReceiverToReceiver)
+import Views.ReceiverBar.Types exposing (Model, Msg(..), apiReceiverToReceiver, updateDebouncer)
 
 
 update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
@@ -36,22 +37,31 @@ update url filter msg model =
         ResultsHovered resultsHovered ->
             ( { model | resultsHovered = resultsHovered }, Cmd.none )
 
+        DebounceReceiverFilter subMsg ->
+            Debouncer.update (update url filter) updateDebouncer subMsg model
+
         UpdateReceiver receiver ->
+            ( { model
+                | fieldText = receiver
+              }
+            , FilterReceiverList
+                |> Debouncer.provideInput
+                |> DebounceReceiverFilter
+                |> Task.succeed
+                |> Task.perform identity
+            )
+
+        FilterReceiverList ->
             let
                 matches =
                     model.receivers
-                        |> Match.filter receiver
-                        |> List.sortBy (.name >> Match.jaroWinkler receiver)
+                        |> Match.filter model.fieldText
+                        |> List.sortBy (.name >> Match.jaroWinkler model.fieldText)
                         |> List.reverse
                         |> List.take 10
                         |> (::) { name = "All", regex = "" }
             in
-            ( { model
-                | fieldText = receiver
-                , matches = matches
-              }
-            , Cmd.none
-            )
+            ( { model | matches = matches }, Cmd.none )
 
         BlurReceiverField ->
             ( { model | showReceivers = False }, Cmd.none )

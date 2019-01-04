@@ -1,7 +1,8 @@
-module Views.ReceiverBar.Types exposing (Model, Msg(..), Receiver, apiReceiverToReceiver, initReceiverBar)
+module Views.ReceiverBar.Types exposing (Model, Msg(..), Receiver, apiReceiverToReceiver, initReceiverBar, updateDebouncer)
 
 import Browser.Navigation exposing (Key)
 import Data.Receiver
+import Debouncer.Messages as Debouncer exposing (Debouncer, fromSeconds, settleWhenQuietFor, toDebouncer)
 import Regex
 import Utils.Types exposing (ApiData(..))
 
@@ -15,11 +16,14 @@ type Msg
     | ResultsHovered Bool
     | BlurReceiverField
     | Noop
+    | FilterReceiverList
+    | DebounceReceiverFilter (Debouncer.Msg Msg)
 
 
 type alias Model =
     { receivers : List Receiver
     , matches : List Receiver
+    , receiverDebouncer : Debouncer Msg
     , fieldText : String
     , selectedReceiver : Maybe Receiver
     , showReceivers : Bool
@@ -31,6 +35,14 @@ type alias Model =
 type alias Receiver =
     { name : String
     , regex : String
+    }
+
+
+updateDebouncer : Debouncer.UpdateConfig Msg Model
+updateDebouncer =
+    { mapMsg = DebounceReceiverFilter
+    , getDebouncer = .receiverDebouncer
+    , setDebouncer = \debouncer model -> { model | receiverDebouncer = debouncer }
     }
 
 
@@ -53,6 +65,10 @@ initReceiverBar key =
     { receivers = []
     , matches = []
     , fieldText = ""
+    , receiverDebouncer =
+        Debouncer.manual
+            |> settleWhenQuietFor (Just <| fromSeconds 0.25)
+            |> toDebouncer
     , selectedReceiver = Nothing
     , showReceivers = False
     , resultsHovered = False
