@@ -29,7 +29,6 @@ type routingShow struct {
 	configFile        string
 	labels            []string
 	expectedReceivers string
-	tree              treeprint.Tree
 	debugTree         bool
 }
 
@@ -106,15 +105,15 @@ func getMatchingTree(route *dispatch.Route, tree treeprint.Tree, lset client.Lab
 	final := true
 	branch := tree.AddBranch(getRouteTreeSlug(route, false, false))
 	for _, r := range route.Routes {
-		if r.Matchers.Match(convertClientToCommonLabelSet(lset)) == true {
+		if r.Matchers.Match(convertClientToCommonLabelSet(lset)) {
 			getMatchingTree(r, branch, lset)
 			final = false
-			if r.Continue != true {
+			if !r.Continue {
 				break
 			}
 		}
 	}
-	if final == true {
+	if final {
 		branch.SetValue(getRouteTreeSlug(route, false, true))
 	}
 }

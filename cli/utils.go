@@ -112,7 +112,7 @@ func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, confi
 		}
 		return status.ConfigJSON, nil
 	}
-	return nil, errors.New("Failed to get Alertmanager configuration.")
+	return nil, errors.New("failed to get Alertmanager configuration")
 }
 
 // convertClientToCommonLabelSet converts client.LabelSet to model.Labelset

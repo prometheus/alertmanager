@@ -84,7 +84,7 @@ func newSubset(elements ...uint64) map[uint64]struct{} {
 
 func elements(m map[uint64]struct{}) []uint64 {
 	els := make([]uint64, 0, len(m))
-	for k, _ := range m {
+	for k := range m {
 		els = append(els, k)
 	}
 
