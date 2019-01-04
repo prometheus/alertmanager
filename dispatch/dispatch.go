@@ -329,8 +329,14 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		alerts      = ag.alerts.List()
 		alertsSlice = make(types.AlertSlice, 0, ag.alerts.Count())
 	)
+	now := time.Now()
 	for alert := range alerts {
-		alertsSlice = append(alertsSlice, alert)
+		a := *alert
+		// Ensure that alerts don't resolve as time move forwards.
+		if !a.ResolvedAt(now) {
+			a.EndsAt = time.Time{}
+		}
+		alertsSlice = append(alertsSlice, &a)
 	}
 	sort.Stable(alertsSlice)
 
@@ -348,7 +354,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err)
 				continue
 			}
-			if a.Resolved() && got == a {
+			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
 				if err := ag.alerts.Delete(fp); err != nil {
 					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err)
 				}
