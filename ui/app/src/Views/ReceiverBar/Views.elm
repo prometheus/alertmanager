@@ -1,6 +1,5 @@
 module Views.ReceiverBar.Views exposing (view)
 
-import Debouncer.Messages as Debouncer
 import Html exposing (Html, div, input, li, text)
 import Html.Attributes exposing (class, id, style, tabindex, value)
 import Html.Events exposing (onBlur, onClick, onInput, onMouseEnter, onMouseLeave)
