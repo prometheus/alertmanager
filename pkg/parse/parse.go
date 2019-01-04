@@ -33,12 +33,8 @@ var (
 
 func Matchers(s string) ([]*labels.Matcher, error) {
 	matchers := []*labels.Matcher{}
-	if strings.HasPrefix(s, "{") {
-		s = s[1:]
-	}
-	if strings.HasSuffix(s, "}") {
-		s = s[:len(s)-1]
-	}
+	s = strings.TrimPrefix(s, "{")
+	s = strings.TrimSuffix(s, "}")
 
 	var insideQuotes bool
 	var token string

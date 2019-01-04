@@ -319,7 +319,7 @@ func TestAPI(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if bytes.Compare(want, got) != 0 {
+			if !bytes.Equal(want, got) {
 				t.Errorf("unexpected result: want: %s, got: %s", string(want), string(got))
 			}
 		})

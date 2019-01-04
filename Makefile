@@ -17,9 +17,7 @@ FRONTEND_DIR             = $(BIN_DIR)/ui/app
 DOCKER_IMAGE_NAME       ?= alertmanager
 ERRCHECK_BINARY         := $(FIRST_GOPATH)/bin/errcheck
 
-STATICCHECK_IGNORE = \
-  github.com/prometheus/alertmanager/notify/notify.go:SA6002
-
+STATICCHECK_IGNORE =
 
 # Go modules needs the bzr binary because of the dependency on launchpad.net/gocheck.
 $(eval $(call PRECHECK_COMMAND_template,bzr))

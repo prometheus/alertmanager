@@ -165,7 +165,6 @@ func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
 type errorType string
 
 const (
-	errorNone     errorType = ""
 	errorInternal errorType = "server_error"
 	errorBadData  errorType = "bad_data"
 )
