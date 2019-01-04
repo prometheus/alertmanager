@@ -895,7 +895,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 	)
 	apiURL.Path += fmt.Sprintf("v2/room/%s/notification", roomid)
 	q := apiURL.Query()
-	q.Set("auth_token", fmt.Sprintf("%s", n.conf.AuthToken))
+	q.Set("auth_token", string(n.conf.AuthToken))
 	apiURL.RawQuery = q.Encode()
 
 	if n.conf.MessageFormat == "html" {
@@ -1007,7 +1007,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	// Refresh AccessToken over 2 hours
-	if n.accessToken == "" || time.Now().Sub(n.accessTokenAt) > 2*time.Hour {
+	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))

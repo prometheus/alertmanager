@@ -84,7 +84,7 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 		kingpin.Fatalf("Failed to parse labels: %v\n", err)
 	}
 
-	if c.debugTree == true {
+	if c.debugTree {
 		printMatchingTree(mainRoute, ls)
 	}
 
