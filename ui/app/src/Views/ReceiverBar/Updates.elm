@@ -56,7 +56,7 @@ update url filter msg model =
                 matches =
                     model.receivers
                         |> Match.filter model.fieldText
-                        |> List.sortBy (.name >> Match.jaroWinkler model.fieldText)
+                        |> List.sortBy (.name >> Match.jaro model.fieldText)
                         |> List.reverse
                         |> List.take 10
                         |> (::) { name = "All", regex = "" }

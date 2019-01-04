@@ -6,7 +6,7 @@ import Debouncer.Messages as Debouncer
 import Set
 import Task
 import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
-import Utils.Match exposing (jaroWinkler)
+import Utils.Match exposing (jaro)
 import Views.GroupBar.Types exposing (Model, Msg(..), updateDebouncer)
 
 
@@ -120,7 +120,7 @@ updateAutoComplete model =
                 -- list.
                 Set.toList model.list
                     |> List.filter ((\a -> List.member a model.fields) >> not)
-                    |> List.sortBy (jaroWinkler model.fieldText)
+                    |> List.sortBy (jaro model.fieldText)
                     |> List.reverse
                     |> List.take 10
         , maybeSelectedMatch = Nothing
