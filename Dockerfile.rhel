@@ -1,9 +1,12 @@
 FROM registry.svc.ci.openshift.org/ocp/builder:golang-1.10 AS builder
 
 ENV ALERTMANAGER_GOPATH=/go/src/github.com/prometheus/alertmanager
+ENV BUILD_PROMU=false
 COPY . ${ALERTMANAGER_GOPATH}
 RUN cd ${ALERTMANAGER_GOPATH} && \
-    make build
+    yum install -y prometheus-promu && \
+    make build && \
+    yum clean all
 
 FROM  registry.svc.ci.openshift.org/ocp/4.0:base
 LABEL io.k8s.display-name="OpenShift Prometheus Alert Manager" \
