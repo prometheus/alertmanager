@@ -89,6 +89,16 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {
 	var err error
 
+	if len(c.matchers) > 0 {
+		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
+		// assume that the user wants alertname=<arg> and prepend `alertname=`
+		// to the front.
+		_, err := parseMatchers([]string{c.matchers[0]})
+		if err != nil {
+			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
+		}
+	}
+
 	matchers, err := parseMatchers(c.matchers)
 	if err != nil {
 		return err
