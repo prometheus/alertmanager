@@ -10,7 +10,7 @@ filter search list =
     let
         re =
             "(.+)?"
-                ++ (String.split "" search |> String.join "(.+)?")
+                ++ String.join "(.+)?" (String.split "" search)
                 ++ "(.+)?"
                 |> Regex.fromString
                 |> Maybe.withDefault Regex.never
