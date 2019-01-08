@@ -5,6 +5,7 @@ import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Html.Lazy as Lazy
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter)
 import Utils.List
@@ -62,7 +63,7 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
             ]
         , case alerts of
             Success alerts_ ->
-                alertGroups activeId filter groupBar alerts_
+                Lazy.lazy4 alertGroups activeId filter groupBar alerts_
 
             Loading ->
                 Utils.Views.loading
