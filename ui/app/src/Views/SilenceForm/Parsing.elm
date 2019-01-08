@@ -1,5 +1,6 @@
-module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, silenceFormEditParser, silenceFormNewParser)
+module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, newSilenceFromMatchers, silenceFormEditParser, silenceFormNewParser)
 
+import Data.Matcher
 import Dict exposing (Dict)
 import Url exposing (percentEncode)
 import Url.Parser exposing ((</>), (<?>), Parser, map, oneOf, s, string)
@@ -12,9 +13,7 @@ newSilenceFromAlertLabels labels =
     labels
         |> Dict.toList
         |> List.map (\( k, v ) -> Utils.Filter.Matcher k Utils.Filter.Eq v)
-        |> Utils.Filter.stringifyFilter
-        |> percentEncode
-        |> (++) "#/silences/new?filter="
+        |> encodeMatchers
 
 
 silenceFormNewParser : Parser (List Matcher -> a) a
@@ -28,3 +27,29 @@ silenceFormNewParser =
 silenceFormEditParser : Parser (String -> a) a
 silenceFormEditParser =
     s "silences" </> string </> s "edit"
+
+
+newSilenceFromMatchers : List Data.Matcher.Matcher -> String
+newSilenceFromMatchers matchers =
+    matchers
+        |> List.map
+            (\{ name, value, isRegex } ->
+                let
+                    op =
+                        if isRegex then
+                            Utils.Filter.RegexMatch
+
+                        else
+                            Utils.Filter.Eq
+                in
+                Utils.Filter.Matcher name op value
+            )
+        |> encodeMatchers
+
+
+encodeMatchers : List Utils.Filter.Matcher -> String
+encodeMatchers matchers =
+    matchers
+        |> Utils.Filter.stringifyFilter
+        |> percentEncode
+        |> (++) "#/silences/new?filter="
