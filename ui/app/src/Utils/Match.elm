@@ -18,12 +18,7 @@ filter search list =
     list
         |> List.filter
             (\x ->
-                case Regex.find re x.name |> List.head of
-                    Just match ->
-                        True
-
-                    Nothing ->
-                        False
+                List.head (Regex.find re x.name) /= Nothing
             )
 
 
