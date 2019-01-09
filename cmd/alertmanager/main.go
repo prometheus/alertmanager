@@ -40,6 +40,7 @@ import (
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/prometheus/alertmanager/api"
 	apiv1 "github.com/prometheus/alertmanager/api/v1"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
@@ -420,6 +421,8 @@ func run() int {
 		apiPrefix = *routePrefix
 	}
 	mux.Handle(apiPrefix+"/api/v2/", http.StripPrefix(apiPrefix+"/api/v2", apiV2.Handler))
+
+	mux.HandleFunc(apiPrefix+"/api/version", api.VersionHandler)
 
 	srv := http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
