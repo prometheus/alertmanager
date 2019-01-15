@@ -373,10 +373,6 @@ type Silence struct {
 	CreatedBy string `json:"createdBy"`
 	Comment   string `json:"comment,omitempty"`
 
-	// timeFunc provides the time against which to evaluate
-	// the silence. Used for test injection.
-	now func() time.Time
-
 	Status SilenceStatus `json:"status"`
 }
 

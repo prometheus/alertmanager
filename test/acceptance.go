@@ -186,7 +186,7 @@ func (t *AcceptanceTest) Run() {
 	deadline := t.opts.expandTime(latest)
 
 	select {
-	case <-time.After(deadline.Sub(time.Now())):
+	case <-time.After(time.Until(deadline)):
 		// continue
 	case err := <-errc:
 		t.Error(err)
@@ -208,7 +208,7 @@ func (t *AcceptanceTest) runActions() {
 
 		for _, f := range fs {
 			go func(f func()) {
-				time.Sleep(ts.Sub(time.Now()))
+				time.Sleep(time.Until(ts))
 				f()
 				wg.Done()
 			}(f)

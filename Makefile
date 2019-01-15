@@ -20,9 +20,7 @@ ifdef DEBUG
 	bindata_flags = -debug
 endif
 
-STATICCHECK_IGNORE = \
-  github.com/prometheus/alertmanager/notify/notify.go:SA6002
-
+STATICCHECK_IGNORE =
 
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
