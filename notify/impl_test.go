@@ -15,6 +15,7 @@ package notify
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -321,4 +322,52 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 	_, err = email.auth("PLAIN LOGIN")
 	require.Error(t, err)
 	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism")
+}
+
+func TestVictorOpsCustomFields(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+
+	url, err := url.Parse("http://nowhere.com")
+
+	require.NoError(t, err, "unexpected error parsing mock url")
+
+	conf := &config.VictorOpsConfig{
+		APIKey:            `12345`,
+		APIURL:            &config.URL{url},
+		EntityDisplayName: `{{ .CommonLabels.Message }}`,
+		StateMessage:      `{{ .CommonLabels.Message }}`,
+		RoutingKey:        `test`,
+		MessageType:       ``,
+		MonitoringTool:    `AM`,
+		CustomFields: map[string]string{
+			"Field_A": "{{ .CommonLabels.Message }}",
+		},
+	}
+
+	notifier := NewVictorOps(conf, tmpl, logger)
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "1")
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message": "message",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	msg, err := notifier.createVictorOpsPayload(ctx, alert)
+	require.NoError(t, err)
+
+	var m map[string]string
+	err = json.Unmarshal(msg.Bytes(), &m)
+
+	require.NoError(t, err)
+
+	// Verify that a custom field was added to the payload and templatized.
+	require.Equal(t, "message", m["Field_A"])
 }
