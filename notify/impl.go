@@ -327,14 +327,17 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 	}
 
+
 	if ok, mech := c.Extension("AUTH"); ok {
-		auth, err := n.auth(mech)
-		if err != nil {
-			return true, err
-		}
-		if auth != nil {
-			if err := c.Auth(auth); err != nil {
-				return true, fmt.Errorf("%T failed: %s", auth, err)
+		if n.conf.AuthUsername != nil; ok {
+			auth, err := n.auth(mech)
+			if err != nil {
+				return true, err
+			}
+			if auth != nil {
+				if err := c.Auth(auth); err != nil {
+					return true, fmt.Errorf("%T failed: %s", auth, err)
+				}
 			}
 		}
 	}
