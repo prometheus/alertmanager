@@ -1,3 +1,17 @@
+## 0.16.0-beta.0 / 2019-01-14
+
+* [ENHANCEMENT] Add support for --log.format (#1658)
+* [ENHANCEMENT] Add CORS support to API v2 (#1667)
+* [ENHANCEMENT] Support HTML, URL title and custom sounds for Pushover (#1634)
+* [ENHANCEMENT] Update Alert compact view (#1698)
+* [ENHANCEMENT] Support adding custom fields to VictorOps notifications (#1420)
+* [BUGFIX] Fix unmarshalling of secret URLs in config (#1663)
+* [BUGFIX] Do not write groupbyall and groupby when marshaling config (#1665)
+* [BUGFIX] Make a copy of firing alerts with EndsAt=0 when flushing (#1686)
+* [BUGFIX] Respect regex matchers when recreating silences in UI (#1697)
+* [BUGFIX] Change DefaultGlobalConfig to a function in Alertmanager configuration (#1656)
+* [BUGFIX] [amtool] Support for assuming first label is alertname in silence add and query (#1693)
+
 ## 0.16.0-alpha.0 / 2018-11-30
 
 This release introduces a new API v2, fully generated via the OpenAPI project
