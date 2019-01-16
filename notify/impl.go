@@ -329,7 +329,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 
 	if ok, mech := c.Extension("AUTH"); ok {
-		if n.conf.AuthUsername != nil; ok {
+		if n.conf.AuthUsername != "" {
 			auth, err := n.auth(mech)
 			if err != nil {
 				return true, err
