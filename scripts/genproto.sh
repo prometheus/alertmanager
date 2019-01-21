@@ -35,7 +35,7 @@ DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb"
 echo "generating files"
 for dir in ${DIRS}; do
     pushd ${dir}
-        protoc --gogofast_out=plugins=grpc:. -I=. \
+        protoc --gogofast_out=:. -I=. \
             -I="${GOGOPROTO_PATH}" \
             *.proto
 
