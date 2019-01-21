@@ -27,7 +27,7 @@ require (
 	github.com/go-openapi/swag v0.0.0-20180703152219-2b0bd4f193d0
 	github.com/go-openapi/validate v0.0.0-20180703152151-9a6e517cddf1
 	github.com/go-stack/stack v1.6.0 // indirect
-	github.com/gogo/protobuf v0.0.0-20171109181519-616a82ed12d7
+	github.com/gogo/protobuf v0.0.0-20171123125729-971cbfd2e72b
 	github.com/hashicorp/consul v1.4.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-immutable-radix v0.0.0-20170725221215-8aac27015308 // indirect
@@ -69,7 +69,7 @@ require (
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
 	golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
 	golang.org/x/text v0.3.1-0.20180805044716-cb6730876b98 // indirect
-	golang.org/x/tools v0.0.0-20181120060634-fc4f04983f62 // indirect
+	golang.org/x/tools v0.0.0-20190118193359-16909d206f00
 	google.golang.org/appengine v1.3.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528 // indirect
