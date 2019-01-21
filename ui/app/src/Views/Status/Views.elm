@@ -1,12 +1,17 @@
 module Views.Status.Views exposing (view)
 
+import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
+import Data.ClusterStatus exposing (ClusterStatus)
+import Data.PeerStatus exposing (PeerStatus)
+import Data.VersionInfo exposing (VersionInfo)
 import Html exposing (..)
-import Html.Attributes exposing (class, style, classList)
-import Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
-import Types exposing (Msg(MsgForStatus))
-import Utils.Types exposing (ApiData(Failure, Success, Loading, Initial))
-import Views.Status.Types exposing (StatusModel)
+import Html.Attributes exposing (class, classList, style)
+import Status.Types exposing (StatusResponse, VersionInfo)
+import Types exposing (Msg(..))
+import Utils.Date exposing (timeToString)
+import Utils.Types exposing (ApiData(..))
 import Utils.Views
+import Views.Status.Types exposing (StatusModel)
 
 
 view : StatusModel -> Html Types.Msg
@@ -25,17 +30,17 @@ view { statusInfo } =
             Utils.Views.error msg
 
 
-viewStatusInfo : StatusResponse -> Html Types.Msg
+viewStatusInfo : AlertmanagerStatus -> Html Types.Msg
 viewStatusInfo status =
     div []
         [ h1 [] [ text "Status" ]
         , div [ class "form-group row" ]
             [ b [ class "col-sm-2" ] [ text "Uptime:" ]
-            , div [ class "col-sm-10" ] [ text status.uptime ]
+            , div [ class "col-sm-10" ] [ text <| timeToString status.uptime ]
             ]
-        , viewClusterStatus status.clusterStatus
+        , viewClusterStatus status.cluster
         , viewVersionInformation status.versionInfo
-        , viewConfig status.config
+        , viewConfig status.config.original
         ]
 
 
@@ -43,7 +48,7 @@ viewConfig : String -> Html Types.Msg
 viewConfig config =
     div []
         [ h2 [] [ text "Config" ]
-        , pre [ class "p-4", style [ ( "background", "#f7f7f9" ), ( "font-family", "monospace" ) ] ]
+        , pre [ class "p-4", style "background" "#f7f7f9", style "font-family" "monospace" ]
             [ code []
                 [ text config
                 ]
@@ -51,46 +56,36 @@ viewConfig config =
         ]
 
 
-viewClusterStatus : Maybe ClusterStatus -> Html Types.Msg
-viewClusterStatus clusterStatus =
-    case clusterStatus of
-        Just clusterStatus ->
-            span []
-                [ h2 [] [ text "Cluster Status" ]
-                , div [ class "form-group row" ]
-                    [ b [ class "col-sm-2" ] [ text "Name:" ]
-                    , div [ class "col-sm-10" ] [ text clusterStatus.name ]
-                    ]
-                , div [ class "form-group row" ]
-                    [ b [ class "col-sm-2" ] [ text "Status:" ]
-                    , div [ class "col-sm-10" ]
-                        [ span
-                            [ classList
-                                [ ( "badge", True )
-                                , ( "badge-success", clusterStatus.status == "ready" )
-                                , ( "badge-warning", clusterStatus.status == "settling" )
-                                ]
-                            ]
-                            [ text clusterStatus.status ]
+viewClusterStatus : ClusterStatus -> Html Types.Msg
+viewClusterStatus { name, status, peers } =
+    span []
+        [ h2 [] [ text "Cluster Status" ]
+        , div [ class "form-group row" ]
+            [ b [ class "col-sm-2" ] [ text "Name:" ]
+            , div [ class "col-sm-10" ] [ text name ]
+            ]
+        , div [ class "form-group row" ]
+            [ b [ class "col-sm-2" ] [ text "Status:" ]
+            , div [ class "col-sm-10" ]
+                [ span
+                    [ classList
+                        [ ( "badge", True )
+                        , ( "badge-success", status == "ready" )
+                        , ( "badge-warning", status == "settling" )
                         ]
                     ]
-                , div [ class "form-group row" ]
-                    [ b [ class "col-sm-2" ] [ text "Peers:" ]
-                    , ul [ class "col-sm-10" ] <|
-                        List.map viewClusterPeer clusterStatus.peers
-                    ]
+                    [ text status ]
                 ]
+            ]
+        , div [ class "form-group row" ]
+            [ b [ class "col-sm-2" ] [ text "Peers:" ]
+            , ul [ class "col-sm-10" ] <|
+                List.map viewClusterPeer peers
+            ]
+        ]
 
-        Nothing ->
-            span []
-                [ h2 [] [ text "Mesh Status" ]
-                , div [ class "form-group row" ]
-                    [ div [ class "col-sm-10" ] [ text "Mesh not configured" ]
-                    ]
-                ]
 
-
-viewClusterPeer : ClusterPeer -> Html Types.Msg
+viewClusterPeer : PeerStatus -> Html Types.Msg
 viewClusterPeer peer =
     li []
         [ div [ class "" ]

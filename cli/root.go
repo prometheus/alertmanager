@@ -16,6 +16,7 @@ package cli
 import (
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -28,6 +29,7 @@ var (
 	verbose         bool
 	alertmanagerURL *url.URL
 	output          string
+	timeout         time.Duration
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -61,6 +63,8 @@ func Execute() {
 	app.Flag("verbose", "Verbose running information").Short('v').BoolVar(&verbose)
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
+	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
+
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)

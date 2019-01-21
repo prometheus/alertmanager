@@ -14,6 +14,7 @@
 package notify
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -25,7 +26,6 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -489,6 +489,7 @@ func getHashBuffer() []byte {
 
 func putHashBuffer(b []byte) {
 	b = b[:0]
+	//lint:ignore SA6002 relax staticcheck verification.
 	hashBuffers.Put(b)
 }
 
@@ -663,6 +664,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
+			numNotifications.WithLabelValues(r.integration.name).Inc()
 			if err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)
@@ -674,7 +676,6 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				// integration upon context timeout.
 				iErr = err
 			} else {
-				numNotifications.WithLabelValues(r.integration.name).Inc()
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():

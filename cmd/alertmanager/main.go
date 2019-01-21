@@ -32,7 +32,16 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/prometheus/alertmanager/api"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/promlog"
+	promlogflag "github.com/prometheus/common/promlog/flag"
+	"github.com/prometheus/common/route"
+	"github.com/prometheus/common/version"
+	"gopkg.in/alecthomas/kingpin.v2"
+
+	apiv1 "github.com/prometheus/alertmanager/api/v1"
+	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -44,13 +53,6 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/route"
-	"github.com/prometheus/common/version"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
@@ -84,6 +86,7 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
+	promlogConfig = promlog.Config{}
 )
 
 func init() {
@@ -129,21 +132,20 @@ func newMarkerMetrics(marker types.Marker) {
 const defaultClusterAddr = "0.0.0.0:9094"
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	if os.Getenv("DEBUG") != "" {
 		runtime.SetBlockProfileRate(20)
 		runtime.SetMutexProfileFraction(20)
 	}
 
-	logLevel := &promlog.AllowedLevel{}
-	if err := logLevel.Set("info"); err != nil {
-		panic(err)
-	}
 	var (
 		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
-		logLevelString  = kingpin.Flag("log.level", "Only log messages with the given severity or above.").Default("info").Enum("debug", "info", "warn", "error")
 
 		externalURL   = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
 		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
@@ -164,12 +166,13 @@ func main() {
 		peerReconnectTimeout = kingpin.Flag("cluster.reconnect-timeout", "Length of time to attempt to reconnect to a lost peer.").Default(cluster.DefaultReconnectTimeout.String()).Duration()
 	)
 
+	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
+
 	kingpin.Version(version.Print("alertmanager"))
 	kingpin.CommandLine.GetFlag("help").Short('h')
 	kingpin.Parse()
 
-	logLevel.Set(*logLevelString)
-	logger := promlog.New(*logLevel)
+	logger := promlog.New(&promlogConfig)
 
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
@@ -177,7 +180,7 @@ func main() {
 	err := os.MkdirAll(*dataDir, 0777)
 	if err != nil {
 		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
-		os.Exit(1)
+		return 1
 	}
 
 	var peer *cluster.Peer
@@ -197,7 +200,7 @@ func main() {
 		)
 		if err != nil {
 			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)
-			os.Exit(1)
+			return 1
 		}
 	}
 
@@ -216,7 +219,7 @@ func main() {
 	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 	if peer != nil {
 		c := peer.AddState("nfl", notificationLog, prometheus.DefaultRegisterer)
@@ -236,7 +239,7 @@ func main() {
 	silences, err := silence.New(silenceOpts)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 	if peer != nil {
 		c := peer.AddState("sil", silences, prometheus.DefaultRegisterer)
@@ -274,10 +277,10 @@ func main() {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
-	alerts, err := mem.NewAlerts(marker, *alertGCInterval)
+	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, logger)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 	defer alerts.Close()
 
@@ -289,21 +292,30 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(
+	apiV1 := apiv1.New(
 		alerts,
 		silences,
-		func(matchers []*labels.Matcher) dispatch.AlertOverview {
-			return disp.Groups(matchers)
-		},
 		marker.Status,
 		peer,
-		logger,
+		log.With(logger, "component", "api/v1"),
 	)
+
+	apiV2, err := apiv2.NewAPI(
+		alerts,
+		marker.Status,
+		silences,
+		peer,
+		log.With(logger, "component", "api/v2"),
+	)
+	if err != nil {
+		level.Error(logger).Log("err", fmt.Errorf("failed to create API v2: %v", err.Error()))
+		return 1
+	}
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
 		level.Error(logger).Log("err", err)
-		os.Exit(1)
+		return 1
 	}
 
 	waitFunc := func() time.Duration { return 0 }
@@ -338,7 +350,12 @@ func main() {
 
 		hash = md5HashAsMetricValue(plainCfg)
 
-		err = apiv.Update(conf, time.Duration(conf.Global.ResolveTimeout))
+		err = apiV1.Update(conf, time.Duration(conf.Global.ResolveTimeout))
+		if err != nil {
+			return err
+		}
+
+		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout))
 		if err != nil {
 			return err
 		}
@@ -373,7 +390,7 @@ func main() {
 	}
 
 	if err := reload(); err != nil {
-		os.Exit(1)
+		return 1
 	}
 
 	// Make routePrefix default to externalURL path if empty string.
@@ -393,13 +410,35 @@ func main() {
 
 	ui.Register(router, webReload, logger)
 
-	apiv.Register(router.WithPrefix("/api/v1"))
+	apiV1.Register(router.WithPrefix("/api/v1"))
 
-	level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
-	go listen(*listenAddress, router, logger)
+	mux := http.NewServeMux()
+	mux.Handle("/", router)
+
+	apiPrefix := ""
+	if *routePrefix != "/" {
+		apiPrefix = *routePrefix
+	}
+	mux.Handle(apiPrefix+"/api/v2/", http.StripPrefix(apiPrefix+"/api/v2", apiV2.Handler))
+
+	srv := http.Server{Addr: *listenAddress, Handler: mux}
+	srvc := make(chan struct{})
+
+	go func() {
+		level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			level.Error(logger).Log("msg", "Listen error", "err", err)
+			close(srvc)
+		}
+		defer func() {
+			if err := srv.Close(); err != nil {
+				level.Error(logger).Log("msg", "Error on closing the server", "err", err)
+			}
+		}()
+	}()
 
 	var (
-		hup      = make(chan os.Signal)
+		hup      = make(chan os.Signal, 1)
 		hupReady = make(chan bool)
 		term     = make(chan os.Signal, 1)
 	)
@@ -411,7 +450,8 @@ func main() {
 		for {
 			select {
 			case <-hup:
-				reload()
+				// ignore error, already logged in `reload()`
+				_ = reload()
 			case errc := <-webReload:
 				errc <- reload()
 			}
@@ -421,9 +461,15 @@ func main() {
 	// Wait for reload or termination signals.
 	close(hupReady) // Unblock SIGHUP handler.
 
-	<-term
-
-	level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+	for {
+		select {
+		case <-term:
+			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+			return 0
+		case <-srvc:
+			return 1
+		}
+	}
 }
 
 // clusterWait returns a function that inspects the current peer state and returns
@@ -460,13 +506,6 @@ func extURL(listen, external string) (*url.URL, error) {
 	u.Path = ppref
 
 	return u, nil
-}
-
-func listen(listen string, router *route.Router, logger log.Logger) {
-	if err := http.ListenAndServe(listen, router); err != nil {
-		level.Error(logger).Log("msg", "Listen error", "err", err)
-		os.Exit(1)
-	}
 }
 
 func md5HashAsMetricValue(data []byte) float64 {

@@ -1,0 +1,10 @@
+(io.Closer).Close
+(*os.File).Close
+fmt.Fprintf
+fmt.Fprintln
+
+(github.com/prometheus/alertmanager/vendor/github.com/go-kit/kit/log.Logger).Log
+// Allowed log levels are enforced via kingpin
+(*github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/promlog.AllowedLevel).Set
+// Generated via go-swagger
+(*github.com/prometheus/alertmanager/api/v2/restapi.Server).Shutdown

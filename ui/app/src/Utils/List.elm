@@ -1,6 +1,6 @@
-module Utils.List exposing (..)
+module Utils.List exposing (groupBy, lastElem, mjoin, mstring, nextElem, replaceIf, replaceIndex, zip)
 
-import Utils.Types exposing (Matchers, Matcher)
+import Data.Matcher exposing (Matcher)
 import Dict exposing (Dict)
 
 
@@ -10,6 +10,7 @@ nextElem el list =
         curr :: rest ->
             if curr == el then
                 List.head rest
+
             else
                 nextElem el rest
 
@@ -28,6 +29,7 @@ replaceIf predicate replacement list =
         (\item ->
             if predicate item then
                 replacement
+
             else
                 item
         )
@@ -40,13 +42,14 @@ replaceIndex index replacement list =
         (\currentIndex item ->
             if index == currentIndex then
                 replacement item
+
             else
                 item
         )
         list
 
 
-mjoin : Matchers -> String
+mjoin : List Matcher -> String
 mjoin m =
     String.join "," (List.map mstring m)
 
@@ -57,10 +60,11 @@ mstring m =
         sep =
             if m.isRegex then
                 "=~"
+
             else
                 "="
     in
-        String.join sep [ m.name, toString m.value ]
+    String.join sep [ m.name, m.value ]
 
 
 {-| Takes a key-fn and a list.
@@ -85,4 +89,4 @@ groupBy keyfn list =
 
 zip : List a -> List b -> List ( a, b )
 zip a b =
-    List.map2 (,) a b
+    List.map2 (\a1 b1 -> ( a1, b1 )) a b

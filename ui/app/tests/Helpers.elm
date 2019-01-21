@@ -9,16 +9,16 @@ isNotEmptyTrimmedAlphabetWord string =
         stringLength =
             String.length string
     in
-        stringLength
-            /= 0
-            && String.length (String.filter isLetter string)
-            == stringLength
+    stringLength
+        /= 0
+        && String.length (String.filter isLetter string)
+        == stringLength
 
 
 isLetter : Char -> Bool
 isLetter char =
-    String.contains (String.fromChar char) (lowerCaseAlphabet)
-        || String.contains (String.fromChar char) (upperCaseAlphabet)
+    String.contains (String.fromChar char) lowerCaseAlphabet
+        || String.contains (String.fromChar char) upperCaseAlphabet
 
 
 lowerCaseAlphabet : String

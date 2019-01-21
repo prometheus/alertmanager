@@ -64,16 +64,17 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:     `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
-		Username:  `{{ template "slack.default.username" . }}`,
-		Title:     `{{ template "slack.default.title" . }}`,
-		TitleLink: `{{ template "slack.default.titlelink" . }}`,
-		IconEmoji: `{{ template "slack.default.iconemoji" . }}`,
-		IconURL:   `{{ template "slack.default.iconurl" . }}`,
-		Pretext:   `{{ template "slack.default.pretext" . }}`,
-		Text:      `{{ template "slack.default.text" . }}`,
-		Fallback:  `{{ template "slack.default.fallback" . }}`,
-		Footer:    `{{ template "slack.default.footer" . }}`,
+		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:   `{{ template "slack.default.username" . }}`,
+		Title:      `{{ template "slack.default.title" . }}`,
+		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
+		IconEmoji:  `{{ template "slack.default.iconemoji" . }}`,
+		IconURL:    `{{ template "slack.default.iconurl" . }}`,
+		Pretext:    `{{ template "slack.default.pretext" . }}`,
+		Text:       `{{ template "slack.default.text" . }}`,
+		Fallback:   `{{ template "slack.default.fallback" . }}`,
+		CallbackID: `{{ template "slack.default.callbackid" . }}`,
+		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
@@ -134,6 +135,7 @@ var (
 		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
+		HTML:     false,
 	}
 )
 
@@ -151,18 +153,19 @@ type EmailConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	// Email address to notify.
-	To           string            `yaml:"to,omitempty" json:"to,omitempty"`
-	From         string            `yaml:"from,omitempty" json:"from,omitempty"`
-	Hello        string            `yaml:"hello,omitempty" json:"hello,omitempty"`
-	Smarthost    string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
-	AuthUsername string            `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
-	AuthPassword Secret            `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
-	AuthSecret   Secret            `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
-	AuthIdentity string            `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
-	Headers      map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-	HTML         string            `yaml:"html,omitempty" json:"html,omitempty"`
-	Text         string            `yaml:"text,omitempty" json:"text,omitempty"`
-	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	To           string              `yaml:"to,omitempty" json:"to,omitempty"`
+	From         string              `yaml:"from,omitempty" json:"from,omitempty"`
+	Hello        string              `yaml:"hello,omitempty" json:"hello,omitempty"`
+	Smarthost    string              `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
+	AuthUsername string              `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
+	AuthPassword Secret              `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
+	AuthSecret   Secret              `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
+	AuthIdentity string              `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
+	Headers      map[string]string   `yaml:"headers,omitempty" json:"headers,omitempty"`
+	HTML         string              `yaml:"html,omitempty" json:"html,omitempty"`
+	Text         string              `yaml:"text,omitempty" json:"text,omitempty"`
+	RequireTLS   *bool               `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	TLSConfig    commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -195,17 +198,32 @@ type PagerdutyConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	ServiceKey  Secret            `yaml:"service_key,omitempty" json"service_key,omitempty"`
+	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
 	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
 	URL         *URL              `yaml:"url,omitempty" json:"url,omitempty"`
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
 	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+	Images      []PagerdutyImage  `yaml:"images,omitempty" json:"images,omitempty"`
+	Links       []PagerdutyLink   `yaml:"links,omitempty" json:"links,omitempty"`
 	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
 	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
+}
+
+// PagerdutyLink is a link
+type PagerdutyLink struct {
+	HRef string `yaml:"href,omitempty" json:"href,omitempty"`
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+// PagerdutyImage is an image
+type PagerdutyImage struct {
+	Src  string `yaml:"src,omitempty" json:"src,omitempty"`
+	Alt  string `yaml:"alt,omitempty" json:"alt,omitempty"`
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -230,13 +248,16 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 }
 
 // SlackAction configures a single Slack action that is sent with each notification.
-// Each action must contain a type, text, and url.
-// See https://api.slack.com/docs/message-attachments#action_fields for more information.
+// See https://api.slack.com/docs/message-attachments#action_fields and https://api.slack.com/docs/message-buttons
+// for more information.
 type SlackAction struct {
-	Type  string `yaml:"type,omitempty"  json:"type,omitempty"`
-	Text  string `yaml:"text,omitempty"  json:"text,omitempty"`
-	URL   string `yaml:"url,omitempty"   json:"url,omitempty"`
-	Style string `yaml:"style,omitempty" json:"style,omitempty"`
+	Type         string                  `yaml:"type,omitempty"  json:"type,omitempty"`
+	Text         string                  `yaml:"text,omitempty"  json:"text,omitempty"`
+	URL          string                  `yaml:"url,omitempty"   json:"url,omitempty"`
+	Style        string                  `yaml:"style,omitempty" json:"style,omitempty"`
+	Name         string                  `yaml:"name,omitempty"  json:"name,omitempty"`
+	Value        string                  `yaml:"value,omitempty"  json:"value,omitempty"`
+	ConfirmField *SlackConfirmationField `yaml:"confirm,omitempty"  json:"confirm,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for SlackAction.
@@ -249,10 +270,39 @@ func (c *SlackAction) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing type in Slack action configuration")
 	}
 	if c.Text == "" {
-		return fmt.Errorf("missing value in Slack text configuration")
+		return fmt.Errorf("missing text in Slack action configuration")
 	}
-	if c.URL == "" {
-		return fmt.Errorf("missing value in Slack url configuration")
+	if c.URL != "" {
+		// Clear all message action fields.
+		c.Name = ""
+		c.Value = ""
+		c.ConfirmField = nil
+	} else if c.Name != "" {
+		c.URL = ""
+	} else {
+		return fmt.Errorf("missing name or url in Slack action configuration")
+	}
+	return nil
+}
+
+// SlackConfirmationField protect users from destructive actions or particularly distinguished decisions
+// by asking them to confirm their button click one more time.
+// See https://api.slack.com/docs/interactive-message-field-guide#confirmation_fields for more information.
+type SlackConfirmationField struct {
+	Text        string `yaml:"text,omitempty"  json:"text,omitempty"`
+	Title       string `yaml:"title,omitempty"  json:"title,omitempty"`
+	OkText      string `yaml:"ok_text,omitempty"  json:"ok_text,omitempty"`
+	DismissText string `yaml:"dismiss_text,omitempty"  json:"dismiss_text,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackConfirmationField.
+func (c *SlackConfirmationField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain SlackConfirmationField
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Text == "" {
+		return fmt.Errorf("missing text in Slack confirmation configuration")
 	}
 	return nil
 }
@@ -303,8 +353,11 @@ type SlackConfig struct {
 	ShortFields bool           `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
 	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
 	Fallback    string         `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	CallbackID  string         `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
 	IconEmoji   string         `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	IconURL     string         `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`
+	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
 	LinkNames   bool           `yaml:"link_names,omitempty" json:"link_names,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
@@ -434,13 +487,14 @@ type VictorOpsConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey            Secret `yaml:"api_key" json:"api_key"`
-	APIURL            *URL   `yaml:"api_url" json:"api_url"`
-	RoutingKey        string `yaml:"routing_key" json:"routing_key"`
-	MessageType       string `yaml:"message_type" json:"message_type"`
-	StateMessage      string `yaml:"state_message" json:"state_message"`
-	EntityDisplayName string `yaml:"entity_display_name" json:"entity_display_name"`
-	MonitoringTool    string `yaml:"monitoring_tool" json:"monitoring_tool"`
+	APIKey            Secret            `yaml:"api_key" json:"api_key"`
+	APIURL            *URL              `yaml:"api_url" json:"api_url"`
+	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
+	MessageType       string            `yaml:"message_type" json:"message_type"`
+	StateMessage      string            `yaml:"state_message" json:"state_message"`
+	EntityDisplayName string            `yaml:"entity_display_name" json:"entity_display_name"`
+	MonitoringTool    string            `yaml:"monitoring_tool" json:"monitoring_tool"`
+	CustomFields      map[string]string `yaml:"custom_fields,omitempty" json:"custom_fields,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -453,6 +507,15 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if c.RoutingKey == "" {
 		return fmt.Errorf("missing Routing key in VictorOps config")
 	}
+
+	reservedFields := []string{"routing_key", "message_type", "state_message", "entity_display_name", "monitoring_tool", "entity_id", "entity_state"}
+
+	for _, v := range reservedFields {
+		if _, ok := c.CustomFields[v]; ok {
+			return fmt.Errorf("VictorOps config contains custom field %s which cannot be used as it conflicts with the fixed/static fields", v)
+		}
+	}
+
 	return nil
 }
 
@@ -480,9 +543,12 @@ type PushoverConfig struct {
 	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
 	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
 	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
+	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty`
+	Sound    string   `yaml:"sound,omitempty" json:"sound,omitempty"`
 	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Expire   duration `yaml:"expire,omitempty" json:"expire,omitempty"`
+	HTML     bool     `yaml:"html,omitempty" json:"html,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

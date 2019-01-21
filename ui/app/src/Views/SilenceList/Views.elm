@@ -1,17 +1,19 @@
-module Views.SilenceList.Views exposing (..)
+module Views.SilenceList.Views exposing (filterSilencesByState, groupSilencesByState, silencesView, states, tabView, tabsView, view)
 
+import Data.GettableSilence exposing (GettableSilence)
+import Data.SilenceStatus exposing (State(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Silences.Types exposing (Silence, State(..), stateToString, SilenceId)
-import Types exposing (Msg(MsgForSilenceList, Noop, UpdateFilter))
+import Html.Keyed
+import Html.Lazy exposing (lazy, lazy2, lazy3)
+import Silences.Types exposing (stateToString)
+import Types exposing (Msg(..))
 import Utils.String as StringUtils
 import Utils.Types exposing (ApiData(..), Matcher)
 import Utils.Views exposing (buttonLink, checkbox, error, formField, formInput, iconButtonMsg, loading, textField)
 import Views.FilterBar.Views as FilterBar
 import Views.SilenceList.SilenceView
 import Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab)
-import Html.Lazy exposing (lazy, lazy2, lazy3)
-import Html.Keyed
 
 
 view : Model -> Html Msg
@@ -49,11 +51,11 @@ tabView currentTab count tab =
                 [ text (StringUtils.capitalizeFirst (stateToString tab))
                 , span
                     [ class "badge badge-pillow badge-default align-text-top ml-2" ]
-                    [ text (toString n) ]
+                    [ text (String.fromInt n) ]
                 ]
 
 
-silencesView : Maybe SilenceId -> State -> ApiData (List SilenceTab) -> Html Msg
+silencesView : Maybe String -> State -> ApiData (List SilenceTab) -> Html Msg
 silencesView showConfirmationDialog tab silencesTab =
     case silencesTab of
         Success tabs ->
@@ -65,6 +67,7 @@ silencesView showConfirmationDialog tab silencesTab =
                 |> (\silences ->
                         if List.isEmpty silences then
                             Utils.Views.error "No silences found"
+
                         else
                             Html.Keyed.ul [ class "list-group" ]
                                 (List.map
@@ -86,7 +89,7 @@ silencesView showConfirmationDialog tab silencesTab =
             loading
 
 
-groupSilencesByState : List Silence -> List ( State, List Silence )
+groupSilencesByState : List GettableSilence -> List ( State, List GettableSilence )
 groupSilencesByState silences =
     List.map (\state -> ( state, filterSilencesByState state silences )) states
 
@@ -96,6 +99,11 @@ states =
     [ Active, Pending, Expired ]
 
 
-filterSilencesByState : State -> List Silence -> List Silence
+filterSilencesByState : State -> List GettableSilence -> List GettableSilence
 filterSilencesByState state =
-    List.filter (.status >> .state >> (==) state)
+    List.filter (filterSilenceByState state)
+
+
+filterSilenceByState : State -> GettableSilence -> Bool
+filterSilenceByState state silence =
+    silence.status.state == state
