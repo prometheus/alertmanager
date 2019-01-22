@@ -634,7 +634,7 @@ func (n *PagerDuty) notifyV2(
 		if err != nil {
 			return false, fmt.Errorf("failed to read error response from PagerDuty(status: %d): %v", resp.StatusCode, err)
 		}
-		level.Debug(n.logger).Log("msg", fmt.Sprintf("Received error response from PagerDuty(status: %d): %s", resp.StatusCode, string(body)), "incident", key)
+		level.Debug(n.logger).Log("msg", "Received error response from PagerDuty", "incident", key, "code", resp.StatusCode, "body", string(body))
 	}
 
 	return n.retryV2(resp.StatusCode)
