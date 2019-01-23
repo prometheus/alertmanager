@@ -287,6 +287,49 @@ routing_key: ''
 	}
 }
 
+func TestVictorOpsCustomFieldsValidation(t *testing.T) {
+	in := `
+routing_key: 'test'
+custom_fields:
+  entity_state: 'state_message'
+`
+	var cfg VictorOpsConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "VictorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+
+	in = `
+routing_key: 'test'
+custom_fields:
+  my_special_field: 'special_label'
+`
+
+	err = yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected = "special_label"
+
+	if err != nil {
+		t.Fatalf("Unexpected error returned, got:\n%v", err.Error())
+	}
+
+	val, ok := cfg.CustomFields["my_special_field"]
+
+	if !ok {
+		t.Fatalf("Expected Custom Field to have value %v set, field is empty", expected)
+	}
+	if val != expected {
+		t.Errorf("\nexpected custom field my_special_field value:\n%v\ngot:\n%v", expected, val)
+	}
+
+}
+
 func TestPushoverUserKeyIsPresent(t *testing.T) {
 	in := `
 user_key: ''
@@ -431,6 +474,89 @@ fields:
 		}
 		if exp.Short != nil && *exp.Short != *field.Short {
 			t.Errorf("\nexpected:\n%v\ngot:\n%v", *exp.Short, *field.Short)
+		}
+	}
+}
+
+func TestSlackActionsValidation(t *testing.T) {
+	in := `
+actions:
+- type: button
+  text: hello
+  url: https://localhost
+  style: danger
+- type: button
+  text: hello
+  name: something
+  style: default
+  confirm:
+    title: please confirm
+    text: are you sure?
+    ok_text: yes
+    dismiss_text: no
+`
+	expected := []*SlackAction{
+		{
+			Type:  "button",
+			Text:  "hello",
+			URL:   "https://localhost",
+			Style: "danger",
+		},
+		{
+			Type:  "button",
+			Text:  "hello",
+			Name:  "something",
+			Style: "default",
+			ConfirmField: &SlackConfirmationField{
+				Title:       "please confirm",
+				Text:        "are you sure?",
+				OkText:      "yes",
+				DismissText: "no",
+			},
+		},
+	}
+
+	var cfg SlackConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+	}
+
+	for index, action := range cfg.Actions {
+		exp := expected[index]
+		if action.Type != exp.Type {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Type, action.Type)
+		}
+		if action.Text != exp.Text {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Text, action.Text)
+		}
+		if action.URL != exp.URL {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.URL, action.URL)
+		}
+		if action.Style != exp.Style {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Style, action.Style)
+		}
+		if action.Name != exp.Name {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Name, action.Name)
+		}
+		if action.Value != exp.Value {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.Value, action.Value)
+		}
+		if action.ConfirmField != nil && exp.ConfirmField == nil || action.ConfirmField == nil && exp.ConfirmField != nil {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField, action.ConfirmField)
+		} else if action.ConfirmField != nil && exp.ConfirmField != nil {
+			if action.ConfirmField.Title != exp.ConfirmField.Title {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.Title, action.ConfirmField.Title)
+			}
+			if action.ConfirmField.Text != exp.ConfirmField.Text {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.Text, action.ConfirmField.Text)
+			}
+			if action.ConfirmField.OkText != exp.ConfirmField.OkText {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.OkText, action.ConfirmField.OkText)
+			}
+			if action.ConfirmField.DismissText != exp.ConfirmField.DismissText {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.DismissText, action.ConfirmField.DismissText)
+			}
 		}
 	}
 }

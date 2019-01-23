@@ -1,8 +1,8 @@
 module StringUtils exposing (testLinkify)
 
-import Utils.String exposing (linkify)
-import Test exposing (..)
 import Expect
+import Test exposing (..)
+import Utils.String exposing (linkify)
 
 
 testLinkify : Test

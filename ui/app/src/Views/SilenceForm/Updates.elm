@@ -1,28 +1,28 @@
 port module Views.SilenceForm.Updates exposing (update)
 
 import Alerts.Api
+import Browser.Navigation as Navigation
 import Silences.Api
 import Task
 import Time
-import Types exposing (Msg(MsgForSilenceForm, SetDefaultCreator))
-import Navigation
+import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
+import Utils.Filter exposing (nullFilter)
+import Utils.FormValidation exposing (fromResult, stringNotEmpty, updateValue, validate)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
-import Utils.Filter exposing (nullFilter)
-import Utils.FormValidation exposing (updateValue, validate, stringNotEmpty, fromResult)
 import Views.SilenceForm.Types
     exposing
         ( Model
         , SilenceForm
-        , SilenceFormMsg(..)
         , SilenceFormFieldMsg(..)
+        , SilenceFormMsg(..)
+        , emptyMatcher
         , fromMatchersAndTime
         , fromSilence
         , parseEndsAt
-        , validateForm
         , toSilence
-        , emptyMatcher
+        , validateForm
         )
 
 
@@ -41,7 +41,7 @@ updateForm msg form =
                     Utils.Date.timeFromString form.endsAt.value
 
                 durationValue =
-                    case Result.map2 (-) endsAt startsAt of
+                    case Result.map2 Utils.Date.timeDifference startsAt endsAt of
                         Ok duration ->
                             case Utils.Date.durationFormat duration of
                                 Just value ->
@@ -53,10 +53,10 @@ updateForm msg form =
                         Err _ ->
                             form.duration.value
             in
-                { form
-                    | startsAt = updateValue time form.startsAt
-                    , duration = updateValue durationValue form.duration
-                }
+            { form
+                | startsAt = updateValue time form.startsAt
+                , duration = updateValue durationValue form.duration
+            }
 
         UpdateEndsAt time ->
             let
@@ -67,7 +67,7 @@ updateForm msg form =
                     Utils.Date.timeFromString form.startsAt.value
 
                 durationValue =
-                    case Result.map2 (-) endsAt startsAt of
+                    case Result.map2 Utils.Date.timeDifference startsAt endsAt of
                         Ok duration ->
                             case Utils.Date.durationFormat duration of
                                 Just value ->
@@ -79,10 +79,10 @@ updateForm msg form =
                         Err _ ->
                             form.duration.value
             in
-                { form
-                    | endsAt = updateValue time form.endsAt
-                    , duration = updateValue durationValue form.duration
-                }
+            { form
+                | endsAt = updateValue time form.endsAt
+                , duration = updateValue durationValue form.duration
+            }
 
         UpdateDuration time ->
             let
@@ -93,17 +93,17 @@ updateForm msg form =
                     Utils.Date.timeFromString form.startsAt.value
 
                 endsAtValue =
-                    case Result.map2 (+) startsAt duration of
+                    case Result.map2 Utils.Date.addDuration duration startsAt of
                         Ok endsAt ->
                             Utils.Date.timeToString endsAt
 
                         Err _ ->
                             form.endsAt.value
             in
-                { form
-                    | endsAt = updateValue endsAtValue form.endsAt
-                    , duration = updateValue time form.duration
-                }
+            { form
+                | endsAt = updateValue endsAtValue form.endsAt
+                , duration = updateValue time form.duration
+            }
 
         ValidateTime ->
             { form
@@ -134,7 +134,7 @@ updateForm msg form =
                         (\matcher -> { matcher | name = updateValue name matcher.name })
                         form.matchers
             in
-                { form | matchers = matchers }
+            { form | matchers = matchers }
 
         ValidateMatcherName index ->
             let
@@ -143,7 +143,7 @@ updateForm msg form =
                         (\matcher -> { matcher | name = validate stringNotEmpty matcher.name })
                         form.matchers
             in
-                { form | matchers = matchers }
+            { form | matchers = matchers }
 
         UpdateMatcherValue index value ->
             let
@@ -152,7 +152,7 @@ updateForm msg form =
                         (\matcher -> { matcher | value = updateValue value matcher.value })
                         form.matchers
             in
-                { form | matchers = matchers }
+            { form | matchers = matchers }
 
         ValidateMatcherValue index ->
             let
@@ -161,7 +161,7 @@ updateForm msg form =
                         (\matcher -> { matcher | value = matcher.value })
                         form.matchers
             in
-                { form | matchers = matchers }
+            { form | matchers = matchers }
 
         UpdateMatcherRegex index isRegex ->
             let
@@ -170,7 +170,7 @@ updateForm msg form =
                         (\matcher -> { matcher | isRegex = isRegex })
                         form.matchers
             in
-                { form | matchers = matchers }
+            { form | matchers = matchers }
 
 
 update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
@@ -200,12 +200,12 @@ update msg model basePath apiUrl =
                 cmd =
                     case silenceId of
                         Success id ->
-                            Navigation.newUrl (basePath ++ "#/silences/" ++ id)
+                            Navigation.pushUrl model.key (basePath ++ "#/silences/" ++ id)
 
                         _ ->
                             Cmd.none
             in
-                ( { model | silenceId = silenceId }, cmd )
+            ( { model | silenceId = silenceId }, cmd )
 
         NewSilenceFromMatchers defaultCreator matchers ->
             ( model, Task.perform (NewSilenceFromMatchersAndTime defaultCreator matchers >> MsgForSilenceForm) Time.now )
@@ -213,7 +213,9 @@ update msg model basePath apiUrl =
         NewSilenceFromMatchersAndTime defaultCreator matchers time ->
             ( { form = fromMatchersAndTime defaultCreator matchers time
               , alerts = Initial
+              , activeAlertId = Nothing
               , silenceId = Initial
+              , key = model.key
               }
             , Cmd.none
             )
@@ -252,10 +254,17 @@ update msg model basePath apiUrl =
             , Cmd.none
             )
 
+        SetActiveAlert maybeAlertId ->
+            ( { model | activeAlertId = maybeAlertId }
+            , Cmd.none
+            )
+
         UpdateField fieldMsg ->
             ( { form = updateForm fieldMsg model.form
               , alerts = Initial
               , silenceId = Initial
+              , key = model.key
+              , activeAlertId = model.activeAlertId
               }
             , Cmd.none
             )

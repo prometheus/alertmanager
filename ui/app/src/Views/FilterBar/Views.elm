@@ -1,12 +1,12 @@
 module Views.FilterBar.Views exposing (view)
 
-import Html exposing (Html, Attribute, div, span, input, text, button, i, small)
-import Html.Attributes exposing (value, class, style, disabled, id)
-import Html.Events exposing (onClick, onInput, on, keyCode)
+import Html exposing (Attribute, Html, button, div, i, input, small, span, text)
+import Html.Attributes exposing (class, disabled, id, style, value)
+import Html.Events exposing (keyCode, on, onClick, onInput)
 import Utils.Filter exposing (Matcher)
+import Utils.Keyboard exposing (keys, onKeyDown, onKeyUp)
 import Utils.List
-import Utils.Keyboard exposing (keys, onKeyUp, onKeyDown)
-import Views.FilterBar.Types exposing (Msg(..), Model)
+import Views.FilterBar.Types exposing (Model, Msg(..))
 
 
 keys :
@@ -56,6 +56,7 @@ view { matchers, matcherText, backspacePressed } =
         className =
             if matcherText == "" then
                 ""
+
             else
                 case maybeMatcher of
                     Just _ ->
@@ -69,6 +70,7 @@ view { matchers, matcherText, backspacePressed } =
                 maybeMatcher
                     |> Maybe.map (AddFilterMatcher True)
                     |> Maybe.withDefault Noop
+
             else if key == keys.backspace then
                 if matcherText == "" then
                     case ( backspacePressed, maybeLastMatcher ) of
@@ -77,14 +79,17 @@ view { matchers, matcherText, backspacePressed } =
 
                         _ ->
                             Noop
+
                 else
                     PressingBackspace True
+
             else
                 Noop
 
         keyUp key =
             if key == keys.backspace then
                 PressingBackspace False
+
             else
                 Noop
 
@@ -97,38 +102,38 @@ view { matchers, matcherText, backspacePressed } =
         isDisabled =
             maybeMatcher == Nothing
     in
-        div
-            [ class "row no-gutters align-items-start" ]
-            (viewMatchers matchers
-                ++ [ div
-                        [ class ("col " ++ className)
-                        , style [ ( "min-width", "200px" ) ]
-                        ]
-                        [ div [ class "input-group" ]
-                            [ input
-                                [ id "filter-bar-matcher"
-                                , class "form-control"
-                                , value matcherText
-                                , onKeyDown keyDown
-                                , onKeyUp keyUp
-                                , onInput UpdateMatcherText
-                                ]
-                                []
-                            , span
-                                [ class "input-group-btn" ]
-                                [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
+    div
+        [ class "row no-gutters align-items-start" ]
+        (viewMatchers matchers
+            ++ [ div
+                    [ class ("col " ++ className)
+                    , style "min-width" "200px"
+                    ]
+                    [ div [ class "input-group" ]
+                        [ input
+                            [ id "filter-bar-matcher"
+                            , class "form-control"
+                            , value matcherText
+                            , onKeyDown keyDown
+                            , onKeyUp keyUp
+                            , onInput UpdateMatcherText
                             ]
-                        , small [ class "form-text text-muted" ]
-                            [ text "Custom matcher, e.g."
-                            , button
-                                [ class "btn btn-link btn-sm align-baseline"
-                                , onClick (UpdateMatcherText exampleMatcher)
-                                ]
-                                [ text exampleMatcher ]
-                            ]
+                            []
+                        , span
+                            [ class "input-group-btn" ]
+                            [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
                         ]
-                   ]
-            )
+                    , small [ class "form-text text-muted" ]
+                        [ text "Custom matcher, e.g."
+                        , button
+                            [ class "btn btn-link btn-sm align-baseline"
+                            , onClick (UpdateMatcherText exampleMatcher)
+                            ]
+                            [ text exampleMatcher ]
+                        ]
+                    ]
+               ]
+        )
 
 
 exampleMatcher : String

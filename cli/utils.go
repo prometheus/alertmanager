@@ -14,9 +14,17 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path"
+
+	"github.com/prometheus/alertmanager/client"
+	amconfig "github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/client_golang/api"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/pkg/parse"
 	"github.com/prometheus/alertmanager/types"
@@ -45,11 +53,11 @@ func GetAlertmanagerURL(p string) url.URL {
 	return amURL
 }
 
-// Parse a list of labels (cli arguments)
-func parseMatchers(inputLabels []string) ([]labels.Matcher, error) {
+// Parse a list of matchers (cli arguments)
+func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 	matchers := make([]labels.Matcher, 0)
 
-	for _, v := range inputLabels {
+	for _, v := range inputMatchers {
 		name, value, matchType, err := parse.Input(v)
 		if err != nil {
 			return []labels.Matcher{}, err
@@ -63,6 +71,76 @@ func parseMatchers(inputLabels []string) ([]labels.Matcher, error) {
 	}
 
 	return matchers, nil
+}
+
+// getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager
+func getRemoteAlertmanagerConfigStatus(ctx context.Context, alertmanagerURL *url.URL) (*client.ServerStatus, error) {
+	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	if err != nil {
+		return nil, err
+	}
+	statusAPI := client.NewStatusAPI(c)
+	status, err := statusAPI.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
+func checkRoutingConfigInputFlags(alertmanagerURL *url.URL, configFile string) {
+	if alertmanagerURL != nil && configFile != "" {
+		fmt.Fprintln(os.Stderr, "Warning: --config.file flag overrides the --alertmanager.url.")
+	}
+	if alertmanagerURL == nil && configFile == "" {
+		kingpin.Fatalf("You have to specify one of --config.file or --alertmanager.url flags.")
+	}
+}
+
+func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*amconfig.Config, error) {
+	checkRoutingConfigInputFlags(alertmanagerURL, configFile)
+	if configFile != "" {
+		cfg, _, err := amconfig.LoadFile(configFile)
+		if err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	}
+	if alertmanagerURL != nil {
+		status, err := getRemoteAlertmanagerConfigStatus(ctx, alertmanagerURL)
+		if err != nil {
+			return nil, err
+		}
+		return status.ConfigJSON, nil
+	}
+	return nil, errors.New("failed to get Alertmanager configuration")
+}
+
+// convertClientToCommonLabelSet converts client.LabelSet to model.Labelset
+func convertClientToCommonLabelSet(cls client.LabelSet) model.LabelSet {
+	mls := make(model.LabelSet, len(cls))
+	for ln, lv := range cls {
+		mls[model.LabelName(ln)] = model.LabelValue(lv)
+	}
+	return mls
+}
+
+// Parse a list of labels (cli arguments)
+func parseLabels(inputLabels []string) (client.LabelSet, error) {
+	labelSet := make(client.LabelSet, len(inputLabels))
+
+	for _, l := range inputLabels {
+		name, value, matchType, err := parse.Input(l)
+		if err != nil {
+			return client.LabelSet{}, err
+		}
+		if matchType != labels.MatchEqual {
+			return client.LabelSet{}, errors.New("labels must be specified as key=value pairs")
+		}
+
+		labelSet[client.LabelName(name)] = client.LabelValue(value)
+	}
+
+	return labelSet, nil
 }
 
 // Only valid for when you are going to add a silence
@@ -92,4 +170,13 @@ func TypeMatcher(matcher labels.Matcher) (types.Matcher, error) {
 		return types.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
 	}
 	return *typeMatcher, nil
+}
+
+// Helper function for adding the ctx with timeout into an action.
+func execWithTimeout(fn func(context.Context, *kingpin.ParseContext) error) func(*kingpin.ParseContext) error {
+	return func(x *kingpin.ParseContext) error {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return fn(ctx, x)
+	}
 }

@@ -88,22 +88,19 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
-	queryCmd.Action(c.query)
+	queryCmd.Action(execWithTimeout(c.query))
 }
 
-func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
+func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) error {
 	var filterString = ""
-	if len(c.matchers) == 1 {
+	if len(c.matchers) > 0 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
 		_, err := parse.Matcher(c.matchers[0])
 		if err != nil {
-			filterString = fmt.Sprintf("{alertname=%s}", c.matchers[0])
-		} else {
-			filterString = fmt.Sprintf("{%s}", strings.Join(c.matchers, ","))
+			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
 		}
-	} else if len(c.matchers) > 1 {
 		filterString = fmt.Sprintf("{%s}", strings.Join(c.matchers, ","))
 	}
 
@@ -112,7 +109,7 @@ func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
 		return err
 	}
 	silenceAPI := client.NewSilenceAPI(apiClient)
-	fetchedSilences, err := silenceAPI.List(context.Background(), filterString)
+	fetchedSilences, err := silenceAPI.List(ctx, filterString)
 	if err != nil {
 		return err
 	}

@@ -14,6 +14,8 @@
 package notify
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -23,7 +25,6 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
@@ -235,7 +236,7 @@ func TestOpsGenie(t *testing.T) {
 		Tags:        `{{ .CommonLabels.Tags }}`,
 		Note:        `{{ .CommonLabels.Note }}`,
 		Priority:    `{{ .CommonLabels.Priority }}`,
-		APIKey:      `s3cr3t`,
+		APIKey:      `{{ .ExternalURL }}`,
 		APIURL:      &config.URL{u},
 	}
 	notifier := NewOpsGenie(conf, tmpl, logger)
@@ -258,7 +259,7 @@ func TestOpsGenie(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, retry)
 	require.Equal(t, expectedURL, req.URL)
-	require.Equal(t, "GenieKey s3cr3t", req.Header.Get("Authorization"))
+	require.Equal(t, "GenieKey http://am", req.Header.Get("Authorization"))
 	require.Equal(t, expectedBody, readBody(t, req))
 
 	// Fully defined alert.
@@ -283,4 +284,90 @@ func TestOpsGenie(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, retry)
 	require.Equal(t, expectedBody, readBody(t, req))
+
+	// Broken API Key Template.
+	conf.APIKey = "{{ kaput "
+	_, _, err = notifier.createRequest(ctx, alert2)
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
+}
+
+func TestEmailConfigNoAuthMechs(t *testing.T) {
+
+	email := &Email{
+		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+	}
+	_, err := email.auth("")
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "unknown auth mechanism: ")
+}
+
+func TestEmailConfigMissingAuthParam(t *testing.T) {
+
+	email := &Email{
+		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+	}
+	_, err := email.auth("CRAM-MD5")
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "missing secret for CRAM-MD5 auth mechanism")
+
+	_, err = email.auth("PLAIN")
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism")
+
+	_, err = email.auth("LOGIN")
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "missing password for LOGIN auth mechanism")
+
+	_, err = email.auth("PLAIN LOGIN")
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism")
+}
+
+func TestVictorOpsCustomFields(t *testing.T) {
+	logger := log.NewNopLogger()
+	tmpl := createTmpl(t)
+
+	url, err := url.Parse("http://nowhere.com")
+
+	require.NoError(t, err, "unexpected error parsing mock url")
+
+	conf := &config.VictorOpsConfig{
+		APIKey:            `12345`,
+		APIURL:            &config.URL{url},
+		EntityDisplayName: `{{ .CommonLabels.Message }}`,
+		StateMessage:      `{{ .CommonLabels.Message }}`,
+		RoutingKey:        `test`,
+		MessageType:       ``,
+		MonitoringTool:    `AM`,
+		CustomFields: map[string]string{
+			"Field_A": "{{ .CommonLabels.Message }}",
+		},
+	}
+
+	notifier := NewVictorOps(conf, tmpl, logger)
+
+	ctx := context.Background()
+	ctx = WithGroupKey(ctx, "1")
+
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"Message": "message",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	}
+
+	msg, err := notifier.createVictorOpsPayload(ctx, alert)
+	require.NoError(t, err)
+
+	var m map[string]string
+	err = json.Unmarshal(msg.Bytes(), &m)
+
+	require.NoError(t, err)
+
+	// Verify that a custom field was added to the payload and templatized.
+	require.Equal(t, "message", m["Field_A"])
 }

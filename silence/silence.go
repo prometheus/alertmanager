@@ -39,7 +39,7 @@ import (
 )
 
 // ErrNotFound is returned if a silence was not found.
-var ErrNotFound = fmt.Errorf("not found")
+var ErrNotFound = fmt.Errorf("silence not found")
 
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = fmt.Errorf("invalid state")
@@ -403,7 +403,7 @@ func (s *Silences) setSilence(sil *pb.Silence) error {
 		return err
 	}
 
-	s.st.merge(msil)
+	s.st.merge(msil, s.now())
 	s.broadcast(b)
 
 	return nil
@@ -717,8 +717,10 @@ func (s *Silences) Merge(b []byte) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	now := s.now()
+
 	for _, e := range st {
-		if merged := s.st.merge(e); merged && !cluster.OversizedMessage(b) {
+		if merged := s.st.merge(e, now); merged && !cluster.OversizedMessage(b) {
 			// If this is the first we've seen the message and it's
 			// not oversized, gossip it to other nodes. We don't
 			// propagate oversized messages because they're sent to
@@ -739,7 +741,10 @@ func (s *Silences) SetBroadcast(f func([]byte)) {
 
 type state map[string]*pb.MeshSilence
 
-func (s state) merge(e *pb.MeshSilence) bool {
+func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
+	if e.ExpiresAt.Before(now) {
+		return false
+	}
 	// Comments list was moved to a single comment. Apply upgrade
 	// on silences received from peers.
 	if len(e.Silence.Comments) > 0 {

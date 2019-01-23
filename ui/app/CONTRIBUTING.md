@@ -30,13 +30,6 @@ If you prefer, there's a make target available to format all elm source files:
 # make format
 ```
 
-Once you've installed Elm, install the dependencies listed in
-`elm-package.json`:
-
-```
-# elm package install -y
-```
-
 ## Elm Resources
 
 - The [Official Elm Guide](https://guide.elm-lang.org/) is a great place to
@@ -71,4 +64,4 @@ triggering a recompile of the project.
 ## Commiting changes
 
 Before you commit changes, please run `make build-all` on the root level
-Makefile. Please include `ui/bindata.go` in your commit.
+Makefile. Please include `asset/*_vfsdata.go` in your commit.

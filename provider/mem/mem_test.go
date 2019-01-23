@@ -3,7 +3,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/lic:wenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,17 +14,21 @@
 package mem
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
 	"sync"
 
+	"github.com/go-kit/kit/log"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -72,9 +76,66 @@ func init() {
 	pretty.CompareConfig.IncludeUnexported = true
 }
 
+// TestAlertsSubscribePutStarvation tests starvation of `iterator.Close` and
+// `alerts.Put`. Both `Subscribe` and `Put` use the Alerts.mtx lock. `Subscribe`
+// needs it to subscribe and more importantly unsubscribe `Alerts.listeners`. `Put`
+// uses the lock to add additional alerts and iterate the `Alerts.listeners` map.
+// If the channel of a listener is at its limit, `alerts.Lock` is blocked, whereby
+// a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
+func TestAlertsSubscribePutStarvation(t *testing.T) {
+	marker := types.NewMarker()
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	iterator := alerts.Subscribe()
+
+	alertsToInsert := []*types.Alert{}
+	// Exhaust alert channel
+	for i := 0; i < alertChannelLength+1; i++ {
+		alertsToInsert = append(alertsToInsert, &types.Alert{
+			Alert: model.Alert{
+				// Make sure the fingerprints differ
+				Labels:       model.LabelSet{"iteration": model.LabelValue(strconv.Itoa(i))},
+				Annotations:  model.LabelSet{"foo": "bar"},
+				StartsAt:     t0,
+				EndsAt:       t1,
+				GeneratorURL: "http://example.com/prometheus",
+			},
+			UpdatedAt: t0,
+			Timeout:   false,
+		})
+	}
+
+	putIsDone := make(chan struct{})
+	putsErr := make(chan error, 1)
+	go func() {
+		if err := alerts.Put(alertsToInsert...); err != nil {
+			putsErr <- err
+			return
+		}
+
+		putIsDone <- struct{}{}
+	}()
+
+	// Increase probability that `iterator.Close` is called after `alerts.Put`.
+	time.Sleep(100 * time.Millisecond)
+	iterator.Close()
+
+	select {
+	case <-putsErr:
+		t.Fatal(err)
+	case <-putIsDone:
+		// continue
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("expected `alerts.Put` and `iterator.Close` not to starve each other")
+	}
+}
+
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,12 +160,12 @@ func TestAlertsPut(t *testing.T) {
 
 func TestAlertsSubscribe(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// add alert1 to validate if pending alerts will be send
+	// add alert1 to validate if pending alerts will be sent
 	if err := alerts.Put(alert1); err != nil {
 		t.Fatalf("Insert failed: %s", err)
 	}
@@ -188,7 +249,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 func TestAlertsGetPending(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 30*time.Minute)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +292,7 @@ func TestAlertsGetPending(t *testing.T) {
 
 func TestAlertsGC(t *testing.T) {
 	marker := types.NewMarker()
-	alerts, err := NewAlerts(marker, 200*time.Millisecond)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, log.NewNopLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,9 +314,8 @@ func TestAlertsGC(t *testing.T) {
 
 	for i, a := range insert {
 		_, err := alerts.Get(a.Fingerprint())
-		if err != provider.ErrNotFound {
-			t.Errorf("alert %d didn't get GC'd", i)
-		}
+		require.Error(t, err)
+		require.Equal(t, store.ErrNotFound, err, fmt.Sprintf("alert %d didn't get GC'd: %v", i, err))
 
 		s := marker.Status(a.Fingerprint())
 		if s.State != types.AlertStateUnprocessed {
@@ -265,6 +325,9 @@ func TestAlertsGC(t *testing.T) {
 }
 
 func alertsEqual(a1, a2 *types.Alert) bool {
+	if a1 == nil || a2 == nil {
+		return false
+	}
 	if !reflect.DeepEqual(a1.Labels, a2.Labels) {
 		return false
 	}

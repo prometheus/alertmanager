@@ -1,24 +1,22 @@
-module Utils.Filter
-    exposing
-        ( Matcher
-        , MatchOperator(..)
-        , Filter
-        , nullFilter
-        , generateQueryParam
-        , generateQueryString
-        , stringifyMatcher
-        , stringifyFilter
-        , stringifyGroup
-        , parseGroup
-        , parseFilter
-        , parseMatcher
-        )
+module Utils.Filter exposing
+    ( Filter
+    , MatchOperator(..)
+    , Matcher
+    , generateQueryParam
+    , generateQueryString
+    , nullFilter
+    , parseFilter
+    , parseGroup
+    , parseMatcher
+    , stringifyFilter
+    , stringifyGroup
+    , stringifyMatcher
+    )
 
-import Http exposing (encodeUri)
-import Parser exposing (Parser, (|.), (|=), zeroOrMore, ignore)
-import Parser.LanguageKit as Parser exposing (Trailing(..))
 import Char
+import Parser exposing ((|.), (|=), Parser, Trailing(..))
 import Set
+import Url exposing (percentEncode)
 
 
 type alias Filter =
@@ -42,27 +40,37 @@ nullFilter =
 
 generateQueryParam : String -> Maybe String -> Maybe String
 generateQueryParam name =
-    Maybe.map (encodeUri >> (++) (name ++ "="))
+    Maybe.map (percentEncode >> (++) (name ++ "="))
 
 
 generateQueryString : Filter -> String
 generateQueryString { receiver, showSilenced, showInhibited, text, group } =
     let
         parts =
-            [ ( "silenced", Maybe.withDefault False showSilenced |> toString |> String.toLower |> Just )
-            , ( "inhibited", Maybe.withDefault False showInhibited |> toString |> String.toLower |> Just )
+            [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
+            , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
             , ( "filter", emptyToNothing text )
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )
             ]
-                |> List.filterMap (uncurry generateQueryParam)
+                |> List.filterMap (\( a, b ) -> generateQueryParam a b)
     in
-        if List.length parts > 0 then
-            parts
-                |> String.join "&"
-                |> (++) "?"
-        else
-            ""
+    if List.length parts > 0 then
+        parts
+            |> String.join "&"
+            |> (++) "?"
+
+    else
+        ""
+
+
+boolToString : Bool -> String
+boolToString b =
+    if b then
+        "true"
+
+    else
+        "false"
 
 
 emptyToNothing : Maybe String -> Maybe String
@@ -114,8 +122,10 @@ stringifyGroup : List String -> Maybe String
 stringifyGroup list =
     if List.isEmpty list then
         Just ""
+
     else if list == [ "alertname" ] then
         Nothing
+
     else
         Just (String.join "," list)
 
@@ -132,8 +142,8 @@ parseGroup maybeGroup =
 
 
 stringifyFilter : List Matcher -> String
-stringifyFilter matchers =
-    case matchers of
+stringifyFilter matchers_ =
+    case matchers_ of
         [] ->
             ""
 
@@ -163,27 +173,38 @@ stringifyMatcher { key, op, value } =
 filter : Parser (List Matcher)
 filter =
     Parser.succeed identity
-        |= Parser.record spaces item
+        |= Parser.sequence
+            { start = "{"
+            , separator = ","
+            , end = "}"
+            , spaces = Parser.spaces
+            , item = item
+            , trailing = Forbidden
+            }
         |. Parser.end
 
 
 matcher : Parser Matcher
 matcher =
     Parser.succeed identity
-        |. spaces
+        |. Parser.spaces
         |= item
-        |. spaces
+        |. Parser.spaces
         |. Parser.end
 
 
 item : Parser Matcher
 item =
     Parser.succeed Matcher
-        |= Parser.variable isVarChar isVarChar Set.empty
+        |= Parser.variable
+            { start = isVarChar
+            , inner = isVarChar
+            , reserved = Set.empty
+            }
         |= (matchers
                 |> List.map
-                    (\( keyword, matcher ) ->
-                        Parser.succeed matcher
+                    (\( keyword, matcher_ ) ->
+                        Parser.succeed matcher_
                             |. Parser.keyword keyword
                     )
                 |> Parser.oneOf
@@ -191,29 +212,31 @@ item =
         |= string '"'
 
 
-spaces : Parser ()
-spaces =
-    ignore zeroOrMore (\char -> char == ' ' || char == '\t')
+
+--"
 
 
 string : Char -> Parser String
 string separator =
-    Parser.succeed identity
-        |. Parser.symbol (String.fromChar separator)
-        |= stringContents separator
-        |. Parser.symbol (String.fromChar separator)
+    Parser.succeed ()
+        |. Parser.token (String.fromChar separator)
+        |. Parser.loop separator stringHelp
+        |> Parser.getChompedString
+        -- Remove quotes
+        |> Parser.map (String.dropLeft 1 >> String.dropRight 1)
 
 
-stringContents : Char -> Parser String
-stringContents separator =
+stringHelp : Char -> Parser (Parser.Step Char ())
+stringHelp separator =
     Parser.oneOf
-        [ Parser.succeed (++)
-            |= keepOne (\char -> char == '\\')
-            |= keepOne (\char -> True)
-        , Parser.keep Parser.oneOrMore (\char -> char /= separator && char /= '\\')
+        [ Parser.succeed (Parser.Done ())
+            |. Parser.token (String.fromChar separator)
+        , Parser.succeed (Parser.Loop separator)
+            |. Parser.chompIf (\char -> char == '\\')
+            |. Parser.chompIf (\_ -> True)
+        , Parser.succeed (Parser.Loop separator)
+            |. Parser.chompIf (\char -> char /= '\\' && char /= separator)
         ]
-        |> Parser.repeat Parser.zeroOrMore
-        |> Parser.map (String.join "")
 
 
 isVarChar : Char -> Bool
@@ -222,8 +245,3 @@ isVarChar char =
         || Char.isUpper char
         || (char == '_')
         || Char.isDigit char
-
-
-keepOne : (Char -> Bool) -> Parser String
-keepOne =
-    Parser.keep (Parser.Exactly 1)

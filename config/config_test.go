@@ -144,6 +144,47 @@ receivers:
 
 }
 
+func TestWildcardGroupByWithOtherGroupByLabels(t *testing.T) {
+	in := `
+route:
+  group_by: ['alertname', 'cluster', '...']
+  receiver: team-X-mails
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "cannot have wildcard group_by (`...`) and other other labels at the same time"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestGroupByInvalidLabel(t *testing.T) {
+	in := `
+route:
+  group_by: ['-invalid-']
+  receiver: team-X-mails
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "invalid label name \"-invalid-\" in group_by list"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
 func TestRootRouteExists(t *testing.T) {
 	in := `
 receivers:
@@ -305,12 +346,24 @@ func TestMarshalSecretURL(t *testing.T) {
 	// u003c -> "<"
 	// u003e -> ">"
 	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
+	// Check that the marshaled data can be unmarshaled again.
+	out := &SecretURL{}
+	err = json.Unmarshal(c, out)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	c, err = yaml.Marshal(u)
 	if err != nil {
 		t.Fatal(err)
 	}
 	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
+	// Check that the marshaled data can be unmarshaled again.
+	out = &SecretURL{}
+	err = yaml.Unmarshal(c, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestUnmarshalSecretURL(t *testing.T) {
@@ -369,7 +422,28 @@ func TestUnmarshalURL(t *testing.T) {
 }
 
 func TestUnmarshalInvalidURL(t *testing.T) {
-	b := []byte(`"://example.com"`)
+	for _, b := range [][]byte{
+		[]byte(`"://example.com"`),
+		[]byte(`"http:example.com"`),
+		[]byte(`"telnet://example.com"`),
+	} {
+		var u URL
+
+		err := json.Unmarshal(b, &u)
+		if err == nil {
+			t.Errorf("Expected an error unmarshalling %q from JSON", string(b))
+		}
+
+		err = yaml.Unmarshal(b, &u)
+		if err == nil {
+			t.Errorf("Expected an error unmarshalling %q from YAML", string(b))
+		}
+		t.Logf("%s", err)
+	}
+}
+
+func TestUnmarshalRelativeURL(t *testing.T) {
+	b := []byte(`"/home"`)
 	var u URL
 
 	err := json.Unmarshal(b, &u)
@@ -383,21 +457,56 @@ func TestUnmarshalInvalidURL(t *testing.T) {
 	}
 }
 
-func TestJSONUnmarshalMarshaled(t *testing.T) {
+func TestJSONUnmarshal(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
-	plainCfg, err := json.Marshal(c)
+	_, err = json.Marshal(c)
 	if err != nil {
 		t.Fatal("JSON Marshaling failed:", err)
 	}
+}
 
-	cfg := Config{}
-	err = json.Unmarshal(plainCfg, &cfg)
+func TestMarshalIdempotency(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Fatal("JSON Unmarshaling failed:", err)
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	marshaled, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	c = new(Config)
+	if err := yaml.Unmarshal(marshaled, c); err != nil {
+		t.Fatal("YAML Unmarshaling failed:", err)
+	}
+}
+
+func TestGroupByAllNotMarshaled(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-mails
+    group_by: [...]
+
+receivers:
+- name: 'team-X-mails'
+`
+	c, err := Load(in)
+	if err != nil {
+		t.Fatal("load failed:", err)
+	}
+
+	dat, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	if strings.Contains(string(dat), "groupbyall") {
+		t.Fatal("groupbyall found in config file")
 	}
 }
 
@@ -433,6 +542,12 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				"cluster",
 				"service",
 			},
+			GroupByStr: []string{
+				"alertname",
+				"cluster",
+				"service",
+			},
+			GroupByAll: false,
 			Routes: []*Route{
 				{
 					Receiver: "team-X-mails",
@@ -456,6 +571,13 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	// Load a non-empty configuration to ensure that all fields are overwritten.
+	// See https://github.com/prometheus/alertmanager/issues/1649.
+	_, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	config, _, err := LoadFile("testdata/conf.empty-fields.yml")
@@ -488,6 +610,17 @@ func TestSMTPHello(t *testing.T) {
 	var hostName = c.Global.SMTPHello
 	if hostName != refValue {
 		t.Errorf("Invalid SMTP Hello hostname: %s\nExpected: %s", hostName, refValue)
+	}
+}
+
+func TestGroupByAll(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.group-by-all.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.group-by-all.yml", err)
+	}
+
+	if !c.Route.GroupByAll {
+		t.Errorf("Invalid group by all param: expected to by true")
 	}
 }
 
