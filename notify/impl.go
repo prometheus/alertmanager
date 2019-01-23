@@ -632,7 +632,7 @@ func (n *PagerDuty) notifyV2(
 	if resp.StatusCode == http.StatusBadRequest {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return false, fmt.Errorf("failed to read error response from PagerDuty(status: %d): %v", resp.StatusCode, err)
+			return false, fmt.Errorf("failed to read error response from PagerDuty (status: %d): %v", resp.StatusCode, err)
 		}
 		level.Debug(n.logger).Log("msg", "Received error response from PagerDuty", "incident", key, "code", resp.StatusCode, "body", string(body))
 	}
