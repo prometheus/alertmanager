@@ -1,3 +1,7 @@
+## Next release
+
+* [BUGFIX] Do not populate cluster info if clustering is disabled in API v2 (#1726)
+
 ## 0.16.0 / 2019-01-17
 
 This release introduces a new API v2, fully generated via the OpenAPI project

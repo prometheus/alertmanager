@@ -6,6 +6,7 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"encoding/json"
 	"strconv"
 
 	strfmt "github.com/go-openapi/strfmt"
@@ -30,6 +31,7 @@ type ClusterStatus struct {
 
 	// status
 	// Required: true
+	// Enum: [ready settling disabled]
 	Status *string `json:"status"`
 }
 
@@ -89,9 +91,46 @@ func (m *ClusterStatus) validatePeers(formats strfmt.Registry) error {
 	return nil
 }
 
+var clusterStatusTypeStatusPropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["ready","settling","disabled"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		clusterStatusTypeStatusPropEnum = append(clusterStatusTypeStatusPropEnum, v)
+	}
+}
+
+const (
+
+	// ClusterStatusStatusReady captures enum value "ready"
+	ClusterStatusStatusReady string = "ready"
+
+	// ClusterStatusStatusSettling captures enum value "settling"
+	ClusterStatusStatusSettling string = "settling"
+
+	// ClusterStatusStatusDisabled captures enum value "disabled"
+	ClusterStatusStatusDisabled string = "disabled"
+)
+
+// prop value enum
+func (m *ClusterStatus) validateStatusEnum(path, location string, value string) error {
+	if err := validate.Enum(path, location, value, clusterStatusTypeStatusPropEnum); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *ClusterStatus) validateStatus(formats strfmt.Registry) error {
 
 	if err := validate.Required("status", "body", m.Status); err != nil {
+		return err
+	}
+
+	// value enum
+	if err := m.validateStatusEnum("status", "body", *m.Status); err != nil {
 		return err
 	}
 
