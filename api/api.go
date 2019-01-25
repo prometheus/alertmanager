@@ -14,7 +14,9 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 
 	apiv1 "github.com/prometheus/alertmanager/api/v1"
@@ -70,18 +72,39 @@ func New(
 	}, nil
 }
 
-// Register all APIs with the given router and return a mux.
-func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
+// Register all APIs. It registers APIv1 with the provided router directly. As
+// APIv2 works on the http.Handler level, this method also creates a new
+// http.ServeMux and then uses it to register both the provided router (to
+// handle "/") and APIv2 (to handle "<routePrefix>/api/v2"). The method returns
+// the newly created http.ServeMux.
+//
+// If the provided value for timeout is positive, it is enforced for all HTTP
+// requests. (Negative or zero results in no timeout at all.)
+//
+// If the provided value for concurrency is positive, it limits the number of
+// concurrently processed GET requests. Otherwise, the number of concurrently
+// processed GET requests is limited to GOMAXPROCS or 8, whatever is
+// larger. Status code 503 is served for GET requests that would exceed the
+// concurrency limit.
+func (api *API) Register(
+	r *route.Router, routePrefix string,
+	timeout time.Duration, concurrency int,
+) *http.ServeMux {
+	limiter := makeLimiter(timeout, concurrency)
+
 	api.v1.Register(r.WithPrefix("/api/v1"))
 
 	mux := http.NewServeMux()
-	mux.Handle("/", r)
+	mux.Handle("/", limiter(r))
 
 	apiPrefix := ""
 	if routePrefix != "/" {
 		apiPrefix = routePrefix
 	}
-	mux.Handle(apiPrefix+"/api/v2/", http.StripPrefix(apiPrefix+"/api/v2", api.v2.Handler))
+	mux.Handle(
+		apiPrefix+"/api/v2/",
+		limiter(http.StripPrefix(apiPrefix+"/api/v2", api.v2.Handler)),
+	)
 
 	return mux
 }
@@ -93,4 +116,47 @@ func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
 	}
 
 	return api.v2.Update(cfg, resolveTimeout)
+}
+
+// makeLimiter returns an HTTP middleware that sets a timeout for HTTP requests
+// and also limits the number of concurrently processed GET requests to the
+// given number.
+//
+// If timeout is < 1, no timeout is enforced.
+//
+// If concurrency is < 1, GOMAXPROCS is used as the concurrency limit but at least 8.
+//
+// The returned middleware serves http.StatusServiceUnavailable (503) for requests that
+// would exceed the number.
+func makeLimiter(timeout time.Duration, concurrency int) func(http.Handler) http.Handler {
+	if concurrency < 1 {
+		concurrency = runtime.GOMAXPROCS(0)
+		if concurrency < 8 {
+			concurrency = 8
+		}
+	}
+	inFlightSem := make(chan struct{}, concurrency)
+
+	return func(h http.Handler) http.Handler {
+		concLimiter := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
+			if req.Method == http.MethodGet { // Only limit concurrency of GETs.
+				select {
+				case inFlightSem <- struct{}{}: // All good, carry on.
+					defer func() { <-inFlightSem }()
+				default:
+					http.Error(rsp, fmt.Sprintf(
+						"Limit of concurrent GET requests reached (%d), try again later.\n", concurrency,
+					), http.StatusServiceUnavailable)
+					return
+				}
+			}
+			h.ServeHTTP(rsp, req)
+		})
+		if timeout <= 0 {
+			return concLimiter
+		}
+		return http.TimeoutHandler(concLimiter, timeout, fmt.Sprintf(
+			"Exceeded configured timeout of %v.\n", timeout,
+		))
+	}
 }
