@@ -132,7 +132,6 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 	original := api.alertmanagerConfig.String()
 	uptime := strfmt.DateTime(api.uptime)
 
-	name := ""
 	status := open_api_models.ClusterStatusStatusDisabled
 
 	resp := open_api_models.AlertmanagerStatus{
@@ -149,15 +148,12 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 			Original: &original,
 		},
 		Cluster: &open_api_models.ClusterStatus{
-			Name:   &name,
 			Status: &status,
-			Peers:  []*open_api_models.PeerStatus{},
 		},
 	}
 
 	// If alertmanager cluster feature is disabled, then api.peers == nil.
 	if api.peer != nil {
-		name := api.peer.Name()
 		status := api.peer.Status()
 
 		peers := []*open_api_models.PeerStatus{}
@@ -170,7 +166,7 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 		}
 
 		resp.Cluster = &open_api_models.ClusterStatus{
-			Name:   &name,
+			Name:   api.peer.Name(),
 			Status: &status,
 			Peers:  peers,
 		}

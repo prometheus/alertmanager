@@ -22,7 +22,7 @@ import (
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
-// not try to access properties of peer, hence triggering a nil pointer
+// not try to access properties of peer, which would trigger a nil pointer
 // dereference.
 func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 	api := API{
@@ -36,7 +36,15 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 
 	c := status.Payload.Cluster
 
-	if c == nil || c.Status == nil || c.Name == nil || c.Peers == nil {
-		t.Fatal("expected cluster {status,name,peers} not to be nil, violating the openapi specification")
+	if c == nil || c.Status == nil {
+		t.Fatal("expected cluster status not to be nil, violating the openapi specification")
+	}
+
+	if c.Peers != nil {
+		t.Fatal("expected cluster peers to be nil when api.peer is nil, violating the openapi specification")
+	}
+
+	if c.Name != "" {
+		t.Fatal("expected cluster name to be empty, violating the openapi specification")
 	}
 }
