@@ -619,9 +619,26 @@ func gettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 		case silencepb.Matcher_EQUAL:
 			f := false
 			matcher.IsRegex = &f
+			matcher.IsNotEqual = &f
+			matcher.IsNotRegex = &f
 		case silencepb.Matcher_REGEXP:
 			t := true
+			f := false
 			matcher.IsRegex = &t
+			matcher.IsNotEqual = &f
+			matcher.IsNotRegex = &f
+		case silencepb.Matcher_NOTEQUAL:
+			t := true
+			f := false
+			matcher.IsNotEqual = &t
+			matcher.IsRegex = &f
+			matcher.IsNotRegex = &f
+		case silencepb.Matcher_NOTREGEXP:
+			t := true
+			f := false
+			matcher.IsNotRegex = &t
+			matcher.IsNotEqual = &f
+			matcher.IsRegex = &f
 		default:
 			return sil, fmt.Errorf(
 				"unknown matcher type for matcher '%v' in silence '%v'",

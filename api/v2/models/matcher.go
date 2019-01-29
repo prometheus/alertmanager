@@ -35,6 +35,14 @@ type Matcher struct {
 	// Required: true
 	IsRegex *bool `json:"isRegex"`
 
+	// is not equal
+	// Required: true
+	IsNotEqual *bool `json:"isNotEqual"`
+
+	// is not regex
+	// Required: true
+	IsNotRegex *bool `json:"isNotRegex"`
+
 	// name
 	// Required: true
 	Name *string `json:"name"`

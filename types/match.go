@@ -25,9 +25,11 @@ import (
 
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
-	Name    string `json:"name"`
-	Value   string `json:"value"`
-	IsRegex bool   `json:"isRegex"`
+	Name       string `json:"name"`
+	Value      string `json:"value"`
+	IsRegex    bool   `json:"isRegex"`
+	IsNotEqual bool   `json:"isNotEqual"`
+	IsNotRegex bool   `json:"isNotRegex"`
 
 	regex *regexp.Regexp
 }
@@ -47,6 +49,10 @@ func (m *Matcher) Init() error {
 func (m *Matcher) String() string {
 	if m.IsRegex {
 		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
+	} else if m.IsNotEqual {
+		return fmt.Sprintf("%s!=%q", m.Name, m.Value)
+	} else if m.IsNotRegex {
+		return fmt.Sprintf("%s!~%q", m.Name, m.Value)
 	}
 	return fmt.Sprintf("%s=%q", m.Name, m.Value)
 }
@@ -84,9 +90,11 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 // the given value.
 func NewMatcher(name model.LabelName, value string) *Matcher {
 	return &Matcher{
-		Name:    string(name),
-		Value:   value,
-		IsRegex: false,
+		Name:       string(name),
+		Value:      value,
+		IsRegex:    false,
+		IsNotRegex: false,
+		IsNotEqual: false,
 	}
 }
 

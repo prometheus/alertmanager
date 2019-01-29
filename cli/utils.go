@@ -69,7 +69,6 @@ func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 			Value: value,
 		})
 	}
-
 	return matchers, nil
 }
 
@@ -160,12 +159,15 @@ func TypeMatchers(matchers []labels.Matcher) (types.Matchers, error) {
 // Doesn't allow negative operators
 func TypeMatcher(matcher labels.Matcher) (types.Matcher, error) {
 	typeMatcher := types.NewMatcher(model.LabelName(matcher.Name), matcher.Value)
-
 	switch matcher.Type {
 	case labels.MatchEqual:
 		typeMatcher.IsRegex = false
 	case labels.MatchRegexp:
 		typeMatcher.IsRegex = true
+	case labels.MatchNotEqual:
+		typeMatcher.IsNotEqual = true
+	case labels.MatchNotRegexp:
+		typeMatcher.IsNotRegex = true
 	default:
 		return types.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
 	}

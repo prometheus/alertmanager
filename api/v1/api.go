@@ -701,6 +701,7 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 		CreatedBy: s.CreatedBy,
 	}
 	for _, m := range s.Matchers {
+		// TODO: Improve iffs
 		matcher := &silencepb.Matcher{
 			Name:    m.Name,
 			Pattern: m.Value,
@@ -708,6 +709,12 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 		}
 		if m.IsRegex {
 			matcher.Type = silencepb.Matcher_REGEXP
+		}
+		if m.IsNotEqual {
+			matcher.Type = silencepb.Matcher_NOTEQUAL
+		}
+		if m.IsNotRegex {
+			matcher.Type = silencepb.Matcher_NOTREGEXP
 		}
 		sil.Matchers = append(sil.Matchers, matcher)
 	}
@@ -735,6 +742,10 @@ func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
 		case silencepb.Matcher_EQUAL:
 		case silencepb.Matcher_REGEXP:
 			matcher.IsRegex = true
+		case silencepb.Matcher_NOTREGEXP:
+			matcher.IsNotRegex = true
+		case silencepb.Matcher_NOTEQUAL:
+			matcher.IsNotEqual = true
 		default:
 			return nil, fmt.Errorf("unknown matcher type")
 		}

@@ -426,6 +426,14 @@ func validateMatcher(m *pb.Matcher) error {
 		if _, err := regexp.Compile(m.Pattern); err != nil {
 			return fmt.Errorf("invalid regular expression %q: %s", m.Pattern, err)
 		}
+	case pb.Matcher_NOTEQUAL:
+		if !model.LabelValue(m.Pattern).IsValid() {
+			return fmt.Errorf("invalid label value %q", m.Pattern)
+		}
+	case pb.Matcher_NOTREGEXP:
+		if _, err := regexp.Compile(m.Pattern); err != nil {
+			return fmt.Errorf("invalid regular expression %q: %s", m.Pattern, err)
+		}
 	default:
 		return fmt.Errorf("unknown matcher type %q", m.Type)
 	}

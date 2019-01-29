@@ -88,5 +88,11 @@ func simpleFormatMatcher(matcher types.Matcher) string {
 	if matcher.IsRegex {
 		return fmt.Sprintf("%s=~%s", matcher.Name, matcher.Value)
 	}
+	if matcher.IsNotEqual {
+		return fmt.Sprintf("%s!=%s", matcher.Name, matcher.Value)
+	}
+	if matcher.IsNotRegex {
+		return fmt.Sprintf("%s!~%s", matcher.Name, matcher.Value)
+	}
 	return fmt.Sprintf("%s=%s", matcher.Name, matcher.Value)
 }

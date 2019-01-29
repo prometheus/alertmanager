@@ -61,6 +61,12 @@ mstring m =
             if m.isRegex then
                 "=~"
 
+            else if m.isNotEqual then
+                "!="
+
+            else if m.isNotRegex then
+                "!~"
+
             else
                 "="
     in

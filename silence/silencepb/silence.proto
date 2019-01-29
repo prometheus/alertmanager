@@ -16,7 +16,9 @@ message Matcher {
   // against a label set.
   enum Type {
     EQUAL = 0;
-    REGEXP = 1;
+    NOTEQUAL = 1;
+    REGEXP = 2;
+    NOTREGEXP = 3;
   };
   Type type = 1;
 
