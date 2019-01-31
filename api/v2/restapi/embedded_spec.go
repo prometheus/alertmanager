@@ -393,7 +393,12 @@ func init() {
           }
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "ready",
+            "settling",
+            "disabled"
+          ]
         }
       }
     },
@@ -1096,7 +1101,12 @@ func init() {
           }
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "ready",
+            "settling",
+            "disabled"
+          ]
         }
       }
     },
