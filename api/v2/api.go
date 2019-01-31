@@ -53,6 +53,8 @@ type API struct {
 	peer           *cluster.Peer
 	silences       *silence.Silences
 	alerts         provider.Alerts
+	muter          types.Muter
+	marker         types.Marker
 	getAlertStatus getAlertStatusFn
 	uptime         time.Time
 
@@ -72,9 +74,17 @@ type API struct {
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 
 // NewAPI returns a new Alertmanager API v2
-func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silences, peer *cluster.Peer, l log.Logger) (*API, error) {
+func NewAPI(
+	alerts provider.Alerts,
+	marker types.Marker,
+	sf getAlertStatusFn,
+	silences *silence.Silences,
+	peer *cluster.Peer,
+	l log.Logger,
+) (*API, error) {
 	api := API{
 		alerts:         alerts,
+		marker:         marker,
 		getAlertStatus: sf,
 		peer:           peer,
 		silences:       silences,
@@ -115,13 +125,14 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
+func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration, muter types.Muter) error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.resolveTimeout = resolveTimeout
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
+	api.muter = muter
 	return nil
 }
 
@@ -238,6 +249,28 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
+		// TODO: Add a timestamp now()+X, after which the Mutes() will
+		// be refreshed?
+		// Will check if the alert is inhibited, and update its status.
+		api.muter.Mutes(a.Labels)
+		// Will check if the alert is silenced, and update its status.
+		sils, err := api.silences.Query(
+			silence.QState(types.SilenceStateActive),
+			silence.QMatches(a.Labels),
+		)
+		if err != nil {
+			level.Error(api.logger).Log("msg", "Querying silences failed", "err", err)
+		}
+
+		if len(sils) > 0 {
+			ids := make([]string, len(sils))
+			for i, s := range sils {
+				ids[i] = s.Id
+			}
+			api.marker.SetSilenced(a.Labels.Fingerprint(), ids...)
+		}
+
+		// Get alert's current status after seeing if it is suppressed.
 		status := api.getAlertStatus(a.Fingerprint())
 
 		if !*params.Active && status.State == types.AlertStateActive {

@@ -302,6 +302,7 @@ func run() int {
 
 	apiV2, err := apiv2.NewAPI(
 		alerts,
+		marker,
 		marker.Status,
 		silences,
 		peer,
@@ -350,16 +351,6 @@ func run() int {
 
 		hash = md5HashAsMetricValue(plainCfg)
 
-		err = apiV1.Update(conf, time.Duration(conf.Global.ResolveTimeout))
-		if err != nil {
-			return err
-		}
-
-		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout))
-		if err != nil {
-			return err
-		}
-
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
 			return err
@@ -381,6 +372,17 @@ func run() int {
 			peer,
 			logger,
 		)
+
+		err = apiV1.Update(conf, time.Duration(conf.Global.ResolveTimeout))
+		if err != nil {
+			return err
+		}
+
+		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout), inhibitor)
+		if err != nil {
+			return err
+		}
+
 		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
 
 		go disp.Run()
