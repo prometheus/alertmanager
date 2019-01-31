@@ -1,11 +1,12 @@
 module Views.Status.Views exposing (view)
 
 import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
-import Data.ClusterStatus exposing (ClusterStatus)
+import Data.ClusterStatus exposing (ClusterStatus, Status(..))
 import Data.PeerStatus exposing (PeerStatus)
 import Data.VersionInfo exposing (VersionInfo)
 import Html exposing (..)
 import Html.Attributes exposing (class, classList, style)
+import Status.Api exposing (clusterStatusToString)
 import Status.Types exposing (StatusResponse, VersionInfo)
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeToString)
@@ -70,11 +71,18 @@ viewClusterStatus { name, status, peers } =
                 [ span
                     [ classList
                         [ ( "badge", True )
-                        , ( "badge-success", status == "ready" )
-                        , ( "badge-warning", status == "settling" )
+                        , case status of
+                            Ready ->
+                                ( "badge-success", True )
+
+                            Settling ->
+                                ( "badge-warning", True )
+
+                            Disabled ->
+                                ( "badge-danger", True )
                         ]
                     ]
-                    [ text status ]
+                    [ text <| clusterStatusToString status ]
                 ]
             ]
         , div [ class "form-group row" ]

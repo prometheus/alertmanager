@@ -129,10 +129,12 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 	api.mtx.RLock()
 	defer api.mtx.RUnlock()
 
-	name := api.peer.Name()
-	status := api.peer.Status()
 	original := api.alertmanagerConfig.String()
 	uptime := strfmt.DateTime(api.uptime)
+
+	name := ""
+	status := open_api_models.ClusterStatusStatusDisabled
+
 	resp := open_api_models.AlertmanagerStatus{
 		Uptime: &uptime,
 		VersionInfo: &open_api_models.VersionInfo{
@@ -153,12 +155,25 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 		},
 	}
 
-	for _, n := range api.peer.Peers() {
-		address := n.Address()
-		resp.Cluster.Peers = append(resp.Cluster.Peers, &open_api_models.PeerStatus{
-			Name:    &n.Name,
-			Address: &address,
-		})
+	// If alertmanager cluster feature is disabled, then api.peers == nil.
+	if api.peer != nil {
+		name := api.peer.Name()
+		status := api.peer.Status()
+
+		peers := []*open_api_models.PeerStatus{}
+		for _, n := range api.peer.Peers() {
+			address := n.Address()
+			peers = append(peers, &open_api_models.PeerStatus{
+				Name:    &n.Name,
+				Address: &address,
+			})
+		}
+
+		resp.Cluster = &open_api_models.ClusterStatus{
+			Name:   &name,
+			Status: &status,
+			Peers:  peers,
+		}
 	}
 
 	return general_ops.NewGetStatusOK().WithPayload(&resp)
