@@ -1,4 +1,4 @@
-## Next release
+## 0.16.1 / 2019-01-31
 
 * [BUGFIX] Do not populate cluster info if clustering is disabled in API v2 (#1726)
 
