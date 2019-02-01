@@ -489,6 +489,7 @@ func getHashBuffer() []byte {
 
 func putHashBuffer(b []byte) {
 	b = b[:0]
+	//lint:ignore SA6002 relax staticcheck verification.
 	hashBuffers.Put(b)
 }
 

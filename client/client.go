@@ -31,11 +31,10 @@ import (
 const (
 	apiPrefix = "/api/v1"
 
-	epStatus      = apiPrefix + "/status"
-	epSilence     = apiPrefix + "/silence/:id"
-	epSilences    = apiPrefix + "/silences"
-	epAlerts      = apiPrefix + "/alerts"
-	epAlertGroups = apiPrefix + "/alerts/groups"
+	epStatus   = apiPrefix + "/status"
+	epSilence  = apiPrefix + "/silence/:id"
+	epSilences = apiPrefix + "/silences"
+	epAlerts   = apiPrefix + "/alerts"
 
 	statusSuccess = "success"
 	statusError   = "error"

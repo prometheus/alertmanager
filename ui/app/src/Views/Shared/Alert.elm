@@ -36,20 +36,10 @@ annotation ( key, value ) =
 
 titleView : GettableAlert -> Html msg
 titleView alert =
-    let
-        ( className, inhibited ) =
-            if List.isEmpty alert.status.inhibitedBy then
-                ( "text-muted", " (inhibited)" )
-
-            else
-                ( "", "" )
-    in
     span
-        [ class ("align-self-center mr-2 " ++ className) ]
+        [ class "align-self-center mr-2" ]
         [ text
-            (dateTimeFormat alert.startsAt
-                ++ inhibited
-            )
+            (dateTimeFormat alert.startsAt)
         ]
 
 

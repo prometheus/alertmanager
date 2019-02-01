@@ -21,6 +21,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/go-openapi/loads"
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/strfmt"
+	prometheus_model "github.com/prometheus/common/model"
+	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/rs/cors"
+
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
@@ -28,7 +38,6 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
-
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -37,16 +46,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-
-	prometheus_model "github.com/prometheus/common/model"
-	"github.com/prometheus/common/version"
-	"github.com/prometheus/prometheus/pkg/labels"
-
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-openapi/loads"
-	"github.com/go-openapi/runtime/middleware"
-	"github.com/go-openapi/strfmt"
 )
 
 // API represents an Alertmanager API v2
@@ -92,6 +91,12 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 	// create new service API
 	openAPI := operations.NewAlertmanagerAPI(swaggerSpec)
 
+	// Skip swagger spec and redoc middleware, only serving the API itself via
+	// RoutesHandler. See: https://github.com/go-swagger/go-swagger/issues/1779
+	openAPI.Middleware = func(b middleware.Builder) http.Handler {
+		return middleware.Spec("", nil, openAPI.Context().RoutesHandler(b))
+	}
+
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
 	openAPI.AlertPostAlertsHandler = alert_ops.PostAlertsHandlerFunc(api.postAlertsHandler)
 	openAPI.GeneralGetStatusHandler = general_ops.GetStatusHandlerFunc(api.getStatusHandler)
@@ -103,7 +108,8 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 
 	openAPI.Logger = func(s string, i ...interface{}) { level.Error(api.logger).Log(i...) }
 
-	api.Handler = openAPI.Serve(nil)
+	handleCORS := cors.Default().Handler
+	api.Handler = handleCORS(openAPI.Serve(nil))
 
 	return &api, nil
 }
@@ -123,10 +129,12 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 	api.mtx.RLock()
 	defer api.mtx.RUnlock()
 
-	name := api.peer.Name()
-	status := api.peer.Status()
 	original := api.alertmanagerConfig.String()
 	uptime := strfmt.DateTime(api.uptime)
+
+	name := ""
+	status := open_api_models.ClusterStatusStatusDisabled
+
 	resp := open_api_models.AlertmanagerStatus{
 		Uptime: &uptime,
 		VersionInfo: &open_api_models.VersionInfo{
@@ -147,12 +155,25 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 		},
 	}
 
-	for _, n := range api.peer.Peers() {
-		address := n.Address()
-		resp.Cluster.Peers = append(resp.Cluster.Peers, &open_api_models.PeerStatus{
-			Name:    &n.Name,
-			Address: &address,
-		})
+	// If alertmanager cluster feature is disabled, then api.peers == nil.
+	if api.peer != nil {
+		name := api.peer.Name()
+		status := api.peer.Status()
+
+		peers := []*open_api_models.PeerStatus{}
+		for _, n := range api.peer.Peers() {
+			address := n.Address()
+			peers = append(peers, &open_api_models.PeerStatus{
+				Name:    &n.Name,
+				Address: &address,
+			})
+		}
+
+		resp.Cluster = &open_api_models.ClusterStatus{
+			Name:   &name,
+			Status: &status,
+			Peers:  peers,
+		}
 	}
 
 	return general_ops.NewGetStatusOK().WithPayload(&resp)

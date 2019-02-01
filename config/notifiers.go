@@ -135,6 +135,7 @@ var (
 		Priority: `{{ if eq .Status "firing" }}2{{ else }}0{{ end }}`, // emergency (firing) or normal
 		Retry:    duration(1 * time.Minute),
 		Expire:   duration(1 * time.Hour),
+		HTML:     false,
 	}
 )
 
@@ -486,13 +487,14 @@ type VictorOpsConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey            Secret `yaml:"api_key" json:"api_key"`
-	APIURL            *URL   `yaml:"api_url" json:"api_url"`
-	RoutingKey        string `yaml:"routing_key" json:"routing_key"`
-	MessageType       string `yaml:"message_type" json:"message_type"`
-	StateMessage      string `yaml:"state_message" json:"state_message"`
-	EntityDisplayName string `yaml:"entity_display_name" json:"entity_display_name"`
-	MonitoringTool    string `yaml:"monitoring_tool" json:"monitoring_tool"`
+	APIKey            Secret            `yaml:"api_key" json:"api_key"`
+	APIURL            *URL              `yaml:"api_url" json:"api_url"`
+	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
+	MessageType       string            `yaml:"message_type" json:"message_type"`
+	StateMessage      string            `yaml:"state_message" json:"state_message"`
+	EntityDisplayName string            `yaml:"entity_display_name" json:"entity_display_name"`
+	MonitoringTool    string            `yaml:"monitoring_tool" json:"monitoring_tool"`
+	CustomFields      map[string]string `yaml:"custom_fields,omitempty" json:"custom_fields,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -505,6 +507,15 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if c.RoutingKey == "" {
 		return fmt.Errorf("missing Routing key in VictorOps config")
 	}
+
+	reservedFields := []string{"routing_key", "message_type", "state_message", "entity_display_name", "monitoring_tool", "entity_id", "entity_state"}
+
+	for _, v := range reservedFields {
+		if _, ok := c.CustomFields[v]; ok {
+			return fmt.Errorf("VictorOps config contains custom field %s which cannot be used as it conflicts with the fixed/static fields", v)
+		}
+	}
+
 	return nil
 }
 
@@ -532,9 +543,12 @@ type PushoverConfig struct {
 	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
 	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
 	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
+	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty`
+	Sound    string   `yaml:"sound,omitempty" json:"sound,omitempty"`
 	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Expire   duration `yaml:"expire,omitempty" json:"expire,omitempty"`
+	HTML     bool     `yaml:"html,omitempty" json:"html,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

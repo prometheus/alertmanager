@@ -346,12 +346,24 @@ func TestMarshalSecretURL(t *testing.T) {
 	// u003c -> "<"
 	// u003e -> ">"
 	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
+	// Check that the marshaled data can be unmarshaled again.
+	out := &SecretURL{}
+	err = json.Unmarshal(c, out)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	c, err = yaml.Marshal(u)
 	if err != nil {
 		t.Fatal(err)
 	}
 	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
+	// Check that the marshaled data can be unmarshaled again.
+	out = &SecretURL{}
+	err = yaml.Unmarshal(c, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestUnmarshalSecretURL(t *testing.T) {
@@ -457,6 +469,47 @@ func TestJSONUnmarshal(t *testing.T) {
 	}
 }
 
+func TestMarshalIdempotency(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	marshaled, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	c = new(Config)
+	if err := yaml.Unmarshal(marshaled, c); err != nil {
+		t.Fatal("YAML Unmarshaling failed:", err)
+	}
+}
+
+func TestGroupByAllNotMarshaled(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-mails
+    group_by: [...]
+
+receivers:
+- name: 'team-X-mails'
+`
+	c, err := Load(in)
+	if err != nil {
+		t.Fatal("load failed:", err)
+	}
+
+	dat, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	if strings.Contains(string(dat), "groupbyall") {
+		t.Fatal("groupbyall found in config file")
+	}
+}
+
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
 	var regexpFoo Regexp
@@ -518,6 +571,13 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	// Load a non-empty configuration to ensure that all fields are overwritten.
+	// See https://github.com/prometheus/alertmanager/issues/1649.
+	_, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	config, _, err := LoadFile("testdata/conf.empty-fields.yml")
