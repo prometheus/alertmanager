@@ -324,6 +324,14 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism")
 }
 
+func TestEmailNoUsernameStillOk(t *testing.T) {
+	email := &Email{
+		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+	}
+	_, err := email.auth("CRAM-MD5")
+	require.Error(t, err)
+}
+
 func TestVictorOpsCustomFields(t *testing.T) {
 	logger := log.NewNopLogger()
 	tmpl := createTmpl(t)
