@@ -40,8 +40,7 @@ import (
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	apiv1 "github.com/prometheus/alertmanager/api/v1"
-	apiv2 "github.com/prometheus/alertmanager/api/v2"
+	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -292,23 +291,16 @@ func run() int {
 	)
 	defer disp.Stop()
 
-	apiV1 := apiv1.New(
+	api, err := api.New(
 		alerts,
 		silences,
 		marker.Status,
 		peer,
-		log.With(logger, "component", "api/v1"),
+		log.With(logger, "component", "api"),
 	)
 
-	apiV2, err := apiv2.NewAPI(
-		alerts,
-		marker.Status,
-		silences,
-		peer,
-		log.With(logger, "component", "api/v2"),
-	)
 	if err != nil {
-		level.Error(logger).Log("err", fmt.Errorf("failed to create API v2: %v", err.Error()))
+		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %v", err.Error()))
 		return 1
 	}
 
@@ -350,12 +342,7 @@ func run() int {
 
 		hash = md5HashAsMetricValue(plainCfg)
 
-		err = apiV1.Update(conf, time.Duration(conf.Global.ResolveTimeout))
-		if err != nil {
-			return err
-		}
-
-		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout))
+		err = api.Update(conf, time.Duration(conf.Global.ResolveTimeout))
 		if err != nil {
 			return err
 		}
@@ -410,16 +397,7 @@ func run() int {
 
 	ui.Register(router, webReload, logger)
 
-	apiV1.Register(router.WithPrefix("/api/v1"))
-
-	mux := http.NewServeMux()
-	mux.Handle("/", router)
-
-	apiPrefix := ""
-	if *routePrefix != "/" {
-		apiPrefix = *routePrefix
-	}
-	mux.Handle(apiPrefix+"/api/v2/", http.StripPrefix(apiPrefix+"/api/v2", apiV2.Handler))
+	mux := api.Register(router, *routePrefix)
 
 	srv := http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
