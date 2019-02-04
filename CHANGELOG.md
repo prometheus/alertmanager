@@ -1,18 +1,8 @@
-## 0.16.0-beta.0 / 2019-01-14
+## 0.16.1 / 2019-01-31
 
-* [ENHANCEMENT] Add support for --log.format (#1658)
-* [ENHANCEMENT] Add CORS support to API v2 (#1667)
-* [ENHANCEMENT] Support HTML, URL title and custom sounds for Pushover (#1634)
-* [ENHANCEMENT] Update Alert compact view (#1698)
-* [ENHANCEMENT] Support adding custom fields to VictorOps notifications (#1420)
-* [BUGFIX] Fix unmarshalling of secret URLs in config (#1663)
-* [BUGFIX] Do not write groupbyall and groupby when marshaling config (#1665)
-* [BUGFIX] Make a copy of firing alerts with EndsAt=0 when flushing (#1686)
-* [BUGFIX] Respect regex matchers when recreating silences in UI (#1697)
-* [BUGFIX] Change DefaultGlobalConfig to a function in Alertmanager configuration (#1656)
-* [BUGFIX] [amtool] Support for assuming first label is alertname in silence add and query (#1693)
+* [BUGFIX] Do not populate cluster info if clustering is disabled in API v2 (#1726)
 
-## 0.16.0-alpha.0 / 2018-11-30
+## 0.16.0 / 2019-01-17
 
 This release introduces a new API v2, fully generated via the OpenAPI project
 [1]. At the same time with this release the previous API v1 is being
@@ -34,12 +24,22 @@ deprecated. API v1 will be removed with Alertmanager release v0.18.0.
 * [FEATURE] [amtool] Add timeout support to amtool commands (#1471)
 * [FEATURE] [amtool] Added `config routes` tools for vizualization and testing routes (#1511)
 * [FEATURE] [amtool] Support adding alerts using amtool (#1461)
+* [ENHANCEMENT] Add support for --log.format (#1658)
+* [ENHANCEMENT] Add CORS support to API v2 (#1667)
+* [ENHANCEMENT] Support HTML, URL title and custom sounds for Pushover (#1634)
+* [ENHANCEMENT] Update Alert compact view (#1698)
+* [ENHANCEMENT] Support adding custom fields to VictorOps notifications (#1420)
 * [ENHANCEMENT] Add help link in UI to Alertmanager documentation (#1522)
 * [ENHANCEMENT] Enforce HTTP or HTTPS URLs in Alertmanager config (#1567)
 * [ENHANCEMENT] Make OpsGenie API Key a templated string (#1594)
 * [ENHANCEMENT] Add name, value and SlackConfirmationField to action in Slack notifier (#1557)
 * [ENHANCEMENT] Show more alert information on silence form and silence view pages (#1601)
 * [ENHANCEMENT] Add cluster peers DNS refresh job (#1428)
+* [BUGFIX] Fix unmarshalling of secret URLs in config (#1663)
+* [BUGFIX] Do not write groupbyall and groupby when marshaling config (#1665)
+* [BUGFIX] Make a copy of firing alerts with EndsAt=0 when flushing (#1686)
+* [BUGFIX] Respect regex matchers when recreating silences in UI (#1697)
+* [BUGFIX] Change DefaultGlobalConfig to a function in Alertmanager configuration (#1656)
 * [BUGFIX] Fix email template typo in alert-warning style (#1421)
 * [BUGFIX] Fix silence redirect on silence creation UI page (#1548)
 * [BUGFIX] Add missing `callback_id` parameter in Slack notifier (#1592)
@@ -47,6 +47,7 @@ deprecated. API v1 will be removed with Alertmanager release v0.18.0.
 * [BUGFIX] Use quoted-printable transfer encoding for the email notifier (#1609)
 * [BUGFIX] Do not merge expired gossip messages (#1631)
 * [BUGFIX] Fix "PLAIN" auth during notification via smtp-over-tls on port 465 (#1591)
+* [BUGFIX] [amtool] Support for assuming first label is alertname in silence add and query (#1693)
 * [BUGFIX] [amtool] Support assuming first label is alertname in alert query with matchers (#1575)
 * [BUGFIX] [amtool] Fix config path check in amtool (#1538)
 * [BUGFIX] [amtool] Fix rfc3339 example texts (#1526)

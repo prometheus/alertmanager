@@ -91,6 +91,12 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 	// create new service API
 	openAPI := operations.NewAlertmanagerAPI(swaggerSpec)
 
+	// Skip swagger spec and redoc middleware, only serving the API itself via
+	// RoutesHandler. See: https://github.com/go-swagger/go-swagger/issues/1779
+	openAPI.Middleware = func(b middleware.Builder) http.Handler {
+		return middleware.Spec("", nil, openAPI.Context().RoutesHandler(b))
+	}
+
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
 	openAPI.AlertPostAlertsHandler = alert_ops.PostAlertsHandlerFunc(api.postAlertsHandler)
 	openAPI.GeneralGetStatusHandler = general_ops.GetStatusHandlerFunc(api.getStatusHandler)
@@ -123,10 +129,12 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 	api.mtx.RLock()
 	defer api.mtx.RUnlock()
 
-	name := api.peer.Name()
-	status := api.peer.Status()
 	original := api.alertmanagerConfig.String()
 	uptime := strfmt.DateTime(api.uptime)
+
+	name := ""
+	status := open_api_models.ClusterStatusStatusDisabled
+
 	resp := open_api_models.AlertmanagerStatus{
 		Uptime: &uptime,
 		VersionInfo: &open_api_models.VersionInfo{
@@ -147,12 +155,25 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 		},
 	}
 
-	for _, n := range api.peer.Peers() {
-		address := n.Address()
-		resp.Cluster.Peers = append(resp.Cluster.Peers, &open_api_models.PeerStatus{
-			Name:    &n.Name,
-			Address: &address,
-		})
+	// If alertmanager cluster feature is disabled, then api.peers == nil.
+	if api.peer != nil {
+		name := api.peer.Name()
+		status := api.peer.Status()
+
+		peers := []*open_api_models.PeerStatus{}
+		for _, n := range api.peer.Peers() {
+			address := n.Address()
+			peers = append(peers, &open_api_models.PeerStatus{
+				Name:    &n.Name,
+				Address: &address,
+			})
+		}
+
+		resp.Cluster = &open_api_models.ClusterStatus{
+			Name:   &name,
+			Status: &status,
+			Peers:  peers,
+		}
 	}
 
 	return general_ops.NewGetStatusOK().WithPayload(&resp)
