@@ -221,6 +221,13 @@ func NewEmail(c *config.EmailConfig, t *template.Template, l log.Logger) *Email 
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	username := n.conf.AuthUsername
+
+	// If no username is set, keep going without authentication
+	if n.conf.AuthUsername == "" {
+        level.Debug(n.logger).Log("msg", "smtp_auth_username is not configured. Attempting to send email without authenticating")
+		return NoAuth(), nil
+    }
+
 	err := &types.MultiError{}
 	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
@@ -327,16 +334,16 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 	}
 
+	// If SMTP authentication is configured, check it
+
 	if ok, mech := c.Extension("AUTH"); ok {
-		if n.conf.AuthUsername != "" {
-			auth, err := n.auth(mech)
-			if err != nil {
-				return true, err
-			}
-			if auth != nil {
-				if err := c.Auth(auth); err != nil {
-					return true, fmt.Errorf("%T failed: %s", auth, err)
-				}
+		auth, err := n.auth(mech)
+		if err != nil {
+			return true, err
+		}
+		if auth != nil {
+			if err := c.Auth(auth); err != nil {
+				return true, fmt.Errorf("%T failed: %s", auth, err)
 			}
 		}
 	}
@@ -1551,6 +1558,21 @@ func LoginAuth(username, password string) smtp.Auth {
 
 func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 	return "LOGIN", []byte{}, nil
+}
+
+type noAuth struct {}
+
+func NoAuth() smtp.Auth {
+	return &noAuth{}
+}
+
+func (a *noAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	// return proto == "" to indicate that the authentication should be skipped."
+	return "", []byte{}, nil
+}
+
+func (a *noAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	return nil, nil
 }
 
 // Used for AUTH LOGIN. (Maybe password should be encrypted)
