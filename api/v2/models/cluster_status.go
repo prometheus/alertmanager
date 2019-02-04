@@ -21,11 +21,9 @@ import (
 type ClusterStatus struct {
 
 	// name
-	// Required: true
-	Name *string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// peers
-	// Required: true
 	// Minimum: 0
 	Peers []*PeerStatus `json:"peers"`
 
@@ -38,10 +36,6 @@ type ClusterStatus struct {
 // Validate validates this cluster status
 func (m *ClusterStatus) Validate(formats strfmt.Registry) error {
 	var res []error
-
-	if err := m.validateName(formats); err != nil {
-		res = append(res, err)
-	}
 
 	if err := m.validatePeers(formats); err != nil {
 		res = append(res, err)
@@ -57,19 +51,10 @@ func (m *ClusterStatus) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *ClusterStatus) validateName(formats strfmt.Registry) error {
-
-	if err := validate.Required("name", "body", m.Name); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (m *ClusterStatus) validatePeers(formats strfmt.Registry) error {
 
-	if err := validate.Required("peers", "body", m.Peers); err != nil {
-		return err
+	if swag.IsZero(m.Peers) { // not required
+		return nil
 	}
 
 	for i := 0; i < len(m.Peers); i++ {

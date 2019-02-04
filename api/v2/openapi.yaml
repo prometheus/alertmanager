@@ -233,9 +233,7 @@ definitions:
         items:
           $ref: '#/definitions/peerStatus'
     required:
-      - name
       - status
-      - peers
   alertmanagerConfig:
     type: object
     properties:
