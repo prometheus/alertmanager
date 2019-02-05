@@ -67,9 +67,7 @@ var (
 		Name: "alertmanager_config_last_reload_success_timestamp_seconds",
 		Help: "Timestamp of the last successful configuration reload.",
 	})
-	alertsActive     prometheus.GaugeFunc
-	alertsSuppressed prometheus.GaugeFunc
-	requestDuration  = prometheus.NewHistogramVec(
+	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_request_duration_seconds",
 			Help:    "Histogram of latencies for HTTP requests.",
@@ -105,27 +103,6 @@ func instrumentHandler(handlerName string, handler http.HandlerFunc) http.Handle
 			handler,
 		),
 	)
-}
-
-func newAlertMetricByState(marker types.Marker, st types.AlertState) prometheus.GaugeFunc {
-	return prometheus.NewGaugeFunc(
-		prometheus.GaugeOpts{
-			Name:        "alertmanager_alerts",
-			Help:        "How many alerts by state.",
-			ConstLabels: prometheus.Labels{"state": string(st)},
-		},
-		func() float64 {
-			return float64(marker.Count(st))
-		},
-	)
-}
-
-func newMarkerMetrics(marker types.Marker) {
-	alertsActive = newAlertMetricByState(marker, types.AlertStateActive)
-	alertsSuppressed = newAlertMetricByState(marker, types.AlertStateSuppressed)
-
-	prometheus.MustRegister(alertsActive)
-	prometheus.MustRegister(alertsSuppressed)
 }
 
 const defaultClusterAddr = "0.0.0.0:9094"
@@ -225,8 +202,7 @@ func run() int {
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
-	marker := types.NewMarker()
-	newMarkerMetrics(marker)
+	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),

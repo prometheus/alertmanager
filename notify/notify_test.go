@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
@@ -586,7 +587,7 @@ func TestSilenceStage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	marker := types.NewMarker()
+	marker := types.NewMarker(prometheus.NewRegistry())
 	silencer := NewSilenceStage(silences, marker)
 
 	in := []model.LabelSet{
