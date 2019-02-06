@@ -195,6 +195,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		// are no alerts present
 		res      = open_api_models.GettableAlerts{}
 		matchers = []*labels.Matcher{}
+		ctx      = params.HTTPRequest.Context()
 	)
 
 	if params.Filter != nil {
@@ -224,9 +225,11 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	defer alerts.Close()
 
 	api.mtx.RLock()
-	// TODO(fabxc): enforce a sensible timeout.
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
+			break
+		}
+		if err = ctx.Err(); err != nil {
 			break
 		}
 

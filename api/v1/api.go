@@ -253,6 +253,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		// are no alerts present
 		res      = []*Alert{}
 		matchers = []*labels.Matcher{}
+		ctx      = r.Context()
 
 		showActive, showInhibited     bool
 		showSilenced, showUnprocessed bool
@@ -326,9 +327,11 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	defer alerts.Close()
 
 	api.mtx.RLock()
-	// TODO(fabxc): enforce a sensible timeout.
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
+			break
+		}
+		if err = ctx.Err(); err != nil {
 			break
 		}
 
