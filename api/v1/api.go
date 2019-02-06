@@ -67,14 +67,13 @@ func setCORS(w http.ResponseWriter) {
 
 // API provides registration of handlers for API routes.
 type API struct {
-	alerts         provider.Alerts
-	silences       *silence.Silences
-	config         *config.Config
-	route          *dispatch.Route
-	resolveTimeout time.Duration
-	uptime         time.Time
-	peer           *cluster.Peer
-	logger         log.Logger
+	alerts   provider.Alerts
+	silences *silence.Silences
+	config   *config.Config
+	route    *dispatch.Route
+	uptime   time.Time
+	peer     *cluster.Peer
+	logger   log.Logger
 
 	numReceivedAlerts *prometheus.CounterVec
 	numInvalidAlerts  prometheus.Counter
@@ -153,14 +152,12 @@ func (api *API) Register(r *route.Router) {
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
+func (api *API) Update(cfg *config.Config) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
-	api.resolveTimeout = resolveTimeout
 	api.config = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
-	return nil
 }
 
 type errorType string
@@ -432,7 +429,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 	now := time.Now()
 
 	api.mtx.RLock()
-	resolveTimeout := api.resolveTimeout
+	resolveTimeout := time.Duration(api.config.Global.ResolveTimeout)
 	api.mtx.RUnlock()
 
 	for _, alert := range alerts {

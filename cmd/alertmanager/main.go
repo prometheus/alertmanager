@@ -15,8 +15,6 @@ package main
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"net/http"
@@ -56,18 +54,6 @@ import (
 )
 
 var (
-	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_config_hash",
-		Help: "Hash of the currently loaded alertmanager configuration.",
-	})
-	configSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_config_last_reload_successful",
-		Help: "Whether the last configuration reload attempt was successful.",
-	})
-	configSuccessTime = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_config_last_reload_success_timestamp_seconds",
-		Help: "Timestamp of the last successful configuration reload.",
-	})
 	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_request_duration_seconds",
@@ -88,9 +74,6 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(configSuccess)
-	prometheus.MustRegister(configSuccessTime)
-	prometheus.MustRegister(configHash)
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
@@ -263,14 +246,6 @@ func run() int {
 	}
 	defer alerts.Close()
 
-	var (
-		inhibitor *inhibit.Inhibitor
-		tmpl      *template.Template
-		pipeline  notify.Stage
-		disp      *dispatch.Dispatcher
-	)
-	defer disp.Stop()
-
 	api, err := api.New(api.Options{
 		Alerts:      alerts,
 		Silences:    silences,
@@ -304,30 +279,24 @@ func run() int {
 		return d + waitFunc()
 	}
 
-	var hash float64
-	reload := func() (err error) {
-		level.Info(logger).Log("msg", "Loading configuration file", "file", *configFile)
-		defer func() {
-			if err != nil {
-				level.Error(logger).Log("msg", "Loading configuration file failed", "file", *configFile, "err", err)
-				configSuccess.Set(0)
-			} else {
-				configSuccess.Set(1)
-				configSuccessTime.Set(float64(time.Now().Unix()))
-				configHash.Set(hash)
-			}
-		}()
+	var (
+		inhibitor *inhibit.Inhibitor
+		tmpl      *template.Template
+		pipeline  notify.Stage
+		disp      *dispatch.Dispatcher
+	)
 
-		conf, plainCfg, err := config.LoadFile(*configFile)
-		if err != nil {
-			return err
-		}
+	defer disp.Stop()
 
-		hash = md5HashAsMetricValue(plainCfg)
-
+	configCoordinator := config.NewCoordinator(
+		*configFile,
+		prometheus.DefaultRegisterer,
+		log.With(logger, "component", "configuration"),
+	)
+	configCoordinator.Subscribe(func(conf *config.Config) error {
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse templates: %v", err.Error())
 		}
 		tmpl.ExternalURL = amURL
 
@@ -347,10 +316,7 @@ func run() int {
 			logger,
 		)
 
-		err = api.Update(conf, time.Duration(conf.Global.ResolveTimeout), setAlertStatus(inhibitor, marker, silences))
-		if err != nil {
-			return err
-		}
+		api.Update(conf, setAlertStatus(inhibitor, marker, silences))
 
 		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
 
@@ -358,9 +324,9 @@ func run() int {
 		go inhibitor.Run()
 
 		return nil
-	}
+	})
 
-	if err := reload(); err != nil {
+	if err := configCoordinator.Reload(); err != nil {
 		return 1
 	}
 
@@ -413,9 +379,9 @@ func run() int {
 			select {
 			case <-hup:
 				// ignore error, already logged in `reload()`
-				_ = reload()
+				_ = configCoordinator.Reload()
 			case errc := <-webReload:
-				errc <- reload()
+				errc <- configCoordinator.Reload()
 			}
 		}
 	}()
@@ -468,15 +434,6 @@ func extURL(listen, external string) (*url.URL, error) {
 	u.Path = ppref
 
 	return u, nil
-}
-
-func md5HashAsMetricValue(data []byte) float64 {
-	sum := md5.Sum(data)
-	// We only want 48 bits as a float64 only has a 53 bit mantissa.
-	smallSum := sum[0:6]
-	var bytes = make([]byte, 8)
-	copy(bytes, smallSum)
-	return float64(binary.LittleEndian.Uint64(bytes))
 }
 
 func setAlertStatus(inhibitor *inhibit.Inhibitor, marker types.Marker, silences *silence.Silences) func(model.LabelSet) error {

@@ -133,6 +133,12 @@ func TestAddAlerts(t *testing.T) {
 
 		alertsProvider := newFakeAlerts([]*types.Alert{}, tc.err)
 		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil)
+		defaultGlobalConfig := config.DefaultGlobalConfig()
+		route := config.Route{}
+		api.Update(&config.Config{
+			Global: &defaultGlobalConfig,
+			Route:  &route,
+		})
 
 		r, err := http.NewRequest("POST", "/api/v1/alerts", bytes.NewReader(b))
 		w := httptest.NewRecorder()
