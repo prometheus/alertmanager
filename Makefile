@@ -28,7 +28,7 @@ PRECHECK_OPTIONS_bzr = version
 build-all: assets apiv2 build
 
 assets: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl
-	cd $(PREFIX)/asset && $(GO) generate
+	GO111MODULE=$(GO111MODULE) $(GO) generate ./asset
 	@$(GOFMT) -w ./asset
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
