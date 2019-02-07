@@ -26,11 +26,23 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 
 	"github.com/go-kit/kit/log"
 )
+
+var (
+	requestsInFlight = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "alertmanager_http_get_requests_in_flight",
+		Help: "Current number of HTTP GET requests being processed.",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(requestsInFlight)
+}
 
 // API represents all APIs of Alertmanager.
 type API struct {
@@ -101,6 +113,10 @@ func (api *API) Register(
 	if routePrefix != "/" {
 		apiPrefix = routePrefix
 	}
+	// TODO(beorn7): HTTP instrumentation is only in place for Router. Since
+	// /api/v2 works on the Handler level, it is currently not instrumented
+	// at all (with the exception of requestsInFlight, which is handled in
+	// the Limiter below).
 	mux.Handle(
 		apiPrefix+"/api/v2/",
 		limiter(http.StripPrefix(apiPrefix+"/api/v2", api.v2.Handler)),
@@ -142,7 +158,11 @@ func makeLimiter(timeout time.Duration, concurrency int) func(http.Handler) http
 			if req.Method == http.MethodGet { // Only limit concurrency of GETs.
 				select {
 				case inFlightSem <- struct{}{}: // All good, carry on.
-					defer func() { <-inFlightSem }()
+					requestsInFlight.Inc()
+					defer func() {
+						<-inFlightSem
+						requestsInFlight.Dec()
+					}()
 				default:
 					http.Error(rsp, fmt.Sprintf(
 						"Limit of concurrent GET requests reached (%d), try again later.\n", concurrency,
