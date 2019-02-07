@@ -35,7 +35,7 @@ nullMatchers =
 
 nullMatcher : Matcher
 nullMatcher =
-    Matcher "" "" False
+    Matcher "" "" False False False
 
 
 stateToString : State -> String

@@ -12,6 +12,8 @@ type ApiData a
 
 type alias Matcher =
     { isRegex : Bool
+    , isNotEqual : Bool
+    , isNotRegex : Bool
     , name : String
     , value : String
     }

@@ -22,6 +22,8 @@ type alias Matcher =
     { name : String
     , value : String
     , isRegex : Bool
+    , isNotEqual : Bool
+    , isNotRegex : Bool
     }
 
 
@@ -31,6 +33,8 @@ decoder =
         |> required "name" Decode.string
         |> required "value" Decode.string
         |> required "isRegex" Decode.bool
+        |> required "isNotEqual" Decode.bool
+        |> required "isNotRegex" Decode.bool
 
 
 encoder : Matcher -> Encode.Value
@@ -39,4 +43,6 @@ encoder model =
         [ ( "name", Encode.string model.name )
         , ( "value", Encode.string model.value )
         , ( "isRegex", Encode.bool model.isRegex )
+        , ( "isNotEqual", Encode.bool model.isNotEqual )
+        , ( "isNotRegex", Encode.bool model.isNotRegex )
         ]
