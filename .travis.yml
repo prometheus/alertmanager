@@ -17,5 +17,6 @@ script:
 - make assets apiv2
 - git diff --exit-code
 # test back-end
+- pwd
 - make
 - git diff --exit-code
