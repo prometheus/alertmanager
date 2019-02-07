@@ -1,0 +1,15 @@
+{
+    "type": "package",
+    "name": "elm/regex",
+    "summary": "Support for JS-style regular expressions in Elm",
+    "license": "BSD-3-Clause",
+    "version": "1.0.0",
+    "exposed-modules": [
+        "Regex"
+    ],
+    "elm-version": "0.19.0 <= v < 0.20.0",
+    "dependencies": {
+        "elm/core": "1.0.0 <= v < 2.0.0"
+    },
+    "test-dependencies": {}
+}

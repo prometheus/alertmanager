@@ -1,0 +1,46 @@
+[
+    {
+        "name": "Json.Decode.Pipeline",
+        "comment": "\n\n\n# Json.Decode.Pipeline\n\nUse the `(|>)` operator to build JSON decoders.\n\n\n## Decoding fields\n\n@docs required, requiredAt, optional, optionalAt, hardcoded, custom\n\n\n## Ending pipelines\n\n@docs resolve\n\n",
+        "unions": [],
+        "aliases": [],
+        "values": [
+            {
+                "name": "custom",
+                "comment": " Run the given decoder and feed its result into the pipeline at this point.\n\nConsider this example.\n\n    import Json.Decode as Decode exposing (Decoder, at, int, string)\n    import Json.Decode.Pipeline exposing (custom, required)\n\n    type alias User =\n        { id : Int\n        , name : String\n        , email : String\n        }\n\n    userDecoder : Decoder User\n    userDecoder =\n        Decode.succeed User\n            |> required \"id\" int\n            |> custom (at [ \"profile\", \"name\" ] string)\n            |> required \"email\" string\n\n    result : Result String User\n    result =\n        Decode.decodeString\n            userDecoder\n            \"\"\"\n          {\n            \"id\": 123,\n            \"email\": \"sam@example.com\",\n            \"profile\": {\"name\": \"Sam\"}\n          }\n        \"\"\"\n\n\n    -- Ok { id = 123, name = \"Sam\", email = \"sam@example.com\" }\n\n",
+                "type": "Json.Decode.Decoder a -> Json.Decode.Decoder (a -> b) -> Json.Decode.Decoder b"
+            },
+            {
+                "name": "hardcoded",
+                "comment": " Rather than decoding anything, use a fixed value for the next step in the\npipeline. `harcoded` does not look at the JSON at all.\n\n    import Json.Decode as Decode exposing (Decoder, int, string)\n    import Json.Decode.Pipeline exposing (required)\n\n    type alias User =\n        { id : Int\n        , email : String\n        , followers : Int\n        }\n\n    userDecoder : Decoder User\n    userDecoder =\n        Decode.succeed User\n            |> required \"id\" int\n            |> required \"email\" string\n            |> hardcoded 0\n\n    result : Result String User\n    result =\n        Decode.decodeString\n            userDecoder\n            \"\"\"\n          {\"id\": 123, \"email\": \"sam@example.com\"}\n        \"\"\"\n\n\n    -- Ok { id = 123, email = \"sam@example.com\", followers = 0 }\n\n",
+                "type": "a -> Json.Decode.Decoder (a -> b) -> Json.Decode.Decoder b"
+            },
+            {
+                "name": "optional",
+                "comment": " Decode a field that may be missing or have a null value. If the field is\nmissing, then it decodes as the `fallback` value. If the field is present,\nthen `valDecoder` is used to decode its value. If `valDecoder` fails on a\n`null` value, then the `fallback` is used as if the field were missing\nentirely.\n\n    import Json.Decode as Decode exposing (Decoder, int, null, oneOf, string)\n    import Json.Decode.Pipeline exposing (optional, required)\n\n    type alias User =\n        { id : Int\n        , name : String\n        , email : String\n        }\n\n    userDecoder : Decoder User\n    userDecoder =\n        Decode.succeed User\n            |> required \"id\" int\n            |> optional \"name\" string \"blah\"\n            |> required \"email\" string\n\n    result : Result String User\n    result =\n        Decode.decodeString\n            userDecoder\n            \"\"\"\n          {\"id\": 123, \"email\": \"sam@example.com\" }\n        \"\"\"\n\n\n    -- Ok { id = 123, name = \"blah\", email = \"sam@example.com\" }\n\nBecause `valDecoder` is given an opportunity to decode `null` values before\nresorting to the `fallback`, you can distinguish between missing and `null`\nvalues if you need to:\n\n    userDecoder2 =\n        Decode.succeed User\n            |> required \"id\" int\n            |> optional \"name\" (oneOf [ string, null \"NULL\" ]) \"MISSING\"\n            |> required \"email\" string\n\n",
+                "type": "String.String -> Json.Decode.Decoder a -> a -> Json.Decode.Decoder (a -> b) -> Json.Decode.Decoder b"
+            },
+            {
+                "name": "optionalAt",
+                "comment": " Decode an optional nested field.\n",
+                "type": "List.List String.String -> Json.Decode.Decoder a -> a -> Json.Decode.Decoder (a -> b) -> Json.Decode.Decoder b"
+            },
+            {
+                "name": "required",
+                "comment": " Decode a required field.\n\n    import Json.Decode as Decode exposing (Decoder, int, string)\n    import Json.Decode.Pipeline exposing (required)\n\n    type alias User =\n        { id : Int\n        , name : String\n        , email : String\n        }\n\n    userDecoder : Decoder User\n    userDecoder =\n        Decode.succeed User\n            |> required \"id\" int\n            |> required \"name\" string\n            |> required \"email\" string\n\n    result : Result String User\n    result =\n        Decode.decodeString\n            userDecoder\n            \"\"\"\n          {\"id\": 123, \"email\": \"sam@example.com\", \"name\": \"Sam\"}\n        \"\"\"\n\n\n    -- Ok { id = 123, name = \"Sam\", email = \"sam@example.com\" }\n\n",
+                "type": "String.String -> Json.Decode.Decoder a -> Json.Decode.Decoder (a -> b) -> Json.Decode.Decoder b"
+            },
+            {
+                "name": "requiredAt",
+                "comment": " Decode a required nested field.\n",
+                "type": "List.List String.String -> Json.Decode.Decoder a -> Json.Decode.Decoder (a -> b) -> Json.Decode.Decoder b"
+            },
+            {
+                "name": "resolve",
+                "comment": " Convert a `Decoder (Result x a)` into a `Decoder a`. Useful when you want\nto perform some custom processing just before completing the decoding operation.\n\n    import Json.Decode as Decode exposing (Decoder, float, int, string)\n    import Json.Decode.Pipeline exposing (required, resolve)\n\n    type alias User =\n        { id : Int\n        , email : String\n        }\n\n    userDecoder : Decoder User\n    userDecoder =\n        let\n            -- toDecoder gets run *after* all the\n            -- (|> required ...) steps are done.\n            toDecoder : Int -> String -> Int -> Decoder User\n            toDecoder id email version =\n                if version > 2 then\n                    Decode.succeed (User id email)\n                else\n                    fail \"This JSON is from a deprecated source. Please upgrade!\"\n        in\n        Decode.succeed toDecoder\n            |> required \"id\" int\n            |> required \"email\" string\n            |> required \"version\" int\n            -- version is part of toDecoder,\n            |> resolve\n\n\n    -- but it is not a part of User\n\n    result : Result String User\n    result =\n        Decode.decodeString\n            userDecoder\n            \"\"\"\n          {\"id\": 123, \"email\": \"sam@example.com\", \"version\": 1}\n        \"\"\"\n\n\n    -- Err \"This JSON is from a deprecated source. Please upgrade!\"\n\n",
+                "type": "Json.Decode.Decoder (Json.Decode.Decoder a) -> Json.Decode.Decoder a"
+            }
+        ],
+        "binops": []
+    }
+]

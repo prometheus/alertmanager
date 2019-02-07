@@ -1,0 +1,126 @@
+[
+    {
+        "name": "Random",
+        "comment": " This library helps you generate pseudo-random values.\n\nIt is an implementation of [Permuted Congruential Generators][pcg]\nby M. E. O'Neil. It is not cryptographically secure.\n\n[extra]: /packages/elm-community/random-extra/latest\n[pcg]: http://www.pcg-random.org/\n\n\n# Generators\n@docs Generator, generate\n\n# Primitives\n@docs int, float, uniform, weighted, constant\n\n# Data Structures\n@docs pair, list\n\n# Mapping\n@docs map, map2, map3, map4, map5\n\n# Fancy Stuff\n@docs andThen, lazy\n\n# Constants\n@docs maxInt, minInt\n\n# Generate Values Manually\n@docs Seed, step, initialSeed, independentSeed\n\n",
+        "unions": [
+            {
+                "name": "Generator",
+                "comment": " A `Generator` is a **recipe** for generating random values. For example,\nhere is a generator for numbers between 1 and 10 inclusive:\n\n    import Random\n\n    oneToTen : Random.Generator Int\n    oneToTen =\n      Random.int 1 10\n\nNotice that we are not actually generating any numbers yet! We are describing\nwhat kind of values we want. To actually get random values, you create a\ncommand with the [`generate`](#generate) function:\n\n    type Msg = NewNumber Int\n\n    newNumber : Cmd Msg\n    newNumber =\n      Random.generate NewNumber oneToTen\n\nEach time you run this command, it runs the `oneToTen` generator and produces\nrandom integers between one and ten.\n\n**Note 1:** If you are not familiar with commands yet, start working through\n[guide.elm-lang.org][guide]. It builds up to an example that generates\nrandom numbers. Commands are one of the core concepts in Elm, and it will\nbe faster overall to invest in understanding them _now_ rather than copy/pasting\nyour way to frustration! And if you feel stuck on something, definitely ask\nabout it in [the Elm slack][slack]. Folks are happy to help!\n\n**Note 2:** The random `Generator` API is quite similar to the JSON `Decoder` API.\nBoth are building blocks that snap together with `map`, `map2`, etc. You can read\nmore about JSON decoders [here][json] to see the similarity.\n\n[guide]: https://guide.elm-lang.org/\n[slack]: https://elmlang.herokuapp.com/\n[json]: https://guide.elm-lang.org/interop/json.html\n",
+                "args": [
+                    "a"
+                ],
+                "cases": []
+            },
+            {
+                "name": "Seed",
+                "comment": " Maybe you do not want to use [`generate`](#generate) for some reason? Maybe\nyou need to be able to exactly reproduce a sequence of random values?\n\nIn that case, you can work with a `Seed` of randomness and [`step`](#step) it\nforward by hand.\n",
+                "args": [],
+                "cases": []
+            }
+        ],
+        "aliases": [],
+        "values": [
+            {
+                "name": "andThen",
+                "comment": " Generate fancy random values.\n\nWe have seen examples of how `andThen` can be used to generate variable length\nlists in the [`list`](#list) and [`map2`](#map2) docs. We saw how it could help\ngenerate a quadtree in the [`map4`](#map4) docs.\n\nAnything you could ever want can be defined using this operator! As one last\nexample, here is how you can define `map` using `andThen`:\n\n    import Random\n\n    map : (a -> b) -> Random.Generator a -> Random.Generator b\n    map func generator =\n      generator\n        |> Random.andThen (\\value -> Random.constant (func value))\n\nThe `andThen` function gets used a lot in [`elm-community/random-extra`][extra],\nso it may be helpful to look through the implementation there for more examples.\n\n[extra]: /packages/elm-community/random-extra/latest\n",
+                "type": "(a -> Random.Generator b) -> Random.Generator a -> Random.Generator b"
+            },
+            {
+                "name": "constant",
+                "comment": " Generate the same value every time.\n\n    import Random\n\n    alwaysFour : Random.Generator Int\n    alwaysFour =\n        Random.constant 4\n\nThink of it as picking from a hat with only one thing in it. It is weird,\nbut it can be useful with [`elm-community/random-extra`][extra] which has\ntons of nice helpers.\n\n[extra]: /packages/elm-community/random-extra/latest\n",
+                "type": "a -> Random.Generator a"
+            },
+            {
+                "name": "float",
+                "comment": " Generate floats in a given range.\n\n    import Random\n\n    probability : Random.Generator Float\n    probability =\n        Random.float 0 1\n\nThe `probability` generator will produce values between zero and one with\na uniform distribution. Say it produces a value `p`. We can then check if\n`p < 0.4` if we want something to happen 40% of the time.\n\nThis becomes very powerful when paired with functions like [`map`](#map) and\n[`andThen`](#andThen). Rather than dealing with twenty random float messages\nin your `update`, you can build up sophisticated logic in the `Generator`\nitself!\n",
+                "type": "Basics.Float -> Basics.Float -> Random.Generator Basics.Float"
+            },
+            {
+                "name": "generate",
+                "comment": " Create a command that produces random values. Say you want to generate\nrandom points:\n\n    import Random\n\n    point : Random.Generator (Int, Int)\n    point =\n      Random.pair (Random.int -100 100) (Random.int -100 100)\n\n    type Msg = NewPoint (Int, Int)\n\n    newPoint : Cmd Msg\n    newPoint =\n      Random.generate NewPoint point\n\nEach time you run the `newPoint` command, it will produce a new 2D point like\n`(57, 18)` or `(-82, 6)`.\n\n**Note:** Read through [guide.elm-lang.org][guide] to learn how commands work.\nIf you are coming from JS it can be hopelessly frustrating if you just try to\nwing it. And definitely ask around on Slack if you feel stuck! Investing in\nunderstanding generators is really worth it, and once it clicks, folks often\ndread going back to `Math.random()` in JavaScript.\n\n[guide]: https://guide.elm-lang.org/\n",
+                "type": "(a -> msg) -> Random.Generator a -> Platform.Cmd.Cmd msg"
+            },
+            {
+                "name": "independentSeed",
+                "comment": " A generator that produces a seed that is independent of any other seed in\nthe program. These seeds will generate their own unique sequences of random\nvalues. They are useful when you need an unknown amount of randomness *later*\nbut can request only a fixed amount of randomness *now*.\n\nThe independent seeds are extremely likely to be distinct for all practical\npurposes. However, it is not proven that there are no pathological cases.\n",
+                "type": "Random.Generator Random.Seed"
+            },
+            {
+                "name": "initialSeed",
+                "comment": " Create a `Seed` for _reproducable_ randomness.\n\n    import Random\n\n    seed0 : Random.Seed\n    seed0 =\n      Random.initialSeed 42\n\nIf you hard-code your `Seed` like this, every run will be the same. This can\nbe useful if you are testing a game with randomness and want it to be easy to\nreproduce past games.\n\nIn practice, you may want to get the initial seed by (1) sending it to Elm\nthrough flags or (2) using `Time.now` to get a number that the user has not\nseen before. (Flags are described on [this page][flags].)\n\n[flags]: https://guide.elm-lang.org/interop/javascript.html\n",
+                "type": "Basics.Int -> Random.Seed"
+            },
+            {
+                "name": "int",
+                "comment": " Generate 32-bit integers in a given range.\n\n    import Random\n\n    singleDigit : Random.Generator Int\n    singleDigit =\n        Random.int 0 9\n\n    closeToZero : Random.Generator Int\n    closeToZero =\n        Random.int -5 5\n\n    anyInt : Random.Generator Int\n    anyInt =\n        Random.int Random.minInt Random.maxInt\n\nThis generator *can* produce values outside of the range [[`minInt`](#minInt),\n[`maxInt`](#maxInt)] but sufficient randomness is not guaranteed.\n",
+                "type": "Basics.Int -> Basics.Int -> Random.Generator Basics.Int"
+            },
+            {
+                "name": "lazy",
+                "comment": " Helper for defining self-recursive generators. Say we want to generate a\nrandom number of probabilities:\n\n    import Random\n\n    probabilities : Random.Generator (List Float)\n    probabilities =\n      Random.andThen identity <|\n        Random.uniform\n          [ Random.constant []\n          , Random.map2 (::)\n              (Random.float 0 1)\n              (Random.lazy (\\_ -> probabilities))\n          ]\n\nIn 50% of cases we end the list. In 50% of cases we generate a probability and\nadd it onto a random number of probabilities. The `lazy` call is crucial\nbecause it means we do not unroll the generator unless we need to.\n\nThis is a pretty subtle issue, so I recommend reading more about it\n[here](https://elm-lang.org/hints/0.19.0/bad-recursion)!\n\n**Note:** You can delay evaluation with `andThen` too. The thing that matters\nis that you have a function call that delays the creation of the generator!\n",
+                "type": "(() -> Random.Generator a) -> Random.Generator a"
+            },
+            {
+                "name": "list",
+                "comment": " Generate a list of random values.\n\n    import Random\n\n    tenFractions : Random.Generator (List Float)\n    tenFractions =\n        Random.list 10 (Random.float 0 1)\n\n    fiveGrades : Random.Generator (List Int)\n    fiveGrades =\n        Random.list 5 (int 0 100)\n\nIf you want to generate a list with a random length, you need to use\n[`andThen`](#andThen) like this:\n\n    fiveToTenDigits : Random.Generator (List Int)\n    fiveToTenDigits =\n        Random.int 5 10\n          |> Random.andThen (\\len -> Random.list len (Random.int 0 9))\n\nThis generator gets a random integer between five and ten **and then**\nuses that to generate a random list of digits.\n",
+                "type": "Basics.Int -> Random.Generator a -> Random.Generator (List.List a)"
+            },
+            {
+                "name": "map",
+                "comment": " Transform the values produced by a generator. For example, we can\ngenerate random boolean values:\n\n    import Random\n\n    bool : Random.Generator Bool\n    bool =\n      Random.map (\\n -> n < 20) (Random.int 1 100)\n\nThe `bool` generator first picks a number between 1 and 100. From there\nit checks if the number is less than twenty. So the resulting `Bool` will\nbe `True` about 20% of the time.\n\nYou could also do this for lower case ASCII letters:\n\n    letter : Random.Generator Char\n    letter =\n      Random.map (\\n -> Char.fromCode (n + 97)) (Random.int 0 25)\n\nThe `letter` generator first picks a number between 0 and 25 inclusive.\nIt then uses `Char.fromCode` to turn [ASCII codes][ascii] into `Char` values.\n\n**Note:** Instead of making these yourself, always check if the\n[`random-extra`][extra] package has what you need!\n\n[ascii]: https://en.wikipedia.org/wiki/ASCII#Printable_characters\n[extra]: /packages/elm-community/random-extra/latest\n",
+                "type": "(a -> b) -> Random.Generator a -> Random.Generator b"
+            },
+            {
+                "name": "map2",
+                "comment": " Combine two generators. Maybe we have a space invaders game and want to\ngenerate enemy ships with a random location:\n\n    import Random\n\n    type alias Enemy\n      { health : Float\n      , rotation : Float\n      , x : Float\n      , y : Float\n      }\n\n    enemy : Random.Generator Enemy\n    enemy =\n      Random.map2\n        (\\x y -> Enemy 100 0 x y)\n        (Random.float 0 100)\n        (Random.float 0 100)\n\nNow whenever we run the `enemy` generator we get an enemy with full health,\nno rotation, and a random position! Now say we want to start with between\nfive and ten enemies on screen:\n\n    initialEnemies : Random.Generator (List Enemy)\n    initialEnemies =\n      Random.int 5 10\n        |> Random.andThen (\\num -> Random.list num enemy)\n\nWe will generate a number between five and ten, **and then** generate\nthat number of enimies!\n\n**Note:** Snapping generators together like this is very important! Always\nstart by with generators for each `type` you need, and then snap them\ntogether.\n",
+                "type": "(a -> b -> c) -> Random.Generator a -> Random.Generator b -> Random.Generator c"
+            },
+            {
+                "name": "map3",
+                "comment": " Combine three generators. Maybe you want to make a simple slot machine?\n\n    import Random\n\n    type alias Spin =\n      { one : Symbol\n      , two : Symbol\n      , three : Symbol\n      }\n\n    type Symbol = Cherry | Seven | Bar | Grapes\n\n    spin : Random.Generator Spin\n    spin =\n      Random.map3 Spin symbol symbol symbol\n\n    symbol : Random.Generator Symbol\n    symbol =\n      Random.uniform Cherry [ Seven, Bar, Grapes ]\n\n**Note:** Always start with the types. Make a generator for each thing you need\nand then put them all together with one of these `map` functions.\n",
+                "type": "(a -> b -> c -> d) -> Random.Generator a -> Random.Generator b -> Random.Generator c -> Random.Generator d"
+            },
+            {
+                "name": "map4",
+                "comment": " Combine four generators.\n\nSay you are making game and want to place enemies or terrain randomly. You\n_could_ generate a [quadtree](https://en.wikipedia.org/wiki/Quadtree)!\n\n    import Random\n\n    type QuadTree a\n      = Empty\n      | Leaf a\n      | Node (QuadTree a) (QuadTree a) (QuadTree a) (QuadTree a)\n\n    quadTree : Random.Generator a -> Random.Generator (QuadTree a)\n    quadTree leafGen =\n      let\n        subQuads =\n          Random.lazy (\\_ -> quadTree leafGen)\n      in\n      Random.andThen identity <|\n        Random.uniform\n          (Random.constant Empty)\n          [ Random.map Leaf leafGen\n          , Random.map4 Node subQuad subQuad subQuad subQuad\n          ]\n\nWe start by creating a `QuadTree` type where each quadrant is either `Empty`, a\n`Leaf` containing something interesting, or a `Node` with four sub-quadrants.\n\nNext the `quadTree` definition describes how to generate these values. A third\nof a time you get an `Empty` tree. A third of the time you get a `Leaf` with\nsome interesting value. And a third of the time you get a `Node` full of more\n`QuadTree` values. How are those subtrees generated though? Well, we use our\n`quadTree` generator!\n\n**Exercises:** Can `quadTree` generate infinite `QuadTree` values? Is there\nsome way to limit the depth of the `QuadTree`? Can you render the `QuadTree`\nto HTML using absolute positions and fractional dimensions? Can you render\nthe `QuadTree` to SVG?\n\n**Note:** Check out the docs for [`lazy`](#lazy) to learn why that is needed\nto define a recursive `Generator` like this one.\n",
+                "type": "(a -> b -> c -> d -> e) -> Random.Generator a -> Random.Generator b -> Random.Generator c -> Random.Generator d -> Random.Generator e"
+            },
+            {
+                "name": "map5",
+                "comment": " Combine five generators.\n\nIf you need to combine more things, you can always do it by chaining\n[`andThen`](#andThen). There are also some additional helpers for this\nin [`elm-community/random-extra`][extra].\n\n[extra]: /packages/elm-community/random-extra/latest\n",
+                "type": "(a -> b -> c -> d -> e -> f) -> Random.Generator a -> Random.Generator b -> Random.Generator c -> Random.Generator d -> Random.Generator e -> Random.Generator f"
+            },
+            {
+                "name": "maxInt",
+                "comment": " The underlying algorithm works well in a specific range of integers.\nIt can generate values outside of that range, but they are “not as random”.\n\nThe `maxInt` that works well is `2147483647`.\n",
+                "type": "Basics.Int"
+            },
+            {
+                "name": "minInt",
+                "comment": " The underlying algorithm works well in a specific range of integers.\nIt can generate values outside of that range, but they are “not as random”.\n\nThe `minInt` that works well is `-2147483648`.\n",
+                "type": "Basics.Int"
+            },
+            {
+                "name": "pair",
+                "comment": " Generate a pair of random values. A common use of this might be to generate\na point in a certain 2D space:\n\n    import Random\n\n    randomPoint : Random.Generator (Float, Float)\n    randomPoint =\n        Random.pair (Random.float -200 200) (Random.float -100 100)\n\nMaybe you are doing an animation with SVG and want to randomly generate some\nentities?\n",
+                "type": "Random.Generator a -> Random.Generator b -> Random.Generator ( a, b )"
+            },
+            {
+                "name": "step",
+                "comment": " So you need _reproducable_ randomness for some reason.\n\nThis `step` function lets you use a `Generator` without commands. It is a\nnormal Elm function. Same input, same output! So to get a 3D point you could\nsay:\n\n    import Random\n\n    type alias Point3D = { x : Float, y : Float, z : Float }\n\n    point3D : Random.Seed -> (Point3D, Random.Seed)\n    point3D seed0 =\n      let\n        (x, seed1) = Random.step (Random.int 0 100) seed0\n        (y, seed2) = Random.step (Random.int 0 100) seed1\n        (z, seed3) = Random.step (Random.int 0 100) seed2\n      in\n        ( Point3D x y z, seed3 )\n\nNotice that we use different seeds on each line! If we instead used `seed0`\nfor everything, the `x`, `y`, and `z` values would always be exactly the same!\nSame input, same output!\n\nThreading seeds around is not super fun, so if you really need this, it is\nbest to build your `Generator` like normal and then just `step` it all at\nonce at the top of your program.\n",
+                "type": "Random.Generator a -> Random.Seed -> ( a, Random.Seed )"
+            },
+            {
+                "name": "uniform",
+                "comment": " Generate values with equal probability. Say we want a random suit for some\ncards:\n\n    import Random\n\n    type Suit = Diamond | Club | Heart | Spade\n\n    suit : Random.Generator Suit\n    suit =\n      Random.uniform Diamond [ Club, Heart, Spade ]\n\nThat generator produces all `Suit` values with equal probability, 25% each.\n\n**Note:** Why not have `uniform : List a -> Generator a` as the API? It looks\na little prettier in code, but it leads to an awkward question. What do you do\nwith `uniform []`? How can it produce an `Int` or `Float`? The current API\nguarantees that we always have *at least* one value, so we never run into that\nquestion!\n",
+                "type": "a -> List.List a -> Random.Generator a"
+            },
+            {
+                "name": "weighted",
+                "comment": " Generate values with a _weighted_ probability. Say we want to simulate a\n[loaded die](https://en.wikipedia.org/wiki/Dice#Loaded_dice) that lands\non ⚄ and ⚅ more often than the other faces:\n\n    import Random\n\n    type Face = One | Two | Three | Four | Five | Six\n\n    roll : Random.Generator Face\n    roll =\n      Random.weighted\n        (10, One)\n        [ (10, Two)\n        , (10, Three)\n        , (10, Four)\n        , (20, Five)\n        , (40, Six)\n        ]\n\nSo there is a 40% chance of getting `Six`, a 20% chance of getting `Five`, and\nthen a 10% chance for each of the remaining faces.\n\n**Note:** I made the weights add up to 100, but that is not necessary. I always\nadd up your weights into a `total`, and from there, the probablity of each case\nis `weight / total`. Negative weights do not really make sense, so I just flip\nthem to be positive.\n",
+                "type": "( Basics.Float, a ) -> List.List ( Basics.Float, a ) -> Random.Generator a"
+            }
+        ],
+        "binops": []
+    }
+]

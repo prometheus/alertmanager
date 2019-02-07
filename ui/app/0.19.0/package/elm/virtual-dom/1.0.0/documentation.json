@@ -1,0 +1,161 @@
+[
+    {
+        "name": "VirtualDom",
+        "comment": " API to the core diffing algorithm. Can serve as a foundation for libraries\nthat expose more helper functions for HTML or SVG.\n\n# Create\n@docs Node, text, node, nodeNS\n\n# Attributes\n@docs Attribute, style, property, attribute, attributeNS\n\n# Events\n@docs on, Handler\n\n# Routing Messages\n@docs map, mapAttribute\n\n# Keyed Nodes\n@docs keyedNode, keyedNodeNS\n\n# Lazy Nodes\n@docs lazy, lazy2, lazy3, lazy4, lazy5, lazy6, lazy7, lazy8\n\n",
+        "unions": [
+            {
+                "name": "Attribute",
+                "comment": " When using HTML and JS, there are two ways to specify parts of a DOM node.\n\n  1. Attributes &mdash; You can set things in HTML itself. So the `class`\n     in `<div class=\"greeting\"></div>` is called an *attribute*.\n\n  2. Properties &mdash; You can also set things in JS. So the `className`\n     in `div.className = 'greeting'` is called a *property*.\n\nSo the `class` attribute corresponds to the `className` property. At first\nglance, perhaps this distinction is defensible, but it gets much crazier.\n*There is not always a one-to-one mapping between attributes and properties!*\nYes, that is a true fact. Sometimes an attribute exists, but there is no\ncorresponding property. Sometimes changing an attribute does not change the\nunderlying property. For example, as of this writing, the `webkit-playsinline`\nattribute can be used in HTML, but there is no corresponding property!\n",
+                "args": [
+                    "msg"
+                ],
+                "cases": []
+            },
+            {
+                "name": "Handler",
+                "comment": " When using `on` you can customize the event behavior\na bit. There are two ways to do this:\n\n  - [`stopPropagation`][sp] means the event stops traveling through the DOM.\n  So if propagation of a click is stopped, it will not trigger any other event\n  listeners.\n\n  - [`preventDefault`][pd] means any built-in browser behavior related to the\n  event is prevented. This can be handy with key presses or touch gestures.\n\n**Note 1:** A [passive][] event listener will be created if you use `Normal`\nor `MayStopPropagation`. In both cases `preventDefault` cannot be used, so\nwe can enable optimizations for touch, scroll, and wheel events in some\nbrowsers.\n\n**Note 2:** Some actions, like uploading and downloading files, are only\nallowed when the JavaScript event loop is running because of user input. This\nis for security! So when an event occurs, we call `update` and send any `port`\nmessages immediately, all within the same tick of the event loop. This makes\nit possible to handle user-instigated events in ports.\n\n**Note 3:** Normally the `view` is shown in the next `requestAnimationFrame`\ncall. This allows us to save some work if messages are coming in very quickly.\nBut if `stopPropagation` is used, we update the DOM immediately, within the\nsame tick of the event loop. This is useful for DOM nodes that hold their own\nstate, like `<input type=\"text\">`. If someone types very fast, the state in the\nDOM can diverge from the state in your `Model` while waiting on the next\n`requestAnimationFrame` call. So updating the DOM synchronously makes this\ndivergence impossible.\n\n[sp]: https://developer.mozilla.org/en-US/docs/Web/API/Event/stopPropagation\n[pd]: https://developer.mozilla.org/en-US/docs/Web/API/Event/preventDefault\n[passive]: https://github.com/WICG/EventListenerOptions/blob/gh-pages/explainer.md\n",
+                "args": [
+                    "msg"
+                ],
+                "cases": [
+                    [
+                        "Normal",
+                        [
+                            "Json.Decode.Decoder msg"
+                        ]
+                    ],
+                    [
+                        "MayStopPropagation",
+                        [
+                            "Json.Decode.Decoder ( msg, Basics.Bool )"
+                        ]
+                    ],
+                    [
+                        "MayPreventDefault",
+                        [
+                            "Json.Decode.Decoder ( msg, Basics.Bool )"
+                        ]
+                    ],
+                    [
+                        "Custom",
+                        [
+                            "Json.Decode.Decoder { message : msg, stopPropagation : Basics.Bool, preventDefault : Basics.Bool }"
+                        ]
+                    ]
+                ]
+            },
+            {
+                "name": "Node",
+                "comment": " An immutable chunk of data representing a DOM node. This can be HTML or SVG.\n",
+                "args": [
+                    "msg"
+                ],
+                "cases": []
+            }
+        ],
+        "aliases": [],
+        "values": [
+            {
+                "name": "attribute",
+                "comment": " Create an attribute. This uses JavaScript’s `setAttribute` function\nbehind the scenes.\n\n    buttonLabel : Node msg\n    buttonLabel =\n      node \"label\" [ attribute \"for\" \"button\" ] [ text \"Label\" ]\n\nNotice that you must give the *attribute* name, so we use `for` as it would\nbe in HTML, not `htmlFor` as it would appear in JS.\n",
+                "type": "String.String -> String.String -> VirtualDom.Attribute msg"
+            },
+            {
+                "name": "attributeNS",
+                "comment": " Would you believe that there is another way to do this?! This uses\nJavaScript's `setAttributeNS` function behind the scenes. It is doing pretty\nmuch the same thing as `attribute` but you are able to have namespaced\nattributes. As an example, the `elm/svg` package defines an attribute\nlike this:\n\n    xlinkHref : String -> Attribute msg\n    xlinkHref value =\n      attributeNS \"http://www.w3.org/1999/xlink\" \"xlink:href\" value\n",
+                "type": "String.String -> String.String -> String.String -> VirtualDom.Attribute msg"
+            },
+            {
+                "name": "keyedNode",
+                "comment": " Works just like `node`, but you add a unique identifier to each child\nnode. You want this when you have a list of nodes that is changing: adding\nnodes, removing nodes, etc. In these cases, the unique identifiers help make\nthe DOM modifications more efficient.\n",
+                "type": "String.String -> List.List (VirtualDom.Attribute msg) -> List.List ( String.String, VirtualDom.Node msg ) -> VirtualDom.Node msg"
+            },
+            {
+                "name": "keyedNodeNS",
+                "comment": " Create a keyed and namespaced DOM node. For example, an SVG `<g>` node\ncould be defined like this:\n\n    g : List (Attribute msg) -> List ( String, Node msg ) -> Node msg\n    g =\n      keyedNodeNS \"http://www.w3.org/2000/svg\" \"g\"\n",
+                "type": "String.String -> String.String -> List.List (VirtualDom.Attribute msg) -> List.List ( String.String, VirtualDom.Node msg ) -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy",
+                "comment": " A performance optimization that delays the building of virtual DOM nodes.\n\nCalling `(view model)` will definitely build some virtual DOM, perhaps a lot of\nit. Calling `(lazy view model)` delays the call until later. During diffing, we\ncan check to see if `model` is referentially equal to the previous value used,\nand if so, we just stop. No need to build up the tree structure and diff it,\nwe know if the input to `view` is the same, the output must be the same!\n",
+                "type": "(a -> VirtualDom.Node msg) -> a -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy2",
+                "comment": " Same as `lazy` but checks on two arguments.\n",
+                "type": "(a -> b -> VirtualDom.Node msg) -> a -> b -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy3",
+                "comment": " Same as `lazy` but checks on three arguments.\n",
+                "type": "(a -> b -> c -> VirtualDom.Node msg) -> a -> b -> c -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy4",
+                "comment": " Same as `lazy` but checks on four arguments.\n",
+                "type": "(a -> b -> c -> d -> VirtualDom.Node msg) -> a -> b -> c -> d -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy5",
+                "comment": " Same as `lazy` but checks on five arguments.\n",
+                "type": "(a -> b -> c -> d -> e -> VirtualDom.Node msg) -> a -> b -> c -> d -> e -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy6",
+                "comment": " Same as `lazy` but checks on six arguments.\n",
+                "type": "(a -> b -> c -> d -> e -> f -> VirtualDom.Node msg) -> a -> b -> c -> d -> e -> f -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy7",
+                "comment": " Same as `lazy` but checks on seven arguments.\n",
+                "type": "(a -> b -> c -> d -> e -> f -> g -> VirtualDom.Node msg) -> a -> b -> c -> d -> e -> f -> g -> VirtualDom.Node msg"
+            },
+            {
+                "name": "lazy8",
+                "comment": " Same as `lazy` but checks on eight arguments.\n",
+                "type": "(a -> b -> c -> d -> e -> f -> g -> h -> VirtualDom.Node msg) -> a -> b -> c -> d -> e -> f -> g -> h -> VirtualDom.Node msg"
+            },
+            {
+                "name": "map",
+                "comment": " This function is useful when nesting components with [the Elm\nArchitecture](https://github.com/evancz/elm-architecture-tutorial/). It lets\nyou transform the messages produced by a subtree.\n\nSay you have a node named `button` that produces `()` values when it is\nclicked. To get your model updating properly, you will probably want to tag\nthis `()` value like this:\n\n    type Msg = Click | ...\n\n    update msg model =\n      case msg of\n        Click ->\n          ...\n\n    view model =\n      map (\\_ -> Click) button\n\nSo now all the events produced by `button` will be transformed to be of type\n`Msg` so they can be handled by your update function!\n",
+                "type": "(a -> msg) -> VirtualDom.Node a -> VirtualDom.Node msg"
+            },
+            {
+                "name": "mapAttribute",
+                "comment": " Transform the messages produced by a `Attribute`.\n",
+                "type": "(a -> b) -> VirtualDom.Attribute a -> VirtualDom.Attribute b"
+            },
+            {
+                "name": "node",
+                "comment": " Create a DOM node with a tag name, a list of HTML properties that can\ninclude styles and event listeners, a list of CSS properties like `color`, and\na list of child nodes.\n\n    import Json.Encode as Json\n\n    hello : Node msg\n    hello =\n      node \"div\" [] [ text \"Hello!\" ]\n\n    greeting : Node msg\n    greeting =\n      node \"div\"\n        [ property \"id\" (Json.string \"greeting\") ]\n        [ text \"Hello!\" ]\n",
+                "type": "String.String -> List.List (VirtualDom.Attribute msg) -> List.List (VirtualDom.Node msg) -> VirtualDom.Node msg"
+            },
+            {
+                "name": "nodeNS",
+                "comment": " Create a namespaced DOM node. For example, an SVG `<path>` node could be\ndefined like this:\n\n    path : List (Attribute msg) -> List (Node msg) -> Node msg\n    path attrubutes children =\n      nodeNS \"http://www.w3.org/2000/svg\" \"path\" attributes children\n",
+                "type": "String.String -> String.String -> List.List (VirtualDom.Attribute msg) -> List.List (VirtualDom.Node msg) -> VirtualDom.Node msg"
+            },
+            {
+                "name": "on",
+                "comment": " Create custom event handlers.\n\nYou can define `onClick` like this:\n\n    import Json.Decode as Decode\n\n    onClick : msg -> Attribute msg\n    onClick msg =\n      on \"click\" (Normal (Decode.succeed msg))\n\n**Note:** These event handlers trigger in the bubble phase. You can learn more\nabout what that means [here][]. There is not support within Elm for doing\ntricks with the capture phase. We recommend doing that in JS through ports.\n\n[here]: https://github.com/elm/virtual-dom/blob/master/hints/capture-vs-bubble.md\n",
+                "type": "String.String -> VirtualDom.Handler msg -> VirtualDom.Attribute msg"
+            },
+            {
+                "name": "property",
+                "comment": " Create a property.\n\n    import Json.Encode as Encode\n\n    buttonLabel : Node msg\n    buttonLabel =\n      node \"label\" [ property \"htmlFor\" (Encode.string \"button\") ] [ text \"Label\" ]\n\nNotice that you must give the *property* name, so we use `htmlFor` as it\nwould be in JavaScript, not `for` as it would appear in HTML.\n",
+                "type": "String.String -> Json.Decode.Value -> VirtualDom.Attribute msg"
+            },
+            {
+                "name": "style",
+                "comment": " Specify a style.\n\n    greeting : Node msg\n    greeting =\n      node \"div\"\n        [ style \"backgroundColor\" \"red\"\n        , style \"height\" \"90px\"\n        , style \"width\" \"100%\"\n        ]\n        [ text \"Hello!\"\n        ]\n\n",
+                "type": "String.String -> String.String -> VirtualDom.Attribute msg"
+            },
+            {
+                "name": "text",
+                "comment": " Just put plain text in the DOM. It will escape the string so that it appears\nexactly as you specify.\n\n    text \"Hello World!\"\n",
+                "type": "String.String -> VirtualDom.Node msg"
+            }
+        ],
+        "binops": []
+    }
+]

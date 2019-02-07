@@ -1,0 +1,646 @@
+[
+    {
+        "name": "Parser",
+        "comment": "\n\n# Parsers\n@docs Parser, run\n\n# Building Blocks\n@docs int, float, number, symbol, keyword, variable, end\n\n# Pipelines\n@docs succeed, (|=), (|.), lazy, andThen, problem\n\n# Branches\n@docs oneOf, map, backtrackable, commit, token\n\n# Loops\n@docs sequence, Trailing, loop, Step\n\n# Whitespace\n@docs spaces, lineComment, multiComment, Nestable\n\n# Chompers\n@docs getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString\n\n# Errors\n@docs DeadEnd, Problem, deadEndsToString\n\n# Indentation\n@docs withIndent, getIndent\n\n# Positions\n@docs getPosition, getRow, getCol, getOffset, getSource\n",
+        "unions": [
+            {
+                "name": "Nestable",
+                "comment": " Not all languages handle multi-line comments the same. Multi-line comments\nin C-style syntax are `NotNestable`, meaning they can be implemented like this:\n\n    js : Parser ()\n    js =\n      symbol \"/*\"\n        |. chompUntil \"*/\"\n\nIn fact, `multiComment \"/*\" \"*/\" NotNestable` *is* implemented like that! It is\nvery simple, but it does not allow you to nest comments like this:\n\n```javascript\n/*\nline1\n/* line2 */\nline3\n*/\n```\n\nIt would stop on the first `*/`, eventually throwing a syntax error on the\nsecond `*/`. This can be pretty annoying in long files.\n\nLanguages like Elm allow you to nest multi-line comments, but your parser needs\nto be a bit fancier to handle this. After you start a comment, you have to\ndetect if there is another one inside it! And then you have to make sure all\nthe `{-` and `-}` match up properly! Saying `multiComment \"{-\" \"-}\" Nestable`\ndoes all that for you.\n",
+                "args": [],
+                "cases": [
+                    [
+                        "NotNestable",
+                        []
+                    ],
+                    [
+                        "Nestable",
+                        []
+                    ]
+                ]
+            },
+            {
+                "name": "Problem",
+                "comment": " When you run into a `DeadEnd`, I record some information about why you\ngot stuck. This data is useful for producing helpful error messages. This is\nhow [`deadEndsToString`](#deadEndsToString) works!\n\n**Note:** If you feel limited by this type (i.e. having to represent custom\nproblems as strings) I highly recommend switching to `Parser.Advanced`. It\nlets you define your own `Problem` type. It can also track \"context\" which\ncan improve error messages a ton! This is how the Elm compiler produces\nrelatively nice parse errors, and I am excited to see those techniques applied\nelsewhere!\n",
+                "args": [],
+                "cases": [
+                    [
+                        "Expecting",
+                        [
+                            "String.String"
+                        ]
+                    ],
+                    [
+                        "ExpectingInt",
+                        []
+                    ],
+                    [
+                        "ExpectingHex",
+                        []
+                    ],
+                    [
+                        "ExpectingOctal",
+                        []
+                    ],
+                    [
+                        "ExpectingBinary",
+                        []
+                    ],
+                    [
+                        "ExpectingFloat",
+                        []
+                    ],
+                    [
+                        "ExpectingNumber",
+                        []
+                    ],
+                    [
+                        "ExpectingVariable",
+                        []
+                    ],
+                    [
+                        "ExpectingSymbol",
+                        [
+                            "String.String"
+                        ]
+                    ],
+                    [
+                        "ExpectingKeyword",
+                        [
+                            "String.String"
+                        ]
+                    ],
+                    [
+                        "ExpectingEnd",
+                        []
+                    ],
+                    [
+                        "UnexpectedChar",
+                        []
+                    ],
+                    [
+                        "Problem",
+                        [
+                            "String.String"
+                        ]
+                    ],
+                    [
+                        "BadRepeat",
+                        []
+                    ]
+                ]
+            },
+            {
+                "name": "Step",
+                "comment": " Decide what steps to take next in your [`loop`](#loop).\n\nIf you are `Done`, you give the result of the whole `loop`. If you decide to\n`Loop` around again, you give a new state to work from. Maybe you need to add\nan item to a list? Or maybe you need to track some information about what you\njust saw?\n\n**Note:** It may be helpful to learn about [finite-state machines][fsm] to get\na broader intuition about using `state`. I.e. You may want to create a `type`\nthat describes four possible states, and then use `Loop` to transition between\nthem as you consume characters.\n\n[fsm]: https://en.wikipedia.org/wiki/Finite-state_machine\n",
+                "args": [
+                    "state",
+                    "a"
+                ],
+                "cases": [
+                    [
+                        "Loop",
+                        [
+                            "state"
+                        ]
+                    ],
+                    [
+                        "Done",
+                        [
+                            "a"
+                        ]
+                    ]
+                ]
+            },
+            {
+                "name": "Trailing",
+                "comment": " What’s the deal with trailing commas? Are they `Forbidden`?\nAre they `Optional`? Are they `Mandatory`? Welcome to [shapes\nclub](https://poorlydrawnlines.com/comic/shapes-club/)!\n",
+                "args": [],
+                "cases": [
+                    [
+                        "Forbidden",
+                        []
+                    ],
+                    [
+                        "Optional",
+                        []
+                    ],
+                    [
+                        "Mandatory",
+                        []
+                    ]
+                ]
+            }
+        ],
+        "aliases": [
+            {
+                "name": "DeadEnd",
+                "comment": " A parser can run into situations where there is no way to make progress.\nWhen that happens, I record the `row` and `col` where you got stuck and the\nparticular `problem` you ran into. That is a `DeadEnd`!\n\n**Note:** I count rows and columns like a text editor. The beginning is `row=1`\nand `col=1`. As I chomp characters, the `col` increments. When I reach a `\\n`\ncharacter, I increment the `row` and set `col=1`.\n",
+                "args": [],
+                "type": "{ row : Basics.Int, col : Basics.Int, problem : Parser.Problem }"
+            },
+            {
+                "name": "Parser",
+                "comment": " A `Parser` helps turn a `String` into nicely structured data. For example,\nwe can [`run`](#run) the [`int`](#int) parser to turn `String` to `Int`:\n\n    run int \"123456\" == Ok 123456\n    run int \"3.1415\" == Err ...\n\nThe cool thing is that you can combine `Parser` values to handle much more\ncomplex scenarios.\n",
+                "args": [
+                    "a"
+                ],
+                "type": "Parser.Advanced.Parser Basics.Never Parser.Problem a"
+            }
+        ],
+        "values": [
+            {
+                "name": "andThen",
+                "comment": " Parse one thing `andThen` parse another thing. This is useful when you want\nto check on what you just parsed. For example, maybe you want U.S. zip codes\nand `int` is not suitable because it does not allow leading zeros. You could\nsay:\n\n    zipCode : Parser String\n    zipCode =\n      getChompedString (chompWhile Char.isDigit)\n        |> andThen checkZipCode\n\n    checkZipCode : String -> Parser String\n    checkZipCode code =\n      if String.length code == 5 then\n        succeed code\n      else\n        problem \"a U.S. zip code has exactly 5 digits\"\n\nFirst we chomp digits `andThen` we check if it is a valid U.S. zip code. We\n`succeed` if it has exactly five digits and report a `problem` if not.\n\nCheck out [`examples/DoubleQuoteString.elm`](https://github.com/elm/parser/blob/master/examples/DoubleQuoteString.elm)\nfor another example, this time using `andThen` to verify unicode code points.\n\n**Note:** If you are using `andThen` recursively and blowing the stack, check\nout the [`loop`](#loop) function to limit stack usage.\n",
+                "type": "(a -> Parser.Parser b) -> Parser.Parser a -> Parser.Parser b"
+            },
+            {
+                "name": "backtrackable",
+                "comment": " It is quite tricky to use `backtrackable` well! It can be very useful, but\nalso can degrade performance and error message quality.\n\nRead [this document](https://github.com/elm/parser/blob/master/semantics.md)\nto learn how `oneOf`, `backtrackable`, and `commit` work and interact with\neach other. It is subtle and important!\n",
+                "type": "Parser.Parser a -> Parser.Parser a"
+            },
+            {
+                "name": "chompIf",
+                "comment": " Chomp one character if it passes the test.\n\n    chompUpper : Parser ()\n    chompUpper =\n      chompIf Char.isUpper\n\nSo this can chomp a character like `T` and produces a `()` value.\n",
+                "type": "(Char.Char -> Basics.Bool) -> Parser.Parser ()"
+            },
+            {
+                "name": "chompUntil",
+                "comment": " Chomp until you see a certain string. You could define C-style multi-line\ncomments like this:\n\n    comment : Parser ()\n    comment =\n      symbol \"/*\"\n        |. chompUntil \"*/\"\n\nI recommend using [`multiComment`](#multiComment) for this particular scenario\nthough. It can be trickier than it looks!\n",
+                "type": "String.String -> Parser.Parser ()"
+            },
+            {
+                "name": "chompUntilEndOr",
+                "comment": " Chomp until you see a certain string or until you run out of characters to\nchomp! You could define single-line comments like this:\n\n    elm : Parser ()\n    elm =\n      symbol \"--\"\n        |. chompUntilEndOr \"\\n\"\n\nA file may end with a single-line comment, so the file can end before you see\na newline. Tricky!\n\nI recommend just using [`lineComment`](#lineComment) for this particular\nscenario.\n",
+                "type": "String.String -> Parser.Parser ()"
+            },
+            {
+                "name": "chompWhile",
+                "comment": " Chomp zero or more characters if they pass the test. This is commonly\nuseful for chomping whitespace or variable names:\n\n    whitespace : Parser ()\n    whitespace =\n      chompWhile (\\c -> c == ' ' || c == '\\t' || c == '\\n' || c == '\\r')\n\n    elmVar : Parser String\n    elmVar =\n      getChompedString <|\n        succeed ()\n          |. chompIf Char.isLower\n          |. chompWhile (\\c -> Char.isAlphaNum c || c == '_')\n\n**Note:** a `chompWhile` parser always succeeds! This can lead to tricky\nsituations, especially if you define your whitespace with it. In that case,\nyou could accidentally interpret `letx` as the keyword `let` followed by\n\"spaces\" followed by the variable `x`. This is why the `keyword` and `number`\nparsers peek ahead, making sure they are not followed by anything unexpected.\n",
+                "type": "(Char.Char -> Basics.Bool) -> Parser.Parser ()"
+            },
+            {
+                "name": "commit",
+                "comment": " `commit` is almost always paired with `backtrackable` in some way, and it\nis tricky to use well.\n\nRead [this document](https://github.com/elm/parser/blob/master/semantics.md)\nto learn how `oneOf`, `backtrackable`, and `commit` work and interact with\neach other. It is subtle and important!\n",
+                "type": "a -> Parser.Parser a"
+            },
+            {
+                "name": "deadEndsToString",
+                "comment": " Turn all the `DeadEnd` data into a string that is easier for people to\nread.\n\n**Note:** This is just a baseline of quality. It cannot do anything with colors.\nIt is not interactivite. It just turns the raw data into strings. I really hope\nfolks will check out the source code for some inspiration on how to turn errors\ninto `Html` with nice colors and interaction! The `Parser.Advanced` module lets\nyou work with context as well, which really unlocks another level of quality!\nThe \"context\" technique is how the Elm compiler can say \"I think I am parsing a\nlist, so I was expecting a closing `]` here.\" Telling users what the parser\n_thinks_ is happening can be really helpful!\n",
+                "type": "List.List Parser.DeadEnd -> String.String"
+            },
+            {
+                "name": "end",
+                "comment": " Check if you have reached the end of the string you are parsing.\n\n    justAnInt : Parser Int\n    justAnInt =\n      succeed identity\n        |= int\n        |. end\n\n    -- run justAnInt \"90210\" == Ok 90210\n    -- run justAnInt \"1 + 2\" == Err ...\n    -- run int       \"1 + 2\" == Ok 1\n\nParsers can succeed without parsing the whole string. Ending your parser\nwith `end` guarantees that you have successfully parsed the whole string.\n",
+                "type": "Parser.Parser ()"
+            },
+            {
+                "name": "float",
+                "comment": " Parse floats.\n\n    run float \"123\"       == Ok 123\n    run float \"3.1415\"    == Ok 3.1415\n    run float \"0.1234\"    == Ok 0.1234\n    run float \".1234\"     == Ok 0.1234\n    run float \"1e-42\"     == Ok 1e-42\n    run float \"6.022e23\"  == Ok 6.022e23\n    run float \"6.022E23\"  == Ok 6.022e23\n    run float \"6.022e+23\" == Ok 6.022e23\n\nIf you want to disable literals like `.123` (like in Elm) you could write\nsomething like this:\n\n    elmFloat : Parser Float\n    elmFloat =\n      oneOf\n        [ symbol \".\"\n            |. problem \"floating point numbers must start with a digit, like 0.25\"\n        , float\n        ]\n\n**Note:** If you want a parser for both `Int` and `Float` literals, check out\n[`number`](#number) below. It will be faster than using `oneOf` to combining\n`int` and `float` yourself.\n",
+                "type": "Parser.Parser Basics.Float"
+            },
+            {
+                "name": "getChompedString",
+                "comment": " Sometimes parsers like `int` or `variable` cannot do exactly what you\nneed. The \"chomping\" family of functions is meant for that case! Maybe you\nneed to parse [valid PHP variables][php] like `$x` and `$txt`:\n\n    php : Parser String\n    php =\n      getChompedString <|\n        succeed ()\n          |. chompIf (\\c -> c == '$')\n          |. chompIf (\\c -> Char.isAlpha c || c == '_')\n          |. chompWhile (\\c -> Char.isAlphaNum c || c == '_')\n\nThe idea is that you create a bunch of chompers that validate the underlying\ncharacters. Then `getChompedString` extracts the underlying `String` efficiently.\n\n**Note:** Maybe it is helpful to see how you can use [`getOffset`](#getOffset)\nand [`getSource`](#getSource) to implement this function:\n\n    getChompedString : Parser a -> Parser String\n    getChompedString parser =\n      succeed String.slice\n        |= getOffset\n        |. parser\n        |= getOffset\n        |= getSource\n\n[php]: https://www.w3schools.com/php/php_variables.asp\n",
+                "type": "Parser.Parser a -> Parser.Parser String.String"
+            },
+            {
+                "name": "getCol",
+                "comment": " This is a more efficient version of `map Tuple.second getPosition`. This\ncan be useful in combination with [`withIndent`](#withIndent) and\n[`getIndent`](#getIndent), like this:\n\n    checkIndent : Parser ()\n    checkIndent =\n      succeed (\\indent column -> indent <= column)\n        |= getIndent\n        |= getCol\n        |> andThen checkIndentHelp\n\n    checkIndentHelp : Bool -> Parser ()\n    checkIndentHelp isIndented =\n      if isIndented then\n        succeed ()\n      else\n        problem \"expecting more spaces\"\n\nSo the `checkIndent` parser only succeeds when you are \"deeper\" than the\ncurrent indent level. You could use this to parse Elm-style `let` expressions.\n",
+                "type": "Parser.Parser Basics.Int"
+            },
+            {
+                "name": "getIndent",
+                "comment": " When someone said `withIndent` earlier, what number did they put in there?\n\n- `getIndent` results in `0`, the default value\n- `withIndent 4 getIndent` results in `4`\n\nSo you are just asking about things you said earlier. These numbers do not leak\nout of `withIndent`, so say we have:\n\n    succeed Tuple.pair\n      |= withIndent 4 getIndent\n      |= getIndent\n\nAssuming there are no `withIndent` above this, you would get `(4,0)` from this.\n",
+                "type": "Parser.Parser Basics.Int"
+            },
+            {
+                "name": "getOffset",
+                "comment": " Editors think of code as a grid, but behind the scenes it is just a flat\narray of UTF-16 characters. `getOffset` tells you your index in that flat\narray. So if you chomp `\"\\n\\n\\n\\n\"` you are on row 5, column 1, and offset 4.\n\n**Note:** JavaScript uses a somewhat odd version of UTF-16 strings, so a single\ncharacter may take two slots. So in JavaScript, `'abc'.length === 3` but\n`'🙈🙉🙊'.length === 6`. Try it out! And since Elm runs in JavaScript, the offset\nmoves by those rules.\n",
+                "type": "Parser.Parser Basics.Int"
+            },
+            {
+                "name": "getPosition",
+                "comment": " Code editors treat code like a grid, with rows and columns. The start is\n`row=1` and `col=1`. As you chomp characters, the `col` increments. When you\nrun into a `\\n` character, the `row` increments and `col` goes back to `1`.\n\nIn the Elm compiler, I track the start and end position of every expression\nlike this:\n\n    type alias Located a =\n      { start : (Int, Int)\n      , value : a\n      , end : (Int, Int)\n      }\n\n    located : Parser a -> Parser (Located a)\n    located parser =\n      succeed Located\n        |= getPosition\n        |= parser\n        |= getPosition\n\nSo if there is a problem during type inference, I use this saved position\ninformation to underline the exact problem!\n\n**Note:** Tabs count as one character, so if you are parsing something like\nPython, I recommend sorting that out *after* parsing. So if I wanted the `^^^^`\nunderline like in Elm, I would find the `row` in the source code and do\nsomething like this:\n\n    makeUnderline : String -> Int -> Int -> String\n    makeUnderline row minCol maxCol =\n      String.toList row\n        |> List.indexedMap (toUnderlineChar minCol maxCol)\n        |> String.fromList\n\n    toUnderlineChar : Int -> Int -> Int -> Char -> Char\n    toUnderlineChar minCol maxCol col char =\n      if minCol <= col && col <= maxCol then\n        '^'\n      else if char == '\\t' then\n        '\\t'\n      else\n        ' '\n\nSo it would preserve any tabs from the source line. There are tons of other\nways to do this though. The point is just that you handle the tabs after\nparsing but before anyone looks at the numbers in a context where tabs may\nequal 2, 4, or 8.\n",
+                "type": "Parser.Parser ( Basics.Int, Basics.Int )"
+            },
+            {
+                "name": "getRow",
+                "comment": " This is a more efficient version of `map Tuple.first getPosition`. Maybe\nyou just want to track the line number for some reason? This lets you do that.\n\nSee [`getPosition`](#getPosition) for an explanation of rows and columns.\n",
+                "type": "Parser.Parser Basics.Int"
+            },
+            {
+                "name": "getSource",
+                "comment": " Get the full string that is being parsed. You could use this to define\n`getChompedString` or `mapChompedString` if you wanted:\n\n    getChompedString : Parser a -> Parser String\n    getChompedString parser =\n      succeed String.slice\n        |= getOffset\n        |. parser\n        |= getOffset\n        |= getSource\n",
+                "type": "Parser.Parser String.String"
+            },
+            {
+                "name": "int",
+                "comment": " Parse integers.\n\n    run int \"1\"    == Ok 1\n    run int \"1234\" == Ok 1234\n\n    run int \"-789\" == Err ...\n    run int \"0123\" == Err ...\n    run int \"1.34\" == Err ...\n    run int \"1e31\" == Err ...\n    run int \"123a\" == Err ...\n    run int \"0x1A\" == Err ...\n\nIf you want to handle a leading `+` or `-` you should do it with a custom\nparser like this:\n\n    myInt : Parser Int\n    myInt =\n      oneOf\n        [ succeed negate\n            |. symbol \"-\"\n            |= int\n        , int\n        ]\n\n**Note:** If you want a parser for both `Int` and `Float` literals, check out\n[`number`](#number) below. It will be faster than using `oneOf` to combining\n`int` and `float` yourself.\n",
+                "type": "Parser.Parser Basics.Int"
+            },
+            {
+                "name": "keyword",
+                "comment": " Parse keywords like `let`, `case`, and `type`.\n\n    run (keyword \"let\") \"let\"     == Ok ()\n    run (keyword \"let\") \"var\"     == Err ... (ExpectingKeyword \"let\") ...\n    run (keyword \"let\") \"letters\" == Err ... (ExpectingKeyword \"let\") ...\n\n**Note:** Notice the third case there! `keyword` actually looks ahead one\ncharacter to make sure it is not a letter, number, or underscore. The goal is\nto help with parsers like this:\n\n    succeed identity\n      |. keyword \"let\"\n      |. spaces\n      |= elmVar\n      |. spaces\n      |. symbol \"=\"\n\nThe trouble is that `spaces` may chomp zero characters (to handle expressions\nlike `[1,2]` and `[ 1 , 2 ]`) and in this case, it would mean `letters` could\nbe parsed as `let ters` and then wonder where the equals sign is! Check out the\n[`token`](#token) docs if you need to customize this!\n",
+                "type": "String.String -> Parser.Parser ()"
+            },
+            {
+                "name": "lazy",
+                "comment": " Helper to define recursive parsers. Say we want a parser for simple\nboolean expressions:\n\n    true\n    false\n    (true || false)\n    (true || (true || false))\n\nNotice that a boolean expression might contain *other* boolean expressions.\nThat means we will want to define our parser in terms of itself:\n\n    type Boolean\n      = MyTrue\n      | MyFalse\n      | MyOr Boolean Boolean\n\n    boolean : Parser Boolean\n    boolean =\n      oneOf\n        [ succeed MyTrue\n            |. keyword \"true\"\n        , succeed MyFalse\n            |. keyword \"false\"\n        , succeed MyOr\n            |. symbol \"(\"\n            |. spaces\n            |= lazy (\\_ -> boolean)\n            |. spaces\n            |. symbol \"||\"\n            |. spaces\n            |= lazy (\\_ -> boolean)\n            |. spaces\n            |. symbol \")\"\n        ]\n\n**Notice that `boolean` uses `boolean` in its definition!** In Elm, you can\nonly define a value in terms of itself it is behind a function call. So\n`lazy` helps us define these self-referential parsers. (`andThen` can be used\nfor this as well!)\n",
+                "type": "(() -> Parser.Parser a) -> Parser.Parser a"
+            },
+            {
+                "name": "lineComment",
+                "comment": " Parse single-line comments:\n\n    elm : Parser ()\n    elm =\n      lineComment \"--\"\n\n    js : Parser ()\n    js =\n      lineComment \"//\"\n\n    python : Parser ()\n    python =\n      lineComment \"#\"\n\nThis parser is defined like this:\n\n    lineComment : String -> Parser ()\n    lineComment str =\n      symbol str\n        |. chompUntilEndOr \"\\n\"\n\nSo it will consume the remainder of the line. If the file ends before you see\na newline, that is fine too.\n",
+                "type": "String.String -> Parser.Parser ()"
+            },
+            {
+                "name": "loop",
+                "comment": " A parser that can loop indefinitely. This can be helpful when parsing\nrepeated structures, like a bunch of statements:\n\n    statements : Parser (List Stmt)\n    statements =\n      loop [] statementsHelp\n\n    statementsHelp : List Stmt -> Parser (Step (List Stmt) (List Stmt))\n    statementsHelp revStmts =\n      oneOf\n        [ succeed (\\stmt -> Loop (stmt :: revStmts))\n            |= statement\n            |. spaces\n            |. symbol \";\"\n            |. spaces\n        , succeed ()\n            |> map (\\_ -> Done (List.reverse revStmts))\n        ]\n\n    -- statement : Parser Stmt\n\nNotice that the statements are tracked in reverse as we `Loop`, and we reorder\nthem only once we are `Done`. This is a very common pattern with `loop`!\n\nCheck out [`examples/DoubleQuoteString.elm`](https://github.com/elm/parser/blob/master/examples/DoubleQuoteString.elm)\nfor another example.\n\n**IMPORTANT NOTE:** Parsers like `succeed ()` and `chompWhile Char.isAlpha` can\nsucceed without consuming any characters. So in some cases you may want to use\n[`getOffset`](#getOffset) to ensure that each step actually consumed characters.\nOtherwise you could end up in an infinite loop!\n\n**Note:** Anything you can write with `loop`, you can also write as a parser\nthat chomps some characters `andThen` calls itself with new arguments. The\nproblem with calling `andThen` recursively is that it grows the stack, so you\ncannot do it indefinitely. So `loop` is important because enables tail-call\nelimination, allowing you to parse however many repeats you want.\n",
+                "type": "state -> (state -> Parser.Parser (Parser.Step state a)) -> Parser.Parser a"
+            },
+            {
+                "name": "map",
+                "comment": " Transform the result of a parser. Maybe you have a value that is\nan integer or `null`:\n\n    nullOrInt : Parser (Maybe Int)\n    nullOrInt =\n      oneOf\n        [ map Just int\n        , map (\\_ -> Nothing) (keyword \"null\")\n        ]\n\n    -- run nullOrInt \"0\"    == Ok (Just 0)\n    -- run nullOrInt \"13\"   == Ok (Just 13)\n    -- run nullOrInt \"null\" == Ok Nothing\n    -- run nullOrInt \"zero\" == Err ...\n",
+                "type": "(a -> b) -> Parser.Parser a -> Parser.Parser b"
+            },
+            {
+                "name": "mapChompedString",
+                "comment": " This works just like [`getChompedString`](#getChompedString) but gives\na bit more flexibility. For example, maybe you want to parse Elm doc comments\nand get (1) the full comment and (2) all of the names listed in the docs.\n\nYou could implement `mapChompedString` like this:\n\n    mapChompedString : (String -> a -> b) -> Parser a -> Parser String\n    mapChompedString func parser =\n      succeed (\\start value end src -> func (String.slice start end src) value)\n        |= getOffset\n        |= parser\n        |= getOffset\n        |= getSource\n\n",
+                "type": "(String.String -> a -> b) -> Parser.Parser a -> Parser.Parser b"
+            },
+            {
+                "name": "multiComment",
+                "comment": " Parse multi-line comments. So if you wanted to parse Elm whitespace or\nJS whitespace, you could say:\n\n    elm : Parser ()\n    elm =\n      loop 0 <| ifProgress <|\n        oneOf\n          [ lineComment \"--\"\n          , multiComment \"{-\" \"-}\" Nestable\n          , spaces\n          ]\n\n    js : Parser ()\n    js =\n      loop 0 <| ifProgress <|\n        oneOf\n          [ lineComment \"//\"\n          , multiComment \"/*\" \"*/\" NotNestable\n          , chompWhile (\\c -> c == ' ' || c == '\\n' || c == '\\r' || c == '\\t')\n          ]\n\n    ifProgress : Parser a -> Int -> Parser (Step Int ())\n    ifProgress parser offset =\n      succeed identity\n        |. parser\n        |= getOffset\n        |> map (\\newOffset -> if offset == newOffset then Done () else Loop newOffset)\n\n**Note:** The fact that `spaces` comes last in the definition of `elm` is very\nimportant! It can succeed without consuming any characters, so if it were the\nfirst option, it would always succeed and bypass the others! (Same is true of\n`chompWhile` in `js`.) This possibility of success without consumption is also\nwhy wee need the `ifProgress` helper. It detects if there is no more whitespace\nto consume.\n",
+                "type": "String.String -> String.String -> Parser.Nestable -> Parser.Parser ()"
+            },
+            {
+                "name": "number",
+                "comment": " Parse a bunch of different kinds of numbers without backtracking. A parser\nfor Elm would need to handle integers, floats, and hexadecimal like this:\n\n    type Expr\n      = Variable String\n      | Int Int\n      | Float Float\n      | Apply Expr Expr\n\n    elmNumber : Parser Expr\n    elmNumber =\n      number\n        { int = Just Int\n        , hex = Just Int    -- 0x001A is allowed\n        , octal = Nothing   -- 0o0731 is not\n        , binary = Nothing  -- 0b1101 is not\n        , float = Just Float\n        }\n\nIf you wanted to implement the [`float`](#float) parser, it would be like this:\n\n    float : Parser Float\n    float =\n      number\n        { int = Just toFloat\n        , hex = Nothing\n        , octal = Nothing\n        , binary = Nothing\n        , float = Just identity\n        }\n\nNotice that it actually is processing `int` results! This is because `123`\nlooks like an integer to me, but maybe it looks like a float to you. If you had\n`int = Nothing`, floats would need a decimal like `1.0` in every case. If you\nlike explicitness, that may actually be preferable!\n\n**Note:** This function does not check for weird trailing characters in the\ncurrent implementation, so parsing `123abc` can succeed up to `123` and then\nmove on. This is helpful for people who want to parse things like `40px` or\n`3m`, but it requires a bit of extra code to rule out trailing characters in\nother cases.\n",
+                "type": "{ int : Maybe.Maybe (Basics.Int -> a), hex : Maybe.Maybe (Basics.Int -> a), octal : Maybe.Maybe (Basics.Int -> a), binary : Maybe.Maybe (Basics.Int -> a), float : Maybe.Maybe (Basics.Float -> a) } -> Parser.Parser a"
+            },
+            {
+                "name": "oneOf",
+                "comment": " If you are parsing JSON, the values can be strings, floats, booleans,\narrays, objects, or null. You need a way to pick `oneOf` them! Here is a\nsample of what that code might look like:\n\n    type Json\n      = Number Float\n      | Boolean Bool\n      | Null\n\n    json : Parser Json\n    json =\n      oneOf\n        [ map Number float\n        , map (\\_ -> Boolean True) (keyword \"true\")\n        , map (\\_ -> Boolean False) (keyword \"false\")\n        , map (\\_ -> Null) keyword \"null\"\n        ]\n\nThis parser will keep trying parsers until `oneOf` them starts chomping\ncharacters. Once a path is chosen, it does not come back and try the others.\n\n**Note:** I highly recommend reading [this document][semantics] to learn how\n`oneOf` and `backtrackable` interact. It is subtle and important!\n\n[semantics]: https://github.com/elm/parser/blob/master/semantics.md\n",
+                "type": "List.List (Parser.Parser a) -> Parser.Parser a"
+            },
+            {
+                "name": "problem",
+                "comment": " Indicate that a parser has reached a dead end. \"Everything was going fine\nuntil I ran into this problem.\" Check out the [`andThen`](#andThen) docs to see\nan example usage.\n",
+                "type": "String.String -> Parser.Parser a"
+            },
+            {
+                "name": "run",
+                "comment": " Try a parser. Here are some examples using the [`keyword`](#keyword)\nparser:\n\n    run (keyword \"true\") \"true\"  == Ok ()\n    run (keyword \"true\") \"True\"  == Err ...\n    run (keyword \"true\") \"false\" == Err ...\n    run (keyword \"true\") \"true!\" == Ok ()\n\nNotice the last case! A `Parser` will chomp as much as possible and not worry\nabout the rest. Use the [`end`](#end) parser to ensure you made it to the end\nof the string!\n",
+                "type": "Parser.Parser a -> String.String -> Result.Result (List.List Parser.DeadEnd) a"
+            },
+            {
+                "name": "sequence",
+                "comment": " Handle things like lists and records, but you can customize the details\nhowever you need. Say you want to parse C-style code blocks:\n\n    import Parser exposing (Parser, Trailing(..))\n\n    block : Parser (List Stmt)\n    block =\n      Parser.sequence\n        { start = \"{\"\n        , separator = \";\"\n        , end = \"}\"\n        , spaces = spaces\n        , item = statement\n        , trailing = Mandatory -- demand a trailing semi-colon\n        }\n\n    -- statement : Parser Stmt\n\n**Note:** If you need something more custom, do not be afraid to check\nout the implementation and customize it for your case. It is better to\nget nice error messages with a lower-level implementation than to try\nto hack high-level parsers to do things they are not made for.\n",
+                "type": "{ start : String.String, separator : String.String, end : String.String, spaces : Parser.Parser (), item : Parser.Parser a, trailing : Parser.Trailing } -> Parser.Parser (List.List a)"
+            },
+            {
+                "name": "spaces",
+                "comment": " Parse zero or more `' '`, `'\\n'`, and `'\\r'` characters.\n\nThe implementation is pretty simple:\n\n    spaces : Parser ()\n    spaces =\n      chompWhile (\\c -> c == ' ' || c == '\\n' || c == '\\r')\n\nSo if you need something different (like tabs) just define an alternative with\nthe necessary tweaks! Check out [`lineComment`](#lineComment) and\n[`multiComment`](#multiComment) for more complex situations.\n",
+                "type": "Parser.Parser ()"
+            },
+            {
+                "name": "succeed",
+                "comment": " A parser that succeeds without chomping any characters.\n\n    run (succeed 90210  ) \"mississippi\" == Ok 90210\n    run (succeed 3.141  ) \"mississippi\" == Ok 3.141\n    run (succeed ()     ) \"mississippi\" == Ok ()\n    run (succeed Nothing) \"mississippi\" == Ok Nothing\n\nSeems weird on its own, but it is very useful in combination with other\nfunctions. The docs for [`(|=)`](#|=) and [`andThen`](#andThen) have some neat\nexamples.\n",
+                "type": "a -> Parser.Parser a"
+            },
+            {
+                "name": "symbol",
+                "comment": " Parse symbols like `(` and `,`.\n\n    run (symbol \"[\") \"[\" == Ok ()\n    run (symbol \"[\") \"4\" == Err ... (ExpectingSymbol \"[\") ...\n\n**Note:** This is good for stuff like brackets and semicolons, but it probably\nshould not be used for binary operators like `+` and `-` because you can find\nyourself in weird situations. For example, is `3--4` a typo? Or is it `3 - -4`?\nI have had better luck with `chompWhile isSymbol` and sorting out which\noperator it is afterwards.\n",
+                "type": "String.String -> Parser.Parser ()"
+            },
+            {
+                "name": "token",
+                "comment": " Parse exactly the given string, without any regard to what comes next.\n\nA potential pitfall when parsing keywords is getting tricked by variables that\nstart with a keyword, like `let` in `letters` or `import` in `important`. This\nis especially likely if you have a whitespace parser that can consume zero\ncharcters. So the [`keyword`](#keyword) parser is defined with `token` and a\ntrick to peek ahead a bit:\n\n    keyword : String -> Parser ()\n    keyword kwd =\n      succeed identity\n        |. backtrackable (token kwd)\n        |= oneOf\n            [ map (\\_ -> True) (backtrackable (chompIf isVarChar))\n            , succeed False\n            ]\n        |> andThen (checkEnding kwd)\n\n    checkEnding : String -> Bool -> Parser ()\n    checkEnding kwd isBadEnding =\n      if isBadEnding then\n        problem (\"expecting the `\" ++ kwd ++ \"` keyword\")\n      else\n        commit ()\n\n    isVarChar : Char -> Bool\n    isVarChar char =\n      Char.isAlphaNum char || char == '_'\n\nThis definition is specially designed so that (1) if you really see `let` you\ncommit to that path and (2) if you see `letters` instead you can backtrack and\ntry other options. If I had just put a `backtrackable` around the whole thing\nyou would not get (1) anymore.\n",
+                "type": "String.String -> Parser.Parser ()"
+            },
+            {
+                "name": "variable",
+                "comment": " Create a parser for variables. If we wanted to parse type variables in Elm,\nwe could try something like this:\n\n    import Char\n    import Parser exposing (..)\n    import Set\n\n    typeVar : Parser String\n    typeVar =\n      variable\n        { start = Char.isLower\n        , inner = \\c -> Char.isAlphaNum c || c == '_'\n        , reserved = Set.fromList [ \"let\", \"in\", \"case\", \"of\" ]\n        }\n\nThis is saying it _must_ start with a lower-case character. After that,\ncharacters can be letters, numbers, or underscores. It is also saying that if\nyou run into any of these reserved names, it is definitely not a variable.\n",
+                "type": "{ start : Char.Char -> Basics.Bool, inner : Char.Char -> Basics.Bool, reserved : Set.Set String.String } -> Parser.Parser String.String"
+            },
+            {
+                "name": "withIndent",
+                "comment": " Some languages are indentation sensitive. Python cares about tabs. Elm\ncares about spaces sometimes. `withIndent` and `getIndent` allow you to manage\n\"indentation state\" yourself, however is necessary in your scenario.\n",
+                "type": "Basics.Int -> Parser.Parser a -> Parser.Parser a"
+            }
+        ],
+        "binops": [
+            {
+                "name": "|.",
+                "comment": " **Skip** values in a parser pipeline. For example, maybe we want to parse\nsome JavaScript variables:\n\n    var : Parser String\n    var =\n      getChompedString <|\n        succeed ()\n          |. chompIf isStartChar\n          |. chompWhile isInnerChar\n\n    isStartChar : Char -> Bool\n    isStartChar char =\n      Char.isAlpha char || char == '_' || char == '$'\n\n    isInnerChar : Char -> Bool\n    isInnerChar char =\n      isStartChar char || Char.isDigit char\n\n`chompIf isStartChar` can chomp one character and produce a `()` value.\n`chompWhile isInnerChar` can chomp zero or more characters and produce a `()`\nvalue. The `(|.)` operators are saying to still chomp all the characters, but\nskip the two `()` values that get produced. No one cares about them.\n",
+                "type": "Parser.Parser keep -> Parser.Parser ignore -> Parser.Parser keep",
+                "associativity": "left",
+                "precedence": 6
+            },
+            {
+                "name": "|=",
+                "comment": " **Keep** values in a parser pipeline. For example, we could say:\n\n    type alias Point = { x : Float, y : Float }\n\n    point : Parser Point\n    point =\n      succeed Point\n        |. symbol \"(\"\n        |. spaces\n        |= float\n        |. spaces\n        |. symbol \",\"\n        |. spaces\n        |= float\n        |. spaces\n        |. symbol \")\"\n\nAll the parsers in this pipeline will chomp characters and produce values. So\n`symbol \"(\"` will chomp one paren and produce a `()` value. Similarly, `float`\nwill chomp some digits and produce a `Float` value. The `(|.)` and `(|=)`\noperators just decide whether we give the values to the `Point` function.\n\nSo in this case, we skip the `()` from `symbol \"(\"`, we skip the `()` from\n`spaces`, we keep the `Float` from `float`, etc.\n",
+                "type": "Parser.Parser (a -> b) -> Parser.Parser a -> Parser.Parser b",
+                "associativity": "left",
+                "precedence": 5
+            }
+        ]
+    },
+    {
+        "name": "Parser.Advanced",
+        "comment": "\n\n# Parsers\n@docs Parser, run, DeadEnd, inContext, Token\n\n* * *\n**Everything past here works just like in the\n[`Parser`](/packages/elm/parser/latest/Parser) module, except that `String`\narguments become `Token` arguments, and you need to provide a `Problem` for\ncertain scenarios.**\n* * *\n\n# Building Blocks\n@docs int, float, number, symbol, keyword, variable, end\n\n# Pipelines\n@docs succeed, (|=), (|.), lazy, andThen, problem\n\n# Branches\n@docs oneOf, map, backtrackable, commit, token\n\n# Loops\n@docs sequence, Trailing, loop, Step\n\n# Whitespace\n@docs spaces, lineComment, multiComment, Nestable\n\n# Chompers\n@docs getChompedString, chompIf, chompWhile, chompUntil, chompUntilEndOr, mapChompedString\n\n# Indentation\n@docs withIndent, getIndent\n\n# Positions\n@docs getPosition, getRow, getCol, getOffset, getSource\n",
+        "unions": [
+            {
+                "name": "Nestable",
+                "comment": " Works just like [`Parser.Nestable`](Parser#nestable) to help distinguish\nbetween unnestable `/*` `*/` comments like in JS and nestable `{-` `-}`\ncomments like in Elm.\n",
+                "args": [],
+                "cases": [
+                    [
+                        "NotNestable",
+                        []
+                    ],
+                    [
+                        "Nestable",
+                        []
+                    ]
+                ]
+            },
+            {
+                "name": "Parser",
+                "comment": " An advanced `Parser` gives two ways to improve your error messages:\n\n- `problem` &mdash; Instead of all errors being a `String`, you can create a\ncustom type like `type Problem = BadIndent | BadKeyword String` and track\nproblems much more precisely.\n- `context` &mdash; Error messages can be further improved when precise\nproblems are paired with information about where you ran into trouble. By\ntracking the context, instead of saying “I found a bad keyword” you can say\n“I found a bad keyword when parsing a list” and give folks a better idea of\nwhat the parser thinks it is doing.\n\nI recommend starting with the simpler [`Parser`][parser] module though, and\nwhen you feel comfortable and want better error messages, you can create a type\nalias like this:\n\n```elm\nimport Parser.Advanced\n\ntype alias MyParser a =\n  Parser.Advanced.Parser Context Problem a\n\ntype Context = Definition String | List | Record\n\ntype Problem = BadIndent | BadKeyword String\n```\n\nAll of the functions from `Parser` should exist in `Parser.Advanced` in some\nform, allowing you to switch over pretty easily.\n\n[parser]: /packages/elm/parser/latest/Parser\n",
+                "args": [
+                    "context",
+                    "problem",
+                    "value"
+                ],
+                "cases": []
+            },
+            {
+                "name": "Step",
+                "comment": " Just like [`Parser.Step`](Parser#Step)\n",
+                "args": [
+                    "state",
+                    "a"
+                ],
+                "cases": [
+                    [
+                        "Loop",
+                        [
+                            "state"
+                        ]
+                    ],
+                    [
+                        "Done",
+                        [
+                            "a"
+                        ]
+                    ]
+                ]
+            },
+            {
+                "name": "Token",
+                "comment": " With the simpler `Parser` module, you could just say `symbol \",\"` and\nparse all the commas you wanted. But now that we have a custom type for our\nproblems, we actually have to specify that as well. So anywhere you just used\na `String` in the simpler module, you now use a `Token Problem` in the advanced\nmodule:\n\n    type Problem\n      = ExpectingComma\n      | ExpectingListEnd\n\n    comma : Token Problem\n    comma =\n      Token \",\" ExpectingComma\n\n    listEnd : Token Problem\n    listEnd =\n      Token \"]\" ExpectingListEnd\n\nYou can be creative with your custom type. Maybe you want a lot of detail.\nMaybe you want looser categories. It is a custom type. Do what makes sense for\nyou!\n",
+                "args": [
+                    "x"
+                ],
+                "cases": [
+                    [
+                        "Token",
+                        [
+                            "String.String",
+                            "x"
+                        ]
+                    ]
+                ]
+            },
+            {
+                "name": "Trailing",
+                "comment": " What’s the deal with trailing commas? Are they `Forbidden`?\nAre they `Optional`? Are they `Mandatory`? Welcome to [shapes\nclub](https://poorlydrawnlines.com/comic/shapes-club/)!\n",
+                "args": [],
+                "cases": [
+                    [
+                        "Forbidden",
+                        []
+                    ],
+                    [
+                        "Optional",
+                        []
+                    ],
+                    [
+                        "Mandatory",
+                        []
+                    ]
+                ]
+            }
+        ],
+        "aliases": [
+            {
+                "name": "DeadEnd",
+                "comment": " Say you are parsing a function named `viewHealthData` that contains a list.\nYou might get a `DeadEnd` like this:\n\n```elm\n{ row = 18\n, col = 22\n, problem = UnexpectedComma\n, contextStack =\n    [ { row = 14\n      , col = 1\n      , context = Definition \"viewHealthData\"\n      }\n    , { row = 15\n      , col = 4\n      , context = List\n      }\n    ]\n}\n```\n\nWe have a ton of information here! So in the error message, we can say that “I\nran into an issue when parsing a list in the definition of `viewHealthData`. It\nlooks like there is an extra comma.” Or maybe something even better!\n\nFurthermore, many parsers just put a mark where the problem manifested. By\ntracking the `row` and `col` of the context, we can show a much larger region\nas a way of indicating “I thought I was parsing this thing that starts over\nhere.” Otherwise you can get very confusing error messages on a missing `]` or\n`}` or `)` because “I need more indentation” on something unrelated.\n\n**Note:** Rows and columns are counted like a text editor. The beginning is `row=1`\nand `col=1`. The `col` increments as characters are chomped. When a `\\n` is chomped,\n`row` is incremented and `col` starts over again at `1`.\n",
+                "args": [
+                    "context",
+                    "problem"
+                ],
+                "type": "{ row : Basics.Int, col : Basics.Int, problem : problem, contextStack : List.List { row : Basics.Int, col : Basics.Int, context : context } }"
+            }
+        ],
+        "values": [
+            {
+                "name": "andThen",
+                "comment": " Just like [`Parser.andThen`](Parser#andThen)\n",
+                "type": "(a -> Parser.Advanced.Parser c x b) -> Parser.Advanced.Parser c x a -> Parser.Advanced.Parser c x b"
+            },
+            {
+                "name": "backtrackable",
+                "comment": " Just like [`Parser.backtrackable`](Parser#backtrackable)\n",
+                "type": "Parser.Advanced.Parser c x a -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "chompIf",
+                "comment": " Just like [`Parser.chompIf`](Parser#chompIf) except you provide a problem\nin case a character cannot be chomped.\n",
+                "type": "(Char.Char -> Basics.Bool) -> x -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "chompUntil",
+                "comment": " Just like [`Parser.chompUntil`](Parser#chompUntil) except you provide a\n`Token` in case you chomp all the way to the end of the input without finding\nwhat you need.\n",
+                "type": "Parser.Advanced.Token x -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "chompUntilEndOr",
+                "comment": " Just like [`Parser.chompUntilEndOr`](Parser#chompUntilEndOr)\n",
+                "type": "String.String -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "chompWhile",
+                "comment": " Just like [`Parser.chompWhile`](Parser#chompWhile)\n",
+                "type": "(Char.Char -> Basics.Bool) -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "commit",
+                "comment": " Just like [`Parser.commit`](Parser#commit)\n",
+                "type": "a -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "end",
+                "comment": " Just like [`Parser.end`](Parser#end) except you provide the problem that\narises when the parser is not at the end of the input.\n",
+                "type": "x -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "float",
+                "comment": " Just like [`Parser.float`](Parser#float) where you have to handle negation\nyourself. The only difference is that you provide a two potential problems:\n\n    float : x -> x -> Parser c x Float\n    float expecting invalid =\n      number\n        { int = Ok toFloat\n        , hex = Err invalid\n        , octal = Err invalid\n        , binary = Err invalid\n        , float = Ok identity\n        , invalid = invalid\n        , expecting = expecting\n        }\n\nYou can use problems like `ExpectingFloat` and `InvalidNumber`.\n",
+                "type": "x -> x -> Parser.Advanced.Parser c x Basics.Float"
+            },
+            {
+                "name": "getChompedString",
+                "comment": " Just like [`Parser.getChompedString`](Parser#getChompedString)\n",
+                "type": "Parser.Advanced.Parser c x a -> Parser.Advanced.Parser c x String.String"
+            },
+            {
+                "name": "getCol",
+                "comment": " Just like [`Parser.getCol`](Parser#getCol)\n",
+                "type": "Parser.Advanced.Parser c x Basics.Int"
+            },
+            {
+                "name": "getIndent",
+                "comment": " Just like [`Parser.getIndent`](Parser#getIndent)\n",
+                "type": "Parser.Advanced.Parser c x Basics.Int"
+            },
+            {
+                "name": "getOffset",
+                "comment": " Just like [`Parser.getOffset`](Parser#getOffset)\n",
+                "type": "Parser.Advanced.Parser c x Basics.Int"
+            },
+            {
+                "name": "getPosition",
+                "comment": " Just like [`Parser.getPosition`](Parser#getPosition)\n",
+                "type": "Parser.Advanced.Parser c x ( Basics.Int, Basics.Int )"
+            },
+            {
+                "name": "getRow",
+                "comment": " Just like [`Parser.getRow`](Parser#getRow)\n",
+                "type": "Parser.Advanced.Parser c x Basics.Int"
+            },
+            {
+                "name": "getSource",
+                "comment": " Just like [`Parser.getSource`](Parser#getSource)\n",
+                "type": "Parser.Advanced.Parser c x String.String"
+            },
+            {
+                "name": "inContext",
+                "comment": " This is how you mark that you are in a certain context. For example, here\nis a rough outline of some code that uses `inContext` to mark when you are\nparsing a specific definition:\n\n    import Char\n    import Parser.Advanced exposing (..)\n    import Set\n\n    type Context\n      = Definition String\n      | List\n\n    definition : Parser Context Problem Expr\n    definition =\n      functionName\n        |> andThen definitionBody\n\n    definitionBody : String -> Parser Context Problem Expr\n    definitionBody name =\n      inContext (Definition name) <|\n        succeed (Function name)\n          |= arguments\n          |. symbol (Token \"=\" ExpectingEquals)\n          |= expression\n\n    functionName : Parser c Problem String\n    functionName =\n      variable\n        { start = Char.isLower\n        , inner = Char.isAlphaNum\n        , reserved = Set.fromList [\"let\",\"in\"]\n        , expecting = ExpectingFunctionName\n        }\n\nFirst we parse the function name, and then we parse the rest of the definition.\nImportantly, we call `inContext` so that any dead end that occurs in\n`definitionBody` will get this extra context information. That way you can say\nthings like, “I was expecting an equals sign in the `view` definition.” Context!\n",
+                "type": "context -> Parser.Advanced.Parser context x a -> Parser.Advanced.Parser context x a"
+            },
+            {
+                "name": "int",
+                "comment": " Just like [`Parser.int`](Parser#int) where you have to handle negation\nyourself. The only difference is that you provide a two potential problems:\n\n    int : x -> x -> Parser c x Int\n    int expecting invalid =\n      number\n        { int = Ok identity\n        , hex = Err invalid\n        , octal = Err invalid\n        , binary = Err invalid\n        , float = Err invalid\n        , invalid = invalid\n        , expecting = expecting\n        }\n\nYou can use problems like `ExpectingInt` and `InvalidNumber`.\n",
+                "type": "x -> x -> Parser.Advanced.Parser c x Basics.Int"
+            },
+            {
+                "name": "keyword",
+                "comment": " Just like [`Parser.keyword`](Parser#keyword) except you provide a `Token`\nto clearly indicate your custom type of problems:\n\n    let_ : Parser Context Problem ()\n    let_ =\n      symbol (Token \"let\" ExpectingLet)\n\nNote that this would fail to chomp `letter` because of the subsequent\ncharacters. Use `token` if you do not want that last letter check.\n",
+                "type": "Parser.Advanced.Token x -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "lazy",
+                "comment": " Just like [`Parser.lazy`](Parser#lazy)\n",
+                "type": "(() -> Parser.Advanced.Parser c x a) -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "lineComment",
+                "comment": " Just like [`Parser.lineComment`](Parser#lineComment) except you provide a\n`Token` describing the starting symbol.\n",
+                "type": "Parser.Advanced.Token x -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "loop",
+                "comment": " Just like [`Parser.loop`](Parser#loop)\n",
+                "type": "state -> (state -> Parser.Advanced.Parser c x (Parser.Advanced.Step state a)) -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "map",
+                "comment": " Just like [`Parser.map`](Parser#map)\n",
+                "type": "(a -> b) -> Parser.Advanced.Parser c x a -> Parser.Advanced.Parser c x b"
+            },
+            {
+                "name": "mapChompedString",
+                "comment": " Just like [`Parser.mapChompedString`](Parser#mapChompedString)\n",
+                "type": "(String.String -> a -> b) -> Parser.Advanced.Parser c x a -> Parser.Advanced.Parser c x b"
+            },
+            {
+                "name": "multiComment",
+                "comment": " Just like [`Parser.multiComment`](Parser#multiComment) except with a\n`Token` for the open and close symbols.\n",
+                "type": "Parser.Advanced.Token x -> Parser.Advanced.Token x -> Parser.Advanced.Nestable -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "number",
+                "comment": " Just like [`Parser.number`](Parser#number) where you have to handle\nnegation yourself. The only difference is that you provide all the potential\nproblems.\n",
+                "type": "{ int : Result.Result x (Basics.Int -> a), hex : Result.Result x (Basics.Int -> a), octal : Result.Result x (Basics.Int -> a), binary : Result.Result x (Basics.Int -> a), float : Result.Result x (Basics.Float -> a), invalid : x, expecting : x } -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "oneOf",
+                "comment": " Just like [`Parser.oneOf`](Parser#oneOf)\n",
+                "type": "List.List (Parser.Advanced.Parser c x a) -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "problem",
+                "comment": " Just like [`Parser.problem`](Parser#problem) except you provide a custom\ntype for your problem.\n",
+                "type": "x -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "run",
+                "comment": " This works just like [`Parser.run`](/packages/elm/parser/latest/Parser#run).\nThe only difference is that when it fails, it has much more precise information\nfor each dead end.\n",
+                "type": "Parser.Advanced.Parser c x a -> String.String -> Result.Result (List.List (Parser.Advanced.DeadEnd c x)) a"
+            },
+            {
+                "name": "sequence",
+                "comment": " Just like [`Parser.sequence`](Parser#sequence) except with a `Token` for\nthe start, separator, and end. That way you can specify your custom type of\nproblem for when something is not found.\n",
+                "type": "{ start : Parser.Advanced.Token x, separator : Parser.Advanced.Token x, end : Parser.Advanced.Token x, spaces : Parser.Advanced.Parser c x (), item : Parser.Advanced.Parser c x a, trailing : Parser.Advanced.Trailing } -> Parser.Advanced.Parser c x (List.List a)"
+            },
+            {
+                "name": "spaces",
+                "comment": " Just like [`Parser.spaces`](Parser#spaces)\n",
+                "type": "Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "succeed",
+                "comment": " Just like [`Parser.succeed`](Parser#succeed)\n",
+                "type": "a -> Parser.Advanced.Parser c x a"
+            },
+            {
+                "name": "symbol",
+                "comment": " Just like [`Parser.symbol`](Parser#symbol) except you provide a `Token` to\nclearly indicate your custom type of problems:\n\n    comma : Parser Context Problem ()\n    comma =\n      symbol (Token \",\" ExpectingComma)\n\n",
+                "type": "Parser.Advanced.Token x -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "token",
+                "comment": " Just like [`Parser.token`](Parser#token) except you provide a `Token`\nspecifying your custom type of problems.\n",
+                "type": "Parser.Advanced.Token x -> Parser.Advanced.Parser c x ()"
+            },
+            {
+                "name": "variable",
+                "comment": " Just like [`Parser.variable`](Parser#variable) except you specify the\nproblem yourself.\n",
+                "type": "{ start : Char.Char -> Basics.Bool, inner : Char.Char -> Basics.Bool, reserved : Set.Set String.String, expecting : x } -> Parser.Advanced.Parser c x String.String"
+            },
+            {
+                "name": "withIndent",
+                "comment": " Just like [`Parser.withIndent`](Parser#withIndent)\n",
+                "type": "Basics.Int -> Parser.Advanced.Parser c x a -> Parser.Advanced.Parser c x a"
+            }
+        ],
+        "binops": [
+            {
+                "name": "|.",
+                "comment": " Just like the [`(|.)`](Parser#|.) from the `Parser` module.\n",
+                "type": "Parser.Advanced.Parser c x keep -> Parser.Advanced.Parser c x ignore -> Parser.Advanced.Parser c x keep",
+                "associativity": "left",
+                "precedence": 6
+            },
+            {
+                "name": "|=",
+                "comment": " Just like the [`(|=)`](Parser#|=) from the `Parser` module.\n",
+                "type": "Parser.Advanced.Parser c x (a -> b) -> Parser.Advanced.Parser c x a -> Parser.Advanced.Parser c x b",
+                "associativity": "left",
+                "precedence": 5
+            }
+        ]
+    }
+]

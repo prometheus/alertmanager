@@ -1,0 +1,30 @@
+{
+    "type": "application",
+    "source-directories": [
+        "src"
+    ],
+    "elm-version": "0.19.0",
+    "dependencies": {
+        "direct": {
+          "eeue56/elm-lazy-list": "2.0.0",
+          "eeue56/elm-shrink": "2.0.0",
+          "elm-explorations/test": "1.0.0",
+          "elm/browser": "1.0.0",
+          "elm/core": "1.0.0",
+          "elm/html": "1.0.0",
+          "elm/random": "1.0.0",
+          "jinjor/elm-diff": "1.0.5",
+          "elm/json": "1.0.0",
+          "elm/time": "1.0.0",
+          "elm/url": "1.0.0",
+          "elm/virtual-dom": "1.0.0"
+        },
+        "indirect": {
+          "eeue56/elm-lazy": "1.0.0"
+        }
+    },
+    "test-dependencies": {
+      "direct": {},
+      "indirect": {}
+    }
+}

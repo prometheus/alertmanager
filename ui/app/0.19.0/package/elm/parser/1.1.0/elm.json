@@ -1,0 +1,16 @@
+{
+    "type": "package",
+    "name": "elm/parser",
+    "summary": "a parsing library, focused on simplicity and great error messages",
+    "license": "BSD-3-Clause",
+    "version": "1.1.0",
+    "exposed-modules": [
+        "Parser",
+        "Parser.Advanced"
+    ],
+    "elm-version": "0.19.0 <= v < 0.20.0",
+    "dependencies": {
+        "elm/core": "1.0.0 <= v < 2.0.0"
+    },
+    "test-dependencies": {}
+}

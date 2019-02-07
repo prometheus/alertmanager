@@ -1,0 +1,81 @@
+[
+    {
+        "name": "Regex",
+        "comment": " A library for working with regex. The syntax matches the [`RegExp`][js]\nlibrary from JavaScript.\n\n[js]: https://developer.mozilla.org/en/docs/Web/JavaScript/Guide/Regular_Expressions\n\n# Create\n@docs Regex, fromString, fromStringWith, Options, never\n\n# Use\n@docs contains, split, find, replace, Match\n\n# Fancier Uses\n@docs splitAtMost, findAtMost, replaceAtMost\n\n",
+        "unions": [
+            {
+                "name": "Regex",
+                "comment": " A regular expression [as specified in JavaScript][js].\n\n[js]: https://developer.mozilla.org/en/docs/Web/JavaScript/Guide/Regular_Expressions\n\n",
+                "args": [],
+                "cases": []
+            }
+        ],
+        "aliases": [
+            {
+                "name": "Match",
+                "comment": " The details about a particular match:\n\n  * `match` &mdash; the full string of the match.\n  * `index` &mdash; the index of the match in the original string.\n  * `number` &mdash; if you find many matches, you can think of each one\n    as being labeled with a `number` starting at one. So the first time you\n    find a match, that is match `number` one. Second time is match `number` two.\n    This is useful when paired with `replace` if replacement is dependent on how\n    many times a pattern has appeared before.\n  * `submatches` &mdash; a `Regex` can have [subpatterns][sub], sup-parts that\n    are in parentheses. This is a list of all these submatches. This is kind of\n    garbage to use, and using a package like [`elm/parser`][parser] is\n    probably easier.\n\n[sub]: https://developer.mozilla.org/en/docs/Web/JavaScript/Guide/Regular_Expressions#Using_Parenthesized_Substring_Matches\n[parser]: /packages/elm/parser/latest\n\n",
+                "args": [],
+                "type": "{ match : String.String, index : Basics.Int, number : Basics.Int, submatches : List.List (Maybe.Maybe String.String) }"
+            },
+            {
+                "name": "Options",
+                "comment": "",
+                "args": [],
+                "type": "{ caseInsensitive : Basics.Bool, multiline : Basics.Bool }"
+            }
+        ],
+        "values": [
+            {
+                "name": "contains",
+                "comment": " Check to see if a Regex is contained in a string.\n\n    import Regex\n\n    digit : Regex.Regex\n    digit =\n      Maybe.withDefault Regex.never <|\n        Regex.fromString \"[0-9]\"\n\n    -- Regex.contains digit \"abc123\" == True\n    -- Regex.contains digit \"abcxyz\" == False\n",
+                "type": "Regex.Regex -> String.String -> Basics.Bool"
+            },
+            {
+                "name": "find",
+                "comment": " Find matches in a string:\n\n    import Regex\n\n    location : Regex.Regex\n    location =\n      Maybe.withDefault Regex.never <|\n        Regex.fromString \"[oi]n a (\\\\w+)\"\n\n    places : List Regex.Match\n    places =\n      Regex.find location \"I am on a boat in a lake.\"\n\n    -- map .match      places == [ \"on a boat\", \"in a lake\" ]\n    -- map .submatches places == [ [Just \"boat\"], [Just \"lake\"] ]\n\nIf you need `submatches` for some reason, a library like\n[`elm/parser`][parser] will probably lead to better code in the long run.\n\n[parser]: /packages/elm/parser/latest\n",
+                "type": "Regex.Regex -> String.String -> List.List Regex.Match"
+            },
+            {
+                "name": "findAtMost",
+                "comment": " Just like `find` but it stops after some number of matches.\n\nA library like [`elm/parser`][parser] will probably lead to better code in\nthe long run.\n\n[parser]: /packages/elm/parser/latest\n",
+                "type": "Basics.Int -> Regex.Regex -> String.String -> List.List Regex.Match"
+            },
+            {
+                "name": "fromString",
+                "comment": " Try to create a `Regex`. Not all strings are valid though, so you get a\n`Maybe' back. This means you can safely accept input from users.\n\n    import Regex\n\n    lowerCase : Regex.Regex\n    lowerCase =\n      Maybe.withDefault Regex.never <|\n        Regex.fromString \"[a-z]+\"\n\n**Note:** There are some [shorthand character classes][short] like `\\w` for\nword characters, `\\s` for whitespace characters, and `\\d` for digits. **Make\nsure they are properly escaped!** If you specify them directly in your code,\nthey would look like `\"\\\\w\\\\s\\\\d\"`.\n\n[short]: https://www.regular-expressions.info/shorthand.html\n",
+                "type": "String.String -> Maybe.Maybe Regex.Regex"
+            },
+            {
+                "name": "fromStringWith",
+                "comment": " Create a `Regex` with some additional options. For example, you can define\n`fromString` like this:\n\n    import Regex\n\n    fromString : String -> Maybe Regex.Regex\n    fromString string =\n      fromStringWith { caseInsensitive = False, multiline = False } string\n\n",
+                "type": "Regex.Options -> String.String -> Maybe.Maybe Regex.Regex"
+            },
+            {
+                "name": "never",
+                "comment": " A regular expression that never matches any string.\n",
+                "type": "Regex.Regex"
+            },
+            {
+                "name": "replace",
+                "comment": " Replace matches. The function from `Match` to `String` lets\nyou use the details of a specific match when making replacements.\n\n    import Regex\n\n    userReplace : String -> (Regex.Match -> String) -> String -> String\n    userReplace userRegex replacer string =\n      case Regex.fromString userRegex of\n        Nothing ->\n          string\n\n        Just regex ->\n          Regex.replace regex replacer string\n\n    devowel : String -> String\n    devowel string =\n      userReplace \"[aeiou]\" (\\_ -> \"\") string\n\n    -- devowel \"The quick brown fox\" == \"Th qck brwn fx\"\n\n    reverseWords : String -> String\n    reverseWords string =\n      userReplace \"\\\\w+\" (.match >> String.reverse) string\n\n    -- reverseWords \"deliver mined parts\" == \"reviled denim strap\"\n",
+                "type": "Regex.Regex -> (Regex.Match -> String.String) -> String.String -> String.String"
+            },
+            {
+                "name": "replaceAtMost",
+                "comment": " Just like `replace` but it stops after some number of matches.\n\nA library like [`elm/parser`][parser] will probably lead to better code in\nthe long run.\n\n[parser]: /packages/elm/parser/latest\n",
+                "type": "Basics.Int -> Regex.Regex -> (Regex.Match -> String.String) -> String.String -> String.String"
+            },
+            {
+                "name": "split",
+                "comment": " Split a string. The following example will split on commas and tolerate\nwhitespace on either side of the comma:\n\n    import Regex\n\n    comma : Regex.Regex\n    comma =\n      Maybe.withDefault Regex.never <|\n        Regex.fromString \" *, *\"\n\n    -- Regex.split comma \"tom,99,90,85\"     == [\"tom\",\"99\",\"90\",\"85\"]\n    -- Regex.split comma \"tom, 99, 90, 85\"  == [\"tom\",\"99\",\"90\",\"85\"]\n    -- Regex.split comma \"tom , 99, 90, 85\" == [\"tom\",\"99\",\"90\",\"85\"]\n\nIf you want some really fancy splits, a library like\n[`elm/parser`][parser] will probably be easier to use.\n\n[parser]: /packages/elm/parser/latest\n",
+                "type": "Regex.Regex -> String.String -> List.List String.String"
+            },
+            {
+                "name": "splitAtMost",
+                "comment": " Just like `split` but it stops after some number of matches.\n\nA library like [`elm/parser`][parser] will probably lead to better code in\nthe long run.\n\n[parser]: /packages/elm/parser/latest\n",
+                "type": "Basics.Int -> Regex.Regex -> String.String -> List.List String.String"
+            }
+        ],
+        "binops": []
+    }
+]

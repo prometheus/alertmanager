@@ -223,23 +223,6 @@ appendMatcher { isRegex, isNotEqual, isNotRegex, name, value } =
         (Result.map2 (\k v -> Matcher k v isRegex isNotEqual isNotRegex) (stringNotEmpty name.value) (Ok value.value))
 
 
-
---returnMatchOperator : Utils.Filter.MatchOperator -> ( Maybe Bool, Maybe Bool, Maybe Bool )
---returnMatchOperator op =
---    case op of
---        Utils.Filter.Eq ->
---            --Just False False False
---            ( Just False, Just False, Just False )
---
---        Utils.Filter.RegexMatch ->
---            --(Just False) (Just False) (Just False)
---            ( Just False, Just False, Just False )
---
---        _ ->
---            --(Nothing) (Nothing) (Nothing)
---            ( Nothing, Nothing, Nothing )
-
-
 filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher
 filterMatcherToMatcher { key, op, value } =
     case op of
@@ -254,11 +237,6 @@ filterMatcherToMatcher { key, op, value } =
 
         Utils.Filter.NotEq ->
             Maybe.map3 (\isRegex isNotEqual isNotRegex -> Matcher key value isRegex isNotEqual isNotRegex) (Just False) (Just True) (Just False)
-
-
-
---_ ->
---    Maybe.map3 (\isRegex isNotEqual isNotRegex -> Matcher key value isRegex isNotEqual isNotRegex) (Nothing) (Nothing) (Nothing)
 
 
 fromMatcher : Matcher -> MatcherForm

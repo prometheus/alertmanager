@@ -1,0 +1,288 @@
+[
+    {
+        "name": "Url",
+        "comment": "\n\n# URLs\n@docs Url, Protocol, toString, fromString\n\n# Percent-Encoding\n@docs percentEncode, percentDecode\n\n",
+        "unions": [
+            {
+                "name": "Protocol",
+                "comment": " Is the URL served over a secure connection or not?\n",
+                "args": [],
+                "cases": [
+                    [
+                        "Http",
+                        []
+                    ],
+                    [
+                        "Https",
+                        []
+                    ]
+                ]
+            }
+        ],
+        "aliases": [
+            {
+                "name": "Url",
+                "comment": " In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee\nsays a URL looks like this:\n\n```\n  https://example.com:8042/over/there?name=ferret#nose\n  \\___/   \\______________/\\_________/ \\_________/ \\__/\n    |            |            |            |        |\n  scheme     authority       path        query   fragment\n```\n\nWhen you are creating a single-page app with [`Browser.fullscreen`][fs], you\nuse the [`Url.Parser`](Url-Parser) module to turn a `Url` into even nicer data.\n\nIf you want to create your own URLs, check out the [`Url.Builder`](Url-Builder)\nmodule as well!\n\n[fs]: /packages/elm/browser/latest/Browser#fullscreen\n\n**Note:** This is a subset of all the full possibilities listed in the URI\nspec. Specifically, it does not accept the `userinfo` segment you see in email\naddresses like `tom@example.com`.\n",
+                "args": [],
+                "type": "{ protocol : Url.Protocol, host : String.String, port_ : Maybe.Maybe Basics.Int, path : String.String, query : Maybe.Maybe String.String, fragment : Maybe.Maybe String.String }"
+            }
+        ],
+        "values": [
+            {
+                "name": "fromString",
+                "comment": " Attempt to break a URL up into [`Url`](#Url). This is useful in\nsingle-page apps when you want to parse certain chunks of a URL to figure out\nwhat to show on screen.\n\n    fromString \"https://example.com:443\"\n    -- Just\n    --   { protocol = Https\n    --   , host = \"example.com\"\n    --   , port_ = Just 443\n    --   , path = \"/\"\n    --   , query = Nothing\n    --   , fragment = Nothing\n    --   }\n\n    fromString \"https://example.com/hats?q=top%20hat\"\n    -- Just\n    --   { protocol = Https\n    --   , host = \"example.com\"\n    --   , port_ = Nothing\n    --   , path = \"/hats\"\n    --   , query = Just \"q=top%20hat\"\n    --   , fragment = Nothing\n    --   }\n\n    fromString \"http://example.com/core/List/#map\"\n    -- Just\n    --   { protocol = Http\n    --   , host = \"example.com\"\n    --   , port_ = Nothing\n    --   , path = \"/core/List/\"\n    --   , query = Nothing\n    --   , fragment = Just \"map\"\n    --   }\n\nThe conversion to segments can fail in some cases as well:\n\n    fromString \"example.com:443\"        == Nothing  -- no protocol\n    fromString \"http://tom@example.com\" == Nothing  -- userinfo disallowed\n    fromString \"http://#cats\"           == Nothing  -- no host\n\n**Note:** This function does not use [`percentDecode`](#percentDecode) anything.\nIt just splits things up. [`Url.Parser`](Url-Parser) actually _needs_ the raw\n`query` string to parse it properly. Otherwise it could get confused about `=`\nand `&` characters!\n",
+                "type": "String.String -> Maybe.Maybe Url.Url"
+            },
+            {
+                "name": "percentDecode",
+                "comment": " **Use [Url.Parser](Url-Parser) instead!** It will decode query\nparameters appropriately already! `percentDecode` is only available so that\nextremely custom cases are possible, if needed.\n\nCheck out the `percentEncode` function to learn about percent-encoding.\nThis function does the opposite! Here are the reverse examples:\n\n    -- ASCII\n    percentDecode \"99%25\"     == Just \"hat\"\n    percentDecode \"to%20be\"   == Just \"to be\"\n    percentDecode \"hat\"       == Just \"99%\"\n\n    -- UTF-8\n    percentDecode \"%24\"       == Just \"$\"\n    percentDecode \"%C2%A2\"    == Just \"¢\"\n    percentDecode \"%E2%82%AC\" == Just \"€\"\n\nWhy is it a `Maybe` though? Well, these strings come from strangers on the\ninternet as a bunch of bits and may have encoding problems. For example:\n\n    percentDecode \"%\"   == Nothing  -- not followed by two hex digits\n    percentDecode \"%XY\" == Nothing  -- not followed by two HEX digits\n    percentDecode \"%C2\" == Nothing  -- half of the \"¢\" encoding \"%C2%A2\"\n\nThis is the same behavior as JavaScript's [`decodeURIComponent`][js] function.\n\n[js]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/decodeURIComponent\n",
+                "type": "String.String -> Maybe.Maybe String.String"
+            },
+            {
+                "name": "percentEncode",
+                "comment": " **Use [Url.Builder](Url-Builder) instead!** Functions like `absolute`,\n`relative`, and `crossOrigin` already do this automatically! `percentEncode`\nis only available so that extremely custom cases are possible, if needed.\n\nPercent-encoding is how [the official URI spec][uri] “escapes” special\ncharacters. You can still represent a `?` even though it is reserved for\nqueries.\n\nThis function exists in case you want to do something extra custom. Here are\nsome examples:\n\n    -- standard ASCII encoding\n    percentEncode \"hat\"   == \"hat\"\n    percentEncode \"to be\" == \"to%20be\"\n    percentEncode \"99%\"   == \"99%25\"\n\n    -- non-standard, but widely accepted, UTF-8 encoding\n    percentEncode \"$\" == \"%24\"\n    percentEncode \"¢\" == \"%C2%A2\"\n    percentEncode \"€\" == \"%E2%82%AC\"\n\nThis is the same behavior as JavaScript's [`encodeURIComponent`][js] function,\nand the rules are described in more detail officially [here][s2] and with some\nnotes about Unicode [here][wiki].\n\n[js]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent\n[uri]: https://tools.ietf.org/html/rfc3986\n[s2]: https://tools.ietf.org/html/rfc3986#section-2.1\n[wiki]: https://en.wikipedia.org/wiki/Percent-encoding\n",
+                "type": "String.String -> String.String"
+            },
+            {
+                "name": "toString",
+                "comment": " Turn a [`Url`](#Url) into a `String`.\n",
+                "type": "Url.Url -> String.String"
+            }
+        ],
+        "binops": []
+    },
+    {
+        "name": "Url.Builder",
+        "comment": " In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee\nsays a URL looks like this:\n\n```\n  https://example.com:8042/over/there?name=ferret#nose\n  \\___/   \\______________/\\_________/ \\_________/ \\__/\n    |            |            |            |        |\n  scheme     authority       path        query   fragment\n```\n\nThis module helps you create these!\n\n\n# Builders\n@docs absolute, relative, crossOrigin, custom, Root\n\n# Queries\n@docs QueryParameter, string, int, toQuery\n\n",
+        "unions": [
+            {
+                "name": "QueryParameter",
+                "comment": " Represents query parameter. Builder functions like `absolute` percent-encode\nall the query parameters they get, so you do not need to worry about it!\n",
+                "args": [],
+                "cases": []
+            },
+            {
+                "name": "Root",
+                "comment": " Specify whether a [`custom`](#custom) URL is absolute, relative, or\ncross-origin.\n",
+                "args": [],
+                "cases": [
+                    [
+                        "Absolute",
+                        []
+                    ],
+                    [
+                        "Relative",
+                        []
+                    ],
+                    [
+                        "CrossOrigin",
+                        [
+                            "String.String"
+                        ]
+                    ]
+                ]
+            }
+        ],
+        "aliases": [],
+        "values": [
+            {
+                "name": "absolute",
+                "comment": " Create an absolute URL:\n\n    absolute [] []\n    -- \"/\"\n\n    absolute [ \"packages\", \"elm\", \"core\" ] []\n    -- \"/packages/elm/core\"\n\n    absolute [ \"blog\", String.fromInt 42 ] []\n    -- \"/blog/42\"\n\n    absolute [ \"products\" ] [ string \"search\" \"hat\", int \"page\" 2 ]\n    -- \"/products?search=hat&page=2\"\n\nNotice that the URLs start with a slash!\n",
+                "type": "List.List String.String -> List.List Url.Builder.QueryParameter -> String.String"
+            },
+            {
+                "name": "crossOrigin",
+                "comment": " Create a cross-origin URL.\n\n    crossOrigin \"https://example.com\" [ \"products\" ] []\n    -- \"https://example.com/products\"\n\n    crossOrigin \"https://example.com\" [] []\n    -- \"https://example.com/\"\n\n    crossOrigin\n      \"https://example.com:8042\"\n      [ \"over\", \"there\" ]\n      [ string \"name\" \"ferret\" ]\n    -- \"https://example.com:8042/over/there?name=ferret\"\n\n**Note:** Cross-origin requests are slightly restricted for security.\nFor example, the [same-origin policy][sop] applies when sending HTTP requests,\nso the appropriate `Access-Control-Allow-Origin` header must be enabled on the\n*server* to get things working. Read more about the security rules [here][cors].\n\n[sop]: https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy\n[cors]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS\n",
+                "type": "String.String -> List.List String.String -> List.List Url.Builder.QueryParameter -> String.String"
+            },
+            {
+                "name": "custom",
+                "comment": " Create custom URLs that may have a hash on the end:\n\n    custom Absolute\n      [ \"packages\", \"elm\", \"core\", \"latest\", \"String\" ]\n      []\n      (Just \"length\")\n    -- \"/packages/elm/core/latest/String#length\"\n\n    custom Relative [ \"there\" ] [ string \"name\" \"ferret\" ] Nothing\n    -- \"there?name=ferret\"\n\n    custom\n      (CrossOrigin \"https://example.com:8042\")\n      [ \"over\", \"there\" ]\n      [ string \"name\" \"ferret\" ]\n      (Just \"nose\")\n    -- \"https://example.com:8042/over/there?name=ferret#nose\"\n",
+                "type": "Url.Builder.Root -> List.List String.String -> List.List Url.Builder.QueryParameter -> Maybe.Maybe String.String -> String.String"
+            },
+            {
+                "name": "int",
+                "comment": " Create a percent-encoded query parameter.\n\n    absolute [\"products\"] [ string \"search\" \"hat\", int \"page\" 2 ]\n    -- \"/products?search=hat&page=2\"\n\nWriting `int key n` is the same as writing `string key (String.fromInt n)`.\nSo this is just a convenience function, making your code a bit shorter!\n",
+                "type": "String.String -> Basics.Int -> Url.Builder.QueryParameter"
+            },
+            {
+                "name": "relative",
+                "comment": " Create a relative URL:\n\n    relative [] []\n    -- \"\"\n\n    relative [ \"elm\", \"core\" ] []\n    -- \"elm/core\"\n\n    relative [ \"blog\", String.fromInt 42 ] []\n    -- \"blog/42\"\n\n    relative [ \"products\" ] [ string \"search\" \"hat\", int \"page\" 2 ]\n    -- \"products?search=hat&page=2\"\n\nNotice that the URLs **do not** start with a slash!\n",
+                "type": "List.List String.String -> List.List Url.Builder.QueryParameter -> String.String"
+            },
+            {
+                "name": "string",
+                "comment": " Create a percent-encoded query parameter.\n\n    absolute [\"products\"] [ string \"search\" \"hat\" ]\n    -- \"/products?search=hat\"\n\n    absolute [\"products\"] [ string \"search\" \"coffee table\" ]\n    -- \"/products?search=coffee%20table\"\n",
+                "type": "String.String -> String.String -> Url.Builder.QueryParameter"
+            },
+            {
+                "name": "toQuery",
+                "comment": " Convert a list of query parameters to a percent-encoded query. This\nfunction is used by `absolute`, `relative`, etc.\n\n    toQuery [ string \"search\" \"hat\" ]\n    -- \"?search=hat\"\n\n    toQuery [ string \"search\" \"coffee table\" ]\n    -- \"?search=coffee%20table\"\n\n    toQuery [ string \"search\" \"hat\", int \"page\" 2 ]\n    -- \"?search=hat&page=2\"\n\n    toQuery []\n    -- \"\"\n",
+                "type": "List.List Url.Builder.QueryParameter -> String.String"
+            }
+        ],
+        "binops": []
+    },
+    {
+        "name": "Url.Parser",
+        "comment": " In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee\nsays a URL looks like this:\n\n```\n  https://example.com:8042/over/there?name=ferret#nose\n  \\___/   \\______________/\\_________/ \\_________/ \\__/\n    |            |            |            |        |\n  scheme     authority       path        query   fragment\n```\n\nThis module is primarily for parsing the `path` part.\n\n\n# Primitives\n@docs Parser, string, int, s\n\n# Path\n@docs (</>), map, oneOf, top, custom\n\n# Query\n@docs (<?>), query\n\n# Fragment\n@docs fragment\n\n# Run Parsers\n@docs parse\n\n",
+        "unions": [
+            {
+                "name": "Parser",
+                "comment": " Turn URLs like `/blog/42/cat-herding-techniques` into nice Elm data.\n",
+                "args": [
+                    "a",
+                    "b"
+                ],
+                "cases": []
+            }
+        ],
+        "aliases": [],
+        "values": [
+            {
+                "name": "custom",
+                "comment": " Create a custom path segment parser. Here is how it is used to define the\n`int` parser:\n\n    int : Parser (Int -> a) a\n    int =\n      custom \"NUMBER\" String.toInt\n\nYou can use it to define something like “only CSS files” like this:\n\n    css : Parser (String -> a) a\n    css =\n      custom \"CSS_FILE\" <| \\segment ->\n        if String.endsWith \".css\" segment then\n          Just segment\n        else\n          Nothing\n",
+                "type": "String.String -> (String.String -> Maybe.Maybe a) -> Url.Parser.Parser (a -> b) b"
+            },
+            {
+                "name": "fragment",
+                "comment": " Create a parser for the URL fragment, the stuff after the `#`. This can\nbe handy for handling links to DOM elements within a page. Pages like this one!\n\n    type alias Docs =\n      (String, Maybe String)\n\n    docs : Parser (Docs -> a) a\n    docs =\n      map Tuple.pair (string </> fragment identity)\n\n    -- /List/map   ==>  Nothing\n    -- /List/#map  ==>  Just (\"List\", Just \"map\")\n    -- /List#map   ==>  Just (\"List\", Just \"map\")\n    -- /List#      ==>  Just (\"List\", Just \"\")\n    -- /List       ==>  Just (\"List\", Nothing)\n    -- /           ==>  Nothing\n\n",
+                "type": "(Maybe.Maybe String.String -> fragment) -> Url.Parser.Parser (fragment -> a) a"
+            },
+            {
+                "name": "int",
+                "comment": " Parse a segment of the path as an `Int`.\n\n    -- /alice/  ==>  Nothing\n    -- /bob     ==>  Nothing\n    -- /42/     ==>  Just 42\n    -- /        ==>  Nothing\n",
+                "type": "Url.Parser.Parser (Basics.Int -> a) a"
+            },
+            {
+                "name": "map",
+                "comment": " Transform a path parser.\n\n    type alias Comment = { user : String, id : Int }\n\n    userAndId : Parser (String -> Int -> a) a\n    userAndId =\n      s \"user\" </> string </> s \"comment\" </> int\n\n    comment : Parser (Comment -> a) a\n    comment =\n      map Comment userAndId\n\n    -- /user/bob/comment/42  ==>  Just { user = \"bob\", id = 42 }\n    -- /user/tom/comment/35  ==>  Just { user = \"tom\", id = 35 }\n    -- /user/sam/             ==>  Nothing\n",
+                "type": "a -> Url.Parser.Parser a b -> Url.Parser.Parser (b -> c) c"
+            },
+            {
+                "name": "oneOf",
+                "comment": " Try a bunch of different path parsers.\n\n    type Route\n      = Topic String\n      | Blog Int\n      | User String\n      | Comment String Int\n\n    route : Parser (Route -> a) a\n    route =\n      oneOf\n        [ map Topic   (s \"topic\" </> string)\n        , map Blog    (s \"blog\" </> int)\n        , map User    (s \"user\" </> string)\n        , map Comment (s \"user\" </> string </> s \"comment\" </> int)\n        ]\n\n    -- /topic/wolf           ==>  Just (Topic \"wolf\")\n    -- /topic/               ==>  Nothing\n\n    -- /blog/42               ==>  Just (Blog 42)\n    -- /blog/wolf             ==>  Nothing\n\n    -- /user/sam/             ==>  Just (User \"sam\")\n    -- /user/bob/comment/42  ==>  Just (Comment \"bob\" 42)\n    -- /user/tom/comment/35  ==>  Just (Comment \"tom\" 35)\n    -- /user/                 ==>  Nothing\n\nIf there are multiple parsers that could succeed, the first one wins.\n",
+                "type": "List.List (Url.Parser.Parser a b) -> Url.Parser.Parser a b"
+            },
+            {
+                "name": "parse",
+                "comment": " Actually run a parser! You provide some [`Url`](Url#Url) that\nrepresent a valid URL. From there `parse` runs your parser on the path, query\nparameters, and fragment.\n\n    import Url\n    import Url.Parser exposing (Parser, parse, int, map, oneOf, s, top)\n\n    type Route = Home | Blog Int | NotFound\n\n    route : Parser (Route -> a) a\n    route =\n      oneOf\n        [ map Home top\n        , map Blog (s \"blog\" </> int)\n        ]\n\n    toRoute : String -> Route\n    toRoute string =\n      case Url.fromString string of\n        Nothing ->\n          NotFound\n\n        Just url ->\n          Maybe.withDefault NotFound (parse route url)\n\n    -- toRoute \"/blog/42\"                            ==  NotFound\n    -- toRoute \"https://example.com/\"                ==  Home\n    -- toRoute \"https://example.com/blog\"            ==  NotFound\n    -- toRoute \"https://example.com/blog/42\"         ==  Blog 42\n    -- toRoute \"https://example.com/blog/42/\"        ==  Blog 42\n    -- toRoute \"https://example.com/blog/42#wolf\"    ==  Blog 42\n    -- toRoute \"https://example.com/blog/42?q=wolf\"  ==  Blog 42\n    -- toRoute \"https://example.com/settings\"        ==  NotFound\n\nFunctions like `toRoute` are useful when creating single-page apps with\n[`Browser.fullscreen`][fs]. I use them in `init` and `onNavigation` to handle\nthe initial URL and any changes.\n\n[fs]: /packages/elm/browser/latest/Browser#fullscreen\n",
+                "type": "Url.Parser.Parser (a -> a) a -> Url.Url -> Maybe.Maybe a"
+            },
+            {
+                "name": "query",
+                "comment": " The [`Url.Parser.Query`](Url-Parser-Query) module defines its own\n[`Parser`](Url-Parser-Query#Parser) type. This function is a helper to convert\nthose into normal parsers.\n\n    import Url.Parser.Query as Query\n\n    -- the following expressions are both the same!\n    --\n    -- s \"blog\" <?> Query.string \"search\"\n    -- s \"blog\" </> query (Query.string \"search\")\n\nThis may be handy if you need query parameters but are not parsing any path\nsegments.\n",
+                "type": "Url.Parser.Query.Parser query -> Url.Parser.Parser (query -> a) a"
+            },
+            {
+                "name": "s",
+                "comment": " Parse a segment of the path if it matches a given string. It is almost\nalways used with [`</>`](#</>) or [`oneOf`](#oneOf). For example:\n\n    blog : Parser (Int -> a) a\n    blog =\n      s \"blog\" </> int\n\n    -- /blog/42  ==>  Just 42\n    -- /tree/42  ==>  Nothing\n\nThe path segment must be an exact match!\n",
+                "type": "String.String -> Url.Parser.Parser a a"
+            },
+            {
+                "name": "string",
+                "comment": " Parse a segment of the path as a `String`.\n\n    -- /alice/  ==>  Just \"alice\"\n    -- /bob     ==>  Just \"bob\"\n    -- /42/     ==>  Just \"42\"\n    -- /        ==>  Nothing\n",
+                "type": "Url.Parser.Parser (String.String -> a) a"
+            },
+            {
+                "name": "top",
+                "comment": " A parser that does not consume any path segments.\n\n    type Route = Overview | Post Int\n\n    blog : Parser (BlogRoute -> a) a\n    blog =\n      s \"blog\" </>\n        oneOf\n          [ map Overview top\n          , map Post (s \"post\" </> int)\n          ]\n\n    -- /blog/         ==>  Just Overview\n    -- /blog/post/42  ==>  Just (Post 42)\n",
+                "type": "Url.Parser.Parser a a"
+            }
+        ],
+        "binops": [
+            {
+                "name": "</>",
+                "comment": " Parse a path with multiple segments.\n\n    blog : Parser (Int -> a) a\n    blog =\n      s \"blog\" </> int\n\n    -- /blog/35/  ==>  Just 35\n    -- /blog/42   ==>  Just 42\n    -- /blog/     ==>  Nothing\n    -- /42/       ==>  Nothing\n\n    search : Parser (String -> a) a\n    search =\n      s \"search\" </> string\n\n    -- /search/wolf/  ==>  Just \"wolf\"\n    -- /search/frog   ==>  Just \"frog\"\n    -- /search/       ==>  Nothing\n    -- /wolf/         ==>  Nothing\n",
+                "type": "Url.Parser.Parser a b -> Url.Parser.Parser b c -> Url.Parser.Parser a c",
+                "associativity": "right",
+                "precedence": 7
+            },
+            {
+                "name": "<?>",
+                "comment": " The [`Url.Parser.Query`](Url-Parser-Query) module defines its own\n[`Parser`](Url-Parser-Query#Parser) type. This function helps you use those\nwith normal parsers. For example, maybe you want to add a search feature to\nyour blog website:\n\n    import Url.Parser.Query as Query\n\n    type Route\n      = Overview (Maybe String)\n      | Post Int\n\n    blog : Parser (Route -> a) a\n    blog =\n      oneOf\n        [ map Overview (s \"blog\" <?> Query.string \"q\")\n        , map Post (s \"blog\" </> int)\n        ]\n\n    -- /blog/           ==>  Just (Overview Nothing)\n    -- /blog/?q=wolf    ==>  Just (Overview (Just \"wolf\"))\n    -- /blog/wolf       ==>  Nothing\n    -- /blog/42         ==>  Just (Post 42)\n    -- /blog/42?q=wolf  ==>  Just (Post 42)\n    -- /blog/42/wolf    ==>  Nothing\n",
+                "type": "Url.Parser.Parser a (query -> b) -> Url.Parser.Query.Parser query -> Url.Parser.Parser a b",
+                "associativity": "left",
+                "precedence": 8
+            }
+        ]
+    },
+    {
+        "name": "Url.Parser.Query",
+        "comment": " In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee\nsays a URL looks like this:\n\n```\n  https://example.com:8042/over/there?name=ferret#nose\n  \\___/   \\______________/\\_________/ \\_________/ \\__/\n    |            |            |            |        |\n  scheme     authority       path        query   fragment\n```\n\nThis module is for parsing the `query` part.\n\nIn this library, a valid query looks like `?search=hats&page=2` where each\nquery parameter has the format `key=value` and is separated from the next\nparameter by the `&` character.\n\n# Parse Query Parameters\n@docs Parser, string, int, enum, custom\n\n# Mapping\n@docs map, map2, map3, map4, map5, map6, map7, map8\n\n",
+        "unions": [],
+        "aliases": [
+            {
+                "name": "Parser",
+                "comment": " Parse a query like `?search=hat&page=2` into nice Elm data.\n",
+                "args": [
+                    "a"
+                ],
+                "type": "Url.Parser.Internal.QueryParser a"
+            }
+        ],
+        "values": [
+            {
+                "name": "custom",
+                "comment": " Create a custom query parser. The [`string`](#string), [`int`](#int), and\n[`enum`](#enum) parsers are defined using this function. It can help you handle\nanything though!\n\nSay you are unlucky enough to need to handle `?post=2&post=7` to show a couple\nposts on screen at once. You could say:\n\n    posts : Parser (Maybe (List Int))\n    posts =\n      custom \"post\" (List.maybeMap String.toInt)\n\n    -- ?post=2        == [2]\n    -- ?post=2&post=7 == [2, 7]\n    -- ?post=2&post=x == [2]\n    -- ?hats=2        == []\n",
+                "type": "String.String -> (List.List String.String -> a) -> Url.Parser.Query.Parser a"
+            },
+            {
+                "name": "enum",
+                "comment": " Handle enumerated parameters. Maybe you want a true-or-false parameter:\n\n    import Dict\n\n    debug : Parser (Maybe Bool)\n    debug =\n      enum \"debug\" (Dict.fromList [ (\"true\", True), (\"false\", False) ])\n\n    -- ?debug=true            == Just True\n    -- ?debug=false           == Just False\n    -- ?debug=1               == Nothing\n    -- ?debug=0               == Nothing\n    -- ?true=true             == Nothing\n    -- ?debug=true&debug=true == Nothing\n\nYou could add `0` and `1` to the dictionary if you want to handle those as\nwell. You can also use [`map`](#map) to say `map (Result.withDefault False) debug`\nto get a parser of type `Parser Bool` that swallows any errors and defaults to\n`False`.\n\n**Note:** Parameters like `?debug` with no `=` are not supported by this library.\n",
+                "type": "String.String -> Dict.Dict String.String a -> Url.Parser.Query.Parser (Maybe.Maybe a)"
+            },
+            {
+                "name": "int",
+                "comment": " Handle `Int` parameters. Maybe you want to show paginated search results:\n\n    page : Parser (Maybe Int)\n    page =\n      int \"page\"\n\n    -- ?page=2        == Just 2\n    -- ?page=17       == Just 17\n    -- ?page=two      == Nothing\n    -- ?sort=date     == Nothing\n    -- ?page=2&page=3 == Nothing\n\nCheck out [`custom`](#custom) if you need to handle multiple `page` parameters\nor something like that.\n",
+                "type": "String.String -> Url.Parser.Query.Parser (Maybe.Maybe Basics.Int)"
+            },
+            {
+                "name": "map",
+                "comment": " Transform a parser in some way. Maybe you want your `page` query parser to\ndefault to `1` if there is any problem?\n\n    page : Parser Int\n    page =\n      map (Result.withDefault 1) (int \"page\")\n\n",
+                "type": "(a -> b) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b"
+            },
+            {
+                "name": "map2",
+                "comment": " Combine two parsers. A query like `?search=hats&page=2` could be parsed\nwith something like this:\n\n    type alias Query =\n      { search : Maybe String\n      , page : Maybe Int\n      }\n\n    query : Parser Query\n    query =\n      map2 Query (string \"search\") (int \"page\")\n\n",
+                "type": "(a -> b -> result) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b -> Url.Parser.Query.Parser result"
+            },
+            {
+                "name": "map3",
+                "comment": " Combine three parsers. A query like `?search=hats&page=2&sort=ascending`\ncould be parsed with something like this:\n\n    import Dict\n\n    type alias Query =\n      { search : Maybe String\n      , page : Maybe Int\n      , sort : Maybe Order\n      }\n\n    type Order = Ascending | Descending\n\n    query : Parser Query\n    query =\n      map3 Query (string \"search\") (int \"page\") (enum \"sort\" order)\n\n    order : Dict.Dict String Order\n    order =\n      Dict.fromList\n        [ ( \"ascending\", Ascending )\n        , ( \"descending\", Descending )\n        ]\n",
+                "type": "(a -> b -> c -> result) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b -> Url.Parser.Query.Parser c -> Url.Parser.Query.Parser result"
+            },
+            {
+                "name": "map4",
+                "comment": "",
+                "type": "(a -> b -> c -> d -> result) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b -> Url.Parser.Query.Parser c -> Url.Parser.Query.Parser d -> Url.Parser.Query.Parser result"
+            },
+            {
+                "name": "map5",
+                "comment": "",
+                "type": "(a -> b -> c -> d -> e -> result) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b -> Url.Parser.Query.Parser c -> Url.Parser.Query.Parser d -> Url.Parser.Query.Parser e -> Url.Parser.Query.Parser result"
+            },
+            {
+                "name": "map6",
+                "comment": "",
+                "type": "(a -> b -> c -> d -> e -> f -> result) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b -> Url.Parser.Query.Parser c -> Url.Parser.Query.Parser d -> Url.Parser.Query.Parser e -> Url.Parser.Query.Parser f -> Url.Parser.Query.Parser result"
+            },
+            {
+                "name": "map7",
+                "comment": "",
+                "type": "(a -> b -> c -> d -> e -> f -> g -> result) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b -> Url.Parser.Query.Parser c -> Url.Parser.Query.Parser d -> Url.Parser.Query.Parser e -> Url.Parser.Query.Parser f -> Url.Parser.Query.Parser g -> Url.Parser.Query.Parser result"
+            },
+            {
+                "name": "map8",
+                "comment": " If you need higher than eight, you can define a function like this:\n\n    apply : Parser a -> Parser (a -> b) -> Parser b\n    apply argParser funcParser =\n      map2 (<|) funcParser argParser\n\nAnd then you can chain it to do as many of these as you would like:\n\n    map func (string \"search\")\n      |> apply (int \"page\")\n      |> apply (int \"per-page\")\n\n",
+                "type": "(a -> b -> c -> d -> e -> f -> g -> h -> result) -> Url.Parser.Query.Parser a -> Url.Parser.Query.Parser b -> Url.Parser.Query.Parser c -> Url.Parser.Query.Parser d -> Url.Parser.Query.Parser e -> Url.Parser.Query.Parser f -> Url.Parser.Query.Parser g -> Url.Parser.Query.Parser h -> Url.Parser.Query.Parser result"
+            },
+            {
+                "name": "string",
+                "comment": " Handle `String` parameters.\n\n    search : Parser (Maybe String)\n    search =\n      string \"search\"\n\n    -- ?search=cats             == Just \"cats\"\n    -- ?search=42               == Just \"42\"\n    -- ?branch=left             == Nothing\n    -- ?search=cats&search=dogs == Nothing\n\nCheck out [`custom`](#custom) if you need to handle multiple `search`\nparameters for some reason.\n",
+                "type": "String.String -> Url.Parser.Query.Parser (Maybe.Maybe String.String)"
+            }
+        ],
+        "binops": []
+    }
+]

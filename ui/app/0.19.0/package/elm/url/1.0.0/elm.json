@@ -1,0 +1,19 @@
+{
+    "type": "package",
+    "name": "elm/url",
+    "summary": "Create and parse URLs. Use for HTTP and \"routing\" in single-page apps (SPAs)",
+    "license": "BSD-3-Clause",
+    "version": "1.0.0",
+    "exposed-modules": [
+        "Url",
+        "Url.Builder",
+        "Url.Parser",
+        "Url.Parser.Query"
+    ],
+    "elm-version": "0.19.0 <= v < 0.20.0",
+    "dependencies": {
+        "elm/core": "1.0.0 <= v < 2.0.0"
+    },
+    "test-dependencies": {
+    }
+}
