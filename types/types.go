@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 )
 
@@ -55,16 +56,41 @@ type Marker interface {
 }
 
 // NewMarker returns an instance of a Marker implementation.
-func NewMarker() Marker {
-	return &memMarker{
+func NewMarker(r prometheus.Registerer) Marker {
+	m := &memMarker{
 		m: map[model.Fingerprint]*AlertStatus{},
 	}
+
+	m.registerMetrics(r)
+
+	return m
 }
 
 type memMarker struct {
 	m map[model.Fingerprint]*AlertStatus
 
 	mtx sync.RWMutex
+}
+
+func (m *memMarker) registerMetrics(r prometheus.Registerer) {
+	newAlertMetricByState := func(st AlertState) prometheus.GaugeFunc {
+		return prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name:        "alertmanager_alerts",
+				Help:        "How many alerts by state.",
+				ConstLabels: prometheus.Labels{"state": string(st)},
+			},
+			func() float64 {
+				return float64(m.Count(st))
+			},
+		)
+	}
+
+	alertsActive := newAlertMetricByState(AlertStateActive)
+	alertsSuppressed := newAlertMetricByState(AlertStateSuppressed)
+
+	r.MustRegister(alertsActive)
+	r.MustRegister(alertsSuppressed)
 }
 
 // Count alerts of a given state.
