@@ -1558,21 +1558,6 @@ func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
 	return "LOGIN", []byte{}, nil
 }
 
-type noAuth struct{}
-
-func NoAuth() smtp.Auth {
-	return &noAuth{}
-}
-
-func (a *noAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
-	// return proto == "" to indicate that the authentication should be skipped.
-	return "", []byte{}, nil
-}
-
-func (a *noAuth) Next(fromServer []byte, more bool) ([]byte, error) {
-	return nil, nil
-}
-
 // Used for AUTH LOGIN. (Maybe password should be encrypted)
 func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if more {
@@ -1585,6 +1570,21 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 			return nil, errors.New("unexpected server challenge")
 		}
 	}
+	return nil, nil
+}
+
+type noAuth struct{}
+
+func NoAuth() smtp.Auth {
+	return &noAuth{}
+}
+
+func (a *noAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	// return proto == "" to indicate that the authentication should be skipped.
+	return "", []byte{}, nil
+}
+
+func (a *noAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
