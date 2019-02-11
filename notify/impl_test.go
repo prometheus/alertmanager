@@ -371,3 +371,64 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	// Verify that a custom field was added to the payload and templatized.
 	require.Equal(t, "message", m["Field_A"])
 }
+
+func TestTruncate(t *testing.T) {
+	testCases := []struct {
+		in string
+		n  int
+
+		out   string
+		trunc bool
+	}{
+		{
+			in:    "",
+			n:     5,
+			out:   "",
+			trunc: false,
+		},
+		{
+			in:    "abcde",
+			n:     2,
+			out:   "ab",
+			trunc: true,
+		},
+		{
+			in:    "abcde",
+			n:     4,
+			out:   "a...",
+			trunc: true,
+		},
+		{
+			in:    "abcde",
+			n:     5,
+			out:   "abcde",
+			trunc: false,
+		},
+		{
+			in:    "abcdefgh",
+			n:     5,
+			out:   "ab...",
+			trunc: true,
+		},
+		{
+			in:    "a⌘cde",
+			n:     5,
+			out:   "a⌘cde",
+			trunc: false,
+		},
+		{
+			in:    "a⌘cdef",
+			n:     5,
+			out:   "a⌘...",
+			trunc: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("truncate(%s,%d)", tc.in, tc.n), func(t *testing.T) {
+			s, trunc := truncate(tc.in, tc.n)
+			require.Equal(t, tc.trunc, trunc)
+			require.Equal(t, tc.out, s)
+		})
+	}
+}
