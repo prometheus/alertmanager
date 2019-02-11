@@ -122,7 +122,7 @@ func NewAPI(
 	return &api, nil
 }
 
-// Update sets the configuration string to a new value.
+// Update sets the API struct members that may change between reloads of alertmanager.
 func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration, setAlertStatus setAlertStatusFn) error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
