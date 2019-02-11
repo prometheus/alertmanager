@@ -53,18 +53,17 @@ type API struct {
 	peer           *cluster.Peer
 	silences       *silence.Silences
 	alerts         provider.Alerts
-	muter          types.Muter
-	marker         types.Marker
 	getAlertStatus getAlertStatusFn
 	uptime         time.Time
 
-	// mtx protects resolveTimeout, alertmanagerConfig and route.
+	// mtx protects resolveTimeout, alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
 	// resolveTimeout represents the default resolve timeout that an alert is
 	// assigned if no end time is specified.
 	resolveTimeout     time.Duration
 	alertmanagerConfig *config.Config
 	route              *dispatch.Route
+	setAlertStatus     setAlertStatusFn
 
 	logger log.Logger
 
@@ -72,11 +71,11 @@ type API struct {
 }
 
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
+type setAlertStatusFn func(prometheus_model.LabelSet) error
 
 // NewAPI returns a new Alertmanager API v2
 func NewAPI(
 	alerts provider.Alerts,
-	marker types.Marker,
 	sf getAlertStatusFn,
 	silences *silence.Silences,
 	peer *cluster.Peer,
@@ -84,7 +83,6 @@ func NewAPI(
 ) (*API, error) {
 	api := API{
 		alerts:         alerts,
-		marker:         marker,
 		getAlertStatus: sf,
 		peer:           peer,
 		silences:       silences,
@@ -125,14 +123,14 @@ func NewAPI(
 }
 
 // Update sets the configuration string to a new value.
-func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration, muter types.Muter) error {
+func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration, setAlertStatus setAlertStatusFn) error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.resolveTimeout = resolveTimeout
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
-	api.muter = muter
+	api.setAlertStatus = setAlertStatus
 	return nil
 }
 
@@ -249,27 +247,10 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		// TODO: Add a timestamp now()+X, after which the Mutes() will
-		// be refreshed?
-		// Will check if the alert is inhibited, and update its status.
-		api.muter.Mutes(a.Labels)
-		// Will check if the alert is silenced, and update its status.
-		sils, err := api.silences.Query(
-			silence.QState(types.SilenceStateActive),
-			silence.QMatches(a.Labels),
-		)
-		if err != nil {
-			level.Error(api.logger).Log("msg", "Querying silences failed", "err", err)
+		// Set alert's current status based on its label set.
+		if err := api.setAlertStatus(a.Labels); err != nil {
+			level.Error(api.logger).Log("msg", "set alert status failed", "err", err)
 		}
-
-		if len(sils) > 0 {
-			ids := make([]string, len(sils))
-			for i, s := range sils {
-				ids[i] = s.Id
-			}
-			api.marker.SetSilenced(a.Labels.Fingerprint(), ids...)
-		}
-
 		// Get alert's current status after seeing if it is suppressed.
 		status := api.getAlertStatus(a.Fingerprint())
 

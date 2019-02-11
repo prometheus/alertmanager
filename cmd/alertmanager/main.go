@@ -34,6 +34,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promlog"
 	promlogflag "github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/route"
@@ -302,7 +303,6 @@ func run() int {
 
 	apiV2, err := apiv2.NewAPI(
 		alerts,
-		marker,
 		marker.Status,
 		silences,
 		peer,
@@ -378,7 +378,7 @@ func run() int {
 			return err
 		}
 
-		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout), inhibitor)
+		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout), setAlertStatus(inhibitor, marker, silences))
 		if err != nil {
 			return err
 		}
@@ -517,4 +517,26 @@ func md5HashAsMetricValue(data []byte) float64 {
 	var bytes = make([]byte, 8)
 	copy(bytes, smallSum)
 	return float64(binary.LittleEndian.Uint64(bytes))
+}
+
+func setAlertStatus(inhibitor *inhibit.Inhibitor, marker types.Marker, silences *silence.Silences) func(model.LabelSet) error {
+	return func(labels model.LabelSet) error {
+		inhibitor.Mutes(labels)
+		sils, err := silences.Query(
+			silence.QState(types.SilenceStateActive),
+			silence.QMatches(labels),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to query silences: %v", err)
+		}
+
+		if len(sils) > 0 {
+			ids := make([]string, len(sils))
+			for i, s := range sils {
+				ids[i] = s.Id
+			}
+			marker.SetSilenced(labels.Fingerprint(), ids...)
+		}
+		return nil
+	}
 }
