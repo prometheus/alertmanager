@@ -7,7 +7,7 @@ github.com/alecthomas/template
 github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf
 github.com/alecthomas/units
-# github.com/armon/go-metrics v0.0.0-20171002182731-9a4b6e10bed6
+# github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da
 github.com/armon/go-metrics
 # github.com/asaskevich/govalidator v0.0.0-20180319081651-7d2e70ef918f
 github.com/asaskevich/govalidator
@@ -17,7 +17,7 @@ github.com/beorn7/perks/quantile
 github.com/cenkalti/backoff
 # github.com/cespare/xxhash v0.0.0-20181017004759-096ff4a8a059
 github.com/cespare/xxhash
-# github.com/davecgh/go-spew v0.0.0-20180830191138-d8f796af33cc
+# github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/docker/go-units v0.3.3
 github.com/docker/go-units
@@ -86,19 +86,21 @@ github.com/gogo/protobuf/protoc-gen-gogo/grpc
 github.com/gogo/protobuf/protoc-gen-gogo/plugin
 # github.com/golang/protobuf v1.2.0
 github.com/golang/protobuf/proto
+# github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
+github.com/google/btree
 # github.com/hashicorp/errwrap v1.0.0
 github.com/hashicorp/errwrap
-# github.com/hashicorp/go-immutable-radix v0.0.0-20170725221215-8aac27015308
+# github.com/hashicorp/go-immutable-radix v1.0.0
 github.com/hashicorp/go-immutable-radix
-# github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c
+# github.com/hashicorp/go-msgpack v0.5.3
 github.com/hashicorp/go-msgpack/codec
-# github.com/hashicorp/go-multierror v0.0.0-20170622060955-83588e72410a
+# github.com/hashicorp/go-multierror v1.0.0
 github.com/hashicorp/go-multierror
-# github.com/hashicorp/go-sockaddr v0.0.0-20171030104312-9b4c5fa5b10a
+# github.com/hashicorp/go-sockaddr v1.0.0
 github.com/hashicorp/go-sockaddr
-# github.com/hashicorp/golang-lru v0.0.0-20160813221303-0a025b7e63ad
+# github.com/hashicorp/golang-lru v0.5.0
 github.com/hashicorp/golang-lru/simplelru
-# github.com/hashicorp/memberlist v0.0.0-20170919173151-687988a0b5da
+# github.com/hashicorp/memberlist v0.1.3
 github.com/hashicorp/memberlist
 # github.com/jessevdk/go-flags v0.0.0-20180331124232-1c38ed7ad0cc
 github.com/jessevdk/go-flags
@@ -115,9 +117,8 @@ github.com/mailru/easyjson/jwriter
 github.com/mailru/easyjson/buffer
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
-# github.com/miekg/dns v0.0.0-20171108100119-388f6eea2949
+# github.com/miekg/dns v1.0.14
 github.com/miekg/dns
-github.com/miekg/dns/internal/socket
 # github.com/mitchellh/mapstructure v0.0.0-20180220230111-00c29f56e238
 github.com/mitchellh/mapstructure
 # github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223
@@ -165,18 +166,28 @@ github.com/shurcooL/httpfs/union
 github.com/shurcooL/httpfs/vfsutil
 # github.com/shurcooL/vfsgen v0.0.0-20180825020608-02ddb050ef6b
 github.com/shurcooL/vfsgen
-# github.com/stretchr/testify v0.0.0-20160615092844-d77da356e56a
+# github.com/stretchr/testify v1.2.2
 github.com/stretchr/testify/require
 github.com/stretchr/testify/assert
 # github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
 github.com/xlab/treeprint
+# golang.org/x/crypto v0.0.0-20181029021203-45a5f77698d3
+golang.org/x/crypto/ed25519
+golang.org/x/crypto/ed25519/internal/edwards25519
 # golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
 golang.org/x/net/netutil
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
+golang.org/x/net/ipv4
+golang.org/x/net/ipv6
 golang.org/x/net/trace
 golang.org/x/net/idna
+golang.org/x/net/bpf
+golang.org/x/net/internal/iana
+golang.org/x/net/internal/socket
 golang.org/x/net/internal/timeseries
+# golang.org/x/sys v0.0.0-20181026203630-95b1ffbd15a5
+golang.org/x/sys/unix
 # golang.org/x/text v0.3.1-0.20180805044716-cb6730876b98
 golang.org/x/text/unicode/norm
 golang.org/x/text/width
