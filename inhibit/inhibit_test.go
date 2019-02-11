@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
@@ -145,7 +146,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		TargetMatch: map[string]string{"t": "1"},
 		Equal:       model.LabelNames{"e"},
 	}
-	m := types.NewMarker()
+	m := types.NewMarker(prometheus.NewRegistry())
 	ih := NewInhibitor(nil, []*config.InhibitRule{&cr}, m, nopLogger)
 	ir := ih.rules[0]
 	now := time.Now()
@@ -320,7 +321,7 @@ func TestInhibit(t *testing.T) {
 		},
 	} {
 		ap := newFakeAlerts(tc.alerts)
-		mk := types.NewMarker()
+		mk := types.NewMarker(prometheus.NewRegistry())
 		inhibitor := NewInhibitor(ap, []*config.InhibitRule{inhibitRule()}, mk, nopLogger)
 
 		go func() {

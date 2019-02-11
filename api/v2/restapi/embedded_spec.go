@@ -377,9 +377,7 @@ func init() {
     "clusterStatus": {
       "type": "object",
       "required": [
-        "name",
-        "status",
-        "peers"
+        "status"
       ],
       "properties": {
         "name": {
@@ -393,7 +391,12 @@ func init() {
           }
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "ready",
+            "settling",
+            "disabled"
+          ]
         }
       }
     },
@@ -1080,9 +1083,7 @@ func init() {
     "clusterStatus": {
       "type": "object",
       "required": [
-        "name",
-        "status",
-        "peers"
+        "status"
       ],
       "properties": {
         "name": {
@@ -1096,7 +1097,12 @@ func init() {
           }
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "ready",
+            "settling",
+            "disabled"
+          ]
         }
       }
     },

@@ -41,8 +41,7 @@ import (
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	apiv1 "github.com/prometheus/alertmanager/api/v1"
-	apiv2 "github.com/prometheus/alertmanager/api/v2"
+	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -69,9 +68,7 @@ var (
 		Name: "alertmanager_config_last_reload_success_timestamp_seconds",
 		Help: "Timestamp of the last successful configuration reload.",
 	})
-	alertsActive     prometheus.GaugeFunc
-	alertsSuppressed prometheus.GaugeFunc
-	requestDuration  = prometheus.NewHistogramVec(
+	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_request_duration_seconds",
 			Help:    "Histogram of latencies for HTTP requests.",
@@ -107,27 +104,6 @@ func instrumentHandler(handlerName string, handler http.HandlerFunc) http.Handle
 			handler,
 		),
 	)
-}
-
-func newAlertMetricByState(marker types.Marker, st types.AlertState) prometheus.GaugeFunc {
-	return prometheus.NewGaugeFunc(
-		prometheus.GaugeOpts{
-			Name:        "alertmanager_alerts",
-			Help:        "How many alerts by state.",
-			ConstLabels: prometheus.Labels{"state": string(st)},
-		},
-		func() float64 {
-			return float64(marker.Count(st))
-		},
-	)
-}
-
-func newMarkerMetrics(marker types.Marker) {
-	alertsActive = newAlertMetricByState(marker, types.AlertStateActive)
-	alertsSuppressed = newAlertMetricByState(marker, types.AlertStateSuppressed)
-
-	prometheus.MustRegister(alertsActive)
-	prometheus.MustRegister(alertsSuppressed)
 }
 
 const defaultClusterAddr = "0.0.0.0:9094"
@@ -227,8 +203,7 @@ func run() int {
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
-	marker := types.NewMarker()
-	newMarkerMetrics(marker)
+	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
@@ -293,23 +268,16 @@ func run() int {
 	)
 	defer disp.Stop()
 
-	apiV1 := apiv1.New(
+	api, err := api.New(
 		alerts,
 		silences,
 		marker.Status,
 		peer,
-		log.With(logger, "component", "api/v1"),
+		log.With(logger, "component", "api"),
 	)
 
-	apiV2, err := apiv2.NewAPI(
-		alerts,
-		marker.Status,
-		silences,
-		peer,
-		log.With(logger, "component", "api/v2"),
-	)
 	if err != nil {
-		level.Error(logger).Log("err", fmt.Errorf("failed to create API v2: %v", err.Error()))
+		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %v", err.Error()))
 		return 1
 	}
 
@@ -373,12 +341,7 @@ func run() int {
 			logger,
 		)
 
-		err = apiV1.Update(conf, time.Duration(conf.Global.ResolveTimeout))
-		if err != nil {
-			return err
-		}
-
-		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout), setAlertStatus(inhibitor, marker, silences))
+		err = api.Update(conf, time.Duration(conf.Global.ResolveTimeout), setAlertStatus(inhibitor, marker, silences))
 		if err != nil {
 			return err
 		}
@@ -412,16 +375,7 @@ func run() int {
 
 	ui.Register(router, webReload, logger)
 
-	apiV1.Register(router.WithPrefix("/api/v1"))
-
-	mux := http.NewServeMux()
-	mux.Handle("/", router)
-
-	apiPrefix := ""
-	if *routePrefix != "/" {
-		apiPrefix = *routePrefix
-	}
-	mux.Handle(apiPrefix+"/api/v2/", http.StripPrefix(apiPrefix+"/api/v2", apiV2.Handler))
+	mux := api.Register(router, *routePrefix)
 
 	srv := http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})

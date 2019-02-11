@@ -1,3 +1,11 @@
+## Next release
+
+* [CHANGE] Make api/v2/status.cluster.{name,peers} properties optional for Alertmanager with disabled clustering (#1728)
+
+## 0.16.1 / 2019-01-31
+
+* [BUGFIX] Do not populate cluster info if clustering is disabled in API v2 (#1726)
+
 ## 0.16.0 / 2019-01-17
 
 This release introduces a new API v2, fully generated via the OpenAPI project

@@ -1,11 +1,12 @@
 module Views.Status.Views exposing (view)
 
 import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
-import Data.ClusterStatus exposing (ClusterStatus)
+import Data.ClusterStatus exposing (ClusterStatus, Status(..))
 import Data.PeerStatus exposing (PeerStatus)
 import Data.VersionInfo exposing (VersionInfo)
 import Html exposing (..)
 import Html.Attributes exposing (class, classList, style)
+import Status.Api exposing (clusterStatusToString)
 import Status.Types exposing (StatusResponse, VersionInfo)
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeToString)
@@ -60,28 +61,45 @@ viewClusterStatus : ClusterStatus -> Html Types.Msg
 viewClusterStatus { name, status, peers } =
     span []
         [ h2 [] [ text "Cluster Status" ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Name:" ]
-            , div [ class "col-sm-10" ] [ text name ]
-            ]
+        , case name of
+            Just n ->
+                div [ class "form-group row" ]
+                    [ b [ class "col-sm-2" ] [ text "Name:" ]
+                    , div [ class "col-sm-10" ] [ text n ]
+                    ]
+
+            Nothing ->
+                text ""
         , div [ class "form-group row" ]
             [ b [ class "col-sm-2" ] [ text "Status:" ]
             , div [ class "col-sm-10" ]
                 [ span
                     [ classList
                         [ ( "badge", True )
-                        , ( "badge-success", status == "ready" )
-                        , ( "badge-warning", status == "settling" )
+                        , case status of
+                            Ready ->
+                                ( "badge-success", True )
+
+                            Settling ->
+                                ( "badge-warning", True )
+
+                            Disabled ->
+                                ( "badge-danger", True )
                         ]
                     ]
-                    [ text status ]
+                    [ text <| clusterStatusToString status ]
                 ]
             ]
-        , div [ class "form-group row" ]
-            [ b [ class "col-sm-2" ] [ text "Peers:" ]
-            , ul [ class "col-sm-10" ] <|
-                List.map viewClusterPeer peers
-            ]
+        , case peers of
+            Just p ->
+                div [ class "form-group row" ]
+                    [ b [ class "col-sm-2" ] [ text "Peers:" ]
+                    , ul [ class "col-sm-10" ] <|
+                        List.map viewClusterPeer p
+                    ]
+
+            Nothing ->
+                text ""
         ]
 
 

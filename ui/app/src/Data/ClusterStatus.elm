@@ -10,7 +10,7 @@
 -}
 
 
-module Data.ClusterStatus exposing (ClusterStatus, decoder, encoder)
+module Data.ClusterStatus exposing (ClusterStatus, Status(..), decoder, encoder)
 
 import Data.PeerStatus as PeerStatus exposing (PeerStatus)
 import Dict exposing (Dict)
@@ -20,24 +20,63 @@ import Json.Encode as Encode
 
 
 type alias ClusterStatus =
-    { name : String
-    , status : String
-    , peers : List PeerStatus
+    { name : Maybe String
+    , status : Status
+    , peers : Maybe (List PeerStatus)
     }
+
+
+type Status
+    = Ready
+    | Settling
+    | Disabled
 
 
 decoder : Decoder ClusterStatus
 decoder =
     Decode.succeed ClusterStatus
-        |> required "name" Decode.string
-        |> required "status" Decode.string
-        |> required "peers" (Decode.list PeerStatus.decoder)
+        |> optional "name" (Decode.nullable Decode.string) Nothing
+        |> required "status" statusDecoder
+        |> optional "peers" (Decode.nullable (Decode.list PeerStatus.decoder)) Nothing
 
 
 encoder : ClusterStatus -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "name", Encode.string model.name )
-        , ( "status", Encode.string model.status )
-        , ( "peers", Encode.list PeerStatus.encoder model.peers )
+        [ ( "name", Maybe.withDefault Encode.null (Maybe.map Encode.string model.name) )
+        , ( "status", statusEncoder model.status )
+        , ( "peers", Maybe.withDefault Encode.null (Maybe.map (Encode.list PeerStatus.encoder) model.peers) )
         ]
+
+
+statusDecoder : Decoder Status
+statusDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\str ->
+                case str of
+                    "ready" ->
+                        Decode.succeed Ready
+
+                    "settling" ->
+                        Decode.succeed Settling
+
+                    "disabled" ->
+                        Decode.succeed Disabled
+
+                    other ->
+                        Decode.fail <| "Unknown type: " ++ other
+            )
+
+
+statusEncoder : Status -> Encode.Value
+statusEncoder model =
+    case model of
+        Ready ->
+            Encode.string "ready"
+
+        Settling ->
+            Encode.string "settling"
+
+        Disabled ->
+            Encode.string "disabled"

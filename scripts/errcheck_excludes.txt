@@ -3,8 +3,8 @@
 fmt.Fprintf
 fmt.Fprintln
 
+// Exclude both vendored and un-vendored to cover both vendor mode and module mode. 
 (github.com/prometheus/alertmanager/vendor/github.com/go-kit/kit/log.Logger).Log
-// Allowed log levels are enforced via kingpin
-(*github.com/prometheus/alertmanager/vendor/github.com/prometheus/common/promlog.AllowedLevel).Set
+(github.com/go-kit/kit/log.Logger).Log
 // Generated via go-swagger
 (*github.com/prometheus/alertmanager/api/v2/restapi.Server).Shutdown
