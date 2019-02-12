@@ -41,28 +41,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	numReceivedAlerts = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "alerts_received_total",
-		Help:      "The total number of received alerts.",
-	}, []string{"status"})
-
-	numInvalidAlerts = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "alerts_invalid_total",
-		Help:      "The total number of received alerts that were invalid.",
-	})
-)
-
-func init() {
-	numReceivedAlerts.WithLabelValues("firing")
-	numReceivedAlerts.WithLabelValues("resolved")
-
-	prometheus.MustRegister(numReceivedAlerts)
-	prometheus.MustRegister(numInvalidAlerts)
-}
-
 var corsHeaders = map[string]string{
 	"Access-Control-Allow-Headers":  "Accept, Authorization, Content-Type, Origin",
 	"Access-Control-Allow-Methods":  "GET, DELETE, OPTIONS",
@@ -98,6 +76,9 @@ type API struct {
 	peer           *cluster.Peer
 	logger         log.Logger
 
+	numReceivedAlerts *prometheus.CounterVec
+	numInvalidAlerts  prometheus.Counter
+
 	getAlertStatus getAlertStatusFn
 
 	mtx sync.RWMutex
@@ -112,18 +93,38 @@ func New(
 	sf getAlertStatusFn,
 	peer *cluster.Peer,
 	l log.Logger,
+	r prometheus.Registerer,
 ) *API {
 	if l == nil {
 		l = log.NewNopLogger()
 	}
 
+	numReceivedAlerts := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "alerts_received_total",
+		Help:      "The total number of received alerts.",
+	}, []string{"status"})
+
+	numInvalidAlerts := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "alertmanager",
+		Name:      "alerts_invalid_total",
+		Help:      "The total number of received alerts that were invalid.",
+	})
+	numReceivedAlerts.WithLabelValues("firing")
+	numReceivedAlerts.WithLabelValues("resolved")
+	if r != nil {
+		r.MustRegister(numReceivedAlerts, numInvalidAlerts)
+	}
+
 	return &API{
-		alerts:         alerts,
-		silences:       silences,
-		getAlertStatus: sf,
-		uptime:         time.Now(),
-		peer:           peer,
-		logger:         l,
+		alerts:            alerts,
+		silences:          silences,
+		getAlertStatus:    sf,
+		uptime:            time.Now(),
+		peer:              peer,
+		logger:            l,
+		numReceivedAlerts: numReceivedAlerts,
+		numInvalidAlerts:  numInvalidAlerts,
 	}
 }
 
@@ -452,9 +453,9 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 			alert.EndsAt = now.Add(resolveTimeout)
 		}
 		if alert.EndsAt.After(time.Now()) {
-			numReceivedAlerts.WithLabelValues("firing").Inc()
+			api.numReceivedAlerts.WithLabelValues("firing").Inc()
 		} else {
-			numReceivedAlerts.WithLabelValues("resolved").Inc()
+			api.numReceivedAlerts.WithLabelValues("resolved").Inc()
 		}
 	}
 
@@ -468,7 +469,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 
 		if err := a.Validate(); err != nil {
 			validationErrs.Add(err)
-			numInvalidAlerts.Inc()
+			api.numInvalidAlerts.Inc()
 			continue
 		}
 		validAlerts = append(validAlerts, a)
