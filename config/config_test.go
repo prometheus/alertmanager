@@ -512,8 +512,10 @@ receivers:
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
-	var regexpFoo Regexp
-	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
+	var regexpFoo = Regexp{
+		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
+		original: "^(foo1|foo2|baz)$",
+	}
 
 	var expectedConf = Config{
 

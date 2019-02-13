@@ -681,6 +681,7 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // Regexp encapsulates a regexp.Regexp and makes it YAML marshalable.
 type Regexp struct {
 	*regexp.Regexp
+	original string
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Regexp.
@@ -694,13 +695,14 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	re.Regexp = regex
+	re.original = s
 	return nil
 }
 
 // MarshalYAML implements the yaml.Marshaler interface for Regexp.
 func (re Regexp) MarshalYAML() (interface{}, error) {
-	if re.Regexp != nil {
-		return re.String(), nil
+	if re.original != "" {
+		return re.original, nil
 	}
 	return nil, nil
 }
@@ -716,13 +718,14 @@ func (re *Regexp) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	re.Regexp = regex
+	re.original = s
 	return nil
 }
 
 // MarshalJSON implements the json.Marshaler interface for Regexp.
 func (re Regexp) MarshalJSON() ([]byte, error) {
-	if re.Regexp != nil {
-		return json.Marshal(re.String())
+	if re.original != "" {
+		return json.Marshal(re.original)
 	}
 	return nil, nil
 }
