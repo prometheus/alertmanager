@@ -96,10 +96,11 @@ func init() {
 }
 
 func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
+	handlerLabel := prometheus.Labels{"handler": handlerName}
 	return promhttp.InstrumentHandlerDuration(
-		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+		requestDuration.MustCurryWith(handlerLabel),
 		promhttp.InstrumentHandlerResponseSize(
-			responseSize.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+			responseSize.MustCurryWith(handlerLabel),
 			handler,
 		),
 	)
@@ -123,9 +124,11 @@ func run() int {
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
-		externalURL   = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
-		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
-		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
+		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
+		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
+		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
+		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster.").
 				Default(defaultClusterAddr).String()
@@ -267,13 +270,16 @@ func run() int {
 	)
 	defer disp.Stop()
 
-	api, err := api.New(
-		alerts,
-		silences,
-		marker.Status,
-		peer,
-		log.With(logger, "component", "api"),
-	)
+	api, err := api.New(api.Options{
+		Alerts:      alerts,
+		Silences:    silences,
+		StatusFunc:  marker.Status,
+		Peer:        peer,
+		Timeout:     *httpTimeout,
+		Concurrency: *getConcurrency,
+		Logger:      log.With(logger, "component", "api"),
+		Registry:    prometheus.DefaultRegisterer,
+	})
 
 	if err != nil {
 		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %v", err.Error()))
