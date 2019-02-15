@@ -1221,10 +1221,9 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		apiURL.RawQuery = q.Encode()
 		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 	default:
-		message := tmpl(n.conf.Message)
-		if len(message) > 130 {
-			message = message[:127] + "..."
-			level.Debug(n.logger).Log("msg", "Truncated message to %q due to OpsGenie message limit", "truncated_message", message, "incident", key)
+		message, truncated := truncate(tmpl(n.conf.Message), 130)
+		if truncated {
+			level.Debug(n.logger).Log("msg", "truncated message due to OpsGenie message limit", "truncated_message", message, "incident", key)
 		}
 
 		apiURL.Path += "v2/alerts"
@@ -1362,9 +1361,9 @@ func (n *VictorOps) createVictorOpsPayload(ctx context.Context, as ...*types.Ale
 		messageType = victorOpsEventResolve
 	}
 
-	if len(stateMessage) > 20480 {
-		stateMessage = stateMessage[0:20475] + "\n..."
-		level.Debug(n.logger).Log("msg", "Truncated stateMessage due to VictorOps stateMessage limit", "truncated_state_message", stateMessage, "incident", key)
+	stateMessage, truncated := truncate(stateMessage, 20480)
+	if truncated {
+		level.Debug(n.logger).Log("msg", "truncated stateMessage due to VictorOps stateMessage limit", "truncated_state_message", stateMessage, "incident", key)
 	}
 
 	msg := map[string]string{
@@ -1439,9 +1438,8 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("token", tmpl(string(n.conf.Token)))
 	parameters.Add("user", tmpl(string(n.conf.UserKey)))
 
-	title := tmpl(n.conf.Title)
-	if len(title) > 250 {
-		title = title[:247] + "..."
+	title, truncated := truncate(tmpl(n.conf.Title), 250)
+	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated title due to Pushover title limit", "truncated_title", title, "incident", key)
 	}
 	parameters.Add("title", title)
@@ -1453,8 +1451,8 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = tmpl(n.conf.Message)
 	}
 
-	if len(message) > 1024 {
-		message = message[:1021] + "..."
+	message, truncated = truncate(message, 1024)
+	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated message due to Pushover message limit", "truncated_message", message, "incident", key)
 	}
 	message = strings.TrimSpace(message)
@@ -1464,9 +1462,8 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	parameters.Add("message", message)
 
-	supplementaryURL := tmpl(n.conf.URL)
-	if len(supplementaryURL) > 512 {
-		supplementaryURL = supplementaryURL[:509] + "..."
+	supplementaryURL, truncated := truncate(tmpl(n.conf.URL), 512)
+	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated URL due to Pushover url limit", "truncated_url", supplementaryURL, "incident", key)
 	}
 	parameters.Add("url", supplementaryURL)
@@ -1581,4 +1578,15 @@ func post(ctx context.Context, client *http.Client, url string, bodyType string,
 	}
 	req.Header.Set("Content-Type", bodyType)
 	return client.Do(req.WithContext(ctx))
+}
+
+func truncate(s string, n int) (string, bool) {
+	r := []rune(s)
+	if len(r) <= n {
+		return s, false
+	}
+	if n <= 3 {
+		return string(r[:n]), true
+	}
+	return string(r[:n-3]) + "...", true
 }
