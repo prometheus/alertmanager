@@ -84,7 +84,8 @@ func (o Options) validate() error {
 	return nil
 }
 
-// New creates a new API object combining all API versions.
+// New creates a new API object combining all API versions. Note that an Update
+// call is also needed to get the APIs into an operational state.
 func New(opts Options) (*API, error) {
 	if err := opts.validate(); err != nil {
 		return nil, fmt.Errorf("invalid API options: %s", err)
@@ -183,7 +184,8 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	return mux
 }
 
-// Update config and resolve timeout of each API.
+// Update config and resolve timeout of each API. APIv2 also needs
+// setAlertStatus to be updated.
 func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration, setAlertStatus func(model.LabelSet) error) error {
 	if err := api.v1.Update(cfg, resolveTimeout); err != nil {
 		return err

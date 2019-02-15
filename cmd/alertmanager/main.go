@@ -482,6 +482,7 @@ func md5HashAsMetricValue(data []byte) float64 {
 func setAlertStatus(inhibitor *inhibit.Inhibitor, marker types.Marker, silences *silence.Silences) func(model.LabelSet) error {
 	return func(labels model.LabelSet) error {
 		inhibitor.Mutes(labels)
+		// TODO(beorn7): The following code is almost exactly replicated in notify/notify.go.
 		sils, err := silences.Query(
 			silence.QState(types.SilenceStateActive),
 			silence.QMatches(labels),
