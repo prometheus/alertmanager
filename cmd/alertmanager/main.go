@@ -497,6 +497,8 @@ func setAlertStatus(inhibitor *inhibit.Inhibitor, marker types.Marker, silences 
 				ids[i] = s.Id
 			}
 			marker.SetSilenced(labels.Fingerprint(), ids...)
+		} else {
+			marker.SetSilenced(labels.Fingerprint())
 		}
 		return nil
 	}

@@ -147,4 +147,21 @@ receivers:
 			require.Equal(t, inhibitingFP.String(), alert.Status.InhibitedBy[0])
 		}
 	}
+
+	deleteParams := silence.NewDeleteSilenceParams().WithSilenceID(strfmt.UUID(silenceID))
+	_, err = am.Client().Silence.DeleteSilence(deleteParams)
+	require.NoError(t, err)
+
+	resp, err = am.Client().Alert.GetAlerts(nil)
+	require.NoError(t, err)
+	// Silence has been deleted, inhibiting alert should be active.
+	// Original alert should still be inhibited.
+	for _, alert := range resp.Payload {
+		require.Equal(t, 0, len(alert.Status.SilencedBy))
+		if inhibitingFP.String() == *alert.Fingerprint {
+			require.Equal(t, models.AlertStatusStateActive, *alert.Status.State)
+		} else {
+			require.Equal(t, models.AlertStatusStateSuppressed, *alert.Status.State)
+		}
+	}
 }
