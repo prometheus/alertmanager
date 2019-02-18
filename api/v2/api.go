@@ -56,13 +56,14 @@ type API struct {
 	getAlertStatus getAlertStatusFn
 	uptime         time.Time
 
-	// mtx protects resolveTimeout, alertmanagerConfig and route.
+	// mtx protects resolveTimeout, alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
 	// resolveTimeout represents the default resolve timeout that an alert is
 	// assigned if no end time is specified.
 	resolveTimeout     time.Duration
 	alertmanagerConfig *config.Config
 	route              *dispatch.Route
+	setAlertStatus     setAlertStatusFn
 
 	logger log.Logger
 
@@ -70,9 +71,16 @@ type API struct {
 }
 
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
+type setAlertStatusFn func(prometheus_model.LabelSet) error
 
 // NewAPI returns a new Alertmanager API v2
-func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silences, peer *cluster.Peer, l log.Logger) (*API, error) {
+func NewAPI(
+	alerts provider.Alerts,
+	sf getAlertStatusFn,
+	silences *silence.Silences,
+	peer *cluster.Peer,
+	l log.Logger,
+) (*API, error) {
 	api := API{
 		alerts:         alerts,
 		getAlertStatus: sf,
@@ -114,14 +122,15 @@ func NewAPI(alerts provider.Alerts, sf getAlertStatusFn, silences *silence.Silen
 	return &api, nil
 }
 
-// Update sets the configuration string to a new value.
-func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration) error {
+// Update sets the API struct members that may change between reloads of alertmanager.
+func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration, setAlertStatus setAlertStatusFn) error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.resolveTimeout = resolveTimeout
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
+	api.setAlertStatus = setAlertStatus
 	return nil
 }
 
@@ -252,6 +261,11 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
+		// Set alert's current status based on its label set.
+		if err := api.setAlertStatus(a.Labels); err != nil {
+			level.Error(api.logger).Log("msg", "set alert status failed", "err", err)
+		}
+		// Get alert's current status after seeing if it is suppressed.
 		status := api.getAlertStatus(a.Fingerprint())
 
 		if !*params.Active && status.State == types.AlertStateActive {

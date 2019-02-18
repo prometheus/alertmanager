@@ -289,6 +289,11 @@ func (amc *AlertmanagerCluster) Start() error {
 	return nil
 }
 
+// Members returns the underlying slice of cluster members.
+func (amc *AlertmanagerCluster) Members() []*Alertmanager {
+	return amc.ams
+}
+
 // Start the alertmanager and wait until it is ready to receive.
 func (am *Alertmanager) Start(additionalArg []string) error {
 	am.t.Helper()
@@ -553,6 +558,10 @@ func (amc *AlertmanagerCluster) GenericAPIV2Call(at float64, f func()) {
 // GenericAPIV2Call takes a time slot and a function to run against the API v2
 func (am *Alertmanager) GenericAPIV2Call(at float64, f func()) {
 	am.t.Do(at, f)
+}
+
+func (am *Alertmanager) Client() *apiclient.Alertmanager {
+	return am.clientV2
 }
 
 func (am *Alertmanager) getURL(path string) string {
