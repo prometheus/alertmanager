@@ -161,6 +161,7 @@ type EmailConfig struct {
 	AuthPassword Secret              `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
 	AuthSecret   Secret              `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
 	AuthIdentity string              `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
+	SkipAuth     *bool               `yaml:"skip_auth,omitempty" json:"skip_auth,omitempty"`
 	Headers      map[string]string   `yaml:"headers,omitempty" json:"headers,omitempty"`
 	HTML         string              `yaml:"html,omitempty" json:"html,omitempty"`
 	Text         string              `yaml:"text,omitempty" json:"text,omitempty"`

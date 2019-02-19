@@ -512,6 +512,7 @@ receivers:
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
+	boolFalse := false
 	var regexpFoo Regexp
 	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
 
@@ -526,6 +527,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
 			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
 			SMTPRequireTLS:   true,
+			SMTPSkipAuth:     false,
 			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
 			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
@@ -567,6 +569,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 						Smarthost:  "localhost:25",
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
+						SkipAuth:   &boolFalse,
 					},
 				},
 			},
