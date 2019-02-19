@@ -1,6 +1,7 @@
 ## Next release
 
 * [CHANGE] Make api/v2/status.cluster.{name,peers} properties optional for Alertmanager with disabled clustering (#1728)
+* [FEATURE] Add support for SMTP without Authentication.
 
 ## 0.16.1 / 2019-01-31
 
