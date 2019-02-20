@@ -99,10 +99,11 @@ func NewAPI(
 	// create new service API
 	openAPI := operations.NewAlertmanagerAPI(swaggerSpec)
 
-	// Skip swagger spec and redoc middleware, only serving the API itself via
-	// RoutesHandler. See: https://github.com/go-swagger/go-swagger/issues/1779
+	// Skip the  redoc middleware, only serving the OpenAPI specification and
+	// the API itself via RoutesHandler. See:
+	// https://github.com/go-swagger/go-swagger/issues/1779
 	openAPI.Middleware = func(b middleware.Builder) http.Handler {
-		return middleware.Spec("", nil, openAPI.Context().RoutesHandler(b))
+		return middleware.Spec("", swaggerSpec.Raw(), openAPI.Context().RoutesHandler(b))
 	}
 
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
