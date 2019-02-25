@@ -1,23 +1,51 @@
 ---
 version: 2.1
 
-executors:
-  # Whenever the Go version is updated here, .travis.yml and .promu.yml
-  # should also be updated.
-  golang:
+jobs:
+  test:
     docker:
+    # Whenever the Go version is updated here, .travis.yml and .promu.yml
+    # should also be updated.
     - image: circleci/golang:1.12
+    # maildev containers are for running the email tests against a "real" SMTP server.
+    # See notify/email_test.go for details.
+    - image: djfarrelly/maildev
+      name: maildev-noauth
+      entrypoint: bin/maildev
+      command:
+      - -v
+    - image: djfarrelly/maildev
+      name: maildev-auth
+      entrypoint: bin/maildev
+      command:
+      - -v
+      - --incoming-user
+      - user
+      - --incoming-pass
+      - pass
+
     # errcheck requires to be executed from GOPATH for now.
     working_directory: /go/src/github.com/prometheus/alertmanager
 
-jobs:
-  test:
-    executor: golang
+    environment:
+      EMAIL_NO_AUTH_CONFIG: /tmp/smtp_no_auth.yml
+      EMAIL_AUTH_CONFIG: /tmp/smtp_auth.yml
 
     steps:
     - checkout
-    - setup_remote_docker
     - run: make promu
+    - run:
+        command: |
+          cat \<<EOF > $EMAIL_NO_AUTH_CONFIG
+          smarthost: maildev-noauth:1025
+          server: http://maildev-noauth:1080/
+          EOF
+          cat \<<EOF > $EMAIL_AUTH_CONFIG
+          smarthost: maildev-auth:1025
+          server: http://maildev-auth:1080/
+          username: user
+          password: pass
+          EOF
     - run: make
     - run:
        command: |
@@ -53,8 +81,8 @@ jobs:
         destination: /build
 
   docker_hub_master:
-    executor: golang
-
+    docker:
+    - image: circleci/golang
     steps:
     - checkout
     - setup_remote_docker
@@ -71,8 +99,8 @@ jobs:
     - run: make docker-publish DOCKER_REPO=quay.io/prometheus
 
   docker_hub_release_tags:
-    executor: golang
-
+    docker:
+    - image: circleci/golang
     steps:
     - checkout
     - setup_remote_docker

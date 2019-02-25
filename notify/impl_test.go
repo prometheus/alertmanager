@@ -292,48 +292,6 @@ func TestOpsGenie(t *testing.T) {
 	require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
 }
 
-func TestEmailConfigNoAuthMechs(t *testing.T) {
-
-	email := &Email{
-		conf: &config.EmailConfig{AuthUsername: "test"}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
-	}
-	_, err := email.auth("")
-	require.Error(t, err)
-	require.Equal(t, err.Error(), "unknown auth mechanism: ")
-}
-
-func TestEmailConfigMissingAuthParam(t *testing.T) {
-
-	conf := &config.EmailConfig{AuthUsername: "test"}
-	email := &Email{
-		conf: conf, tmpl: &template.Template{}, logger: log.NewNopLogger(),
-	}
-	_, err := email.auth("CRAM-MD5")
-	require.Error(t, err)
-	require.Equal(t, err.Error(), "missing secret for CRAM-MD5 auth mechanism")
-
-	_, err = email.auth("PLAIN")
-	require.Error(t, err)
-	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism")
-
-	_, err = email.auth("LOGIN")
-	require.Error(t, err)
-	require.Equal(t, err.Error(), "missing password for LOGIN auth mechanism")
-
-	_, err = email.auth("PLAIN LOGIN")
-	require.Error(t, err)
-	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism")
-}
-
-func TestEmailNoUsernameStillOk(t *testing.T) {
-	email := &Email{
-		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
-	}
-	a, err := email.auth("CRAM-MD5")
-	require.NoError(t, err)
-	require.Nil(t, a)
-}
-
 func TestVictorOpsCustomFields(t *testing.T) {
 	logger := log.NewNopLogger()
 	tmpl := createTmpl(t)
