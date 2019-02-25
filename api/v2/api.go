@@ -56,11 +56,10 @@ type API struct {
 	getAlertStatus getAlertStatusFn
 	uptime         time.Time
 
-	// mtx protects resolveTimeout, alertmanagerConfig, setAlertStatus and route.
+	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
 	// resolveTimeout represents the default resolve timeout that an alert is
 	// assigned if no end time is specified.
-	resolveTimeout     time.Duration
 	alertmanagerConfig *config.Config
 	route              *dispatch.Route
 	setAlertStatus     setAlertStatusFn
@@ -124,15 +123,13 @@ func NewAPI(
 }
 
 // Update sets the API struct members that may change between reloads of alertmanager.
-func (api *API) Update(cfg *config.Config, resolveTimeout time.Duration, setAlertStatus setAlertStatusFn) error {
+func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
-	api.resolveTimeout = resolveTimeout
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
 	api.setAlertStatus = setAlertStatus
-	return nil
 }
 
 func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.Responder {
@@ -337,7 +334,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	now := time.Now()
 
 	api.mtx.RLock()
-	resolveTimeout := api.resolveTimeout
+	resolveTimeout := time.Duration(api.alertmanagerConfig.Global.ResolveTimeout)
 	api.mtx.RUnlock()
 
 	for _, alert := range alerts {
