@@ -51,7 +51,7 @@ func newFakeAlerts(alerts []*types.Alert, withErr bool) *fakeAlerts {
 		fps:    fps,
 	}
 	if withErr {
-		f.err = errors.New("Error occured")
+		f.err = errors.New("error occurred")
 	}
 	return f
 }

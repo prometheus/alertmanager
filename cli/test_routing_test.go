@@ -36,7 +36,7 @@ func checkResolvedReceivers(mainRoute *dispatch.Route, ls client.LabelSet, expec
 		return err
 	}
 	if !reflect.DeepEqual(expectedReceivers, resolvedReceivers) {
-		return fmt.Errorf("Unexpected routing result want: `%s`, got: `%s`", strings.Join(expectedReceivers, ","), strings.Join(resolvedReceivers, ","))
+		return fmt.Errorf("unexpected routing result want: `%s`, got: `%s`", strings.Join(expectedReceivers, ","), strings.Join(resolvedReceivers, ","))
 	}
 	return nil
 }
