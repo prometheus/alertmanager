@@ -44,12 +44,12 @@ func (o *GetAlertsURL) SetBasePath(bp string) {
 
 // Build a url path and query string
 func (o *GetAlertsURL) Build() (*url.URL, error) {
-	var result url.URL
+	var _result url.URL
 
 	var _path = "/alerts"
 
 	_basePath := o._basePath
-	result.Path = golangswaggerpaths.Join(_basePath, _path)
+	_result.Path = golangswaggerpaths.Join(_basePath, _path)
 
 	qs := make(url.Values)
 
@@ -110,9 +110,9 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 		qs.Set("unprocessed", unprocessed)
 	}
 
-	result.RawQuery = qs.Encode()
+	_result.RawQuery = qs.Encode()
 
-	return &result, nil
+	return &_result, nil
 }
 
 // Must is a helper function to panic when the url builder returns an error

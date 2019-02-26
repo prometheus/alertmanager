@@ -41,6 +41,7 @@ for dir in ${DIRS}; do
 
         sed -i.bak -E 's/import _ \"gogoproto\"//g' *.pb.go
         sed -i.bak -E 's/import _ \"google\/protobuf\"//g' *.pb.go
+        sed -i.bak -E 's/\t_ \"google\/protobuf\"//g' -- *.pb.go
         rm -f *.bak
         goimports -w *.pb.go
     popd

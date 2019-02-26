@@ -17,7 +17,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 )
 
-//go:generate swagger generate server --target ../api/v2 --name alertmanager --spec ../api/v2/openapi.yaml --exclude-main
+//go:generate swagger generate server --target ../../v2 --name Alertmanager --spec ../openapi.yaml --exclude-main
 
 func configureFlags(api *operations.AlertmanagerAPI) {
 	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
