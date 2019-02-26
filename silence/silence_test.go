@@ -15,6 +15,7 @@ package silence
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
@@ -1094,4 +1095,67 @@ func TestStateDecodingError(t *testing.T) {
 
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
+}
+
+func benchmarkSilencesQuery(b *testing.B, numSilences int) {
+	s, err := New(Options{})
+	require.NoError(b, err)
+
+	now := time.Now()
+	s.now = func() time.Time { return now }
+
+	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
+
+	s.st = state{}
+	for i := 0; i < numSilences; i++ {
+		id := fmt.Sprint("ID", i)
+		// Patterns also contain the ID to bust any caches that might be used under the hood.
+		patA := "A{4}|" + id
+		patB := id // Does not match.
+		if i%10 == 0 {
+			// Every 10th time, have an actually matching pattern.
+			patB = "B(B|C)B.|" + id
+		}
+
+		s.st[id] = &pb.MeshSilence{Silence: &pb.Silence{
+			Id: id,
+			Matchers: []*pb.Matcher{
+				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
+				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
+			},
+			StartsAt:  now.Add(-time.Minute),
+			EndsAt:    now.Add(time.Hour),
+			UpdatedAt: now.Add(-time.Hour),
+		}}
+	}
+
+	// Run things once to populate the matcherCache.
+	sils, err := s.Query(
+		QState(types.SilenceStateActive),
+		QMatches(lset),
+	)
+	require.NoError(b, err)
+	require.Equal(b, numSilences/10, len(sils))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sils, err := s.Query(
+			QState(types.SilenceStateActive),
+			QMatches(lset),
+		)
+		require.NoError(b, err)
+		require.Equal(b, numSilences/10, len(sils))
+	}
+}
+
+func Benchmark100SilencesQuery(b *testing.B) {
+	benchmarkSilencesQuery(b, 100)
+}
+
+func Benchmark1000SilencesQuery(b *testing.B) {
+	benchmarkSilencesQuery(b, 1000)
+}
+
+func Benchmark10000SilencesQuery(b *testing.B) {
+	benchmarkSilencesQuery(b, 10000)
 }
