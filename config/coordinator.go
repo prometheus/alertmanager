@@ -95,19 +95,9 @@ func (c *Coordinator) notifySubscribers() error {
 
 // loadFromFile triggers a configuration load, discarding the old configuration.
 func (c *Coordinator) loadFromFile() error {
-	level.Info(c.logger).Log(
-		"msg", "Loading configuration file",
-		"file", c.configFilePath,
-	)
-
 	conf, plainConfig, err := LoadFile(c.configFilePath)
 	if err != nil {
 		c.configSuccessMetric.Set(0)
-		level.Error(c.logger).Log(
-			"msg", "Loading configuration file failed",
-			"file", c.configFilePath,
-			"err", err,
-		)
 		return err
 	}
 
@@ -126,14 +116,22 @@ func (c *Coordinator) Reload() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	level.Info(c.logger).Log(
+		"msg", "Loading configuration file",
+		"file", c.configFilePath,
+	)
 	if err := c.loadFromFile(); err != nil {
-		c.logger.Log(
-			"msg", "loading configuration file failed",
+		level.Error(c.logger).Log(
+			"msg", "Loading configuration file failed",
 			"file", c.configFilePath,
 			"err", err,
 		)
 		return err
 	}
+	level.Info(c.logger).Log(
+		"msg", "Completed loading of configuration file",
+		"file", c.configFilePath,
+	)
 
 	if err := c.notifySubscribers(); err != nil {
 		c.logger.Log(
