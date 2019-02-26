@@ -385,7 +385,6 @@ func init() {
         },
         "peers": {
           "type": "array",
-          "minimum": 0,
           "items": {
             "$ref": "#/definitions/peerStatus"
           }

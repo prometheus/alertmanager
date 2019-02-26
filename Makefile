@@ -41,7 +41,7 @@ SWAGGER = docker run \
 	--user=$(shell id -u $(USER)):$(shell id -g $(USER)) \
 	--rm \
 	-v $(shell pwd):/go/src/github.com/prometheus/alertmanager \
-	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:0.16.0
+	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:v0.18.0
 
 api/v2/models api/v2/restapi: api/v2/openapi.yaml
 	-rm -r api/v2/{models,restapi}

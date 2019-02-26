@@ -101,7 +101,7 @@ includes_DragonFly='
 '
 
 includes_FreeBSD='
-#include <sys/capability.h>
+#include <sys/capsicum.h>
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/event.h>
