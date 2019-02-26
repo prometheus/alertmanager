@@ -92,6 +92,44 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 	return ms, nil
 }
 
+// Silencer binds together a Marker and a Silences to implement the Muter
+// interface.
+type Silencer struct {
+	silences *Silences
+	marker   types.Marker
+	logger   log.Logger
+}
+
+// NewSilencer returns a new Silencer.
+func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
+	return &Silencer{
+		silences: s,
+		marker:   m,
+		logger:   l,
+	}
+}
+
+// Mutes implements the Muter interface.
+func (s *Silencer) Mutes(lset model.LabelSet) bool {
+	sils, err := s.silences.Query(
+		QState(types.SilenceStateActive),
+		QMatches(lset),
+	)
+	if err != nil {
+		level.Error(s.logger).Log("msg", "Querying silences failed, alerts might not get silenced correctly", "err", err)
+	}
+	if len(sils) == 0 {
+		s.marker.SetSilenced(lset.Fingerprint())
+		return false
+	}
+	ids := make([]string, len(sils))
+	for i, s := range sils {
+		ids[i] = s.Id
+	}
+	s.marker.SetSilenced(lset.Fingerprint(), ids...)
+	return true
+}
+
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
 	logger    log.Logger
@@ -727,7 +765,7 @@ func (s *Silences) Merge(b []byte) error {
 			// all nodes already.
 			s.broadcast(b)
 			s.metrics.propagatedMessagesTotal.Inc()
-			level.Debug(s.logger).Log("msg", "gossiping new silence", "silence", e)
+			level.Debug(s.logger).Log("msg", "Gossiping new silence", "silence", e)
 		}
 	}
 	return nil
