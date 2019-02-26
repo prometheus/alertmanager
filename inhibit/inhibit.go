@@ -29,8 +29,9 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// An Inhibitor determines whether a given label set is muted
-// based on the currently active alerts and a set of inhibition rules.
+// An Inhibitor determines whether a given label set is muted based on the
+// currently active alerts and a set of inhibition rules. It implements the
+// Muter interface.
 type Inhibitor struct {
 	alerts provider.Alerts
 	rules  []*InhibitRule
@@ -121,13 +122,19 @@ func (ih *Inhibitor) Stop() {
 	}
 }
 
-// Mutes returns true iff the given label set is muted.
+// Mutes returns true iff the given label set is muted. It implements the Muter
+// interface.
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
 	for _, r := range ih.rules {
-		// Only inhibit if target matchers match but source matchers don't.
-		if inhibitedByFP, eq := r.hasEqual(lset); !r.SourceMatchers.Match(lset) && r.TargetMatchers.Match(lset) && eq {
+		if !r.TargetMatchers.Match(lset) {
+			// If target side of rule doesn't match, we don't need to look any further.
+			continue
+		}
+		// If we are here, the target side matches. If the source side matches, too, we
+		// need to exclude inhibiting alerts for which the same is true.
+		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Match(lset)); eq {
 			ih.marker.SetInhibited(fp, inhibitedByFP.String())
 			return true
 		}
@@ -191,9 +198,11 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	}
 }
 
-// hasEqual checks whether the source cache contains alerts matching
-// the equal labels for the given label set.
-func (r *InhibitRule) hasEqual(lset model.LabelSet) (model.Fingerprint, bool) {
+// hasEqual checks whether the source cache contains alerts matching the equal
+// labels for the given label set. If so, the fingerprint of one of those alerts
+// is returned. If excludeTwoSidedMatch is true, alerts that match both the
+// source and the target side of the rule are disregarded.
+func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool) (model.Fingerprint, bool) {
 Outer:
 	for a := range r.scache.List() {
 		// The cache might be stale and contain resolved alerts.
@@ -204,6 +213,9 @@ Outer:
 			if a.Labels[n] != lset[n] {
 				continue Outer
 			}
+		}
+		if excludeTwoSidedMatch && r.TargetMatchers.Match(a.Labels) {
+			continue Outer
 		}
 		return a.Fingerprint(), true
 	}
