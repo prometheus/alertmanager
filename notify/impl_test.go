@@ -329,8 +329,9 @@ func TestEmailNoUsernameStillOk(t *testing.T) {
 	email := &Email{
 		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
 	}
-	_, err := email.auth("CRAM-MD5")
+	a, err := email.auth("CRAM-MD5")
 	require.NoError(t, err)
+	require.Nil(t, a)
 }
 
 func TestVictorOpsCustomFields(t *testing.T) {

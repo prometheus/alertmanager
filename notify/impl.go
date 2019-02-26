@@ -225,7 +225,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	// If no username is set, keep going without authentication.
 	if n.conf.AuthUsername == "" {
 		level.Debug(n.logger).Log("msg", "smtp_auth_username is not configured. Attempting to send email without authenticating")
-		return NoAuth(), nil
+		return nil, nil
 	}
 
 	err := &types.MultiError{}
@@ -1570,21 +1570,6 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 			return nil, errors.New("unexpected server challenge")
 		}
 	}
-	return nil, nil
-}
-
-type noAuth struct{}
-
-func NoAuth() smtp.Auth {
-	return &noAuth{}
-}
-
-func (a *noAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
-	// return proto == "" to indicate that the authentication should be skipped.
-	return "", []byte{}, nil
-}
-
-func (a *noAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
