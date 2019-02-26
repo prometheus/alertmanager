@@ -214,7 +214,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		{
 			// Matches both source and target filters of rule2,
 			// not inhibited because sourceAlert2 matches also both the
-			// source and target filter of rule1.
+			// source and target filter of rule2.
 			target:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
 			expected: false,
 		},
