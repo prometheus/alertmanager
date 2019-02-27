@@ -624,14 +624,15 @@ func TestMuteStage(t *testing.T) {
 }
 
 func TestMuteStageWithSilences(t *testing.T) {
-	silences, err := silence.New(silence.Options{})
+	silences, err := silence.New(silence.Options{Retention: time.Hour})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := silences.Set(&silencepb.Silence{
+	silID, err := silences.Set(&silencepb.Silence{
 		EndsAt:   utcNow().Add(time.Hour),
 		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -663,9 +664,9 @@ func TestMuteStageWithSilences(t *testing.T) {
 		})
 	}
 
-	// Set the second alert as previously silenced. It is expected to have
-	// the WasSilenced flag set to true afterwards.
-	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
+	// Set the second alert as previously silenced with an old version
+	// number. This is expected to get unsilenced by the stage.
+	marker.SetSilenced(inAlerts[1].Fingerprint(), 0, "123")
 
 	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
@@ -679,5 +680,38 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+
+	// Do it again to exercise the version tracking of silences.
+	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	got = got[:0]
+	for _, a := range alerts {
+		got = append(got, a.Labels)
+	}
+
+	if !reflect.DeepEqual(got, out) {
+		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+
+	// Expire the silence and verify that no alerts are silenced now.
+	if err := silences.Expire(silID); err != nil {
+		t.Fatal(err)
+	}
+
+	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+	got = got[:0]
+	for _, a := range alerts {
+		got = append(got, a.Labels)
+	}
+
+	if !reflect.DeepEqual(got, in) {
+		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
 	}
 }

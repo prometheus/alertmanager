@@ -489,7 +489,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		}
 	}
 
-	psils, err := api.silences.Query()
+	psils, _, err := api.silences.Query()
 	if err != nil {
 		level.Error(api.logger).Log("msg", "failed to get silences", "err", err)
 		return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
@@ -521,7 +521,7 @@ func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, match
 }
 
 func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middleware.Responder {
-	sils, err := api.silences.Query(silence.QIDs(params.SilenceID.String()))
+	sils, _, err := api.silences.Query(silence.QIDs(params.SilenceID.String()))
 	if err != nil {
 		level.Error(api.logger).Log("msg", "failed to get silence by id", "err", err)
 		return silence_ops.NewGetSilenceInternalServerError().WithPayload(err.Error())

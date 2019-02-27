@@ -573,7 +573,7 @@ func TestSilencesQuery(t *testing.T) {
 
 	for _, c := range cases {
 		// Run default query of retrieving all silences.
-		res, err := s.query(c.q, time.Time{})
+		res, _, err := s.query(c.q, time.Time{})
 		require.NoError(t, err, "unexpected error on querying")
 
 		// Currently there are no sorting guarantees in the querying API.
@@ -1130,7 +1130,7 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 	}
 
 	// Run things once to populate the matcherCache.
-	sils, err := s.Query(
+	sils, _, err := s.Query(
 		QState(types.SilenceStateActive),
 		QMatches(lset),
 	)
@@ -1139,7 +1139,7 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sils, err := s.Query(
+		sils, _, err := s.Query(
 			QState(types.SilenceStateActive),
 			QMatches(lset),
 		)
