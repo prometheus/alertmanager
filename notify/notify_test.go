@@ -575,7 +575,55 @@ func TestSetNotifiesStage(t *testing.T) {
 	require.NotNil(t, resctx)
 }
 
-func TestSilenceStage(t *testing.T) {
+func TestMuteStage(t *testing.T) {
+	// Mute all label sets that have a "mute" key.
+	muter := types.MuteFunc(func(lset model.LabelSet) bool {
+		_, ok := lset["mute"]
+		return ok
+	})
+
+	stage := NewMuteStage(muter)
+
+	in := []model.LabelSet{
+		{},
+		{"test": "set"},
+		{"mute": "me"},
+		{"foo": "bar", "test": "set"},
+		{"foo": "bar", "mute": "me"},
+		{},
+		{"not": "muted"},
+	}
+	out := []model.LabelSet{
+		{},
+		{"test": "set"},
+		{"foo": "bar", "test": "set"},
+		{},
+		{"not": "muted"},
+	}
+
+	var inAlerts []*types.Alert
+	for _, lset := range in {
+		inAlerts = append(inAlerts, &types.Alert{
+			Alert: model.Alert{Labels: lset},
+		})
+	}
+
+	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	var got []model.LabelSet
+	for _, a := range alerts {
+		got = append(got, a.Labels)
+	}
+
+	if !reflect.DeepEqual(got, out) {
+		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+}
+
+func TestMuteStageWithSilences(t *testing.T) {
 	silences, err := silence.New(silence.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -588,7 +636,8 @@ func TestSilenceStage(t *testing.T) {
 	}
 
 	marker := types.NewMarker(prometheus.NewRegistry())
-	silencer := NewSilenceStage(silences, marker)
+	silencer := silence.NewSilencer(silences, marker, log.NewNopLogger())
+	stage := NewMuteStage(silencer)
 
 	in := []model.LabelSet{
 		{},
@@ -618,55 +667,7 @@ func TestSilenceStage(t *testing.T) {
 	// the WasSilenced flag set to true afterwards.
 	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
 
-	_, alerts, err := silencer.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
-	if err != nil {
-		t.Fatalf("Exec failed: %s", err)
-	}
-
-	var got []model.LabelSet
-	for _, a := range alerts {
-		got = append(got, a.Labels)
-	}
-
-	if !reflect.DeepEqual(got, out) {
-		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
-	}
-}
-
-func TestInhibitStage(t *testing.T) {
-	// Mute all label sets that have a "mute" key.
-	muter := types.MuteFunc(func(lset model.LabelSet) bool {
-		_, ok := lset["mute"]
-		return ok
-	})
-
-	inhibitor := NewInhibitStage(muter)
-
-	in := []model.LabelSet{
-		{},
-		{"test": "set"},
-		{"mute": "me"},
-		{"foo": "bar", "test": "set"},
-		{"foo": "bar", "mute": "me"},
-		{},
-		{"not": "muted"},
-	}
-	out := []model.LabelSet{
-		{},
-		{"test": "set"},
-		{"foo": "bar", "test": "set"},
-		{},
-		{"not": "muted"},
-	}
-
-	var inAlerts []*types.Alert
-	for _, lset := range in {
-		inAlerts = append(inAlerts, &types.Alert{
-			Alert: model.Alert{Labels: lset},
-		})
-	}
-
-	_, alerts, err := inhibitor.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
+	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}

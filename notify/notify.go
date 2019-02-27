@@ -29,6 +29,7 @@ import (
 
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
@@ -236,18 +237,17 @@ func BuildPipeline(
 	confs []*config.Receiver,
 	tmpl *template.Template,
 	wait func() time.Duration,
-	muter types.Muter,
-	silences *silence.Silences,
+	inhibitor *inhibit.Inhibitor,
+	silencer *silence.Silencer,
 	notificationLog NotificationLog,
-	marker types.Marker,
 	peer *cluster.Peer,
 	logger log.Logger,
 ) RoutingStage {
 	rs := RoutingStage{}
 
 	ms := NewGossipSettleStage(peer)
-	is := NewInhibitStage(muter)
-	ss := NewSilenceStage(silences, marker)
+	is := NewMuteStage(inhibitor)
+	ss := NewMuteStage(silencer)
 
 	for _, rc := range confs {
 		rs[rc.Name] = MultiStage{ms, is, ss, createStage(rc, tmpl, wait, notificationLog, logger)}
@@ -359,72 +359,27 @@ func (n *GossipSettleStage) Exec(ctx context.Context, l log.Logger, alerts ...*t
 	return ctx, alerts, nil
 }
 
-// InhibitStage filters alerts through an inhibition muter.
-type InhibitStage struct {
+// MuteStage filters alerts through a Muter.
+type MuteStage struct {
 	muter types.Muter
 }
 
-// NewInhibitStage return a new InhibitStage.
-func NewInhibitStage(m types.Muter) *InhibitStage {
-	return &InhibitStage{muter: m}
+// NewMuteStage return a new MuteStage.
+func NewMuteStage(m types.Muter) *MuteStage {
+	return &MuteStage{muter: m}
 }
 
 // Exec implements the Stage interface.
-func (n *InhibitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *MuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
-		// Do not send the alert if the silencer mutes it.
+		// Do not send the alert if muted.
 		if !n.muter.Mutes(a.Labels) {
-			// TODO(fabxc): increment muted alerts counter.
 			filtered = append(filtered, a)
 		}
+		// TODO(fabxc): increment muted alerts counter if muted.
 	}
-
-	return ctx, filtered, nil
-}
-
-// SilenceStage filters alerts through a silence muter.
-type SilenceStage struct {
-	silences *silence.Silences
-	marker   types.Marker
-}
-
-// NewSilenceStage returns a new SilenceStage.
-func NewSilenceStage(s *silence.Silences, mk types.Marker) *SilenceStage {
-	return &SilenceStage{
-		silences: s,
-		marker:   mk,
-	}
-}
-
-// Exec implements the Stage interface.
-func (n *SilenceStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	var filtered []*types.Alert
-	for _, a := range alerts {
-		// TODO(fabxc): increment total alerts counter.
-		// Do not send the alert if the silencer mutes it.
-		sils, err := n.silences.Query(
-			silence.QState(types.SilenceStateActive),
-			silence.QMatches(a.Labels),
-		)
-		if err != nil {
-			level.Error(l).Log("msg", "Querying silences failed", "err", err)
-		}
-
-		if len(sils) == 0 {
-			// TODO(fabxc): increment muted alerts counter.
-			filtered = append(filtered, a)
-			n.marker.SetSilenced(a.Labels.Fingerprint())
-		} else {
-			ids := make([]string, len(sils))
-			for i, s := range sils {
-				ids[i] = s.Id
-			}
-			n.marker.SetSilenced(a.Labels.Fingerprint(), ids...)
-		}
-	}
-
 	return ctx, filtered, nil
 }
 

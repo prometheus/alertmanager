@@ -70,7 +70,7 @@ type API struct {
 }
 
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
-type setAlertStatusFn func(prometheus_model.LabelSet) error
+type setAlertStatusFn func(prometheus_model.LabelSet)
 
 // NewAPI returns a new Alertmanager API v2
 func NewAPI(
@@ -260,9 +260,8 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		}
 
 		// Set alert's current status based on its label set.
-		if err := api.setAlertStatus(a.Labels); err != nil {
-			level.Error(api.logger).Log("msg", "set alert status failed", "err", err)
-		}
+		api.setAlertStatus(a.Labels)
+
 		// Get alert's current status after seeing if it is suppressed.
 		status := api.getAlertStatus(a.Fingerprint())
 

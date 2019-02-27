@@ -281,6 +281,7 @@ func run() int {
 
 	var (
 		inhibitor *inhibit.Inhibitor
+		silencer  *silence.Silencer
 		tmpl      *template.Template
 		pipeline  notify.Stage
 		disp      *dispatch.Dispatcher
@@ -304,19 +305,22 @@ func run() int {
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		silencer = silence.NewSilencer(silences, marker, logger)
 		pipeline = notify.BuildPipeline(
 			conf.Receivers,
 			tmpl,
 			waitFunc,
 			inhibitor,
-			silences,
+			silencer,
 			notificationLog,
-			marker,
 			peer,
 			logger,
 		)
 
-		api.Update(conf, setAlertStatus(inhibitor, marker, silences))
+		api.Update(conf, func(labels model.LabelSet) {
+			inhibitor.Mutes(labels)
+			silencer.Mutes(labels)
+		})
 
 		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
 
@@ -434,29 +438,4 @@ func extURL(listen, external string) (*url.URL, error) {
 	u.Path = ppref
 
 	return u, nil
-}
-
-func setAlertStatus(inhibitor *inhibit.Inhibitor, marker types.Marker, silences *silence.Silences) func(model.LabelSet) error {
-	return func(labels model.LabelSet) error {
-		inhibitor.Mutes(labels)
-		// TODO(beorn7): The following code is almost exactly replicated in notify/notify.go.
-		sils, err := silences.Query(
-			silence.QState(types.SilenceStateActive),
-			silence.QMatches(labels),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to query silences: %v", err)
-		}
-
-		if len(sils) > 0 {
-			ids := make([]string, len(sils))
-			for i, s := range sils {
-				ids[i] = s.Id
-			}
-			marker.SetSilenced(labels.Fingerprint(), ids...)
-		} else {
-			marker.SetSilenced(labels.Fingerprint())
-		}
-		return nil
-	}
 }
