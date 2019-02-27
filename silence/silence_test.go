@@ -199,7 +199,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	// setSilence() is always called with s.mtx locked()
 	go func() {
 		s.mtx.Lock()
-		require.NoError(t, s.setSilence(sil))
+		require.NoError(t, s.setSilence(sil, now))
 		s.mtx.Unlock()
 	}()
 
@@ -864,8 +864,8 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	require.Contains(t, err.Error(), "already expired")
 
 	_, err = s.QueryOne(QIDs("pending"))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "silence not found") // It is expired from the storage, too.
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 
 	count, err = s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
@@ -873,7 +873,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 
 	count, err = s.CountState(types.SilenceStateExpired)
 	require.NoError(t, err)
-	require.Equal(t, 1, count) // As the two explicitly expired silences have immediately expired.
+	require.Equal(t, 3, count)
 }
 
 func TestValidateMatcher(t *testing.T) {

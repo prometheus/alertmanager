@@ -473,8 +473,8 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
-func (s *Silences) setSilence(sil *pb.Silence) error {
-	sil.UpdatedAt = s.now()
+func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
+	sil.UpdatedAt = now
 
 	if err := validateSilence(sil); err != nil {
 		return errors.Wrap(err, "silence invalid")
@@ -489,7 +489,7 @@ func (s *Silences) setSilence(sil *pb.Silence) error {
 		return err
 	}
 
-	if s.st.merge(msil, s.now()) {
+	if s.st.merge(msil, now) {
 		s.version++
 	}
 	s.broadcast(b)
@@ -511,7 +511,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	}
 	if ok {
 		if canUpdate(prev, sil, now) {
-			return sil.Id, s.setSilence(sil)
+			return sil.Id, s.setSilence(sil, now)
 		}
 		if getState(prev, s.now()) != types.SilenceStateExpired {
 			// We cannot update the silence, expire the old one.
@@ -527,7 +527,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		sil.StartsAt = now
 	}
 
-	return sil.Id, s.setSilence(sil)
+	return sil.Id, s.setSilence(sil, now)
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -584,7 +584,7 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = now
 	}
 
-	return s.setSilence(sil)
+	return s.setSilence(sil, now)
 }
 
 // QueryParam expresses parameters along which silences are queried.
@@ -704,7 +704,7 @@ func (s *Silences) Version() int {
 	return s.version
 }
 
-// Count silences by state.
+// CountState counts silences by state.
 func (s *Silences) CountState(states ...types.SilenceState) (int, error) {
 	// This could probably be optimized.
 	sils, _, err := s.Query(QState(states...))
@@ -832,6 +832,8 @@ func (s *Silences) Merge(b []byte) error {
 	return nil
 }
 
+// SetBroadcast sets the provided function as the one creating data to be
+// broadcast.
 func (s *Silences) SetBroadcast(f func([]byte)) {
 	s.mtx.Lock()
 	s.broadcast = f
@@ -841,6 +843,7 @@ func (s *Silences) SetBroadcast(f func([]byte)) {
 type state map[string]*pb.MeshSilence
 
 func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
+	id := e.Silence.Id
 	if e.ExpiresAt.Before(now) {
 		return false
 	}
@@ -851,7 +854,6 @@ func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
 		e.Silence.CreatedBy = e.Silence.Comments[0].Author
 		e.Silence.Comments = nil
 	}
-	id := e.Silence.Id
 
 	prev, ok := s[id]
 	if !ok || prev.Silence.UpdatedAt.Before(e.Silence.UpdatedAt) {
