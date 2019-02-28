@@ -678,22 +678,20 @@ func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
 // Query for silences based on the given query parameters. It returns the
 // resulting silences and the state version the result is based on.
 func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
-	start := time.Now()
 	s.metrics.queriesTotal.Inc()
+	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
-	sils, version, err := func() ([]*pb.Silence, int, error) {
-		q := &query{}
-		for _, p := range params {
-			if err := p(q); err != nil {
-				return nil, s.Version(), err
-			}
+	q := &query{}
+	for _, p := range params {
+		if err := p(q); err != nil {
+			s.metrics.queryErrorsTotal.Inc()
+			return nil, s.Version(), err
 		}
-		return s.query(q, s.now())
-	}()
+	}
+	sils, version, err := s.query(q, s.now())
 	if err != nil {
 		s.metrics.queryErrorsTotal.Inc()
 	}
-	s.metrics.queryDuration.Observe(time.Since(start).Seconds())
 	return sils, version, err
 }
 
