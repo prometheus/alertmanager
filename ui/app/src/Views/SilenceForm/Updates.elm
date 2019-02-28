@@ -237,7 +237,7 @@ update msg model basePath apiUrl =
                     ( { model | alerts = Loading }
                     , Alerts.Api.fetchAlerts
                         apiUrl
-                        { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
+                        { nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True, showInhibited = Just True }
                         |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
                     )
 
