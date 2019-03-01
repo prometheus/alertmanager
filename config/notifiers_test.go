@@ -236,6 +236,41 @@ http_config:
 	}
 }
 
+func TestWechatSidIsPresent(t *testing.T) {
+	in := `
+api_sid: ''
+`
+	var cfg TwilioConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "missing Twilio Sid in Twilio config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestTwilioAPITokenIsPresent(t *testing.T) {
+	in := `
+api_sid: ''
+api_token: 'api_token'
+`
+	var cfg TwilioConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "missing Twilio APIToken in Twilio config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func TestWechatAPIKeyIsPresent(t *testing.T) {
 	in := `
 api_secret: ''

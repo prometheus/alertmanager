@@ -24,6 +24,15 @@
 {{ define "slack.default.footer" }}{{ end }}
 
 
+{{ define "twilio.default.message" }}{{ template "__subject" . }}{{ end }}
+{{ define "twilio.default.api_sid" }}{{ end }}
+{{ define "twilio.default.api_token" }}{{ end }}
+{{ define "twilio.default.notify_type" }}{{ end }}
+{{ define "twilio.default.call_url" }}{{ end }}
+{{ define "twilio.default.from" }}{{ end }}
+{{ define "twilio.default.to" }}{{ end }}
+
+
 {{ define "hipchat.default.from" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "hipchat.default.message" }}{{ template "__subject" . }}{{ end }}
 
@@ -66,7 +75,6 @@ AlertmanagerUrl:
 {{ define "wechat.default.to_party" }}{{ end }}
 {{ define "wechat.default.to_tag" }}{{ end }}
 {{ define "wechat.default.agent_id" }}{{ end }}
-
 
 
 {{ define "victorops.default.state_message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}

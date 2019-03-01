@@ -363,6 +363,36 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIKey = c.Global.OpsGenieAPIKey
 			}
 		}
+		for _, wcc := range rcv.TwilioConfigs {
+			if wcc.HTTPConfig == nil {
+				wcc.HTTPConfig = c.Global.HTTPConfig
+			}
+
+			if wcc.APIURL == nil {
+				if c.Global.TwilioAPIURL == nil {
+					return fmt.Errorf("no global Twilio URL set")
+				}
+				wcc.APIURL = c.Global.TwilioAPIURL
+			}
+
+			if wcc.APISid == "" {
+				if c.Global.TwilioAPISid == "" {
+					return fmt.Errorf("no global Twilio ApiSid set")
+				}
+				wcc.APISid = c.Global.TwilioAPISid
+			}
+
+			if wcc.APIToken == "" {
+				if c.Global.TwilioAPIToken == "" {
+					return fmt.Errorf("no global Twilio ApiToken set")
+				}
+				wcc.APIToken = c.Global.TwilioAPIToken
+			}
+
+			if !strings.HasSuffix(wcc.APIURL.Path, "/") {
+				wcc.APIURL.Path += "/"
+			}
+		}
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc.HTTPConfig == nil {
 				wcc.HTTPConfig = c.Global.HTTPConfig
@@ -459,6 +489,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 		HipchatAPIURL:   mustParseURL("https://api.hipchat.com/"),
+		TwilioAPIURL:    mustParseURL("https://api.twilio.com/2010-04-01/Accounts/"),
 		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
@@ -510,6 +541,9 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret     `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIURL   *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey   Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	TwilioAPIURL     *URL       `yaml:"Twilio_api_url,omitempty" json:"Twilio_api_url,omitempty"`
+	TwilioAPISid     string     `yaml:"Twilio_api_sid,omitempty" json:"Twilio_api_sid,omitempty"`
+	TwilioAPIToken   Secret     `yaml:"Twilio_api_token,omitempty" json:"Twilio_api_token,omitempty"`
 	WeChatAPIURL     *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret  Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
@@ -661,6 +695,7 @@ type Receiver struct {
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	TwilioConfigs    []*TwilioConfig    `yaml:"twilio_configs,omitempty" json:"twilio_configs,omitempty"`
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`

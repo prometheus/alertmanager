@@ -113,6 +113,20 @@ var (
 		AgentID:   `{{ template "wechat.default.agent_id" . }}`,
 	}
 
+	// DefaultTwilioConfig defines default values for twilio configurations.
+	DefaultTwilioConfig = TwilioConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		APISid:   `{{ template "twilio.default.api_sid" . }}`,
+		APIToken: `{{ template "twilio.default.api_token" . }}`,
+		Type:     `{{ template "twilio.default.notify_token" . }}`,
+		CallUrl:  `{{ template "twilio.default.call_url" . }}`,
+		Message:  `{{ template "twilio.default.message" . }}`,
+		From:     `{{ template "twilio.default.from" . }}`,
+		To:       `{{ template "twilio.default.to" . }}`,
+	}
+
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
 	DefaultVictorOpsConfig = VictorOpsConfig{
 		NotifierConfig: NotifierConfig{
@@ -420,6 +434,38 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
 		return fmt.Errorf("scheme required for webhook url")
+	}
+	return nil
+}
+
+// TwilioConfig configures notifications via Twilio.
+type TwilioConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL   *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	APISid   string `yaml:"api_sid,omitempty" json:"api_sid,omitempty"`
+	APIToken Secret `yaml:"api_token,omitempty" json:"api_token,omitempty"`
+	Type     string `yaml:"notify_type,omitempty" json:"notify_type,omitempty"`
+	Message  string `yaml:"message,omitempty" json:"message,omitempty"`
+	CallUrl  string `yaml:"call_url,omitempty" json:"call_url,omitempty"`
+	To       string `yaml:"to,omitempty" json:"to,omitempty"`
+	From     string `yaml:"from,omitempty" json:"from,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TwilioConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTwilioConfig
+	type plain TwilioConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.APISid == "" {
+		return fmt.Errorf("missing Twilio APISid in Twilio config")
+	}
+	if c.APIToken == "" {
+		return fmt.Errorf("missing Twilio APIToken in Twilio config")
 	}
 	return nil
 }

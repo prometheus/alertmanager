@@ -98,6 +98,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		n := NewOpsGenie(c, tmpl, logger)
 		add("opsgenie", i, n, c)
 	}
+	for i, c := range nc.TwilioConfigs {
+		n := NewTwilio(c, tmpl, logger)
+		add("twilio", i, n, c)
+	}
 	for i, c := range nc.WechatConfigs {
 		n := NewWechat(c, tmpl, logger)
 		add("wechat", i, n, c)
@@ -960,6 +964,125 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 
 	return false, nil
 }
+
+// Twilio implements a Notfier for Twilio notifications
+type Twilio struct {
+	conf   *config.TwilioConfig
+	tmpl   *template.Template
+	logger log.Logger
+}
+
+type twilioCall struct {
+	Type     string `yaml:"notify_type,omitempty" json:"notify_type,omitempty"`
+	Call_url string `yaml:"call_url,omitempty" json:"call_url,omitempty"`
+	From     string `yaml:"from,omitempty" json:"from,omitempty"`
+	To       string `yaml:"to,omitempty" json:"to,omitempty"`
+}
+
+type twilioSMS struct {
+	Body string `yaml:"Body,omitempty" json:"Body,omitempty"`
+	From string `yaml:"From,omitempty" json:"From,omitempty"`
+	To   string `yaml:"To,omitempty" json:"To,omitempty"`
+}
+
+// NewTwilio returns a new Twilio notifier.
+func NewTwilio(c *config.TwilioConfig, t *template.Template, l log.Logger) *Twilio {
+	return &Twilio{conf: c, tmpl: t, logger: l}
+}
+
+// Notify implements the Notifier interface.
+func (n *Twilio) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+
+	sid := string(n.conf.APISid)
+
+	notifyType := string(n.conf.Type)
+	level.Debug(n.logger).Log("msg", "Twilio info", "sid", sid, "from", n.conf.From, "to", n.conf.To, "type", notifyType)
+
+	if notifyType == "sms" {
+
+		urlStr := n.conf.APIURL.String() + sid + "/Messages.json"
+
+		level.Debug(n.logger).Log("msg", "Twilio sms", "sid", sid, "message", n.conf.Message, "from", n.conf.From, "to", n.conf.To, "apiurl", urlStr)
+
+		v := url.Values{}
+		v.Set("To", n.conf.To)
+		v.Set("From", n.conf.From)
+		v.Set("Body", string(n.conf.Message))
+		rb := *strings.NewReader(v.Encode())
+
+		c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "twilio")
+		if err != nil {
+			return false, err
+		}
+
+		resp, err := n.twilioRequest(c, urlStr, &rb)
+		if err != nil {
+			return true, err
+		}
+		defer resp.Body.Close()
+
+		return n.retry(resp)
+	}
+	if notifyType == "call" {
+
+		urlStr := n.conf.APIURL.String() + sid + "/Calls.json"
+
+		level.Debug(n.logger).Log("msg", "Twilio call", "sid", sid, "call_url", n.conf.CallUrl, "from", n.conf.From, "to", n.conf.To, "apiurl", urlStr)
+
+		v := url.Values{}
+		v.Set("To", n.conf.To)
+		v.Set("From", n.conf.From)
+		v.Set("Url", string(n.conf.CallUrl))
+		rb := *strings.NewReader(v.Encode())
+
+		c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "twilio")
+		if err != nil {
+			return false, err
+		}
+
+		resp, err := n.twilioRequest(c, urlStr, &rb)
+		if err != nil {
+			return true, err
+		}
+		defer resp.Body.Close()
+
+		return n.retry(resp)
+	}
+	return true, nil
+}
+
+func (n *Twilio) twilioRequest(client *http.Client, url string, body io.Reader) (*http.Response, error) {
+
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(string(n.conf.APISid), string(n.conf.APIToken))
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	return client.Do(req)
+}
+
+func (n *Twilio) retry(resp *http.Response) (bool, error) {
+	// responce codes indicate successful requests.
+	var data map[string]interface{}
+	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	err := json.Unmarshal(bodyBytes, &data)
+	if err == nil {
+		for k, v := range data {
+			level.Debug(n.logger).Log("msg", "Twilio debug log", "type", n.conf.Type, "res-k", k, "res-v", v)
+		}
+	}
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		level.Debug(n.logger).Log("msg", "Twilio debug log ", "type", n.conf.Type, "code", resp.StatusCode)
+
+	} else {
+		return (resp.StatusCode/100 == 5), fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+	return false, nil
+}
+
+// Twilio end twilio
 
 // Wechat implements a Notfier for wechat notifications
 type Wechat struct {
