@@ -15,6 +15,7 @@ package silence
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
@@ -198,7 +199,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	// setSilence() is always called with s.mtx locked()
 	go func() {
 		s.mtx.Lock()
-		require.NoError(t, s.setSilence(sil))
+		require.NoError(t, s.setSilence(sil, now))
 		s.mtx.Unlock()
 	}()
 
@@ -572,7 +573,7 @@ func TestSilencesQuery(t *testing.T) {
 
 	for _, c := range cases {
 		// Run default query of retrieving all silences.
-		res, err := s.query(c.q, time.Time{})
+		res, _, err := s.query(c.q, time.Time{})
 		require.NoError(t, err, "unexpected error on querying")
 
 		// Currently there are no sorting guarantees in the querying API.
@@ -715,7 +716,7 @@ func TestSilenceCanUpdate(t *testing.T) {
 }
 
 func TestSilenceExpire(t *testing.T) {
-	s, err := New(Options{})
+	s, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -751,10 +752,14 @@ func TestSilenceExpire(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	require.NoError(t, s.expire("pending"))
-	require.NoError(t, s.expire("active"))
+	count, err = s.CountState(types.SilenceStateExpired)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 
-	err = s.expire("expired")
+	require.NoError(t, s.Expire("pending"))
+	require.NoError(t, s.Expire("active"))
+
+	err = s.Expire("expired")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "already expired")
 
@@ -768,9 +773,16 @@ func TestSilenceExpire(t *testing.T) {
 		UpdatedAt: now,
 	}, sil)
 
+	// Let time pass...
+	s.now = func() time.Time { return now.Add(time.Second) }
+
 	count, err = s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
+
+	count, err = s.CountState(types.SilenceStateExpired)
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
 
 	// Expiring a pending Silence should make the API return the
 	// SilenceStateExpired Silence state.
@@ -796,6 +808,72 @@ func TestSilenceExpire(t *testing.T) {
 		EndsAt:    now.Add(-time.Minute),
 		UpdatedAt: now.Add(-time.Hour),
 	}, sil)
+
+}
+
+// TestSilenceExpireWithZeroRetention covers the problem that, with zero
+// retention time, a silence explicitly set to expired will also immediately
+// expire from the silence storage.
+func TestSilenceExpireWithZeroRetention(t *testing.T) {
+	s, err := New(Options{})
+	require.NoError(t, err)
+
+	now := time.Now()
+	// But don't set s.now here because we need a changing time to
+	// demonstrate expiration from the silence storage.
+
+	m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
+
+	s.st = state{
+		"pending": &pb.MeshSilence{Silence: &pb.Silence{
+			Id:        "pending",
+			Matchers:  []*pb.Matcher{m},
+			StartsAt:  now.Add(time.Minute),
+			EndsAt:    now.Add(time.Hour),
+			UpdatedAt: now.Add(-time.Hour),
+		}},
+		"active": &pb.MeshSilence{Silence: &pb.Silence{
+			Id:        "active",
+			Matchers:  []*pb.Matcher{m},
+			StartsAt:  now.Add(-time.Minute),
+			EndsAt:    now.Add(time.Hour),
+			UpdatedAt: now.Add(-time.Hour),
+		}},
+		"expired": &pb.MeshSilence{Silence: &pb.Silence{
+			Id:        "expired",
+			Matchers:  []*pb.Matcher{m},
+			StartsAt:  now.Add(-time.Hour),
+			EndsAt:    now.Add(-time.Minute),
+			UpdatedAt: now.Add(-time.Hour),
+		}},
+	}
+
+	count, err := s.CountState(types.SilenceStatePending)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
+	count, err = s.CountState(types.SilenceStateExpired)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
+	require.NoError(t, s.Expire("pending"))
+	require.NoError(t, s.Expire("active"))
+
+	err = s.Expire("expired")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already expired")
+
+	_, err = s.QueryOne(QIDs("pending"))
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
+	count, err = s.CountState(types.SilenceStatePending)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+
+	count, err = s.CountState(types.SilenceStateExpired)
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
 }
 
 func TestValidateMatcher(t *testing.T) {
@@ -1094,4 +1172,67 @@ func TestStateDecodingError(t *testing.T) {
 
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
+}
+
+func benchmarkSilencesQuery(b *testing.B, numSilences int) {
+	s, err := New(Options{})
+	require.NoError(b, err)
+
+	now := time.Now()
+	s.now = func() time.Time { return now }
+
+	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
+
+	s.st = state{}
+	for i := 0; i < numSilences; i++ {
+		id := fmt.Sprint("ID", i)
+		// Patterns also contain the ID to bust any caches that might be used under the hood.
+		patA := "A{4}|" + id
+		patB := id // Does not match.
+		if i%10 == 0 {
+			// Every 10th time, have an actually matching pattern.
+			patB = "B(B|C)B.|" + id
+		}
+
+		s.st[id] = &pb.MeshSilence{Silence: &pb.Silence{
+			Id: id,
+			Matchers: []*pb.Matcher{
+				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
+				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
+			},
+			StartsAt:  now.Add(-time.Minute),
+			EndsAt:    now.Add(time.Hour),
+			UpdatedAt: now.Add(-time.Hour),
+		}}
+	}
+
+	// Run things once to populate the matcherCache.
+	sils, _, err := s.Query(
+		QState(types.SilenceStateActive),
+		QMatches(lset),
+	)
+	require.NoError(b, err)
+	require.Equal(b, numSilences/10, len(sils))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sils, _, err := s.Query(
+			QState(types.SilenceStateActive),
+			QMatches(lset),
+		)
+		require.NoError(b, err)
+		require.Equal(b, numSilences/10, len(sils))
+	}
+}
+
+func Benchmark100SilencesQuery(b *testing.B) {
+	benchmarkSilencesQuery(b, 100)
+}
+
+func Benchmark1000SilencesQuery(b *testing.B) {
+	benchmarkSilencesQuery(b, 1000)
+}
+
+func Benchmark10000SilencesQuery(b *testing.B) {
+	benchmarkSilencesQuery(b, 10000)
 }

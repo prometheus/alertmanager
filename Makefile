@@ -69,5 +69,5 @@ $(ERRCHECK_BINARY):
 	mkdir -p $${tmpModule}/staticcheck && \
 	cd "$${tmpModule}"/staticcheck && \
 	GO111MODULE=on $(GO) mod init example.com/staticcheck && \
-	GO111MODULE=on GOOS= GOARCH= $(GO) get -u github.com/kisielk/errcheck && \
+	GO111MODULE=on GOOS= GOARCH= $(GO) get github.com/kisielk/errcheck && \
 	rm -rf $${tmpModule};

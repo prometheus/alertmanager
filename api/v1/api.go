@@ -556,7 +556,7 @@ func (api *API) setSilence(w http.ResponseWriter, r *http.Request) {
 func (api *API) getSilence(w http.ResponseWriter, r *http.Request) {
 	sid := route.Param(r.Context(), "sid")
 
-	sils, err := api.silences.Query(silence.QIDs(sid))
+	sils, _, err := api.silences.Query(silence.QIDs(sid))
 	if err != nil || len(sils) == 0 {
 		http.Error(w, fmt.Sprint("Error getting silence: ", err), http.StatusNotFound)
 		return
@@ -587,7 +587,7 @@ func (api *API) delSilence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
-	psils, err := api.silences.Query()
+	psils, _, err := api.silences.Query()
 	if err != nil {
 		api.respondError(w, apiError{
 			typ: errorInternal,
