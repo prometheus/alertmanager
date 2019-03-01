@@ -295,7 +295,7 @@ func TestOpsGenie(t *testing.T) {
 func TestEmailConfigNoAuthMechs(t *testing.T) {
 
 	email := &Email{
-		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+		conf: &config.EmailConfig{AuthUsername: "test"}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
 	}
 	_, err := email.auth("")
 	require.Error(t, err)
@@ -304,8 +304,9 @@ func TestEmailConfigNoAuthMechs(t *testing.T) {
 
 func TestEmailConfigMissingAuthParam(t *testing.T) {
 
+	conf := &config.EmailConfig{AuthUsername: "test"}
 	email := &Email{
-		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+		conf: conf, tmpl: &template.Template{}, logger: log.NewNopLogger(),
 	}
 	_, err := email.auth("CRAM-MD5")
 	require.Error(t, err)
@@ -322,6 +323,15 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 	_, err = email.auth("PLAIN LOGIN")
 	require.Error(t, err)
 	require.Equal(t, err.Error(), "missing password for PLAIN auth mechanism; missing password for LOGIN auth mechanism")
+}
+
+func TestEmailNoUsernameStillOk(t *testing.T) {
+	email := &Email{
+		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+	}
+	a, err := email.auth("CRAM-MD5")
+	require.NoError(t, err)
+	require.Nil(t, a)
 }
 
 func TestVictorOpsCustomFields(t *testing.T) {
