@@ -221,6 +221,13 @@ func NewEmail(c *config.EmailConfig, t *template.Template, l log.Logger) *Email 
 // auth resolves a string of authentication mechanisms.
 func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	username := n.conf.AuthUsername
+
+	// If no username is set, keep going without authentication.
+	if n.conf.AuthUsername == "" {
+		level.Debug(n.logger).Log("msg", "smtp_auth_username is not configured. Attempting to send email without authenticating")
+		return nil, nil
+	}
+
 	err := &types.MultiError{}
 	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
