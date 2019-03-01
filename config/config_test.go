@@ -530,6 +530,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPRequireTLS:   true,
 			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
+			TwilioAPIURL:     mustParseURL("https://api.twilio.com/2010-04-01/Accounts/"),
 			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		},

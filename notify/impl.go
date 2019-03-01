@@ -972,19 +972,6 @@ type Twilio struct {
 	logger log.Logger
 }
 
-type twilioCall struct {
-	Type     string `yaml:"notify_type,omitempty" json:"notify_type,omitempty"`
-	Call_url string `yaml:"call_url,omitempty" json:"call_url,omitempty"`
-	From     string `yaml:"from,omitempty" json:"from,omitempty"`
-	To       string `yaml:"to,omitempty" json:"to,omitempty"`
-}
-
-type twilioSMS struct {
-	Body string `yaml:"Body,omitempty" json:"Body,omitempty"`
-	From string `yaml:"From,omitempty" json:"From,omitempty"`
-	To   string `yaml:"To,omitempty" json:"To,omitempty"`
-}
-
 // NewTwilio returns a new Twilio notifier.
 func NewTwilio(c *config.TwilioConfig, t *template.Template, l log.Logger) *Twilio {
 	return &Twilio{conf: c, tmpl: t, logger: l}
@@ -993,29 +980,35 @@ func NewTwilio(c *config.TwilioConfig, t *template.Template, l log.Logger) *Twil
 // Notify implements the Notifier interface.
 func (n *Twilio) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
-	sid := string(n.conf.APISid)
+	var err error
+	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+	tmplText := tmplText(n.tmpl, data, &err)
 
-	notifyType := string(n.conf.Type)
+	sid := tmplText(n.conf.APISid)
+	notifyType := tmplText(n.conf.Type)
+	from := tmplText(n.conf.From)
+	to := tmplText(n.conf.To)
+
 	level.Debug(n.logger).Log("msg", "Twilio info", "sid", sid, "from", n.conf.From, "to", n.conf.To, "type", notifyType)
 
 	if notifyType == "sms" {
 
 		urlStr := n.conf.APIURL.String() + sid + "/Messages.json"
 
-		level.Debug(n.logger).Log("msg", "Twilio sms", "sid", sid, "message", n.conf.Message, "from", n.conf.From, "to", n.conf.To, "apiurl", urlStr)
-
 		v := url.Values{}
-		v.Set("To", n.conf.To)
-		v.Set("From", n.conf.From)
-		v.Set("Body", string(n.conf.Message))
+		v.Set("To", to)
+		v.Set("From", from)
+		v.Set("Body", tmplText(n.conf.Message))
 		rb := *strings.NewReader(v.Encode())
+
+		level.Debug(n.logger).Log("msg", "Twilio sms", "sid", sid, "message-body", tmplText(n.conf.Message), "from", n.conf.From, "to", n.conf.To, "apiurl", urlStr)
 
 		c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "twilio")
 		if err != nil {
 			return false, err
 		}
 
-		resp, err := n.twilioRequest(c, urlStr, &rb)
+		resp, err := n.twilioRequest(c, urlStr, &rb, sid)
 		if err != nil {
 			return true, err
 		}
@@ -1030,9 +1023,9 @@ func (n *Twilio) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		level.Debug(n.logger).Log("msg", "Twilio call", "sid", sid, "call_url", n.conf.CallUrl, "from", n.conf.From, "to", n.conf.To, "apiurl", urlStr)
 
 		v := url.Values{}
-		v.Set("To", n.conf.To)
-		v.Set("From", n.conf.From)
-		v.Set("Url", string(n.conf.CallUrl))
+		v.Set("To", to)
+		v.Set("From", from)
+		v.Set("Url", tmplText(n.conf.CallUrl))
 		rb := *strings.NewReader(v.Encode())
 
 		c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "twilio")
@@ -1040,7 +1033,7 @@ func (n *Twilio) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return false, err
 		}
 
-		resp, err := n.twilioRequest(c, urlStr, &rb)
+		resp, err := n.twilioRequest(c, urlStr, &rb, sid)
 		if err != nil {
 			return true, err
 		}
@@ -1051,13 +1044,13 @@ func (n *Twilio) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	return true, nil
 }
 
-func (n *Twilio) twilioRequest(client *http.Client, url string, body io.Reader) (*http.Response, error) {
+func (n *Twilio) twilioRequest(client *http.Client, url string, body io.Reader, sid string) (*http.Response, error) {
 
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(string(n.conf.APISid), string(n.conf.APIToken))
+	req.SetBasicAuth(sid, string(n.conf.APIToken))
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	return client.Do(req)
