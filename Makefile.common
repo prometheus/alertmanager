@@ -70,7 +70,7 @@ else
 	GO_BUILD_PLATFORM ?= $(GOHOSTOS)-$(GOHOSTARCH)
 endif
 
-PROMU_VERSION ?= 0.2.0
+PROMU_VERSION ?= 0.3.0
 PROMU_URL     := https://github.com/prometheus/promu/releases/download/v$(PROMU_VERSION)/promu-$(PROMU_VERSION).$(GO_BUILD_PLATFORM).tar.gz
 STATICCHECK_VERSION ?= 2019.1
 STATICCHECK_URL     := https://github.com/dominikh/go-tools/releases/download/$(STATICCHECK_VERSION)/staticcheck_$(GOHOSTOS)_$(GOHOSTARCH)
@@ -87,13 +87,13 @@ ifeq ($(GOHOSTARCH),amd64)
         endif
 endif
 
-.PHONY: all
-all: precheck style staticcheck unused build test
-
 # This rule is used to forward a target like "build" to "common-build".  This
 # allows a new "build" target to be defined in a Makefile which includes this
 # one and override "common-build" without override warnings.
 %: common-% ;
+
+.PHONY: common-all
+common-all: precheck style check_license staticcheck unused build test
 
 .PHONY: common-style
 common-style:
