@@ -236,7 +236,7 @@ http_config:
 	}
 }
 
-func TestWechatSidIsPresent(t *testing.T) {
+func TestTwilioSidIsPresent(t *testing.T) {
 	in := `
 api_sid: ''
 `
