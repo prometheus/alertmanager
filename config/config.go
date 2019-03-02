@@ -435,16 +435,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // checkReceiver returns an error if a node in the routing tree
 // references a receiver not in the given map.
 func checkReceiver(r *Route, receivers map[string]struct{}) error {
+	for _, sr := range r.Routes {
+		if err := checkReceiver(sr, receivers); err != nil {
+			return err
+		}
+	}
 	if r.Receiver == "" {
 		return nil
 	}
 	if _, ok := receivers[r.Receiver]; !ok {
 		return fmt.Errorf("undefined receiver %q used in route", r.Receiver)
-	}
-	for _, sr := range r.Routes {
-		if err := checkReceiver(sr, receivers); err != nil {
-			return err
-		}
 	}
 	return nil
 }
