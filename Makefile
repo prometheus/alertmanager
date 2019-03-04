@@ -63,11 +63,4 @@ test: common-test $(ERRCHECK_BINARY)
 	$(ERRCHECK_BINARY) -verbose -exclude scripts/errcheck_excludes.txt -ignoretests ./...
 
 $(ERRCHECK_BINARY):
-# Get errcheck from a temporary directory to avoid modifying the local go.{mod,sum}.
-# See https://github.com/golang/go/issues/27643.
-	tmpModule=$$(mktemp -d 2>&1) && \
-	mkdir -p $${tmpModule}/staticcheck && \
-	cd "$${tmpModule}"/staticcheck && \
-	GO111MODULE=on $(GO) mod init example.com/staticcheck && \
-	GO111MODULE=on GOOS= GOARCH= $(GO) get github.com/kisielk/errcheck && \
-	rm -rf $${tmpModule};
+	(cd .. && GO111MODULE=on GOOS= GOARCH= $(GO) get github.com/kisielk/errcheck@v1.2.0)
