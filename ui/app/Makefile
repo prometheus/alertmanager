@@ -3,7 +3,7 @@
 ELM_FILES = $(shell find src -iname *.elm)
 DOCKER_IMG := elm-env
 DOCKER_RUN_CURRENT_USER := docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER))
-DOCKER_CMD := $(DOCKER_RUN_CURRENT_USER) --rm -t -v $(PWD):/app -w /app $(DOCKER_IMG)
+DOCKER_CMD := $(DOCKER_RUN_CURRENT_USER) --rm -t -v $(PWD):/app -w /app -e "ELM_HOME=/app" $(DOCKER_IMG)
 # macOS requires mktemp template to be at the end of the filename.
 TEMPFILE := $(shell mktemp ./elm-XXXXXXXXXX)
 # --output flag for elm make must end in .js or .html.
