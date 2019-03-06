@@ -363,8 +363,9 @@ route:
 
 	logger := log.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
-	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	r := prometheus.NewRegistry()
+	marker := types.NewMarker(r)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger, r)
 	if err != nil {
 		t.Fatal(err)
 	}

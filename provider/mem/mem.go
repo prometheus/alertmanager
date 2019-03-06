@@ -15,6 +15,7 @@ package mem
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 	"time"
 
@@ -47,7 +48,7 @@ type listeningAlerts struct {
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l log.Logger) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l log.Logger, r prometheus.Registerer) (*Alerts, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
 		alerts:    store.NewAlerts(),
@@ -76,9 +77,29 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 		}
 		a.mtx.Unlock()
 	})
+	a.registerMetrics(r)
 	go a.alerts.Run(ctx, intervalGC)
 
 	return a, nil
+}
+
+func (a *Alerts) registerMetrics(r prometheus.Registerer) {
+	newAlertMetricByState := func(st model.AlertStatus) prometheus.GaugeFunc {
+		return prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name:        "alertmanager_provider_alerts",
+				Help:        "How many alerts for provider by state.",
+				ConstLabels: prometheus.Labels{"state": string(st)},
+			},
+			func() float64 {
+				return float64(a.countPending(st))
+			},
+		)
+	}
+
+	alertsFiring := newAlertMetricByState(model.AlertFiring)
+
+	r.MustRegister(alertsFiring)
 }
 
 // Close the alert provider.
@@ -139,6 +160,17 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 	}()
 
 	return provider.NewAlertIterator(ch, done, nil)
+}
+
+func (a *Alerts) countPending(status model.AlertStatus) int {
+	count := 0
+
+	for _, a := range a.alerts.List() {
+		if a.Status() == status {
+			count++
+		}
+	}
+	return count
 }
 
 // Get returns the alert for a given fingerprint.
