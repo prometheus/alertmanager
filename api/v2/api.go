@@ -508,7 +508,50 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		sils = append(sils, &silence)
 	}
 
-	return silence_ops.NewGetSilencesOK().WithPayload(sils)
+	active := open_api_models.GettableSilences{}
+	pending := open_api_models.GettableSilences{}
+	expired := open_api_models.GettableSilences{}
+
+	for _, s := range sils {
+		switch *s.Status.State {
+		case "active":
+			active = append(active, s)
+		case "pending":
+			pending = append(pending, s)
+		case "expired":
+			expired = append(expired, s)
+		}
+	}
+
+	sort.Slice(active, func(i int, j int) bool {
+		endsAt1 := apiTimeToGoTime(active[i].Silence.EndsAt)
+		endsAt2 := apiTimeToGoTime(active[j].Silence.EndsAt)
+		return endsAt1.Before(endsAt2)
+	})
+	sort.Slice(pending, func(i int, j int) bool {
+		startsAt1 := apiTimeToGoTime(pending[i].Silence.StartsAt)
+		startsAt2 := apiTimeToGoTime(pending[j].Silence.StartsAt)
+		return startsAt1.Before(startsAt2)
+	})
+	sort.Slice(expired, func(i int, j int) bool {
+		endsAt1 := apiTimeToGoTime(expired[i].Silence.EndsAt)
+		endsAt2 := apiTimeToGoTime(expired[j].Silence.EndsAt)
+		return endsAt1.After(endsAt2)
+	})
+
+	silences := open_api_models.GettableSilences{}
+	silences = append(silences, active...)
+	silences = append(silences, pending...)
+	silences = append(silences, expired...)
+
+	return silence_ops.NewGetSilencesOK().WithPayload(silences)
+}
+
+// apiTimeToGoTime converts an openapi DateTime to a golang time.Time
+// to enable using the golang time comparison functions
+func apiTimeToGoTime(apiTime *strfmt.DateTime) time.Time {
+	time, _ := time.Parse(strfmt.MarshalFormat, apiTime.String())
+	return time
 }
 
 func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, matchers []*labels.Matcher) bool {
