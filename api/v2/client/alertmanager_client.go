@@ -25,10 +25,10 @@ import (
 
 	strfmt "github.com/go-openapi/strfmt"
 
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/alert"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/general"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/receiver"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/general"
+	"github.com/prometheus/alertmanager/api/v2/client/receiver"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
 )
 
 // Default alertmanager HTTP client.
