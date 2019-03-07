@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	re      = regexp.MustCompile(`(?:\s?)(\w+)(=|=~|!=|!~)(?:\"([^"=~!]+)\"|([^"=~!]+)|\"\")`)
+	re      = regexp.MustCompile(`^(?:\s?)(\w+)(=|=~|!=|!~)(?:\"([^"=~!]+)\"|([^"=~!]+)|\"\"|)$`)
 	typeMap = map[string]labels.MatchType{
 		"=":  labels.MatchEqual,
 		"!=": labels.MatchNotEqual,

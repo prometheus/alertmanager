@@ -116,6 +116,15 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			// not correct as prometheus syntax but the new api v2 will provide this
+			input: `{foo=}`,
+			want: func() []*labels.Matcher {
+				ms := []*labels.Matcher{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+				return append(ms, m)
+			}(),
+		},
+		{
 			input: `{foo=""}`,
 			want: func() []*labels.Matcher {
 				ms := []*labels.Matcher{}
