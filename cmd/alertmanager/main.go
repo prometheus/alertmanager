@@ -246,6 +246,13 @@ func run() int {
 	}
 	defer alerts.Close()
 
+	var disp *dispatch.Dispatcher
+	defer disp.Stop()
+
+	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+		return disp.Groups(routeFilter, alertFilter)
+	}
+
 	api, err := api.New(api.Options{
 		Alerts:      alerts,
 		Silences:    silences,
@@ -255,6 +262,7 @@ func run() int {
 		Concurrency: *getConcurrency,
 		Logger:      log.With(logger, "component", "api"),
 		Registry:    prometheus.DefaultRegisterer,
+		GroupFunc:   groupFn,
 	})
 
 	if err != nil {
@@ -284,10 +292,7 @@ func run() int {
 		silencer  *silence.Silencer
 		tmpl      *template.Template
 		pipeline  notify.Stage
-		disp      *dispatch.Dispatcher
 	)
-
-	defer disp.Stop()
 
 	configCoordinator := config.NewCoordinator(
 		*configFile,

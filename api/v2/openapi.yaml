@@ -195,6 +195,50 @@ paths:
           $ref: '#/responses/InternalServerError'
         '400':
           $ref: '#/responses/BadRequest'
+  /alerts/groups:
+    get:
+      tags:
+        - alertgroup
+      operationId: getAlertGroups
+      description: Get a list of alert groups
+      parameters:
+        - in: query
+          name: active
+          type: boolean
+          description: Show active alerts
+          default: true
+        - in: query
+          name: silenced
+          type: boolean
+          description: Show silenced alerts
+          default: true
+        - in: query
+          name: inhibited
+          type: boolean
+          description: Show inhibited alerts
+          default: true
+        - name: filter
+          in: query
+          description: A list of matchers to filter alerts by
+          required: false
+          type: array
+          collectionFormat: multi
+          items:
+            type: string
+        - name: receiver
+          in: query
+          description: A regex matching receivers to filter alerts by
+          required: false
+          type: string
+      responses:
+        '200':
+          description: Get alert groups response
+          schema:
+            '$ref': '#/definitions/alertGroups'
+        '400':
+          $ref: '#/responses/BadRequest'
+        '500':
+          $ref: '#/responses/InternalServerError'
 
 responses:
   BadRequest:
@@ -416,6 +460,21 @@ definitions:
           annotations:
             $ref: '#/definitions/labelSet'
       - $ref: '#/definitions/alert'
+  alertGroups:
+    type: array
+    items:
+      $ref: '#/definitions/alertGroup'
+  alertGroup:
+    type: object
+    properties:
+      labels:
+        $ref: '#/definitions/labelSet'
+      receiver:
+        $ref: '#/definitions/receiver'
+      alerts:
+        type: array
+        items:
+          $ref: '#/definitions/gettableAlert'
   alertStatus:
     type: object
     properties:
