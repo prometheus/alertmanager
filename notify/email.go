@@ -155,7 +155,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 	}
 
-	// Global Config guarantees RequireTLS is not nil
+	// Global Config guarantees RequireTLS is not nil.
 	if *n.conf.RequireTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return true, fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
@@ -224,24 +224,28 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 	defer wc.Close()
 
+	buffer := &bytes.Buffer{}
 	for header, t := range n.conf.Headers {
 		value, err := n.tmpl.ExecuteTextString(t, data)
 		if err != nil {
 			return false, fmt.Errorf("executing %q header template: %s", header, err)
 		}
-		fmt.Fprintf(wc, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
+		fmt.Fprintf(buffer, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
 
-	buffer := &bytes.Buffer{}
-	multipartWriter := multipart.NewWriter(buffer)
+	multipartBuffer := &bytes.Buffer{}
+	multipartWriter := multipart.NewWriter(multipartBuffer)
 
-	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
-	fmt.Fprintf(wc, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
-	fmt.Fprintf(wc, "MIME-Version: 1.0\r\n")
+	fmt.Fprintf(buffer, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+	fmt.Fprintf(buffer, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
+	fmt.Fprintf(buffer, "MIME-Version: 1.0\r\n\r\n")
 
 	// TODO: Add some useful headers here, such as URL of the alertmanager
 	// and active/resolved.
-	fmt.Fprintf(wc, "\r\n")
+	_, err = wc.Write(buffer.Bytes())
+	if err != nil {
+		return false, fmt.Errorf("failed to write header buffer: %v", err)
+	}
 
 	if len(n.conf.Text) > 0 {
 		// Text template
@@ -298,7 +302,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, fmt.Errorf("failed to close multipartWriter: %v", err)
 	}
 
-	_, err = wc.Write(buffer.Bytes())
+	_, err = wc.Write(multipartBuffer.Bytes())
 	if err != nil {
 		return false, fmt.Errorf("failed to write body buffer: %v", err)
 	}
