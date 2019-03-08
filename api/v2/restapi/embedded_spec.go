@@ -76,6 +76,7 @@ func init() {
             "items": {
               "type": "string"
             },
+            "collectionFormat": "multi",
             "description": "A list of matchers to filter alerts by",
             "name": "filter",
             "in": "query"
@@ -223,6 +224,7 @@ func init() {
             "items": {
               "type": "string"
             },
+            "collectionFormat": "multi",
             "description": "A list of matchers to filter silences by",
             "name": "filter",
             "in": "query"
@@ -757,6 +759,7 @@ func init() {
             "items": {
               "type": "string"
             },
+            "collectionFormat": "multi",
             "description": "A list of matchers to filter alerts by",
             "name": "filter",
             "in": "query"
@@ -922,6 +925,7 @@ func init() {
             "items": {
               "type": "string"
             },
+            "collectionFormat": "multi",
             "description": "A list of matchers to filter silences by",
             "name": "filter",
             "in": "query"

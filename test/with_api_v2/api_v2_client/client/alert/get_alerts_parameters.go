@@ -259,7 +259,7 @@ func (o *GetAlertsParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Reg
 
 	valuesFilter := o.Filter
 
-	joinedFilter := swag.JoinByFormat(valuesFilter, "")
+	joinedFilter := swag.JoinByFormat(valuesFilter, "multi")
 	// query array param filter
 	if err := r.SetQueryParam("filter", joinedFilter...); err != nil {
 		return err

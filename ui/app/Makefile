@@ -43,10 +43,7 @@ script.js: src/Data elm-env format $(ELM_FILES)
 
 src/Data: ../../api/v2/openapi.yaml
 	-rm -r src/Data
-	# TODO: Use released version instead of `@sha256:d9f87079bb4d7[...]` that
-	# includes patch for
-	# https://github.com/OpenAPITools/openapi-generator/issues/1465
-	docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER)) --rm -v ${PWD}/../..:/local openapitools/openapi-generator-cli@sha256:d9f87079bb4d769e2c6f2a6b72677f4d5e64db687db0455eb41227663290e53c generate \
+	docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER)) --rm -v ${PWD}/../..:/local openapitools/openapi-generator-cli:v3.3.4 generate \
 		-i /local/api/v2/openapi.yaml \
 	  -g elm \
 		-o /local/ui/app/$(TEMPOPENAPI)
