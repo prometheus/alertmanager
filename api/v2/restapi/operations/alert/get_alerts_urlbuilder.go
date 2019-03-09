@@ -69,13 +69,10 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 		}
 	}
 
-	filter := swag.JoinByFormat(filterIR, "")
+	filter := swag.JoinByFormat(filterIR, "multi")
 
-	if len(filter) > 0 {
-		qsv := filter[0]
-		if qsv != "" {
-			qs.Set("filter", qsv)
-		}
+	for _, qsv := range filter {
+		qs.Add("filter", qsv)
 	}
 
 	var inhibited string
