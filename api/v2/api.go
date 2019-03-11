@@ -508,7 +508,47 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		sils = append(sils, &silence)
 	}
 
+	sortSilences(sils)
+
 	return silence_ops.NewGetSilencesOK().WithPayload(sils)
+}
+
+var (
+	silenceStateOrder = map[types.SilenceState]int{
+		types.SilenceStateActive:  1,
+		types.SilenceStatePending: 2,
+		types.SilenceStateExpired: 3,
+	}
+)
+
+// sortSilences sorts first according to the state "active, pending, expired"
+// then by end time or start time depending on the state.
+// active silences should show the next to expire first
+// pending silences are ordered based on which one starts next
+// expired are ordered base on which one expired most recently
+func sortSilences(sils open_api_models.GettableSilences) {
+	sort.Slice(sils, func(i, j int) bool {
+		state1 := types.SilenceState(*sils[i].Status.State)
+		state2 := types.SilenceState(*sils[j].Status.State)
+		if state1 != state2 {
+			return silenceStateOrder[state1] < silenceStateOrder[state2]
+		}
+		switch state1 {
+		case types.SilenceStateActive:
+			endsAt1 := time.Time(*sils[i].Silence.EndsAt)
+			endsAt2 := time.Time(*sils[j].Silence.EndsAt)
+			return endsAt1.Before(endsAt2)
+		case types.SilenceStatePending:
+			startsAt1 := time.Time(*sils[i].Silence.StartsAt)
+			startsAt2 := time.Time(*sils[j].Silence.StartsAt)
+			return startsAt1.Before(startsAt2)
+		case types.SilenceStateExpired:
+			endsAt1 := time.Time(*sils[i].Silence.EndsAt)
+			endsAt2 := time.Time(*sils[j].Silence.EndsAt)
+			return endsAt1.After(endsAt2)
+		}
+		return false
+	})
 }
 
 func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, matchers []*labels.Matcher) bool {
