@@ -9,12 +9,12 @@ jobs:
     - image: circleci/golang:1.12
     # maildev containers are for running the email tests against a "real" SMTP server.
     # See notify/email_test.go for details.
-    - image: djfarrelly/maildev
+    - image: djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa
       name: maildev-noauth
       entrypoint: bin/maildev
       command:
       - -v
-    - image: djfarrelly/maildev
+    - image: djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa
       name: maildev-auth
       entrypoint: bin/maildev
       command:

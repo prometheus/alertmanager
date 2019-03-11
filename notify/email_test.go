@@ -20,8 +20,8 @@
 //
 // To run the tests locally, you should start 2 MailDev containers:
 //
-// $ docker run --rm -p 1080:1080 -p 1025:1025 --entrypoint bin/maildev djfarrelly/maildev -v
-// $ docker run --rm -p 1081:1080 -p 1026:1025 --entrypoint bin/maildev djfarrelly/maildev  --incoming-user user --incoming-pass pass -v
+// $ docker run --rm -p 1080:1080 -p 1025:1025 --entrypoint bin/maildev djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa -v
+// $ docker run --rm -p 1081:1080 -p 1026:1025 --entrypoint bin/maildev djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa --incoming-user user --incoming-pass pass -v
 //
 // $ EMAIL_NO_AUTH_CONFIG=testdata/email_noauth.yml EMAIL_AUTH_CONFIG=testdata/email_auth.yml make
 //
