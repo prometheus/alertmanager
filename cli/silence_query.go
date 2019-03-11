@@ -75,7 +75,7 @@ preceding duration.
 
 amtool silence query --within 2h --expired
 
-returns all silences that expired within the preceeding 2 hours.
+returns all silences that expired within the preceding 2 hours.
 `
 
 func configureSilenceQueryCmd(cc *kingpin.CmdClause) {

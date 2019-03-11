@@ -160,7 +160,7 @@ func Alert(keyval ...interface{}) *TestAlert {
 }
 
 // nativeAlert converts the declared test alert into a full alert based
-// on the given paramters.
+// on the given parameters.
 func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *model.Alert {
 	na := &model.Alert{
 		Labels:      a.labels,
