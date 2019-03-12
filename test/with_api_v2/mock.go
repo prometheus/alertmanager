@@ -24,7 +24,7 @@ import (
 
 	"github.com/prometheus/alertmanager/notify"
 
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/models"
+	"github.com/prometheus/alertmanager/api/v2/models"
 
 	"github.com/go-openapi/strfmt"
 )

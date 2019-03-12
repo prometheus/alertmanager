@@ -29,10 +29,10 @@ import (
 	"testing"
 	"time"
 
-	apiclient "github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/alert"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/general"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/models"
+	apiclient "github.com/prometheus/alertmanager/api/v2/client"
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/general"
+	"github.com/prometheus/alertmanager/api/v2/models"
 
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"

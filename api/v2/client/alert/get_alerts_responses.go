@@ -27,7 +27,7 @@ import (
 
 	strfmt "github.com/go-openapi/strfmt"
 
-	models "github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/models"
+	models "github.com/prometheus/alertmanager/api/v2/models"
 )
 
 // GetAlertsReader is a Reader for the GetAlerts structure.

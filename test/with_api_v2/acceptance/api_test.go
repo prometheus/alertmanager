@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/alert"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/silence"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/models"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
