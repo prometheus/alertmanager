@@ -543,7 +543,7 @@ type PushoverConfig struct {
 	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
 	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
 	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
-	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty`
+	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
 	Sound    string   `yaml:"sound,omitempty" json:"sound,omitempty"`
 	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
