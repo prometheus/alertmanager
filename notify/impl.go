@@ -958,8 +958,8 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 }
 
 func (n *Hipchat) retry(statusCode int) (bool, error) {
-	// Response codes 429 (rate limiting) and 5xx can potentially recover. 2xx
-	// responce codes indicate successful requests.
+	// Response codes 429 (rate limiting) and 5xx can potentially recover.
+	// 2xx response codes indicate successful requests.
 	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
 	if statusCode/100 != 2 {
 		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
