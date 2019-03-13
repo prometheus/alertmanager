@@ -349,7 +349,7 @@ This release uses a new storage backend based on BoltDB. You have to backup
 and wipe your former storage path to run it.
 
 * [CHANGE] Use BoltDB as data store.
-* [CHANGE] Move SMTP authentification to configuration file
+* [CHANGE] Move SMTP authentication to configuration file
 * [FEATURE] add /-/reload HTTP endpoint
 * [FEATURE] Filter silenced alerts in web UI
 * [ENHANCEMENT] reduce inhibition computation complexity

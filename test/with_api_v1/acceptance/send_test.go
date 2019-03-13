@@ -121,7 +121,7 @@ receivers:
 
 	// Create a new acceptance test that instantiates new Alertmanagers
 	// with the given configuration and verifies times with the given
-	// tollerance.
+	// tolerance.
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
 		Tolerance: 150 * time.Millisecond,
 	})

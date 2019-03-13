@@ -53,7 +53,7 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	}
 	messagesReceived := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_received_total",
-		Help: "Total number of cluster messsages received.",
+		Help: "Total number of cluster messages received.",
 	}, []string{"msg_type"})
 	messagesReceivedSize := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_received_size_total",
@@ -61,7 +61,7 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	}, []string{"msg_type"})
 	messagesSent := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_sent_total",
-		Help: "Total number of cluster messsages sent.",
+		Help: "Total number of cluster messages sent.",
 	}, []string{"msg_type"})
 	messagesSentSize := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_sent_size_total",
@@ -69,7 +69,7 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	}, []string{"msg_type"})
 	messagesPruned := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_messages_pruned_total",
-		Help: "Total number of cluster messsages pruned.",
+		Help: "Total number of cluster messages pruned.",
 	})
 	gossipClusterMembers := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_cluster_members",
@@ -91,7 +91,7 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	})
 	messagesQueued := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_cluster_messages_queued",
-		Help: "Number of cluster messsages which are queued.",
+		Help: "Number of cluster messages which are queued.",
 	}, func() float64 {
 		return float64(bcast.NumQueued())
 	})
