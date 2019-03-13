@@ -17,16 +17,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/api"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/pkg/parse"
-	"github.com/prometheus/alertmanager/types"
 )
 
 type silenceQueryCmd struct {
@@ -92,7 +90,7 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 }
 
 func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) error {
-	var filterString = ""
+	filter := []string{}
 	if len(c.matchers) > 0 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
@@ -101,35 +99,35 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 		if err != nil {
 			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
 		}
-		filterString = fmt.Sprintf("{%s}", strings.Join(c.matchers, ","))
+		filter = append(filter, c.matchers[0])
 	}
 
-	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	silenceParams := silence.NewGetSilencesParams().WithContext(ctx)
+	silenceParams.Filter = filter
+
+	amclient := NewAlertmanagerClient(alertmanagerURL)
+
+	getOk, err := amclient.Silence.GetSilences(silenceParams)
 	if err != nil {
 		return err
 	}
-	silenceAPI := client.NewSilenceAPI(apiClient)
-	fetchedSilences, err := silenceAPI.List(ctx, filterString)
-	if err != nil {
-		return err
-	}
 
-	displaySilences := []types.Silence{}
-	for _, silence := range fetchedSilences {
+	displaySilences := []models.GettableSilence{}
+	for _, silence := range getOk.Payload {
 		// skip expired silences if --expired is not set
-		if !c.expired && silence.EndsAt.Before(time.Now()) {
+		if !c.expired && time.Time(*silence.EndsAt).Before(time.Now()) {
 			continue
 		}
 		// skip active silences if --expired is set
-		if c.expired && silence.EndsAt.After(time.Now()) {
+		if c.expired && time.Time(*silence.EndsAt).After(time.Now()) {
 			continue
 		}
 		// skip active silences expiring after "--within"
-		if !c.expired && int64(c.within) > 0 && silence.EndsAt.After(time.Now().UTC().Add(c.within)) {
+		if !c.expired && int64(c.within) > 0 && time.Time(*silence.EndsAt).After(time.Now().UTC().Add(c.within)) {
 			continue
 		}
 		// skip silences that expired before "--within"
-		if c.expired && int64(c.within) > 0 && silence.EndsAt.Before(time.Now().UTC().Add(-c.within)) {
+		if c.expired && int64(c.within) > 0 && time.Time(*silence.EndsAt).Before(time.Now().UTC().Add(-c.within)) {
 			continue
 		}
 
