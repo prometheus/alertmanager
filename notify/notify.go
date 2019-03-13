@@ -208,7 +208,7 @@ func FiringAlerts(ctx context.Context) ([]uint64, bool) {
 }
 
 // ResolvedAlerts extracts a slice of firing alerts from the context.
-// Iff none exists, the second argument is false.
+// If none exists, the second argument is false.
 func ResolvedAlerts(ctx context.Context) ([]uint64, bool) {
 	v, ok := ctx.Value(keyResolvedAlerts).([]uint64)
 	return v, ok
