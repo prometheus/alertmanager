@@ -43,7 +43,7 @@ import (
 
 var corsHeaders = map[string]string{
 	"Access-Control-Allow-Headers":  "Accept, Authorization, Content-Type, Origin",
-	"Access-Control-Allow-Methods":  "GET, DELETE, OPTIONS",
+	"Access-Control-Allow-Methods":  "GET, POST, DELETE, OPTIONS",
 	"Access-Control-Allow-Origin":   "*",
 	"Access-Control-Expose-Headers": "Date",
 	"Cache-Control":                 "no-cache, no-store, must-revalidate",
