@@ -172,6 +172,10 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 			})
 		}
 
+		sort.Slice(peers, func(i, j int) bool {
+			return *peers[i].Name < *peers[j].Name
+		})
+
 		resp.Cluster = &open_api_models.ClusterStatus{
 			Name:   api.peer.Name(),
 			Status: &status,
