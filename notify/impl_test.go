@@ -136,7 +136,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier := NewPagerDuty(
 		&config.PagerdutyConfig{
-			ServiceKey: config.Secret(key),
+			ServiceKey: config.NewSecret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		createTmpl(t),
@@ -155,7 +155,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	notifier := NewPagerDuty(
 		&config.PagerdutyConfig{
 			URL:        &config.URL{URL: u},
-			RoutingKey: config.Secret(key),
+			RoutingKey: config.NewSecret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		createTmpl(t),
@@ -221,7 +221,7 @@ func TestSlackRedactedURL(t *testing.T) {
 
 	notifier := NewSlack(
 		&config.SlackConfig{
-			APIURL:     &config.SecretURL{URL: u},
+			APIURL:     &config.SecretURL{URL: config.URL{URL: u}},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		createTmpl(t),
@@ -248,7 +248,7 @@ func TestHipchatRedactedURL(t *testing.T) {
 	notifier := NewHipchat(
 		&config.HipchatConfig{
 			APIURL:     &config.URL{URL: u},
-			AuthToken:  config.Secret(token),
+			AuthToken:  config.NewSecret(token),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		createTmpl(t),
@@ -276,7 +276,7 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 	notifier := NewOpsGenie(
 		&config.OpsGenieConfig{
 			APIURL:     &config.URL{URL: u},
-			APIKey:     config.Secret(key),
+			APIKey:     config.NewSecret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		createTmpl(t),
@@ -302,7 +302,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	notifier := NewVictorOps(
 		&config.VictorOpsConfig{
 			APIURL:     &config.URL{URL: u},
-			APIKey:     config.Secret(secret),
+			APIKey:     config.NewSecret(secret),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		createTmpl(t),
@@ -327,8 +327,8 @@ func TestPushoverRedactedURL(t *testing.T) {
 	key, token := "user_key", "token"
 	notifier := NewPushover(
 		&config.PushoverConfig{
-			UserKey:    config.Secret(key),
-			Token:      config.Secret(token),
+			UserKey:    config.NewSecret(key),
+			Token:      config.NewSecret(token),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		createTmpl(t),
@@ -474,7 +474,7 @@ func TestOpsGenie(t *testing.T) {
 		Tags:     `{{ .CommonLabels.Tags }}`,
 		Note:     `{{ .CommonLabels.Note }}`,
 		Priority: `{{ .CommonLabels.Priority }}`,
-		APIKey:   `{{ .ExternalURL }}`,
+		APIKey:   config.NewSecret(`{{ .ExternalURL }}`),
 		APIURL:   &config.URL{URL: u},
 	}
 	notifier := NewOpsGenie(conf, tmpl, logger)
@@ -527,7 +527,7 @@ func TestOpsGenie(t *testing.T) {
 	require.Equal(t, expectedBody, readBody(t, req))
 
 	// Broken API Key Template.
-	conf.APIKey = "{{ kaput "
+	conf.APIKey = config.NewSecret("{{ kaput ")
 	_, _, err = notifier.createRequest(ctx, alert2)
 	require.Error(t, err)
 	require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
@@ -542,7 +542,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	require.NoError(t, err, "unexpected error parsing mock url")
 
 	conf := &config.VictorOpsConfig{
-		APIKey:            `12345`,
+		APIKey:             config.NewSecret(`12345`),
 		APIURL:            &config.URL{URL: url},
 		EntityDisplayName: `{{ .CommonLabels.Message }}`,
 		StateMessage:      `{{ .CommonLabels.Message }}`,
@@ -591,7 +591,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 			APIURL:     &config.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
-			APISecret:  config.Secret(secret),
+			APISecret:  config.NewSecret(secret),
 		},
 		createTmpl(t),
 		log.NewNopLogger(),
@@ -612,7 +612,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 			APIURL:     &config.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
-			APISecret:  config.Secret(secret),
+			APISecret:  config.NewSecret(secret),
 		},
 		createTmpl(t),
 		log.NewNopLogger(),

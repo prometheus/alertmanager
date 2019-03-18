@@ -160,8 +160,8 @@ type EmailConfig struct {
 	Hello        string              `yaml:"hello,omitempty" json:"hello,omitempty"`
 	Smarthost    string              `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername string              `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
-	AuthPassword Secret              `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
-	AuthSecret   Secret              `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
+	AuthPassword *Secret             `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
+	AuthSecret   *Secret             `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
 	AuthIdentity string              `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
 	Headers      map[string]string   `yaml:"headers,omitempty" json:"headers,omitempty"`
 	HTML         string              `yaml:"html,omitempty" json:"html,omitempty"`
@@ -200,8 +200,8 @@ type PagerdutyConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
-	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
+	ServiceKey  *Secret           `yaml:"service_key,omitempty" json:"service_key,omitempty"`
+	RoutingKey  *Secret           `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
 	URL         *URL              `yaml:"url,omitempty" json:"url,omitempty"`
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
 	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
@@ -235,7 +235,8 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.RoutingKey == "" && c.ServiceKey == "" {
+
+	if c.RoutingKey.String() == "" && c.ServiceKey.String() == "" {
 		return fmt.Errorf("missing service or routing key in PagerDuty config")
 	}
 	if c.Details == nil {
@@ -377,14 +378,14 @@ type HipchatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
-	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
-	From          string `yaml:"from,omitempty" json:"from,omitempty"`
-	Notify        bool   `yaml:"notify,omitempty" json:"notify,omitempty"`
-	Message       string `yaml:"message,omitempty" json:"message,omitempty"`
-	MessageFormat string `yaml:"message_format,omitempty" json:"message_format,omitempty"`
-	Color         string `yaml:"color,omitempty" json:"color,omitempty"`
+	APIURL        *URL    `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	AuthToken     *Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
+	RoomID        string  `yaml:"room_id,omitempty" json:"room_id,omitempty"`
+	From          string  `yaml:"from,omitempty" json:"from,omitempty"`
+	Notify        bool    `yaml:"notify,omitempty" json:"notify,omitempty"`
+	Message       string  `yaml:"message,omitempty" json:"message,omitempty"`
+	MessageFormat string  `yaml:"message_format,omitempty" json:"message_format,omitempty"`
+	Color         string  `yaml:"color,omitempty" json:"color,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -394,6 +395,7 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
 	if c.RoomID == "" {
 		return fmt.Errorf("missing room id in Hipchat config")
 	}
@@ -432,14 +434,14 @@ type WechatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APISecret Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
-	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
-	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL    *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser    string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
-	ToParty   string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
-	ToTag     string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
-	AgentID   string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	APISecret *Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	CorpID    string  `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message   string  `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL    *URL    `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser    string  `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty   string  `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag     string  `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID   string  `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -455,7 +457,7 @@ type OpsGenieConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey      Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKey      *Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	APIURL      *URL                      `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Message     string                    `yaml:"message,omitempty" json:"message,omitempty"`
 	Description string                    `yaml:"description,omitempty" json:"description,omitempty"`
@@ -509,7 +511,7 @@ type VictorOpsConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey            Secret            `yaml:"api_key" json:"api_key"`
+	APIKey            *Secret           `yaml:"api_key" json:"api_key"`
 	APIURL            *URL              `yaml:"api_url" json:"api_url"`
 	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
 	MessageType       string            `yaml:"message_type" json:"message_type"`
@@ -560,8 +562,8 @@ type PushoverConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	UserKey  Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
-	Token    Secret   `yaml:"token,omitempty" json:"token,omitempty"`
+	UserKey  *Secret  `yaml:"user_key,omitempty" json:"user_key,omitempty"`
+	Token    *Secret  `yaml:"token,omitempty" json:"token,omitempty"`
 	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
 	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
 	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
@@ -580,10 +582,10 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.UserKey == "" {
+	if c.UserKey.String() == "" {
 		return fmt.Errorf("missing user key in Pushover config")
 	}
-	if c.Token == "" {
+	if c.Token.String() == "" {
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return nil

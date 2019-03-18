@@ -278,14 +278,14 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		{
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = config.NewSecret(c.Password)
 			},
 		},
 		{
 			// HTML-only email.
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = config.NewSecret(c.Password)
 				cfg.Text = ""
 			},
 		},
@@ -293,7 +293,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			// text-only email.
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = config.NewSecret(c.Password)
 				cfg.HTML = ""
 			},
 		},
@@ -301,7 +301,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			// Multiple To addresses.
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = config.NewSecret(c.Password)
 				cfg.To = strings.Join([]string{emailTo, emailFrom}, ",")
 			},
 		},
@@ -309,7 +309,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			// No more than one From address.
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = config.NewSecret(c.Password)
 				cfg.From = strings.Join([]string{emailFrom, emailTo}, ",")
 			},
 
@@ -320,7 +320,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			// Wrong credentials.
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password + "wrong")
+				cfg.AuthPassword = config.NewSecret(c.Password + "wrong")
 			},
 
 			errMsg: "Invalid username or password",
@@ -345,7 +345,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			// Invalid Hello string.
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
-				cfg.AuthPassword = config.Secret(c.Password)
+				cfg.AuthPassword = config.NewSecret(c.Password)
 				cfg.Hello = "invalid hello string"
 			},
 

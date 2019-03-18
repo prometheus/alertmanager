@@ -261,7 +261,7 @@ func (n *PagerDuty) notifyV1(
 	tmpl := tmplText(n.tmpl, data, &tmplErr)
 
 	msg := &pagerDutyMessage{
-		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
+		ServiceKey:  tmpl(n.conf.ServiceKey.String()),
 		EventType:   eventType,
 		IncidentKey: hashKey(key),
 		Description: tmpl(n.conf.Description),
@@ -315,7 +315,7 @@ func (n *PagerDuty) notifyV2(
 	msg := &pagerDutyMessage{
 		Client:      tmpl(n.conf.Client),
 		ClientURL:   tmpl(n.conf.ClientURL),
-		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
+		RoutingKey:  tmpl(n.conf.RoutingKey.String()),
 		EventAction: eventType,
 		DedupKey:    hashKey(key),
 		Images:      make([]pagerDutyImage, len(n.conf.Images)),
@@ -638,7 +638,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 	)
 	apiURL.Path += fmt.Sprintf("v2/room/%s/notification", roomid)
 	q := apiURL.Query()
-	q.Set("auth_token", string(n.conf.AuthToken))
+	q.Set("auth_token", n.conf.AuthToken.String())
 	apiURL.RawQuery = q.Encode()
 
 	if n.conf.MessageFormat == "html" {
@@ -752,7 +752,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	// Refresh AccessToken over 2 hours
 	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
-		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
+		parameters.Add("corpsecret", tmpl(n.conf.APISecret.String()))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
 		if err != nil {
 			return false, fmt.Errorf("templating error: %s", err)
@@ -994,7 +994,7 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		}
 	}
 
-	apiKey := tmpl(string(n.conf.APIKey))
+	apiKey := tmpl(n.conf.APIKey.String())
 
 	if err != nil {
 		return nil, false, fmt.Errorf("templating error: %s", err)
@@ -1184,8 +1184,8 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	tmplHTML := tmplHTML(n.tmpl, data, &err)
 
 	parameters := url.Values{}
-	parameters.Add("token", tmpl(string(n.conf.Token)))
-	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+	parameters.Add("token", tmpl(n.conf.Token.String()))
+	parameters.Add("user", tmpl(n.conf.UserKey.String()))
 
 	title, truncated := truncate(tmpl(n.conf.Title), 250)
 	if truncated {

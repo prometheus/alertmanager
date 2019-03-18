@@ -73,7 +73,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
-			secret := string(n.conf.AuthSecret)
+			secret := n.conf.AuthSecret.String()
 			if secret == "" {
 				err.Add(errors.New("missing secret for CRAM-MD5 auth mechanism"))
 				continue
@@ -81,7 +81,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 			return smtp.CRAMMD5Auth(username, secret), nil
 
 		case "PLAIN":
-			password := string(n.conf.AuthPassword)
+			password := n.conf.AuthPassword.String()
 			if password == "" {
 				err.Add(errors.New("missing password for PLAIN auth mechanism"))
 				continue
@@ -95,7 +95,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 			}
 			return smtp.PlainAuth(identity, username, password, host), nil
 		case "LOGIN":
-			password := string(n.conf.AuthPassword)
+			password := n.conf.AuthPassword.String()
 			if password == "" {
 				err.Add(errors.New("missing password for LOGIN auth mechanism"))
 				continue

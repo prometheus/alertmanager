@@ -17,7 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestEmailToIsPresent(t *testing.T) {
@@ -57,26 +57,9 @@ headers:
 	}
 }
 
-func TestPagerdutyRoutingKeyIsPresent(t *testing.T) {
+func TestPagerdutyServiceKeyOrRoutingKeyIsPresent(t *testing.T) {
 	in := `
-routing_key: ''
-`
-	var cfg PagerdutyConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "missing service or routing key in PagerDuty config"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
-func TestPagerdutyServiceKeyIsPresent(t *testing.T) {
-	in := `
-service_key: ''
+client: ''
 `
 	var cfg PagerdutyConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
@@ -298,7 +281,7 @@ custom_fields:
 
 func TestPushoverUserKeyIsPresent(t *testing.T) {
 	in := `
-user_key: ''
+title: ''
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
@@ -316,7 +299,6 @@ user_key: ''
 func TestPushoverTokenIsPresent(t *testing.T) {
 	in := `
 user_key: '<user_key>'
-token: ''
 `
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)

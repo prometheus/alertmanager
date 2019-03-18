@@ -1,8 +1,6 @@
 global:
   smtp_smarthost: 'localhost:25'
   smtp_from: 'alertmanager@example.org'
-  smtp_auth_username: ''
-  smtp_auth_password: ''
   smtp_hello: ''
   hipchat_auth_token: 'mysecret'
   hipchat_api_url: 'https://hipchat.foobar.org/'

@@ -343,11 +343,11 @@ func TestJSONMarshal(t *testing.T) {
 	}
 }
 
-func TestJSONMarshalSecret(t *testing.T) {
+func TestMarshalSecret(t *testing.T) {
 	test := struct {
-		S Secret
+		S *Secret
 	}{
-		S: Secret("test"),
+		S: NewSecret("test"),
 	}
 
 	c, err := json.Marshal(test)
@@ -358,6 +358,68 @@ func TestJSONMarshalSecret(t *testing.T) {
 	// u003c -> "<"
 	// u003e -> ">"
 	require.Equal(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
+
+	c, err = yaml.Marshal(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// u003c -> "<"
+	// u003e -> ">"
+	require.Equal(t, "s: \u003csecret\u003e\n", string(c), "Secret not properly elided.")
+}
+
+func TestMarshalUnsafeSecret(t *testing.T) {
+	test := struct {
+		S *Secret
+	}{
+		S: NewUnsafeSecret("test"),
+	}
+
+	c, err := json.Marshal(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.Equal(t, "{\"S\":\"test\"}", string(c), "Unsafe Secret not marshaled.")
+
+	c, err = yaml.Marshal(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.Equal(t, "s: test\n", string(c), "Unsafe Secret not marshaled.")
+}
+
+func TestUnmarshalSecret(t *testing.T) {
+	b := []byte(`"secret"`)
+	var u Secret
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "secret", u.String(), "Secret not properly unmarshalled from JSON.")
+	require.Equal(t, false, u.unsafe, "Secret unmarhalled as unsafe from JSON.")
+
+	err = yaml.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.Equal(t, "secret", u.String(), "Secret not properly unmarshalled from YAML.")
+	require.Equal(t, false, u.unsafe, "Secret unmarhalled as unsafe from YAML.")
+}
+
+func TestUnmarshalEmptySecret(t *testing.T) {
+	b := []byte(`""`)
+	var u Secret
+
+	err := json.Unmarshal(b, &u)
+	require.Error(t, err, "expected error while unmarshalling empty secret from JSON.")
+
+	err = yaml.Unmarshal(b, &u)
+	require.Error(t, err, "expected error while unmarshalling empty secret from YAML.")
 }
 
 func TestMarshalSecretURL(t *testing.T) {
@@ -365,7 +427,7 @@ func TestMarshalSecretURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u := &SecretURL{urlp}
+	u := NewSecretURL(URL{urlp})
 
 	c, err := json.Marshal(u)
 	if err != nil {
@@ -386,6 +448,39 @@ func TestMarshalSecretURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
+	// Check that the marshaled data can be unmarshaled again.
+	out = &SecretURL{}
+	err = yaml.Unmarshal(c, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMarshalUnsafeSecretURL(t *testing.T) {
+	urlp, err := url.Parse("http://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := NewUnsafeSecretURL(URL{urlp})
+
+	c, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.Equal(t, "\"http://example.com/\"", string(c), "SecretURL not properly marshaled in JSON.")
+	// Check that the marshaled data can be unmarshaled again.
+	out := &SecretURL{}
+	err = json.Unmarshal(c, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, err = yaml.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/\n", string(c), "SecretURL not properly marshaled in YAML.")
 	// Check that the marshaled data can be unmarshaled again.
 	out = &SecretURL{}
 	err = yaml.Unmarshal(c, &out)
@@ -430,6 +525,60 @@ func TestMarshalURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshalled in YAML.")
+}
+
+func TestMarshalRoute_GroupBy(t *testing.T) {
+	r := Route{
+		GroupBy: []model.LabelName{"a", "b", "c"},
+	}
+
+	c, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "{\"group_by\":[\"a\",\"b\",\"c\"]}", string(c), "Route not properly marshalled in JSON.")
+
+	c, err = yaml.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "group_by:\n- a\n- b\n- c\n", string(c), "Route not properly marshalled in YAML.")
+}
+
+func TestMarshalRoute_GroupByStr(t *testing.T) {
+	r := Route{
+		GroupByStr: []string{"a", "b", "c"},
+	}
+
+	c, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "{\"group_by\":[\"a\",\"b\",\"c\"]}", string(c), "Route not properly marshalled in JSON.")
+
+	c, err = yaml.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "group_by:\n- a\n- b\n- c\n", string(c), "Route not properly marshalled in YAML.")
+}
+
+func TestMarshalRoute_GroupAll(t *testing.T) {
+	r := Route{
+		GroupByAll: true,
+	}
+
+	c, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "{\"group_by\":[\"...\"]}", string(c), "Route not properly marshalled in JSON.")
+
+	c, err = yaml.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "group_by:\n- '...'\n", string(c), "Route not properly marshalled in YAML.")
 }
 
 func TestUnmarshalURL(t *testing.T) {
@@ -541,8 +690,7 @@ receivers:
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
 	var regexpFoo = Regexp{
-		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
-		original: "^(foo1|foo2|baz)$",
+		Regexp: regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
 	}
 
 	var expectedConf = Config{
@@ -552,9 +700,9 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			ResolveTimeout:   model.Duration(5 * time.Minute),
 			SMTPSmarthost:    "localhost:25",
 			SMTPFrom:         "alertmanager@example.org",
-			HipchatAuthToken: "mysecret",
+			HipchatAuthToken: NewSecret("mysecret"),
 			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
-			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
+			SlackAPIURL:      NewSecretURL(*mustParseURL("http://slack.example.com/")),
 			SMTPRequireTLS:   true,
 			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
