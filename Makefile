@@ -19,10 +19,6 @@ ERRCHECK_BINARY         := $(FIRST_GOPATH)/bin/errcheck
 
 STATICCHECK_IGNORE =
 
-# Go modules needs the bzr binary because of the dependency on launchpad.net/gocheck.
-$(eval $(call PRECHECK_COMMAND_template,bzr))
-PRECHECK_OPTIONS_bzr = version
-
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
 build-all: assets apiv2 build
