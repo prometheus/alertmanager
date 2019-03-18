@@ -26,6 +26,14 @@ Alertmanager instances use the gossip layer to:
 As of today the communication between Alertmanager instances in a cluster is
 sent in clear-text.
 
+```
++--------------+                                            +--------------+
+|              |  <-- best-effort communcication (UDP) -->  |              |
+| Alertmanager |                                            | Alertmanager |
+|              |  <--  reliable communcication (TCP)   -->  |              |
++--------------+                                            +--------------+
+```
+
 
 ## Goal
 
@@ -55,9 +63,37 @@ layer, one can use mutual TLS to secure all communication. A proof-of-concept
 implementation can be found here:
 https://github.com/mxinden/memberlist-tls-transport.
 
-The data gossiped between instances does not have a low-latency requirement that
-TCP could not fulfill, same would apply for the relatively low data throughput
-requirements of Alertmanager.
+```golang
+type Transport interface {
+    FinalAdvertiseAddr(ip string, port int) (net.IP, int, error)
+
+    // Outgoing best-effort communication.
+    WriteTo(b []byte, addr string) (time.Time, error)
+
+    // Incoming best-effort communication.
+    PacketCh() <-chan *Packet
+
+    // Outgoing reliable connection setup.
+    DialTimeout(addr string, timeout time.Duration) (net.Conn, error)
+
+    // Incoming reliable connections.
+    StreamCh() <-chan net.Conn
+
+    Shutdown() error
+}
+```
+
+```
++--------------+                                            +--------------+
+|              |  <-- best-effort communcication (TLS) -->  |              |
+| Alertmanager |                                            | Alertmanager |
+|              |  <--  reliable communcication (TLS)  -->   |              |
++--------------+                                            +--------------+
+```
+
+The data gossiped between instances does **not** have a **low-latency**
+requirement that TCP could not fulfill, same would apply for the relatively low
+data throughput requirements of Alertmanager.
 
 TCP connections could be kept alive beyond a single message to reduce latency as
 well as handshake overhead costs. While this is feasible in a 3-instance

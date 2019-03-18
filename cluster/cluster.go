@@ -15,9 +15,14 @@ package cluster
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
+	stdLog "log"
 	"math/rand"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +32,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/memberlist"
+	tlsTransport "github.com/mxinden/memberlist-tls-transport"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 
@@ -118,6 +124,9 @@ func Create(
 	tcpTimeout time.Duration,
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
+	clusterCAFile *string,
+	clusterCertificate *string,
+	clusterCertificateKey *string,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -208,6 +217,46 @@ func Create(
 		p.setInitialFailed(resolvedPeers, fmt.Sprintf("%s:%d", advertiseHost, advertisePort))
 	} else {
 		p.setInitialFailed(resolvedPeers, bindAddr)
+	}
+
+	// TODO: Don't just dereference.
+	if *clusterCAFile != "" && *clusterCertificate != "" && *clusterCertificateKey != "" {
+		// TODO: Don't just dereference.
+		caCert, err := ioutil.ReadFile(*clusterCAFile)
+		if err != nil {
+			p.logger.Log("failed to load cert: " + err.Error())
+		}
+
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+
+		// TODO: Don't just dereference.
+		cert, err := tls.LoadX509KeyPair(*clusterCertificate, *clusterCertificateKey)
+		if err != nil {
+			return nil, fmt.Errorf("%v", err)
+		}
+
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},        // server certificate which is validated by the client
+			ClientCAs:    caCertPool,                     // used to verify the client cert is signed by the CA and is therefore valid
+			ClientAuth:   tls.RequireAndVerifyClientCert, // this requires a valid client certificate to be supplied during handshake
+			RootCAs:      caCertPool,                     // this is used to validate the server certificate
+		}
+		tlsConfig.BuildNameToCertificate()
+
+		transportConfig := &tlsTransport.TLSTransportConfig{
+			BindAddrs: []string{cfg.BindAddr},
+			BindPort:  cfg.BindPort,
+			Logger:    stdLog.New(os.Stderr, "", stdLog.LstdFlags),
+			TLS:       tlsConfig,
+		}
+
+		transport, err := tlsTransport.NewTLSTransport(transportConfig, reg)
+		if err != nil {
+			panic(err)
+		}
+
+		cfg.Transport = transport
 	}
 
 	ml, err := memberlist.Create(cfg)

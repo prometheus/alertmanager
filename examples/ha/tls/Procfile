@@ -1,0 +1,3 @@
+a1: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a1 --web.listen-address=:9093  --cluster.listen-address=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.ca-file=certs/ca.pem --cluster.cert=certs/node1.pem --cluster.cert-key=certs/node1-key.pem
+a2: ./../../../alertmanager --log.level=debug --storage.path=$TMPDIR/a2 --web.listen-address=:9094  --cluster.listen-address=127.0.0.1:8002 --cluster.peer=127.0.0.1:8001 --config.file=../alertmanager.yml --cluster.ca-file=certs/ca.pem --cluster.cert=certs/node2.pem --cluster.cert-key=certs/node2-key.pem
+wh: go run ../../webhook/echo.go
