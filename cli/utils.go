@@ -47,6 +47,7 @@ func (s ByAlphabetical) Less(i, j int) bool {
 	return false
 }
 
+// GetAlertmanagerURL appends the given path to the alertmanager base URL
 func GetAlertmanagerURL(p string) url.URL {
 	amURL := *alertmanagerURL
 	amURL.Path = path.Join(alertmanagerURL.Path, p)
@@ -145,7 +146,7 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	return labelSet, nil
 }
 
-// TypeMatchers Only valid for when you are going to add a silence
+// TypeMatchers only valid for when you are going to add a silence
 func TypeMatchers(matchers []labels.Matcher) (models.Matchers, error) {
 	typeMatchers := models.Matchers{}
 	for _, matcher := range matchers {
@@ -158,7 +159,7 @@ func TypeMatchers(matchers []labels.Matcher) (models.Matchers, error) {
 	return typeMatchers, nil
 }
 
-// TypeMatcher Only valid for when you are going to add a silence
+// TypeMatcher only valid for when you are going to add a silence
 // Doesn't allow negative operators
 func TypeMatcher(matcher labels.Matcher) (models.Matcher, error) {
 	name := matcher.Name
