@@ -11,7 +11,7 @@ The Alertmanager handles alerts sent by client applications such as the Promethe
 
 ## Install
 
-There are various ways of installing Alertmanager:
+There are various ways of installing Alertmanager.
 
 ### Precompiled binaries
 
