@@ -1,8 +1,0 @@
-{
-  "scripts": {
-    "test": "elm-test"
-  },
-  "dependencies": {
-    "elm-test": "^0.18.0"
-  }
-}
