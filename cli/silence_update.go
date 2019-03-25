@@ -109,11 +109,9 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 			Silence: sil.Silence,
 		}
 
-		silenceParams := silence.NewPostSilencesParams().WithContext(ctx)
-		silenceParams.Silence = ps
-
 		amclient := NewAlertmanagerClient(alertmanagerURL)
 
+		silenceParams := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(ps)
 		postOk, err := amclient.Silence.PostSilences(silenceParams)
 		if err != nil {
 			return err

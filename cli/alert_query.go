@@ -74,7 +74,6 @@ func configureQueryAlertsCmd(cc *kingpin.CmdClause) {
 }
 
 func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext) error {
-	filter := []string{}
 	if len(a.matcherGroups) > 0 {
 		// Attempt to parse the first argument. If the parser fails
 		// then we likely don't have a (=|=~|!=|!~) so lets assume that
@@ -85,7 +84,6 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 		if err != nil {
 			a.matcherGroups[0] = fmt.Sprintf("alertname=%s", m)
 		}
-		filter = append(filter, a.matcherGroups[0])
 	}
 
 	// If no selector was passed, default to showing active alerts.
@@ -93,12 +91,12 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 		a.active = true
 	}
 
-	alertParams := alert.NewGetAlertsParams().WithContext(ctx)
-	alertParams.Active = &a.active
-	alertParams.Inhibited = &a.inhibited
-	alertParams.Silenced = &a.silenced
-	alertParams.Unprocessed = &a.unprocessed
-	alertParams.Filter = filter
+	alertParams := alert.NewGetAlertsParams().WithContext(ctx).
+		WithActive(&a.active).
+		WithInhibited(&a.inhibited).
+		WithSilenced(&a.silenced).
+		WithUnprocessed(&a.unprocessed).
+		WithFilter(a.matcherGroups)
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 

@@ -20,7 +20,6 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 )
@@ -47,7 +46,7 @@ func (formatter *SimpleFormatter) FormatSilences(silences []models.GettableSilen
 			"%s\t%s\t%s\t%s\t%s\t\n",
 			*silence.ID,
 			simpleFormatMatchers(silence.Matchers),
-			FormatDateTime(*silence.EndsAt),
+			FormatDate(*silence.EndsAt),
 			*silence.CreatedBy,
 			*silence.Comment,
 		)
@@ -64,7 +63,7 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*models.GettableAlert) e
 			w,
 			"%s\t%s\t%s\t\n",
 			alert.Labels["alertname"],
-			FormatDate(time.Time(*alert.StartsAt)),
+			FormatDate(*alert.StartsAt),
 			alert.Annotations["summary"],
 		)
 	}

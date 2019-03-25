@@ -60,17 +60,17 @@ func configureSilenceImportCmd(cc *kingpin.CmdClause) {
 
 func addSilenceWorker(ctx context.Context, sclient *silence.Client, silencec <-chan *models.PostableSilence, errc chan<- error) {
 	for s := range silencec {
-		params := silence.NewPostSilencesParams().WithContext(ctx)
-		params.Silence = s
+		sid := s.ID
+		params := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(s)
 		postOk, err := sclient.PostSilences(params)
 		if err != nil && strings.Contains(err.Error(), "not found") {
 			// silence doesn't exists yet, retry to create as a new one
 			params.Silence.ID = ""
-			postOk, _ = sclient.PostSilences(params)
+			postOk, err = sclient.PostSilences(params)
 		}
 
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v\n", s.ID, err)
+			fmt.Fprintf(os.Stderr, "Error adding silence id='%v': %v\n", sid, err)
 		} else {
 			fmt.Println(postOk.Payload.SilenceID)
 		}

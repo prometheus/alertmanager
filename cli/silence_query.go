@@ -90,7 +90,6 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 }
 
 func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) error {
-	filter := []string{}
 	if len(c.matchers) > 0 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
@@ -99,11 +98,9 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 		if err != nil {
 			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
 		}
-		filter = append(filter, c.matchers[0])
 	}
 
-	silenceParams := silence.NewGetSilencesParams().WithContext(ctx)
-	silenceParams.Filter = filter
+	silenceParams := silence.NewGetSilencesParams().WithContext(ctx).WithFilter(c.matchers)
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 

@@ -44,10 +44,6 @@ type Formatter interface {
 // Formatters is a map of cli argument names to formatter interface object.
 var Formatters = map[string]Formatter{}
 
-func FormatDateTime(input strfmt.DateTime) string {
-	return FormatDate(time.Time(input))
-}
-
-func FormatDate(input time.Time) string {
-	return input.Format(*dateFormat)
+func FormatDate(input strfmt.DateTime) string {
+	return time.Time(input).Format(*dateFormat)
 }
