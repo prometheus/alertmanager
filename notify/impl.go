@@ -836,25 +836,25 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	if resp.StatusCode != 200 {
 		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	} else {
-		var weResp weChatResponse
-		if err := json.Unmarshal(body, &weResp); err != nil {
-			return true, err
-		}
-
-		// https://work.weixin.qq.com/api/doc#10649
-		if weResp.Code == 0 {
-			return false, nil
-		}
-
-		// AccessToken is expired
-		if weResp.Code == 42001 {
-			n.accessToken = ""
-			return true, errors.New(weResp.Error)
-		}
-
-		return false, errors.New(weResp.Error)
 	}
+
+	var weResp weChatResponse
+	if err := json.Unmarshal(body, &weResp); err != nil {
+		return true, err
+	}
+
+	// https://work.weixin.qq.com/api/doc#10649
+	if weResp.Code == 0 {
+		return false, nil
+	}
+
+	// AccessToken is expired
+	if weResp.Code == 42001 {
+		n.accessToken = ""
+		return true, errors.New(weResp.Error)
+	}
+
+	return false, errors.New(weResp.Error)
 }
 
 // OpsGenie implements a Notifier for OpsGenie notifications.

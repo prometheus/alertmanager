@@ -578,9 +578,9 @@ func (p *Peer) WaitReady() {
 func (p *Peer) Status() string {
 	if p.Ready() {
 		return "ready"
-	} else {
-		return "settling"
 	}
+
+	return "settling"
 }
 
 // Info returns a JSON-serializable dump of cluster state.
