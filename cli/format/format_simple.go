@@ -72,7 +72,7 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*models.GettableAlert) e
 }
 
 func (formatter *SimpleFormatter) FormatConfig(status *models.AlertmanagerStatus) error {
-	fmt.Fprintln(formatter.writer, *status)
+	fmt.Fprintln(formatter.writer, *status.Config.Original)
 	return nil
 }
 

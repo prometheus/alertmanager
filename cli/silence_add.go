@@ -169,6 +169,6 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 	if err != nil {
 		return err
 	}
-	fmt.Println(*postOk.Payload)
+	_, err = fmt.Println(postOk.Payload.SilenceID)
 	return err
 }
