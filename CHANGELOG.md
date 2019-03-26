@@ -1,6 +1,11 @@
 ## Next release
 
+This release includes changes to amtool which are not fully backwards compatible with the previous
+amtool version (#1798) related to backup and import of silences.  If a backup of silences is created using 
+a previous version of amtool (v0.16.1 or earlier), it is possible that not all silences can be correctly imported using a later version of amtool.
+
 * [CHANGE] Make api/v2/status.cluster.{name,peers} properties optional for Alertmanager with disabled clustering (#1728)
+* [ENHANCEMENT] Migrate amtool CLI to API v2 (#1798)
 
 ## 0.16.1 / 2019-01-31
 
