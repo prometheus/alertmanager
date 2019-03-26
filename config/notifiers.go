@@ -444,16 +444,7 @@ type WechatConfig struct {
 func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.APISecret == "" {
-		return fmt.Errorf("missing Wechat APISecret in Wechat config")
-	}
-	if c.CorpID == "" {
-		return fmt.Errorf("missing Wechat CorpID in Wechat config")
-	}
-	return nil
+	return unmarshal((*plain)(c))
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
