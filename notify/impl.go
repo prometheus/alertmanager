@@ -358,16 +358,7 @@ func (n *PagerDuty) notifyV2(
 	}
 	defer resp.Body.Close()
 
-	// See: https://v2.developer.pagerduty.com/docs/events-api-v2#api-response-codes--retry-logic
-	if resp.StatusCode == http.StatusBadRequest {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return false, fmt.Errorf("failed to read error response from PagerDuty (status: %d): %v", resp.StatusCode, err)
-		}
-		level.Debug(n.logger).Log("msg", "Received error response from PagerDuty", "incident", key, "code", resp.StatusCode, "body", string(body))
-	}
-
-	return n.retryV2(resp.StatusCode)
+	return n.retryV2(resp)
 }
 
 // Notify implements the Notifier interface.
@@ -415,32 +406,43 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	return n.notifyV2(ctx, c, eventType, key, data, details, as...)
 }
 
+func pagerDutyErr(status int, body io.Reader) error {
+	// See https://v2.developer.pagerduty.com/docs/trigger-events for the v1 events API.
+	// See https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2 for the v2 events API.
+	type pagerDutyResponse struct {
+		Status  string   `json:"status"`
+		Message string   `json:"message"`
+		Errors  []string `json:"errors"`
+	}
+	if status == http.StatusBadRequest && body != nil {
+		var r pagerDutyResponse
+		if err := json.NewDecoder(body).Decode(&r); err == nil {
+			return fmt.Errorf("%s: %s", r.Message, strings.Join(r.Errors, ","))
+		}
+	}
+	return fmt.Errorf("unexpected status code: %v", status)
+}
+
 func (n *PagerDuty) retryV1(resp *http.Response) (bool, error) {
 	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/trigger-events
 	statusCode := resp.StatusCode
 
-	if statusCode == 400 && resp.Body != nil {
-		bs, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return false, fmt.Errorf("unexpected status code %v : problem reading response: %v", statusCode, err)
-		}
-		return false, fmt.Errorf("bad request (status code %v): %v", statusCode, string(bs))
-	}
-
 	if statusCode/100 != 2 {
-		return (statusCode == 403 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+		return (statusCode == http.StatusForbidden || statusCode/100 == 5), pagerDutyErr(statusCode, resp.Body)
 	}
 	return false, nil
 }
 
-func (n *PagerDuty) retryV2(statusCode int) (bool, error) {
+func (n *PagerDuty) retryV2(resp *http.Response) (bool, error) {
 	// Retrying can solve the issue on 429 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/events-api-v2#api-response-codes--retry-logic
+	statusCode := resp.StatusCode
+
 	if statusCode/100 != 2 {
-		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+		return (statusCode == http.StatusTooManyRequests || statusCode/100 == 5), pagerDutyErr(statusCode, resp.Body)
 	}
 
 	return false, nil

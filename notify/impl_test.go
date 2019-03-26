@@ -14,9 +14,11 @@
 package notify
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -62,8 +64,53 @@ func TestPagerDutyRetryV2(t *testing.T) {
 
 	retryCodes := append(defaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range retryTests(retryCodes) {
-		actual, _ := notifier.retryV2(statusCode)
+		resp := &http.Response{
+			StatusCode: statusCode,
+		}
+		actual, _ := notifier.retryV2(resp)
 		require.Equal(t, expected, actual, fmt.Sprintf("retryv2 - error on status %d", statusCode))
+	}
+}
+
+func TestPagerDutyErr(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		body   io.Reader
+
+		exp string
+	}{
+		{
+			status: http.StatusBadRequest,
+			body: bytes.NewBuffer([]byte(
+				`{"status":"invalid event","message":"Event object is invalid","errors":["Length of 'routing_key' is incorrect (should be 32 characters)"]}`,
+			)),
+
+			exp: "Length of 'routing_key' is incorrect",
+		},
+		{
+			status: http.StatusBadRequest,
+			body:   bytes.NewBuffer([]byte(`{"status"}`)),
+
+			exp: "unexpected status code: 400",
+		},
+		{
+			status: http.StatusBadRequest,
+			body:   nil,
+
+			exp: "unexpected status code: 400",
+		},
+		{
+			status: http.StatusTooManyRequests,
+			body:   bytes.NewBuffer([]byte("")),
+
+			exp: "unexpected status code: 429",
+		},
+	} {
+		tc := tc
+		t.Run("", func(t *testing.T) {
+			err := pagerDutyErr(tc.status, tc.body)
+			require.Contains(t, err.Error(), tc.exp)
+		})
 	}
 }
 
