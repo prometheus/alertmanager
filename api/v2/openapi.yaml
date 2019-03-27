@@ -84,6 +84,10 @@ paths:
                 type: string
         '400':
           $ref: '#/responses/BadRequest'
+        '404':
+          description: A silence with the specified ID was not found
+          schema:
+            type: string
   /silence/{silenceID}:
     parameters:
       - in: path

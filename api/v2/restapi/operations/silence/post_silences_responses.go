@@ -111,3 +111,46 @@ func (o *PostSilencesBadRequest) WriteResponse(rw http.ResponseWriter, producer 
 	}
 
 }
+
+// PostSilencesNotFoundCode is the HTTP code returned for type PostSilencesNotFound
+const PostSilencesNotFoundCode int = 404
+
+/*PostSilencesNotFound A silence with the specified ID was not found
+
+swagger:response postSilencesNotFound
+*/
+type PostSilencesNotFound struct {
+
+	/*
+	  In: Body
+	*/
+	Payload string `json:"body,omitempty"`
+}
+
+// NewPostSilencesNotFound creates PostSilencesNotFound with default headers values
+func NewPostSilencesNotFound() *PostSilencesNotFound {
+
+	return &PostSilencesNotFound{}
+}
+
+// WithPayload adds the payload to the post silences not found response
+func (o *PostSilencesNotFound) WithPayload(payload string) *PostSilencesNotFound {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the post silences not found response
+func (o *PostSilencesNotFound) SetPayload(payload string) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *PostSilencesNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(404)
+	payload := o.Payload
+	if err := producer.Produce(rw, payload); err != nil {
+		panic(err) // let the recovery middleware deal with this
+	}
+
+}

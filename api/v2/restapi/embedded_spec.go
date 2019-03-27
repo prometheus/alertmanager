@@ -287,6 +287,12 @@ func init() {
           },
           "400": {
             "$ref": "#/responses/BadRequest"
+          },
+          "404": {
+            "description": "A silence with the specified ID was not found",
+            "schema": {
+              "type": "string"
+            }
           }
         }
       }
@@ -991,6 +997,12 @@ func init() {
           },
           "400": {
             "description": "Bad request",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "404": {
+            "description": "A silence with the specified ID was not found",
             "schema": {
               "type": "string"
             }

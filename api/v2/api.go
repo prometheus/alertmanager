@@ -660,6 +660,9 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	sid, err := api.silences.Set(sil)
 	if err != nil {
 		level.Error(api.logger).Log("msg", "failed to create silence", "err", err)
+		if err == silence.ErrNotFound {
+			return silence_ops.NewPostSilencesNotFound().WithPayload(err.Error())
+		}
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(err.Error())
 	}
 
