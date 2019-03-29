@@ -1,0 +1,38 @@
+body {
+  margin-bottom: 20px;
+}
+
+textarea.form-control {
+  height: 800px;
+  font-family: monospace;
+}
+
+#header-jumbotron {
+  background-color: #e6522c;
+  text-align: center;
+  font-family: Lato, sans-serif;
+  color: white;
+  margin-bottom: 0;
+  padding: 20px;
+}
+
+#info-jumbotron {
+  padding-top: 20px;
+  padding-bottom: 5px;
+  margin-bottom: 15px;
+}
+
+.jumbotron h1 {
+  font-size: 52px;
+  font-weight: 300;
+  text-shadow: rgba(0, 0, 0, 0.2) 0px 2px 0px;
+}
+
+label {
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#error-message {
+  display: none;
+}

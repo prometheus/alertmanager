@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>Alertmanager Slack Notification Builder</title>
+    <link href='https://fonts.googleapis.com/css?family=Lato:300,300italic,400' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
+    <link rel="stylesheet" href="site.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+    <script src="site.js"></script>
+  </head>
+  <body>
+      <div class="jumbotron jumbotron-fluid" id="header-jumbotron">
+        <div class="container">
+          <h1>Alertmanager Slack Playground</h1>
+        </div>
+      </div>
+
+      <div class="jumbotron jumbotron-fluid" id="info-jumbotron">
+        <div class="container">
+            <p>This tool helps you test and iterate on <a href="https://prometheus.io/">Prometheus</a> <a href="https://github.com/prometheus/alertmanager">Alertmanager</a> notification templates for <a href="https://slack.com">Slack</a>.</p>
+            <p>Paste your Alertmanager configuration, a set of example alerts, and then choose a receiver name to test. The first Slack notification configuration in the receiver will be used. This tool ignores the Alertmanager's <code>route</code> config section, so you will also have to specify grouping labels below.</p>
+            <p>Once you are done, hit "Preview" to see what the notification would look like in Slack.</p>
+            <p>External template files are not yet supported.</p>
+            <p>Send feedback to <a href="https://twitter.com/juliusvolz">@juliusvolz</a> or <a href="mailto:julius@juliusv.com">julius@juliusv.com</a>.</p>
+        </div>
+      </div>
+
+      <div class="container-fluid">
+      <form id="configs-form">
+        <div class="row">
+          <div class="col form-group">
+              <label for="amconfig">Alertmanager Configuration:</label>
+              <textarea class="form-control" id="amconfig" name="amconfig">route:
+  group_by: [alertname, job]
+  receiver: default
+
+receivers:
+- name: default
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/foo'
+    username: 'Alertmanager'
+    channel: '#prometheus-alerts'
+    send_resolved: true
+    title: |-
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} for {{ .CommonLabels.job }}
+      {{- if gt (len .CommonLabels) (len .GroupLabels) -}}
+        {{" "}}(
+        {{- with .CommonLabels.Remove .GroupLabels.Names }}
+          {{- range $index, $label := .SortedPairs -}}
+            {{ if $index }}, {{ end }}
+            {{- $label.Name }}="{{ $label.Value -}}"
+          {{- end }}
+        {{- end -}}
+        )
+      {{- end }}
+    text: >-
+      {{ with index .Alerts 0 -}}
+        :chart_with_upwards_trend: *<{{ .GeneratorURL }}|Graph>*
+        {{- if .Annotations.runbook }}   :notebook: *<{{ .Annotations.runbook }}|Runbook>*{{ end }}
+      {{ end }}
+
+      *Alert details*:
+
+      {{ range .Alerts -}}
+        *Alert:* {{ .Annotations.title }}{{ if .Labels.severity }} - `{{ .Labels.severity }}`{{ end }}
+      *Description:* {{ .Annotations.description }}
+      *Details:*
+        {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+        {{ end }}
+      {{ end }}</textarea>
+          </div>
+
+          <div class="col form-group">
+            <label for="alerts">Alerts:</label>
+            <textarea class="form-control" id="alerts" name="alerts">[
+  {
+    "labels": {
+      "alertname": "InstanceDown",
+      "job": "api-server",
+      "instance": "1.2.3.4:8080",
+      "env": "prod",
+      "severity": "critical"
+    },
+    "annotations": {
+      "title": "api-server down",
+      "description": "api-server at 1.2.3.4:8080 couldn't be scraped",
+      "runbook": "https://runbook.local/1"
+    },
+    "generatorURL": "http://generator.local/1"
+  },
+  {
+    "labels": {
+      "alertname": "InstanceDown",
+      "job": "api-server",
+      "instance": "1.2.3.4:8081",
+      "env": "prod",
+      "severity": "critical"
+    },
+    "annotations": {
+      "title": "api-server down",
+      "description": "api-server at 1.2.3.4:8081 couldn't be scraped",
+      "runbook": "https://runbook.local/2"
+    },
+    "generatorURL": "http://generator.local/2"
+  }
+]</textarea>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col form-group">
+            <label for="receiver">Receiver name:</label>
+            <input class="form-control" type="text" id="receiver" name="receiver" value="default">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col form-group">
+            <label for="group-by">Grouping labels:</label>
+            <input class="form-control" type="text" id="group-by" name="group-by" value="alertname, job">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <div class="col alert alert-danger" id="error-message"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <button type="submit" id="submit" class="btn btn-primary">Preview</button>
+            &nbsp;&nbsp;&nbsp;
+            <b>Note:</b> You will have to allow popups on this page for this to work!
+          </div>
+        </div>
+
+        </div>
+      </form>
+    </div>
+  </body>
+</html>
