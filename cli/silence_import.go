@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -63,7 +62,7 @@ func addSilenceWorker(ctx context.Context, sclient *silence.Client, silencec <-c
 		sid := s.ID
 		params := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(s)
 		postOk, err := sclient.PostSilences(params)
-		if err != nil && strings.Contains(err.Error(), "not found") {
+		if _, ok := err.(*silence.PostSilencesNotFound); ok {
 			// silence doesn't exists yet, retry to create as a new one
 			params.Silence.ID = ""
 			postOk, err = sclient.PostSilences(params)
