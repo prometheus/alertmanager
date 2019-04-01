@@ -104,18 +104,14 @@ func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, confi
 		}
 		return cfg, nil
 	}
-	if alertmanagerURL != nil {
-		configStatus, err := getRemoteAlertmanagerConfigStatus(ctx, alertmanagerURL)
-		if err != nil {
-			return nil, err
-		}
-		conf, err := config.Load(*configStatus.Config.Original)
-		if err != nil {
-			return nil, err
-		}
-		return conf, nil
+	if alertmanagerURL == nil {
+		return nil, errors.New("failed to get Alertmanager configuration")
 	}
-	return nil, errors.New("failed to get Alertmanager configuration")
+	configStatus, err := getRemoteAlertmanagerConfigStatus(ctx, alertmanagerURL)
+	if err != nil {
+		return nil, err
+	}
+	return config.Load(*configStatus.Config.Original)
 }
 
 // convertClientToCommonLabelSet converts client.LabelSet to model.Labelset
