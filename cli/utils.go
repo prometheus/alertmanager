@@ -24,7 +24,6 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
-	amconfig "github.com/prometheus/alertmanager/config"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/pkg/parse"
@@ -95,10 +94,10 @@ func checkRoutingConfigInputFlags(alertmanagerURL *url.URL, configFile string) {
 	}
 }
 
-func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*amconfig.Config, error) {
+func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*config.Config, error) {
 	checkRoutingConfigInputFlags(alertmanagerURL, configFile)
 	if configFile != "" {
-		cfg, _, err := amconfig.LoadFile(configFile)
+		cfg, _, err := config.LoadFile(configFile)
 		if err != nil {
 			return nil, err
 		}
