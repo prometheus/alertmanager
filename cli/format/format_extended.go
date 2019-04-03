@@ -21,8 +21,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
 type ExtendedFormatter struct {
@@ -37,7 +36,8 @@ func (formatter *ExtendedFormatter) SetOutput(writer io.Writer) {
 	formatter.writer = writer
 }
 
-func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) error {
+// FormatSilences formats the silences into a readable string
+func (formatter *ExtendedFormatter) FormatSilences(silences []models.GettableSilence) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByEndAt(silences))
 	fmt.Fprintln(w, "ID\tMatchers\tStarts At\tEnds At\tUpdated At\tCreated By\tComment\t")
@@ -45,19 +45,20 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []types.Silence) err
 		fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n",
-			silence.ID,
+			*silence.ID,
 			extendedFormatMatchers(silence.Matchers),
-			FormatDate(silence.StartsAt),
-			FormatDate(silence.EndsAt),
-			FormatDate(silence.UpdatedAt),
-			silence.CreatedBy,
-			silence.Comment,
+			FormatDate(*silence.Silence.StartsAt),
+			FormatDate(*silence.Silence.EndsAt),
+			FormatDate(*silence.UpdatedAt),
+			*silence.CreatedBy,
+			*silence.Comment,
 		)
 	}
 	return w.Flush()
 }
 
-func (formatter *ExtendedFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
+// FormatAlerts formats the alerts into a readable string
+func (formatter *ExtendedFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
@@ -67,27 +68,28 @@ func (formatter *ExtendedFormatter) FormatAlerts(alerts []*client.ExtendedAlert)
 			"%s\t%s\t%s\t%s\t%s\t\n",
 			extendedFormatLabels(alert.Labels),
 			extendedFormatAnnotations(alert.Annotations),
-			FormatDate(alert.StartsAt),
-			FormatDate(alert.EndsAt),
+			FormatDate(*alert.StartsAt),
+			FormatDate(*alert.EndsAt),
 			alert.GeneratorURL,
 		)
 	}
 	return w.Flush()
 }
 
-func (formatter *ExtendedFormatter) FormatConfig(status *client.ServerStatus) error {
-	fmt.Fprintln(formatter.writer, status.ConfigYAML)
-	fmt.Fprintln(formatter.writer, "buildUser", status.VersionInfo["buildUser"])
-	fmt.Fprintln(formatter.writer, "goVersion", status.VersionInfo["goVersion"])
-	fmt.Fprintln(formatter.writer, "revision", status.VersionInfo["revision"])
-	fmt.Fprintln(formatter.writer, "version", status.VersionInfo["version"])
-	fmt.Fprintln(formatter.writer, "branch", status.VersionInfo["branch"])
-	fmt.Fprintln(formatter.writer, "buildDate", status.VersionInfo["buildDate"])
+// FormatConfig formats the alertmanager status information into a readable string
+func (formatter *ExtendedFormatter) FormatConfig(status *models.AlertmanagerStatus) error {
+	fmt.Fprintln(formatter.writer, status.Config.Original)
+	fmt.Fprintln(formatter.writer, "buildUser", status.VersionInfo.BuildUser)
+	fmt.Fprintln(formatter.writer, "goVersion", status.VersionInfo.GoVersion)
+	fmt.Fprintln(formatter.writer, "revision", status.VersionInfo.Revision)
+	fmt.Fprintln(formatter.writer, "version", status.VersionInfo.Version)
+	fmt.Fprintln(formatter.writer, "branch", status.VersionInfo.Branch)
+	fmt.Fprintln(formatter.writer, "buildDate", status.VersionInfo.BuildDate)
 	fmt.Fprintln(formatter.writer, "uptime", status.Uptime)
 	return nil
 }
 
-func extendedFormatLabels(labels client.LabelSet) string {
+func extendedFormatLabels(labels models.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {
 		output = append(output, fmt.Sprintf("%s=\"%s\"", name, value))
@@ -96,7 +98,7 @@ func extendedFormatLabels(labels client.LabelSet) string {
 	return strings.Join(output, " ")
 }
 
-func extendedFormatAnnotations(labels client.LabelSet) string {
+func extendedFormatAnnotations(labels models.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {
 		output = append(output, fmt.Sprintf("%s=\"%s\"", name, value))
@@ -105,7 +107,7 @@ func extendedFormatAnnotations(labels client.LabelSet) string {
 	return strings.Join(output, " ")
 }
 
-func extendedFormatMatchers(matchers types.Matchers) string {
+func extendedFormatMatchers(matchers models.Matchers) string {
 	output := []string{}
 	for _, matcher := range matchers {
 		output = append(output, extendedFormatMatcher(*matcher))
@@ -113,9 +115,9 @@ func extendedFormatMatchers(matchers types.Matchers) string {
 	return strings.Join(output, " ")
 }
 
-func extendedFormatMatcher(matcher types.Matcher) string {
-	if matcher.IsRegex {
-		return fmt.Sprintf("%s~=%s", matcher.Name, matcher.Value)
+func extendedFormatMatcher(matcher models.Matcher) string {
+	if *matcher.IsRegex {
+		return fmt.Sprintf("%s~=%s", *matcher.Name, *matcher.Value)
 	}
-	return fmt.Sprintf("%s=%s", matcher.Name, matcher.Value)
+	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
 }

@@ -529,7 +529,7 @@ var (
 // then by end time or start time depending on the state.
 // active silences should show the next to expire first
 // pending silences are ordered based on which one starts next
-// expired are ordered base on which one expired most recently
+// expired are ordered based on which one expired most recently
 func sortSilences(sils open_api_models.GettableSilences) {
 	sort.Slice(sils, func(i, j int) bool {
 		state1 := types.SilenceState(*sils[i].Status.State)

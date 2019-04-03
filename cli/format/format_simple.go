@@ -21,8 +21,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
 type SimpleFormatter struct {
@@ -37,7 +36,7 @@ func (formatter *SimpleFormatter) SetOutput(writer io.Writer) {
 	formatter.writer = writer
 }
 
-func (formatter *SimpleFormatter) FormatSilences(silences []types.Silence) error {
+func (formatter *SimpleFormatter) FormatSilences(silences []models.GettableSilence) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByEndAt(silences))
 	fmt.Fprintln(w, "ID\tMatchers\tEnds At\tCreated By\tComment\t")
@@ -45,17 +44,17 @@ func (formatter *SimpleFormatter) FormatSilences(silences []types.Silence) error
 		fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t\n",
-			silence.ID,
+			*silence.ID,
 			simpleFormatMatchers(silence.Matchers),
-			FormatDate(silence.EndsAt),
-			silence.CreatedBy,
-			silence.Comment,
+			FormatDate(*silence.EndsAt),
+			*silence.CreatedBy,
+			*silence.Comment,
 		)
 	}
 	return w.Flush()
 }
 
-func (formatter *SimpleFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
+func (formatter *SimpleFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\t")
@@ -64,19 +63,19 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*client.ExtendedAlert) e
 			w,
 			"%s\t%s\t%s\t\n",
 			alert.Labels["alertname"],
-			FormatDate(alert.StartsAt),
+			FormatDate(*alert.StartsAt),
 			alert.Annotations["summary"],
 		)
 	}
 	return w.Flush()
 }
 
-func (formatter *SimpleFormatter) FormatConfig(status *client.ServerStatus) error {
-	fmt.Fprintln(formatter.writer, status.ConfigYAML)
+func (formatter *SimpleFormatter) FormatConfig(status *models.AlertmanagerStatus) error {
+	fmt.Fprintln(formatter.writer, *status.Config.Original)
 	return nil
 }
 
-func simpleFormatMatchers(matchers types.Matchers) string {
+func simpleFormatMatchers(matchers models.Matchers) string {
 	output := []string{}
 	for _, matcher := range matchers {
 		output = append(output, simpleFormatMatcher(*matcher))
@@ -84,9 +83,9 @@ func simpleFormatMatchers(matchers types.Matchers) string {
 	return strings.Join(output, " ")
 }
 
-func simpleFormatMatcher(matcher types.Matcher) string {
-	if matcher.IsRegex {
-		return fmt.Sprintf("%s=~%s", matcher.Name, matcher.Value)
+func simpleFormatMatcher(matcher models.Matcher) string {
+	if *matcher.IsRegex {
+		return fmt.Sprintf("%s=~%s", *matcher.Name, *matcher.Value)
 	}
-	return fmt.Sprintf("%s=%s", matcher.Name, matcher.Value)
+	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
 }
