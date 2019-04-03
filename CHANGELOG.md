@@ -1,3 +1,12 @@
+## 0.16.2 / 2019-04-03
+
+Updating to v0.16.2 is recommended for all users using the Slack, Pagerduty,
+Hipchat, Wechat, VictorOps and Pushover notifier, as connection errors could
+leak secrets embedded in the notifier's URL to stdout.
+
+* [BUGFIX] Redact notifier URL from logs to not leak secrets embedded in the URL (#1822, #1825)
+* [BUGFIX] Allow sending of unauthenticated SMTP requests when `smtp_auth_username` is not supplied (#1739)
+
 ## 0.16.1 / 2019-01-31
 
 * [BUGFIX] Do not populate cluster info if clustering is disabled in API v2 (#1726)
