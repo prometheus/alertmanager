@@ -174,7 +174,14 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 			if err != nil {
-				level.Error(d.logger).Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
+				lvl := level.Error(d.logger)
+				if ctx.Err() == context.Canceled {
+					// It is expected for the context to be canceled on
+					// configuration reload or shutdown. In this case, the
+					// message should only be logged at the debug level.
+					lvl = level.Debug(d.logger)
+				}
+				lvl.Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
 			}
 			return err == nil
 		})

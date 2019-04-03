@@ -329,7 +329,14 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 		go func(s Stage) {
 			if _, _, err := s.Exec(ctx, l, alerts...); err != nil {
 				me.Add(err)
-				level.Error(l).Log("msg", "Error on notify", "err", err)
+				lvl := level.Error(l)
+				if ctx.Err() == context.Canceled {
+					// It is expected for the context to be canceled on
+					// configuration reload or shutdown. In this case, the
+					// message should only be logged at the debug level.
+					lvl = level.Debug(l)
+				}
+				lvl.Log("msg", "Error on notify", "err", err)
 			}
 			wg.Done()
 		}(s)
