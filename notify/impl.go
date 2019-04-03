@@ -845,9 +845,10 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, err
 	}
 
-	resp, err := post(ctx, c, n.conf.APIURL.String(), contentTypeJSON, &buf)
+	u := n.conf.APIURL.String()
+	resp, err := post(ctx, c, u, contentTypeJSON, &buf)
 	if err != nil {
-		return true, err
+		return true, redactURL(err)
 	}
 	resp.Body.Close()
 
@@ -1564,6 +1565,16 @@ func hashKey(s string) string {
 	h := sha256.New()
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// redactURL removes the URL part from an error of *url.Error type.
+func redactURL(err error) error {
+	e, ok := err.(*url.Error)
+	if !ok {
+		return err
+	}
+	e.URL = "<redacted>"
+	return e
 }
 
 func post(ctx context.Context, client *http.Client, url string, bodyType string, body io.Reader) (*http.Response, error) {
