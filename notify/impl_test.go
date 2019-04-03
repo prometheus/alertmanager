@@ -21,17 +21,19 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/go-kit/kit/log"
+	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 )
 
 func TestWebhookRetry(t *testing.T) {
@@ -120,6 +122,37 @@ func TestSlackRetry(t *testing.T) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
+}
+
+func TestSlackRedactedURL(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	notifier := NewSlack(
+		&config.SlackConfig{
+			APIURL:     &config.SecretURL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.True(t, ok)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), srv.URL)
 }
 
 func TestHipchatRetry(t *testing.T) {
