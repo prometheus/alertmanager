@@ -1215,7 +1215,8 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	u.RawQuery = parameters.Encode()
-	level.Debug(n.logger).Log("msg", "Sending Pushover message", "incident", key, "url", u.String())
+	// Don't log the URL as it contains secret data (see #1825).
+	level.Debug(n.logger).Log("msg", "Sending Pushover message", "incident", key)
 
 	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "pushover")
 	if err != nil {
