@@ -74,6 +74,73 @@ func TestPagerDutyRetryV2(t *testing.T) {
 	}
 }
 
+func TestPagerDutyRedactedURLV1(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = WithGroupKey(ctx, "1")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	key := "01234567890123456789012345678901"
+	notifier := NewPagerDuty(
+		&config.PagerdutyConfig{
+			ServiceKey: config.Secret(key),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+	notifier.apiV1 = srv.URL
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), key)
+	require.True(t, ok)
+}
+
+func TestPagerDutyRedactedURLV2(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = WithGroupKey(ctx, "1")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	key := "01234567890123456789012345678901"
+	notifier := NewPagerDuty(
+		&config.PagerdutyConfig{
+			URL:        &config.URL{u},
+			RoutingKey: config.Secret(key),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), key)
+	require.True(t, ok)
+}
+
 func TestPagerDutyErr(t *testing.T) {
 	for _, tc := range []struct {
 		status int
@@ -150,9 +217,10 @@ func TestSlackRedactedURL(t *testing.T) {
 	)
 
 	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
-	require.True(t, ok)
 	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
 	require.NotContains(t, err.Error(), srv.URL)
+	require.True(t, ok)
 }
 
 func TestHipchatRetry(t *testing.T) {
@@ -162,6 +230,40 @@ func TestHipchatRetry(t *testing.T) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
+}
+
+func TestHipchatRedactedURL(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	token := "secret_token"
+	notifier := NewHipchat(
+		&config.HipchatConfig{
+			APIURL:     &config.URL{URL: u},
+			AuthToken:  config.Secret(token),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), token)
+	require.True(t, ok)
 }
 
 func TestOpsGenieRetry(t *testing.T) {
@@ -174,6 +276,40 @@ func TestOpsGenieRetry(t *testing.T) {
 	}
 }
 
+func TestOpsGenieRedactedURL(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = WithGroupKey(ctx, "1")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	key := "key"
+	notifier := NewOpsGenie(
+		&config.OpsGenieConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKey:     config.Secret(key),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), key)
+	require.True(t, ok)
+}
 func TestVictorOpsRetry(t *testing.T) {
 	notifier := new(VictorOps)
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
@@ -182,12 +318,81 @@ func TestVictorOpsRetry(t *testing.T) {
 	}
 }
 
+func TestVictorOpsRedactedURL(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = WithGroupKey(ctx, "1")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	secret := "secret"
+	notifier := NewVictorOps(
+		&config.VictorOpsConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKey:     config.Secret(secret),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), secret)
+	require.True(t, ok)
+}
+
 func TestPushoverRetry(t *testing.T) {
 	notifier := new(Pushover)
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
+}
+
+func TestPushoverRedactedURL(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = WithGroupKey(ctx, "1")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	key, token := "user_key", "token"
+	notifier := NewPushover(
+		&config.PushoverConfig{
+			UserKey:    config.Secret(key),
+			Token:      config.Secret(token),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+	notifier.apiURL = srv.URL
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), key)
+	require.NotContains(t, err.Error(), token)
+	require.True(t, ok)
 }
 
 func retryTests(retryCodes []int) map[int]bool {
@@ -418,6 +623,85 @@ func TestVictorOpsCustomFields(t *testing.T) {
 
 	// Verify that a custom field was added to the payload and templatized.
 	require.Equal(t, "message", m["Field_A"])
+}
+
+func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = WithGroupKey(ctx, "1")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-done
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	secret := "secret_key"
+	notifier := NewWechat(
+		&config.WechatConfig{
+			APIURL:     &config.URL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			CorpID:     "corpid",
+			APISecret:  config.Secret(secret),
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), secret)
+	require.True(t, ok)
+}
+
+func TestWechatRedactedURLOnNotify(t *testing.T) {
+	var (
+		authenticated bool
+		done          = make(chan struct{})
+		ctx, cancel   = context.WithCancel(context.Background())
+		token         = "token"
+	)
+	ctx = WithGroupKey(ctx, "1")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if authenticated {
+			cancel()
+			<-done
+		}
+		fmt.Fprintf(w, `{"access_token":"%s"}`, token)
+		authenticated = true
+	}))
+	defer func() {
+		close(done)
+		srv.Close()
+	}()
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	notifier := NewWechat(
+		&config.WechatConfig{
+			APIURL:     &config.URL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			CorpID:     "corpid",
+			APISecret:  config.Secret("secret"),
+		},
+		createTmpl(t),
+		log.NewNopLogger(),
+	)
+
+	ok, err := notifier.Notify(ctx, []*types.Alert{}...)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), context.Canceled.Error())
+	require.NotContains(t, err.Error(), token)
+	require.True(t, ok)
 }
 
 func TestTruncate(t *testing.T) {

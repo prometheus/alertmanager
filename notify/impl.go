@@ -194,11 +194,16 @@ type PagerDuty struct {
 	conf   *config.PagerdutyConfig
 	tmpl   *template.Template
 	logger log.Logger
+	apiV1  string // for tests.
 }
 
 // NewPagerDuty returns a new PagerDuty notifier.
 func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template, l log.Logger) *PagerDuty {
-	return &PagerDuty{conf: c, tmpl: t, logger: l}
+	n := &PagerDuty{conf: c, tmpl: t, logger: l}
+	if c.ServiceKey != "" {
+		n.apiV1 = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
+	}
+	return n
 }
 
 const (
@@ -263,12 +268,6 @@ func (n *PagerDuty) notifyV1(
 		Details:     details,
 	}
 
-	apiURL, err := url.Parse("https://events.pagerduty.com/generic/2010-04-15/create_event.json")
-	if err != nil {
-		return false, err
-	}
-	n.conf.URL = &config.URL{apiURL}
-
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
 		msg.ClientURL = tmpl(n.conf.ClientURL)
@@ -283,7 +282,7 @@ func (n *PagerDuty) notifyV1(
 		return false, err
 	}
 
-	resp, err := post(ctx, c, n.conf.URL.String(), contentTypeJSON, &buf)
+	resp, err := post(ctx, c, n.apiV1, contentTypeJSON, &buf)
 	if err != nil {
 		return true, err
 	}
@@ -400,7 +399,7 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		return false, err
 	}
 
-	if n.conf.ServiceKey != "" {
+	if n.apiV1 != "" {
 		return n.notifyV1(ctx, c, eventType, key, data, details, as...)
 	}
 	return n.notifyV2(ctx, c, eventType, key, data, details, as...)
@@ -675,7 +674,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 
 	resp, err := post(ctx, c, apiURL.String(), contentTypeJSON, &buf)
 	if err != nil {
-		return true, err
+		return true, redactURL(err)
 	}
 
 	defer resp.Body.Close()
@@ -776,7 +775,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 		resp, err := c.Do(req.WithContext(ctx))
 		if err != nil {
-			return true, err
+			return true, redactURL(err)
 		}
 		defer resp.Body.Close()
 
@@ -827,7 +826,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	resp, err := c.Do(req.WithContext(ctx))
 	if err != nil {
-		return true, err
+		return true, redactURL(err)
 	}
 	defer resp.Body.Close()
 
@@ -1055,7 +1054,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	resp, err := post(ctx, c, apiURL.String(), contentTypeJSON, buf)
 	if err != nil {
-		return true, err
+		return true, redactURL(err)
 	}
 
 	defer resp.Body.Close()
@@ -1143,11 +1142,12 @@ type Pushover struct {
 	conf   *config.PushoverConfig
 	tmpl   *template.Template
 	logger log.Logger
+	apiURL string // for tests.
 }
 
 // NewPushover returns a new Pushover notifier.
 func NewPushover(c *config.PushoverConfig, t *template.Template, l log.Logger) *Pushover {
-	return &Pushover{conf: c, tmpl: t, logger: l}
+	return &Pushover{conf: c, tmpl: t, logger: l, apiURL: "https://api.pushover.net/1/messages.json"}
 }
 
 // Notify implements the Notifier interface.
@@ -1210,8 +1210,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	apiURL := "https://api.pushover.net/1/messages.json"
-	u, err := url.Parse(apiURL)
+	u, err := url.Parse(n.apiURL)
 	if err != nil {
 		return false, err
 	}
@@ -1225,7 +1224,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	resp, err := post(ctx, c, u.String(), "text/plain", nil)
 	if err != nil {
-		return true, err
+		return true, redactURL(err)
 	}
 	defer resp.Body.Close()
 
