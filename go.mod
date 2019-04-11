@@ -12,7 +12,7 @@ require (
 	github.com/go-openapi/swag v0.17.2
 	github.com/go-openapi/validate v0.17.2
 	github.com/gogo/protobuf v1.2.1
-	github.com/hashicorp/go-sockaddr v1.0.0
+	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/memberlist v0.1.3
 	github.com/jessevdk/go-flags v0.0.0-20180331124232-1c38ed7ad0cc
 	github.com/kr/pretty v0.1.0 // indirect
