@@ -317,7 +317,7 @@ func (n *PagerDuty) notifyV2(
 		ClientURL:   tmpl(n.conf.ClientURL),
 		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
 		EventAction: eventType,
-		DedupKey:    hashKey(key),
+		DedupKey:    tmpl(n.conf.DedupKey),
 		Images:      make([]pagerDutyImage, len(n.conf.Images)),
 		Links:       make([]pagerDutyLink, len(n.conf.Links)),
 		Payload: &pagerDutyPayload{
