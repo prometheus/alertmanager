@@ -347,7 +347,6 @@ func (as AlertSlice) Less(i, j int) bool {
 }
 func (as AlertSlice) Swap(i, j int) { as[i], as[j] = as[j], as[i] }
 func (as AlertSlice) Len() int      { return len(as) }
-
 // Alerts turns a sequence of internal alerts into a list of
 // exposable model.Alert structures.
 func Alerts(alerts ...*Alert) model.Alerts {

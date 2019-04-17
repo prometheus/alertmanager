@@ -18,9 +18,12 @@ import (
 	"errors"
 	"sync"
 	"time"
-
+	"os"
+	"log"
+	"fmt"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
+	"encoding/json"
 )
 
 var (
@@ -86,8 +89,10 @@ func (a *Alerts) gc() {
 		if alert.Resolved() {
 			delete(a.c, fp)
 			resolved = append(resolved, alert)
+			StoreResolved(alert)
 		}
 	}
+	
 	a.cb(resolved)
 }
 
@@ -143,3 +148,41 @@ func (a *Alerts) Count() int {
 
 	return len(a.c)
 }
+func StoreResolved(alert *types.Alert){
+
+	fmt.Printf("Wrting resolved alert")
+	timestamp := int32(time.Now().Unix())
+	times := []byte(fmt.Sprintf("%d", timestamp))
+	date := time.Now().UTC().Format("01-02-2006")
+	Alert := types.Alerts(alert)
+	data, _ := json.MarshalIndent(Alert, "", " ")
+	var filename = "./Log/logAlert_" + date + ".json"
+	_, err := os.Stat(filename)
+
+	if err != nil {
+		if os.IsNotExist(err){
+			_, err := os.Create(filename)
+			if err != nil {
+				log.Fatal("Can't create log file", err)
+			}
+		}
+	}
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("Can't open new file", err)
+	}
+	
+
+	defer f.Close()
+
+	if _, err = f.Write(times); err != nil {
+		log.Fatal("Can't write timestamp to file", err)
+	}
+	if _, err = f.Write(data); err != nil {
+		log.Fatal("Can't write to file", err)
+	}
+	fmt.Printf("Write data to file success!\n")
+	
+
+}
+
