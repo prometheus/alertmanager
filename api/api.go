@@ -24,6 +24,7 @@ import (
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/types"
@@ -69,6 +70,10 @@ type Options struct {
 	// Registry is used to register Prometheus metrics. If nil, no metrics
 	// registration will happen.
 	Registry prometheus.Registerer
+	// GroupFunc returns a list of alert groups. The alerts are grouped
+	// according to the current active configuration. Alerts returned are
+	// filtered by the arguments provided to the function.
+	GroupFunc func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string)
 }
 
 func (o Options) validate() error {
@@ -80,6 +85,9 @@ func (o Options) validate() error {
 	}
 	if o.StatusFunc == nil {
 		return errors.New("mandatory field StatusFunc not set")
+	}
+	if o.GroupFunc == nil {
+		return errors.New("mandatory field GroupFunc not set")
 	}
 	return nil
 }
@@ -113,6 +121,7 @@ func New(opts Options) (*API, error) {
 
 	v2, err := apiv2.NewAPI(
 		opts.Alerts,
+		opts.GroupFunc,
 		opts.StatusFunc,
 		opts.Silences,
 		opts.Peer,

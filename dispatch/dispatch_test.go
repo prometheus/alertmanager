@@ -22,9 +22,13 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -321,5 +325,100 @@ func TestGroupByAllLabels(t *testing.T) {
 
 	if !reflect.DeepEqual(ls, expLs) {
 		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
+	}
+}
+
+func TestGroups(t *testing.T) {
+	logger := log.NewNopLogger()
+	conf, _, err := config.LoadFile("testdata/conf.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := NewRoute(conf.Route, nil)
+	marker := types.NewMarker(prometheus.DefaultRegisterer)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	dispatcher := NewDispatcher(alerts, route, &noopStage{}, marker, timeout, logger)
+	go dispatcher.Run()
+
+	// create alerts. the dispatcher will automatically create the groups
+	alerts.Put(
+		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes"}),
+	)
+	// Let alerts get processed
+	time.Sleep(time.Second)
+
+	var routeFilter, alertFilter bool
+	alertGroups, receivers := dispatcher.Groups(func(_ *Route) bool {
+		routeFilter = true
+		return true
+	}, func(_ *types.Alert, _ time.Time) bool {
+		alertFilter = true
+		return true
+	})
+
+	// Verify filter functions were called
+	require.True(t, routeFilter)
+	require.True(t, alertFilter)
+
+	// Verify grouping works
+	require.Equal(t, 5, len(alertGroups))
+	for _, ag := range alertGroups {
+		if len(ag.Labels) == 2 {
+			// testing receiver
+			require.Equal(t, 2, len(ag.Labels))
+			require.Equal(t, model.LabelSet{"alertname": "TestingAlert", "service": "api"}, ag.Labels)
+			for _, alert := range ag.Alerts {
+				alertsReceivers, ok := receivers[alert.Fingerprint()]
+				require.True(t, ok)
+				require.Equal(t, 1, len(alertsReceivers))
+				require.Equal(t, "testing", alertsReceivers[0])
+			}
+			continue
+		}
+		require.Equal(t, 3, len(ag.Labels))
+		for _, alert := range ag.Alerts {
+			alertsReceivers, ok := receivers[alert.Fingerprint()]
+			require.True(t, ok)
+			if labelValue := ag.Labels["alertname"]; string(labelValue) == "HighLatency" {
+				// Matches both prod and kafka receivers
+				require.Equal(t, []string{"prod", "kafka"}, alertsReceivers)
+				continue
+			}
+			require.Equal(t, 1, len(alertsReceivers))
+			require.Equal(t, "prod", alertsReceivers[0])
+		}
+	}
+}
+
+type noopStage struct{}
+
+func (n *noopStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	return ctx, nil, nil
+}
+
+var (
+	t0 = time.Now()
+	t1 = t0.Add(100 * time.Millisecond)
+)
+
+func newAlert(labels model.LabelSet) *types.Alert {
+	return &types.Alert{
+		Alert: model.Alert{
+			Labels:       labels,
+			Annotations:  model.LabelSet{"foo": "bar"},
+			StartsAt:     t0,
+			EndsAt:       t1,
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: t0,
+		Timeout:   false,
 	}
 }

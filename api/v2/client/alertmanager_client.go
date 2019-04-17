@@ -26,6 +26,7 @@ import (
 	strfmt "github.com/go-openapi/strfmt"
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/alertgroup"
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/client/receiver"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
@@ -75,6 +76,8 @@ func New(transport runtime.ClientTransport, formats strfmt.Registry) *Alertmanag
 	cli.Transport = transport
 
 	cli.Alert = alert.New(transport, formats)
+
+	cli.Alertgroup = alertgroup.New(transport, formats)
 
 	cli.General = general.New(transport, formats)
 
@@ -128,6 +131,8 @@ func (cfg *TransportConfig) WithSchemes(schemes []string) *TransportConfig {
 type Alertmanager struct {
 	Alert *alert.Client
 
+	Alertgroup *alertgroup.Client
+
 	General *general.Client
 
 	Receiver *receiver.Client
@@ -142,6 +147,8 @@ func (c *Alertmanager) SetTransport(transport runtime.ClientTransport) {
 	c.Transport = transport
 
 	c.Alert.SetTransport(transport)
+
+	c.Alertgroup.SetTransport(transport)
 
 	c.General.SetTransport(transport)
 

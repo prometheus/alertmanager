@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/restapi"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
 	alert_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	alertgroup_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
@@ -53,6 +54,7 @@ type API struct {
 	peer           *cluster.Peer
 	silences       *silence.Silences
 	alerts         provider.Alerts
+	alertGroups    groupsFn
 	getAlertStatus getAlertStatusFn
 	uptime         time.Time
 
@@ -69,12 +71,14 @@ type API struct {
 	Handler http.Handler
 }
 
+type groupsFn func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 type setAlertStatusFn func(prometheus_model.LabelSet)
 
 // NewAPI returns a new Alertmanager API v2
 func NewAPI(
 	alerts provider.Alerts,
+	gf groupsFn,
 	sf getAlertStatusFn,
 	silences *silence.Silences,
 	peer *cluster.Peer,
@@ -83,6 +87,7 @@ func NewAPI(
 	api := API{
 		alerts:         alerts,
 		getAlertStatus: sf,
+		alertGroups:    gf,
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
@@ -107,6 +112,7 @@ func NewAPI(
 
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
 	openAPI.AlertPostAlertsHandler = alert_ops.PostAlertsHandlerFunc(api.postAlertsHandler)
+	openAPI.AlertgroupGetAlertGroupsHandler = alertgroup_ops.GetAlertGroupsHandlerFunc(api.getAlertGroupsHandler)
 	openAPI.GeneralGetStatusHandler = general_ops.GetStatusHandlerFunc(api.getStatusHandler)
 	openAPI.ReceiverGetReceiversHandler = receiver_ops.GetReceiversHandlerFunc(api.getReceiversHandler)
 	openAPI.SilenceDeleteSilenceHandler = silence_ops.DeleteSilenceHandlerFunc(api.deleteSilenceHandler)
@@ -224,6 +230,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	if params.Receiver != nil {
 		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
 		if err != nil {
+			level.Error(api.logger).Log("msg", "failed to compile receiver regex", "err", err)
 			return alert_ops.
 				NewGetAlertsBadRequest().
 				WithPayload(
@@ -235,6 +242,9 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
+	alertFilter := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	now := time.Now()
+
 	api.mtx.RLock()
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
@@ -245,79 +255,22 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		}
 
 		routes := api.route.Match(a.Labels)
-		receivers := make([]*open_api_models.Receiver, 0, len(routes))
+		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
-			receivers = append(receivers, &open_api_models.Receiver{Name: &r.RouteOpts.Receiver})
+			receivers = append(receivers, r.RouteOpts.Receiver)
 		}
 
 		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
 			continue
 		}
 
-		if !alertMatchesFilterLabels(&a.Alert, matchers) {
+		if !alertFilter(a, now) {
 			continue
 		}
 
-		// Continue if the alert is resolved.
-		if !a.Alert.EndsAt.IsZero() && a.Alert.EndsAt.Before(time.Now()) {
-			continue
-		}
+		alert := alertToOpenAPIAlert(a, api.getAlertStatus(a.Fingerprint()), receivers)
 
-		// Set alert's current status based on its label set.
-		api.setAlertStatus(a.Labels)
-
-		// Get alert's current status after seeing if it is suppressed.
-		status := api.getAlertStatus(a.Fingerprint())
-
-		if !*params.Active && status.State == types.AlertStateActive {
-			continue
-		}
-
-		if !*params.Unprocessed && status.State == types.AlertStateUnprocessed {
-			continue
-		}
-
-		if !*params.Silenced && len(status.SilencedBy) != 0 {
-			continue
-		}
-
-		if !*params.Inhibited && len(status.InhibitedBy) != 0 {
-			continue
-		}
-
-		state := string(status.State)
-		startsAt := strfmt.DateTime(a.StartsAt)
-		updatedAt := strfmt.DateTime(a.UpdatedAt)
-		endsAt := strfmt.DateTime(a.EndsAt)
-		fingerprint := a.Fingerprint().String()
-
-		alert := open_api_models.GettableAlert{
-			Alert: open_api_models.Alert{
-				GeneratorURL: strfmt.URI(a.GeneratorURL),
-				Labels:       modelLabelSetToAPILabelSet(a.Labels),
-			},
-			Annotations: modelLabelSetToAPILabelSet(a.Annotations),
-			StartsAt:    &startsAt,
-			UpdatedAt:   &updatedAt,
-			EndsAt:      &endsAt,
-			Fingerprint: &fingerprint,
-			Receivers:   receivers,
-			Status: &open_api_models.AlertStatus{
-				State:       &state,
-				SilencedBy:  status.SilencedBy,
-				InhibitedBy: status.InhibitedBy,
-			},
-		}
-
-		if alert.Status.SilencedBy == nil {
-			alert.Status.SilencedBy = []string{}
-		}
-
-		if alert.Status.InhibitedBy == nil {
-			alert.Status.InhibitedBy = []string{}
-		}
-
-		res = append(res, &alert)
+		res = append(res, alert)
 	}
 	api.mtx.RUnlock()
 
@@ -393,6 +346,139 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	return alert_ops.NewPostAlertsOK()
 }
 
+func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams) middleware.Responder {
+	var (
+		err            error
+		receiverFilter *regexp.Regexp
+		matchers       = []*labels.Matcher{}
+	)
+
+	for _, matcherString := range params.Filter {
+		matcher, err := parse.Matcher(matcherString)
+		if err != nil {
+			level.Error(api.logger).Log("msg", "failed to parse matchers", "err", err)
+			return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
+		}
+
+		matchers = append(matchers, matcher)
+	}
+
+	if params.Receiver != nil {
+		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
+		if err != nil {
+			level.Error(api.logger).Log("msg", "failed to compile receiver regex", "err", err)
+			return alertgroup_ops.
+				NewGetAlertGroupsBadRequest().
+				WithPayload(
+					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
+				)
+		}
+	}
+
+	rf := func(receiverFilter *regexp.Regexp) func(r *dispatch.Route) bool {
+		return func(r *dispatch.Route) bool {
+			receiver := r.RouteOpts.Receiver
+			if receiverFilter != nil && !receiverFilter.MatchString(receiver) {
+				return false
+			}
+			return true
+		}
+	}(receiverFilter)
+
+	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
+	alertGroups, allReceivers := api.alertGroups(rf, af)
+
+	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
+
+	for _, alertGroup := range alertGroups {
+		ag := &open_api_models.AlertGroup{
+			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
+			Labels:   modelLabelSetToAPILabelSet(alertGroup.Labels),
+			Alerts:   make([]*open_api_models.GettableAlert, 0, len(alertGroup.Alerts)),
+		}
+
+		for _, alert := range alertGroup.Alerts {
+			fp := alert.Fingerprint()
+			receivers := allReceivers[fp]
+			status := api.getAlertStatus(fp)
+			apiAlert := alertToOpenAPIAlert(alert, status, receivers)
+			ag.Alerts = append(ag.Alerts, apiAlert)
+		}
+		res = append(res, ag)
+	}
+
+	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
+}
+
+func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
+	return func(a *types.Alert, now time.Time) bool {
+		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
+			return false
+		}
+
+		// Set alert's current status based on its label set.
+		api.setAlertStatus(a.Labels)
+
+		// Get alert's current status after seeing if it is suppressed.
+		status := api.getAlertStatus(a.Fingerprint())
+
+		if !active && status.State == types.AlertStateActive {
+			return false
+		}
+
+		if !silenced && len(status.SilencedBy) != 0 {
+			return false
+		}
+
+		if !inhibited && len(status.InhibitedBy) != 0 {
+			return false
+		}
+
+		return alertMatchesFilterLabels(&a.Alert, matchers)
+	}
+}
+
+func alertToOpenAPIAlert(alert *types.Alert, status types.AlertStatus, receivers []string) *open_api_models.GettableAlert {
+	startsAt := strfmt.DateTime(alert.StartsAt)
+	updatedAt := strfmt.DateTime(alert.UpdatedAt)
+	endsAt := strfmt.DateTime(alert.EndsAt)
+
+	apiReceivers := make([]*open_api_models.Receiver, 0, len(receivers))
+	for _, name := range receivers {
+		apiReceivers = append(apiReceivers, &open_api_models.Receiver{Name: &name})
+	}
+
+	fp := alert.Fingerprint().String()
+	state := string(status.State)
+	aa := &open_api_models.GettableAlert{
+		Alert: open_api_models.Alert{
+			GeneratorURL: strfmt.URI(alert.GeneratorURL),
+			Labels:       modelLabelSetToAPILabelSet(alert.Labels),
+		},
+		Annotations: modelLabelSetToAPILabelSet(alert.Annotations),
+		StartsAt:    &startsAt,
+		UpdatedAt:   &updatedAt,
+		EndsAt:      &endsAt,
+		Fingerprint: &fp,
+		Receivers:   apiReceivers,
+		Status: &open_api_models.AlertStatus{
+			State:       &state,
+			SilencedBy:  status.SilencedBy,
+			InhibitedBy: status.InhibitedBy,
+		},
+	}
+
+	if aa.Status.SilencedBy == nil {
+		aa.Status.SilencedBy = []string{}
+	}
+
+	if aa.Status.InhibitedBy == nil {
+		aa.Status.InhibitedBy = []string{}
+	}
+
+	return aa
+}
+
 func openAPIAlertsToAlerts(apiAlerts open_api_models.PostableAlerts) []*types.Alert {
 	alerts := []*types.Alert{}
 	for _, apiAlert := range apiAlerts {
@@ -437,9 +523,9 @@ func apiLabelSetToModelLabelSet(apiLabelSet open_api_models.LabelSet) prometheus
 	return modelLabelSet
 }
 
-func receiversMatchFilter(receivers []*open_api_models.Receiver, filter *regexp.Regexp) bool {
+func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
 	for _, r := range receivers {
-		if filter.MatchString(string(*r.Name)) {
+		if filter.MatchString(r) {
 			return true
 		}
 	}
@@ -563,6 +649,8 @@ func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, match
 
 	return matchFilterLabels(matchers, sms)
 }
+
+// func matchesFilterLabels(labels model.LabelSet, matchers []*labels.Matcher) bool {
 
 func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middleware.Responder {
 	sils, _, err := api.silences.Query(silence.QIDs(params.SilenceID.String()))

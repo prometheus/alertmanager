@@ -133,6 +133,86 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 	}
 }
 
+// AlertGroup represents how alerts exist within an aggrGroup.
+type AlertGroup struct {
+	Alerts   []*types.Alert
+	Labels   model.LabelSet
+	Receiver string
+}
+
+type AlertGroups []*AlertGroup
+
+func (ag AlertGroups) Swap(i, j int)      { ag[i], ag[j] = ag[j], ag[i] }
+func (ag AlertGroups) Less(i, j int) bool { return ag[i].Labels.Before(ag[j].Labels) }
+func (ag AlertGroups) Len() int           { return len(ag) }
+
+// Groups returns a slice of AlertGroups from the dispatcher's internal state.
+func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
+	groups := AlertGroups{}
+
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
+	seen := map[model.Fingerprint]*AlertGroup{}
+
+	// Keep a list of receivers for an alert to prevent checking each alert
+	// again against all routes. The alert has already matched against this
+	// route on ingestion.
+	receivers := map[model.Fingerprint][]string{}
+
+	for route, ags := range d.aggrGroups {
+		if !routeFilter(route) {
+			continue
+		}
+
+		for _, ag := range ags {
+			receiver := route.RouteOpts.Receiver
+			alertGroup, ok := seen[ag.fingerprint()]
+			if !ok {
+				alertGroup = &AlertGroup{
+					Labels:   ag.labels,
+					Receiver: receiver,
+				}
+
+				seen[ag.fingerprint()] = alertGroup
+			}
+
+			now := time.Now()
+
+			alerts := ag.alerts.List()
+			filteredAlerts := make([]*types.Alert, 0, len(alerts))
+			for a := range alerts {
+				if !alertFilter(a, now) {
+					continue
+				}
+
+				fp := a.Fingerprint()
+				if r, ok := receivers[fp]; ok {
+					// Receivers slice already exists. Add
+					// the current receiver to the slice.
+					receivers[fp] = append(r, receiver)
+				} else {
+					// First time we've seen this alert fingerprint.
+					// Initialize a new receivers slice.
+					receivers[fp] = []string{receiver}
+				}
+
+				filteredAlerts = append(filteredAlerts, a)
+			}
+			if len(filteredAlerts) == 0 {
+				continue
+			}
+			alertGroup.Alerts = filteredAlerts
+
+			groups = append(groups, alertGroup)
+		}
+	}
+
+	sort.Sort(groups)
+
+	return groups, receivers
+}
+
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
 	if d == nil || d.cancel == nil {
