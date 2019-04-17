@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/luuphu25/alertmanager/Log"
 )
 
 var (

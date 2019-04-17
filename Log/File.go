@@ -3,8 +3,10 @@ package Log
 import (
 	"fmt"
 	"os"
-	"github.com/prometheus/alertmanager/route"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
+	"log"
+	"encoding/json"
 )
 
 type Alert struct {
@@ -44,6 +46,7 @@ func AlertStore(ctx context.Context, alerts ...*types.Alert){
 
 	)
 	var tempAlert ExtendedAlert
+	var route  dispatch.Route
 
 	for a := range alerts.Next() {
 		if err = alerts.Err(); err != nil {
@@ -54,7 +57,7 @@ func AlertStore(ctx context.Context, alerts ...*types.Alert){
 		}
 		tempAlert.Alert = a
 
-		routes := route.Match(a.Labels)
+		routes :=  route.Match(a.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
 			receivers = append(receivers, r.RouteOpts.Receiver)
