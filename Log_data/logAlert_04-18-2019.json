@@ -1,0 +1,162 @@
+1555564403{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-18T12:13:23.665767154+07:00",
+  "endsAt": "2019-04-18T12:16:23.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-18T12:13:23.669996025+07:00",
+  "Timeout": false
+ },
+ "status": "firing",
+ "receivers": [
+  "elastic",
+  "another"
+ ],
+ "fingerprint": "633518690878400c"
+}1555564478{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-18T12:13:23.665767154+07:00",
+  "endsAt": "2019-04-18T12:14:38.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-18T12:14:38.671321814+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic",
+  "another"
+ ],
+ "fingerprint": "633518690878400c"
+}1555564718{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-18T12:16:23.665767154+07:00",
+  "endsAt": "2019-04-18T12:18:38.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-18T12:18:38.672255292+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic",
+  "another"
+ ],
+ "fingerprint": "633518690878400c"
+}1555564793{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-18T12:16:23.665767154+07:00",
+  "endsAt": "2019-04-18T12:18:38.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-18T12:19:53.678314876+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic",
+  "another"
+ ],
+ "fingerprint": "633518690878400c"
+}1555564868{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-18T12:16:23.665767154+07:00",
+  "endsAt": "2019-04-18T12:18:38.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-18T12:21:08.668157656+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic",
+  "another"
+ ],
+ "fingerprint": "633518690878400c"
+}1555565243{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-18T12:24:08.665767154+07:00",
+  "endsAt": "2019-04-18T12:27:23.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-18T12:27:23.671928196+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic",
+  "another"
+ ],
+ "fingerprint": "633518690878400c"
+}1555565318{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-18T12:24:08.665767154+07:00",
+  "endsAt": "2019-04-18T12:27:23.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-18T12:28:38.67194034+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic",
+  "another"
+ ],
+ "fingerprint": "633518690878400c"
+}

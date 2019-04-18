@@ -39,6 +39,7 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/store"
 )
 
 var corsHeaders = map[string]string{
@@ -57,6 +58,12 @@ type Alert struct {
 	Receivers   []string          `json:"receivers"`
 	Fingerprint string            `json:"fingerprint"`
 }
+/* type FileAlert struct {
+	alert *model.Alert
+	Status      string `json:"status"`
+	Receivers   []string          `json:"receivers"`
+	Fingerprint string            `json:"fingerprint"`
+} */
 
 // Enables cross-site script calls.
 func setCORS(w http.ResponseWriter) {
@@ -242,6 +249,61 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 	}
 	return s
 }
+func (api *API) LogAlert(alerts ...*types.Alert){
+	now := time.Now()
+	resolveTimeout := time.Duration(api.config.Global.ResolveTimeout)
+	var (
+		//err error
+		res store.FileAlert
+		status string
+		//ctx = r.Context()
+	)
+	status = "firing"
+	for _, alert := range alerts{
+		alert.UpdatedAt = now
+
+		if alert.StartsAt.IsZero() {
+			if alert.EndsAt.IsZero() {
+				alert.StartsAt = now
+			} else {
+				alert.StartsAt = alert.EndsAt
+			}
+		}
+		// If no end time is defined, set a timeout after which an alert
+		// is marked resolved if it is not updated.
+		if alert.EndsAt.IsZero() {
+			alert.Timeout = true
+			alert.EndsAt = now.Add(resolveTimeout)
+		}
+		// check status alert
+		if alert.EndsAt.After(time.Now()) {
+			status = "firing"
+			fp:= alert.Fingerprint()
+			_, err := api.alerts.Get(fp)
+			if err == nil{
+				continue // alert exsisted & firing -> skip 
+			}
+
+		} else {
+			status = "resolved"
+		}
+		
+		routes := api.route.Match(alert.Labels)
+		receivers := make([]string, 0, len(routes))
+		for _, r := range routes {
+			receivers = append(receivers, r.RouteOpts.Receiver)
+		}
+		res.Alert = alert
+		res.Status = status
+		res.Receivers = receivers
+		res.Fingerprint = alert.Fingerprint().String()
+		store.StoreAlert(res)
+
+	}
+	
+	
+
+}
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	var (
@@ -422,7 +484,9 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.LogAlert(alerts...)
 	api.insertAlerts(w, r, alerts...)
+
 }
 
 func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*types.Alert) {

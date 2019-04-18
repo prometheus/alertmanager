@@ -35,7 +35,6 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/luuphu25/alertmanager/Log"
 )
 
 var (
@@ -628,7 +627,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			retry, err := r.integration.Notify(ctx, sent...)
 			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
 			numNotifications.WithLabelValues(r.integration.name).Inc()
-			Log.AlertStore(ctx, sent...)
+			//Log.AlertStore(ctx, sent...)
 			if err != nil {
 				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)

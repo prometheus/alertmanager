@@ -18,12 +18,12 @@ import (
 	"errors"
 	"sync"
 	"time"
-	//"os"
-	//"log"
-	//"fmt"
+	"os"
+	"log"
+	"fmt"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
-	//"encoding/json"
+	"encoding/json"
 )
 
 var (
@@ -89,7 +89,6 @@ func (a *Alerts) gc() {
 		if alert.Resolved() {
 			delete(a.c, fp)
 			resolved = append(resolved, alert)
-			//StoreResolved(alert)
 		}
 	}
 	
@@ -148,14 +147,21 @@ func (a *Alerts) Count() int {
 
 	return len(a.c)
 }
-/* func StoreResolved(alert *types.Alert){
+type FileAlert struct {
+	Alert *types.Alert
+	Status      string `json:"status"`
+	Receivers   []string          `json:"receivers"`
+	Fingerprint string            `json:"fingerprint"`
+}
 
-	fmt.Printf("Wrting resolved alert")
+
+func StoreAlert(alert FileAlert){
+
+	fmt.Printf("Wrting alert")
 	timestamp := int32(time.Now().Unix())
 	times := []byte(fmt.Sprintf("%d", timestamp))
 	date := time.Now().UTC().Format("01-02-2006")
-	Alert := types.Alerts(alert)
-	data, _ := json.MarshalIndent(Alert, "", " ")s
+	data, _ := json.MarshalIndent(alert, "", " ")
 	var filename = "./Log_data/logAlert_" + date + ".json"
 	_, err := os.Stat(filename)
 
@@ -185,5 +191,3 @@ func (a *Alerts) Count() int {
 	
 
 }
-
- */
