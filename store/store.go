@@ -40,6 +40,7 @@ type Alerts struct {
 
 	sync.Mutex
 	c  map[model.Fingerprint]*types.Alert
+	toggle map [model.Fingerprint] int
 	cb func([]*types.Alert)
 }
 
@@ -51,6 +52,7 @@ func NewAlerts(gcInterval time.Duration) *Alerts {
 
 	a := &Alerts{
 		c:          make(map[model.Fingerprint]*types.Alert),
+		toggle: 	make(map[model.Fingerprint]int),
 		cb:         func(_ []*types.Alert) {},
 		gcInterval: gcInterval,
 	}
@@ -88,6 +90,7 @@ func (a *Alerts) gc() {
 	for fp, alert := range a.c {
 		if alert.Resolved() {
 			delete(a.c, fp)
+			delete(a.toggle,fp)
 			resolved = append(resolved, alert)
 		}
 	}
@@ -107,13 +110,23 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	}
 	return alert, nil
 }
-
+func (a *Alerts) GetToggle(fp model.Fingerprint) (int){
+	a.Lock()
+	defer a.Unlock()
+	return a.toggle[fp]
+	
+}
+func (a *Alerts) SetToggle(fp model.Fingerprint, value int) error {
+	a.toggle[fp] = value
+	return nil
+}
 // Set unconditionally sets the alert in memory.
 func (a *Alerts) Set(alert *types.Alert) error {
 	a.Lock()
 	defer a.Unlock()
 
 	a.c[alert.Fingerprint()] = alert
+	a.toggle[alert.Fingerprint()] = 0
 	return nil
 }
 
@@ -123,6 +136,7 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	defer a.Unlock()
 
 	delete(a.c, fp)
+	delete(a.toggle, fp)
 	return nil
 }
 
@@ -148,10 +162,11 @@ func (a *Alerts) Count() int {
 	return len(a.c)
 }
 type FileAlert struct {
-	Alert *types.Alert
+	Alert *types.Alert 
 	Status      string `json:"status"`
 	Receivers   []string          `json:"receivers"`
 	Fingerprint string            `json:"fingerprint"`
+	TimeLog string `json:"timeLog"`
 }
 
 
@@ -159,8 +174,9 @@ func StoreAlert(alert FileAlert){
 
 	fmt.Printf("Wrting alert")
 	timestamp := int32(time.Now().Unix())
-	times := []byte(fmt.Sprintf("%d", timestamp))
+	times := fmt.Sprintf("%d", timestamp)
 	date := time.Now().UTC().Format("01-02-2006")
+	alert.TimeLog = times
 	data, _ := json.MarshalIndent(alert, "", " ")
 	var filename = "./Log_data/logAlert_" + date + ".json"
 	_, err := os.Stat(filename)
@@ -181,9 +197,9 @@ func StoreAlert(alert FileAlert){
 
 	defer f.Close()
 
-	if _, err = f.Write(times); err != nil {
+	/* if _, err = f.Write(times); err != nil {
 		log.Fatal("Can't write timestamp to file", err)
-	}
+	} */
 	if _, err = f.Write(data); err != nil {
 		log.Fatal("Can't write to file", err)
 	}

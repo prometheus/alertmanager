@@ -251,15 +251,16 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 }
 func (api *API) LogAlert(alerts ...*types.Alert){
 	now := time.Now()
+	api.mtx.RLock()
 	resolveTimeout := time.Duration(api.config.Global.ResolveTimeout)
+	api.mtx.RUnlock()
 	var (
-		//err error
 		res store.FileAlert
 		status string
-		//ctx = r.Context()
 	)
 	status = "firing"
 	for _, alert := range alerts{
+		fp:= alert.Fingerprint()
 		alert.UpdatedAt = now
 
 		if alert.StartsAt.IsZero() {
@@ -275,17 +276,55 @@ func (api *API) LogAlert(alerts ...*types.Alert){
 			alert.Timeout = true
 			alert.EndsAt = now.Add(resolveTimeout)
 		}
-		// check status alert
-		if alert.EndsAt.After(time.Now()) {
-			status = "firing"
+		// Check alert firing and existed 
+		/* if alert.EndsAt.After(time.Now()) {
 			fp:= alert.Fingerprint()
-			_, err := api.alerts.Get(fp)
+			old, err := api.alerts.Get(fp)
 			if err == nil{
-				continue // alert exsisted & firing -> skip 
+				if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
+				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
+				alert = old.Merge(alert)
 			}
+				if api.alerts.GetToggle(fp) == 1{
+					continue // alert exsisted & firing -> skip 
+				}
+				
+			}
+			status = "firing"
 
 		} else {
 			status = "resolved"
+			
+		} */
+		old, err := api.alerts.Get(fp)
+		if err == nil{
+			// Merge info
+			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
+			(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
+			alert = old.Merge(alert)
+			}
+			if alert.EndsAt.After(time.Now()){
+				if api.alerts.GetToggle(fp) == 1{
+					continue
+				} else{
+					status = "firing"
+				} 
+
+			} else {
+				if api.alerts.GetToggle(fp) == 0 {
+					status = "firing"
+				}else {
+					status = "resolved"
+				}
+			}
+		} else {
+			status = "firing"
+		}
+
+		if status == "resolved" {
+			api.alerts.SetToggle(fp, 0)
+		} else {
+			api.alerts.SetToggle(fp, 1)
 		}
 		
 		routes := api.route.Match(alert.Labels)
@@ -484,8 +523,9 @@ func (api *API) addAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.LogAlert(alerts...)
+	
 	api.insertAlerts(w, r, alerts...)
+	api.LogAlert(alerts...)
 
 }
 
