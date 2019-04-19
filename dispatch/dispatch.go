@@ -181,7 +181,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 
 			alerts := ag.alerts.List()
 			filteredAlerts := make([]*types.Alert, 0, len(alerts))
-			for a := range alerts {
+			for _, a := range alerts {
 				if !alertFilter(a, now) {
 					continue
 				}
@@ -403,7 +403,7 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 }
 
 func (ag *aggrGroup) empty() bool {
-	return ag.alerts.Count() == 0
+	return ag.alerts.Empty()
 }
 
 // flush sends notifications for all new alerts.
@@ -414,10 +414,10 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	var (
 		alerts      = ag.alerts.List()
-		alertsSlice = make(types.AlertSlice, 0, ag.alerts.Count())
+		alertsSlice = make(types.AlertSlice, 0, len(alerts))
+		now         = time.Now()
 	)
-	now := time.Now()
-	for alert := range alerts {
+	for _, alert := range alerts {
 		a := *alert
 		// Ensure that alerts don't resolve as time move forwards.
 		if !a.ResolvedAt(now) {
