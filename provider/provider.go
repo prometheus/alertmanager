@@ -83,8 +83,8 @@ type Alerts interface {
 	GetPending() AlertIterator
 	// Get returns the alert for a given fingerprint.
 	Get(model.Fingerprint) (*types.Alert, error)
-	GetToggle(model.Fingerprint)(int)
-	SetToggle(model.Fingerprint, int) error
+	//GetToggle(model.Fingerprint)(int)
+	//SetToggle(model.Fingerprint, int) error
 
 	// Put adds the given alert to the set.
 	Put(...*types.Alert) error

@@ -39,7 +39,8 @@ import (
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/alertmanager/store"
+	//"github.com/prometheus/alertmanager/store"
+	"internal/logdb"
 )
 
 var corsHeaders = map[string]string{
@@ -251,14 +252,16 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 }
 func (api *API) LogAlert(alerts ...*types.Alert){
 	now := time.Now()
-	api.mtx.RLock()
-	resolveTimeout := time.Duration(api.config.Global.ResolveTimeout)
-	api.mtx.RUnlock()
+
+	/* api.mtx.RLock()
+	//resolveTimeout := time.Duration(api.config.Global.ResolveTimeout)
+	api.mtx.RUnlock() */
 	var (
-		res store.FileAlert
+		res logdb.DBAlert
 		status string
+		flag int
 	)
-	status = "firing"
+	//status = "firing"
 	for _, alert := range alerts{
 		fp:= alert.Fingerprint()
 		alert.UpdatedAt = now
@@ -272,59 +275,21 @@ func (api *API) LogAlert(alerts ...*types.Alert){
 		}
 		// If no end time is defined, set a timeout after which an alert
 		// is marked resolved if it is not updated.
-		if alert.EndsAt.IsZero() {
-			alert.Timeout = true
-			alert.EndsAt = now.Add(resolveTimeout)
-		}
-		// Check alert firing and existed 
-		/* if alert.EndsAt.After(time.Now()) {
-			fp:= alert.Fingerprint()
-			old, err := api.alerts.Get(fp)
-			if err == nil{
-				if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
-				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
-				alert = old.Merge(alert)
-			}
-				if api.alerts.GetToggle(fp) == 1{
-					continue // alert exsisted & firing -> skip 
-				}
-				
-			}
-			status = "firing"
-
-		} else {
-			status = "resolved"
-			
-		} */
+		
 		old, err := api.alerts.Get(fp)
 		if err == nil{
-			// Merge info
 			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
 			(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
 			alert = old.Merge(alert)
 			}
 			if alert.EndsAt.After(time.Now()){
-				if api.alerts.GetToggle(fp) == 1{
-					continue
-				} else{
 					status = "firing"
-				} 
 
 			} else {
-				if api.alerts.GetToggle(fp) == 0 {
-					status = "firing"
-				}else {
-					status = "resolved"
-				}
+				status = "resolved"
 			}
 		} else {
 			status = "firing"
-		}
-
-		if status == "resolved" {
-			api.alerts.SetToggle(fp, 0)
-		} else {
-			api.alerts.SetToggle(fp, 1)
 		}
 		
 		routes := api.route.Match(alert.Labels)
@@ -336,7 +301,12 @@ func (api *API) LogAlert(alerts ...*types.Alert){
 		res.Status = status
 		res.Receivers = receivers
 		res.Fingerprint = alert.Fingerprint().String()
-		store.StoreAlert(res)
+		fmt.Printf("Runing store \n\n")
+		flag, err = logdb.StoreDB(&res)
+		if flag == 1 {
+			logdb.WriteAlert(res)
+		}
+		//store.StoreAlert(res)
 
 	}
 	
