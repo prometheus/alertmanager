@@ -147,4 +147,5 @@ func main(){
 		fmt.Printf(user2.Name)
 	} */
 	List("alertBucket", db)
+	List("DataBucket", db)
 }

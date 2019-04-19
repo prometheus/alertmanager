@@ -12,6 +12,12 @@ import (
     "encoding/hex"
     "os"
     "log"
+    "github.com/luuphu25/alert2log_exporter/query"
+    "github.com/luuphu25/alert2log_exporter/template"
+    "strings"
+    //"github.com/prometheus/common/model"
+
+
 )
 
 
@@ -24,15 +30,35 @@ type DBAlert struct {
 	IDstore string `json:"keyDB"`
 }
 
+type DBData struct {
+    IDstore string `json:"keyDB"`
+    Data map[string] template.Query_struct
+}
 
+
+
+var prometheus_url = "http://61.28.251.119:9090"
 
 func setupDB()(*bolt.DB, error) {
-    db, err := bolt.Open("alert.db", 0644, &bolt.Options{Timeout: 1 * time.Second})
+    db, err := bolt.Open("./DB/alert.db", 0644, &bolt.Options{Timeout: 1 * time.Second})
     if err != nil {
         return nil, fmt.Errorf("could not open db, %v", err)
     }
+    // Bucket for alert
     err = db.Update(func(tx *bolt.Tx) error {
         _, err := tx.CreateBucketIfNotExists([]byte("alertBucket"))
+        if err != nil {
+        return fmt.Errorf("could not create root bucket: %v", err)
+        }
+       
+        return nil
+    })
+    if err != nil {
+        return nil, fmt.Errorf("could not set up buckets, %v", err)
+    }
+    // Bucket for pastData
+    err = db.Update(func(tx *bolt.Tx) error {
+        _, err := tx.CreateBucketIfNotExists([]byte("DataBucket"))
         if err != nil {
         return fmt.Errorf("could not create root bucket: %v", err)
         }
@@ -66,6 +92,26 @@ func (alert *DBAlert) save(db *bolt.DB) error {
     fmt.Printf("\nStore data into DB success\n")
     return nil 
 }
+func (pastData *DBData) save(db *bolt.DB) error {
+	//fmt.Printf("Storing user with ID: ", user.ID)
+	err := db.Update(func(tx *bolt.Tx) error {
+        DataB, err := tx.CreateBucketIfNotExists([]byte("DataBucket"))
+        if err != nil {
+            return fmt.Errorf("create bucket: %s", err)
+        }
+        enc, err := pastData.encode()
+        if err != nil {
+            return fmt.Errorf("could not encode Alert %s: %s", pastData.IDstore, err)
+        }
+        err = DataB.Put([]byte(pastData.IDstore), enc)
+        return err
+    })
+    if err != nil {
+    	return err
+    }
+    fmt.Printf("\nStore past data into DB success\n")
+    return nil 
+}
 
 func (alert *DBAlert) goEncode()([]byte, error){
 	buf := new(bytes.Buffer)
@@ -90,6 +136,14 @@ func gobDecode(data []byte) (*DBAlert, error) {
 
 func (alert *DBAlert) encode() ([]byte, error) {
     enc, err := json.Marshal(alert)
+    if err != nil {
+        return nil, err
+    }
+    return enc, nil
+}
+
+func (pastData *DBData) encode() ([]byte, error) {
+    enc, err := json.Marshal(pastData)
     if err != nil {
         return nil, err
     }
@@ -145,6 +199,7 @@ func StoreDB(alert *DBAlert) (int, error) {
         fmt.Printf("Saving data \n\n\n")
         alert.save(db)
         flag = 1
+        savePastData(alert)
         return flag, nil
 	} else {
 		fmt.Printf("Data exists")
@@ -191,4 +246,28 @@ func WriteAlert(alert DBAlert){
 	fmt.Printf("Write data to file success!\n")
 	
 
+}
+func savePastData(alert *DBAlert) error {
+    var query_command string
+    var past_data  template.Query_struct
+    var StoreData DBData
+    StoreData.IDstore = alert.IDstore
+    convertAlert := alert.Alert.Alerts()
+    listMetrics := convertAlert.Labels["metrics"]
+    fmt.Printf("Get list metrics : %s", listMetrics)
+    start_time, end_time := query.CreateTime(alert.Alert.StartsAt)
+    if listMetrics  == nil {
+        return nil
+    }
+    metrics := strings.Split(listMetrics, "+")
+	for _,metric := range metrics {
+        query_command = query.CreateQuery(prometheus_url, metric, start_time, end_time, "15s")
+        past_data = query.Query_past(query_command)
+        StoreData.Data[metric] = past_data
+
+    }
+    db, err := setupDB()
+    StoreData.save(db)
+    defer db.Close()
+    return nil
 }

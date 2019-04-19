@@ -46,4 +46,79 @@
  "fingerprint": "633518690878400c",
  "timeLog": "1555659623",
  "keyDB": "a169fa1c6b27cb6c1cbbb9534bb56923"
+}{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "metrics": "up+node_load1",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-19T15:04:08.665767154+07:00",
+  "endsAt": "2019-04-19T16:19:38.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-19T16:16:38.673576751+07:00",
+  "Timeout": false
+ },
+ "status": "firing",
+ "receivers": [
+  "elastic"
+ ],
+ "fingerprint": "3c76c1646f5b4afb",
+ "timeLog": "1555665398",
+ "keyDB": "99f35c4eac99e3c6af37e79dbda34fb9"
+}{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "metrics": "up+node_load1",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-19T16:24:08.665767154+07:00",
+  "endsAt": "2019-04-19T16:27:08.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-19T16:24:08.676597551+07:00",
+  "Timeout": false
+ },
+ "status": "firing",
+ "receivers": [
+  "elastic"
+ ],
+ "fingerprint": "3c76c1646f5b4afb",
+ "timeLog": "1555665848",
+ "keyDB": "d798538c7e5ec61555a91eff42e52590"
+}{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "metrics": "up+node_load1",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-19T16:24:08.665767154+07:00",
+  "endsAt": "2019-04-19T16:28:38.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-19T16:28:38.672550518+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic"
+ ],
+ "fingerprint": "3c76c1646f5b4afb",
+ "timeLog": "1555666118",
+ "keyDB": "278a19eeccce50e96d3382a94fb86665"
 }
