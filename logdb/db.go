@@ -10,6 +10,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"crypto/md5"
     "encoding/hex"
+    "os"
+    "log"
 )
 
 
@@ -129,7 +131,7 @@ func GetMD5Hash(text string) string {
 }
 
 
-func StoreDB(alert *DBAlert) int, error {
+func StoreDB(alert *DBAlert) (int, error) {
     var flag = -1
     db, err := setupDB()
     defer db.Close()

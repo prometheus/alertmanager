@@ -1,0 +1,49 @@
+{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-19T14:08:38.665767154+07:00",
+  "endsAt": "2019-04-19T14:35:23.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-19T14:35:23.679619921+07:00",
+  "Timeout": false
+ },
+ "status": "resolved",
+ "receivers": [
+  "elastic"
+ ],
+ "fingerprint": "633518690878400c",
+ "timeLog": "1555659323",
+ "keyDB": "0773aaa9113eb0c16a0bd00e6b49fbe2"
+}{
+ "Alert": {
+  "labels": {
+   "alertname": "InstanceDown",
+   "instance": "127.0.0.1:9100",
+   "job": "node",
+   "serverity": "danger"
+  },
+  "annotations": {
+   "summary": "a install down"
+  },
+  "startsAt": "2019-04-19T14:40:23.665767154+07:00",
+  "endsAt": "2019-04-19T14:43:23.665767154+07:00",
+  "generatorURL": "http://vb:9090/graph?g0.expr=up+%3D%3D+0\u0026g0.tab=1",
+  "UpdatedAt": "2019-04-19T14:40:23.681680585+07:00",
+  "Timeout": false
+ },
+ "status": "firing",
+ "receivers": [
+  "elastic"
+ ],
+ "fingerprint": "633518690878400c",
+ "timeLog": "1555659623",
+ "keyDB": "a169fa1c6b27cb6c1cbbb9534bb56923"
+}

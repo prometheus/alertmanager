@@ -10,6 +10,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"crypto/md5"
     "encoding/hex"
+    "os"
+    "log"
 )
 
 
@@ -129,7 +131,8 @@ func GetMD5Hash(text string) string {
 }
 
 
-func StoreDB(alert *DBAlert) error {
+func StoreDB(alert *DBAlert) (int, error) {
+    var flag = -1
     db, err := setupDB()
     defer db.Close()
 	//user1 := &User{"1234", "Nam", 23, "active", "11111"}
@@ -141,11 +144,51 @@ func StoreDB(alert *DBAlert) error {
 	if err != nil {
         fmt.Printf("Saving data \n\n\n")
         alert.save(db)
-        return nil
+        flag = 1
+        return flag, nil
 	} else {
 		fmt.Printf("Data exists")
         //fmt.Printf(user2.Name)
-        return err
+        flag = 0
+        return flag, err
     }
-    return nil
+    return flag, nil
 } 
+
+func WriteAlert(alert DBAlert){
+
+	fmt.Printf("Wrting alert")
+	timestamp := int32(time.Now().Unix())
+	times := fmt.Sprintf("%d", timestamp)
+	date := time.Now().UTC().Format("01-02-2006")
+	alert.TimeLog = times
+	data, _ := json.MarshalIndent(alert, "", " ")
+	var filename = "./Log_data/logAlert_" + date + ".json"
+	_, err := os.Stat(filename)
+
+	if err != nil {
+		if os.IsNotExist(err){
+			_, err := os.Create(filename)
+			if err != nil {
+				log.Fatal("Can't create log file", err)
+			}
+		}
+	}
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("Can't open new file", err)
+	}
+	
+
+	defer f.Close()
+
+	/// if _, err = f.Write(times); err != nil {
+	//	log.Fatal("Can't write timestamp to file", err)
+	//} 
+	if _, err = f.Write(data); err != nil {
+		log.Fatal("Can't write to file", err)
+	}
+	fmt.Printf("Write data to file success!\n")
+	
+
+}

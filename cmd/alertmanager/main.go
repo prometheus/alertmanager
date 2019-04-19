@@ -93,6 +93,13 @@ func instrumentHandler(handlerName string, handler http.HandlerFunc) http.Handle
 const defaultClusterAddr = "0.0.0.0:9094"
 
 func main() {
+	// Create folder DB
+	if _, err := os.Stat("./DB"); os.IsNotExist(err) {
+		os.Mkdir("./DB", 0644)
+	}
+	if _, err := os.Stat("./Log_data"); os.IsNotExist(err) {
+		os.Mkdir("./Log_data", 0644)
+	}
 	os.Exit(run())
 }
 
