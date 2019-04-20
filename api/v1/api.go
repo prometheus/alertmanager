@@ -22,7 +22,7 @@ import (
 	"sort"
 	"sync"
 	"time"
-
+	"strings"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -72,6 +72,17 @@ func setCORS(w http.ResponseWriter) {
 		w.Header().Set(h, v)
 	}
 }
+
+func GetMetrics(l model.LabelSet)string {	
+	for l, v := range l {
+		if fmt.Sprintf("%s",l) == "metrics"{
+			return fmt.Sprintf("%s",v)
+		}
+			
+	}
+	return ""
+}
+
 
 // API provides registration of handlers for API routes.
 type API struct {
@@ -291,8 +302,10 @@ func (api *API) LogAlert(alerts ...*types.Alert){
 		} else {
 			status = "firing"
 		}
-		fmt.Printf("\n\n Labels: " )
-		fmt.Printf(alert.Labels)
+		listMetric := GetMetrics(alert.Labels)
+		//fmt.Printf("listMetric: ", listMetric)
+
+		res.Metrics = strings.Split(listMetric, "+")
 		routes := api.route.Match(alert.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {

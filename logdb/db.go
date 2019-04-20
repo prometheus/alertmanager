@@ -14,7 +14,7 @@ import (
     "log"
     "github.com/luuphu25/alert2log_exporter/query"
     "github.com/luuphu25/alert2log_exporter/template"
-    "strings"
+    //"strings"
     //"github.com/prometheus/common/model"
 
 
@@ -25,19 +25,20 @@ type DBAlert struct {
 	Alert *types.Alert 
 	Status      string `json:"status"`
 	Receivers   []string          `json:"receivers"`
-	Fingerprint string            `json:"fingerprint"`
+	Fingerprint string              `json:"fingerprint"`
 	TimeLog string `json:"timeLog"`
-	IDstore string `json:"keyDB"`
+    IDstore string `json:"keyDB"`
+    Metrics []string `json:"metrics_list`
 }
 
 type DBData struct {
     IDstore string `json:"keyDB"`
-    Data map[string] template.Query_struct
+    Data map[string]*template.Query_struct
 }
 
 
 
-var prometheus_url = "http://61.28.251.119:9090"
+var prometheus_url = "http://127.0.0.1:9090"
 
 func setupDB()(*bolt.DB, error) {
     db, err := bolt.Open("./DB/alert.db", 0644, &bolt.Options{Timeout: 1 * time.Second})
@@ -58,7 +59,7 @@ func setupDB()(*bolt.DB, error) {
     }
     // Bucket for pastData
     err = db.Update(func(tx *bolt.Tx) error {
-        _, err := tx.CreateBucketIfNotExists([]byte("DataBucket"))
+        _, err := tx.CreateBucketIfNotExists([]byte("dataBucket"))
         if err != nil {
         return fmt.Errorf("could not create root bucket: %v", err)
         }
@@ -73,7 +74,6 @@ func setupDB()(*bolt.DB, error) {
 }
 
 func (alert *DBAlert) save(db *bolt.DB) error {
-	//fmt.Printf("Storing user with ID: ", user.ID)
 	err := db.Update(func(tx *bolt.Tx) error {
         alertB, err := tx.CreateBucketIfNotExists([]byte("alertBucket"))
         if err != nil {
@@ -89,13 +89,14 @@ func (alert *DBAlert) save(db *bolt.DB) error {
     if err != nil {
     	return err
     }
-    fmt.Printf("\nStore data into DB success\n")
+    fmt.Printf("\n >> Store alert into DB success\n")
     return nil 
 }
-func (pastData *DBData) save(db *bolt.DB) error {
+
+func (pastData *DBData) saveDB(db *bolt.DB) error {
 	//fmt.Printf("Storing user with ID: ", user.ID)
 	err := db.Update(func(tx *bolt.Tx) error {
-        DataB, err := tx.CreateBucketIfNotExists([]byte("DataBucket"))
+        DataB, err := tx.CreateBucketIfNotExists([]byte("dataBucket"))
         if err != nil {
             return fmt.Errorf("create bucket: %s", err)
         }
@@ -109,7 +110,7 @@ func (pastData *DBData) save(db *bolt.DB) error {
     if err != nil {
     	return err
     }
-    fmt.Printf("\nStore past data into DB success\n")
+    fmt.Printf("\n >> Store pastdata into DB success\n")
     return nil 
 }
 
@@ -117,6 +118,17 @@ func (alert *DBAlert) goEncode()([]byte, error){
 	buf := new(bytes.Buffer)
 	enc := gob.NewEncoder(buf)
 	err := enc.Encode(alert)
+	 if err != nil {
+        return nil, err
+    }
+    return buf.Bytes(), nil
+}
+
+
+func (pastData *DBData) goEncode()([]byte, error){
+	buf := new(bytes.Buffer)
+	enc := gob.NewEncoder(buf)
+	err := enc.Encode(pastData)
 	 if err != nil {
         return nil, err
     }
@@ -158,6 +170,16 @@ func decode(data []byte) (*DBAlert, error) {
     }
     return alert, nil
 }
+/* 
+func decode(data []byte) (*DBData, error) {
+    var p *DBData
+    err := json.Unmarshal(data, &p)
+    if err != nil {
+        return nil, err
+    }
+    return p, nil
+}
+ */
 
 func GetUser(IDstore string, db *bolt.DB)(*DBAlert, error) {
     var p *DBAlert
@@ -189,27 +211,28 @@ func StoreDB(alert *DBAlert) (int, error) {
     var flag = -1
     db, err := setupDB()
     defer db.Close()
-	//user1 := &User{"1234", "Nam", 23, "active", "11111"}
+	// create hash to dedup alert
 	HashValue := alert.Fingerprint + alert.Status + alert.Alert.StartsAt.String()
     alert.IDstore = GetMD5Hash(HashValue)
     fmt.Printf("\n ---- \n new alert with status: %s, ID: %s \n ---", alert.Status, alert.IDstore)
-	//fmt.Printf(user1.Name +"\n\n")
-	_,err = GetUser(alert.IDstore,db)
+    
+    _,err = GetUser(alert.IDstore,db)
 	if err != nil {
-        fmt.Printf("Saving data \n\n\n")
+        fmt.Printf("\n >> Saving data ....\n")
         alert.save(db)
         flag = 1
-        //savePastData(alert)
+        if alert.Metrics != nil {
+            savePastData(alert, db)
+        }
+
         return flag, nil
 	} else {
-		fmt.Printf("Data exists")
-        //fmt.Printf(user2.Name)
+		fmt.Printf(" >>> Alert exists... skip")
         flag = 0
         return flag, err
     }
     return flag, nil
 } 
-
 func WriteAlert(alert DBAlert){
 
 	fmt.Printf("Wrting alert")
@@ -237,9 +260,6 @@ func WriteAlert(alert DBAlert){
 
 	defer f.Close()
 
-	/// if _, err = f.Write(times); err != nil {
-	//	log.Fatal("Can't write timestamp to file", err)
-	//} 
 	if _, err = f.Write(data); err != nil {
 		log.Fatal("Can't write to file", err)
 	}
@@ -247,27 +267,26 @@ func WriteAlert(alert DBAlert){
 	
 
 }
-func savePastData(alert *DBAlert) error {
+func savePastData(alert *DBAlert, db *bolt.DB) error {
     var query_command string
     var past_data  template.Query_struct
     var StoreData DBData
     StoreData.IDstore = alert.IDstore
-    convertAlert := alert.Alert.Alerts()
-    listMetrics := convertAlert.Labels["metrics"]
-    fmt.Printf("Get list metrics : %s", listMetrics)
     start_time, end_time := query.CreateTime(alert.Alert.StartsAt)
-    if listMetrics  == nil {
-        return nil
-    }
-    metrics := strings.Split(listMetrics, "+")
-	for _,metric := range metrics {
+    listData := make(map[string]*template.Query_struct, 10)
+    
+	for _,metric := range alert.Metrics {
         query_command = query.CreateQuery(prometheus_url, metric, start_time, end_time, "15s")
         past_data = query.Query_past(query_command)
-        StoreData.Data[metric] = past_data
+        listData[metric] = &past_data
 
     }
-    db, err := setupDB()
-    StoreData.save(db)
-    defer db.Close()
+    StoreData.Data = listData
+   /*  db, err := setupDB()
+    if err != nil {
+        return err
+    } */
+    StoreData.saveDB(db)
+    //defer db.Close()
     return nil
-}
+} 
