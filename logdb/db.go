@@ -199,7 +199,7 @@ func StoreDB(alert *DBAlert) (int, error) {
         fmt.Printf("Saving data \n\n\n")
         alert.save(db)
         flag = 1
-        savePastData(alert)
+        //savePastData(alert)
         return flag, nil
 	} else {
 		fmt.Printf("Data exists")

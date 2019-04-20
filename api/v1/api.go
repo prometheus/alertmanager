@@ -291,7 +291,8 @@ func (api *API) LogAlert(alerts ...*types.Alert){
 		} else {
 			status = "firing"
 		}
-		
+		fmt.Printf("\n\n Labels: " )
+		fmt.Printf(alert.Labels)
 		routes := api.route.Match(alert.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
