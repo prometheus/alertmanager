@@ -122,24 +122,23 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	return nil
 }
 
-// List returns a buffered channel of Alerts currently held in memory.
-func (a *Alerts) List() <-chan *types.Alert {
+// List returns a slice of Alerts currently held in memory.
+func (a *Alerts) List() []*types.Alert {
 	a.Lock()
 	defer a.Unlock()
 
-	c := make(chan *types.Alert, len(a.c))
+	alerts := make([]*types.Alert, 0, len(a.c))
 	for _, alert := range a.c {
-		c <- alert
+		alerts = append(alerts, alert)
 	}
-	close(c)
 
-	return c
+	return alerts
 }
 
-// Count returns the number of items within the store.
-func (a *Alerts) Count() int {
+// Empty returns true if the store is empty.
+func (a *Alerts) Empty() bool {
 	a.Lock()
 	defer a.Unlock()
 
-	return len(a.c)
+	return len(a.c) == 0
 }

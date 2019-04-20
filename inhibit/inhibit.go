@@ -204,7 +204,7 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 // source and the target side of the rule are disregarded.
 func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool) (model.Fingerprint, bool) {
 Outer:
-	for a := range r.scache.List() {
+	for _, a := range r.scache.List() {
 		// The cache might be stale and contain resolved alerts.
 		if a.Resolved() {
 			continue

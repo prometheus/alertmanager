@@ -31,10 +31,10 @@ const alertChannelLength = 200
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts struct {
-	alerts *store.Alerts
 	cancel context.CancelFunc
 
 	mtx       sync.Mutex
+	alerts    *store.Alerts
 	listeners map[int]listeningAlerts
 	next      int
 
@@ -99,25 +99,26 @@ func max(a, b int) int {
 // resolved and successfully notified about.
 // They are not guaranteed to be in chronological order.
 func (a *Alerts) Subscribe() provider.AlertIterator {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
 	var (
-		ch   = make(chan *types.Alert, max(a.alerts.Count(), alertChannelLength))
-		done = make(chan struct{})
+		done   = make(chan struct{})
+		alerts = a.alerts.List()
+		ch     = make(chan *types.Alert, max(len(alerts), alertChannelLength))
 	)
 
-	for a := range a.alerts.List() {
+	for _, a := range alerts {
 		ch <- a
 	}
 
-	a.mtx.Lock()
-	i := a.next
+	a.listeners[a.next] = listeningAlerts{alerts: ch, done: done}
 	a.next++
-	a.listeners[i] = listeningAlerts{alerts: ch, done: done}
-	a.mtx.Unlock()
 
 	return provider.NewAlertIterator(ch, done, nil)
 }
 
-// GetPending returns an iterator over all alerts that have
+// GetPending returns an iterator over all the alerts that have
 // pending notifications.
 func (a *Alerts) GetPending() provider.AlertIterator {
 	var (
@@ -128,7 +129,7 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 	go func() {
 		defer close(ch)
 
-		for a := range a.alerts.List() {
+		for _, a := range a.alerts.List() {
 			select {
 			case ch <- a:
 			case <-done:
