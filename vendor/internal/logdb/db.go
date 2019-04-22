@@ -14,6 +14,8 @@ import (
     "log"
     "github.com/luuphu25/alert2log_exporter/query"
     "github.com/luuphu25/alert2log_exporter/template"
+    "context"
+    "github.com/olivere/elastic"
     //"strings"
     //"github.com/prometheus/common/model"
 
@@ -38,7 +40,7 @@ type DBData struct {
 
 
 
-var prometheus_url = "http://127.0.0.1:9090"
+var prometheus_url = "http://61.28.251.119:9090"
 
 func setupDB()(*bolt.DB, error) {
     db, err := bolt.Open("./DB/alert.db", 0644, &bolt.Options{Timeout: 1 * time.Second})
@@ -200,6 +202,29 @@ func GetUser(IDstore string, db *bolt.DB)(*DBAlert, error) {
     }
     return p, nil
 }
+func ListAlert(bucket string) ([]*DBAlert, error){
+    db, _ := setupDB()
+    defer db.Close()
+   
+    var listAlert = []*DBAlert{}
+    err := db.View(func(tx *bolt.Tx) error {
+        c := tx.Bucket([]byte(bucket)).Cursor()
+        for k, v := c.First(); k != nil; k, v = c.Next() {
+			//fmt.Printf("\n\n -- alert: ---\n")
+            //fmt.Printf("Key=%s,\n Value= %s\n", k, v)
+            p, err := decode(v)
+            if err != nil {
+                return err
+            }
+			listAlert = append(listAlert, p)
+        }
+        return nil
+    })
+    if err != nil {
+        return nil, err
+    }
+    return listAlert, nil
+}
 func GetMD5Hash(text string) string {
     hasher := md5.New()
     hasher.Write([]byte(text))
@@ -224,6 +249,8 @@ func StoreDB(alert *DBAlert) (int, error) {
         if alert.Metrics != nil {
             savePastData(alert, db)
         }
+        InsertEs(alert, "alert_filted")
+
 
         return flag, nil
 	} else {
@@ -290,3 +317,31 @@ func savePastData(alert *DBAlert, db *bolt.DB) error {
     //defer db.Close()
     return nil
 } 
+
+func InsertEs(alert *DBAlert, indexName string){
+    var url = "http://127.0.0.1:9200"
+    client, err := elastic.NewClient(elastic.SetURL(url))
+
+	if err != nil{
+		panic(err)
+	}
+
+	ctx := context.Background()
+	exists, err := client.IndexExists(indexName).Do(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	if !exists {
+		_, err = client.CreateIndex(indexName).Do(ctx)
+		if err != nil {
+			panic(err)
+		}
+	}
+	_, err = client.Index().Index(indexName).Type("doc").BodyJson(alert).Do(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("\nInsert to Elastic success\n")
+}

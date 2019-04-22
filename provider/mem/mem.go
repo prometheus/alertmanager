@@ -144,12 +144,7 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	return a.alerts.Get(fp)
 }
-/* func (a *Alerts) GetToggle(fp model.Fingerprint) (int) {
-	return a.alerts.GetToggle(fp)
-}
-func (a *Alerts) SetToggle(fp model.Fingerprint, value int) error{
-	return a.alerts.SetToggle(fp, value)
-} */
+
 
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {

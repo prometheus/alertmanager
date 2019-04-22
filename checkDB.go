@@ -122,30 +122,36 @@ func GetUser(IDstore string, db *bolt.DB)(*User, error) {
     }
     return p, nil
 }
-func List(bucket string, db *bolt.DB) {
-    db.View(func(tx *bolt.Tx) error {
+func List(bucket string, db *bolt.DB) ([]*User, error){
+    var listAlert = []*User{}
+    err := db.View(func(tx *bolt.Tx) error {
         c := tx.Bucket([]byte(bucket)).Cursor()
         for k, v := c.First(); k != nil; k, v = c.Next() {
-			fmt.Printf("\n\n -- alert: ---\n")
-			fmt.Printf("Key=%s,\n Value= %s\n", k, v)
-			
+			//fmt.Printf("\n\n -- alert: ---\n")
+            //fmt.Printf("Key=%s,\n Value= %s\n", k, v)
+            p, err := decode(v)
+            if err != nil {
+                return err
+            }
+			listAlert = append(listAlert, p)
         }
         return nil
     })
+    if err != nil {
+        return nil, err
+    }
+    return listAlert, nil
 }
 
 func main(){
 	db, _ := setupDB()
-	/* user1 := &User{"1234", "Nam", 23, "active", "11111"}
-	var user2 *User
-	fmt.Printf(user1.Name +"\n\n")
-	user2 ,err = GetUser(user1.ID, db)
-	if err != nil {
-		user1.save(db)
-	} else {
-		fmt.Printf("Data exists")
-		fmt.Printf(user2.Name)
-	} */
-	List("alertBucket", db)
-	List("dataBucket", db)
+    listAlert, err := List("alertBucket", db)
+    if err != nil {
+        panic(err)
+    }
+    for _, alert := range listAlert {
+        fmt.Printf(alert.IDstore)
+    }
+
+	//List("dataBucket", db)
 }

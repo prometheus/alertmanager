@@ -168,6 +168,8 @@ func (api *API) Register(r *route.Router) {
 	r.Post("/silences", wrap(api.setSilence))
 	r.Get("/silence/:sid", wrap(api.getSilence))
 	r.Del("/silence/:sid", wrap(api.delSilence))
+	// add show all alert api
+	r.Get("/allAlert", wrap(api.AllAlert))
 }
 
 // Update sets the configuration string to a new value.
@@ -261,6 +263,161 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 	}
 	return s
 }
+func (api *API) AllAlerts(){
+
+	var (
+		err            error
+		receiverFilter *regexp.Regexp
+		// Initialize result slice to prevent api returning `null` when there
+		// are no alerts present
+		res      = []*Alert{}
+		matchers = []*labels.Matcher{}
+		ctx      = r.Context()
+
+		showActive, showInhibited     bool
+		showSilenced, showUnprocessed bool
+	)
+
+	getBoolParam := func(name string) (bool, error) {
+		v := r.FormValue(name)
+		if v == "" {
+			return true, nil
+		}
+		if v == "false" {
+			return false, nil
+		}
+		if v != "true" {
+			err := fmt.Errorf("parameter %q can either be 'true' or 'false', not %q", name, v)
+			api.respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return false, err
+		}
+		return true, nil
+	}
+
+	if filter := r.FormValue("filter"); filter != "" {
+		matchers, err = parse.Matchers(filter)
+		if err != nil {
+			api.respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
+	}
+
+	showActive, err = getBoolParam("active")
+	if err != nil {
+		return
+	}
+
+	showSilenced, err = getBoolParam("silenced")
+	if err != nil {
+		return
+	}
+
+	showInhibited, err = getBoolParam("inhibited")
+	if err != nil {
+		return
+	}
+
+	showUnprocessed, err = getBoolParam("unprocessed")
+	if err != nil {
+		return
+	}
+
+	if receiverParam := r.FormValue("receiver"); receiverParam != "" {
+		receiverFilter, err = regexp.Compile("^(?:" + receiverParam + ")$")
+		if err != nil {
+			api.respondError(w, apiError{
+				typ: errorBadData,
+				err: fmt.Errorf(
+					"failed to parse receiver param: %s",
+					receiverParam,
+				),
+			}, nil)
+			return
+		}
+	}
+	//dbAlerts := logdb.GetAll()
+	//alerts := api.alerts.GetPending()
+	dbAlerts, err := ListAlert("alertBucket")
+	defer alerts.Close()
+
+	api.mtx.RLock()
+	for a := range dbAlerts {
+	/* 	if err = alerts.Err(); err != nil {
+			break
+		}
+		if err = ctx.Err(); err != nil {
+			break
+		} */
+
+		routes := api.route.Match(a.Alert.Labels)
+		receivers := make([]string, 0, len(routes))
+		for _, r := range routes {
+			receivers = append(receivers, r.RouteOpts.Receiver)
+		}
+
+		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
+			continue
+		}
+
+		if !alertMatchesFilterLabels(&a.Alert.Alert, matchers) {
+			continue
+		}
+
+		// Continue if the alert is resolved.
+		if !a.Alert.Alert.EndsAt.IsZero() && a.Alert.Alert.EndsAt.Before(time.Now()) {
+			continue
+		}
+
+		status := api.getAlertStatus(a.Alert.Fingerprint())
+
+		if !showActive && status.State == types.AlertStateActive {
+			continue
+		}
+
+		if !showUnprocessed && status.State == types.AlertStateUnprocessed {
+			continue
+		}
+
+		if !showSilenced && len(status.SilencedBy) != 0 {
+			continue
+		}
+
+		if !showInhibited && len(status.InhibitedBy) != 0 {
+			continue
+		}
+
+		alert := &Alert{
+			Alert:       &a.Alert.Alert,
+			Status:      status,
+			Receivers:   receivers,
+			Fingerprint: a.Fingerprint().String(),
+		}
+
+		res = append(res, alert)
+	}
+	api.mtx.RUnlock()
+
+
+	if err != nil {
+		api.respondError(w, apiError{
+			typ: errorInternal,
+			err: err,
+		}, nil)
+		return
+	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Fingerprint < res[j].Fingerprint
+	})
+	api.respond(w, res)
+}
+
+
 func (api *API) LogAlert(alerts ...*types.Alert){
 	now := time.Now()
 
@@ -303,7 +460,6 @@ func (api *API) LogAlert(alerts ...*types.Alert){
 			status = "firing"
 		}
 		listMetric := GetMetrics(alert.Labels)
-		//fmt.Printf("listMetric: ", listMetric)
 
 		res.Metrics = strings.Split(listMetric, "+")
 		routes := api.route.Match(alert.Labels)
@@ -320,7 +476,6 @@ func (api *API) LogAlert(alerts ...*types.Alert){
 		if flag == 1 {
 			logdb.WriteAlert(res)
 		}
-		//store.StoreAlert(res)
 
 	}
 	

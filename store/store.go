@@ -40,7 +40,6 @@ type Alerts struct {
 
 	sync.Mutex
 	c  map[model.Fingerprint]*types.Alert
-	//toggle map [model.Fingerprint] int
 	cb func([]*types.Alert)
 }
 
@@ -52,7 +51,6 @@ func NewAlerts(gcInterval time.Duration) *Alerts {
 
 	a := &Alerts{
 		c:          make(map[model.Fingerprint]*types.Alert),
-		//toggle: 	make(map[model.Fingerprint]int),
 		cb:         func(_ []*types.Alert) {},
 		gcInterval: gcInterval,
 	}
