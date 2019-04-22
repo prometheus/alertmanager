@@ -169,7 +169,7 @@ func (api *API) Register(r *route.Router) {
 	r.Get("/silence/:sid", wrap(api.getSilence))
 	r.Del("/silence/:sid", wrap(api.delSilence))
 	// add show all alert api
-	r.Get("/allAlert", wrap(api.AllAlert))
+	r.Get("/allAlert", wrap(api.AllAlerts))
 }
 
 // Update sets the configuration string to a new value.
@@ -263,7 +263,7 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 	}
 	return s
 }
-func (api *API) AllAlerts(){
+func (api *API) AllAlerts(w http.ResponseWriter, r *http.Request){
 
 	var (
 		err            error
@@ -272,7 +272,8 @@ func (api *API) AllAlerts(){
 		// are no alerts present
 		res      = []*Alert{}
 		matchers = []*labels.Matcher{}
-		ctx      = r.Context()
+		alerts = []*types.Alert{}
+		//ctx      = r.Context()
 
 		showActive, showInhibited     bool
 		showSilenced, showUnprocessed bool
@@ -343,19 +344,22 @@ func (api *API) AllAlerts(){
 	}
 	//dbAlerts := logdb.GetAll()
 	//alerts := api.alerts.GetPending()
-	dbAlerts, err := ListAlert("alertBucket")
-	defer alerts.Close()
+	dbAlerts, err := logdb.ListAlert("alertBucket")
+	for _, a := range dbAlerts{
+		alerts = append(alerts, a.Alert)
+	}
+	//defer Close()
 
 	api.mtx.RLock()
-	for a := range dbAlerts {
+	for _, a := range alerts {
 	/* 	if err = alerts.Err(); err != nil {
 			break
 		}
 		if err = ctx.Err(); err != nil {
 			break
 		} */
-
-		routes := api.route.Match(a.Alert.Labels)
+		//fmt.Printf("\nOk\n")
+		routes := api.route.Match(a.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
 			receivers = append(receivers, r.RouteOpts.Receiver)
@@ -365,16 +369,16 @@ func (api *API) AllAlerts(){
 			continue
 		}
 
-		if !alertMatchesFilterLabels(&a.Alert.Alert, matchers) {
+		if !alertMatchesFilterLabels(&a.Alert, matchers) {
 			continue
 		}
 
 		// Continue if the alert is resolved.
-		if !a.Alert.Alert.EndsAt.IsZero() && a.Alert.Alert.EndsAt.Before(time.Now()) {
-			continue
-		}
+		//if !a.Alert.EndsAt.IsZero() && a.Alert.EndsAt.Before(time.Now()) {
+		//	continue
+		//}
 
-		status := api.getAlertStatus(a.Alert.Fingerprint())
+		status := api.getAlertStatus(a.Fingerprint())
 
 		if !showActive && status.State == types.AlertStateActive {
 			continue
@@ -393,11 +397,13 @@ func (api *API) AllAlerts(){
 		}
 
 		alert := &Alert{
-			Alert:       &a.Alert.Alert,
+			Alert:       &a.Alert,
 			Status:      status,
 			Receivers:   receivers,
 			Fingerprint: a.Fingerprint().String(),
 		}
+		//fmt.Printf("#####################")
+		//fmt.Printf(alert.Fingerprint)
 
 		res = append(res, alert)
 	}
