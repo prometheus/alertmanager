@@ -170,6 +170,7 @@ func (api *API) Register(r *route.Router) {
 	r.Del("/silence/:sid", wrap(api.delSilence))
 	// add show all alert api
 	r.Get("/allAlert", wrap(api.AllAlerts))
+	r.Get("/history", wrap(api.History))
 }
 
 // Update sets the configuration string to a new value.
@@ -262,6 +263,13 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 		})
 	}
 	return s
+}
+func (api *API) History(w http.ResponseWriter, r *http.Request){
+	dbAlerts, err := logdb.ListAlert("alertBucket")
+	if err != nil {
+		panic(err)
+	}
+	api.respond(w, dbAlerts)
 }
 func (api *API) AllAlerts(w http.ResponseWriter, r *http.Request){
 
