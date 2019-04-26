@@ -1,3 +1,7 @@
+## Next release
+
+ * [CHANGE] Opsgenie notification now uses official responders notion instead of "teams". Teams field is deprecated now and will fail the config parsing.
+
 ## 0.17.0 / 2019-05-02
 
 This release includes changes to amtool which are not fully backwards

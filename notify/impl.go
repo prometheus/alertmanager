@@ -868,15 +868,22 @@ func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template, l log.Logger) *
 }
 
 type opsGenieCreateMessage struct {
-	Alias       string              `json:"alias"`
-	Message     string              `json:"message"`
-	Description string              `json:"description,omitempty"`
-	Details     map[string]string   `json:"details"`
-	Source      string              `json:"source"`
-	Teams       []map[string]string `json:"teams,omitempty"`
-	Tags        []string            `json:"tags,omitempty"`
-	Note        string              `json:"note,omitempty"`
-	Priority    string              `json:"priority,omitempty"`
+	Alias       string                           `json:"alias"`
+	Message     string                           `json:"message"`
+	Description string                           `json:"description,omitempty"`
+	Details     map[string]string                `json:"details"`
+	Source      string                           `json:"source"`
+	Responders  []opsGenieCreateMessageResponder `json:"responders,omitempty"`
+	Tags        []string                         `json:"tags,omitempty"`
+	Note        string                           `json:"note,omitempty"`
+	Priority    string                           `json:"priority,omitempty"`
+}
+
+type opsGenieCreateMessageResponder struct {
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Username string `json:"username,omitempty"`
+	Type     string `json:"type"` // team, user, escalation, schedule etc.
 }
 
 type opsGenieCloseMessage struct {
@@ -955,11 +962,24 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		}
 
 		apiURL.Path += "v2/alerts"
-		var teams []map[string]string
-		for _, t := range safeSplit(string(tmpl(n.conf.Teams)), ",") {
-			teams = append(teams, map[string]string{"name": t})
+
+		var responders []opsGenieCreateMessageResponder
+		for _, r := range n.conf.Responders {
+			responder := opsGenieCreateMessageResponder{
+				ID:       tmpl(r.ID),
+				Name:     tmpl(r.Name),
+				Username: tmpl(r.Username),
+				Type:     tmpl(r.Type),
+			}
+
+			if responder == (opsGenieCreateMessageResponder{}) {
+				// Filter out empty responders. This is useful if you want to fill
+				// responders dynamically from alert's common labels.
+				continue
+			}
+
+			responders = append(responders, responder)
 		}
-		tags := safeSplit(string(tmpl(n.conf.Tags)), ",")
 
 		msg = &opsGenieCreateMessage{
 			Alias:       alias,
@@ -967,8 +987,8 @@ func (n *OpsGenie) createRequest(ctx context.Context, as ...*types.Alert) (*http
 			Description: tmpl(n.conf.Description),
 			Details:     details,
 			Source:      tmpl(n.conf.Source),
-			Teams:       teams,
-			Tags:        tags,
+			Responders:  responders,
+			Tags:        safeSplit(string(tmpl(n.conf.Tags)), ","),
 			Note:        tmpl(n.conf.Note),
 			Priority:    tmpl(n.conf.Priority),
 		}
