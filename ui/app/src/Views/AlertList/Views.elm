@@ -62,7 +62,7 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
             ]
         , case alerts of
             Success alerts_ ->
-                alertGroups activeId filter groupBar alerts_
+                alertGroups activeId groupBar alerts_
 
             Loading ->
                 Utils.Views.loading
@@ -75,8 +75,8 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
         ]
 
 
-alertGroups : Maybe String -> Filter -> GroupBar.Model -> List GettableAlert -> Html Msg
-alertGroups activeId filter { fields } alerts =
+alertGroups : Maybe String -> GroupBar.Model -> List GettableAlert -> Html Msg
+alertGroups activeId { fields } alerts =
     let
         grouped =
             alerts
@@ -90,7 +90,7 @@ alertGroups activeId filter { fields } alerts =
         |> List.filterMap
             (\labels ->
                 Maybe.map
-                    (alertList activeId labels filter)
+                    (alertList activeId labels)
                     (Dict.get labels grouped)
             )
         |> (\list ->
@@ -103,8 +103,8 @@ alertGroups activeId filter { fields } alerts =
         |> div []
 
 
-alertList : Maybe String -> Labels -> Filter -> List GettableAlert -> Html Msg
-alertList activeId labels filter alerts =
+alertList : Maybe String -> Labels -> List GettableAlert -> Html Msg
+alertList activeId labels alerts =
     div []
         [ div []
             (case labels of
