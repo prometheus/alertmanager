@@ -18,7 +18,6 @@ include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
 DOCKER_IMAGE_NAME       ?= alertmanager
-ERRCHECK_BINARY         := $(FIRST_GOPATH)/bin/errcheck
 
 STATICCHECK_IGNORE =
 
@@ -52,11 +51,3 @@ clean:
 	- @rm -rf asset/assets_vfsdata.go \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
-
-.PHONY: test
-test: common-test $(ERRCHECK_BINARY)
-	@echo ">> running errcheck with exclude file scripts/errcheck_excludes.txt"
-	$(ERRCHECK_BINARY) -verbose -exclude scripts/errcheck_excludes.txt -ignoretests ./...
-
-$(ERRCHECK_BINARY):
-	(cd .. && GO111MODULE=on GOOS= GOARCH= $(GO) get github.com/kisielk/errcheck@v1.2.0)
