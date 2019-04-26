@@ -19,7 +19,6 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +28,22 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
+
+func checkErr(t *testing.T, expected string, got error) {
+	t.Helper()
+
+	if expected == "" {
+		require.NoError(t, got)
+		return
+	}
+
+	if got == nil {
+		t.Errorf("expected error containing %q but got none", expected)
+		return
+	}
+
+	require.Contains(t, got.Error(), expected)
+}
 
 func TestOptionsValidate(t *testing.T) {
 	cases := []struct {
@@ -55,20 +70,7 @@ func TestOptionsValidate(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		err := c.options.validate()
-		if err == nil {
-			if c.err != "" {
-				t.Errorf("expected error containing %q but got none", c.err)
-			}
-			continue
-		}
-		if err != nil && c.err == "" {
-			t.Errorf("unexpected error %q", err)
-			continue
-		}
-		if !strings.Contains(err.Error(), c.err) {
-			t.Errorf("expected error to contain %q but got %q", c.err, err)
-		}
+		checkErr(t, c.err, c.options.validate())
 	}
 }
 
@@ -387,19 +389,7 @@ func TestSilencesSetFail(t *testing.T) {
 	}
 	for _, c := range cases {
 		_, err := s.Set(c.s)
-		if err == nil {
-			if c.err != "" {
-				t.Errorf("expected error containing %q but got none", c.err)
-			}
-			continue
-		}
-		if err != nil && c.err == "" {
-			t.Errorf("unexpected error %q", err)
-			continue
-		}
-		if !strings.Contains(err.Error(), c.err) {
-			t.Errorf("expected error to contain %q but got %q", c.err, err)
-		}
+		checkErr(t, c.err, err)
 	}
 }
 
@@ -920,20 +910,7 @@ func TestValidateMatcher(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		err := validateMatcher(c.m)
-		if err == nil {
-			if c.err != "" {
-				t.Errorf("expected error containing %q but got none", c.err)
-			}
-			continue
-		}
-		if err != nil && c.err == "" {
-			t.Errorf("unexpected error %q", err)
-			continue
-		}
-		if !strings.Contains(err.Error(), c.err) {
-			t.Errorf("expected error to contain %q but got %q", c.err, err)
-		}
+		checkErr(t, c.err, validateMatcher(c.m))
 	}
 }
 
@@ -1044,20 +1021,7 @@ func TestValidateSilence(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		err := validateSilence(c.s)
-		if err == nil {
-			if c.err != "" {
-				t.Errorf("expected error containing %q but got none", c.err)
-			}
-			continue
-		}
-		if err != nil && c.err == "" {
-			t.Errorf("unexpected error %q", err)
-			continue
-		}
-		if !strings.Contains(err.Error(), c.err) {
-			t.Errorf("expected error to contain %q but got %q", c.err, err)
-		}
+		checkErr(t, c.err, validateSilence(c.s))
 	}
 }
 

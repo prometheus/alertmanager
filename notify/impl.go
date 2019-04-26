@@ -390,10 +390,6 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		details[k] = detail
 	}
 
-	if err != nil {
-		return false, err
-	}
-
 	c, err := commoncfg.NewClientFromConfig(*n.conf.HTTPConfig, "pagerduty")
 	if err != nil {
 		return false, err
@@ -1273,6 +1269,7 @@ func tmplHTML(tmpl *template.Template, data *template.Data, err *error) func(str
 // maximum length requirements on deduplication keys.
 func hashKey(s string) string {
 	h := sha256.New()
+	//nolint: errcheck
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
