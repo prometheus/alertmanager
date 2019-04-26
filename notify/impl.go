@@ -1269,6 +1269,7 @@ func tmplHTML(tmpl *template.Template, data *template.Data, err *error) func(str
 // maximum length requirements on deduplication keys.
 func hashKey(s string) string {
 	h := sha256.New()
+	// hash.Hash.Write never returns an error.
 	//nolint: errcheck
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
