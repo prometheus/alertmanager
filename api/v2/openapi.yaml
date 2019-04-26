@@ -475,6 +475,10 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/gettableAlert'
+    required:
+      - labels
+      - receiver
+      - alerts
   alertStatus:
     type: object
     properties:
