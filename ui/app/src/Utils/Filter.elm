@@ -22,6 +22,7 @@ import Url exposing (percentEncode)
 type alias Filter =
     { text : Maybe String
     , group : Maybe String
+    , customGrouping : Bool
     , receiver : Maybe String
     , showSilenced : Maybe Bool
     , showInhibited : Maybe Bool
@@ -32,6 +33,7 @@ nullFilter : Filter
 nullFilter =
     { text = Nothing
     , group = Nothing
+    , customGrouping = False
     , receiver = Nothing
     , showSilenced = Nothing
     , showInhibited = Nothing
@@ -44,7 +46,7 @@ generateQueryParam name =
 
 
 generateQueryString : Filter -> String
-generateQueryString { receiver, showSilenced, showInhibited, text, group } =
+generateQueryString { receiver, customGrouping, showSilenced, showInhibited, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
@@ -52,6 +54,7 @@ generateQueryString { receiver, showSilenced, showInhibited, text, group } =
             , ( "filter", emptyToNothing text )
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )
+            , ( "customGrouping", boolToMaybeString customGrouping )
             ]
                 |> List.filterMap (\( a, b ) -> generateQueryParam a b)
     in
@@ -62,6 +65,15 @@ generateQueryString { receiver, showSilenced, showInhibited, text, group } =
 
     else
         ""
+
+
+boolToMaybeString : Bool -> Maybe String
+boolToMaybeString b =
+    if b then
+        Just "true"
+
+    else
+        Nothing
 
 
 boolToString : Bool -> String

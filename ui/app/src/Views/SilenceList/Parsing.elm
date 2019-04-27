@@ -9,6 +9,6 @@ silenceListParser : Parser (Filter -> a) a
 silenceListParser =
     map
         (\t ->
-            Filter t Nothing Nothing Nothing Nothing
+            Filter t Nothing False Nothing Nothing Nothing
         )
         (s "silences" <?> Query.string "filter")

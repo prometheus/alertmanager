@@ -101,5 +101,6 @@ updateFilter maybeFilter =
     , showSilenced = Nothing
     , showInhibited = Nothing
     , group = Nothing
+    , customGrouping = False
     , text = maybeFilter
     }

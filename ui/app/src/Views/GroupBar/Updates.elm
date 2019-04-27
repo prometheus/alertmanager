@@ -12,6 +12,14 @@ import Views.GroupBar.Types exposing (Model, Msg(..))
 update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
 update url filter msg model =
     case msg of
+        CustomGrouping customGrouping ->
+            ( model
+            , Cmd.batch
+                [ Navigation.pushUrl model.key (url ++ generateQueryString { filter | customGrouping = customGrouping })
+                , Dom.focus "group-by-field" |> Task.attempt (always Noop)
+                ]
+            )
+
         AddField emptyFieldText text ->
             immediatelyFilter url
                 filter
