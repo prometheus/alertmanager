@@ -60,51 +60,33 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
                         Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar)
                 ]
             ]
-        , case alerts of
-            Success alerts_ ->
-                alertGroups activeId groupBar alerts_
-
-            Loading ->
-                Utils.Views.loading
-
-            Initial ->
-                Utils.Views.loading
-
-            Failure msg ->
-                Utils.Views.error msg
+        , Utils.Views.apiData (customAlertGroups activeId groupBar) alerts
         ]
 
 
-alertGroups : Maybe String -> GroupBar.Model -> List GettableAlert -> Html Msg
-alertGroups activeId { fields } alerts =
-    let
-        grouped =
-            alerts
-                |> Utils.List.groupBy
-                    (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
-    in
-    grouped
-        |> Dict.keys
-        |> List.partition ((/=) [])
-        |> (\( a, b ) -> (++) a b)
-        |> List.filterMap
-            (\labels ->
-                Maybe.map
-                    (alertList activeId labels)
-                    (Dict.get labels grouped)
-            )
-        |> (\list ->
-                if List.isEmpty list then
-                    [ Utils.Views.error "No alerts found" ]
+customAlertGroups : Maybe String -> GroupBar.Model -> List GettableAlert -> Html Msg
+customAlertGroups activeId { fields } ungroupedAlerts =
+    ungroupedAlerts
+        |> Utils.List.groupBy
+            (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
+        |> (\groupsDict ->
+                case Dict.toList groupsDict of
+                    [] ->
+                        Utils.Views.error "No alerts found"
 
-                else
-                    list
+                    groups ->
+                        div []
+                            (List.map
+                                (\( labels, alerts ) ->
+                                    alertGroup activeId labels alerts
+                                )
+                                groups
+                            )
            )
-        |> div []
 
 
-alertList : Maybe String -> Labels -> List GettableAlert -> Html Msg
-alertList activeId labels alerts =
+alertGroup : Maybe String -> Labels -> List GettableAlert -> Html Msg
+alertGroup activeId labels alerts =
     div []
         [ div []
             (case labels of
