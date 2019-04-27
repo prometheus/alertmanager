@@ -395,6 +395,11 @@ func init() {
     },
     "alertGroup": {
       "type": "object",
+      "required": [
+        "labels",
+        "receiver",
+        "alerts"
+      ],
       "properties": {
         "alerts": {
           "type": "array",
@@ -1199,6 +1204,11 @@ func init() {
     },
     "alertGroup": {
       "type": "object",
+      "required": [
+        "labels",
+        "receiver",
+        "alerts"
+      ],
       "properties": {
         "alerts": {
           "type": "array",
