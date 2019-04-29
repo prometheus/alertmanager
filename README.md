@@ -50,6 +50,32 @@ You can also build just one of the binaries in this repo by passing a name to th
 $ make build BINARIES=amtool
 ```
 
+## Docker
+
+<!--- example of complete docker run command to run a container --->
+<!--- example of a docker-compose.yml service snippet --->
+
+### Ports
+
+* `9093` : main api port
+
+### Volumes
+
+* `/alertmanager`: storage directory
+
+These paths can also be mapped to volumes:
+* `/etc/alertmanager/alertmanager.yml`: default configuration file path
+
+### Environment variables
+
+<!--- Add documentation here --->
+
+### Command and entrypoint
+The container entrypoint is the [`alertmanager` command](https://prometheus.io/docs/alerting/configuration/)<!---More complete documentation of the command would be useful here--->. 
+
+The default docker command passed to the entrypoint is `--config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager`. Specifying the docker command(using `docker run quay.io/prometheus/alertmanager $COMMAND`) thus override those default arguments.
+
+
 ## Example
 
 This is an example configuration that should cover most relevant aspects of the new YAML configuration format. The full documentation of the configuration can be found [here](https://prometheus.io/docs/alerting/configuration/).
