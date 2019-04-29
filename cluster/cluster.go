@@ -142,7 +142,7 @@ func Create(
 		}
 	}
 
-	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, net.Resolver{}, waitIfEmpty)
+	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve peers")
 	}
@@ -406,7 +406,7 @@ func (p *Peer) reconnect() {
 func (p *Peer) refresh() {
 	logger := log.With(p.logger, "msg", "refresh")
 
-	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, net.Resolver{}, false)
+	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
 	if err != nil {
 		level.Debug(logger).Log("peers", p.knownPeers, "err", err)
 		return
@@ -660,7 +660,7 @@ func (b simpleBroadcast) Message() []byte                       { return []byte(
 func (b simpleBroadcast) Invalidates(memberlist.Broadcast) bool { return false }
 func (b simpleBroadcast) Finished()                             {}
 
-func resolvePeers(ctx context.Context, peers []string, myAddress string, res net.Resolver, waitIfEmpty bool) ([]string, error) {
+func resolvePeers(ctx context.Context, peers []string, myAddress string, res *net.Resolver, waitIfEmpty bool) ([]string, error) {
 	var resolvedPeers []string
 
 	for _, peer := range peers {
@@ -670,6 +670,7 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res net
 		}
 
 		retryCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
 		ips, err := res.LookupIPAddr(ctx, host)
 		if err != nil {
