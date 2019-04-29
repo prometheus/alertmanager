@@ -1,4 +1,4 @@
-module Utils.List exposing (groupBy, lastElem, mjoin, mstring, nextElem, replaceIf, replaceIndex, zip)
+module Utils.List exposing (groupBy, lastElem, mstring, nextElem, replaceIf, replaceIndex, zip)
 
 import Data.Matcher exposing (Matcher)
 import Dict exposing (Dict)
@@ -47,11 +47,6 @@ replaceIndex index replacement list =
                 item
         )
         list
-
-
-mjoin : List Matcher -> String
-mjoin m =
-    String.join "," (List.map mstring m)
 
 
 mstring : Matcher -> String

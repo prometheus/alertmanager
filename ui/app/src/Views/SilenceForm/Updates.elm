@@ -7,7 +7,7 @@ import Task
 import Time
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
-import Utils.Filter exposing (nullFilter)
+import Utils.Filter exposing (silencePreviewFilter)
 import Utils.FormValidation exposing (fromResult, stringNotEmpty, updateValue, validate)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
@@ -237,7 +237,7 @@ update msg model basePath apiUrl =
                     ( { model | alerts = Loading }
                     , Alerts.Api.fetchAlerts
                         apiUrl
-                        { nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True, showInhibited = Just True }
+                        (silencePreviewFilter silence.matchers)
                         |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
                     )
 

@@ -5,7 +5,7 @@ import Data.Receiver exposing (Receiver)
 import Json.Decode
 import Regex
 import Utils.Api exposing (iso8601Time)
-import Utils.Filter exposing (Filter, generateQueryString)
+import Utils.Filter exposing (Filter, generateAPIQueryString)
 import Utils.Types exposing (ApiData)
 
 
@@ -22,6 +22,6 @@ fetchAlerts : String -> Filter -> Cmd (ApiData (List GettableAlert))
 fetchAlerts apiUrl filter =
     let
         url =
-            String.join "/" [ apiUrl, "alerts" ++ generateQueryString filter ]
+            String.join "/" [ apiUrl, "alerts" ++ generateAPIQueryString filter ]
     in
     Utils.Api.send (Utils.Api.get url (Json.Decode.list Data.GettableAlert.decoder))
