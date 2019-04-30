@@ -17,18 +17,7 @@ import Views.Status.Types exposing (StatusModel)
 
 view : StatusModel -> Html Types.Msg
 view { statusInfo } =
-    case statusInfo of
-        Success info ->
-            viewStatusInfo info
-
-        Initial ->
-            Utils.Views.loading
-
-        Loading ->
-            Utils.Views.loading
-
-        Failure msg ->
-            Utils.Views.error msg
+    Utils.Views.apiData viewStatusInfo statusInfo
 
 
 viewStatusInfo : AlertmanagerStatus -> Html Types.Msg

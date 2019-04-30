@@ -1,10 +1,25 @@
-module Utils.Views exposing (buttonLink, checkbox, error, formField, formInput, iconButtonMsg, labelButton, linkifyText, loading, tab, textField, validatedField)
+module Utils.Views exposing
+    ( apiData
+    , buttonLink
+    , checkbox
+    , error
+    , formField
+    , formInput
+    , iconButtonMsg
+    , labelButton
+    , linkifyText
+    , loading
+    , tab
+    , textField
+    , validatedField
+    )
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onCheck, onClick, onInput)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.String
+import Utils.Types as Types
 
 
 tab : tab -> tab -> (tab -> msg) -> List (Html msg) -> Html msg
@@ -142,6 +157,22 @@ buttonLink icon link color msg =
 formInput : String -> String -> (String -> msg) -> Html msg
 formInput inputValue classes msg =
     Html.input [ class <| "w-100 " ++ classes, value inputValue, onInput msg ] []
+
+
+apiData : (a -> Html msg) -> Types.ApiData a -> Html msg
+apiData onSuccess data =
+    case data of
+        Types.Success payload ->
+            onSuccess payload
+
+        Types.Loading ->
+            loading
+
+        Types.Initial ->
+            loading
+
+        Types.Failure msg ->
+            error msg
 
 
 loading : Html msg

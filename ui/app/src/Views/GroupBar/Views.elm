@@ -6,11 +6,12 @@ import Html.Events exposing (keyCode, on, onBlur, onClick, onFocus, onInput, onM
 import Set
 import Utils.Keyboard exposing (keys, onKeyDown, onKeyUp)
 import Utils.List
+import Utils.Views
 import Views.GroupBar.Types exposing (Model, Msg(..))
 
 
-view : Model -> Html Msg
-view ({ list, fieldText, fields } as model) =
+view : Model -> Bool -> Html Msg
+view ({ list, fieldText, fields } as model) customGrouping =
     let
         isDisabled =
             not (Set.member fieldText list) || List.member fieldText fields
@@ -24,20 +25,31 @@ view ({ list, fieldText, fields } as model) =
 
             else
                 "has-success"
+
+        checkbox =
+            div [ class "mb-3" ]
+                [ Utils.Views.checkbox "Enable custom grouping" customGrouping CustomGrouping ]
     in
-    div
-        [ class "row no-gutters align-items-start" ]
-        (List.map viewField fields
-            ++ [ div
-                    [ class ("col " ++ className)
-                    , style "min-width" "200px"
-                    ]
-                    [ textInputField isDisabled model
-                    , exampleField fields
-                    , autoCompleteResults model
-                    ]
-               ]
-        )
+    if customGrouping then
+        div []
+            [ checkbox
+            , div
+                [ class "row no-gutters align-items-start" ]
+                (List.map viewField fields
+                    ++ [ div
+                            [ class ("col " ++ className)
+                            , style "min-width" "200px"
+                            ]
+                            [ textInputField isDisabled model
+                            , exampleField fields
+                            , autoCompleteResults model
+                            ]
+                       ]
+                )
+            ]
+
+    else
+        checkbox
 
 
 exampleField : List String -> Html Msg

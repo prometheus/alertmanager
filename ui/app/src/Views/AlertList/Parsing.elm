@@ -5,8 +5,13 @@ import Url.Parser.Query as Query
 import Utils.Filter exposing (Filter, MatchOperator(..), parseMatcher)
 
 
-boolParam : String -> Query.Parser (Maybe Bool)
+boolParam : String -> Query.Parser Bool
 boolParam name =
+    Query.custom name (List.head >> (/=) Nothing)
+
+
+maybeBoolParam : String -> Query.Parser (Maybe Bool)
+maybeBoolParam name =
     Query.custom name
         (List.head >> Maybe.map (String.toLower >> (/=) "false"))
 
@@ -16,7 +21,8 @@ alertsParser =
     s "alerts"
         <?> Query.string "filter"
         <?> Query.string "group"
+        <?> boolParam "customGrouping"
         <?> Query.string "receiver"
-        <?> boolParam "silenced"
-        <?> boolParam "inhibited"
+        <?> maybeBoolParam "silenced"
+        <?> maybeBoolParam "inhibited"
         |> map Filter

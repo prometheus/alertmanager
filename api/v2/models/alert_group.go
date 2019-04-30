@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
 // AlertGroup alert group
@@ -33,13 +34,16 @@ import (
 type AlertGroup struct {
 
 	// alerts
+	// Required: true
 	Alerts []*GettableAlert `json:"alerts"`
 
 	// labels
-	Labels LabelSet `json:"labels,omitempty"`
+	// Required: true
+	Labels LabelSet `json:"labels"`
 
 	// receiver
-	Receiver *Receiver `json:"receiver,omitempty"`
+	// Required: true
+	Receiver *Receiver `json:"receiver"`
 }
 
 // Validate validates this alert group
@@ -66,8 +70,8 @@ func (m *AlertGroup) Validate(formats strfmt.Registry) error {
 
 func (m *AlertGroup) validateAlerts(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Alerts) { // not required
-		return nil
+	if err := validate.Required("alerts", "body", m.Alerts); err != nil {
+		return err
 	}
 
 	for i := 0; i < len(m.Alerts); i++ {
@@ -91,10 +95,6 @@ func (m *AlertGroup) validateAlerts(formats strfmt.Registry) error {
 
 func (m *AlertGroup) validateLabels(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Labels) { // not required
-		return nil
-	}
-
 	if err := m.Labels.Validate(formats); err != nil {
 		if ve, ok := err.(*errors.Validation); ok {
 			return ve.ValidateName("labels")
@@ -107,8 +107,8 @@ func (m *AlertGroup) validateLabels(formats strfmt.Registry) error {
 
 func (m *AlertGroup) validateReceiver(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Receiver) { // not required
-		return nil
+	if err := validate.Required("receiver", "body", m.Receiver); err != nil {
+		return err
 	}
 
 	if m.Receiver != nil {
