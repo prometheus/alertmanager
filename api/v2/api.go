@@ -206,25 +206,17 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 
 func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Responder {
 	var (
-		err            error
 		receiverFilter *regexp.Regexp
 		// Initialize result slice to prevent api returning `null` when there
 		// are no alerts present
-		res      = open_api_models.GettableAlerts{}
-		matchers = []*labels.Matcher{}
-		ctx      = params.HTTPRequest.Context()
+		res = open_api_models.GettableAlerts{}
+		ctx = params.HTTPRequest.Context()
 	)
 
-	if params.Filter != nil {
-		for _, matcherString := range params.Filter {
-			matcher, err := parse.Matcher(matcherString)
-			if err != nil {
-				level.Error(api.logger).Log("msg", "failed to parse matchers", "err", err)
-				return alert_ops.NewGetAlertsBadRequest().WithPayload(err.Error())
-			}
-
-			matchers = append(matchers, matcher)
-		}
+	matchers, err := parseFilter(params.Filter)
+	if err != nil {
+		level.Error(api.logger).Log("msg", "failed to parse matchers", "err", err)
+		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
 	}
 
 	if params.Receiver != nil {
@@ -347,20 +339,12 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 }
 
 func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams) middleware.Responder {
-	var (
-		err            error
-		receiverFilter *regexp.Regexp
-		matchers       = []*labels.Matcher{}
-	)
+	var receiverFilter *regexp.Regexp
 
-	for _, matcherString := range params.Filter {
-		matcher, err := parse.Matcher(matcherString)
-		if err != nil {
-			level.Error(api.logger).Log("msg", "failed to parse matchers", "err", err)
-			return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
-		}
-
-		matchers = append(matchers, matcher)
+	matchers, err := parseFilter(params.Filter)
+	if err != nil {
+		level.Error(api.logger).Log("msg", "failed to parse matchers", "err", err)
+		return alertgroup_ops.NewGetAlertGroupsBadRequest().WithPayload(err.Error())
 	}
 
 	if params.Receiver != nil {
@@ -783,4 +767,17 @@ func postableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 		sil.Matchers = append(sil.Matchers, matcher)
 	}
 	return sil, nil
+}
+
+func parseFilter(filter []string) ([]*labels.Matcher, error) {
+	matchers := make([]*labels.Matcher, 0, len(filter))
+	for _, matcherString := range filter {
+		matcher, err := parse.Matcher(matcherString)
+		if err != nil {
+			return nil, err
+		}
+
+		matchers = append(matchers, matcher)
+	}
+	return matchers, nil
 }
