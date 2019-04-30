@@ -96,7 +96,7 @@ func TestWebhookRetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse URL: %v", err)
 	}
-	notifier := &Webhook{conf: &config.WebhookConfig{URL: &config.URL{u}}}
+	notifier := &Webhook{conf: &config.WebhookConfig{URL: &config.URL{URL: u}}}
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
 		actual, _ := notifier.retry(statusCode)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
@@ -154,7 +154,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier := NewPagerDuty(
 		&config.PagerdutyConfig{
-			URL:        &config.URL{u},
+			URL:        &config.URL{URL: u},
 			RoutingKey: config.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -466,7 +466,7 @@ func TestOpsGenie(t *testing.T) {
 		Note:        `{{ .CommonLabels.Note }}`,
 		Priority:    `{{ .CommonLabels.Priority }}`,
 		APIKey:      `{{ .ExternalURL }}`,
-		APIURL:      &config.URL{u},
+		APIURL:      &config.URL{URL: u},
 	}
 	notifier := NewOpsGenie(conf, tmpl, logger)
 
@@ -531,7 +531,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 
 	conf := &config.VictorOpsConfig{
 		APIKey:            `12345`,
-		APIURL:            &config.URL{url},
+		APIURL:            &config.URL{URL: url},
 		EntityDisplayName: `{{ .CommonLabels.Message }}`,
 		StateMessage:      `{{ .CommonLabels.Message }}`,
 		RoutingKey:        `test`,

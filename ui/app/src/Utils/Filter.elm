@@ -2,18 +2,21 @@ module Utils.Filter exposing
     ( Filter
     , MatchOperator(..)
     , Matcher
+    , generateAPIQueryString
     , generateQueryParam
     , generateQueryString
     , nullFilter
     , parseFilter
     , parseGroup
     , parseMatcher
+    , silencePreviewFilter
     , stringifyFilter
     , stringifyGroup
     , stringifyMatcher
     )
 
 import Char
+import Data.Matcher
 import Parser exposing ((|.), (|=), Parser, Trailing(..))
 import Set
 import Url exposing (percentEncode)
@@ -67,6 +70,35 @@ generateQueryString { receiver, customGrouping, showSilenced, showInhibited, tex
         ""
 
 
+generateAPIQueryString : Filter -> String
+generateAPIQueryString { receiver, showSilenced, showInhibited, text, group } =
+    let
+        filter_ =
+            case parseFilter (Maybe.withDefault "" text) of
+                Just matchers_ ->
+                    List.map (stringifyMatcher >> Just >> Tuple.pair "filter") matchers_
+
+                Nothing ->
+                    []
+
+        parts =
+            filter_
+                ++ [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
+                   , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
+                   , ( "receiver", emptyToNothing receiver )
+                   , ( "group", group )
+                   ]
+                |> List.filterMap (\( a, b ) -> generateQueryParam a b)
+    in
+    if List.length parts > 0 then
+        parts
+            |> String.join "&"
+            |> (++) "?"
+
+    else
+        ""
+
+
 boolToMaybeString : Bool -> Maybe String
 boolToMaybeString b =
     if b then
@@ -99,6 +131,19 @@ type alias Matcher =
     { key : String
     , op : MatchOperator
     , value : String
+    }
+
+
+convertAPIMatcher : Data.Matcher.Matcher -> Matcher
+convertAPIMatcher { name, value, isRegex } =
+    { key = name
+    , value = value
+    , op =
+        if isRegex then
+            RegexMatch
+
+        else
+            Eq
     }
 
 
@@ -224,10 +269,6 @@ item =
         |= string '"'
 
 
-
---"
-
-
 string : Char -> Parser String
 string separator =
     Parser.succeed ()
@@ -257,3 +298,15 @@ isVarChar char =
         || Char.isUpper char
         || (char == '_')
         || Char.isDigit char
+
+
+silencePreviewFilter : List Data.Matcher.Matcher -> Filter
+silencePreviewFilter apiMatchers =
+    { nullFilter
+        | text =
+            List.map convertAPIMatcher apiMatchers
+                |> stringifyFilter
+                |> Just
+        , showSilenced = Just True
+        , showInhibited = Just True
+    }
