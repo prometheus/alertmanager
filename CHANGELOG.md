@@ -1,11 +1,51 @@
-## Next release
+## 0.17.0 / 2019-05-02
 
-This release includes changes to amtool which are not fully backwards compatible with the previous
-amtool version (#1798) related to backup and import of silences.  If a backup of silences is created using 
-a previous version of amtool (v0.16.1 or earlier), it is possible that not all silences can be correctly imported using a later version of amtool.
+This release includes changes to amtool which are not fully backwards
+compatible with the previous amtool version (#1798) related to backup and
+import of silences. If a backup of silences is created using a previous
+version of amtool (v0.16.1 or earlier), it is possible that not all silences
+can be correctly imported using a later version of amtool.
 
+Additionally, the groups endpoint that was dropped from api v1 has been added
+to api v2. The default for viewing alerts in the UI now consumes from this
+endpoint and displays alerts grouped according to the groups defined in the
+running configuration. Custom grouping is still supported.
+
+This release has added two new flags that may need to be tweaked. For people
+running with a lot of concurrent requests, consider increasing the value of
+`--web.get-concurrency`. An increase in 503 errors indicates that the request
+rate is exceeding the number of currently available workers. The other new
+flag, --web.timeout, limits the time a request is allowed to run. The default
+behavior is to not use a timeout.
+
+* [CHANGE] Modify the self-inhibition prevention semantics (#1873)
 * [CHANGE] Make api/v2/status.cluster.{name,peers} properties optional for Alertmanager with disabled clustering (#1728)
+* [FEATURE] Add groups endpoint to v2 api (#1791)
+* [FEATURE] Optional timeout for HTTP requests (#1743)
+* [ENHANCEMENT] Set HTTP headers to prevent asset caching (#1817)
+* [ENHANCEMENT] API returns current silenced/inhibited state of alerts (#1733)
+* [ENHANCEMENT] Configurable concurrency limit for GET requests (#1743)
+* [ENHANCEMENT] Pushover notifier: support HTML, URL title and custom sounds (#1634)
+* [ENHANCEMENT] Support adding custom fields to VictorOps notifications (#1420)
 * [ENHANCEMENT] Migrate amtool CLI to API v2 (#1798)
+* [ENHANCEMENT][ui] Default alert list view grouped by configured alert groups (#1864)
+* [ENHANCEMENT][ui] Remove superfluous inhibited/silenced text, show inhibited status (#1698, #1862)
+* [ENHANCEMENT][ui] Silence preview now shows already-muted alerts (#1776)
+* [ENHANCEMENT][ui] Sort silences from api/v2 similarly to api/v1 (#1786)
+* [BUGFIX] Trim PagerDuty message summary to 1024 chars (#1701)
+* [BUGFIX] Add fix for race causing alerts to be dropped (#1843)
+* [BUGFIX][ui] Correctly construct filter query string for api (#1869)
+* [BUGFIX][ui] Do not display GroupByAll and GroupBy in marshaled config (#1665)
+* [BUGFIX][ui] Respect regex setting when creating silences (#1697)
+
+## 0.16.2 / 2019-04-03
+
+Updating to v0.16.2 is recommended for all users using the Slack, Pagerduty,
+Hipchat, Wechat, VictorOps and Pushover notifier, as connection errors could
+leak secrets embedded in the notifier's URL to stdout.
+
+* [BUGFIX] Redact notifier URL from logs to not leak secrets embedded in the URL (#1822, #1825)
+* [BUGFIX] Allow sending of unauthenticated SMTP requests when `smtp_auth_username` is not supplied (#1739)
 
 ## 0.16.1 / 2019-01-31
 
