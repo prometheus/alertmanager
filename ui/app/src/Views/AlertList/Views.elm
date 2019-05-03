@@ -46,7 +46,7 @@ groupTabName customGrouping =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId } filter =
+view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeLabels } filter =
     div []
         [ div
             [ class "card mb-5" ]
@@ -71,15 +71,15 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId } fi
                 ]
             ]
         , if filter.customGrouping then
-            Utils.Views.apiData (customAlertGroups activeId groupBar) alerts
+            Utils.Views.apiData (customAlertGroups activeId activeLabels groupBar) alerts
 
           else
-            Utils.Views.apiData (defaultAlertGroups activeId) alertGroups
+            Utils.Views.apiData (defaultAlertGroups activeId activeLabels) alertGroups
         ]
 
 
-customAlertGroups : Maybe String -> GroupBar.Model -> List GettableAlert -> Html Msg
-customAlertGroups activeId { fields } ungroupedAlerts =
+customAlertGroups : Maybe String -> Maybe Labels -> GroupBar.Model -> List GettableAlert -> Html Msg
+customAlertGroups activeId activeLabels { fields } ungroupedAlerts =
     ungroupedAlerts
         |> Utils.List.groupBy
             (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
@@ -92,15 +92,15 @@ customAlertGroups activeId { fields } ungroupedAlerts =
                         div []
                             (List.map
                                 (\( labels, alerts ) ->
-                                    alertGroup activeId labels alerts
+                                    alertGroup activeId activeLabels labels alerts
                                 )
                                 groups
                             )
            )
 
 
-defaultAlertGroups : Maybe String -> List AlertGroup -> Html Msg
-defaultAlertGroups activeId groups =
+defaultAlertGroups : Maybe String -> Maybe Labels -> List AlertGroup -> Html Msg
+defaultAlertGroups activeId activeLabels groups =
     case groups of
         [] ->
             Utils.Views.error "No alert groups found"
@@ -109,41 +109,70 @@ defaultAlertGroups activeId groups =
             div []
                 (List.map
                     (\{ labels, alerts } ->
-                        alertGroup activeId (Dict.toList labels) alerts
+                        alertGroup activeId activeLabels (Dict.toList labels) alerts
                     )
                     groups
                 )
 
 
-alertGroup : Maybe String -> Labels -> List GettableAlert -> Html Msg
-alertGroup activeId labels alerts =
+alertGroup : Maybe String -> Maybe Labels -> Labels -> List GettableAlert -> Html Msg
+alertGroup activeId activeLabels labels alerts =
+    let
+        groupActive =
+            activeLabels == Just labels
+    in
     div []
         [ div []
-            (case labels of
-                [] ->
-                    [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
+            ((expandAlertGroup groupActive labels
+                |> Html.map (\msg -> MsgForAlertList (SetGroup msg))
+             )
+                :: (case labels of
+                        [] ->
+                            [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
 
-                _ ->
-                    List.map
-                        (\( key, value ) ->
-                            div [ class "btn-group mr-1 mb-3" ]
-                                [ span
-                                    [ class "btn text-muted"
-                                    , style "user-select" "initial"
-                                    , style "-moz-user-select" "initial"
-                                    , style "-webkit-user-select" "initial"
-                                    , style "border-color" "#5bc0de"
-                                    ]
-                                    [ text (key ++ "=\"" ++ value ++ "\"") ]
-                                , button
-                                    [ class "btn btn-outline-info"
-                                    , onClick (AlertView.addLabelMsg ( key, value ))
-                                    , title "Filter by this label"
-                                    ]
-                                    [ text "+" ]
-                                ]
-                        )
-                        labels
+                        _ ->
+                            List.map
+                                (\( key, value ) ->
+                                    div [ class "btn-group mr-1 mb-3" ]
+                                        [ span
+                                            [ class "btn text-muted"
+                                            , style "user-select" "initial"
+                                            , style "-moz-user-select" "initial"
+                                            , style "-webkit-user-select" "initial"
+                                            , style "border-color" "#5bc0de"
+                                            ]
+                                            [ text (key ++ "=\"" ++ value ++ "\"") ]
+                                        , button
+                                            [ class "btn btn-outline-info"
+                                            , onClick (AlertView.addLabelMsg ( key, value ))
+                                            , title "Filter by this label"
+                                            ]
+                                            [ text "+" ]
+                                        ]
+                                )
+                                labels
+                   )
             )
-        , ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
+        , if groupActive then
+            ul [ class "list-group mb-0 ml-5" ] (List.map (AlertView.view labels activeId) alerts)
+
+          else
+            text ""
         ]
+
+
+expandAlertGroup : Bool -> Labels -> Html (Maybe Labels)
+expandAlertGroup expanded labels =
+    if expanded then
+        button
+            [ onClick Nothing
+            , class "btn btn-outline-info border-0 active mr-1 mb-3"
+            ]
+            [ i [ class "fa fa-minus" ] [] ]
+
+    else
+        button
+            [ class "btn btn-outline-info border-0 mr-1 mb-3"
+            , onClick (Just labels)
+            ]
+            [ i [ class "fa fa-plus" ] [] ]

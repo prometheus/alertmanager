@@ -115,3 +115,6 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
 
         SetActive maybeId ->
             ( { model | activeId = maybeId }, Cmd.none )
+
+        SetGroup maybeLabels ->
+            ( { model | activeLabels = maybeLabels }, Cmd.none )
