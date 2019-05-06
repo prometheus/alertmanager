@@ -57,7 +57,8 @@ $ make build BINARIES=amtool
 
 ### Ports
 
-* `9093` : main api port
+* `9093`: main api port
+* `9094`: cluster port 
 
 ### Volumes
 
