@@ -140,3 +140,7 @@ receivers:
   pushover_configs:
     - token: mysecret
       user_key: key
+- name: slack-receiver
+  slack_configs:
+    - channel: '#my-channel'
+      image_url: 'http://some.img.com/img.png'
