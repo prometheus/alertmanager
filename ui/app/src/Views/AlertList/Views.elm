@@ -70,33 +70,8 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, act
                         Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar filter.customGrouping)
                 ]
             ]
-        , if filter.customGrouping then
-            Utils.Views.apiData (customAlertGroups activeId activeLabels groupBar) alerts
-
-          else
-            Utils.Views.apiData (defaultAlertGroups activeId activeLabels) alertGroups
+        , Utils.Views.apiData (defaultAlertGroups activeId activeLabels) alertGroups
         ]
-
-
-customAlertGroups : Maybe String -> Maybe Labels -> GroupBar.Model -> List GettableAlert -> Html Msg
-customAlertGroups activeId activeLabels { fields } ungroupedAlerts =
-    ungroupedAlerts
-        |> Utils.List.groupBy
-            (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
-        |> (\groupsDict ->
-                case Dict.toList groupsDict of
-                    [] ->
-                        Utils.Views.error "No alerts found"
-
-                    groups ->
-                        div []
-                            (List.map
-                                (\( labels, alerts ) ->
-                                    alertGroup activeId activeLabels labels alerts
-                                )
-                                groups
-                            )
-           )
 
 
 defaultAlertGroups : Maybe String -> Maybe Labels -> List AlertGroup -> Html Msg

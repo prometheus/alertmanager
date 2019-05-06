@@ -2,10 +2,12 @@ module Views.AlertList.Updates exposing (update)
 
 import Alerts.Api as Api
 import Browser.Navigation as Navigation
+import Data.AlertGroup exposing (AlertGroup)
 import Dict
 import Set
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter, generateQueryString, parseFilter)
+import Utils.List
 import Utils.Types exposing (ApiData(..))
 import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
 import Views.FilterBar.Updates as FilterBar
@@ -26,20 +28,44 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
             )
 
         AlertsFetched listOfAlerts ->
-            ( { model
-                | alerts = listOfAlerts
-                , groupBar =
+            let
+                ( groups_, groupBar_ ) =
                     case listOfAlerts of
                         Success ungroupedAlerts ->
-                            { groupBar
-                                | list =
-                                    List.concatMap (.labels >> Dict.toList) ungroupedAlerts
-                                        |> List.map Tuple.first
-                                        |> Set.fromList
-                            }
+                            let
+                                groups =
+                                    ungroupedAlerts
+                                        |> Utils.List.groupBy
+                                            (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key groupBar.fields))
+                                        |> Dict.toList
+                                        |> List.map
+                                            (\( labels, alerts_ ) ->
+                                                AlertGroup (Dict.fromList labels) { name = "unknown" } alerts_
+                                            )
 
-                        _ ->
-                            groupBar
+                                newGroupBar =
+                                    { groupBar
+                                        | list =
+                                            List.concatMap (.labels >> Dict.toList) ungroupedAlerts
+                                                |> List.map Tuple.first
+                                                |> Set.fromList
+                                    }
+                            in
+                            ( Success groups, newGroupBar )
+
+                        Initial ->
+                            ( Initial, groupBar )
+
+                        Loading ->
+                            ( Loading, groupBar )
+
+                        Failure e ->
+                            ( Failure e, groupBar )
+            in
+            ( { model
+                | alerts = listOfAlerts
+                , alertGroups = groups_
+                , groupBar = groupBar_
               }
             , Cmd.none
             )
