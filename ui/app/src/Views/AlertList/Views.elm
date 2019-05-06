@@ -80,6 +80,13 @@ defaultAlertGroups activeId activeLabels groups =
         [] ->
             Utils.Views.error "No alert groups found"
 
+        [ { labels, alerts } ] ->
+            let
+                labels_ =
+                    Dict.toList labels
+            in
+            alertGroup activeId (Just labels_) labels_ alerts
+
         _ ->
             div []
                 (List.map
