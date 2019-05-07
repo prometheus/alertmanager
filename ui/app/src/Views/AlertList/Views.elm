@@ -102,39 +102,53 @@ alertGroup activeId activeLabels labels alerts =
     let
         groupActive =
             activeLabels == Just labels
+
+        labels_ =
+            case labels of
+                [] ->
+                    [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
+
+                _ ->
+                    List.map
+                        (\( key, value ) ->
+                            div [ class "btn-group mr-1 mb-3" ]
+                                [ span
+                                    [ class "btn text-muted"
+                                    , style "user-select" "initial"
+                                    , style "-moz-user-select" "initial"
+                                    , style "-webkit-user-select" "initial"
+                                    , style "border-color" "#5bc0de"
+                                    ]
+                                    [ text (key ++ "=\"" ++ value ++ "\"") ]
+                                , button
+                                    [ class "btn btn-outline-info"
+                                    , onClick (AlertView.addLabelMsg ( key, value ))
+                                    , title "Filter by this label"
+                                    ]
+                                    [ text "+" ]
+                                ]
+                        )
+                        labels
+
+        expandButton =
+            expandAlertGroup groupActive labels
+                |> Html.map (\msg -> MsgForAlertList (SetGroup msg))
+
+        alertCount =
+            List.length alerts
+
+        alertText =
+            if alertCount == 1 then
+                String.fromInt alertCount ++ " alert"
+
+            else
+                String.fromInt alertCount ++ " alerts"
+
+        alertEl =
+            [ span [ class "ml-1 mb-0" ] [ text alertText ] ]
     in
     div []
-        [ div []
-            ((expandAlertGroup groupActive labels
-                |> Html.map (\msg -> MsgForAlertList (SetGroup msg))
-             )
-                :: (case labels of
-                        [] ->
-                            [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
-
-                        _ ->
-                            List.map
-                                (\( key, value ) ->
-                                    div [ class "btn-group mr-1 mb-3" ]
-                                        [ span
-                                            [ class "btn text-muted"
-                                            , style "user-select" "initial"
-                                            , style "-moz-user-select" "initial"
-                                            , style "-webkit-user-select" "initial"
-                                            , style "border-color" "#5bc0de"
-                                            ]
-                                            [ text (key ++ "=\"" ++ value ++ "\"") ]
-                                        , button
-                                            [ class "btn btn-outline-info"
-                                            , onClick (AlertView.addLabelMsg ( key, value ))
-                                            , title "Filter by this label"
-                                            ]
-                                            [ text "+" ]
-                                        ]
-                                )
-                                labels
-                   )
-            )
+        [ div [] (expandButton :: labels_ ++ alertEl)
         , if groupActive then
             ul [ class "list-group mb-0 ml-5" ] (List.map (AlertView.view labels activeId) alerts)
 
