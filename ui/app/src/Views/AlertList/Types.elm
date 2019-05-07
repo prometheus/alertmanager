@@ -8,6 +8,7 @@ module Views.AlertList.Types exposing
 import Browser.Navigation exposing (Key)
 import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
+import Set exposing (Set)
 import Utils.Types exposing (ApiData(..), Labels)
 import Views.FilterBar.Types as FilterBar
 import Views.GroupBar.Types as GroupBar
@@ -24,7 +25,7 @@ type AlertListMsg
     | ToggleSilenced Bool
     | ToggleInhibited Bool
     | SetActive (Maybe String)
-    | SetGroup (Maybe Labels)
+    | ActiveGroups Labels
     | SetTab Tab
 
 
@@ -41,7 +42,7 @@ type alias Model =
     , filterBar : FilterBar.Model
     , tab : Tab
     , activeId : Maybe String
-    , activeLabels : Maybe Labels
+    , activeGroups : Set Labels
     , key : Key
     }
 
@@ -55,6 +56,6 @@ initAlertList key =
     , filterBar = FilterBar.initFilterBar key
     , tab = FilterTab
     , activeId = Nothing
-    , activeLabels = Nothing
+    , activeGroups = Set.empty
     , key = key
     }

@@ -142,5 +142,13 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
         SetActive maybeId ->
             ( { model | activeId = maybeId }, Cmd.none )
 
-        SetGroup maybeLabels ->
-            ( { model | activeLabels = maybeLabels }, Cmd.none )
+        ActiveGroups activeGroup ->
+            let
+                activeGroups_ =
+                    if Set.member activeGroup model.activeGroups then
+                        Set.remove activeGroup model.activeGroups
+
+                    else
+                        Set.insert activeGroup model.activeGroups
+            in
+            ( { model | activeGroups = activeGroups_ }, Cmd.none )
