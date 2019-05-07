@@ -1,10 +1,11 @@
-module Views.AlertList.Updates exposing (update)
+port module Views.AlertList.Updates exposing (update)
 
 import Alerts.Api as Api
 import Browser.Navigation as Navigation
 import Data.AlertGroup exposing (AlertGroup)
 import Dict
 import Set
+import Task
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter, generateQueryString, parseFilter)
 import Utils.List
@@ -151,4 +152,28 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
                     else
                         Set.insert activeGroup model.activeGroups
             in
-            ( { model | activeGroups = activeGroups_ }, Cmd.none )
+            ( { model | activeGroups = activeGroups_, expandAll = False }, persistGroupExpandAll False )
+
+        ToggleExpandAll expanded ->
+            let
+                allGroupLabels =
+                    case ( alertGroups, expanded ) of
+                        ( Success groups, True ) ->
+                            List.map (.labels >> Dict.toList) groups
+                                |> Set.fromList
+
+                        _ ->
+                            Set.empty
+            in
+            ( { model
+                | expandAll = expanded
+                , activeGroups = allGroupLabels
+              }
+            , Cmd.batch
+                [ persistGroupExpandAll expanded
+                , Task.succeed expanded |> Task.perform SetGroupExpandAll
+                ]
+            )
+
+
+port persistGroupExpandAll : Bool -> Cmd msg

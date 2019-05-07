@@ -123,3 +123,6 @@ update msg ({ basePath, apiUrl } as model) =
 
         SetDefaultCreator name ->
             ( { model | defaultCreator = name }, Cmd.none )
+
+        SetGroupExpandAll expanded ->
+            ( { model | expandAll = expanded }, Cmd.none )

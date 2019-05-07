@@ -47,10 +47,10 @@ groupTabName customGrouping =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups } filter =
+view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups, expandAll } filter =
     div []
         [ div
-            [ class "card mb-5" ]
+            [ class "card mb-3" ]
             [ div [ class "card-header" ]
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
@@ -71,12 +71,16 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, act
                         Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar filter.customGrouping)
                 ]
             ]
-        , Utils.Views.apiData (defaultAlertGroups activeId activeGroups) alertGroups
+        , div []
+            [ ul [ class "nav nav-tabs card-header-tabs ml-2 mb-3" ]
+                [ renderCheckbox "Expand All" (Just expandAll) ToggleExpandAll ]
+            ]
+        , Utils.Views.apiData (defaultAlertGroups activeId activeGroups expandAll) alertGroups
         ]
 
 
-defaultAlertGroups : Maybe String -> Set Labels -> List AlertGroup -> Html Msg
-defaultAlertGroups activeId activeGroups groups =
+defaultAlertGroups : Maybe String -> Set Labels -> Bool -> List AlertGroup -> Html Msg
+defaultAlertGroups activeId activeGroups expandAll groups =
     case groups of
         [] ->
             Utils.Views.error "No alert groups found"
@@ -86,23 +90,23 @@ defaultAlertGroups activeId activeGroups groups =
                 labels_ =
                     Dict.toList labels
             in
-            alertGroup activeId (Set.singleton labels_) labels_ alerts
+            alertGroup activeId (Set.singleton labels_) labels_ alerts expandAll
 
         _ ->
             div []
                 (List.map
                     (\{ labels, alerts } ->
-                        alertGroup activeId activeGroups (Dict.toList labels) alerts
+                        alertGroup activeId activeGroups (Dict.toList labels) alerts expandAll
                     )
                     groups
                 )
 
 
-alertGroup : Maybe String -> Set Labels -> Labels -> List GettableAlert -> Html Msg
-alertGroup activeId activeGroups labels alerts =
+alertGroup : Maybe String -> Set Labels -> Labels -> List GettableAlert -> Bool -> Html Msg
+alertGroup activeId activeGroups labels alerts expandAll =
     let
         groupActive =
-            Set.member labels activeGroups
+            expandAll || Set.member labels activeGroups
 
         labels_ =
             case labels of
@@ -170,6 +174,6 @@ expandAlertGroup expanded labels =
     in
     button
         [ onClick labels
-        , class "btn btn-outline-info border-0 active mr-1 mb-3"
+        , class "btn btn-outline-info border-0 mr-1 mb-3"
         ]
         [ i [ class ("fa " ++ icon) ] [] ]

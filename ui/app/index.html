@@ -19,11 +19,15 @@
             var app = Elm.Main.init({
                 flags: {
                     production: true,
-                    defaultCreator: localStorage.getItem('defaultCreator')
+                    defaultCreator: localStorage.getItem('defaultCreator'),
+                    groupExpandAll: JSON.parse(localStorage.getItem('groupExpandAll'))
                 }
             });
             app.ports.persistDefaultCreator.subscribe(function(name) {
                 localStorage.setItem('defaultCreator', name);
+            });
+            app.ports.persistGroupExpandAll.subscribe(function(expanded) {
+                localStorage.setItem('groupExpandAll', expanded);
             });
         </script>
     </body>

@@ -27,6 +27,7 @@ type AlertListMsg
     | SetActive (Maybe String)
     | ActiveGroups Labels
     | SetTab Tab
+    | ToggleExpandAll Bool
 
 
 type Tab
@@ -44,11 +45,12 @@ type alias Model =
     , activeId : Maybe String
     , activeGroups : Set Labels
     , key : Key
+    , expandAll : Bool
     }
 
 
-initAlertList : Key -> Model
-initAlertList key =
+initAlertList : Key -> Bool -> Model
+initAlertList key expandAll =
     { alerts = Initial
     , alertGroups = Initial
     , receiverBar = ReceiverBar.initReceiverBar key
@@ -58,4 +60,5 @@ initAlertList key =
     , activeId = Nothing
     , activeGroups = Set.empty
     , key = key
+    , expandAll = expandAll
     }
