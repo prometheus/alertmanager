@@ -237,9 +237,9 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return fmt.Errorf("missing service or routing key in PagerDuty config")
 	}
 	if c.Details == nil {
-		c.Details = make(map[string]string)
+		c.Details = DefaultPagerdutyDetails
 	}
-	for k, v := range DefaultPagerdutyDetails {
+	for k, v := range c.Details {
 		if _, ok := c.Details[k]; !ok {
 			c.Details[k] = v
 		}
