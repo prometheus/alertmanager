@@ -28,12 +28,10 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -92,7 +90,8 @@ func init() {
 	prometheus.MustRegister(notificationLatencySeconds)
 }
 
-type notifierConfig interface {
+// ResolvedSender returns true if resolved notifications should be sent.
+type ResolvedSender interface {
 	SendResolved() bool
 }
 
@@ -234,40 +233,39 @@ type NotificationLog interface {
 
 // BuildPipeline builds a map of receivers to Stages.
 func BuildPipeline(
-	confs []*config.Receiver,
-	tmpl *template.Template,
+	receivers map[string][]Integration,
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
 	notificationLog NotificationLog,
 	peer *cluster.Peer,
-	logger log.Logger,
 ) RoutingStage {
-	rs := RoutingStage{}
+	rs := make(RoutingStage, len(receivers))
 
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
 	ss := NewMuteStage(silencer)
 
-	for _, rc := range confs {
-		rs[rc.Name] = MultiStage{ms, is, ss, createStage(rc, tmpl, wait, notificationLog, logger)}
+	for name := range receivers {
+		st := createReceiverStage(name, receivers[name], wait, notificationLog)
+		rs[name] = MultiStage{ms, is, ss, st}
 	}
 	return rs
 }
 
-// createStage creates a pipeline of stages for a receiver.
-func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, notificationLog NotificationLog, logger log.Logger) Stage {
+// createReceiverStage creates a pipeline of stages for a receiver.
+func createReceiverStage(name string, integrations []Integration, wait func() time.Duration, notificationLog NotificationLog) Stage {
 	var fs FanoutStage
-	for _, i := range BuildReceiverIntegrations(rc, tmpl, logger) {
+	for i := range integrations {
 		recv := &nflogpb.Receiver{
-			GroupName:   rc.Name,
-			Integration: i.name,
-			Idx:         uint32(i.idx),
+			GroupName:   name,
+			Integration: integrations[i].Name(),
+			Idx:         uint32(integrations[i].Index()),
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(i, notificationLog, recv))
-		s = append(s, NewRetryStage(i, rc.Name))
+		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
+		s = append(s, NewRetryStage(integrations[i], name))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -416,20 +414,20 @@ func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 // DedupStage filters alerts.
 // Filtering happens based on a notification log.
 type DedupStage struct {
+	rs    ResolvedSender
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
-	conf  notifierConfig
 
 	now  func() time.Time
 	hash func(*types.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(i Integration, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
+func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
+		rs:    rs,
 		nflog: l,
 		recv:  recv,
-		conf:  i.conf,
 		now:   utcNow,
 		hash:  hashAlert,
 	}
@@ -502,7 +500,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return len(entry.FiringAlerts) > 0
 	}
 
-	if n.conf.SendResolved() && !entry.IsResolvedSubset(resolved) {
+	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
 		return true
 	}
 
@@ -583,7 +581,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	// If we shouldn't send notifications for resolved alerts, but there are only
 	// resolved alerts, report them all as successfully notified (we still want the
 	// notification log to log them for the next run of DedupStage).
-	if !r.integration.conf.SendResolved() {
+	if !r.integration.SendResolved() {
 		firing, ok := FiringAlerts(ctx)
 		if !ok {
 			return ctx, nil, fmt.Errorf("firing alerts missing")
@@ -625,13 +623,13 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
-			numNotifications.WithLabelValues(r.integration.name).Inc()
+			notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
+			numNotifications.WithLabelValues(r.integration.Name()).Inc()
 			if err != nil {
-				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
-				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)
+				numFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.Name(), "receiver", r.groupName, "err", err)
 				if !retry {
-					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
+					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.Name(), err)
 				}
 
 				// Save this error to be able to return the last seen error by an
