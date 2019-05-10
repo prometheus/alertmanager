@@ -33,11 +33,7 @@ parseMatcher =
 generateQueryString : Test
 generateQueryString =
     describe "generateQueryString"
-        [ test "should default silenced & inhibited parameters to false and active to true if showSilenced is Nothing" <|
-            \() ->
-                Expect.equal "?silenced=false&inhibited=false&active=true"
-                    (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showActive = Nothing })
-        , test "should not render keys with Nothing value except the silenced and inhibited parameters" <|
+        [ test "should not render keys with Nothing value except the silenced, inhibited, and active parameters, which default to false, false, true, respectively." <|
             \() ->
                 Expect.equal "?silenced=false&inhibited=false&active=true"
                     (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showActive = Nothing })
@@ -57,6 +53,10 @@ generateQueryString =
             \() ->
                 Expect.equal "?silenced=false&inhibited=true&active=true"
                     (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Just True, showActive = Nothing })
+        , test "should render active key with bool" <|
+            \() ->
+                Expect.equal "?silenced=false&inhibited=false&active=false"
+                    (Utils.Filter.generateQueryString { receiver = Nothing, group = Nothing, customGrouping = False, text = Nothing, showSilenced = Nothing, showInhibited = Nothing, showActive = Just False })
         , test "should add customGrouping key" <|
             \() ->
                 Expect.equal "?silenced=false&inhibited=false&active=true&customGrouping=true"
