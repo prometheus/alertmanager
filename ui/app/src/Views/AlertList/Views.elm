@@ -72,8 +72,16 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, act
                 ]
             ]
         , div []
-            [ ul [ class "nav nav-tabs card-header-tabs ml-2 mb-3" ]
-                [ renderCheckbox "Expand All" (Just expandAll) ToggleExpandAll ]
+            [ button
+                [ class "btn btn-outline-secondary border-0 mr-1 mb-3"
+                , onClick (MsgForAlertList (ToggleExpandAll (not expandAll)))
+                ]
+                (if expandAll then
+                    [ i [ class "fa fa-minus mr-3" ] [], text "Collapse all groups" ]
+
+                 else
+                    [ i [ class "fa fa-plus mr-3" ] [], text "Expand all groups" ]
+                )
             ]
         , Utils.Views.apiData (defaultAlertGroups activeId activeGroups expandAll) alertGroups
         ]
@@ -93,7 +101,7 @@ defaultAlertGroups activeId activeGroups expandAll groups =
             alertGroup activeId (Set.singleton labels_) labels_ alerts expandAll
 
         _ ->
-            div []
+            div [ class "pl-5" ]
                 (List.map
                     (\{ labels, alerts } ->
                         alertGroup activeId activeGroups (Dict.toList labels) alerts expandAll
@@ -111,12 +119,12 @@ alertGroup activeId activeGroups labels alerts expandAll =
         labels_ =
             case labels of
                 [] ->
-                    [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
+                    [ span [ class "btn btn-secondary mr-1 mb-1" ] [ text "Not grouped" ] ]
 
                 _ ->
                     List.map
                         (\( key, value ) ->
-                            div [ class "btn-group mr-1 mb-3" ]
+                            div [ class "btn-group mr-1 mb-1" ]
                                 [ span
                                     [ class "btn text-muted"
                                     , style "user-select" "initial"
@@ -150,12 +158,12 @@ alertGroup activeId activeGroups labels alerts expandAll =
                 String.fromInt alertCount ++ " alerts"
 
         alertEl =
-            [ span [ class "ml-1 mb-0" ] [ text alertText ] ]
+            [ span [ class "ml-1 mb-0", style "white-space" "nowrap" ] [ text alertText ] ]
     in
     div []
-        [ div [] (expandButton :: labels_ ++ alertEl)
+        [ div [ class "mb-3" ] (expandButton :: labels_ ++ alertEl)
         , if groupActive then
-            ul [ class "list-group mb-0 ml-5" ] (List.map (AlertView.view labels activeId) alerts)
+            ul [ class "list-group mb-0" ] (List.map (AlertView.view labels activeId) alerts)
 
           else
             text ""
@@ -174,6 +182,7 @@ expandAlertGroup expanded labels =
     in
     button
         [ onClick labels
-        , class "btn btn-outline-info border-0 mr-1 mb-3"
+        , class "btn btn-outline-info border-0 mr-1 mb-1"
+        , style "margin-left" "-3rem"
         ]
         [ i [ class ("fa " ++ icon) ] [] ]
