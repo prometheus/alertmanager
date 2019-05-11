@@ -27,7 +27,7 @@
                 localStorage.setItem('defaultCreator', name);
             });
             app.ports.persistGroupExpandAll.subscribe(function(expanded) {
-                localStorage.setItem('groupExpandAll', expanded);
+                localStorage.setItem('groupExpandAll', JSON.stringify(expanded));
             });
         </script>
     </body>
