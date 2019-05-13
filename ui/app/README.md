@@ -13,6 +13,11 @@ query string containing the following will additionally show silenced alerts.
 http://alertmanager/#/alerts?silenced=true
 ```
 
+In order to to show _only_ silenced alerts, update the query string to hide active alerts.
+```
+http://alertmanager/#/alerts?silenced=true&active=false
+```
+
 The alerts page can also be filtered by the receivers for a page. Receivers are
 configured in Alertmanager's yaml configuration file.
 

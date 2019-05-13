@@ -21,13 +21,13 @@ import Views.ReceiverBar.Views as ReceiverBar
 
 
 renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
-renderCheckbox textLabel maybeShowSilenced toggleMsg =
+renderCheckbox textLabel maybeChecked toggleMsg =
     li [ class "nav-item" ]
         [ label [ class "mt-1 ml-1 custom-control custom-checkbox" ]
             [ input
                 [ type_ "checkbox"
                 , class "custom-control-input"
-                , checked (Maybe.withDefault False maybeShowSilenced)
+                , checked (Maybe.withDefault False maybeChecked)
                 , onCheck (toggleMsg >> MsgForAlertList)
                 ]
                 []
