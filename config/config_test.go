@@ -25,7 +25,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -633,7 +633,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 func TestSMTPHello(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	const refValue = "host.example.org"
@@ -646,7 +646,7 @@ func TestSMTPHello(t *testing.T) {
 func TestGroupByAll(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.group-by-all.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.group-by-all.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.group-by-all.yml", err)
 	}
 
 	if !c.Route.GroupByAll {
@@ -657,12 +657,12 @@ func TestGroupByAll(t *testing.T) {
 func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	conf, _, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
 	}
 
 	var defaultKey = conf.Global.VictorOpsAPIKey
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
-		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
+		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].VictorOpsConfigs[0].APIKey {
 		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, "qwe456")
@@ -672,7 +672,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 func TestVictorOpsNoAPIKey(t *testing.T) {
 	_, _, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
 	if err == nil {
-		t.Errorf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
 	}
 	if err.Error() != "no global VictorOps API Key set" {
 		t.Errorf("Expected: %s\nGot: %s", "no global VictorOps API Key set", err.Error())
@@ -682,12 +682,12 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 func TestOpsGenieDefaultAPIKey(t *testing.T) {
 	conf, _, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
 	}
 
 	var defaultKey = conf.Global.OpsGenieAPIKey
 	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKey {
-		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
+		t.Fatalf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKey {
 		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, "qwe456")
@@ -697,9 +697,22 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 func TestOpsGenieNoAPIKey(t *testing.T) {
 	_, _, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
 	if err == nil {
-		t.Errorf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
 	}
 	if err.Error() != "no global OpsGenie API Key set" {
 		t.Errorf("Expected: %s\nGot: %s", "no global OpsGenie API Key set", err.Error())
+	}
+}
+
+func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
+	_, _, err := LoadFile("testdata/conf.opsgenie-default-apikey-old-team.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-old-team.yml", err)
+	}
+
+	const expectedErr = `yaml: unmarshal errors:
+  line 18: field teams not found in type config.plain`
+	if err.Error() != expectedErr {
+		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}
 }

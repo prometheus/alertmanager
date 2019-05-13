@@ -461,12 +461,21 @@ func TestOpsGenie(t *testing.T) {
 		Message:     `{{ .CommonLabels.Message }}`,
 		Description: `{{ .CommonLabels.Description }}`,
 		Source:      `{{ .CommonLabels.Source }}`,
-		Teams:       `{{ .CommonLabels.Teams }}`,
-		Tags:        `{{ .CommonLabels.Tags }}`,
-		Note:        `{{ .CommonLabels.Note }}`,
-		Priority:    `{{ .CommonLabels.Priority }}`,
-		APIKey:      `{{ .ExternalURL }}`,
-		APIURL:      &config.URL{URL: u},
+		Responders: []config.OpsGenieConfigResponder{
+			{
+				Name: `{{ .CommonLabels.ResponderName1 }}`,
+				Type: `{{ .CommonLabels.ResponderType1 }}`,
+			},
+			{
+				Name: `{{ .CommonLabels.ResponderName2 }}`,
+				Type: `{{ .CommonLabels.ResponderType2 }}`,
+			},
+		},
+		Tags:     `{{ .CommonLabels.Tags }}`,
+		Note:     `{{ .CommonLabels.Note }}`,
+		Priority: `{{ .CommonLabels.Priority }}`,
+		APIKey:   `{{ .ExternalURL }}`,
+		APIURL:   &config.URL{URL: u},
 	}
 	notifier := NewOpsGenie(conf, tmpl, logger)
 
@@ -495,19 +504,22 @@ func TestOpsGenie(t *testing.T) {
 	alert2 := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
-				"Message":     "message",
-				"Description": "description",
-				"Source":      "http://prometheus",
-				"Teams":       "TeamA,TeamB,",
-				"Tags":        "tag1,tag2",
-				"Note":        "this is a note",
-				"Priotity":    "P1",
+				"Message":        "message",
+				"Description":    "description",
+				"Source":         "http://prometheus",
+				"ResponderName1": "TeamA",
+				"ResponderType1": "team",
+				"ResponderName2": "EscalationA",
+				"ResponderType2": "escalation",
+				"Tags":           "tag1,tag2",
+				"Note":           "this is a note",
+				"Priority":       "P1",
 			},
 			StartsAt: time.Now(),
 			EndsAt:   time.Now().Add(time.Hour),
 		},
 	}
-	expectedBody = `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{},"source":"http://prometheus","teams":[{"name":"TeamA"},{"name":"TeamB"}],"tags":["tag1","tag2"],"note":"this is a note"}
+	expectedBody = `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"EscalationA","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
 `
 	req, retry, err = notifier.createRequest(ctx, alert2)
 	require.NoError(t, err)

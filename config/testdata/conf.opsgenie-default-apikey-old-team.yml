@@ -13,14 +13,6 @@ route:
     receiver: team-X-opsgenie
 
 receivers:
-- name: 'team-X-opsgenie'
-  opsgenie_configs:
-  - responders:
-    - name: 'team-X'
-      type: 'team'
-- name: 'escalation-Y-opsgenie'
-  opsgenie_configs:
-  - responders:
-    - name: 'escalation-Y'
-      type: 'escalation'
-    api_key: qwe456
+  - name: 'team-X-opsgenie'
+    opsgenie_configs:
+      - teams: 'team-X'

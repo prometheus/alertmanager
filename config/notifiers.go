@@ -15,8 +15,11 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	commoncfg "github.com/prometheus/common/config"
 )
@@ -453,23 +456,52 @@ type OpsGenieConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey      Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIURL      *URL              `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
-	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Source      string            `yaml:"source,omitempty" json:"source,omitempty"`
-	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
-	Teams       string            `yaml:"teams,omitempty" json:"teams,omitempty"`
-	Tags        string            `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Note        string            `yaml:"note,omitempty" json:"note,omitempty"`
-	Priority    string            `yaml:"priority,omitempty" json:"priority,omitempty"`
+	APIKey      Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIURL      *URL                      `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Message     string                    `yaml:"message,omitempty" json:"message,omitempty"`
+	Description string                    `yaml:"description,omitempty" json:"description,omitempty"`
+	Source      string                    `yaml:"source,omitempty" json:"source,omitempty"`
+	Details     map[string]string         `yaml:"details,omitempty" json:"details,omitempty"`
+	Responders  []OpsGenieConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
+	Tags        string                    `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Note        string                    `yaml:"note,omitempty" json:"note,omitempty"`
+	Priority    string                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 }
+
+const opsgenieValidTypesRe = `^team|user|escalation|schedule$`
+
+var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultOpsGenieConfig
 	type plain OpsGenieConfig
-	return unmarshal((*plain)(c))
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	for _, r := range c.Responders {
+		if r.ID == "" && r.Username == "" && r.Name == "" {
+			return errors.Errorf("OpsGenieConfig responder %v has to have at least one of id, username or name specified", r)
+		}
+
+		r.Type = strings.ToLower(r.Type)
+		if !opsgenieTypeMatcher.MatchString(r.Type) {
+			return errors.Errorf("OpsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
+		}
+	}
+
+	return nil
+}
+
+type OpsGenieConfigResponder struct {
+	// One of those 3 should be filled.
+	ID       string `yaml:"id,omitempty" json:"id,omitempty"`
+	Name     string `yaml:"name,omitempty" json:"name,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+
+	// team, user, escalation, schedule etc.
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
 }
 
 // VictorOpsConfig configures notifications via VictorOps.
