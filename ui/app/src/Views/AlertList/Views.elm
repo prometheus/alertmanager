@@ -6,6 +6,7 @@ import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Set exposing (Set)
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter)
 import Utils.List
@@ -46,10 +47,10 @@ groupTabName customGrouping =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId } filter =
+view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups, expandAll } filter =
     div []
         [ div
-            [ class "card mb-5" ]
+            [ class "card mb-3" ]
             [ div [ class "card-header" ]
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
@@ -70,63 +71,60 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId } fi
                         Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar filter.customGrouping)
                 ]
             ]
-        , if filter.customGrouping then
-            Utils.Views.apiData (customAlertGroups activeId groupBar) alerts
+        , div []
+            [ button
+                [ class "btn btn-outline-secondary border-0 mr-1 mb-3"
+                , onClick (MsgForAlertList (ToggleExpandAll (not expandAll)))
+                ]
+                (if expandAll then
+                    [ i [ class "fa fa-minus mr-3" ] [], text "Collapse all groups" ]
 
-          else
-            Utils.Views.apiData (defaultAlertGroups activeId) alertGroups
+                 else
+                    [ i [ class "fa fa-plus mr-3" ] [], text "Expand all groups" ]
+                )
+            ]
+        , Utils.Views.apiData (defaultAlertGroups activeId activeGroups expandAll) alertGroups
         ]
 
 
-customAlertGroups : Maybe String -> GroupBar.Model -> List GettableAlert -> Html Msg
-customAlertGroups activeId { fields } ungroupedAlerts =
-    ungroupedAlerts
-        |> Utils.List.groupBy
-            (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
-        |> (\groupsDict ->
-                case Dict.toList groupsDict of
-                    [] ->
-                        Utils.Views.error "No alerts found"
-
-                    groups ->
-                        div []
-                            (List.map
-                                (\( labels, alerts ) ->
-                                    alertGroup activeId labels alerts
-                                )
-                                groups
-                            )
-           )
-
-
-defaultAlertGroups : Maybe String -> List AlertGroup -> Html Msg
-defaultAlertGroups activeId groups =
+defaultAlertGroups : Maybe String -> Set Labels -> Bool -> List AlertGroup -> Html Msg
+defaultAlertGroups activeId activeGroups expandAll groups =
     case groups of
         [] ->
             Utils.Views.error "No alert groups found"
 
+        [ { labels, alerts } ] ->
+            let
+                labels_ =
+                    Dict.toList labels
+            in
+            alertGroup activeId (Set.singleton labels_) labels_ alerts expandAll
+
         _ ->
-            div []
+            div [ class "pl-5" ]
                 (List.map
                     (\{ labels, alerts } ->
-                        alertGroup activeId (Dict.toList labels) alerts
+                        alertGroup activeId activeGroups (Dict.toList labels) alerts expandAll
                     )
                     groups
                 )
 
 
-alertGroup : Maybe String -> Labels -> List GettableAlert -> Html Msg
-alertGroup activeId labels alerts =
-    div []
-        [ div []
-            (case labels of
+alertGroup : Maybe String -> Set Labels -> Labels -> List GettableAlert -> Bool -> Html Msg
+alertGroup activeId activeGroups labels alerts expandAll =
+    let
+        groupActive =
+            expandAll || Set.member labels activeGroups
+
+        labels_ =
+            case labels of
                 [] ->
-                    [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
+                    [ span [ class "btn btn-secondary mr-1 mb-1" ] [ text "Not grouped" ] ]
 
                 _ ->
                     List.map
                         (\( key, value ) ->
-                            div [ class "btn-group mr-1 mb-3" ]
+                            div [ class "btn-group mr-1 mb-1" ]
                                 [ span
                                     [ class "btn text-muted"
                                     , style "user-select" "initial"
@@ -144,6 +142,47 @@ alertGroup activeId labels alerts =
                                 ]
                         )
                         labels
-            )
-        , ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
+
+        expandButton =
+            expandAlertGroup groupActive labels
+                |> Html.map (\msg -> MsgForAlertList (ActiveGroups msg))
+
+        alertCount =
+            List.length alerts
+
+        alertText =
+            if alertCount == 1 then
+                String.fromInt alertCount ++ " alert"
+
+            else
+                String.fromInt alertCount ++ " alerts"
+
+        alertEl =
+            [ span [ class "ml-1 mb-0", style "white-space" "nowrap" ] [ text alertText ] ]
+    in
+    div []
+        [ div [ class "mb-3" ] (expandButton :: labels_ ++ alertEl)
+        , if groupActive then
+            ul [ class "list-group mb-0" ] (List.map (AlertView.view labels activeId) alerts)
+
+          else
+            text ""
         ]
+
+
+expandAlertGroup : Bool -> Labels -> Html Labels
+expandAlertGroup expanded labels =
+    let
+        icon =
+            if expanded then
+                "fa-minus"
+
+            else
+                "fa-plus"
+    in
+    button
+        [ onClick labels
+        , class "btn btn-outline-info border-0 mr-1 mb-1"
+        , style "margin-left" "-3rem"
+        ]
+        [ i [ class ("fa " ++ icon) ] [] ]
