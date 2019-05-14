@@ -22,7 +22,7 @@ require (
 	github.com/oklog/ulid v0.0.0-20170117200651-66bb6560562f
 	github.com/pkg/errors v0.8.0
 	github.com/prometheus/client_golang v0.9.2
-	github.com/prometheus/common v0.2.0
+	github.com/prometheus/common v0.4.0
 	github.com/prometheus/prometheus v0.0.0-20180315085919-58e2a31db8de
 	github.com/rs/cors v1.6.0
 	github.com/satori/go.uuid v0.0.0-20160603004225-b111a074d5ef
