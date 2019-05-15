@@ -357,11 +357,12 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 func (am *Alertmanager) WaitForCluster(size int) error {
 	params := general.NewGetStatusParams()
 	params.WithContext(context.Background())
-	var status general.GetStatusOK
+	var status *general.GetStatusOK
 
 	// Poll for 2s
 	for i := 0; i < 20; i++ {
-		status, err := am.clientV2.General.GetStatus(params)
+		var err error
+		status, err = am.clientV2.General.GetStatus(params)
 		if err != nil {
 			return err
 		}
