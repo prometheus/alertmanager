@@ -105,12 +105,11 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Message:   `{{ template "wechat.default.message" . }}`,
-		APISecret: `{{ template "wechat.default.api_secret" . }}`,
-		ToUser:    `{{ template "wechat.default.to_user" . }}`,
-		ToParty:   `{{ template "wechat.default.to_party" . }}`,
-		ToTag:     `{{ template "wechat.default.to_tag" . }}`,
-		AgentID:   `{{ template "wechat.default.agent_id" . }}`,
+		Message: `{{ template "wechat.default.message" . }}`,
+		ToUser:  `{{ template "wechat.default.to_user" . }}`,
+		ToParty: `{{ template "wechat.default.to_party" . }}`,
+		ToTag:   `{{ template "wechat.default.to_tag" . }}`,
+		AgentID: `{{ template "wechat.default.agent_id" . }}`,
 	}
 
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
