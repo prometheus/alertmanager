@@ -25,6 +25,8 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
+
+	clientruntime "github.com/go-openapi/runtime/client"
 )
 
 var (
@@ -63,15 +65,24 @@ const (
 
 // NewAlertmanagerClient initializes an alertmanager client with the given URL
 func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
-	transportConfig := client.DefaultTransportConfig()
-	transportConfig.BasePath = defaultAmApiv2path
+	address := defaultAmHost + ":" + defaultAmPort
+	schemes := []string{"http"}
 
-	if amURL.Host == "" {
-		transportConfig.Host = defaultAmHost + ":" + defaultAmPort
-	} else {
-		transportConfig.Host = amURL.Host
+	if amURL.Host != "" {
+		address = amURL.Host // URL documents host as host or host:port
 	}
-	return client.NewHTTPClientWithConfig(strfmt.Default, transportConfig)
+	if amURL.Scheme != "" {
+		schemes = []string{amURL.Scheme}
+	}
+
+	cr := clientruntime.New(address, defaultAmApiv2path, schemes)
+
+	if amURL.User != nil {
+		password, _ := amURL.User.Password()
+		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
+	}
+
+	return client.New(cr, strfmt.Default)
 }
 
 // Execute is the main function for the amtool command
