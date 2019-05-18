@@ -3,10 +3,16 @@ module Utils.FormValidation exposing
     , ValidationState(..)
     , fromResult
     , initialField
+    , onInputWithScrollHeight
     , stringNotEmpty
+    , updateTextAreaHeight
     , updateValue
     , validate
     )
+
+import Html exposing (Html)
+import Html.Events exposing (on)
+import Json.Decode exposing (at, int, map)
 
 
 type ValidationState
@@ -28,6 +34,7 @@ fromResult result =
 type alias ValidatedField =
     { value : String
     , validationState : ValidationState
+    , rows : Int
     }
 
 
@@ -35,12 +42,22 @@ initialField : String -> ValidatedField
 initialField value =
     { value = value
     , validationState = Initial
+    , rows = 3
     }
 
 
 updateValue : String -> ValidatedField -> ValidatedField
 updateValue value field =
     { field | value = value, validationState = Initial }
+
+
+updateTextAreaHeight : Int -> ValidatedField -> ValidatedField
+updateTextAreaHeight scrollHeight field =
+    let
+        rows =
+            ceiling ((toFloat scrollHeight - 20) / 20)
+    in
+    { field | rows = rows }
 
 
 validate : (String -> Result String a) -> ValidatedField -> ValidatedField
@@ -55,3 +72,8 @@ stringNotEmpty string =
 
     else
         Ok string
+
+
+onInputWithScrollHeight : (Int -> msg) -> Html.Attribute msg
+onInputWithScrollHeight tagger =
+    on "focus" (map tagger (at [ "target", "scrollHeight" ] int))

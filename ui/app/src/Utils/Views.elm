@@ -17,7 +17,7 @@ module Utils.Views exposing
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onCheck, onClick, onInput)
-import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
+import Utils.FormValidation exposing (ValidatedField, ValidationState(..), onInputWithScrollHeight)
 import Utils.String
 import Utils.Types as Types
 
@@ -90,8 +90,8 @@ checkbox name status msg =
         ]
 
 
-validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
-validatedField htmlField labelText classes inputMsg blurMsg field =
+validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> (Int -> msg) -> msg -> ValidatedField -> Html msg
+validatedField htmlField labelText classes inputMsg inputRowsMsg blurMsg field =
     case field.validationState of
         Valid ->
             div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
@@ -99,8 +99,10 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                 , htmlField
                     [ value field.value
                     , onInput inputMsg
+                    , onInputWithScrollHeight inputRowsMsg
                     , onBlur blurMsg
                     , class "form-control form-control-success"
+                    , rows field.rows
                     ]
                     []
                 ]
@@ -111,8 +113,10 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                 , htmlField
                     [ value field.value
                     , onInput inputMsg
+                    , onInputWithScrollHeight inputRowsMsg
                     , onBlur blurMsg
                     , class "form-control"
+                    , rows field.rows
                     ]
                     []
                 ]
@@ -123,8 +127,10 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                 , htmlField
                     [ value field.value
                     , onInput inputMsg
+                    , onInputWithScrollHeight inputRowsMsg
                     , onBlur blurMsg
                     , class "form-control form-control-danger"
+                    , rows field.rows
                     ]
                     []
                 , div [ class "form-control-feedback" ] [ text error_ ]
