@@ -16,8 +16,6 @@
 package asset
 
 import (
-	"go/build"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -26,16 +24,8 @@ import (
 	"github.com/shurcooL/httpfs/union"
 )
 
-func importPathToDir(importPath string) string {
-	p, err := build.Import(importPath, "", build.FindOnly)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	return p.Dir
-}
-
 var static http.FileSystem = filter.Keep(
-	http.Dir(importPathToDir("github.com/prometheus/alertmanager/ui/app")),
+	http.Dir("../ui/app"),
 	func(path string, fi os.FileInfo) bool {
 		return path == "/" ||
 			path == "/script.js" ||
@@ -46,7 +36,7 @@ var static http.FileSystem = filter.Keep(
 )
 
 var templates http.FileSystem = filter.Keep(
-	http.Dir(importPathToDir("github.com/prometheus/alertmanager/template")),
+	http.Dir("../template"),
 	func(path string, fi os.FileInfo) bool {
 		return path == "/" || path == "/default.tmpl"
 	},

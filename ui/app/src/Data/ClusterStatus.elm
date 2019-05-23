@@ -20,9 +20,9 @@ import Json.Encode as Encode
 
 
 type alias ClusterStatus =
-    { name : String
+    { name : Maybe String
     , status : Status
-    , peers : List PeerStatus
+    , peers : Maybe (List PeerStatus)
     }
 
 
@@ -35,17 +35,17 @@ type Status
 decoder : Decoder ClusterStatus
 decoder =
     Decode.succeed ClusterStatus
-        |> required "name" Decode.string
+        |> optional "name" (Decode.nullable Decode.string) Nothing
         |> required "status" statusDecoder
-        |> required "peers" (Decode.list PeerStatus.decoder)
+        |> optional "peers" (Decode.nullable (Decode.list PeerStatus.decoder)) Nothing
 
 
 encoder : ClusterStatus -> Encode.Value
 encoder model =
     Encode.object
-        [ ( "name", Encode.string model.name )
+        [ ( "name", Maybe.withDefault Encode.null (Maybe.map Encode.string model.name) )
         , ( "status", statusEncoder model.status )
-        , ( "peers", Encode.list PeerStatus.encoder model.peers )
+        , ( "peers", Maybe.withDefault Encode.null (Maybe.map (Encode.list PeerStatus.encoder) model.peers) )
         ]
 
 

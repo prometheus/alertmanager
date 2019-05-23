@@ -1,7 +1,7 @@
 go:
     # Whenever the Go version is updated here, .travis.yml and
     # .circle/config.yml should also be updated.
-    version: 1.11
+    version: 1.12
 repository:
     path: github.com/prometheus/alertmanager
 build:
@@ -45,3 +45,4 @@ crossbuild:
         - linux/ppc64le
         - linux/mips64
         - linux/mips64le
+        - linux/s390x

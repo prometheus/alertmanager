@@ -142,7 +142,7 @@ func Create(
 		}
 	}
 
-	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, net.Resolver{}, waitIfEmpty)
+	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve peers")
 	}
@@ -232,12 +232,21 @@ func (p *Peer) Join(
 	}
 
 	if reconnectInterval != 0 {
-		go p.handleReconnect(reconnectInterval)
+		go p.runPeriodicTask(
+			reconnectInterval,
+			p.reconnect,
+		)
 	}
 	if reconnectTimeout != 0 {
-		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
+		go p.runPeriodicTask(
+			5*time.Minute,
+			func() { p.removeFailedPeers(reconnectTimeout) },
+		)
 	}
-	go p.handleRefresh(DefaultRefreshInterval)
+	go p.runPeriodicTask(
+		DefaultRefreshInterval,
+		p.refresh,
+	)
 
 	return err
 }
@@ -341,7 +350,7 @@ func (p *Peer) register(reg prometheus.Registerer) {
 		p.peerLeaveCounter, p.peerUpdateCounter, p.peerJoinCounter, p.refreshCounter, p.failedRefreshCounter)
 }
 
-func (p *Peer) handleReconnectTimeout(d time.Duration, timeout time.Duration) {
+func (p *Peer) runPeriodicTask(d time.Duration, f func()) {
 	tick := time.NewTicker(d)
 	defer tick.Stop()
 
@@ -350,7 +359,7 @@ func (p *Peer) handleReconnectTimeout(d time.Duration, timeout time.Duration) {
 		case <-p.stopc:
 			return
 		case <-tick.C:
-			p.removeFailedPeers(timeout)
+			f()
 		}
 	}
 }
@@ -374,20 +383,6 @@ func (p *Peer) removeFailedPeers(timeout time.Duration) {
 	p.failedPeers = keep
 }
 
-func (p *Peer) handleReconnect(d time.Duration) {
-	tick := time.NewTicker(d)
-	defer tick.Stop()
-
-	for {
-		select {
-		case <-p.stopc:
-			return
-		case <-tick.C:
-			p.reconnect()
-		}
-	}
-}
-
 func (p *Peer) reconnect() {
 	p.peerLock.RLock()
 	failedPeers := p.failedPeers
@@ -408,24 +403,10 @@ func (p *Peer) reconnect() {
 	}
 }
 
-func (p *Peer) handleRefresh(d time.Duration) {
-	tick := time.NewTicker(d)
-	defer tick.Stop()
-
-	for {
-		select {
-		case <-p.stopc:
-			return
-		case <-tick.C:
-			p.refresh()
-		}
-	}
-}
-
 func (p *Peer) refresh() {
 	logger := log.With(p.logger, "msg", "refresh")
 
-	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, net.Resolver{}, false)
+	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
 	if err != nil {
 		level.Debug(logger).Log("peers", p.knownPeers, "err", err)
 		return
@@ -578,9 +559,9 @@ func (p *Peer) WaitReady() {
 func (p *Peer) Status() string {
 	if p.Ready() {
 		return "ready"
-	} else {
-		return "settling"
 	}
+
+	return "settling"
 }
 
 // Info returns a JSON-serializable dump of cluster state.
@@ -679,7 +660,7 @@ func (b simpleBroadcast) Message() []byte                       { return []byte(
 func (b simpleBroadcast) Invalidates(memberlist.Broadcast) bool { return false }
 func (b simpleBroadcast) Finished()                             {}
 
-func resolvePeers(ctx context.Context, peers []string, myAddress string, res net.Resolver, waitIfEmpty bool) ([]string, error) {
+func resolvePeers(ctx context.Context, peers []string, myAddress string, res *net.Resolver, waitIfEmpty bool) ([]string, error) {
 	var resolvedPeers []string
 
 	for _, peer := range peers {
@@ -689,6 +670,7 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res net
 		}
 
 		retryCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
 		ips, err := res.LookupIPAddr(ctx, host)
 		if err != nil {

@@ -47,6 +47,7 @@ view labels maybeActiveId alert =
                 Nothing ->
                     text ""
             , silenceButton alert
+            , inhibitedIcon alert
             ]
         , if maybeActiveId == Just alert.fingerprint then
             table [ class "table w-100 mb-1" ] (List.map annotation <| Dict.toList alert.annotations)
@@ -117,3 +118,18 @@ silenceButton alert =
                 [ i [ class "fa fa-bell-slash-o mr-2" ] []
                 , text "Silence"
                 ]
+
+
+inhibitedIcon : GettableAlert -> Html Msg
+inhibitedIcon alert =
+    case List.head alert.status.inhibitedBy of
+        Just sId ->
+            a
+                [ class "btn btn-outline-info border-0 text-info"
+                ]
+                [ i [ class "fa fa-eye-slash mr-2" ] []
+                , text "Inhibited"
+                ]
+
+        Nothing ->
+            text ""

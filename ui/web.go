@@ -31,24 +31,32 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+		disableCaching(w)
+
 		req.URL.Path = "/static/"
 		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
 
 	r.Get("/script.js", func(w http.ResponseWriter, req *http.Request) {
+		disableCaching(w)
+
 		req.URL.Path = "/static/script.js"
 		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
 
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
+		disableCaching(w)
+
 		req.URL.Path = "/static/favicon.ico"
 		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})
 
 	r.Get("/lib/*path", func(w http.ResponseWriter, req *http.Request) {
+		disableCaching(w)
+
 		req.URL.Path = path.Join("/static/lib", route.Param(req.Context(), "path"))
 		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
@@ -75,4 +83,10 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
 	r.Post("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
+}
+
+func disableCaching(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0") // Prevent proxies from caching.
 }

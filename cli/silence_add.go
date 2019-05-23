@@ -20,12 +20,12 @@ import (
 	"os/user"
 	"time"
 
-	"github.com/prometheus/client_golang/api"
+	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
 func username() string {
@@ -149,24 +149,26 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		return err
 	}
 
-	silence := types.Silence{
-		Matchers:  typeMatchers,
-		StartsAt:  startsAt,
-		EndsAt:    endsAt,
-		CreatedBy: c.author,
-		Comment:   c.comment,
+	start := strfmt.DateTime(startsAt)
+	end := strfmt.DateTime(endsAt)
+	ps := &models.PostableSilence{
+		Silence: models.Silence{
+			Matchers:  typeMatchers,
+			StartsAt:  &start,
+			EndsAt:    &end,
+			CreatedBy: &c.author,
+			Comment:   &c.comment,
+		},
 	}
+	silenceParams := silence.NewPostSilencesParams().WithContext(ctx).
+		WithSilence(ps)
 
-	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	amclient := NewAlertmanagerClient(alertmanagerURL)
+
+	postOk, err := amclient.Silence.PostSilences(silenceParams)
 	if err != nil {
 		return err
 	}
-	silenceAPI := client.NewSilenceAPI(apiClient)
-	silenceID, err := silenceAPI.Set(ctx, silence)
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Println(silenceID)
+	_, err = fmt.Println(postOk.Payload.SilenceID)
 	return err
 }

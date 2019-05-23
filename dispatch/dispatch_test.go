@@ -22,9 +22,13 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -321,5 +325,132 @@ func TestGroupByAllLabels(t *testing.T) {
 
 	if !reflect.DeepEqual(ls, expLs) {
 		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
+	}
+}
+
+func TestGroups(t *testing.T) {
+	logger := log.NewNopLogger()
+	conf, _, err := config.LoadFile("testdata/conf.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := NewRoute(conf.Route, nil)
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	recorder := &recordStage{t: t, alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger)
+	go dispatcher.Run()
+	defer dispatcher.Stop()
+
+	// Create alerts. the dispatcher will automatically create the groups.
+	alerts.Put(
+		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes"}),
+	)
+
+	// Let alerts get processed.
+	for i := 0; len(recorder.Alerts()) != 5 && i < 10; i++ {
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.Equal(t, 5, len(recorder.Alerts()))
+
+	alertGroups, receivers := dispatcher.Groups(
+		func(*Route) bool {
+			return true
+		}, func(*types.Alert, time.Time) bool {
+			return true
+		},
+	)
+
+	// Verify that grouping works.
+	require.Equal(t, 5, len(alertGroups))
+	for _, ag := range alertGroups {
+		if len(ag.Labels) == 2 {
+			// testing receiver
+			require.Equal(t, 2, len(ag.Labels))
+			require.Equal(t, model.LabelSet{"alertname": "TestingAlert", "service": "api"}, ag.Labels)
+			for _, alert := range ag.Alerts {
+				alertsReceivers, ok := receivers[alert.Fingerprint()]
+				require.True(t, ok)
+				require.Equal(t, 1, len(alertsReceivers))
+				require.Equal(t, "testing", alertsReceivers[0])
+			}
+			continue
+		}
+		require.Equal(t, 3, len(ag.Labels))
+		for _, alert := range ag.Alerts {
+			alertsReceivers, ok := receivers[alert.Fingerprint()]
+			require.True(t, ok)
+			sort.Strings(alertsReceivers)
+			if labelValue := ag.Labels["alertname"]; string(labelValue) == "HighLatency" {
+				// Matches both prod and kafka receivers
+				require.Equal(t, []string{"kafka", "prod"}, alertsReceivers)
+				continue
+			}
+			require.Equal(t, 1, len(alertsReceivers))
+			require.Equal(t, "prod", alertsReceivers[0])
+		}
+	}
+}
+
+type recordStage struct {
+	t      *testing.T
+	mtx    sync.RWMutex
+	alerts map[string]map[model.Fingerprint]*types.Alert
+}
+
+func (r *recordStage) Alerts() []*types.Alert {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+	alerts := make([]*types.Alert, 0)
+	for k := range r.alerts {
+		for _, a := range r.alerts[k] {
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func (r *recordStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	gk, ok := notify.GroupKey(ctx)
+	if !ok {
+		panic("GroupKey not present!")
+	}
+	if _, ok := r.alerts[gk]; !ok {
+		r.alerts[gk] = make(map[model.Fingerprint]*types.Alert)
+	}
+	for _, a := range alerts {
+		r.alerts[gk][a.Fingerprint()] = a
+	}
+	return ctx, nil, nil
+}
+
+var (
+	// Set the start time in the past to trigger a flush immediately.
+	t0 = time.Now().Add(-time.Minute)
+	// Set the end time in the future to avoid deleting the alert.
+	t1 = t0.Add(2 * time.Minute)
+)
+
+func newAlert(labels model.LabelSet) *types.Alert {
+	return &types.Alert{
+		Alert: model.Alert{
+			Labels:       labels,
+			Annotations:  model.LabelSet{"foo": "bar"},
+			StartsAt:     t0,
+			EndsAt:       t1,
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: t0,
+		Timeout:   false,
 	}
 }

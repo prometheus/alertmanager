@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/prometheus/client_golang/api"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
 
@@ -57,30 +57,33 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 		return fmt.Errorf("no silence IDs specified")
 	}
 
-	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
-	if err != nil {
-		return err
-	}
-	silenceAPI := client.NewSilenceAPI(apiClient)
+	amclient := NewAlertmanagerClient(alertmanagerURL)
 
-	var updatedSilences []types.Silence
+	var updatedSilences []models.GettableSilence
 	for _, silenceID := range c.ids {
-		silence, err := silenceAPI.Get(ctx, silenceID)
+		params := silence.NewGetSilenceParams()
+		params.SilenceID = strfmt.UUID(silenceID)
+		response, err := amclient.Silence.GetSilence(params)
+		sil := response.Payload
 		if err != nil {
 			return err
 		}
 		if c.start != "" {
-			silence.StartsAt, err = time.Parse(time.RFC3339, c.start)
+			startsAtTime, err := time.Parse(time.RFC3339, c.start)
 			if err != nil {
 				return err
 			}
+			startsAt := strfmt.DateTime(startsAtTime)
+			sil.StartsAt = &startsAt
 		}
 
 		if c.end != "" {
-			silence.EndsAt, err = time.Parse(time.RFC3339, c.end)
+			endsAtTime, err := time.Parse(time.RFC3339, c.end)
 			if err != nil {
 				return err
 			}
+			endsAt := strfmt.DateTime(endsAtTime)
+			sil.EndsAt = &endsAt
 		} else if c.duration != "" {
 			d, err := model.ParseDuration(c.duration)
 			if err != nil {
@@ -89,24 +92,33 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 			if d == 0 {
 				return fmt.Errorf("silence duration must be greater than 0")
 			}
-			silence.EndsAt = silence.StartsAt.UTC().Add(time.Duration(d))
+			endsAt := strfmt.DateTime(time.Time(*sil.StartsAt).UTC().Add(time.Duration(d)))
+			sil.EndsAt = &endsAt
 		}
 
-		if silence.StartsAt.After(silence.EndsAt) {
+		if time.Time(*sil.StartsAt).After(time.Time(*sil.EndsAt)) {
 			return errors.New("silence cannot start after it ends")
 		}
 
 		if c.comment != "" {
-			silence.Comment = c.comment
+			sil.Comment = &c.comment
 		}
 
-		newID, err := silenceAPI.Set(ctx, *silence)
+		ps := &models.PostableSilence{
+			ID:      *sil.ID,
+			Silence: sil.Silence,
+		}
+
+		amclient := NewAlertmanagerClient(alertmanagerURL)
+
+		silenceParams := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(ps)
+		postOk, err := amclient.Silence.PostSilences(silenceParams)
 		if err != nil {
 			return err
 		}
-		silence.ID = newID
 
-		updatedSilences = append(updatedSilences, *silence)
+		sil.ID = &postOk.Payload.SilenceID
+		updatedSilences = append(updatedSilences, *sil)
 	}
 
 	if c.quiet {

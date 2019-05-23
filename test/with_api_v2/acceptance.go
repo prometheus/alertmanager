@@ -29,10 +29,10 @@ import (
 	"testing"
 	"time"
 
-	apiclient "github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/alert"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/client/general"
-	"github.com/prometheus/alertmanager/test/with_api_v2/api_v2_client/models"
+	apiclient "github.com/prometheus/alertmanager/api/v2/client"
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/general"
+	"github.com/prometheus/alertmanager/api/v2/models"
 
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
@@ -51,7 +51,7 @@ type AcceptanceTest struct {
 	actions map[float64][]func()
 }
 
-// AcceptanceOpts defines configuration paramters for an acceptance test.
+// AcceptanceOpts defines configuration parameters for an acceptance test.
 type AcceptanceOpts struct {
 	RoutePrefix string
 	Tolerance   time.Duration
@@ -287,6 +287,11 @@ func (amc *AlertmanagerCluster) Start() error {
 	}
 
 	return nil
+}
+
+// Members returns the underlying slice of cluster members.
+func (amc *AlertmanagerCluster) Members() []*Alertmanager {
+	return amc.ams
 }
 
 // Start the alertmanager and wait until it is ready to receive.
@@ -553,6 +558,10 @@ func (amc *AlertmanagerCluster) GenericAPIV2Call(at float64, f func()) {
 // GenericAPIV2Call takes a time slot and a function to run against the API v2
 func (am *Alertmanager) GenericAPIV2Call(at float64, f func()) {
 	am.t.Do(at, f)
+}
+
+func (am *Alertmanager) Client() *apiclient.Alertmanager {
+	return am.clientV2
 }
 
 func (am *Alertmanager) getURL(path string) string {

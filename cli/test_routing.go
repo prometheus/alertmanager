@@ -19,10 +19,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/prometheus/alertmanager/client"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/xlab/treeprint"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 const routingTestHelp = `Test alert routing
@@ -49,7 +49,7 @@ func configureRoutingTestCmd(cc *kingpin.CmdClause, c *routingShow) {
 }
 
 // resolveAlertReceivers returns list of receiver names which given LabelSet resolves to.
-func resolveAlertReceivers(mainRoute *dispatch.Route, labels *client.LabelSet) ([]string, error) {
+func resolveAlertReceivers(mainRoute *dispatch.Route, labels *models.LabelSet) ([]string, error) {
 	var (
 		finalRoutes []*dispatch.Route
 		receivers   []string
@@ -61,7 +61,7 @@ func resolveAlertReceivers(mainRoute *dispatch.Route, labels *client.LabelSet) (
 	return receivers, nil
 }
 
-func printMatchingTree(mainRoute *dispatch.Route, ls client.LabelSet) {
+func printMatchingTree(mainRoute *dispatch.Route, ls models.LabelSet) {
 	tree := treeprint.New()
 	getMatchingTree(mainRoute, tree, ls)
 	fmt.Println("Matching routes:")
@@ -78,7 +78,7 @@ func (c *routingShow) routingTestAction(ctx context.Context, _ *kingpin.ParseCon
 
 	mainRoute := dispatch.NewRoute(cfg.Route, nil)
 
-	// Parse lables to LabelSet.
+	// Parse labels to LabelSet.
 	ls, err := parseLabels(c.labels)
 	if err != nil {
 		kingpin.Fatalf("Failed to parse labels: %v\n", err)

@@ -14,21 +14,26 @@ import Views.ReceiverBar.Updates as ReceiverBar
 
 
 update : AlertListMsg -> Model -> Filter -> String -> String -> ( Model, Cmd Types.Msg )
-update msg ({ groupBar, filterBar, receiverBar } as model) filter apiUrl basePath =
+update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) filter apiUrl basePath =
     let
         alertsUrl =
             basePath ++ "#/alerts"
     in
     case msg of
+        AlertGroupsFetched listOfAlertGroups ->
+            ( { model | alertGroups = listOfAlertGroups }
+            , Cmd.none
+            )
+
         AlertsFetched listOfAlerts ->
             ( { model
                 | alerts = listOfAlerts
                 , groupBar =
                     case listOfAlerts of
-                        Success alerts ->
+                        Success ungroupedAlerts ->
                             { groupBar
                                 | list =
-                                    List.concatMap (.labels >> Dict.toList) alerts
+                                    List.concatMap (.labels >> Dict.toList) ungroupedAlerts
                                         |> List.map Tuple.first
                                         |> Set.fromList
                             }
@@ -47,9 +52,29 @@ update msg ({ groupBar, filterBar, receiverBar } as model) filter apiUrl basePat
                 newFilterBar =
                     FilterBar.setMatchers filter filterBar
             in
-            ( { model | alerts = Loading, filterBar = newFilterBar, groupBar = newGroupBar, activeId = Nothing }
+            ( { model
+                | alerts =
+                    if filter.customGrouping then
+                        Loading
+
+                    else
+                        alerts
+                , alertGroups =
+                    if filter.customGrouping then
+                        alertGroups
+
+                    else
+                        Loading
+                , filterBar = newFilterBar
+                , groupBar = newGroupBar
+                , activeId = Nothing
+              }
             , Cmd.batch
-                [ Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+                [ if filter.customGrouping then
+                    Api.fetchAlerts apiUrl filter |> Cmd.map (AlertsFetched >> MsgForAlertList)
+
+                  else
+                    Api.fetchAlertGroups apiUrl filter |> Cmd.map (AlertGroupsFetched >> MsgForAlertList)
                 , ReceiverBar.fetchReceivers apiUrl |> Cmd.map (MsgForReceiverBar >> MsgForAlertList)
                 ]
             )

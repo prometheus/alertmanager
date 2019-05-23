@@ -103,6 +103,34 @@ receivers:
 
 }
 
+func TestReceiverExistsForDeepSubRoute(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+    routes:
+      - match:
+          foo: bar
+        routes:
+        - match:
+            foo: bar
+          receiver: nonexistent
+
+receivers:
+- name: 'team-X'
+`
+	_, err := Load(in)
+
+	expected := "undefined receiver \"nonexistent\" used in route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
 func TestReceiverHasName(t *testing.T) {
 	in := `
 route:
@@ -512,8 +540,10 @@ receivers:
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
-	var regexpFoo Regexp
-	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
+	var regexpFoo = Regexp{
+		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
+		original: "^(foo1|foo2|baz)$",
+	}
 
 	var expectedConf = Config{
 

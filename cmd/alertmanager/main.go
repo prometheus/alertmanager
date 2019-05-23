@@ -15,8 +15,6 @@ package main
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"net/http"
@@ -34,14 +32,14 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promlog"
 	promlogflag "github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	apiv1 "github.com/prometheus/alertmanager/api/v1"
-	apiv2 "github.com/prometheus/alertmanager/api/v2"
+	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -56,21 +54,7 @@ import (
 )
 
 var (
-	configHash = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_config_hash",
-		Help: "Hash of the currently loaded alertmanager configuration.",
-	})
-	configSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_config_last_reload_successful",
-		Help: "Whether the last configuration reload attempt was successful.",
-	})
-	configSuccessTime = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "alertmanager_config_last_reload_success_timestamp_seconds",
-		Help: "Timestamp of the last successful configuration reload.",
-	})
-	alertsActive     prometheus.GaugeFunc
-	alertsSuppressed prometheus.GaugeFunc
-	requestDuration  = prometheus.NewHistogramVec(
+	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "alertmanager_http_request_duration_seconds",
 			Help:    "Histogram of latencies for HTTP requests.",
@@ -90,43 +74,20 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(configSuccess)
-	prometheus.MustRegister(configSuccessTime)
-	prometheus.MustRegister(configHash)
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
 func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
+	handlerLabel := prometheus.Labels{"handler": handlerName}
 	return promhttp.InstrumentHandlerDuration(
-		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+		requestDuration.MustCurryWith(handlerLabel),
 		promhttp.InstrumentHandlerResponseSize(
-			responseSize.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+			responseSize.MustCurryWith(handlerLabel),
 			handler,
 		),
 	)
-}
-
-func newAlertMetricByState(marker types.Marker, st types.AlertState) prometheus.GaugeFunc {
-	return prometheus.NewGaugeFunc(
-		prometheus.GaugeOpts{
-			Name:        "alertmanager_alerts",
-			Help:        "How many alerts by state.",
-			ConstLabels: prometheus.Labels{"state": string(st)},
-		},
-		func() float64 {
-			return float64(marker.Count(st))
-		},
-	)
-}
-
-func newMarkerMetrics(marker types.Marker) {
-	alertsActive = newAlertMetricByState(marker, types.AlertStateActive)
-	alertsSuppressed = newAlertMetricByState(marker, types.AlertStateSuppressed)
-
-	prometheus.MustRegister(alertsActive)
-	prometheus.MustRegister(alertsSuppressed)
 }
 
 const defaultClusterAddr = "0.0.0.0:9094"
@@ -147,9 +108,11 @@ func run() int {
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
-		externalURL   = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
-		routePrefix   = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
-		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
+		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
+		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
+		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
+		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
+		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
 		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster.").
 				Default(defaultClusterAddr).String()
@@ -226,8 +189,7 @@ func run() int {
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
 
-	marker := types.NewMarker()
-	newMarkerMetrics(marker)
+	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
@@ -284,31 +246,27 @@ func run() int {
 	}
 	defer alerts.Close()
 
-	var (
-		inhibitor *inhibit.Inhibitor
-		tmpl      *template.Template
-		pipeline  notify.Stage
-		disp      *dispatch.Dispatcher
-	)
+	var disp *dispatch.Dispatcher
 	defer disp.Stop()
 
-	apiV1 := apiv1.New(
-		alerts,
-		silences,
-		marker.Status,
-		peer,
-		log.With(logger, "component", "api/v1"),
-	)
+	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
+		return disp.Groups(routeFilter, alertFilter)
+	}
 
-	apiV2, err := apiv2.NewAPI(
-		alerts,
-		marker.Status,
-		silences,
-		peer,
-		log.With(logger, "component", "api/v2"),
-	)
+	api, err := api.New(api.Options{
+		Alerts:      alerts,
+		Silences:    silences,
+		StatusFunc:  marker.Status,
+		Peer:        peer,
+		Timeout:     *httpTimeout,
+		Concurrency: *getConcurrency,
+		Logger:      log.With(logger, "component", "api"),
+		Registry:    prometheus.DefaultRegisterer,
+		GroupFunc:   groupFn,
+	})
+
 	if err != nil {
-		level.Error(logger).Log("err", fmt.Errorf("failed to create API v2: %v", err.Error()))
+		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %v", err.Error()))
 		return 1
 	}
 
@@ -329,40 +287,22 @@ func run() int {
 		return d + waitFunc()
 	}
 
-	var hash float64
-	reload := func() (err error) {
-		level.Info(logger).Log("msg", "Loading configuration file", "file", *configFile)
-		defer func() {
-			if err != nil {
-				level.Error(logger).Log("msg", "Loading configuration file failed", "file", *configFile, "err", err)
-				configSuccess.Set(0)
-			} else {
-				configSuccess.Set(1)
-				configSuccessTime.Set(float64(time.Now().Unix()))
-				configHash.Set(hash)
-			}
-		}()
+	var (
+		inhibitor *inhibit.Inhibitor
+		silencer  *silence.Silencer
+		tmpl      *template.Template
+		pipeline  notify.Stage
+	)
 
-		conf, plainCfg, err := config.LoadFile(*configFile)
-		if err != nil {
-			return err
-		}
-
-		hash = md5HashAsMetricValue(plainCfg)
-
-		err = apiV1.Update(conf, time.Duration(conf.Global.ResolveTimeout))
-		if err != nil {
-			return err
-		}
-
-		err = apiV2.Update(conf, time.Duration(conf.Global.ResolveTimeout))
-		if err != nil {
-			return err
-		}
-
+	configCoordinator := config.NewCoordinator(
+		*configFile,
+		prometheus.DefaultRegisterer,
+		log.With(logger, "component", "configuration"),
+	)
+	configCoordinator.Subscribe(func(conf *config.Config) error {
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse templates: %v", err.Error())
 		}
 		tmpl.ExternalURL = amURL
 
@@ -370,26 +310,32 @@ func run() int {
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
+		silencer = silence.NewSilencer(silences, marker, logger)
 		pipeline = notify.BuildPipeline(
 			conf.Receivers,
 			tmpl,
 			waitFunc,
 			inhibitor,
-			silences,
+			silencer,
 			notificationLog,
-			marker,
 			peer,
 			logger,
 		)
+
+		api.Update(conf, func(labels model.LabelSet) {
+			inhibitor.Mutes(labels)
+			silencer.Mutes(labels)
+		})
+
 		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
 
 		go disp.Run()
 		go inhibitor.Run()
 
 		return nil
-	}
+	})
 
-	if err := reload(); err != nil {
+	if err := configCoordinator.Reload(); err != nil {
 		return 1
 	}
 
@@ -410,16 +356,7 @@ func run() int {
 
 	ui.Register(router, webReload, logger)
 
-	apiV1.Register(router.WithPrefix("/api/v1"))
-
-	mux := http.NewServeMux()
-	mux.Handle("/", router)
-
-	apiPrefix := ""
-	if *routePrefix != "/" {
-		apiPrefix = *routePrefix
-	}
-	mux.Handle(apiPrefix+"/api/v2/", http.StripPrefix(apiPrefix+"/api/v2", apiV2.Handler))
+	mux := api.Register(router, *routePrefix)
 
 	srv := http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
@@ -451,9 +388,9 @@ func run() int {
 			select {
 			case <-hup:
 				// ignore error, already logged in `reload()`
-				_ = reload()
+				_ = configCoordinator.Reload()
 			case errc := <-webReload:
-				errc <- reload()
+				errc <- configCoordinator.Reload()
 			}
 		}
 	}()
@@ -506,13 +443,4 @@ func extURL(listen, external string) (*url.URL, error) {
 	u.Path = ppref
 
 	return u, nil
-}
-
-func md5HashAsMetricValue(data []byte) float64 {
-	sum := md5.Sum(data)
-	// We only want 48 bits as a float64 only has a 53 bit mantissa.
-	smallSum := sum[0:6]
-	var bytes = make([]byte, 8)
-	copy(bytes, smallSum)
-	return float64(binary.LittleEndian.Uint64(bytes))
 }
