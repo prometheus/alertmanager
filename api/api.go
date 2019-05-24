@@ -126,6 +126,7 @@ func New(opts Options) (*API, error) {
 		opts.Silences,
 		opts.Peer,
 		log.With(l, "version", "v2"),
+		opts.Registry,
 	)
 
 	if err != nil {
