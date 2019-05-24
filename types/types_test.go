@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
@@ -364,5 +365,30 @@ func TestAlertSliceSort(t *testing.T) {
 		if !reflect.DeepEqual(tc.alerts, tc.exp) {
 			t.Fatalf("expected %v but got %v", tc.exp, tc.alerts)
 		}
+	}
+}
+
+type fakeRegisterer struct {
+	registeredCollectors []prometheus.Collector
+}
+
+func (r *fakeRegisterer) Register(prometheus.Collector) error {
+	return nil
+}
+
+func (r *fakeRegisterer) MustRegister(c ...prometheus.Collector) {
+	r.registeredCollectors = append(r.registeredCollectors, c...)
+}
+
+func (r *fakeRegisterer) Unregister(prometheus.Collector) bool {
+	return false
+}
+
+func TestNewMarkerRegistersMetrics(t *testing.T) {
+	fr := fakeRegisterer{}
+	NewMarker(&fr)
+
+	if len(fr.registeredCollectors) == 0 {
+		t.Error("expected NewMarker to register metrics on the given registerer")
 	}
 }

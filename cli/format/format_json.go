@@ -18,8 +18,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
 type JSONFormatter struct {
@@ -34,17 +33,17 @@ func (formatter *JSONFormatter) SetOutput(writer io.Writer) {
 	formatter.writer = writer
 }
 
-func (formatter *JSONFormatter) FormatSilences(silences []types.Silence) error {
+func (formatter *JSONFormatter) FormatSilences(silences []models.GettableSilence) error {
 	enc := json.NewEncoder(formatter.writer)
 	return enc.Encode(silences)
 }
 
-func (formatter *JSONFormatter) FormatAlerts(alerts []*client.ExtendedAlert) error {
+func (formatter *JSONFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	enc := json.NewEncoder(formatter.writer)
 	return enc.Encode(alerts)
 }
 
-func (formatter *JSONFormatter) FormatConfig(status *client.ServerStatus) error {
+func (formatter *JSONFormatter) FormatConfig(status *models.AlertmanagerStatus) error {
 	enc := json.NewEncoder(formatter.writer)
 	return enc.Encode(status)
 }

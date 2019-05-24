@@ -2,18 +2,21 @@ module Utils.Filter exposing
     ( Filter
     , MatchOperator(..)
     , Matcher
+    , generateAPIQueryString
     , generateQueryParam
     , generateQueryString
     , nullFilter
     , parseFilter
     , parseGroup
     , parseMatcher
+    , silencePreviewFilter
     , stringifyFilter
     , stringifyGroup
     , stringifyMatcher
     )
 
 import Char
+import Data.Matcher
 import Parser exposing ((|.), (|=), Parser, Trailing(..))
 import Set
 import Url exposing (percentEncode)
@@ -22,6 +25,7 @@ import Url exposing (percentEncode)
 type alias Filter =
     { text : Maybe String
     , group : Maybe String
+    , customGrouping : Bool
     , receiver : Maybe String
     , showSilenced : Maybe Bool
     , showInhibited : Maybe Bool
@@ -32,6 +36,7 @@ nullFilter : Filter
 nullFilter =
     { text = Nothing
     , group = Nothing
+    , customGrouping = False
     , receiver = Nothing
     , showSilenced = Nothing
     , showInhibited = Nothing
@@ -44,7 +49,7 @@ generateQueryParam name =
 
 
 generateQueryString : Filter -> String
-generateQueryString { receiver, showSilenced, showInhibited, text, group } =
+generateQueryString { receiver, customGrouping, showSilenced, showInhibited, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
@@ -52,6 +57,7 @@ generateQueryString { receiver, showSilenced, showInhibited, text, group } =
             , ( "filter", emptyToNothing text )
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )
+            , ( "customGrouping", boolToMaybeString customGrouping )
             ]
                 |> List.filterMap (\( a, b ) -> generateQueryParam a b)
     in
@@ -62,6 +68,44 @@ generateQueryString { receiver, showSilenced, showInhibited, text, group } =
 
     else
         ""
+
+
+generateAPIQueryString : Filter -> String
+generateAPIQueryString { receiver, showSilenced, showInhibited, text, group } =
+    let
+        filter_ =
+            case parseFilter (Maybe.withDefault "" text) of
+                Just matchers_ ->
+                    List.map (stringifyMatcher >> Just >> Tuple.pair "filter") matchers_
+
+                Nothing ->
+                    []
+
+        parts =
+            filter_
+                ++ [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
+                   , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
+                   , ( "receiver", emptyToNothing receiver )
+                   , ( "group", group )
+                   ]
+                |> List.filterMap (\( a, b ) -> generateQueryParam a b)
+    in
+    if List.length parts > 0 then
+        parts
+            |> String.join "&"
+            |> (++) "?"
+
+    else
+        ""
+
+
+boolToMaybeString : Bool -> Maybe String
+boolToMaybeString b =
+    if b then
+        Just "true"
+
+    else
+        Nothing
 
 
 boolToString : Bool -> String
@@ -87,6 +131,19 @@ type alias Matcher =
     { key : String
     , op : MatchOperator
     , value : String
+    }
+
+
+convertAPIMatcher : Data.Matcher.Matcher -> Matcher
+convertAPIMatcher { name, value, isRegex } =
+    { key = name
+    , value = value
+    , op =
+        if isRegex then
+            RegexMatch
+
+        else
+            Eq
     }
 
 
@@ -212,10 +269,6 @@ item =
         |= string '"'
 
 
-
---"
-
-
 string : Char -> Parser String
 string separator =
     Parser.succeed ()
@@ -245,3 +298,15 @@ isVarChar char =
         || Char.isUpper char
         || (char == '_')
         || Char.isDigit char
+
+
+silencePreviewFilter : List Data.Matcher.Matcher -> Filter
+silencePreviewFilter apiMatchers =
+    { nullFilter
+        | text =
+            List.map convertAPIMatcher apiMatchers
+                |> stringifyFilter
+                |> Just
+        , showSilenced = Just True
+        , showInhibited = Just True
+    }

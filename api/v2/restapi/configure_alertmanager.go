@@ -1,5 +1,19 @@
 // This file is safe to edit. Once it exists it will not be overwritten
 
+// Copyright Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
 package restapi
 
 import (
@@ -12,12 +26,13 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 )
 
-//go:generate swagger generate server --target ../api/v2 --name alertmanager --spec ../api/v2/openapi.yaml --exclude-main
+//go:generate swagger generate server --target ../../v2 --name Alertmanager --spec ../openapi.yaml --exclude-main
 
 func configureFlags(api *operations.AlertmanagerAPI) {
 	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
@@ -39,6 +54,9 @@ func configureAPI(api *operations.AlertmanagerAPI) http.Handler {
 
 	api.SilenceDeleteSilenceHandler = silence.DeleteSilenceHandlerFunc(func(params silence.DeleteSilenceParams) middleware.Responder {
 		return middleware.NotImplemented("operation silence.DeleteSilence has not yet been implemented")
+	})
+	api.AlertgroupGetAlertGroupsHandler = alertgroup.GetAlertGroupsHandlerFunc(func(params alertgroup.GetAlertGroupsParams) middleware.Responder {
+		return middleware.NotImplemented("operation alertgroup.GetAlertGroups has not yet been implemented")
 	})
 	api.AlertGetAlertsHandler = alert.GetAlertsHandlerFunc(func(params alert.GetAlertsParams) middleware.Responder {
 		return middleware.NotImplemented("operation alert.GetAlerts has not yet been implemented")

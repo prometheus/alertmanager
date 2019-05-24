@@ -1,5 +1,6 @@
 module Views.AlertList.Views exposing (view)
 
+import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
 import Dict exposing (Dict)
 import Html exposing (..)
@@ -35,15 +36,24 @@ renderCheckbox textLabel maybeShowSilenced toggleMsg =
         ]
 
 
+groupTabName : Bool -> Html msg
+groupTabName customGrouping =
+    if customGrouping then
+        text "Group (custom)"
+
+    else
+        text "Group"
+
+
 view : Model -> Filter -> Html Msg
-view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
+view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId } filter =
     div []
         [ div
             [ class "card mb-5" ]
             [ div [ class "card-header" ]
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
-                    , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ text "Group" ]
+                    , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ groupTabName filter.customGrouping ]
                     , receiverBar
                         |> ReceiverBar.view filter.receiver
                         |> Html.map (MsgForReceiverBar >> MsgForAlertList)
@@ -57,54 +67,56 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
                         Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
 
                     GroupTab ->
-                        Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar)
+                        Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar filter.customGrouping)
                 ]
             ]
-        , case alerts of
-            Success alerts_ ->
-                alertGroups activeId filter groupBar alerts_
+        , if filter.customGrouping then
+            Utils.Views.apiData (customAlertGroups activeId groupBar) alerts
 
-            Loading ->
-                Utils.Views.loading
-
-            Initial ->
-                Utils.Views.loading
-
-            Failure msg ->
-                Utils.Views.error msg
+          else
+            Utils.Views.apiData (defaultAlertGroups activeId) alertGroups
         ]
 
 
-alertGroups : Maybe String -> Filter -> GroupBar.Model -> List GettableAlert -> Html Msg
-alertGroups activeId filter { fields } alerts =
-    let
-        grouped =
-            alerts
-                |> Utils.List.groupBy
-                    (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
-    in
-    grouped
-        |> Dict.keys
-        |> List.partition ((/=) [])
-        |> (\( a, b ) -> (++) a b)
-        |> List.filterMap
-            (\labels ->
-                Maybe.map
-                    (alertList activeId labels filter)
-                    (Dict.get labels grouped)
-            )
-        |> (\list ->
-                if List.isEmpty list then
-                    [ Utils.Views.error "No alerts found" ]
+customAlertGroups : Maybe String -> GroupBar.Model -> List GettableAlert -> Html Msg
+customAlertGroups activeId { fields } ungroupedAlerts =
+    ungroupedAlerts
+        |> Utils.List.groupBy
+            (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
+        |> (\groupsDict ->
+                case Dict.toList groupsDict of
+                    [] ->
+                        Utils.Views.error "No alerts found"
 
-                else
-                    list
+                    groups ->
+                        div []
+                            (List.map
+                                (\( labels, alerts ) ->
+                                    alertGroup activeId labels alerts
+                                )
+                                groups
+                            )
            )
-        |> div []
 
 
-alertList : Maybe String -> Labels -> Filter -> List GettableAlert -> Html Msg
-alertList activeId labels filter alerts =
+defaultAlertGroups : Maybe String -> List AlertGroup -> Html Msg
+defaultAlertGroups activeId groups =
+    case groups of
+        [] ->
+            Utils.Views.error "No alert groups found"
+
+        _ ->
+            div []
+                (List.map
+                    (\{ labels, alerts } ->
+                        alertGroup activeId (Dict.toList labels) alerts
+                    )
+                    groups
+                )
+
+
+alertGroup : Maybe String -> Labels -> List GettableAlert -> Html Msg
+alertGroup activeId labels alerts =
     div []
         [ div []
             (case labels of

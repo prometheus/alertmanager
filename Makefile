@@ -11,17 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Needs to be defined before including Makefile.common to auto-generate targets
+DOCKER_ARCHS ?= amd64 armv7 arm64
+
 include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
 DOCKER_IMAGE_NAME       ?= alertmanager
-ERRCHECK_BINARY         := $(FIRST_GOPATH)/bin/errcheck
 
 STATICCHECK_IGNORE =
-
-# Go modules needs the bzr binary because of the dependency on launchpad.net/gocheck.
-$(eval $(call PRECHECK_COMMAND_template,bzr))
-PRECHECK_OPTIONS_bzr = version
 
 .PHONY: build-all
 # Will build both the front-end as well as the back-end
@@ -35,39 +33,21 @@ ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
 
 .PHONY: apiv2
-apiv2: api/v2/models api/v2/restapi test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client
+apiv2: api/v2/models api/v2/restapi api/v2/client
 
 SWAGGER = docker run \
 	--user=$(shell id -u $(USER)):$(shell id -g $(USER)) \
 	--rm \
 	-v $(shell pwd):/go/src/github.com/prometheus/alertmanager \
-	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:0.16.0
+	-w /go/src/github.com/prometheus/alertmanager quay.io/goswagger/swagger:v0.18.0
 
-api/v2/models api/v2/restapi: api/v2/openapi.yaml
-	-rm -r api/v2/{models,restapi}
-	$(SWAGGER) generate server -f api/v2/openapi.yaml --exclude-main -A alertmanager --target api/v2/
-
-test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client: api/v2/openapi.yaml
-	-rm -r test/with_api_v1/api_v2_client; mkdir -p test/with_api_v2/api_v2_client
-	$(SWAGGER) generate client -f api/v2/openapi.yaml --target test/with_api_v2/api_v2_client
+api/v2/models api/v2/restapi api/v2/client: api/v2/openapi.yaml
+	-rm -r api/v2/{client,models,restapi}
+	$(SWAGGER) generate server -f api/v2/openapi.yaml --copyright-file=COPYRIGHT.txt --exclude-main -A alertmanager --target api/v2/
+	$(SWAGGER) generate client -f api/v2/openapi.yaml --copyright-file=COPYRIGHT.txt --skip-models --target api/v2
 
 .PHONY: clean
 clean:
-	- rm -f asset/assets_vfsdata.go
-	- rm -r api/v2/models api/v2/restapi test/with_api_v2/api_v2_client/models test/with_api_v2/api_v2_client/client
-	- cd $(FRONTEND_DIR) && $(MAKE) clean
-
-.PHONY: test
-test: common-test $(ERRCHECK_BINARY)
-	@echo ">> running errcheck with exclude file scripts/errcheck_excludes.txt"
-	$(ERRCHECK_BINARY) -verbose -exclude scripts/errcheck_excludes.txt -ignoretests ./...
-
-$(ERRCHECK_BINARY):
-# Get errcheck from a temporary directory to avoid modifying the local go.{mod,sum}.
-# See https://github.com/golang/go/issues/27643.
-	tmpModule=$$(mktemp -d 2>&1) && \
-	mkdir -p $${tmpModule}/staticcheck && \
-	cd "$${tmpModule}"/staticcheck && \
-	GO111MODULE=on $(GO) mod init example.com/staticcheck && \
-	GO111MODULE=on GOOS= GOARCH= $(GO) get -u github.com/kisielk/errcheck && \
-	rm -rf $${tmpModule};
+	- @rm -rf asset/assets_vfsdata.go \
+                  api/v2/models api/v2/restapi api/v2/client
+	- @cd $(FRONTEND_DIR) && $(MAKE) clean

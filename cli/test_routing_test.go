@@ -19,34 +19,34 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/alertmanager/client"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 )
 
 type routingTestDefinition struct {
-	alert             client.LabelSet
+	alert             models.LabelSet
 	expectedReceivers []string
 	configFile        string
 }
 
-func checkResolvedReceivers(mainRoute *dispatch.Route, ls client.LabelSet, expectedReceivers []string) error {
+func checkResolvedReceivers(mainRoute *dispatch.Route, ls models.LabelSet, expectedReceivers []string) error {
 	resolvedReceivers, err := resolveAlertReceivers(mainRoute, &ls)
 	if err != nil {
 		return err
 	}
 	if !reflect.DeepEqual(expectedReceivers, resolvedReceivers) {
-		return fmt.Errorf("Unexpected routing result want: `%s`, got: `%s`", strings.Join(expectedReceivers, ","), strings.Join(resolvedReceivers, ","))
+		return fmt.Errorf("unexpected routing result want: `%s`, got: `%s`", strings.Join(expectedReceivers, ","), strings.Join(resolvedReceivers, ","))
 	}
 	return nil
 }
 
 func TestRoutingTest(t *testing.T) {
 	tests := []*routingTestDefinition{
-		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: client.LabelSet{"test": "1"}, expectedReceivers: []string{"test1"}},
-		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: client.LabelSet{"test": "2"}, expectedReceivers: []string{"test1", "test2"}},
-		&routingTestDefinition{configFile: "testdata/conf.routing-reverted.yml", alert: client.LabelSet{"test": "2"}, expectedReceivers: []string{"test2", "test1"}},
-		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: client.LabelSet{"test": "volovina"}, expectedReceivers: []string{"default"}},
+		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "1"}, expectedReceivers: []string{"test1"}},
+		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "2"}, expectedReceivers: []string{"test1", "test2"}},
+		&routingTestDefinition{configFile: "testdata/conf.routing-reverted.yml", alert: models.LabelSet{"test": "2"}, expectedReceivers: []string{"test2", "test1"}},
+		&routingTestDefinition{configFile: "testdata/conf.routing.yml", alert: models.LabelSet{"test": "volovina"}, expectedReceivers: []string{"default"}},
 	}
 
 	for _, test := range tests {

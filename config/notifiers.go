@@ -444,16 +444,7 @@ type WechatConfig struct {
 func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.APISecret == "" {
-		return fmt.Errorf("missing Wechat APISecret in Wechat config")
-	}
-	if c.CorpID == "" {
-		return fmt.Errorf("missing Wechat CorpID in Wechat config")
-	}
-	return nil
+	return unmarshal((*plain)(c))
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
@@ -543,7 +534,7 @@ type PushoverConfig struct {
 	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
 	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
 	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
-	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty`
+	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
 	Sound    string   `yaml:"sound,omitempty" json:"sound,omitempty"`
 	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`

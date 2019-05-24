@@ -18,9 +18,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/version"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
 )
@@ -53,6 +55,26 @@ func requireAlertManagerURL(pc *kingpin.ParseContext) error {
 	return nil
 }
 
+const (
+	defaultAmHost      = "localhost"
+	defaultAmPort      = "9093"
+	defaultAmApiv2path = "/api/v2"
+)
+
+// NewAlertmanagerClient initializes an alertmanager client with the given URL
+func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
+	transportConfig := client.DefaultTransportConfig()
+	transportConfig.BasePath = defaultAmApiv2path
+
+	if amURL.Host == "" {
+		transportConfig.Host = defaultAmHost + ":" + defaultAmPort
+	} else {
+		transportConfig.Host = amURL.Host
+	}
+	return client.NewHTTPClientWithConfig(strfmt.Default, transportConfig)
+}
+
+// Execute is the main function for the amtool command
 func Execute() {
 	var (
 		app = kingpin.New("amtool", helpRoot).DefaultEnvars()

@@ -17,13 +17,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/prometheus/client_golang/api"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/pkg/parse"
 )
 
@@ -76,7 +74,6 @@ func configureQueryAlertsCmd(cc *kingpin.CmdClause) {
 }
 
 func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext) error {
-	var filterString = ""
 	if len(a.matcherGroups) > 0 {
 		// Attempt to parse the first argument. If the parser fails
 		// then we likely don't have a (=|=~|!=|!~) so lets assume that
@@ -87,19 +84,24 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 		if err != nil {
 			a.matcherGroups[0] = fmt.Sprintf("alertname=%s", m)
 		}
-		filterString = fmt.Sprintf("{%s}", strings.Join(a.matcherGroups, ","))
 	}
 
-	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
-	if err != nil {
-		return err
-	}
-	alertAPI := client.NewAlertAPI(c)
 	// If no selector was passed, default to showing active alerts.
 	if !a.silenced && !a.inhibited && !a.active && !a.unprocessed {
 		a.active = true
 	}
-	fetchedAlerts, err := alertAPI.List(ctx, filterString, a.receiver, a.silenced, a.inhibited, a.active, a.unprocessed)
+
+	alertParams := alert.NewGetAlertsParams().WithContext(ctx).
+		WithActive(&a.active).
+		WithInhibited(&a.inhibited).
+		WithSilenced(&a.silenced).
+		WithUnprocessed(&a.unprocessed).
+		WithFilter(a.matcherGroups)
+
+	amclient := NewAlertmanagerClient(alertmanagerURL)
+
+	getOk, err := amclient.Alert.GetAlerts(alertParams)
+
 	if err != nil {
 		return err
 	}
@@ -108,5 +110,5 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 	if !found {
 		return errors.New("unknown output formatter")
 	}
-	return formatter.FormatAlerts(fetchedAlerts)
+	return formatter.FormatAlerts(getOk.Payload)
 }

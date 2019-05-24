@@ -21,13 +21,12 @@ import (
 	"os"
 	"path"
 
-	"github.com/prometheus/alertmanager/client"
-	amconfig "github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/client_golang/api"
+	"github.com/prometheus/alertmanager/api/v2/client/general"
+	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/config"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/pkg/parse"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
 )
@@ -47,6 +46,7 @@ func (s ByAlphabetical) Less(i, j int) bool {
 	return false
 }
 
+// GetAlertmanagerURL appends the given path to the alertmanager base URL
 func GetAlertmanagerURL(p string) url.URL {
 	amURL := *alertmanagerURL
 	amURL.Path = path.Join(alertmanagerURL.Path, p)
@@ -74,17 +74,15 @@ func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
 }
 
 // getRemoteAlertmanagerConfigStatus returns status responsecontaining configuration from remote Alertmanager
-func getRemoteAlertmanagerConfigStatus(ctx context.Context, alertmanagerURL *url.URL) (*client.ServerStatus, error) {
-	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+func getRemoteAlertmanagerConfigStatus(ctx context.Context, alertmanagerURL *url.URL) (*models.AlertmanagerStatus, error) {
+	amclient := NewAlertmanagerClient(alertmanagerURL)
+	params := general.NewGetStatusParams().WithContext(ctx)
+	getOk, err := amclient.General.GetStatus(params)
 	if err != nil {
 		return nil, err
 	}
-	statusAPI := client.NewStatusAPI(c)
-	status, err := statusAPI.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return status, nil
+
+	return getOk.Payload, nil
 }
 
 func checkRoutingConfigInputFlags(alertmanagerURL *url.URL, configFile string) {
@@ -96,27 +94,27 @@ func checkRoutingConfigInputFlags(alertmanagerURL *url.URL, configFile string) {
 	}
 }
 
-func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*amconfig.Config, error) {
+func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*config.Config, error) {
 	checkRoutingConfigInputFlags(alertmanagerURL, configFile)
 	if configFile != "" {
-		cfg, _, err := amconfig.LoadFile(configFile)
+		cfg, _, err := config.LoadFile(configFile)
 		if err != nil {
 			return nil, err
 		}
 		return cfg, nil
 	}
-	if alertmanagerURL != nil {
-		status, err := getRemoteAlertmanagerConfigStatus(ctx, alertmanagerURL)
-		if err != nil {
-			return nil, err
-		}
-		return status.ConfigJSON, nil
+	if alertmanagerURL == nil {
+		return nil, errors.New("failed to get Alertmanager configuration")
 	}
-	return nil, errors.New("failed to get Alertmanager configuration")
+	configStatus, err := getRemoteAlertmanagerConfigStatus(ctx, alertmanagerURL)
+	if err != nil {
+		return nil, err
+	}
+	return config.Load(*configStatus.Config.Original)
 }
 
 // convertClientToCommonLabelSet converts client.LabelSet to model.Labelset
-func convertClientToCommonLabelSet(cls client.LabelSet) model.LabelSet {
+func convertClientToCommonLabelSet(cls models.LabelSet) model.LabelSet {
 	mls := make(model.LabelSet, len(cls))
 	for ln, lv := range cls {
 		mls[model.LabelName(ln)] = model.LabelValue(lv)
@@ -125,51 +123,58 @@ func convertClientToCommonLabelSet(cls client.LabelSet) model.LabelSet {
 }
 
 // Parse a list of labels (cli arguments)
-func parseLabels(inputLabels []string) (client.LabelSet, error) {
-	labelSet := make(client.LabelSet, len(inputLabels))
+func parseLabels(inputLabels []string) (models.LabelSet, error) {
+	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
 		name, value, matchType, err := parse.Input(l)
 		if err != nil {
-			return client.LabelSet{}, err
+			return models.LabelSet{}, err
 		}
 		if matchType != labels.MatchEqual {
-			return client.LabelSet{}, errors.New("labels must be specified as key=value pairs")
+			return models.LabelSet{}, errors.New("labels must be specified as key=value pairs")
 		}
 
-		labelSet[client.LabelName(name)] = client.LabelValue(value)
+		labelSet[name] = value
 	}
 
 	return labelSet, nil
 }
 
-// Only valid for when you are going to add a silence
-func TypeMatchers(matchers []labels.Matcher) (types.Matchers, error) {
-	typeMatchers := types.Matchers{}
+// TypeMatchers only valid for when you are going to add a silence
+func TypeMatchers(matchers []labels.Matcher) (models.Matchers, error) {
+	typeMatchers := models.Matchers{}
 	for _, matcher := range matchers {
 		typeMatcher, err := TypeMatcher(matcher)
 		if err != nil {
-			return types.Matchers{}, err
+			return models.Matchers{}, err
 		}
 		typeMatchers = append(typeMatchers, &typeMatcher)
 	}
 	return typeMatchers, nil
 }
 
-// Only valid for when you are going to add a silence
+// TypeMatcher only valid for when you are going to add a silence
 // Doesn't allow negative operators
-func TypeMatcher(matcher labels.Matcher) (types.Matcher, error) {
-	typeMatcher := types.NewMatcher(model.LabelName(matcher.Name), matcher.Value)
+func TypeMatcher(matcher labels.Matcher) (models.Matcher, error) {
+	name := matcher.Name
+	value := matcher.Value
+	typeMatcher := models.Matcher{
+		Name:  &name,
+		Value: &value,
+	}
 
+	isRegex := false
 	switch matcher.Type {
 	case labels.MatchEqual:
-		typeMatcher.IsRegex = false
+		isRegex = false
 	case labels.MatchRegexp:
-		typeMatcher.IsRegex = true
+		isRegex = true
 	default:
-		return types.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
+		return models.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
 	}
-	return *typeMatcher, nil
+	typeMatcher.IsRegex = &isRegex
+	return typeMatcher, nil
 }
 
 // Helper function for adding the ctx with timeout into an action.
