@@ -128,19 +128,18 @@ func (m *memMarker) registerMetrics(r prometheus.Registerer) {
 
 // Count implements Marker.
 func (m *memMarker) Count(states ...AlertState) int {
-	count := 0
-
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	if len(states) == 0 {
-		count = len(m.m)
-	} else {
-		for _, status := range m.m {
-			for _, state := range states {
-				if status.State == state {
-					count++
-				}
+		return len(m.m)
+	}
+
+	var count int
+	for _, status := range m.m {
+		for _, state := range states {
+			if status.State == state {
+				count++
 			}
 		}
 	}
