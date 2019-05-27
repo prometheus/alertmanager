@@ -26,11 +26,13 @@ import (
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/rs/cors"
 
+	"github.com/prometheus/alertmanager/api/metrics"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
@@ -67,6 +69,7 @@ type API struct {
 	setAlertStatus     setAlertStatusFn
 
 	logger log.Logger
+	m      *metrics.Alerts
 
 	Handler http.Handler
 }
@@ -83,6 +86,7 @@ func NewAPI(
 	silences *silence.Silences,
 	peer *cluster.Peer,
 	l log.Logger,
+	r prometheus.Registerer,
 ) (*API, error) {
 	api := API{
 		alerts:         alerts,
@@ -91,6 +95,7 @@ func NewAPI(
 		peer:           peer,
 		silences:       silences,
 		logger:         l,
+		m:              metrics.NewAlerts("v2", r),
 		uptime:         time.Now(),
 	}
 
@@ -302,12 +307,11 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 			alert.Timeout = true
 			alert.EndsAt = now.Add(resolveTimeout)
 		}
-		// TODO: Take care of the metrics endpoint
-		// if alert.EndsAt.After(time.Now()) {
-		// 	numReceivedAlerts.WithLabelValues("firing").Inc()
-		// } else {
-		// 	numReceivedAlerts.WithLabelValues("resolved").Inc()
-		// }
+		if alert.EndsAt.After(time.Now()) {
+			api.m.Firing().Inc()
+		} else {
+			api.m.Resolved().Inc()
+		}
 	}
 
 	// Make a best effort to insert all alerts that are valid.
@@ -320,7 +324,7 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 
 		if err := a.Validate(); err != nil {
 			validationErrs.Add(err)
-			// numInvalidAlerts.Inc()
+			api.m.Invalid().Inc()
 			continue
 		}
 		validAlerts = append(validAlerts, a)
