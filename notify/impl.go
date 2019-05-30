@@ -598,8 +598,8 @@ func (n *Slack) retry(resp *http.Response) (bool, error) {
 
 	var err error
 	if statusCode/100 != 2 {
-		bs, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
+		bs, ioErr := ioutil.ReadAll(resp.Body)
+		if ioErr != nil {
 			err = fmt.Errorf("unexpected status code %v", statusCode)
 		} else {
 			err = fmt.Errorf("unexpected status code %v: %s", statusCode, string(bs))
