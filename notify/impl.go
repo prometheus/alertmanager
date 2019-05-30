@@ -596,19 +596,17 @@ func (n *Slack) retry(resp *http.Response) (bool, error) {
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
 	statusCode := resp.StatusCode
 
-	if statusCode/100 == 4 && resp.Body != nil {
+	var err error
+	if statusCode/100 != 2 {
 		bs, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return false, fmt.Errorf("unexpected status code %v: problem reading response: %v", statusCode, err)
+			err = fmt.Errorf("unexpected status code %v", statusCode)
+		} else {
+			err = fmt.Errorf("unexpected status code %v: %s", statusCode, string(bs))
 		}
-		return false, fmt.Errorf("unexpected status code %v: %v", statusCode, string(bs))
 	}
 
-	if statusCode/100 != 2 {
-		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
-	}
-
-	return false, nil
+	return (statusCode/100 == 5), err
 }
 
 // Hipchat implements a Notifier for Hipchat notifications.
