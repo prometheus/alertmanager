@@ -64,7 +64,7 @@ $ make build BINARIES=amtool
 
 * `/alertmanager`: storage directory
 
-These paths can also be mapped to volumes:
+You might also want to use volumes for these paths:
 * `/etc/alertmanager/alertmanager.yml`: default configuration file path
 
 ### Environment variables
