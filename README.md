@@ -50,14 +50,14 @@ You can also build just one of the binaries in this repo by passing a name to th
 $ make build BINARIES=amtool
 ```
 
-## Docker
+## Container image usage
 
 <!--- example of complete docker run command to run a container --->
 <!--- example of a docker-compose.yml service snippet --->
 
 ### Ports
 
-* `9093`: main api port
+* `9093`: API port
 * `9094`: cluster port 
 
 ### Volumes
@@ -65,11 +65,7 @@ $ make build BINARIES=amtool
 * `/alertmanager`: storage directory
 
 You might also want to use volumes for these paths:
-* `/etc/alertmanager/alertmanager.yml`: default configuration file path
-
-### Environment variables
-
-<!--- Add documentation here --->
+* `/etc/alertmanager/alertmanager.yml`: default configuration file path (can be changed by the `--config.file` command line flag)
 
 ### Command and entrypoint
 The container entrypoint is the [`alertmanager` command](https://prometheus.io/docs/alerting/configuration/)<!---More complete documentation of the command would be useful here--->. 
