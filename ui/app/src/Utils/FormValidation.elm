@@ -13,6 +13,8 @@ module Utils.FormValidation exposing
 import Html exposing (Html)
 import Html.Events exposing (on)
 import Json.Decode exposing (at, int, map)
+import List exposing (length)
+import String exposing (lines)
 
 
 type ValidationState
@@ -38,24 +40,49 @@ type alias ValidatedField =
     }
 
 
+type alias Config =
+    { padding : Float
+    , lineHeight : Float
+    , minRows : Int
+    , maxRows : Int
+    }
+
+
+config : Config
+config =
+    { padding = 20
+    , lineHeight = 20
+    , minRows = 3
+    , maxRows = 15
+    }
+
+
 initialField : String -> ValidatedField
 initialField value =
     { value = value
     , validationState = Initial
-    , rows = 3
+    , rows = config.minRows
     }
 
 
 updateValue : String -> ValidatedField -> ValidatedField
 updateValue value field =
-    { field | value = value, validationState = Initial }
+    let
+        rows =
+            lines value
+                |> length
+                |> clamp config.minRows config.maxRows
+    in
+    { field | value = value, validationState = Initial, rows = rows }
 
 
 updateTextAreaHeight : Int -> ValidatedField -> ValidatedField
 updateTextAreaHeight scrollHeight field =
     let
         rows =
-            ceiling ((toFloat scrollHeight - 20) / 20)
+            ((toFloat scrollHeight - config.padding) / config.lineHeight)
+                |> ceiling
+                |> clamp config.minRows config.maxRows
     in
     { field | rows = rows }
 
@@ -76,4 +103,4 @@ stringNotEmpty string =
 
 onInputWithScrollHeight : (Int -> msg) -> Html.Attribute msg
 onInputWithScrollHeight tagger =
-    on "focus" (map tagger (at [ "target", "scrollHeight" ] int))
+    on "keydown" (map tagger (at [ "target", "scrollHeight" ] int))
