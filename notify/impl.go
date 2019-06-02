@@ -705,13 +705,22 @@ type WechatToken struct {
 }
 
 type weChatMessage struct {
-	Text    weChatMessageContent `yaml:"text,omitempty" json:"text,omitempty"`
-	ToUser  string               `yaml:"touser,omitempty" json:"touser,omitempty"`
-	ToParty string               `yaml:"toparty,omitempty" json:"toparty,omitempty"`
-	Totag   string               `yaml:"totag,omitempty" json:"totag,omitempty"`
-	AgentID string               `yaml:"agentid,omitempty" json:"agentid,omitempty"`
-	Safe    string               `yaml:"safe,omitempty" json:"safe,omitempty"`
-	Type    string               `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+	Text      weChatMessageContent    `yaml:"text,omitempty" json:"text,omitempty"`
+	TextCard  weChatAppMessageContent `yaml:"textcard" json:"textcard"`
+	ToUser    string                  `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty   string                  `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag     string                  `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID   string                  `yaml:"agentid,omitempty" json:"agentid,omitempty"`
+	Safe      string                  `yaml:"safe,omitempty" json:"safe,omitempty"`
+	Type      string                  `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+	ToAppChat string                  `yaml:"chatid,omitempty" json:"chatid,omitempty"`
+}
+
+type weChatAppMessageContent struct {
+	Title       string `yaml:"title,omitempty" json:"title,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	URL         string `yaml:"url,omitempty" json:"url,omitempty"`
+	Btntxt      string `yaml:"btn_txt,omitempty" json:"btn_txt,omitempty"`
 }
 
 type weChatMessageContent struct {
@@ -789,17 +798,38 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		n.accessTokenAt = time.Now()
 	}
 
-	msg := &weChatMessage{
-		Text: weChatMessageContent{
-			Content: tmpl(n.conf.Message),
-		},
-		ToUser:  tmpl(n.conf.ToUser),
-		ToParty: tmpl(n.conf.ToParty),
-		Totag:   tmpl(n.conf.ToTag),
-		AgentID: tmpl(n.conf.AgentID),
-		Type:    "text",
-		Safe:    "0",
+	var msg *weChatMessage
+	if n.conf.ToAppChat != "" {
+		msg = &weChatMessage{
+			ToAppChat: tmpl(n.conf.ToAppChat),
+			AgentID: tmpl(n.conf.AgentID),
+			Safe:    "0",
+		}
+	} else {
+		msg = &weChatMessage{
+			ToUser:  tmpl(n.conf.ToUser),
+			ToParty: tmpl(n.conf.ToParty),
+			Totag:   tmpl(n.conf.ToTag),
+			AgentID: tmpl(n.conf.AgentID),
+			Safe:    "0",
+		}
 	}
+	msg.Type = n.conf.MessageType
+	if msg.Type == "textcard" {
+		msg.TextCard = weChatAppMessageContent{
+			Title: tmpl(n.conf.Title),
+			URL: tmpl(n.conf.URL),
+			Description: tmpl(n.conf.Description),
+			Btntxt: tmpl(n.conf.Btntxt),
+		}
+	}else{
+		msg.Text = weChatMessageContent{
+			Content: tmpl(n.conf.Message),
+		}
+	}
+
+	s,_ := json.Marshal(msg)
+	level.Debug(n.logger).Log("msg", "wechat Request", "body", s)
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
 	}
@@ -810,7 +840,12 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	postMessageURL := n.conf.APIURL.Copy()
-	postMessageURL.Path += "message/send"
+	if n.conf.ToAppChat != "" {
+		postMessageURL.Path += "appchat/send"
+	}else{
+		postMessageURL.Path += "message/send"
+	}
+
 	q := postMessageURL.Query()
 	q.Set("access_token", n.accessToken)
 	postMessageURL.RawQuery = q.Encode()

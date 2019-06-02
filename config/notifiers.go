@@ -440,6 +440,12 @@ type WechatConfig struct {
 	ToParty   string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
 	ToTag     string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
 	AgentID   string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType string `yaml:"message_type" json:"message_type"`
+	ToAppChat   string `yaml:"chat_id,omitempty" json:"chat_id,omitempty"`
+	Title       string `yaml:"title,omitempty" json:"title,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	URL         string `yaml:"url,omitempty" json:"url,omitempty"`
+	Btntxt      string `yaml:"btn_txt,omitempty" json:"btn_txt,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
