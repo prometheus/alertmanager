@@ -379,13 +379,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if wcc.APISecret == "" {
 				// Use Environment Variable First
 				apiSecret := Secret(os.Getenv("APISecret"))
-				if apiSecret == ""{
+				if apiSecret == "" {
 					if c.Global.WeChatAPISecret == "" {
 						return fmt.Errorf("no global or environment variable Wechat ApiSecret set")
-					}else{
+					} else {
 						wcc.APISecret = c.Global.WeChatAPISecret
 					}
-				}else{
+				} else {
 					wcc.APISecret = apiSecret
 				}
 			}
@@ -396,10 +396,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				if corpId == "" {
 					if c.Global.WeChatAPICorpID == "" {
 						return fmt.Errorf("no global or environment variable Wechat CorpID set")
-					}else{
+					} else {
 						wcc.CorpID = c.Global.WeChatAPICorpID
 					}
-				}else{
+				} else {
 					wcc.CorpID = corpId
 				}
 			}
