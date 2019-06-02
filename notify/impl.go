@@ -802,8 +802,8 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if n.conf.ToAppChat != "" {
 		msg = &weChatMessage{
 			ToAppChat: tmpl(n.conf.ToAppChat),
-			AgentID: tmpl(n.conf.AgentID),
-			Safe:    "0",
+			AgentID:   tmpl(n.conf.AgentID),
+			Safe:      "0",
 		}
 	} else {
 		msg = &weChatMessage{
@@ -817,18 +817,18 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	msg.Type = n.conf.MessageType
 	if msg.Type == "textcard" {
 		msg.TextCard = weChatAppMessageContent{
-			Title: tmpl(n.conf.Title),
-			URL: tmpl(n.conf.URL),
+			Title:       tmpl(n.conf.Title),
+			URL:         tmpl(n.conf.URL),
 			Description: tmpl(n.conf.Description),
-			Btntxt: tmpl(n.conf.Btntxt),
+			Btntxt:      tmpl(n.conf.Btntxt),
 		}
-	}else{
+	} else {
 		msg.Text = weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		}
 	}
 
-	s,_ := json.Marshal(msg)
+	s, _ := json.Marshal(msg)
 	level.Debug(n.logger).Log("msg", "wechat Request", "body", s)
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
@@ -842,7 +842,7 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	postMessageURL := n.conf.APIURL.Copy()
 	if n.conf.ToAppChat != "" {
 		postMessageURL.Path += "appchat/send"
-	}else{
+	} else {
 		postMessageURL.Path += "message/send"
 	}
 
