@@ -527,6 +527,21 @@ actions:
 	}
 }
 
+func TestOpsgenieTypeMatcher(t *testing.T) {
+	good := []string{"team", "user", "escalation", "schedule"}
+	for _, g := range good {
+		if !opsgenieTypeMatcher.MatchString(g) {
+			t.Fatalf("failed to match with %s", g)
+		}
+	}
+	bad := []string{"0user", "team1", "2escalation3", "sche4dule", "User", "TEAM"}
+	for _, b := range bad {
+		if opsgenieTypeMatcher.MatchString(b) {
+			t.Errorf("mistakenly match with %s", b)
+		}
+	}
+}
+
 func newBoolPointer(b bool) *bool {
 	return &b
 }
