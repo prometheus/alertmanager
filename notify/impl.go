@@ -828,8 +828,6 @@ func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 	}
 
-	s, _ := json.Marshal(msg)
-	level.Debug(n.logger).Log("msg", "wechat Request", "body", s)
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
 	}

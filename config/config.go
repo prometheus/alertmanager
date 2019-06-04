@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -377,31 +376,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 
 			if wcc.APISecret == "" {
-				// Use Environment Variable First
-				apiSecret := Secret(os.Getenv("APISecret"))
-				if apiSecret == "" {
-					if c.Global.WeChatAPISecret == "" {
-						return fmt.Errorf("no global or environment variable Wechat ApiSecret set")
-					} else {
-						wcc.APISecret = c.Global.WeChatAPISecret
-					}
-				} else {
-					wcc.APISecret = apiSecret
+				if c.Global.WeChatAPISecret == "" {
+					return fmt.Errorf("no global or environment variable Wechat ApiSecret set")
 				}
+				wcc.APISecret = c.Global.WeChatAPISecret
 			}
 
 			if wcc.CorpID == "" {
-				// Use Environment Variable First
-				corpId := os.Getenv("CorpID")
-				if corpId == "" {
-					if c.Global.WeChatAPICorpID == "" {
-						return fmt.Errorf("no global or environment variable Wechat CorpID set")
-					} else {
-						wcc.CorpID = c.Global.WeChatAPICorpID
-					}
-				} else {
-					wcc.CorpID = corpId
+				if c.Global.WeChatAPICorpID == "" {
+					return fmt.Errorf("no global or environment variable Wechat CorpID set")
 				}
+				wcc.CorpID = c.Global.WeChatAPICorpID
 			}
 
 			if !strings.HasSuffix(wcc.APIURL.Path, "/") {
