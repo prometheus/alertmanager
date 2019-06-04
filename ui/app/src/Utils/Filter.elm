@@ -2,7 +2,7 @@ module Utils.Filter exposing
     ( Filter
     , MatchOperator(..)
     , Matcher
-    , convertFilterMatchers
+    , convertFilterMatcher
     , generateAPIQueryString
     , generateQueryParam
     , generateQueryString
@@ -232,28 +232,11 @@ stringifyMatcher { key, op, value } =
         ++ "\""
 
 
-convertFilterMatchers : List Matcher -> List Data.Matcher.Matcher
-convertFilterMatchers matchers_ =
-    case matchers_ of
-        [] ->
-            []
-
-        list ->
-            list
-                |> List.map convertFilterMatcher
-
-
 convertFilterMatcher : Matcher -> Data.Matcher.Matcher
 convertFilterMatcher { key, op, value } =
     { name = key
     , value = value
-    , isRegex =
-        case op of
-            RegexMatch ->
-                True
-
-            _ ->
-                False
+    , isRegex = op == RegexMatch
     }
 
 

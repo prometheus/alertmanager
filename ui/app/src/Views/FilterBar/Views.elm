@@ -3,7 +3,7 @@ module Views.FilterBar.Views exposing (view)
 import Html exposing (Attribute, Html, a, button, div, i, input, small, span, text)
 import Html.Attributes exposing (class, disabled, href, id, style, value)
 import Html.Events exposing (keyCode, on, onClick, onInput)
-import Utils.Filter exposing (Matcher, convertFilterMatchers)
+import Utils.Filter exposing (Matcher, convertFilterMatcher)
 import Utils.Keyboard exposing (keys, onKeyDown, onKeyUp)
 import Utils.List
 import Views.FilterBar.Types exposing (Model, Msg(..))
@@ -104,7 +104,8 @@ view { matchers, matcherText, backspacePressed } =
             maybeMatcher == Nothing
 
         dataMatchers =
-            convertFilterMatchers matchers
+            matchers
+                |> List.map convertFilterMatcher
     in
     div
         [ class "row no-gutters align-items-start" ]
