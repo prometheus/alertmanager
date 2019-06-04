@@ -1,12 +1,13 @@
 module Views.FilterBar.Views exposing (view)
 
-import Html exposing (Attribute, Html, button, div, i, input, small, span, text)
-import Html.Attributes exposing (class, disabled, id, style, value)
+import Html exposing (Attribute, Html, a, button, div, i, input, small, span, text)
+import Html.Attributes exposing (class, disabled, href, id, style, value)
 import Html.Events exposing (keyCode, on, onClick, onInput)
-import Utils.Filter exposing (Matcher)
+import Utils.Filter exposing (Matcher, convertFilterMatchers)
 import Utils.Keyboard exposing (keys, onKeyDown, onKeyUp)
 import Utils.List
 import Views.FilterBar.Types exposing (Model, Msg(..))
+import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers)
 
 
 keys :
@@ -101,6 +102,9 @@ view { matchers, matcherText, backspacePressed } =
 
         isDisabled =
             maybeMatcher == Nothing
+
+        dataMatchers =
+            convertFilterMatchers matchers
     in
     div
         [ class "row no-gutters align-items-start" ]
@@ -122,6 +126,13 @@ view { matchers, matcherText, backspacePressed } =
                         , span
                             [ class "input-group-btn" ]
                             [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
+                        , a
+                            [ class "btn btn-outline-info border-0"
+                            , href (newSilenceFromMatchers dataMatchers)
+                            ]
+                            [ i [ class "fa fa-bell-slash-o mr-2" ] []
+                            , text "Silence"
+                            ]
                         ]
                     , small [ class "form-text text-muted" ]
                         [ text "Custom matcher, e.g."
