@@ -232,17 +232,17 @@ func TestSlackErr(t *testing.T) {
 		{
 			status:   http.StatusBadRequest,
 			body:     bytes.NewBuffer([]byte("invalid_payload")),
-			expected: "unexpected status code 400: invalid_payload",
+			expected: "unexpected status code 400: \"invalid_payload\"",
 		},
 		{
 			status:   http.StatusNotFound,
 			body:     bytes.NewBuffer([]byte("channel_not_found")),
-			expected: "unexpected status code 404: channel_not_found",
+			expected: "unexpected status code 404: \"channel_not_found\"",
 		},
 		{
 			status:   http.StatusInternalServerError,
 			body:     bytes.NewBuffer([]byte("rollup_error")),
-			expected: "unexpected status code 500: rollup_error",
+			expected: "unexpected status code 500: \"rollup_error\"",
 		},
 	} {
 		t.Run("", func(t *testing.T) {

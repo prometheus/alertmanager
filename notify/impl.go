@@ -593,7 +593,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 func slackErr(statusCode int, body io.Reader) error {
 	if body != nil {
 		if bs, err := ioutil.ReadAll(body); err == nil {
-			return fmt.Errorf("unexpected status code %v: %s", statusCode, string(bs))
+			return fmt.Errorf("unexpected status code %v: %q", statusCode, string(bs))
 		}
 	}
 	return fmt.Errorf("unexpected status code %v", statusCode)
