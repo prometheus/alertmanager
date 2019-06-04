@@ -377,14 +377,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 			if wcc.APISecret == "" {
 				if c.Global.WeChatAPISecret == "" {
-					return fmt.Errorf("no global or environment variable Wechat ApiSecret set")
+					return fmt.Errorf("no global Wechat ApiSecret set")
 				}
 				wcc.APISecret = c.Global.WeChatAPISecret
 			}
 
 			if wcc.CorpID == "" {
 				if c.Global.WeChatAPICorpID == "" {
-					return fmt.Errorf("no global or environment variable Wechat CorpID set")
+					return fmt.Errorf("no global Wechat CorpID set")
 				}
 				wcc.CorpID = c.Global.WeChatAPICorpID
 			}
