@@ -108,8 +108,8 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Message:     `{{ template "wechat.default.message" . }}`,
-		AgentID:     `{{ template "wechat.default.agent_id" . }}`,
+		Message: `{{ template "wechat.default.message" . }}`,
+		AgentID: `{{ template "wechat.default.agent_id" . }}`,
 	}
 
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
@@ -453,10 +453,10 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return nil
 	}
-	if c.ToAppChat != "" && (c.ToUser != "" || c.ToParty != "" || c.ToTag != "") {
+	if c.ToAppChat != "" && (c.ToUser+c.ToParty+c.ToTag != "") {
 		return fmt.Errorf("to_user/to_party/to_tag is meaningless when to_appchat is set")
 	}
-	if c.ToAppChat == "" && c.ToUser=="" && c.ToParty == "" && c.ToTag == "" {
+	if c.ToAppChat+c.ToUser+c.ToParty+c.ToTag == "" {
 		return fmt.Errorf("to_user or to_party or to_tag or to_appchat is not set")
 	}
 	if c.MessageType != "text" && c.MessageType != "textcard" {
