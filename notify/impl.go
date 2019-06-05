@@ -587,28 +587,24 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	return n.retry(resp)
+	return n.retry(resp.StatusCode, resp.Body)
 }
 
-func slackErr(statusCode int, body io.Reader) error {
-	if body != nil {
-		if bs, err := ioutil.ReadAll(body); err == nil {
-			return fmt.Errorf("unexpected status code %v: %q", statusCode, string(bs))
-		}
-	}
-	return fmt.Errorf("unexpected status code %v", statusCode)
-}
-
-func (n *Slack) retry(resp *http.Response) (bool, error) {
+func (n *Slack) retry(statusCode int, body io.Reader) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
-	statusCode := resp.StatusCode
-	if statusCode/100 != 2 {
-		return statusCode/100 == 5, slackErr(statusCode, resp.Body)
+	if statusCode/100 == 2 {
+		return false, nil
 	}
 
-	return false, nil
+	err := fmt.Errorf("unexpected status code %v", statusCode)
+	if body != nil {
+		if bs, errRead := ioutil.ReadAll(body); errRead == nil {
+			err = fmt.Errorf("%s: %q", err, string(bs))
+		}
+	}
+	return statusCode/100 == 5, err
 }
 
 // Hipchat implements a Notifier for Hipchat notifications.

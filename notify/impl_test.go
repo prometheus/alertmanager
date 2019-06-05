@@ -210,15 +210,13 @@ func TestPagerDutyErr(t *testing.T) {
 func TestSlackRetry(t *testing.T) {
 	notifier := new(Slack)
 	for statusCode, expected := range retryTests(defaultRetryCodes()) {
-		resp := &http.Response{
-			StatusCode: statusCode,
-		}
-		actual, _ := notifier.retry(resp)
+		actual, _ := notifier.retry(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
 
 func TestSlackErr(t *testing.T) {
+	notifier := new(Slack)
 	for _, tc := range []struct {
 		status   int
 		body     io.Reader
@@ -246,7 +244,7 @@ func TestSlackErr(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			err := slackErr(tc.status, tc.body)
+			_, err := notifier.retry(tc.status, tc.body)
 			require.Contains(t, err.Error(), tc.expected)
 		})
 	}
