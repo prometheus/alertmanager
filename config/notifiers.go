@@ -109,12 +109,7 @@ var (
 			VSendResolved: false,
 		},
 		Message:     `{{ template "wechat.default.message" . }}`,
-		ToAppChat:   `{{ template "wechat.default.chat_id" }}`,
-		ToUser:      `{{ template "wechat.default.to_user" . }}`,
-		ToParty:     `{{ template "wechat.default.to_party" . }}`,
-		ToTag:       `{{ template "wechat.default.to_tag" . }}`,
 		AgentID:     `{{ template "wechat.default.agent_id" . }}`,
-		MessageType: `{{ template "wechat.default.message_type" }}`,
 	}
 
 	// DefaultVictorOpsConfig defines default values for VictorOps configurations.
@@ -443,7 +438,7 @@ type WechatConfig struct {
 	ToTag       string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
 	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
 	MessageType string `yaml:"message_type" json:"message_type"`
-	ToAppChat   string `yaml:"chat_id,omitempty" json:"chat_id,omitempty"`
+	ToAppChat   string `yaml:"to_appchat,omitempty" json:"chat_id,omitempty"`
 	Title       string `yaml:"title,omitempty" json:"title,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 	URL         string `yaml:"url,omitempty" json:"url,omitempty"`
@@ -454,7 +449,20 @@ type WechatConfig struct {
 func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
-	return unmarshal((*plain)(c))
+
+	if err := unmarshal((*plain)(c)); err != nil {
+		return nil
+	}
+	if c.ToAppChat != "" && (c.ToUser != "" || c.ToParty != "" || c.ToTag != "") {
+		return fmt.Errorf("to_user/to_party/to_tag is meaningless when to_appchat is set")
+	}
+	if c.ToAppChat == "" && c.ToUser=="" && c.ToParty == "" && c.ToTag == "" {
+		return fmt.Errorf("to_user or to_party or to_tag or to_appchat is not set")
+	}
+	if c.MessageType != "text" && c.MessageType != "textcard" {
+		return fmt.Errorf("message_type must be text or textcard")
+	}
+	return nil
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
