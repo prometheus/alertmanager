@@ -3,16 +3,11 @@ module Utils.FormValidation exposing
     , ValidationState(..)
     , fromResult
     , initialField
-    , onInputWithScrollHeight
     , stringNotEmpty
-    , updateTextAreaHeight
     , updateValue
     , validate
     )
 
-import Html exposing (Html)
-import Html.Events exposing (on)
-import Json.Decode exposing (at, int, map)
 import List exposing (length)
 import String exposing (lines)
 
@@ -76,17 +71,6 @@ updateValue value field =
     { field | value = value, validationState = Initial, rows = rows }
 
 
-updateTextAreaHeight : Int -> ValidatedField -> ValidatedField
-updateTextAreaHeight scrollHeight field =
-    let
-        rows =
-            ((toFloat scrollHeight - config.padding) / config.lineHeight)
-                |> ceiling
-                |> clamp config.minRows config.maxRows
-    in
-    { field | rows = rows }
-
-
 validate : (String -> Result String a) -> ValidatedField -> ValidatedField
 validate validator field =
     { field | validationState = fromResult (validator field.value) }
@@ -99,8 +83,3 @@ stringNotEmpty string =
 
     else
         Ok string
-
-
-onInputWithScrollHeight : (Int -> msg) -> Html.Attribute msg
-onInputWithScrollHeight tagger =
-    on "keydown" (map tagger (at [ "target", "scrollHeight" ] int))

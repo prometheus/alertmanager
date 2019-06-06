@@ -89,7 +89,6 @@ type SilenceFormFieldMsg
     | UpdateMatcherValue Int String
     | ValidateMatcherValue Int
     | UpdateMatcherRegex Int Bool
-    | UpdateTextAreaHeight Int
 
 
 initSilenceForm : Key -> Model

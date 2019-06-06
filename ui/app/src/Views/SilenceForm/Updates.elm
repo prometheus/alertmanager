@@ -8,7 +8,7 @@ import Time
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
 import Utils.Filter exposing (silencePreviewFilter)
-import Utils.FormValidation exposing (fromResult, stringNotEmpty, updateTextAreaHeight, updateValue, validate)
+import Utils.FormValidation exposing (fromResult, stringNotEmpty, updateValue, validate)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
 import Views.SilenceForm.Types
@@ -171,9 +171,6 @@ updateForm msg form =
                         form.matchers
             in
             { form | matchers = matchers }
-
-        UpdateTextAreaHeight scrollHeight ->
-            { form | comment = updateTextAreaHeight scrollHeight form.comment }
 
 
 update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )

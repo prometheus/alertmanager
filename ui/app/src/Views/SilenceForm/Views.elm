@@ -32,14 +32,12 @@ view maybeId matchers defaultCreator { form, silenceId, alerts, activeAlertId } 
             "Creator"
             inputSectionPadding
             (UpdateCreatedBy >> UpdateField)
-            (UpdateTextAreaHeight >> UpdateField)
             (ValidateCreatedBy |> UpdateField)
             form.createdBy
         , validatedField textarea
             "Comment"
             inputSectionPadding
             (UpdateComment >> UpdateField)
-            (UpdateTextAreaHeight >> UpdateField)
             (ValidateComment |> UpdateField)
             form.comment
         , div [ class inputSectionPadding ]
@@ -61,21 +59,18 @@ timeInput startsAt endsAt duration =
             "Start"
             "col-5"
             (UpdateStartsAt >> UpdateField)
-            (UpdateTextAreaHeight >> UpdateField)
             (ValidateTime |> UpdateField)
             startsAt
         , validatedField input
             "Duration"
             "col-2"
             (UpdateDuration >> UpdateField)
-            (UpdateTextAreaHeight >> UpdateField)
             (ValidateTime |> UpdateField)
             duration
         , validatedField input
             "End"
             "col-5"
             (UpdateEndsAt >> UpdateField)
-            (UpdateTextAreaHeight >> UpdateField)
             (ValidateTime |> UpdateField)
             endsAt
         ]
@@ -157,8 +152,8 @@ previewSilenceBtn =
 matcherForm : Bool -> Int -> MatcherForm -> Html SilenceFormMsg
 matcherForm showDeleteButton index { name, value, isRegex } =
     div [ class "row" ]
-        [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) UpdateTextAreaHeight (ValidateMatcherName index) name ]
-        , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) UpdateTextAreaHeight (ValidateMatcherValue index) value ]
+        [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) (ValidateMatcherName index) name ]
+        , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) (ValidateMatcherValue index) value ]
         , div [ class "col-2 d-flex align-items-center" ]
             [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
             , if showDeleteButton then
