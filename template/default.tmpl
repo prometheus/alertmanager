@@ -65,7 +65,7 @@ AlertmanagerUrl:
 {{ define "wechat.default.to_party" }}{{ end }}
 {{ define "wechat.default.to_tag" }}{{ end }}
 {{ define "wechat.default.agent_id" }}{{ end }}
-{{ define "wechat.default.chat_id" }}text{{ end }}
+
 
 {{ define "victorops.default.state_message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 -}}

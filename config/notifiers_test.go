@@ -530,3 +530,111 @@ actions:
 func newBoolPointer(b bool) *bool {
 	return &b
 }
+
+func TestWechatMessageTypeValidation(t *testing.T) {
+	var tests = []struct {
+		in       string
+		expected string
+	}{
+		{
+			in: `
+to_appchat: "test_appchat_id"
+message_type: ""
+`,
+			expected: "message_type must be text or textcard",
+		},
+		{
+			in: `
+to_appchat: "test_appchat_id"
+message_type: "text1"
+`,
+			expected: "message_type must be text or textcard",
+		},
+		{
+			in: `
+to_appchat: "test_appchat_id"
+message_type: "textcard1"
+`,
+			expected: "message_type must be text or textcard",
+		},
+		{
+			in: `
+to_appchat: "test_appchat_id"
+message_type: "textxcard"
+`,
+			expected: "message_type must be text or textcard",
+		},
+	}
+	for _, rt := range tests {
+		var cfg WechatConfig
+		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", rt.expected)
+		}
+		if err.Error() != rt.expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected, err.Error())
+		}
+	}
+
+}
+
+func TestWechatReceiverValidation(t *testing.T) {
+	var tests = []struct {
+		in       string
+		expected string
+	}{
+		{
+			in: `
+to_appchat: ""
+to_user: ""
+to_party: ""
+to_tag: ""
+message_type: "textxcard"
+`,
+			expected: "to_user or to_party or to_tag or to_appchat is not set",
+		},
+		{
+			in: `
+to_appchat: "test_app_chat_id"
+to_user: "test_to_user_id"
+to_party: ""
+to_tag: ""
+message_type: "textxcard"
+`,
+			expected: "to_user/to_party/to_tag is meaningless when to_appchat is set",
+		},
+		{
+			in: `
+to_appchat: "test_app_chat_id"
+to_user: ""
+to_party: "test_party_id"
+to_tag: ""
+message_type: "textxcard"
+`,
+			expected: "to_user/to_party/to_tag is meaningless when to_appchat is set",
+		},
+		{
+			in: `
+to_appchat: "test_app_chat_id"
+to_user: ""
+to_party: ""
+to_tag: "test_tag_id"
+message_type: "textxcard"
+`,
+			expected: "to_user/to_party/to_tag is meaningless when to_appchat is set",
+		},
+	}
+	for _, rt := range tests {
+		var cfg WechatConfig
+		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", rt.expected)
+		}
+		if err.Error() != rt.expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected, err.Error())
+		}
+	}
+
+}

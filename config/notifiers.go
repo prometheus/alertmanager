@@ -451,7 +451,7 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain WechatConfig
 
 	if err := unmarshal((*plain)(c)); err != nil {
-		return nil
+		return err
 	}
 	if c.ToAppChat != "" && (c.ToUser+c.ToParty+c.ToTag != "") {
 		return fmt.Errorf("to_user/to_party/to_tag is meaningless when to_appchat is set")
