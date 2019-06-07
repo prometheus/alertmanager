@@ -2,6 +2,7 @@ module Utils.Filter exposing
     ( Filter
     , MatchOperator(..)
     , Matcher
+    , convertFilterMatcher
     , generateAPIQueryString
     , generateQueryParam
     , generateQueryString
@@ -229,6 +230,14 @@ stringifyMatcher { key, op, value } =
         ++ "\""
         ++ value
         ++ "\""
+
+
+convertFilterMatcher : Matcher -> Data.Matcher.Matcher
+convertFilterMatcher { key, op, value } =
+    { name = key
+    , value = value
+    , isRegex = op == RegexMatch
+    }
 
 
 filter : Parser (List Matcher)

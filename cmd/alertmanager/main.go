@@ -289,9 +289,7 @@ func run() int {
 
 	var (
 		inhibitor *inhibit.Inhibitor
-		silencer  *silence.Silencer
 		tmpl      *template.Template
-		pipeline  notify.Stage
 	)
 
 	configCoordinator := config.NewCoordinator(
@@ -306,20 +304,29 @@ func run() int {
 		}
 		tmpl.ExternalURL = amURL
 
+		// Build the map of receiver to integrations.
+		receivers := make(map[string][]notify.Integration, len(conf.Receivers))
+		for _, rcv := range conf.Receivers {
+			integrations, err := notify.BuildReceiverIntegrations(rcv, tmpl, logger)
+			if err != nil {
+				return err
+			}
+			// rcv.Name is guaranteed to be unique across all receivers.
+			receivers[rcv.Name] = integrations
+		}
+
 		inhibitor.Stop()
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
-		silencer = silence.NewSilencer(silences, marker, logger)
-		pipeline = notify.BuildPipeline(
-			conf.Receivers,
-			tmpl,
+		silencer := silence.NewSilencer(silences, marker, logger)
+		pipeline := notify.BuildPipeline(
+			receivers,
 			waitFunc,
 			inhibitor,
 			silencer,
 			notificationLog,
 			peer,
-			logger,
 		)
 
 		api.Update(conf, func(labels model.LabelSet) {
