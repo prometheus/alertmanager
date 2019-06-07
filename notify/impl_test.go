@@ -91,6 +91,74 @@ func assertNotifyLeaksNoSecret(t *testing.T, ctx context.Context, n Notifier, se
 	require.True(t, ok)
 }
 
+func TestBuildReceiverIntegrations(t *testing.T) {
+	for _, tc := range []struct {
+		receiver *config.Receiver
+		err      bool
+		exp      []Integration
+	}{
+		{
+			receiver: &config.Receiver{
+				Name: "foo",
+				WebhookConfigs: []*config.WebhookConfig{
+					&config.WebhookConfig{
+						HTTPConfig: &commoncfg.HTTPClientConfig{},
+					},
+					&config.WebhookConfig{
+						HTTPConfig: &commoncfg.HTTPClientConfig{},
+						NotifierConfig: config.NotifierConfig{
+							VSendResolved: true,
+						},
+					},
+				},
+			},
+			exp: []Integration{
+				Integration{
+					name: "webhook",
+					idx:  0,
+					rs:   sendResolved(false),
+				},
+				Integration{
+					name: "webhook",
+					idx:  1,
+					rs:   sendResolved(true),
+				},
+			},
+		},
+		{
+			receiver: &config.Receiver{
+				Name: "foo",
+				WebhookConfigs: []*config.WebhookConfig{
+					&config.WebhookConfig{
+						HTTPConfig: &commoncfg.HTTPClientConfig{
+							TLSConfig: commoncfg.TLSConfig{
+								CAFile: "not_existing",
+							},
+						},
+					},
+				},
+			},
+			err: true,
+		},
+	} {
+		tc := tc
+		t.Run("", func(t *testing.T) {
+			integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil)
+			if tc.err {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, integrations, len(tc.exp))
+			for i := range tc.exp {
+				require.Equal(t, tc.exp[i].SendResolved(), integrations[i].SendResolved())
+				require.Equal(t, tc.exp[i].Name(), integrations[i].Name())
+				require.Equal(t, tc.exp[i].Index(), integrations[i].Index())
+			}
+		})
+	}
+}
+
 func TestWebhookRetry(t *testing.T) {
 	u, err := url.Parse("http://example.com")
 	if err != nil {
@@ -134,7 +202,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 	defer fn()
 
 	key := "01234567890123456789012345678901"
-	notifier := NewPagerDuty(
+	notifier, err := NewPagerDuty(
 		&config.PagerdutyConfig{
 			ServiceKey: config.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -142,6 +210,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 	notifier.apiV1 = u.String()
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, key)
@@ -152,7 +221,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	defer fn()
 
 	key := "01234567890123456789012345678901"
-	notifier := NewPagerDuty(
+	notifier, err := NewPagerDuty(
 		&config.PagerdutyConfig{
 			URL:        &config.URL{URL: u},
 			RoutingKey: config.Secret(key),
@@ -161,6 +230,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, key)
 }
@@ -219,7 +289,7 @@ func TestSlackRedactedURL(t *testing.T) {
 	ctx, u, fn := getContextWithCancelingURL()
 	defer fn()
 
-	notifier := NewSlack(
+	notifier, err := NewSlack(
 		&config.SlackConfig{
 			APIURL:     &config.SecretURL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -227,6 +297,7 @@ func TestSlackRedactedURL(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, u.String())
 }
@@ -245,7 +316,7 @@ func TestHipchatRedactedURL(t *testing.T) {
 	defer fn()
 
 	token := "secret_token"
-	notifier := NewHipchat(
+	notifier, err := NewHipchat(
 		&config.HipchatConfig{
 			APIURL:     &config.URL{URL: u},
 			AuthToken:  config.Secret(token),
@@ -254,6 +325,7 @@ func TestHipchatRedactedURL(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, token)
 }
@@ -273,7 +345,7 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 	defer fn()
 
 	key := "key"
-	notifier := NewOpsGenie(
+	notifier, err := NewOpsGenie(
 		&config.OpsGenieConfig{
 			APIURL:     &config.URL{URL: u},
 			APIKey:     config.Secret(key),
@@ -282,6 +354,7 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, key)
 }
@@ -299,7 +372,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	defer fn()
 
 	secret := "secret"
-	notifier := NewVictorOps(
+	notifier, err := NewVictorOps(
 		&config.VictorOpsConfig{
 			APIURL:     &config.URL{URL: u},
 			APIKey:     config.Secret(secret),
@@ -308,6 +381,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, secret)
 }
@@ -325,7 +399,7 @@ func TestPushoverRedactedURL(t *testing.T) {
 	defer fn()
 
 	key, token := "user_key", "token"
-	notifier := NewPushover(
+	notifier, err := NewPushover(
 		&config.PushoverConfig{
 			UserKey:    config.Secret(key),
 			Token:      config.Secret(token),
@@ -334,6 +408,7 @@ func TestPushoverRedactedURL(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 	notifier.apiURL = u.String()
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, key, token)
@@ -471,13 +546,15 @@ func TestOpsGenie(t *testing.T) {
 				Type: `{{ .CommonLabels.ResponderType2 }}`,
 			},
 		},
-		Tags:     `{{ .CommonLabels.Tags }}`,
-		Note:     `{{ .CommonLabels.Note }}`,
-		Priority: `{{ .CommonLabels.Priority }}`,
-		APIKey:   `{{ .ExternalURL }}`,
-		APIURL:   &config.URL{URL: u},
+		Tags:       `{{ .CommonLabels.Tags }}`,
+		Note:       `{{ .CommonLabels.Note }}`,
+		Priority:   `{{ .CommonLabels.Priority }}`,
+		APIKey:     `{{ .ExternalURL }}`,
+		APIURL:     &config.URL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
 	}
-	notifier := NewOpsGenie(conf, tmpl, logger)
+	notifier, err := NewOpsGenie(conf, tmpl, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "1")
@@ -552,9 +629,11 @@ func TestVictorOpsCustomFields(t *testing.T) {
 		CustomFields: map[string]string{
 			"Field_A": "{{ .CommonLabels.Message }}",
 		},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
 	}
 
-	notifier := NewVictorOps(conf, tmpl, logger)
+	notifier, err := NewVictorOps(conf, tmpl, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	ctx = WithGroupKey(ctx, "1")
@@ -586,7 +665,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 	defer fn()
 
 	secret := "secret_key"
-	notifier := NewWechat(
+	notifier, err := NewWechat(
 		&config.WechatConfig{
 			APIURL:     &config.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -596,6 +675,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, secret)
 }
@@ -607,7 +687,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 	})
 	defer fn()
 
-	notifier := NewWechat(
+	notifier, err := NewWechat(
 		&config.WechatConfig{
 			APIURL:     &config.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -617,6 +697,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 		createTmpl(t),
 		log.NewNopLogger(),
 	)
+	require.NoError(t, err)
 
 	assertNotifyLeaksNoSecret(t, ctx, notifier, secret, token)
 }
