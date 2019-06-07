@@ -96,6 +96,7 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 		WithInhibited(&a.inhibited).
 		WithSilenced(&a.silenced).
 		WithUnprocessed(&a.unprocessed).
+		WithReceiver(&a.receiver).
 		WithFilter(a.matcherGroups)
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
