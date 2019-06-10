@@ -84,7 +84,7 @@ func (e *clientError) Error() string {
 	return fmt.Sprintf("%s (code: %d)", e.msg, e.code)
 }
 
-func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
 	resp, body, err := c.Client.Do(ctx, req)
 	if err != nil {
 		return resp, body, err
@@ -93,27 +93,27 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	code := resp.StatusCode
 
 	var result apiResponse
-	if err = json.Unmarshal(body, &result); err != nil {
+	if err := json.Unmarshal(body, &result); err != nil {
 		// Pass the returned body rather than the JSON error because some API
 		// endpoints return plain text instead of JSON payload.
-		return resp, body, &clientError{
+		return resp, body, api.NewErrorAPI(&clientError{
 			code: code,
 			msg:  string(body),
-		}
+		}, nil)
 	}
 
 	if (code/100 == 2) && (result.Status != statusSuccess) {
-		return resp, body, &clientError{
+		return resp, body, api.NewErrorAPI(&clientError{
 			code: code,
 			msg:  "inconsistent body for response code",
-		}
+		}, nil)
 	}
 
 	if result.Status == statusError {
-		err = &clientError{
+		err = api.NewErrorAPI(&clientError{
 			code: code,
 			msg:  result.Error,
-		}
+		}, nil)
 	}
 
 	return resp, []byte(result.Data), err

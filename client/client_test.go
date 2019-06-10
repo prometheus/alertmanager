@@ -26,6 +26,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/api"
 )
 
 type apiTest struct {
@@ -67,7 +68,7 @@ func (c *fakeAPIClient) URL(ep string, args map[string]string) *url.URL {
 	}
 }
 
-func (c *fakeAPIClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *fakeAPIClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
 	test := <-c.ch
 
 	if req.URL.Path != test.path {
@@ -82,7 +83,7 @@ func (c *fakeAPIClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 		c.Fatal(err)
 	}
 
-	return &http.Response{}, b, test.err
+	return &http.Response{}, b, api.NewErrorAPI(test.err, nil)
 }
 
 func TestAPI(t *testing.T) {
@@ -342,11 +343,11 @@ func (c fakeClient) URL(string, map[string]string) *url.URL {
 	return nil
 }
 
-func (c fakeClient) Do(context.Context, *http.Request) (*http.Response, []byte, error) {
+func (c fakeClient) Do(context.Context, *http.Request) (*http.Response, []byte, api.Error) {
 	fakeRes := <-c.ch
 
 	if fakeRes.err != nil {
-		return nil, nil, fakeRes.err
+		return nil, nil, api.NewErrorAPI(fakeRes.err, nil)
 	}
 
 	var b []byte
