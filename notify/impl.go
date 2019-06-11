@@ -604,20 +604,26 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return true, redactURL(err)
 	}
-	drainResponse(resp)
+	defer drainResponse(resp)
 
-	return n.retry(resp.StatusCode)
+	return n.retry(resp.StatusCode, resp.Body)
 }
 
-func (n *Slack) retry(statusCode int) (bool, error) {
+func (n *Slack) retry(statusCode int, body io.Reader) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
-	if statusCode/100 != 2 {
-		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	if statusCode/100 == 2 {
+		return false, nil
 	}
 
-	return false, nil
+	err := fmt.Errorf("unexpected status code %v", statusCode)
+	if body != nil {
+		if bs, errRead := ioutil.ReadAll(body); errRead == nil {
+			err = fmt.Errorf("%s: %q", err, string(bs))
+		}
+	}
+	return statusCode/100 == 5, err
 }
 
 // Hipchat implements a Notifier for Hipchat notifications.
@@ -708,7 +714,7 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
-// Wechat implements a Notfier for wechat notifications
+// Wechat implements a Notifier for wechat notifications
 type Wechat struct {
 	conf   *config.WechatConfig
 	tmpl   *template.Template
@@ -719,7 +725,7 @@ type Wechat struct {
 	accessTokenAt time.Time
 }
 
-// Wechat AccessToken with corpid and corpsecret.
+// WechatToken is the AccessToken with corpid and corpsecret.
 type WechatToken struct {
 	AccessToken string `json:"access_token"`
 }
