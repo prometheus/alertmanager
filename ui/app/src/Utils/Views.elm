@@ -12,11 +12,14 @@ module Utils.Views exposing
     , tab
     , textField
     , validatedField
+    , validatedTextareaField
     )
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onCheck, onClick, onInput)
+import List exposing (length)
+import String exposing (lines)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.String
 import Utils.Types as Types
@@ -101,7 +104,6 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , onInput inputMsg
                     , onBlur blurMsg
                     , class "form-control form-control-success"
-                    , rows field.rows
                     ]
                     []
                 ]
@@ -114,7 +116,6 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , onInput inputMsg
                     , onBlur blurMsg
                     , class "form-control"
-                    , rows field.rows
                     ]
                     []
                 ]
@@ -127,7 +128,56 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , onInput inputMsg
                     , onBlur blurMsg
                     , class "form-control form-control-danger"
-                    , rows field.rows
+                    ]
+                    []
+                , div [ class "form-control-feedback" ] [ text error_ ]
+                ]
+
+
+validatedTextareaField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
+validatedTextareaField htmlField labelText classes inputMsg blurMsg field =
+    let
+        lineCount =
+            lines field.value
+                |> length
+                |> clamp 3 15
+    in
+    case field.validationState of
+        Valid ->
+            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-success"
+                    , rows lineCount
+                    ]
+                    []
+                ]
+
+        Initial ->
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control"
+                    , rows lineCount
+                    ]
+                    []
+                ]
+
+        Invalid error_ ->
+            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , htmlField
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-danger"
+                    , rows lineCount
                     ]
                     []
                 , div [ class "form-control-feedback" ] [ text error_ ]

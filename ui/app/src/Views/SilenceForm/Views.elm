@@ -7,7 +7,7 @@ import Html.Events exposing (onClick)
 import Utils.Filter
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
-import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField)
+import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
 import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
@@ -34,7 +34,7 @@ view maybeId matchers defaultCreator { form, silenceId, alerts, activeAlertId } 
             (UpdateCreatedBy >> UpdateField)
             (ValidateCreatedBy |> UpdateField)
             form.createdBy
-        , validatedField textarea
+        , validatedTextareaField textarea
             "Comment"
             inputSectionPadding
             (UpdateComment >> UpdateField)

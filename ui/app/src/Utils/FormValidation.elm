@@ -8,9 +8,6 @@ module Utils.FormValidation exposing
     , validate
     )
 
-import List exposing (length)
-import String exposing (lines)
-
 
 type ValidationState
     = Initial
@@ -31,24 +28,6 @@ fromResult result =
 type alias ValidatedField =
     { value : String
     , validationState : ValidationState
-    , rows : Int
-    }
-
-
-type alias Config =
-    { padding : Float
-    , lineHeight : Float
-    , minRows : Int
-    , maxRows : Int
-    }
-
-
-config : Config
-config =
-    { padding = 20
-    , lineHeight = 20
-    , minRows = 3
-    , maxRows = 15
     }
 
 
@@ -56,19 +35,12 @@ initialField : String -> ValidatedField
 initialField value =
     { value = value
     , validationState = Initial
-    , rows = config.minRows
     }
 
 
 updateValue : String -> ValidatedField -> ValidatedField
 updateValue value field =
-    let
-        rows =
-            lines value
-                |> length
-                |> clamp config.minRows config.maxRows
-    in
-    { field | value = value, validationState = Initial, rows = rows }
+    { field | value = value, validationState = Initial }
 
 
 validate : (String -> Result String a) -> ValidatedField -> ValidatedField
