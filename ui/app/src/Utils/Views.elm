@@ -18,8 +18,6 @@ module Utils.Views exposing
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onCheck, onClick, onInput)
-import List exposing (length)
-import String exposing (lines)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.String
 import Utils.Types as Types
@@ -134,19 +132,19 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                 ]
 
 
-validatedTextareaField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
-validatedTextareaField htmlField labelText classes inputMsg blurMsg field =
+validatedTextareaField : String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
+validatedTextareaField labelText classes inputMsg blurMsg field =
     let
         lineCount =
-            lines field.value
-                |> length
+            String.lines field.value
+                |> List.length
                 |> clamp 3 15
     in
     case field.validationState of
         Valid ->
             div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , htmlField
+                , textarea
                     [ value field.value
                     , onInput inputMsg
                     , onBlur blurMsg
@@ -159,7 +157,7 @@ validatedTextareaField htmlField labelText classes inputMsg blurMsg field =
         Initial ->
             div [ class <| "d-flex flex-column form-group " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , htmlField
+                , textarea
                     [ value field.value
                     , onInput inputMsg
                     , onBlur blurMsg
@@ -172,7 +170,7 @@ validatedTextareaField htmlField labelText classes inputMsg blurMsg field =
         Invalid error_ ->
             div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
-                , htmlField
+                , textarea
                     [ value field.value
                     , onInput inputMsg
                     , onBlur blurMsg

@@ -34,7 +34,7 @@ view maybeId matchers defaultCreator { form, silenceId, alerts, activeAlertId } 
             (UpdateCreatedBy >> UpdateField)
             (ValidateCreatedBy |> UpdateField)
             form.createdBy
-        , validatedTextareaField textarea
+        , validatedTextareaField
             "Comment"
             inputSectionPadding
             (UpdateComment >> UpdateField)
