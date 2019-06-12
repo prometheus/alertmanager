@@ -36,7 +36,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 // ErrNotFound is returned if a silence was not found.
@@ -225,12 +225,14 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 	m := &metrics{}
 
 	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_silences_gc_duration_seconds",
-		Help: "Duration of the last silence garbage collection cycle.",
+		Name:       "alertmanager_silences_gc_duration_seconds",
+		Help:       "Duration of the last silence garbage collection cycle.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_silences_snapshot_duration_seconds",
-		Help: "Duration of the last silence snapshot.",
+		Name:       "alertmanager_silences_snapshot_duration_seconds",
+		Help:       "Duration of the last silence snapshot.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_silences_snapshot_size_bytes",
