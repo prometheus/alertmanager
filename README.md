@@ -71,10 +71,10 @@ route:
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
   #
-  # To aggregate by all possible labels use '...' as the sole label name. 
-  # This effectively disables aggregation entirely, passing through all 
-  # alerts as-is. This is unlikely to be what you want, unless you have 
-  # a very low alert volume or your upstream notification system performs 
+  # To aggregate by all possible labels use '...' as the sole label name.
+  # This effectively disables aggregation entirely, passing through all
+  # alerts as-is. This is unlikely to be what you want, unless you have
+  # a very low alert volume or your upstream notification system performs
   # its own grouping. Example: group_by: [...]
   group_by: ['alertname', 'cluster']
 
@@ -180,15 +180,17 @@ receivers:
 ## API
 
 The current Alertmanager API is version 2. This API is fully generated via the
-[OpenAPI
-project](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md)
+[OpenAPI project](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md)
 and [Go Swagger](https://github.com/go-swagger/go-swagger/) with the exception
 of the HTTP handlers themselves. The API specification can be found in
 [api/v2/openapi.yaml](api/v2/openapi.yaml). A HTML rendered version can be
-accessed
-[here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml).
-Clients can be easily generated via any OpenAPI generator for all major
-languages.
+accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml).
+Clients can be easily generated via any OpenAPI generator for all major languages.
+
+With the default config, endpoints are accessed under a `/api/v1` or `/api/v2` prefix.
+The v2 `/status` endpoint would be `/api/v2/status`. If `--web.route-prefix` is set then API routes are
+prefixed with that as well, so `--web.route-prefix=/alertmanager/` would
+relate to `/alertmanager/api/v2/status`.
 
 _API v2 is still under heavy development and thereby subject to change._
 
