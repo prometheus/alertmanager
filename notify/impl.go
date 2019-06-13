@@ -284,11 +284,16 @@ func (n *PagerDuty) notifyV1(
 	var tmplErr error
 	tmpl := tmplText(n.tmpl, data, &tmplErr)
 
+	description, truncated := truncate(tmpl(n.conf.Description), 1024)
+	if truncated {
+		level.Debug(n.logger).Log("msg", "Truncated description", "description", description, "key", key)
+	}
+
 	msg := &pagerDutyMessage{
 		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
 		EventType:   eventType,
 		IncidentKey: hashKey(key),
-		Description: tmpl(n.conf.Description),
+		Description: description,
 		Details:     details,
 	}
 
@@ -329,10 +334,9 @@ func (n *PagerDuty) notifyV2(
 		n.conf.Severity = "error"
 	}
 
-	summary := tmpl(n.conf.Description)
-	summaryRunes := []rune(summary)
-	if len(summaryRunes) > 1024 {
-		summary = string(summaryRunes[:1018]) + " [...]"
+	summary, truncated := truncate(tmpl(n.conf.Description), 1024)
+	if truncated {
+		level.Debug(n.logger).Log("msg", "Truncated summary", "summary", summary, "key", key)
 	}
 
 	msg := &pagerDutyMessage{
