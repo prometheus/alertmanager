@@ -467,7 +467,7 @@ type OpsGenieConfig struct {
 	Priority    string                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 }
 
-const opsgenieValidTypesRe = `^team|user|escalation|schedule$`
+const opsgenieValidTypesRe = `^(team|user|escalation|schedule)$`
 
 var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
 
