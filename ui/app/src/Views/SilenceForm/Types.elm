@@ -9,6 +9,7 @@ module Views.SilenceForm.Types exposing
     , fromSilence
     , initSilenceForm
     , parseEndsAt
+    , setTime
     , toSilence
     , validateForm
     )
@@ -67,9 +68,12 @@ type SilenceFormMsg
     | AlertGroupsPreview (ApiData (List GettableAlert))
     | SetActiveAlert (Maybe String)
     | FetchSilence String
+    | FetchSilenceAndSetTime String
     | NewSilenceFromMatchers String (List Utils.Filter.Matcher)
     | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Posix
     | SilenceFetch (ApiData GettableSilence)
+    | SilenceFetchAndSetTime (ApiData GettableSilence)
+    | SetTime GettableSilence Posix
     | SilenceCreate (ApiData String)
 
 
@@ -130,6 +134,18 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , startsAt = initialField (timeToString startsAt)
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
+    , matchers = List.map fromMatcher matchers
+    }
+
+
+setTime : GettableSilence -> Posix -> SilenceForm
+setTime { id, createdBy, comment, startsAt, endsAt, matchers } now =
+    { id = Just id
+    , createdBy = initialField createdBy
+    , comment = initialField comment
+    , startsAt = initialField (timeToString now)
+    , endsAt = initialField (timeToString (addDuration defaultDuration now))
+    , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
     , matchers = List.map fromMatcher matchers
     }
 

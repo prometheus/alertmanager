@@ -123,6 +123,9 @@ urlUpdate url =
         SilenceFormEditRoute silenceId ->
             NavigateToSilenceFormEdit silenceId
 
+        SilenceFormRecreateRoute silenceId ->
+            NavigateToSilenceFormRecreate silenceId
+
         SilenceFormNewRoute matchers ->
             NavigateToSilenceFormNew matchers
 

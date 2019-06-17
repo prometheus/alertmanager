@@ -39,6 +39,7 @@ type Msg
     | NavigateToNotFound
     | NavigateToSilenceView String
     | NavigateToSilenceFormEdit String
+    | NavigateToSilenceFormRecreate String
     | NavigateToSilenceFormNew (List Matcher)
     | NavigateToSilenceList Filter
     | NavigateToStatus
@@ -57,6 +58,7 @@ type Route
     = AlertsRoute Filter
     | NotFoundRoute
     | SilenceFormEditRoute String
+    | SilenceFormRecreateRoute String
     | SilenceFormNewRoute (List Matcher)
     | SilenceListRoute Filter
     | SilenceViewRoute String

@@ -100,6 +100,9 @@ matcherButton matcher =
 editButton : GettableSilence -> Html Msg
 editButton silence =
     let
+        recreateUrl =
+            String.join "/" [ "#/silences", silence.id, "recreate" ]
+
         editUrl =
             String.join "/" [ "#/silences", silence.id, "edit" ]
 
@@ -114,7 +117,7 @@ editButton silence =
         Expired ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromMatchers silence.matchers)
+                , href recreateUrl
                 ]
                 [ text "Recreate"
                 ]

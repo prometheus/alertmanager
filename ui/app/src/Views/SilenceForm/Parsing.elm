@@ -1,4 +1,4 @@
-module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, newSilenceFromMatchers, silenceFormEditParser, silenceFormNewParser)
+module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, newSilenceFromMatchers, silenceFormEditParser, silenceFormNewParser, silenceFormRecreateParser)
 
 import Data.Matcher
 import Dict exposing (Dict)
@@ -27,6 +27,11 @@ silenceFormNewParser =
 silenceFormEditParser : Parser (String -> a) a
 silenceFormEditParser =
     s "silences" </> string </> s "edit"
+
+
+silenceFormRecreateParser : Parser (String -> a) a
+silenceFormRecreateParser =
+    s "silences" </> string </> s "recreate"
 
 
 newSilenceFromMatchers : List Data.Matcher.Matcher -> String

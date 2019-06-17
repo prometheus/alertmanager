@@ -21,6 +21,7 @@ import Views.SilenceForm.Types
         , fromMatchersAndTime
         , fromSilence
         , parseEndsAt
+        , setTime
         , toSilence
         , validateForm
         )
@@ -229,6 +230,22 @@ update msg model basePath apiUrl =
             )
 
         SilenceFetch _ ->
+            ( model, Cmd.none )
+
+        FetchSilenceAndSetTime silenceId ->
+            ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetchAndSetTime >> MsgForSilenceForm) )
+
+        SilenceFetchAndSetTime (Success silence) ->
+            ( { model | form = fromSilence silence }
+            , Task.perform (SetTime silence >> MsgForSilenceForm) Time.now
+            )
+
+        SetTime silence time ->
+            ( { model | form = setTime silence time }
+            , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
+            )
+
+        SilenceFetchAndSetTime _ ->
             ( model, Cmd.none )
 
         PreviewSilence ->
