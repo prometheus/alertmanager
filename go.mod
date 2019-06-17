@@ -21,14 +21,14 @@ require (
 	github.com/oklog/run v1.0.0
 	github.com/oklog/ulid v0.0.0-20170117200651-66bb6560562f
 	github.com/pkg/errors v0.8.0
-	github.com/prometheus/client_golang v0.9.2
-	github.com/prometheus/common v0.4.0
+	github.com/prometheus/client_golang v1.0.0
+	github.com/prometheus/common v0.4.1
 	github.com/prometheus/prometheus v0.0.0-20180315085919-58e2a31db8de
 	github.com/rs/cors v1.6.0
 	github.com/satori/go.uuid v0.0.0-20160603004225-b111a074d5ef
 	github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371
 	github.com/shurcooL/vfsgen v0.0.0-20180825020608-02ddb050ef6b
-	github.com/stretchr/testify v1.2.2
+	github.com/stretchr/testify v1.3.0
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
 	golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
 	golang.org/x/text v0.3.1-0.20180805044716-cb6730876b98 // indirect
