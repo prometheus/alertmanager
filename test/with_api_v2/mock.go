@@ -22,11 +22,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/alertmanager/notify"
+	"github.com/go-openapi/strfmt"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
-
-	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/alertmanager/notify/webhook"
 )
 
 // At is a convenience method to allow for declarative syntax of Acceptance
@@ -297,7 +296,7 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	dec := json.NewDecoder(req.Body)
 	defer req.Body.Close()
 
-	var v notify.WebhookMessage
+	var v webhook.Message
 	if err := dec.Decode(&v); err != nil {
 		panic(err)
 	}

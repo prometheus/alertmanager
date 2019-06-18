@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package notify
+package email
 
 import (
 	"bytes"
@@ -34,6 +34,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
@@ -45,8 +46,8 @@ type Email struct {
 	logger log.Logger
 }
 
-// NewEmail returns a new Email notifier.
-func NewEmail(c *config.EmailConfig, t *template.Template, l log.Logger) *Email {
+// New returns a new Email notifier.
+func New(c *config.EmailConfig, t *template.Template, l log.Logger) *Email {
 	if _, ok := c.Headers["Subject"]; !ok {
 		c.Headers["Subject"] = config.DefaultEmailSubject
 	}
@@ -188,8 +189,8 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	var (
 		tmplErr error
-		data    = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
-		tmpl    = tmplText(n.tmpl, data, &tmplErr)
+		data    = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+		tmpl    = notify.TmplText(n.tmpl, data, &tmplErr)
 		from    = tmpl(n.conf.From)
 		to      = tmpl(n.conf.To)
 	)

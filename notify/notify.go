@@ -99,6 +99,52 @@ type ResolvedSender interface {
 // to a notification pipeline.
 const MinTimeout = 10 * time.Second
 
+// Notifier notifies about alerts under constraints of the given context. It
+// returns an error if unsuccessful and a flag whether the error is
+// recoverable. This information is useful for a retry logic.
+type Notifier interface {
+	Notify(context.Context, ...*types.Alert) (bool, error)
+}
+
+// Integration wraps a notifier and its configuration to be uniquely identified
+// by name and index from its origin in the configuration.
+type Integration struct {
+	notifier Notifier
+	rs       ResolvedSender
+	name     string
+	idx      int
+}
+
+// NewIntegration returns a new integration.
+func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) Integration {
+	return Integration{
+		notifier: notifier,
+		rs:       rs,
+		name:     name,
+		idx:      idx,
+	}
+}
+
+// Notify implements the Notifier interface.
+func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	return i.notifier.Notify(ctx, alerts...)
+}
+
+// SendResolved implements the ResolvedSender interface.
+func (i *Integration) SendResolved() bool {
+	return i.rs.SendResolved()
+}
+
+// Name returns the name of the integration.
+func (i *Integration) Name() string {
+	return i.name
+}
+
+// Index returns the index of the integration.
+func (i *Integration) Index() int {
+	return i.idx
+}
+
 // notifyKey defines a custom type with which a context is populated to
 // avoid accidental collisions.
 type notifyKey int
@@ -162,27 +208,11 @@ func ReceiverName(ctx context.Context) (string, bool) {
 	return v, ok
 }
 
-func receiverName(ctx context.Context, l log.Logger) string {
-	recv, ok := ReceiverName(ctx)
-	if !ok {
-		level.Error(l).Log("msg", "Missing receiver")
-	}
-	return recv
-}
-
 // GroupKey extracts a group key from the context. Iff none exists, the
 // second argument is false.
 func GroupKey(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(keyGroupKey).(string)
 	return v, ok
-}
-
-func groupLabels(ctx context.Context, l log.Logger) model.LabelSet {
-	groupLabels, ok := GroupLabels(ctx)
-	if !ok {
-		level.Error(l).Log("msg", "Missing group labels")
-	}
-	return groupLabels
 }
 
 // GroupLabels extracts grouping label set from the context. Iff none exists, the
