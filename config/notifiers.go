@@ -225,7 +225,7 @@ type PagerdutyLink struct {
 type PagerdutyImage struct {
 	Src  string `yaml:"src,omitempty" json:"src,omitempty"`
 	Alt  string `yaml:"alt,omitempty" json:"alt,omitempty"`
-	Text string `yaml:"text,omitempty" json:"text,omitempty"`
+	Href string `yaml:"href,omitempty" json:"href,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
