@@ -26,7 +26,7 @@
 // $ EMAIL_NO_AUTH_CONFIG=testdata/email_noauth.yml EMAIL_AUTH_CONFIG=testdata/email_auth.yml make
 //
 // See also https://github.com/djfarrelly/MailDev for more details.
-package notify
+package email
 
 import (
 	"context"
@@ -184,7 +184,7 @@ func notifyEmail(cfg *config.EmailConfig, server *mailDev) (*email, bool, error)
 		return nil, false, err
 	}
 	tmpl.ExternalURL, _ = url.Parse("http://am")
-	email := NewEmail(cfg, tmpl, log.NewNopLogger())
+	email := New(cfg, tmpl, log.NewNopLogger())
 
 	ctx := context.Background()
 	retry, err := email.Notify(ctx, firingAlert)

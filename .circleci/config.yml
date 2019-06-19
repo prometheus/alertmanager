@@ -43,7 +43,11 @@ jobs:
           username: user
           password: pass
           EOF
-    - run: make
+    - run:
+        command: make
+        environment:
+          # Run garbage collection more aggresively to avoid getting OOMed.
+          GOGC: "20"
     - run:
        command: |
          curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.5.1/protoc-3.5.1-linux-x86_64.zip > /tmp/protoc.zip
