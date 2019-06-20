@@ -31,17 +31,17 @@ import (
 	"testing"
 	"time"
 
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+
 	apiclient "github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-
-	httptransport "github.com/go-openapi/runtime/client"
-	"github.com/go-openapi/strfmt"
 )
 
 const (
-	// amtool is the relative path to local amtool binary
+	// amtool is the relative path to local amtool binary.
 	amtool = "../../../amtool"
 )
 
@@ -463,7 +463,7 @@ func (am *Alertmanager) AddAlertsAt(at float64, alerts ...*TestAlert) {
 	})
 }
 
-// AddAlerts declares alerts that are to be added to the Alertmanager server
+// AddAlerts declares alerts that are to be added to the Alertmanager server.
 func (am *Alertmanager) AddAlerts(alerts ...*TestAlert) {
 	for _, alert := range alerts {
 		out, err := am.addAlertCommand(alert)
@@ -489,7 +489,7 @@ func (am *Alertmanager) addAlertCommand(alert *TestAlert) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-// QueryAlerts uses the amtool cli to query alerts
+// QueryAlerts uses the amtool cli to query alerts.
 func (am *Alertmanager) QueryAlerts() ([]TestAlert, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	cmd := exec.Command(amtool, amURLFlag, "alert", "query")
@@ -545,7 +545,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	}
 }
 
-// addSilenceCommand adds a silence using the 'amtool silence add' command
+// addSilenceCommand adds a silence using the 'amtool silence add' command.
 func (am *Alertmanager) addSilenceCommand(sil *TestSilence) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "silence", "add"}
@@ -557,7 +557,7 @@ func (am *Alertmanager) addSilenceCommand(sil *TestSilence) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-// QuerySilence queries the current silences using the 'amtool silence query' command
+// QuerySilence queries the current silences using the 'amtool silence query' command.
 func (am *Alertmanager) QuerySilence() ([]TestSilence, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "silence", "query"}
@@ -631,7 +631,7 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	}
 }
 
-// expireSilenceCommand expires a silence using the 'amtool silence expire' command
+// expireSilenceCommand expires a silence using the 'amtool silence expire' command.
 func (am *Alertmanager) expireSilenceCommand(sil *TestSilence) ([]byte, error) {
 	amURLFlag := "--alertmanager.url=" + am.getURL("/")
 	args := []string{amURLFlag, "silence", "expire", sil.ID()}

@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 }
 
 // TestAmtoolVersion checks that amtool is executable and
-// is reporting valid version info
+// is reporting valid version info.
 func TestAmtoolVersion(t *testing.T) {
 	t.Parallel()
 	version, err := Version()
