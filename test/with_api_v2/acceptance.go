@@ -16,11 +16,9 @@ package test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +30,7 @@ import (
 	apiclient "github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/client/general"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
 
 	httptransport "github.com/go-openapi/runtime/client"
@@ -334,20 +333,11 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 
 	time.Sleep(50 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		resp, err := http.Get(am.getURL("/"))
-		if err != nil {
-			time.Sleep(500 * time.Millisecond)
-			continue
+		_, err := am.clientV2.General.GetStatus(nil)
+		if err == nil {
+			return nil
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("starting alertmanager failed: expected HTTP status '200', got '%d'", resp.StatusCode)
-		}
-		_, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("starting alertmanager failed: %s", err)
-		}
-		return nil
+		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("starting alertmanager failed: timeout")
 }
@@ -471,35 +461,18 @@ func (amc *AlertmanagerCluster) SetSilence(at float64, sil *TestSilence) {
 // SetSilence updates or creates the given Silence.
 func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(sil.nativeSilence(am.opts)); err != nil {
-			am.t.Errorf("Error setting silence %v: %s", sil, err)
-			return
-		}
-
-		resp, err := http.Post(am.getURL("/api/v1/silences"), "application/json", &buf)
+		resp, err := am.clientV2.Silence.PostSilences(
+			silence.NewPostSilencesParams().WithSilence(
+				&models.PostableSilence{
+					Silence: *sil.nativeSilence(am.opts),
+				},
+			),
+		)
 		if err != nil {
 			am.t.Errorf("Error setting silence %v: %s", sil, err)
 			return
 		}
-		defer resp.Body.Close()
-
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			panic(err)
-		}
-
-		var v struct {
-			Status string `json:"status"`
-			Data   struct {
-				SilenceID string `json:"silenceId"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(b, &v); err != nil || resp.StatusCode/100 != 2 {
-			am.t.Errorf("error setting silence %v: %s", sil, err)
-			return
-		}
-		sil.SetID(v.Data.SilenceID)
+		sil.SetID(resp.Payload.SilenceID)
 	})
 }
 
@@ -513,16 +486,11 @@ func (amc *AlertmanagerCluster) DelSilence(at float64, sil *TestSilence) {
 // DelSilence deletes the silence with the sid at the given time.
 func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 	am.t.Do(at, func() {
-		req, err := http.NewRequest("DELETE", am.getURL(fmt.Sprintf("/api/v1/silence/%s", sil.ID())), nil)
+		_, err := am.clientV2.Silence.DeleteSilence(
+			silence.NewDeleteSilenceParams().WithSilenceID(strfmt.UUID(sil.ID())),
+		)
 		if err != nil {
 			am.t.Errorf("Error deleting silence %v: %s", sil, err)
-			return
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil || resp.StatusCode/100 != 2 {
-			am.t.Errorf("Error deleting silence %v: %s", sil, err)
-			return
 		}
 	})
 }
@@ -548,23 +516,7 @@ func (am *Alertmanager) UpdateConfig(conf string) {
 	}
 }
 
-// GenericAPIV2Call takes a time slot and a function to run against the API v2
-// TODO: Can this be removed?
-func (amc *AlertmanagerCluster) GenericAPIV2Call(at float64, f func()) {
-	for _, am := range amc.ams {
-		am.GenericAPIV2Call(at, f)
-	}
-}
-
-// GenericAPIV2Call takes a time slot and a function to run against the API v2
-func (am *Alertmanager) GenericAPIV2Call(at float64, f func()) {
-	am.t.Do(at, f)
-}
-
+// Client returns a client to interact with the API v2 endpoint.
 func (am *Alertmanager) Client() *apiclient.Alertmanager {
 	return am.clientV2
-}
-
-func (am *Alertmanager) getURL(path string) string {
-	return fmt.Sprintf("http://%s%s%s", am.apiAddr, am.opts.RoutePrefix, path)
 }
