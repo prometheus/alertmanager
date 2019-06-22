@@ -1,19 +1,44 @@
-module Utils.Views exposing (..)
+module Utils.Views exposing
+    ( apiData
+    , buttonLink
+    , checkbox
+    , error
+    , formField
+    , formInput
+    , iconButtonMsg
+    , labelButton
+    , linkifyText
+    , loading
+    , tab
+    , textField
+    , validatedField
+    , validatedTextareaField
+    )
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onCheck, onInput, onClick, onBlur)
-import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
+import Html.Events exposing (onBlur, onCheck, onClick, onInput)
+import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.String
+import Utils.Types as Types
 
 
 tab : tab -> tab -> (tab -> msg) -> List (Html msg) -> Html msg
-tab tab currentTab msg content =
+tab tab_ currentTab msg content =
     li [ class "nav-item" ]
-        [ if tab == currentTab then
+        [ if tab_ == currentTab then
             span [ class "nav-link active" ] content
+
           else
-            a [ class "nav-link", onClick (msg tab) ] content
+            button
+                [ style "background" "transparent"
+                , style "font" "inherit"
+                , style "cursor" "pointer"
+                , style "outline" "none"
+                , class "nav-link"
+                , onClick (msg tab_)
+                ]
+                content
         ]
 
 
@@ -23,11 +48,9 @@ labelButton maybeMsg labelText =
         Nothing ->
             span
                 [ class "btn btn-sm bg-faded btn-secondary mr-2 mb-2"
-                , style
-                    [ ( "user-select", "text" )
-                    , ( "-moz-user-select", "text" )
-                    , ( "-webkit-user-select", "text" )
-                    ]
+                , style "user-select" "text"
+                , style "-moz-user-select" "text"
+                , style "-webkit-user-select" "text"
                 ]
                 [ text labelText ]
 
@@ -55,7 +78,7 @@ linkifyText str =
 
 iconButtonMsg : String -> String -> msg -> Html msg
 iconButtonMsg classString icon msg =
-    a [ class classString, onClick msg ]
+    button [ class classString, onClick msg ]
         [ i [ class <| "fa fa-3 " ++ icon ] []
         ]
 
@@ -95,7 +118,7 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     []
                 ]
 
-        Invalid error ->
+        Invalid error_ ->
             div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
                 [ label [] [ strong [] [ text labelText ] ]
                 , htmlField
@@ -105,7 +128,57 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , class "form-control form-control-danger"
                     ]
                     []
-                , div [ class "form-control-feedback" ] [ text error ]
+                , div [ class "form-control-feedback" ] [ text error_ ]
+                ]
+
+
+validatedTextareaField : String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
+validatedTextareaField labelText classes inputMsg blurMsg field =
+    let
+        lineCount =
+            String.lines field.value
+                |> List.length
+                |> clamp 3 15
+    in
+    case field.validationState of
+        Valid ->
+            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-success"
+                    , rows lineCount
+                    ]
+                    []
+                ]
+
+        Initial ->
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control"
+                    , rows lineCount
+                    ]
+                    []
+                ]
+
+        Invalid error_ ->
+            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-danger"
+                    , rows lineCount
+                    ]
+                    []
+                , div [ class "form-control-feedback" ] [ text error_ ]
                 ]
 
 
@@ -137,11 +210,26 @@ formInput inputValue classes msg =
     Html.input [ class <| "w-100 " ++ classes, value inputValue, onInput msg ] []
 
 
+apiData : (a -> Html msg) -> Types.ApiData a -> Html msg
+apiData onSuccess data =
+    case data of
+        Types.Success payload ->
+            onSuccess payload
+
+        Types.Loading ->
+            loading
+
+        Types.Initial ->
+            loading
+
+        Types.Failure msg ->
+            error msg
+
+
 loading : Html msg
 loading =
     div []
-        [ i [ class "fa fa-cog fa-spin fa-3x fa-fw" ] []
-        , span [ class "sr-only" ] [ text "Loading..." ]
+        [ span [] [ text "Loading..." ]
         ]
 
 

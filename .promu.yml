@@ -1,3 +1,7 @@
+go:
+    # Whenever the Go version is updated here, .travis.yml and
+    # .circle/config.yml should also be updated.
+    version: 1.12
 repository:
     path: github.com/prometheus/alertmanager
 build:
@@ -6,13 +10,13 @@ build:
           path: ./cmd/alertmanager
         - name: amtool
           path: ./cmd/amtool
-    flags: -a -tags netgo
+    flags: -mod vendor -a -tags netgo
     ldflags: |
-        -X {{repoPath}}/vendor/github.com/prometheus/common/version.Version={{.Version}}
-        -X {{repoPath}}/vendor/github.com/prometheus/common/version.Revision={{.Revision}}
-        -X {{repoPath}}/vendor/github.com/prometheus/common/version.Branch={{.Branch}}
-        -X {{repoPath}}/vendor/github.com/prometheus/common/version.BuildUser={{user}}@{{host}}
-        -X {{repoPath}}/vendor/github.com/prometheus/common/version.BuildDate={{date "20060102-15:04:05"}}
+        -X github.com/prometheus/common/version.Version={{.Version}}
+        -X github.com/prometheus/common/version.Revision={{.Revision}}
+        -X github.com/prometheus/common/version.Branch={{.Branch}}
+        -X github.com/prometheus/common/version.BuildUser={{user}}@{{host}}
+        -X github.com/prometheus/common/version.BuildDate={{date "20060102-15:04:05"}}
 tarball:
     files:
         - examples/ha/alertmanager.yml
@@ -41,3 +45,4 @@ crossbuild:
         - linux/ppc64le
         - linux/mips64
         - linux/mips64le
+        - linux/s390x

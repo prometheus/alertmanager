@@ -1,8 +1,8 @@
-module Match exposing (..)
+module Match exposing (testConsecutiveChars, testJaroWinkler)
 
-import Test exposing (..)
 import Expect
-import Utils.Match exposing (jaroWinkler, consecutiveChars)
+import Test exposing (..)
+import Utils.Match exposing (consecutiveChars, jaroWinkler)
 
 
 testJaroWinkler : Test

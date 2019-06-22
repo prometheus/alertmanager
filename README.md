@@ -70,6 +70,12 @@ route:
   # The labels by which incoming alerts are grouped together. For example,
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
+  #
+  # To aggregate by all possible labels use '...' as the sole label name.
+  # This effectively disables aggregation entirely, passing through all
+  # alerts as-is. This is unlikely to be what you want, unless you have
+  # a very low alert volume or your upstream notification system performs
+  # its own grouping. Example: group_by: [...]
   group_by: ['alertname', 'cluster']
 
   # When a new group of alerts is created by an incoming alert, wait at
@@ -170,6 +176,23 @@ receivers:
   pagerduty_configs:
   - routing_key: <team-DB-key>
 ```
+
+## API
+
+The current Alertmanager API is version 2. This API is fully generated via the
+[OpenAPI project](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md)
+and [Go Swagger](https://github.com/go-swagger/go-swagger/) with the exception
+of the HTTP handlers themselves. The API specification can be found in
+[api/v2/openapi.yaml](api/v2/openapi.yaml). A HTML rendered version can be
+accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml).
+Clients can be easily generated via any OpenAPI generator for all major languages.
+
+With the default config, endpoints are accessed under a `/api/v1` or `/api/v2` prefix.
+The v2 `/status` endpoint would be `/api/v2/status`. If `--web.route-prefix` is set then API routes are
+prefixed with that as well, so `--web.route-prefix=/alertmanager/` would
+relate to `/alertmanager/api/v2/status`.
+
+_API v2 is still under heavy development and thereby subject to change._
 
 ## Amtool
 
@@ -286,9 +309,27 @@ output: extended
 receiver: team-X-pager
 ```
 
+### Routes
+
+Amtool allows you to visualize the routes of your configuration in form of text tree view.
+Also you can use it to test the routing by passing it label set of an alert
+and it prints out all receivers the alert would match ordered and separated by `,`.
+(If you use `--verify.receivers` amtool returns error code 1 on mismatch)
+
+Example of usage:
+```
+# View routing tree of remote Alertmanager
+amtool config routes --alertmanager.url=http://localhost:9090
+
+# Test if alert matches expected receiver
+./amtool config routes test --config.file=doc/examples/simple.yml --tree --verify.receivers=team-X-pager service=database owner=team-X
+```
+
 ## High Availability
 
-> Warning: High Availability is under active development
+AlertManager's high availability is in production use at many companies.
+
+> Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
 
 To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
@@ -312,6 +353,10 @@ be configured to communicate with each other. This is configured using the
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.
 
+The `cluster.advertise-address` flag is required if the instance doesn't have
+an IP address that is part of [RFC 6980](https://tools.ietf.org/html/rfc6890)
+with a default route.
+
 To start a cluster of three peers on your local machine use `goreman` and the
 Procfile within this repository.
 
@@ -331,6 +376,11 @@ alerting:
 ```
 
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
+
+### Disabling high availability
+
+If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` will prevent Alertmanager from listening to incoming peer requests.
+
 
 ## Contributing to the Front-End
 

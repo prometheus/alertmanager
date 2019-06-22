@@ -1,20 +1,20 @@
-module Views.ReceiverBar.Updates exposing (update, fetchReceivers)
+module Views.ReceiverBar.Updates exposing (fetchReceivers, update)
 
-import Views.ReceiverBar.Types exposing (Model, Msg(..))
-import Utils.Types exposing (ApiData(Success))
-import Utils.Filter exposing (Filter, generateQueryString, stringifyGroup, parseGroup)
-import Navigation
-import Dom
-import Task
 import Alerts.Api as Api
+import Browser.Dom as Dom
+import Browser.Navigation as Navigation
+import Task
+import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
 import Utils.Match exposing (jaroWinkler)
+import Utils.Types exposing (ApiData(..))
+import Views.ReceiverBar.Types exposing (Model, Msg(..), apiReceiverToReceiver)
 
 
 update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
 update url filter msg model =
     case msg of
         ReceiversFetched (Success receivers) ->
-            ( { model | receivers = receivers }, Cmd.none )
+            ( { model | receivers = List.map apiReceiverToReceiver receivers }, Cmd.none )
 
         ReceiversFetched _ ->
             ( model, Cmd.none )
@@ -44,12 +44,12 @@ update url filter msg model =
                         |> List.take 10
                         |> (::) { name = "All", regex = "" }
             in
-                ( { model
-                    | fieldText = receiver
-                    , matches = matches
-                  }
-                , Cmd.none
-                )
+            ( { model
+                | fieldText = receiver
+                , matches = matches
+              }
+            , Cmd.none
+            )
 
         BlurReceiverField ->
             ( { model | showReceivers = False }, Cmd.none )
@@ -59,13 +59,14 @@ update url filter msg model =
 
         FilterByReceiver regex ->
             ( { model | showReceivers = False, resultsHovered = False }
-            , Navigation.newUrl
+            , Navigation.pushUrl model.key
                 (url
                     ++ generateQueryString
                         { filter
                             | receiver =
                                 if regex == "" then
                                     Nothing
+
                                 else
                                     Just regex
                         }

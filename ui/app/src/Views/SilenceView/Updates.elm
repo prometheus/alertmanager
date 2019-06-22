@@ -1,9 +1,9 @@
 module Views.SilenceView.Updates exposing (update)
 
 import Alerts.Api
-import Navigation exposing (newUrl)
+import Browser.Navigation as Navigation
 import Silences.Api exposing (getSilence)
-import Utils.Filter exposing (nullFilter)
+import Utils.Filter exposing (silencePreviewFilter)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
 import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
@@ -20,6 +20,11 @@ update msg model apiUrl =
             , Cmd.none
             )
 
+        SetActiveAlert activeAlertId ->
+            ( { model | activeAlertId = activeAlertId }
+            , Cmd.none
+            )
+
         SilenceFetched (Success silence) ->
             ( { model
                 | silence = Success silence
@@ -27,7 +32,7 @@ update msg model apiUrl =
               }
             , Alerts.Api.fetchAlerts
                 apiUrl
-                { nullFilter | text = Just (Utils.List.mjoin silence.matchers), showSilenced = Just True }
+                (silencePreviewFilter silence.matchers)
                 |> Cmd.map AlertGroupsPreview
             )
 
@@ -43,4 +48,4 @@ update msg model apiUrl =
             ( { model | showConfirmationDialog = False }, getSilence apiUrl silenceId SilenceFetched )
 
         Reload silenceId ->
-            ( { model | showConfirmationDialog = False }, newUrl ("#/silences/" ++ silenceId) )
+            ( { model | showConfirmationDialog = False }, Navigation.pushUrl model.key ("#/silences/" ++ silenceId) )

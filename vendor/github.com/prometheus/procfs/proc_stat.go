@@ -1,3 +1,16 @@
+// Copyright 2018 The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package procfs
 
 import (
@@ -5,17 +18,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"github.com/prometheus/procfs/internal/fs"
 )
 
-// Originally, this USER_HZ value was dynamically retrieved via a sysconf call which
-// required cgo. However, that caused a lot of problems regarding
+// Originally, this USER_HZ value was dynamically retrieved via a sysconf call
+// which required cgo. However, that caused a lot of problems regarding
 // cross-compilation. Alternatives such as running a binary to determine the
-// value, or trying to derive it in some other way were all problematic.
-// After much research it was determined that USER_HZ is actually hardcoded to
-// 100 on all Go-supported platforms as of the time of this writing. This is
-// why we decided to hardcode it here as well. It is not impossible that there
-// could be systems with exceptions, but they should be very exotic edge cases,
-// and in that case, the worst outcome will be two misreported metrics.
+// value, or trying to derive it in some other way were all problematic.  After
+// much research it was determined that USER_HZ is actually hardcoded to 100 on
+// all Go-supported platforms as of the time of this writing. This is why we
+// decided to hardcode it here as well. It is not impossible that there could
+// be systems with exceptions, but they should be very exotic edge cases, and
+// in that case, the worst outcome will be two misreported metrics.
 //
 // See also the following discussions:
 //
@@ -82,16 +97,23 @@ type ProcStat struct {
 	// in clock ticks.
 	Starttime uint64
 	// Virtual memory size in bytes.
-	VSize int
+	VSize uint
 	// Resident set size in pages.
 	RSS int
 
-	fs FS
+	proc fs.FS
 }
 
 // NewStat returns the current status information of the process.
+//
+// Deprecated: use NewStat() instead
 func (p Proc) NewStat() (ProcStat, error) {
-	f, err := p.open("stat")
+	return p.Stat()
+}
+
+// Stat returns the current status information of the process.
+func (p Proc) Stat() (ProcStat, error) {
+	f, err := os.Open(p.path("stat"))
 	if err != nil {
 		return ProcStat{}, err
 	}
@@ -105,7 +127,7 @@ func (p Proc) NewStat() (ProcStat, error) {
 	var (
 		ignore int
 
-		s = ProcStat{PID: p.PID, fs: p.fs}
+		s = ProcStat{PID: p.PID, proc: p.fs}
 		l = bytes.Index(data, []byte("("))
 		r = bytes.LastIndex(data, []byte(")"))
 	)
@@ -151,7 +173,7 @@ func (p Proc) NewStat() (ProcStat, error) {
 }
 
 // VirtualMemory returns the virtual memory size in bytes.
-func (s ProcStat) VirtualMemory() int {
+func (s ProcStat) VirtualMemory() uint {
 	return s.VSize
 }
 
@@ -162,7 +184,8 @@ func (s ProcStat) ResidentMemory() int {
 
 // StartTime returns the unix timestamp of the process in seconds.
 func (s ProcStat) StartTime() (float64, error) {
-	stat, err := s.fs.NewStat()
+	fs := FS{proc: s.proc}
+	stat, err := fs.Stat()
 	if err != nil {
 		return 0, err
 	}

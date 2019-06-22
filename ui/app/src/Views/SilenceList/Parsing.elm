@@ -1,6 +1,7 @@
 module Views.SilenceList.Parsing exposing (silenceListParser)
 
-import UrlParser exposing ((<?>), Parser, s, stringParam, map)
+import Url.Parser exposing ((<?>), Parser, map, s)
+import Url.Parser.Query as Query
 import Utils.Filter exposing (Filter)
 
 
@@ -8,6 +9,6 @@ silenceListParser : Parser (Filter -> a) a
 silenceListParser =
     map
         (\t ->
-            Filter t Nothing Nothing Nothing Nothing
+            Filter t Nothing False Nothing Nothing Nothing Nothing
         )
-        (s "silences" <?> stringParam "filter")
+        (s "silences" <?> Query.string "filter")

@@ -1,51 +1,50 @@
 module Views.SilenceForm.Views exposing (view)
 
-import Html exposing (Html, a, div, fieldset, label, legend, span, text, h1, strong, button, input, textarea)
+import Data.GettableAlert exposing (GettableAlert)
+import Html exposing (Html, a, button, div, fieldset, h1, input, label, legend, span, strong, text, textarea)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
-import Silences.Types exposing (Silence, SilenceId)
-import Alerts.Types exposing (Alert)
-import Views.Shared.SilencePreview
-import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), MatcherForm)
-import Utils.Types exposing (ApiData)
-import Utils.Views exposing (checkbox, iconButtonMsg, validatedField, loading)
-import Utils.FormValidation exposing (ValidationState(..), ValidatedField)
-import Views.SilenceForm.Types exposing (Model, SilenceFormMsg(..), SilenceFormFieldMsg(..), SilenceForm)
 import Utils.Filter
+import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
+import Utils.Types exposing (ApiData)
+import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
+import Views.Shared.SilencePreview
+import Views.Shared.Types exposing (Msg)
+import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
-view : Maybe SilenceId -> List Utils.Filter.Matcher -> String -> Model -> Html SilenceFormMsg
-view maybeId matchers defaultCreator { form, silenceId, alerts } =
+view : Maybe String -> List Utils.Filter.Matcher -> String -> Model -> Html SilenceFormMsg
+view maybeId matchers defaultCreator { form, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
-                Just silenceId ->
-                    ( "Edit Silence", FetchSilence silenceId )
+                Just silenceId_ ->
+                    ( "Edit Silence", FetchSilence silenceId_ )
 
                 Nothing ->
                     ( "New Silence", NewSilenceFromMatchers defaultCreator matchers )
     in
-        div []
-            [ h1 [] [ text title ]
-            , timeInput form.startsAt form.endsAt form.duration
-            , matcherInput form.matchers
-            , validatedField input
-                "Creator"
-                inputSectionPadding
-                (UpdateCreatedBy >> UpdateField)
-                (ValidateCreatedBy |> UpdateField)
-                form.createdBy
-            , validatedField textarea
-                "Comment"
-                inputSectionPadding
-                (UpdateComment >> UpdateField)
-                (ValidateComment |> UpdateField)
-                form.comment
-            , div [ class inputSectionPadding ]
-                [ informationBlock silenceId alerts
-                , silenceActionButtons maybeId form resetClick
-                ]
+    div []
+        [ h1 [] [ text title ]
+        , timeInput form.startsAt form.endsAt form.duration
+        , matcherInput form.matchers
+        , validatedField input
+            "Creator"
+            inputSectionPadding
+            (UpdateCreatedBy >> UpdateField)
+            (ValidateCreatedBy |> UpdateField)
+            form.createdBy
+        , validatedTextareaField
+            "Comment"
+            inputSectionPadding
+            (UpdateComment >> UpdateField)
+            (ValidateComment |> UpdateField)
+            form.comment
+        , div [ class inputSectionPadding ]
+            [ informationBlock activeAlertId silenceId alerts
+            , silenceActionButtons maybeId form resetClick
             ]
+        ]
 
 
 inputSectionPadding : String
@@ -95,14 +94,15 @@ matcherInput matchers =
         ]
 
 
-informationBlock : ApiData SilenceId -> ApiData (List Alert) -> Html SilenceFormMsg
-informationBlock silence alerts =
+informationBlock : Maybe String -> ApiData String -> ApiData (List GettableAlert) -> Html SilenceFormMsg
+informationBlock activeAlertId silence alerts =
     case silence of
         Utils.Types.Success _ ->
             text ""
 
         Utils.Types.Initial ->
-            Views.Shared.SilencePreview.view alerts
+            Views.Shared.SilencePreview.view activeAlertId alerts
+                |> Html.map SetActiveAlert
 
         Utils.Types.Failure error ->
             Utils.Views.error error
@@ -133,11 +133,11 @@ createSilenceBtn maybeId =
                 Nothing ->
                     "Create"
     in
-        button
-            [ class "ml-2 btn btn-primary"
-            , onClick CreateSilence
-            ]
-            [ text btnTxt ]
+    button
+        [ class "ml-2 btn btn-primary"
+        , onClick CreateSilence
+        ]
+        [ text btnTxt ]
 
 
 previewSilenceBtn : Html SilenceFormMsg
@@ -158,6 +158,7 @@ matcherForm showDeleteButton index { name, value, isRegex } =
             [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
             , if showDeleteButton then
                 iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)
+
               else
                 text ""
             ]

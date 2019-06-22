@@ -34,6 +34,9 @@ type Resolver struct {
 func NewResolver(files []string, legacyFlags map[string]string) (*Resolver, error) {
 	flags := map[string]string{}
 	for _, f := range files {
+		if _, err := os.Stat(f); err != nil {
+			continue
+		}
 		b, err := ioutil.ReadFile(f)
 		if err != nil {
 			if os.IsNotExist(err) {

@@ -1,7 +1,7 @@
 module Utils.Keyboard exposing (keys, onKeyDown, onKeyUp)
 
 import Html exposing (Attribute)
-import Html.Events exposing (on, keyCode)
+import Html.Events exposing (keyCode, on)
 import Json.Decode as Json
 
 

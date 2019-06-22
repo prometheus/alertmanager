@@ -14,6 +14,7 @@
 package dispatch
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"sync"
@@ -21,87 +22,15 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"golang.org/x/net/context"
+	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/types"
 )
-
-func newAPIAlert(labels model.LabelSet) APIAlert {
-	return APIAlert{
-		Alert: &model.Alert{
-			Labels:   labels,
-			StartsAt: time.Now().Add(1 * time.Minute),
-			EndsAt:   time.Now().Add(1 * time.Hour),
-		},
-	}
-}
-
-func TestFilterLabels(t *testing.T) {
-
-	var (
-		a1 = newAPIAlert(model.LabelSet{
-			"a": "v1",
-			"b": "v2",
-			"c": "v3",
-		})
-		a2 = newAPIAlert(model.LabelSet{
-			"a": "v1",
-			"b": "v2",
-			"c": "v4",
-		})
-		a3 = newAPIAlert(model.LabelSet{
-			"a": "v1",
-			"b": "v2",
-			"c": "v5",
-		})
-		a4 = newAPIAlert(model.LabelSet{
-			"foo": "bar",
-			"baz": "qux",
-		})
-		alertsSlices = []struct {
-			in, want []APIAlert
-		}{
-			{
-				in:   []APIAlert{a1, a2, a3},
-				want: []APIAlert{a1, a2, a3},
-			},
-			{
-				in:   []APIAlert{a1, a4},
-				want: []APIAlert{a1},
-			},
-			{
-				in:   []APIAlert{a4},
-				want: []APIAlert{},
-			},
-		}
-	)
-
-	matcher, err := labels.NewMatcher(labels.MatchRegexp, "c", "v.*")
-	if err != nil {
-		t.Fatalf("error making matcher: %v", err)
-	}
-	matcher2, err := labels.NewMatcher(labels.MatchEqual, "a", "v1")
-	if err != nil {
-		t.Fatalf("error making matcher: %v", err)
-	}
-
-	matchers := []*labels.Matcher{matcher, matcher2}
-
-	for _, alerts := range alertsSlices {
-		got := []APIAlert{}
-		for _, a := range alerts.in {
-			if matchesFilterLabels(&a, matchers) {
-				got = append(got, a)
-			}
-		}
-		if !reflect.DeepEqual(got, alerts.want) {
-			t.Fatalf("error: returned alerts do not match:\ngot  %v\nwant %v", got, alerts.want)
-		}
-	}
-}
 
 func TestAggrGroup(t *testing.T) {
 	lset := model.LabelSet{
@@ -185,12 +114,22 @@ func TestAggrGroup(t *testing.T) {
 
 		lastCurMtx.Lock()
 		last = current
-		current = time.Now()
+		// Subtract a millisecond to allow for races.
+		current = time.Now().Add(-time.Millisecond)
 		lastCurMtx.Unlock()
 
 		alertsCh <- types.AlertSlice(alerts)
 
 		return true
+	}
+
+	removeEndsAt := func(as types.AlertSlice) types.AlertSlice {
+		for i, a := range as {
+			ac := *a
+			ac.EndsAt = time.Time{}
+			as[i] = &ac
+		}
+		return as
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
@@ -204,10 +143,13 @@ func TestAggrGroup(t *testing.T) {
 		t.Fatalf("expected initial batch after group_wait")
 
 	case batch := <-alertsCh:
-		if s := time.Since(last); s < opts.GroupWait {
+		lastCurMtx.Lock()
+		s := time.Since(last)
+		lastCurMtx.Unlock()
+		if s < opts.GroupWait {
 			t.Fatalf("received batch too early after %v", s)
 		}
-		exp := types.AlertSlice{a1}
+		exp := removeEndsAt(types.AlertSlice{a1})
 		sort.Sort(batch)
 
 		if !reflect.DeepEqual(batch, exp) {
@@ -224,10 +166,13 @@ func TestAggrGroup(t *testing.T) {
 			t.Fatalf("expected new batch after group interval but received none")
 
 		case batch := <-alertsCh:
-			if s := time.Since(last); s < opts.GroupInterval {
+			lastCurMtx.Lock()
+			s := time.Since(last)
+			lastCurMtx.Unlock()
+			if s < opts.GroupInterval {
 				t.Fatalf("received batch too early after %v", s)
 			}
-			exp := types.AlertSlice{a1, a3}
+			exp := removeEndsAt(types.AlertSlice{a1, a3})
 			sort.Sort(batch)
 
 			if !reflect.DeepEqual(batch, exp) {
@@ -254,7 +199,7 @@ func TestAggrGroup(t *testing.T) {
 		t.Fatalf("expected immediate alert but received none")
 
 	case batch := <-alertsCh:
-		exp := types.AlertSlice{a1, a2}
+		exp := removeEndsAt(types.AlertSlice{a1, a2})
 		sort.Sort(batch)
 
 		if !reflect.DeepEqual(batch, exp) {
@@ -277,7 +222,7 @@ func TestAggrGroup(t *testing.T) {
 			if s < opts.GroupInterval {
 				t.Fatalf("received batch too early after %v", s)
 			}
-			exp := types.AlertSlice{a1, a2, a3}
+			exp := removeEndsAt(types.AlertSlice{a1, a2, a3})
 			sort.Sort(batch)
 
 			if !reflect.DeepEqual(batch, exp) {
@@ -299,7 +244,10 @@ func TestAggrGroup(t *testing.T) {
 		t.Fatalf("expected new batch after group interval but received none")
 
 	case batch := <-alertsCh:
-		if s := time.Since(last); s < opts.GroupInterval {
+		lastCurMtx.Lock()
+		s := time.Since(last)
+		lastCurMtx.Unlock()
+		if s < opts.GroupInterval {
 			t.Fatalf("received batch too early after %v", s)
 		}
 		sort.Sort(batch)
@@ -314,4 +262,195 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	ag.stop()
+}
+
+func TestGroupLabels(t *testing.T) {
+	var a = &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v3",
+			},
+		},
+	}
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			GroupBy: map[model.LabelName]struct{}{
+				"a": struct{}{},
+				"b": struct{}{},
+			},
+			GroupByAll: false,
+		},
+	}
+
+	expLs := model.LabelSet{
+		"a": "v1",
+		"b": "v2",
+	}
+
+	ls := getGroupLabels(a, route)
+
+	if !reflect.DeepEqual(ls, expLs) {
+		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
+	}
+}
+
+func TestGroupByAllLabels(t *testing.T) {
+	var a = &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v3",
+			},
+		},
+	}
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			GroupBy:    map[model.LabelName]struct{}{},
+			GroupByAll: true,
+		},
+	}
+
+	expLs := model.LabelSet{
+		"a": "v1",
+		"b": "v2",
+		"c": "v3",
+	}
+
+	ls := getGroupLabels(a, route)
+
+	if !reflect.DeepEqual(ls, expLs) {
+		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
+	}
+}
+
+func TestGroups(t *testing.T) {
+	logger := log.NewNopLogger()
+	conf, _, err := config.LoadFile("testdata/conf.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := NewRoute(conf.Route, nil)
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	recorder := &recordStage{t: t, alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger)
+	go dispatcher.Run()
+	defer dispatcher.Stop()
+
+	// Create alerts. the dispatcher will automatically create the groups.
+	alerts.Put(
+		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes"}),
+	)
+
+	// Let alerts get processed.
+	for i := 0; len(recorder.Alerts()) != 5 && i < 10; i++ {
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.Equal(t, 5, len(recorder.Alerts()))
+
+	alertGroups, receivers := dispatcher.Groups(
+		func(*Route) bool {
+			return true
+		}, func(*types.Alert, time.Time) bool {
+			return true
+		},
+	)
+
+	// Verify that grouping works.
+	require.Equal(t, 5, len(alertGroups))
+	for _, ag := range alertGroups {
+		if len(ag.Labels) == 2 {
+			// testing receiver
+			require.Equal(t, 2, len(ag.Labels))
+			require.Equal(t, model.LabelSet{"alertname": "TestingAlert", "service": "api"}, ag.Labels)
+			for _, alert := range ag.Alerts {
+				alertsReceivers, ok := receivers[alert.Fingerprint()]
+				require.True(t, ok)
+				require.Equal(t, 1, len(alertsReceivers))
+				require.Equal(t, "testing", alertsReceivers[0])
+			}
+			continue
+		}
+		require.Equal(t, 3, len(ag.Labels))
+		for _, alert := range ag.Alerts {
+			alertsReceivers, ok := receivers[alert.Fingerprint()]
+			require.True(t, ok)
+			sort.Strings(alertsReceivers)
+			if labelValue := ag.Labels["alertname"]; string(labelValue) == "HighLatency" {
+				// Matches both prod and kafka receivers
+				require.Equal(t, []string{"kafka", "prod"}, alertsReceivers)
+				continue
+			}
+			require.Equal(t, 1, len(alertsReceivers))
+			require.Equal(t, "prod", alertsReceivers[0])
+		}
+	}
+}
+
+type recordStage struct {
+	t      *testing.T
+	mtx    sync.RWMutex
+	alerts map[string]map[model.Fingerprint]*types.Alert
+}
+
+func (r *recordStage) Alerts() []*types.Alert {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+	alerts := make([]*types.Alert, 0)
+	for k := range r.alerts {
+		for _, a := range r.alerts[k] {
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func (r *recordStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	gk, ok := notify.GroupKey(ctx)
+	if !ok {
+		panic("GroupKey not present!")
+	}
+	if _, ok := r.alerts[gk]; !ok {
+		r.alerts[gk] = make(map[model.Fingerprint]*types.Alert)
+	}
+	for _, a := range alerts {
+		r.alerts[gk][a.Fingerprint()] = a
+	}
+	return ctx, nil, nil
+}
+
+var (
+	// Set the start time in the past to trigger a flush immediately.
+	t0 = time.Now().Add(-time.Minute)
+	// Set the end time in the future to avoid deleting the alert.
+	t1 = t0.Add(2 * time.Minute)
+)
+
+func newAlert(labels model.LabelSet) *types.Alert {
+	return &types.Alert{
+		Alert: model.Alert{
+			Labels:       labels,
+			Annotations:  model.LabelSet{"foo": "bar"},
+			StartsAt:     t0,
+			EndsAt:       t1,
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: t0,
+		Timeout:   false,
+	}
 }

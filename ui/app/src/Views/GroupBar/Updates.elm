@@ -1,17 +1,25 @@
-module Views.GroupBar.Updates exposing (update, setFields)
+module Views.GroupBar.Updates exposing (setFields, update)
 
-import Views.GroupBar.Types exposing (Model, Msg(..))
-import Utils.Match exposing (jaroWinkler)
-import Task
-import Dom
+import Browser.Dom as Dom
+import Browser.Navigation as Navigation
 import Set
-import Utils.Filter exposing (Filter, generateQueryString, stringifyGroup, parseGroup)
-import Navigation
+import Task
+import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
+import Utils.Match exposing (jaroWinkler)
+import Views.GroupBar.Types exposing (Model, Msg(..))
 
 
 update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
 update url filter msg model =
     case msg of
+        CustomGrouping customGrouping ->
+            ( model
+            , Cmd.batch
+                [ Navigation.pushUrl model.key (url ++ generateQueryString { filter | customGrouping = customGrouping })
+                , Dom.focus "group-by-field" |> Task.attempt (always Noop)
+                ]
+            )
+
         AddField emptyFieldText text ->
             immediatelyFilter url
                 filter
@@ -21,6 +29,7 @@ update url filter msg model =
                     , fieldText =
                         if emptyFieldText then
                             ""
+
                         else
                             model.fieldText
                 }
@@ -34,6 +43,7 @@ update url filter msg model =
                     , fieldText =
                         if setFieldText then
                             text
+
                         else
                             model.fieldText
                 }
@@ -75,12 +85,12 @@ immediatelyFilter url filter model =
         newFilter =
             { filter | group = stringifyGroup model.fields }
     in
-        ( model
-        , Cmd.batch
-            [ Navigation.newUrl (url ++ generateQueryString newFilter)
-            , Dom.focus "group-by-field" |> Task.attempt (always Noop)
-            ]
-        )
+    ( model
+    , Cmd.batch
+        [ Navigation.pushUrl model.key (url ++ generateQueryString newFilter)
+        , Dom.focus "group-by-field" |> Task.attempt (always Noop)
+        ]
+    )
 
 
 setFields : Filter -> Model -> Model
@@ -97,15 +107,17 @@ updateAutoComplete model =
         | matches =
             if String.isEmpty model.fieldText then
                 []
+
             else if String.contains " " model.fieldText then
                 model.matches
+
             else
                 -- TODO: How many matches do we want to show?
                 -- NOTE: List.reverse is used because our scale is (0.0, 1.0),
                 -- but we want the higher values to be in the front of the
                 -- list.
                 Set.toList model.list
-                    |> List.filter ((flip List.member model.fields) >> not)
+                    |> List.filter ((\a -> List.member a model.fields) >> not)
                     |> List.sortBy (jaroWinkler model.fieldText)
                     |> List.reverse
                     |> List.take 10

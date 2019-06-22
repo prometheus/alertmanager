@@ -1,16 +1,18 @@
-module Views.Status.Types exposing (StatusMsg(..), StatusModel, initStatusModel)
+module Views.Status.Types exposing (StatusModel, StatusMsg(..), initStatusModel)
 
+import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
 import Status.Types exposing (StatusResponse)
-import Utils.Types exposing (ApiData(Initial))
+import Utils.Types exposing (ApiData(..))
 
 
 type StatusMsg
-    = NewStatus (ApiData StatusResponse)
-    | InitStatusView
+    = NewStatus (ApiData AlertmanagerStatus)
+      -- String carries the api url.
+    | InitStatusView String
 
 
 type alias StatusModel =
-    { statusInfo : ApiData StatusResponse
+    { statusInfo : ApiData AlertmanagerStatus
     }
 
 

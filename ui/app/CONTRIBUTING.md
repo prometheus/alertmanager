@@ -30,13 +30,6 @@ If you prefer, there's a make target available to format all elm source files:
 # make format
 ```
 
-Once you've installed Elm, install the dependencies listed in
-`elm-package.json`:
-
-```
-# elm package install -y
-```
-
 ## Elm Resources
 
 - The [Official Elm Guide](https://guide.elm-lang.org/) is a great place to
@@ -68,7 +61,7 @@ Your app should be available at `http://localhost:<port>`. Navigate to
 `src/Main.elm`. Any changes to the file system are detected automatically,
 triggering a recompile of the project.
 
-## Commiting changes
+## Committing changes
 
 Before you commit changes, please run `make build-all` on the root level
-Makefile. Please include `ui/bindata.go` in your commit.
+Makefile. Please include `asset/*_vfsdata.go` in your commit.

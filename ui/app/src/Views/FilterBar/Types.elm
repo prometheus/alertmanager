@@ -1,5 +1,6 @@
 module Views.FilterBar.Types exposing (Model, Msg(..), initFilterBar)
 
+import Browser.Navigation exposing (Key)
 import Utils.Filter
 
 
@@ -7,6 +8,7 @@ type alias Model =
     { matchers : List Utils.Filter.Matcher
     , backspacePressed : Bool
     , matcherText : String
+    , key : Key
     }
 
 
@@ -28,9 +30,10 @@ backspace to clear an input, they have to then lift up the key and press it agai
 proceed to deleting the next matcher.
 
 -}
-initFilterBar : Model
-initFilterBar =
+initFilterBar : Key -> Model
+initFilterBar key =
     { matchers = []
     , backspacePressed = False
     , matcherText = ""
+    , key = key
     }

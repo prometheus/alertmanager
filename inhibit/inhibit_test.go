@@ -14,16 +14,16 @@
 package inhibit
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/go-kit/kit/log"
-	"github.com/kylelemons/godebug/pretty"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -122,21 +122,17 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		r := &InhibitRule{
 			Equal:  map[model.LabelName]struct{}{},
-			scache: map[model.Fingerprint]*types.Alert{},
+			scache: store.NewAlerts(5 * time.Minute),
 		}
 		for _, ln := range c.equal {
 			r.Equal[ln] = struct{}{}
 		}
-		for k, v := range c.initial {
-			r.scache[k] = v
+		for _, v := range c.initial {
+			r.scache.Set(v)
 		}
 
-		if _, have := r.hasEqual(c.input); have != c.result {
+		if _, have := r.hasEqual(c.input, false); have != c.result {
 			t.Errorf("Unexpected result %t, expected %t", have, c.result)
-		}
-		if !reflect.DeepEqual(r.scache, c.initial) {
-			t.Errorf("Cache state unexpectedly changed")
-			t.Errorf(pretty.Compare(r.scache, c.initial))
 		}
 	}
 }
@@ -144,53 +140,87 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 func TestInhibitRuleMatches(t *testing.T) {
 	t.Parallel()
 
-	// Simple inhibut rule
-	cr := config.InhibitRule{
-		SourceMatch: map[string]string{"s": "1"},
-		TargetMatch: map[string]string{"t": "1"},
+	rule1 := config.InhibitRule{
+		SourceMatch: map[string]string{"s1": "1"},
+		TargetMatch: map[string]string{"t1": "1"},
 		Equal:       model.LabelNames{"e"},
 	}
-	m := types.NewMarker()
-	ih := NewInhibitor(nil, []*config.InhibitRule{&cr}, m, nopLogger)
-	ir := ih.rules[0]
+	rule2 := config.InhibitRule{
+		SourceMatch: map[string]string{"s2": "1"},
+		TargetMatch: map[string]string{"t2": "1"},
+		Equal:       model.LabelNames{"e"},
+	}
+	m := types.NewMarker(prometheus.NewRegistry())
+	ih := NewInhibitor(nil, []*config.InhibitRule{&rule1, &rule2}, m, nopLogger)
 	now := time.Now()
-	// Active alert that matches the source filter
-	sourceAlert := types.Alert{
+	// Active alert that matches the source filter of rule1.
+	sourceAlert1 := &types.Alert{
 		Alert: model.Alert{
-			Labels:   model.LabelSet{"s": "1", "e": "1"},
+			Labels:   model.LabelSet{"s1": "1", "t1": "2", "e": "1"},
 			StartsAt: now.Add(-time.Minute),
 			EndsAt:   now.Add(time.Hour),
 		},
 	}
-	ir.scache = map[model.Fingerprint]*types.Alert{1: &sourceAlert}
+	// Active alert that matches the source filter _and_ the target filter of rule2.
+	sourceAlert2 := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+
+	ih.rules[0].scache = store.NewAlerts(5 * time.Minute)
+	ih.rules[0].scache.Set(sourceAlert1)
+	ih.rules[1].scache = store.NewAlerts(5 * time.Minute)
+	ih.rules[1].scache.Set(sourceAlert2)
 
 	cases := []struct {
 		target   model.LabelSet
 		expected bool
 	}{
 		{
-			// Matches target filter, inhibited
-			target:   model.LabelSet{"t": "1", "e": "1"},
+			// Matches target filter of rule1, inhibited.
+			target:   model.LabelSet{"t1": "1", "e": "1"},
 			expected: true,
 		},
 		{
-			// Matches target filter (plus noise), inhibited
-			target:   model.LabelSet{"t": "1", "t2": "1", "e": "1"},
+			// Matches target filter of rule2, inhibited.
+			target:   model.LabelSet{"t2": "1", "e": "1"},
 			expected: true,
 		},
 		{
-			// Doesn't match target filter, not inhibited
-			target:   model.LabelSet{"t": "0", "e": "1"},
+			// Matches target filter of rule1 (plus noise), inhibited.
+			target:   model.LabelSet{"t1": "1", "t3": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Matches target filter of rule1 plus rule2, inhibited.
+			target:   model.LabelSet{"t1": "1", "t2": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Doesn't match target filter, not inhibited.
+			target:   model.LabelSet{"t1": "0", "e": "1"},
 			expected: false,
 		},
 		{
-			// Matches both source and target filters, not inhibited
-			target:   model.LabelSet{"s": "1", "t": "1", "e": "1"},
+			// Matches both source and target filters of rule1,
+			// inhibited because sourceAlert1 matches only the
+			// source filter of rule1.
+			target:   model.LabelSet{"s1": "1", "t1": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Matches both source and target filters of rule2,
+			// not inhibited because sourceAlert2 matches also both the
+			// source and target filter of rule2.
+			target:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
 			expected: false,
 		},
 		{
 			// Matches target filter, equal label doesn't match, not inhibited
-			target:   model.LabelSet{"t": "1", "e": "0"},
+			target:   model.LabelSet{"t1": "1", "e": "0"},
 			expected: false,
 		},
 	}
@@ -199,40 +229,6 @@ func TestInhibitRuleMatches(t *testing.T) {
 		if actual := ih.Mutes(c.target); actual != c.expected {
 			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
 		}
-	}
-}
-
-func TestInhibitRuleGC(t *testing.T) {
-	// TODO(fabxc): add now() injection function to Resolved() to remove
-	// dependency on machine time in this test.
-	now := time.Now()
-	newAlert := func(start, end time.Duration) *types.Alert {
-		return &types.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{"a": "b"},
-				StartsAt: now.Add(start * time.Minute),
-				EndsAt:   now.Add(end * time.Minute),
-			},
-		}
-	}
-
-	before := map[model.Fingerprint]*types.Alert{
-		0: newAlert(-10, -5),
-		1: newAlert(10, 20),
-		2: newAlert(-10, 10),
-		3: newAlert(-10, -1),
-	}
-	after := map[model.Fingerprint]*types.Alert{
-		1: newAlert(10, 20),
-		2: newAlert(-10, 10),
-	}
-
-	r := &InhibitRule{scache: before}
-	r.gc()
-
-	if !reflect.DeepEqual(r.scache, after) {
-		t.Errorf("Unexpected cache state after GC")
-		t.Errorf(pretty.Compare(r.scache, after))
 	}
 }
 
@@ -357,7 +353,7 @@ func TestInhibit(t *testing.T) {
 		},
 	} {
 		ap := newFakeAlerts(tc.alerts)
-		mk := types.NewMarker()
+		mk := types.NewMarker(prometheus.NewRegistry())
 		inhibitor := NewInhibitor(ap, []*config.InhibitRule{inhibitRule()}, mk, nopLogger)
 
 		go func() {

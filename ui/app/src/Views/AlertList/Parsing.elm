@@ -1,21 +1,29 @@
 module Views.AlertList.Parsing exposing (alertsParser)
 
-import UrlParser exposing ((</>), (<?>), Parser, int, map, oneOf, parseHash, s, string, stringParam)
-import Utils.Filter exposing (Filter, parseMatcher, MatchOperator(RegexMatch))
+import Url.Parser exposing ((</>), (<?>), Parser, int, map, oneOf, s, string)
+import Url.Parser.Query as Query
+import Utils.Filter exposing (Filter, MatchOperator(..), parseMatcher)
 
 
-boolParam : String -> UrlParser.QueryParser (Maybe Bool -> a) a
+boolParam : String -> Query.Parser Bool
 boolParam name =
-    UrlParser.customParam name
-        (Maybe.map (String.toLower >> (/=) "false"))
+    Query.custom name (List.head >> (/=) Nothing)
+
+
+maybeBoolParam : String -> Query.Parser (Maybe Bool)
+maybeBoolParam name =
+    Query.custom name
+        (List.head >> Maybe.map (String.toLower >> (/=) "false"))
 
 
 alertsParser : Parser (Filter -> a) a
 alertsParser =
     s "alerts"
-        <?> stringParam "filter"
-        <?> stringParam "group"
-        <?> stringParam "receiver"
-        <?> boolParam "silenced"
-        <?> boolParam "inhibited"
+        <?> Query.string "filter"
+        <?> Query.string "group"
+        <?> boolParam "customGrouping"
+        <?> Query.string "receiver"
+        <?> maybeBoolParam "silenced"
+        <?> maybeBoolParam "inhibited"
+        <?> maybeBoolParam "active"
         |> map Filter

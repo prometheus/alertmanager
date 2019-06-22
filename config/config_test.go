@@ -15,6 +15,7 @@ package config
 
 import (
 	"encoding/json"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
@@ -24,7 +25,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -102,6 +103,34 @@ receivers:
 
 }
 
+func TestReceiverExistsForDeepSubRoute(t *testing.T) {
+	in := `
+route:
+    receiver: team-X
+    routes:
+      - match:
+          foo: bar
+        routes:
+        - match:
+            foo: bar
+          receiver: nonexistent
+
+receivers:
+- name: 'team-X'
+`
+	_, err := Load(in)
+
+	expected := "undefined receiver \"nonexistent\" used in route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
 func TestReceiverHasName(t *testing.T) {
 	in := `
 route:
@@ -133,6 +162,47 @@ receivers:
 	_, err := Load(in)
 
 	expected := "duplicated label \"cluster\" in group_by"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestWildcardGroupByWithOtherGroupByLabels(t *testing.T) {
+	in := `
+route:
+  group_by: ['alertname', 'cluster', '...']
+  receiver: team-X-mails
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "cannot have wildcard group_by (`...`) and other other labels at the same time"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestGroupByInvalidLabel(t *testing.T) {
+	in := `
+route:
+  group_by: ['-invalid-']
+  receiver: team-X-mails
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	expected := "invalid label name \"-invalid-\" in group_by list"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
@@ -251,14 +321,12 @@ receivers:
 func TestHideConfigSecrets(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	// String method must not reveal authentication credentials.
 	s := c.String()
-	secretRe := regexp.MustCompile("<secret>")
-	matches := secretRe.FindAllStringIndex(s, -1)
-	if len(matches) != 14 || strings.Contains(s, "mysecret") {
+	if strings.Count(s, "<secret>") != 15 || strings.Contains(s, "mysecret") {
 		t.Fatal("config's String method reveals authentication credentials.")
 	}
 }
@@ -292,28 +360,190 @@ func TestJSONMarshalSecret(t *testing.T) {
 	require.Equal(t, "{\"S\":\"\\u003csecret\\u003e\"}", string(c), "Secret not properly elided.")
 }
 
-func TestJSONUnmarshalMarshaled(t *testing.T) {
+func TestMarshalSecretURL(t *testing.T) {
+	urlp, err := url.Parse("http://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := &SecretURL{urlp}
+
+	c, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// u003c -> "<"
+	// u003e -> ">"
+	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
+	// Check that the marshaled data can be unmarshaled again.
+	out := &SecretURL{}
+	err = json.Unmarshal(c, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, err = yaml.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
+	// Check that the marshaled data can be unmarshaled again.
+	out = &SecretURL{}
+	err = yaml.Unmarshal(c, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUnmarshalSecretURL(t *testing.T) {
+	b := []byte(`"http://example.com/se cret"`)
+	var u SecretURL
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in JSON.")
+
+	err = yaml.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in YAML.")
+}
+
+func TestMarshalURL(t *testing.T) {
+	urlp, err := url.Parse("http://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := &URL{urlp}
+
+	c, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshalled in JSON.")
+
+	c, err = yaml.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshalled in YAML.")
+}
+
+func TestUnmarshalURL(t *testing.T) {
+	b := []byte(`"http://example.com/a b"`)
+	var u URL
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in JSON.")
+
+	err = json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in YAML.")
+}
+
+func TestUnmarshalInvalidURL(t *testing.T) {
+	for _, b := range [][]byte{
+		[]byte(`"://example.com"`),
+		[]byte(`"http:example.com"`),
+		[]byte(`"telnet://example.com"`),
+	} {
+		var u URL
+
+		err := json.Unmarshal(b, &u)
+		if err == nil {
+			t.Errorf("Expected an error unmarshalling %q from JSON", string(b))
+		}
+
+		err = yaml.Unmarshal(b, &u)
+		if err == nil {
+			t.Errorf("Expected an error unmarshalling %q from YAML", string(b))
+		}
+		t.Logf("%s", err)
+	}
+}
+
+func TestUnmarshalRelativeURL(t *testing.T) {
+	b := []byte(`"/home"`)
+	var u URL
+
+	err := json.Unmarshal(b, &u)
+	if err == nil {
+		t.Errorf("Expected an error parsing URL")
+	}
+
+	err = yaml.Unmarshal(b, &u)
+	if err == nil {
+		t.Errorf("Expected an error parsing URL")
+	}
+}
+
+func TestJSONUnmarshal(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
-	plainCfg, err := json.Marshal(c)
+	_, err = json.Marshal(c)
 	if err != nil {
 		t.Fatal("JSON Marshaling failed:", err)
 	}
+}
 
-	cfg := Config{}
-	err = json.Unmarshal(plainCfg, &cfg)
+func TestMarshalIdempotency(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Fatal("JSON Unmarshaling failed:", err)
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	marshaled, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	c = new(Config)
+	if err := yaml.Unmarshal(marshaled, c); err != nil {
+		t.Fatal("YAML Unmarshaling failed:", err)
+	}
+}
+
+func TestGroupByAllNotMarshaled(t *testing.T) {
+	in := `
+route:
+    receiver: team-X-mails
+    group_by: [...]
+
+receivers:
+- name: 'team-X-mails'
+`
+	c, err := Load(in)
+	if err != nil {
+		t.Fatal("load failed:", err)
+	}
+
+	dat, err := yaml.Marshal(c)
+	if err != nil {
+		t.Fatal("YAML Marshaling failed:", err)
+	}
+
+	if strings.Contains(string(dat), "groupbyall") {
+		t.Fatal("groupbyall found in config file")
 	}
 }
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
-	var regexpFoo Regexp
-	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
+	var regexpFoo = Regexp{
+		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
+		original: "^(foo1|foo2|baz)$",
+	}
 
 	var expectedConf = Config{
 
@@ -323,13 +553,13 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			SMTPSmarthost:    "localhost:25",
 			SMTPFrom:         "alertmanager@example.org",
 			HipchatAuthToken: "mysecret",
-			HipchatAPIURL:    "https://hipchat.foobar.org/",
-			SlackAPIURL:      "mysecret",
+			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
+			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
 			SMTPRequireTLS:   true,
-			PagerdutyURL:     "https://events.pagerduty.com/v2/enqueue",
-			OpsGenieAPIURL:   "https://api.opsgenie.com/",
-			WeChatAPIURL:     "https://qyapi.weixin.qq.com/cgi-bin/",
-			VictorOpsAPIURL:  "https://alert.victorops.com/integrations/generic/20131114/alert/",
+			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
+			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		},
 
 		Templates: []string{
@@ -342,6 +572,12 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				"cluster",
 				"service",
 			},
+			GroupByStr: []string{
+				"alertname",
+				"cluster",
+				"service",
+			},
+			GroupByAll: false,
 			Routes: []*Route{
 				{
 					Receiver: "team-X-mails",
@@ -367,6 +603,13 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		},
 	}
 
+	// Load a non-empty configuration to ensure that all fields are overwritten.
+	// See https://github.com/prometheus/alertmanager/issues/1649.
+	_, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
 	config, _, err := LoadFile("testdata/conf.empty-fields.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.empty-fields.yml", err)
@@ -390,7 +633,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 func TestSMTPHello(t *testing.T) {
 	c, _, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
 	const refValue = "host.example.org"
@@ -400,15 +643,26 @@ func TestSMTPHello(t *testing.T) {
 	}
 }
 
+func TestGroupByAll(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.group-by-all.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.group-by-all.yml", err)
+	}
+
+	if !c.Route.GroupByAll {
+		t.Errorf("Invalid group by all param: expected to by true")
+	}
+}
+
 func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	conf, _, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
 	}
 
 	var defaultKey = conf.Global.VictorOpsAPIKey
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
-		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
+		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].VictorOpsConfigs[0].APIKey {
 		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, "qwe456")
@@ -418,7 +672,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 func TestVictorOpsNoAPIKey(t *testing.T) {
 	_, _, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
 	if err == nil {
-		t.Errorf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
 	}
 	if err.Error() != "no global VictorOps API Key set" {
 		t.Errorf("Expected: %s\nGot: %s", "no global VictorOps API Key set", err.Error())
@@ -428,12 +682,12 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 func TestOpsGenieDefaultAPIKey(t *testing.T) {
 	conf, _, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
 	if err != nil {
-		t.Errorf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
 	}
 
 	var defaultKey = conf.Global.OpsGenieAPIKey
 	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKey {
-		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
+		t.Fatalf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
 	}
 	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKey {
 		t.Errorf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, "qwe456")
@@ -443,9 +697,22 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 func TestOpsGenieNoAPIKey(t *testing.T) {
 	_, _, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
 	if err == nil {
-		t.Errorf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
 	}
 	if err.Error() != "no global OpsGenie API Key set" {
 		t.Errorf("Expected: %s\nGot: %s", "no global OpsGenie API Key set", err.Error())
+	}
+}
+
+func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
+	_, _, err := LoadFile("testdata/conf.opsgenie-default-apikey-old-team.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-old-team.yml", err)
+	}
+
+	const expectedErr = `yaml: unmarshal errors:
+  line 18: field teams not found in type config.plain`
+	if err.Error() != expectedErr {
+		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}
 }

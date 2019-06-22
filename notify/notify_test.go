@@ -10,9 +10,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package notify
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -21,9 +23,9 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -32,10 +34,10 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-type notifierConfigFunc func() bool
+type sendResolved bool
 
-func (f notifierConfigFunc) SendResolved() bool {
-	return f()
+func (s sendResolved) SendResolved() bool {
+	return bool(s)
 }
 
 type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
@@ -200,8 +202,8 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 		t.Log("case", i)
 
 		s := &DedupStage{
-			now:  func() time.Time { return now },
-			conf: notifierConfigFunc(func() bool { return c.resolve }),
+			now: func() time.Time { return now },
+			rs:  sendResolved(c.resolve),
 		}
 		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
 		require.Equal(t, c.res, res)
@@ -220,7 +222,7 @@ func TestDedupStage(t *testing.T) {
 		now: func() time.Time {
 			return now
 		},
-		conf: notifierConfigFunc(func() bool { return false }),
+		rs: sendResolved(false),
 	}
 
 	ctx := context.Background()
@@ -383,7 +385,7 @@ func TestRetryStageWithError(t *testing.T) {
 			sent = append(sent, alerts...)
 			return false, nil
 		}),
-		conf: notifierConfigFunc(func() bool { return false }),
+		rs: sendResolved(false),
 	}
 	r := RetryStage{
 		integration: i,
@@ -423,7 +425,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 			sent = append(sent, alerts...)
 			return false, nil
 		}),
-		conf: notifierConfigFunc(func() bool { return false }),
+		rs: sendResolved(false),
 	}
 	r := RetryStage{
 		integration: i,
@@ -476,7 +478,7 @@ func TestRetryStageSendResolved(t *testing.T) {
 			sent = append(sent, alerts...)
 			return false, nil
 		}),
-		conf: notifierConfigFunc(func() bool { return true }),
+		rs: sendResolved(true),
 	}
 	r := RetryStage{
 		integration: i,
@@ -574,20 +576,14 @@ func TestSetNotifiesStage(t *testing.T) {
 	require.NotNil(t, resctx)
 }
 
-func TestSilenceStage(t *testing.T) {
-	silences, err := silence.New(silence.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := silences.Set(&silencepb.Silence{
-		EndsAt:   utcNow().Add(time.Hour),
-		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
+func TestMuteStage(t *testing.T) {
+	// Mute all label sets that have a "mute" key.
+	muter := types.MuteFunc(func(lset model.LabelSet) bool {
+		_, ok := lset["mute"]
+		return ok
+	})
 
-	marker := types.NewMarker()
-	silencer := NewSilenceStage(silences, marker)
+	stage := NewMuteStage(muter)
 
 	in := []model.LabelSet{
 		{},
@@ -613,11 +609,7 @@ func TestSilenceStage(t *testing.T) {
 		})
 	}
 
-	// Set the second alert as previously silenced. It is expected to have
-	// the WasSilenced flag set to true afterwards.
-	marker.SetSilenced(inAlerts[1].Fingerprint(), "123")
-
-	_, alerts, err := silencer.Exec(nil, log.NewNopLogger(), inAlerts...)
+	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -632,14 +624,22 @@ func TestSilenceStage(t *testing.T) {
 	}
 }
 
-func TestInhibitStage(t *testing.T) {
-	// Mute all label sets that have a "mute" key.
-	muter := types.MuteFunc(func(lset model.LabelSet) bool {
-		_, ok := lset["mute"]
-		return ok
+func TestMuteStageWithSilences(t *testing.T) {
+	silences, err := silence.New(silence.Options{Retention: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	silID, err := silences.Set(&silencepb.Silence{
+		EndsAt:   utcNow().Add(time.Hour),
+		Matchers: []*silencepb.Matcher{{Name: "mute", Pattern: "me"}},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	inhibitor := NewInhibitStage(muter)
+	marker := types.NewMarker(prometheus.NewRegistry())
+	silencer := silence.NewSilencer(silences, marker, log.NewNopLogger())
+	stage := NewMuteStage(silencer)
 
 	in := []model.LabelSet{
 		{},
@@ -665,7 +665,11 @@ func TestInhibitStage(t *testing.T) {
 		})
 	}
 
-	_, alerts, err := inhibitor.Exec(nil, log.NewNopLogger(), inAlerts...)
+	// Set the second alert as previously silenced with an old version
+	// number. This is expected to get unsilenced by the stage.
+	marker.SetSilenced(inAlerts[1].Fingerprint(), 0, "123")
+
+	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
 		t.Fatalf("Exec failed: %s", err)
 	}
@@ -677,5 +681,38 @@ func TestInhibitStage(t *testing.T) {
 
 	if !reflect.DeepEqual(got, out) {
 		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+
+	// Do it again to exercise the version tracking of silences.
+	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	got = got[:0]
+	for _, a := range alerts {
+		got = append(got, a.Labels)
+	}
+
+	if !reflect.DeepEqual(got, out) {
+		t.Fatalf("Muting failed, expected: %v\ngot %v", out, got)
+	}
+
+	// Expire the silence and verify that no alerts are silenced now.
+	if err := silences.Expire(silID); err != nil {
+		t.Fatal(err)
+	}
+
+	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+	got = got[:0]
+	for _, a := range alerts {
+		got = append(got, a.Labels)
+	}
+
+	if !reflect.DeepEqual(got, in) {
+		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
 	}
 }

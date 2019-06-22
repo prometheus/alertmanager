@@ -16,18 +16,24 @@ package cli
 import (
 	"net/url"
 	"os"
+	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/version"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
 	"github.com/prometheus/alertmanager/cli/format"
+
+	clientruntime "github.com/go-openapi/runtime/client"
 )
 
 var (
 	verbose         bool
 	alertmanagerURL *url.URL
 	output          string
+	timeout         time.Duration
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -51,6 +57,35 @@ func requireAlertManagerURL(pc *kingpin.ParseContext) error {
 	return nil
 }
 
+const (
+	defaultAmHost      = "localhost"
+	defaultAmPort      = "9093"
+	defaultAmApiv2path = "/api/v2"
+)
+
+// NewAlertmanagerClient initializes an alertmanager client with the given URL
+func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
+	address := defaultAmHost + ":" + defaultAmPort
+	schemes := []string{"http"}
+
+	if amURL.Host != "" {
+		address = amURL.Host // URL documents host as host or host:port
+	}
+	if amURL.Scheme != "" {
+		schemes = []string{amURL.Scheme}
+	}
+
+	cr := clientruntime.New(address, defaultAmApiv2path, schemes)
+
+	if amURL.User != nil {
+		password, _ := amURL.User.Password()
+		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
+	}
+
+	return client.New(cr, strfmt.Default)
+}
+
+// Execute is the main function for the amtool command
 func Execute() {
 	var (
 		app = kingpin.New("amtool", helpRoot).DefaultEnvars()
@@ -61,6 +96,8 @@ func Execute() {
 	app.Flag("verbose", "Verbose running information").Short('v').BoolVar(&verbose)
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
+	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
+
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)

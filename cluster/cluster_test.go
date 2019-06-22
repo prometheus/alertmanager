@@ -19,14 +19,27 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/hashicorp/go-sockaddr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func TestJoinLeave(t *testing.T) {
+func TestClusterJoinAndReconnect(t *testing.T) {
+	ip, _ := sockaddr.GetPrivateIP()
+	if ip == "" {
+		t.Skipf("skipping tests because no private IP address can be found")
+		return
+	}
+	t.Run("TestJoinLeave", testJoinLeave)
+	t.Run("TestReconnect", testReconnect)
+	t.Run("TestRemoveFailedPeers", testRemoveFailedPeers)
+	t.Run("TestInitiallyFailingPeers", testInitiallyFailingPeers)
+}
+
+func testJoinLeave(t *testing.T) {
 	logger := log.NewNopLogger()
-	p, err := Join(
+	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
 		"0.0.0.0:0",
@@ -38,11 +51,14 @@ func TestJoinLeave(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
 	)
 	require.NoError(t, err)
-	require.NotNil(t, p)
 	require.False(t, p.Ready())
 	require.Equal(t, p.Status(), "settling")
 	go p.Settle(context.Background(), 0*time.Second)
@@ -50,7 +66,7 @@ func TestJoinLeave(t *testing.T) {
 	require.Equal(t, p.Status(), "ready")
 
 	// Create the peer who joins the first.
-	p2, err := Join(
+	p2, err := Create(
 		logger,
 		prometheus.NewRegistry(),
 		"0.0.0.0:0",
@@ -62,11 +78,14 @@ func TestJoinLeave(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+	err = p2.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
 	)
 	require.NoError(t, err)
-	require.NotNil(t, p2)
 	go p2.Settle(context.Background(), 0*time.Second)
 
 	require.Equal(t, 2, p.ClusterSize())
@@ -77,9 +96,9 @@ func TestJoinLeave(t *testing.T) {
 	require.Equal(t, p2.Name(), p.failedPeers[0].Name)
 }
 
-func TestReconnect(t *testing.T) {
+func testReconnect(t *testing.T) {
 	logger := log.NewNopLogger()
-	p, err := Join(
+	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
 		"0.0.0.0:0",
@@ -91,15 +110,18 @@ func TestReconnect(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
-		DefaultReconnectInterval,
-		DefaultReconnectTimeout,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
+	err = p.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
 	go p.Settle(context.Background(), 0*time.Second)
 	p.WaitReady()
 
-	p2, err := Join(
+	p2, err := Create(
 		logger,
 		prometheus.NewRegistry(),
 		"0.0.0.0:0",
@@ -111,11 +133,14 @@ func TestReconnect(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+	err = p2.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
 	)
 	require.NoError(t, err)
-	require.NotNil(t, p2)
 	go p2.Settle(context.Background(), 0*time.Second)
 	p2.WaitReady()
 
@@ -132,9 +157,9 @@ func TestReconnect(t *testing.T) {
 	require.Equal(t, StatusAlive, p.peers[p2.Self().Address()].status)
 }
 
-func TestRemoveFailedPeers(t *testing.T) {
+func testRemoveFailedPeers(t *testing.T) {
 	logger := log.NewNopLogger()
-	p, err := Join(
+	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
 		"0.0.0.0:0",
@@ -146,11 +171,14 @@ func TestRemoveFailedPeers(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
 	)
 	require.NoError(t, err)
-	require.NotNil(t, p)
 	n := p.Self()
 
 	now := time.Now()
@@ -176,11 +204,11 @@ func TestRemoveFailedPeers(t *testing.T) {
 	require.Equal(t, p1, p.failedPeers[0])
 }
 
-func TestInitiallyFailingPeers(t *testing.T) {
+func testInitiallyFailingPeers(t *testing.T) {
 	logger := log.NewNopLogger()
 	myAddr := "1.2.3.4:5000"
 	peerAddrs := []string{myAddr, "2.3.4.5:5000", "3.4.5.6:5000", "foo.example.com:5000"}
-	p, err := Join(
+	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
 		"0.0.0.0:0",
@@ -192,11 +220,14 @@ func TestInitiallyFailingPeers(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
 	)
 	require.NoError(t, err)
-	require.NotNil(t, p)
 
 	p.setInitialFailed(peerAddrs, myAddr)
 

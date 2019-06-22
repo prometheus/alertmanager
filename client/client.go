@@ -31,11 +31,10 @@ import (
 const (
 	apiPrefix = "/api/v1"
 
-	epStatus      = apiPrefix + "/status"
-	epSilence     = apiPrefix + "/silence/:id"
-	epSilences    = apiPrefix + "/silences"
-	epAlerts      = apiPrefix + "/alerts"
-	epAlertGroups = apiPrefix + "/alerts/groups"
+	epStatus   = apiPrefix + "/status"
+	epSilence  = apiPrefix + "/silence/:id"
+	epSilences = apiPrefix + "/silences"
+	epAlerts   = apiPrefix + "/alerts"
 
 	statusSuccess = "success"
 	statusError   = "error"
@@ -85,10 +84,10 @@ func (e *clientError) Error() string {
 	return fmt.Sprintf("%s (code: %d)", e.msg, e.code)
 }
 
-func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
-	resp, body, err := c.Client.Do(ctx, req)
+func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
+	resp, body, warnings, err := c.Client.Do(ctx, req)
 	if err != nil {
-		return resp, body, err
+		return resp, body, warnings, err
 	}
 
 	code := resp.StatusCode
@@ -97,14 +96,14 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	if err = json.Unmarshal(body, &result); err != nil {
 		// Pass the returned body rather than the JSON error because some API
 		// endpoints return plain text instead of JSON payload.
-		return resp, body, &clientError{
+		return resp, body, warnings, &clientError{
 			code: code,
 			msg:  string(body),
 		}
 	}
 
 	if (code/100 == 2) && (result.Status != statusSuccess) {
-		return resp, body, &clientError{
+		return resp, body, warnings, &clientError{
 			code: code,
 			msg:  "inconsistent body for response code",
 		}
@@ -117,7 +116,7 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 		}
 	}
 
-	return resp, []byte(result.Data), err
+	return resp, []byte(result.Data), warnings, err
 }
 
 // StatusAPI provides bindings for the Alertmanager's status API.
@@ -138,9 +137,12 @@ type httpStatusAPI struct {
 func (h *httpStatusAPI) Get(ctx context.Context) (*ServerStatus, error) {
 	u := h.client.URL(epStatus, nil)
 
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
 
-	_, body, err := h.client.Do(ctx, req)
+	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
 	if err != nil {
 		return nil, err
 	}
@@ -207,9 +209,12 @@ func (h *httpAlertAPI) List(ctx context.Context, filter, receiver string, silenc
 	params.Add("receiver", receiver)
 	u.RawQuery = params.Encode()
 
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
 
-	_, body, err := h.client.Do(ctx, req)
+	_, body, _, err := h.client.Do(ctx, req) // ignoring warnings.
 	if err != nil {
 		return nil, err
 	}
@@ -228,9 +233,12 @@ func (h *httpAlertAPI) Push(ctx context.Context, alerts ...Alert) error {
 		return err
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, u.String(), &buf)
+	req, err := http.NewRequest(http.MethodPost, u.String(), &buf)
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
 
-	_, _, err := h.client.Do(ctx, req)
+	_, _, _, err = h.client.Do(ctx, req) // Ignoring warnings.
 	return err
 }
 
@@ -260,9 +268,12 @@ func (h *httpSilenceAPI) Get(ctx context.Context, id string) (*types.Silence, er
 		"id": id,
 	})
 
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
 
-	_, body, err := h.client.Do(ctx, req)
+	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
 	if err != nil {
 		return nil, err
 	}
@@ -278,9 +289,12 @@ func (h *httpSilenceAPI) Expire(ctx context.Context, id string) error {
 		"id": id,
 	})
 
-	req, _ := http.NewRequest(http.MethodDelete, u.String(), nil)
+	req, err := http.NewRequest(http.MethodDelete, u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
 
-	_, _, err := h.client.Do(ctx, req)
+	_, _, _, err = h.client.Do(ctx, req) // Ignoring warnings.
 	return err
 }
 
@@ -292,9 +306,12 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil types.Silence) (string, er
 		return "", err
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, u.String(), &buf)
+	req, err := http.NewRequest(http.MethodPost, u.String(), &buf)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %v", err)
+	}
 
-	_, body, err := h.client.Do(ctx, req)
+	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
 	if err != nil {
 		return "", err
 	}
@@ -315,9 +332,12 @@ func (h *httpSilenceAPI) List(ctx context.Context, filter string) ([]*types.Sile
 	}
 	u.RawQuery = params.Encode()
 
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
 
-	_, body, err := h.client.Do(ctx, req)
+	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
 	if err != nil {
 		return nil, err
 	}

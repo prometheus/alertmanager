@@ -1,21 +1,36 @@
-module Status.Api exposing (getStatus)
+module Status.Api exposing (clusterStatusToString, getStatus)
 
-import Utils.Api exposing (send, get)
+import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
+import Data.ClusterStatus exposing (Status(..))
+import Json.Decode exposing (Decoder, at, bool, field, int, list, map2, maybe, string)
+import Status.Types exposing (ClusterPeer, ClusterStatus, StatusResponse, VersionInfo)
+import Utils.Api exposing (get, send)
 import Utils.Types exposing (ApiData)
-import Status.Types exposing (StatusResponse, VersionInfo, ClusterStatus, ClusterPeer)
-import Json.Decode exposing (Decoder, map2, string, field, at, list, int, maybe, bool)
 
 
-getStatus : String -> (ApiData StatusResponse -> msg) -> Cmd msg
+getStatus : String -> (ApiData AlertmanagerStatus -> msg) -> Cmd msg
 getStatus apiUrl msg =
     let
         url =
             String.join "/" [ apiUrl, "status" ]
 
         request =
-            get url decodeStatusResponse
+            get url Data.AlertmanagerStatus.decoder
     in
-        Cmd.map msg <| send request
+    Cmd.map msg <| send request
+
+
+clusterStatusToString : Status -> String
+clusterStatusToString status =
+    case status of
+        Ready ->
+            "ready"
+
+        Settling ->
+            "settling"
+
+        Disabled ->
+            "disabled"
 
 
 decodeStatusResponse : Decoder StatusResponse

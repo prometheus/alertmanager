@@ -1,0 +1,4 @@
+// Don't flag lines such as "io.Copy(ioutil.Discard, resp.Body)".
+io.Copy
+// Never check for logger errors.
+(github.com/go-kit/kit/log.Logger).Log

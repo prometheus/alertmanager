@@ -62,6 +62,12 @@ A not-so-up-to-date-list-that-may-be-actually-current:
 * https://dnssectest.net/
 * https://dns.apebits.com
 * https://github.com/oif/apex
+* https://github.com/jedisct1/dnscrypt-proxy
+* https://github.com/jedisct1/rpdns
+* https://github.com/xor-gate/sshfp
+* https://github.com/rs/dnstrace
+* https://blitiri.com.ar/p/dnss ([github mirror](https://github.com/albertito/dnss))
+* https://github.com/semihalev/sdns
 
 Send pull request if you want to be listed here.
 
@@ -74,7 +80,7 @@ Send pull request if you want to be listed here.
     * Parsing RRs ~ 100K RR/s, that's 5M records in about 50 seconds;
 * Server side programming (mimicking the net/http package);
 * Client side programming;
-* DNSSEC: signing, validating and key generation for DSA, RSA and ECDSA;
+* DNSSEC: signing, validating and key generation for DSA, RSA, ECDSA and Ed25519;
 * EDNS0, NSID, Cookies;
 * AXFR/IXFR;
 * TSIG, SIG(0);
@@ -150,10 +156,13 @@ Example programs can be found in the `github.com/miekg/exdns` repository.
 * 6975 - Algorithm Understanding in DNSSEC
 * 7043 - EUI48/EUI64 records
 * 7314 - DNS (EDNS) EXPIRE Option
+* 7477 - CSYNC RR
 * 7828 - edns-tcp-keepalive EDNS0 Option
 * 7553 - URI record
 * 7858 - DNS over TLS: Initiation and Performance Considerations
+* 7871 - EDNS0 Client Subnet
 * 7873 - Domain Name System (DNS) Cookies (draft-ietf-dnsop-cookies)
+* 8080 - EdDSA for DNSSEC
 
 ## Loosely based upon
 

@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	http.ListenAndServe(":5001", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	log.Fatal(http.ListenAndServe(":5001", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
@@ -33,5 +33,5 @@ func main() {
 			panic(err)
 		}
 		log.Println(buf.String())
-	}))
+	})))
 }

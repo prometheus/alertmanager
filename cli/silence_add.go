@@ -20,12 +20,12 @@ import (
 	"os/user"
 	"time"
 
-	"github.com/prometheus/client_golang/api"
+	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
 func username() string {
@@ -78,16 +78,26 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 	addCmd.Flag("author", "Username for CreatedBy field").Short('a').Default(username()).StringVar(&c.author)
 	addCmd.Flag("require-comment", "Require comment to be set").Hidden().Default("true").BoolVar(&c.requireComment)
 	addCmd.Flag("duration", "Duration of silence").Short('d').Default("1h").StringVar(&c.duration)
-	addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.start)
-	addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05Z07:00").StringVar(&c.end)
+	addCmd.Flag("start", "Set when the silence should start. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&c.start)
+	addCmd.Flag("end", "Set when the silence should end (overwrites duration). RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&c.end)
 	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
 	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
-	addCmd.Action(c.add)
+	addCmd.Action(execWithTimeout(c.add))
 
 }
 
-func (c *silenceAddCmd) add(ctx *kingpin.ParseContext) error {
+func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {
 	var err error
+
+	if len(c.matchers) > 0 {
+		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
+		// assume that the user wants alertname=<arg> and prepend `alertname=`
+		// to the front.
+		_, err := parseMatchers([]string{c.matchers[0]})
+		if err != nil {
+			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
+		}
+	}
 
 	matchers, err := parseMatchers(c.matchers)
 	if err != nil {
@@ -139,24 +149,26 @@ func (c *silenceAddCmd) add(ctx *kingpin.ParseContext) error {
 		return err
 	}
 
-	silence := types.Silence{
-		Matchers:  typeMatchers,
-		StartsAt:  startsAt,
-		EndsAt:    endsAt,
-		CreatedBy: c.author,
-		Comment:   c.comment,
+	start := strfmt.DateTime(startsAt)
+	end := strfmt.DateTime(endsAt)
+	ps := &models.PostableSilence{
+		Silence: models.Silence{
+			Matchers:  typeMatchers,
+			StartsAt:  &start,
+			EndsAt:    &end,
+			CreatedBy: &c.author,
+			Comment:   &c.comment,
+		},
 	}
+	silenceParams := silence.NewPostSilencesParams().WithContext(ctx).
+		WithSilence(ps)
 
-	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
+	amclient := NewAlertmanagerClient(alertmanagerURL)
+
+	postOk, err := amclient.Silence.PostSilences(silenceParams)
 	if err != nil {
 		return err
 	}
-	silenceAPI := client.NewSilenceAPI(apiClient)
-	silenceID, err := silenceAPI.Set(context.Background(), silence)
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Println(silenceID)
+	_, err = fmt.Println(postOk.Payload.SilenceID)
 	return err
 }

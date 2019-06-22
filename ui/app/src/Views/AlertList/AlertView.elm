@@ -1,93 +1,60 @@
-module Views.AlertList.AlertView exposing (view, addLabelMsg)
+module Views.AlertList.AlertView exposing (addLabelMsg, view)
 
-import Alerts.Types exposing (Alert)
+import Data.GettableAlert exposing (GettableAlert)
+import Dict
 import Html exposing (..)
-import Html.Attributes exposing (class, style, href, value, readonly, title)
+import Html.Attributes exposing (class, href, readonly, style, title, value)
 import Html.Events exposing (onClick)
-import Types exposing (Msg(Noop, MsgForAlertList))
-import Utils.Date
-import Views.FilterBar.Types as FilterBarTypes
-import Views.AlertList.Types exposing (AlertListMsg(MsgForFilterBar, SetActive))
-import Utils.Views
+import Types exposing (Msg(..))
 import Utils.Filter
+import Utils.Views
+import Views.AlertList.Types exposing (AlertListMsg(..))
+import Views.FilterBar.Types as FilterBarTypes
+import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
 import Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels)
 
 
-view : List ( String, String ) -> Maybe String -> Alert -> Html Msg
+view : List ( String, String ) -> Maybe String -> GettableAlert -> Html Msg
 view labels maybeActiveId alert =
     let
         -- remove the grouping labels, and bring the alertname to front
         ungroupedLabels =
             alert.labels
-                |> List.filter ((flip List.member) labels >> not)
+                |> Dict.toList
+                |> List.filter ((\b a -> List.member a b) labels >> not)
                 |> List.partition (Tuple.first >> (==) "alertname")
-                |> uncurry (++)
+                |> (\( a, b ) -> (++) a b)
     in
-        li
-            [ -- speedup rendering in Chrome, because list-group-item className
-              -- creates a new layer in the rendering engine
-              style [ ( "position", "static" ) ]
-            , class "align-items-start list-group-item border-0 p-0 mb-4"
-            ]
-            [ div
-                [ class "w-100 mb-2 d-flex align-items-start" ]
-                [ titleView alert
-                , if List.length alert.annotations > 0 then
-                    annotationsButton maybeActiveId alert
-                  else
-                    text ""
-                , generatorUrlButton alert.generatorUrl
-                , silenceButton alert
-                ]
-            , if maybeActiveId == Just alert.id then
-                table [ class "table w-100 mb-1" ] (List.map annotation alert.annotations)
+    li
+        [ -- speedup rendering in Chrome, because list-group-item className
+          -- creates a new layer in the rendering engine
+          style "position" "static"
+        , class "align-items-start list-group-item border-0 p-0 mb-4"
+        ]
+        [ div
+            [ class "w-100 mb-2 d-flex align-items-start" ]
+            [ titleView alert
+            , if Dict.size alert.annotations > 0 then
+                annotationsButton maybeActiveId alert
+                    |> Html.map (\msg -> MsgForAlertList (SetActive msg))
+
               else
                 text ""
-            , div [] (List.map labelButton ungroupedLabels)
+            , case alert.generatorURL of
+                Just url ->
+                    generatorUrlButton url
+
+                Nothing ->
+                    text ""
+            , silenceButton alert
+            , inhibitedIcon alert
             ]
+        , if maybeActiveId == Just alert.fingerprint then
+            table [ class "table w-100 mb-1" ] (List.map annotation <| Dict.toList alert.annotations)
 
-
-titleView : Alert -> Html Msg
-titleView { startsAt, isInhibited } =
-    let
-        ( className, inhibited ) =
-            if isInhibited then
-                ( "text-muted", " (inhibited)" )
-            else
-                ( "", "" )
-    in
-        span
-            [ class ("align-self-center mr-2 " ++ className) ]
-            [ text
-                (Utils.Date.timeFormat startsAt
-                    ++ ", "
-                    ++ Utils.Date.dateFormat startsAt
-                    ++ inhibited
-                )
-            ]
-
-
-annotationsButton : Maybe String -> Alert -> Html Msg
-annotationsButton maybeActiveId alert =
-    if maybeActiveId == Just alert.id then
-        button
-            [ onClick (SetActive Nothing |> MsgForAlertList)
-            , class "btn btn-outline-info border-0 active"
-            ]
-            [ i [ class "fa fa-minus mr-2" ] [], text "Info" ]
-    else
-        button
-            [ onClick (SetActive (Just alert.id) |> MsgForAlertList)
-            , class "btn btn-outline-info border-0"
-            ]
-            [ i [ class "fa fa-plus mr-2" ] [], text "Info" ]
-
-
-annotation : ( String, String ) -> Html Msg
-annotation ( key, value ) =
-    tr []
-        [ th [ class "text-nowrap" ] [ text (key ++ ":") ]
-        , td [ class "w-100" ] (Utils.Views.linkifyText value)
+          else
+            text ""
+        , div [] (List.map labelButton ungroupedLabels)
         ]
 
 
@@ -99,12 +66,16 @@ labelButton ( key, val ) =
             [ class "btn btn-sm border-right-0 text-muted"
 
             -- have to reset bootstrap button styles to make the text selectable
-            , style
-                [ ( "user-select", "initial" )
-                , ( "-moz-user-select", "initial" )
-                , ( "-webkit-user-select", "initial" )
-                , ( "border-color", "#ccc" )
-                ]
+            , style "user-select" "initial"
+
+            -- have to reset bootstrap button styles to make the text selectable
+            , style "-moz-user-select" "initial"
+
+            -- have to reset bootstrap button styles to make the text selectable
+            , style "-webkit-user-select" "initial"
+
+            -- have to reset bootstrap button styles to make the text selectable
+            , style "border-color" "#ccc"
             ]
             [ text (key ++ "=\"" ++ val ++ "\"") ]
         , button
@@ -127,9 +98,9 @@ addLabelMsg ( key, value ) =
         |> MsgForAlertList
 
 
-silenceButton : Alert -> Html Msg
+silenceButton : GettableAlert -> Html Msg
 silenceButton alert =
-    case alert.silenceId of
+    case List.head alert.status.silencedBy of
         Just sId ->
             a
                 [ class "btn btn-outline-danger border-0"
@@ -149,10 +120,16 @@ silenceButton alert =
                 ]
 
 
-generatorUrlButton : String -> Html Msg
-generatorUrlButton url =
-    a
-        [ class "btn btn-outline-info border-0", href url ]
-        [ i [ class "fa fa-line-chart mr-2" ] []
-        , text "Source"
-        ]
+inhibitedIcon : GettableAlert -> Html Msg
+inhibitedIcon alert =
+    case List.head alert.status.inhibitedBy of
+        Just sId ->
+            a
+                [ class "btn btn-outline-info border-0 text-info"
+                ]
+                [ i [ class "fa fa-eye-slash mr-2" ] []
+                , text "Inhibited"
+                ]
+
+        Nothing ->
+            text ""

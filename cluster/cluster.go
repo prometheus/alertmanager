@@ -38,6 +38,8 @@ type Peer struct {
 	mlist    *memberlist.Memberlist
 	delegate *delegate
 
+	resolvedPeers []string
+
 	mtx    sync.RWMutex
 	states map[string]State
 	stopc  chan struct{}
@@ -47,8 +49,13 @@ type Peer struct {
 	peers       map[string]peer
 	failedPeers []peer
 
+	knownPeers    []string
+	advertiseAddr string
+
 	failedReconnectionsCounter prometheus.Counter
 	reconnectionsCounter       prometheus.Counter
+	failedRefreshCounter       prometheus.Counter
+	refreshCounter             prometheus.Counter
 	peerLeaveCounter           prometheus.Counter
 	peerUpdateCounter          prometheus.Counter
 	peerJoinCounter            prometheus.Counter
@@ -95,10 +102,11 @@ const (
 	DefaultProbeInterval     = 1 * time.Second
 	DefaultReconnectInterval = 10 * time.Second
 	DefaultReconnectTimeout  = 6 * time.Hour
+	DefaultRefreshInterval   = 15 * time.Second
 	maxGossipPacketSize      = 1400
 )
 
-func Join(
+func Create(
 	l log.Logger,
 	reg prometheus.Registerer,
 	bindAddr string,
@@ -110,8 +118,6 @@ func Join(
 	tcpTimeout time.Duration,
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
-	reconnectInterval time.Duration,
-	reconnectTimeout time.Duration,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -136,7 +142,7 @@ func Join(
 		}
 	}
 
-	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, net.Resolver{}, waitIfEmpty)
+	resolvedPeers, err := resolvePeers(context.Background(), knownPeers, advertiseAddr, &net.Resolver{}, waitIfEmpty)
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve peers")
 	}
@@ -164,11 +170,13 @@ func Join(
 	}
 
 	p := &Peer{
-		states: map[string]State{},
-		stopc:  make(chan struct{}),
-		readyc: make(chan struct{}),
-		logger: l,
-		peers:  map[string]peer{},
+		states:        map[string]State{},
+		stopc:         make(chan struct{}),
+		readyc:        make(chan struct{}),
+		logger:        l,
+		peers:         map[string]peer{},
+		resolvedPeers: resolvedPeers,
+		knownPeers:    knownPeers,
 	}
 
 	p.register(reg)
@@ -207,22 +215,40 @@ func Join(
 		return nil, errors.Wrap(err, "create memberlist")
 	}
 	p.mlist = ml
+	return p, nil
+}
 
-	n, err := ml.Join(resolvedPeers)
+func (p *Peer) Join(
+	reconnectInterval time.Duration,
+	reconnectTimeout time.Duration) error {
+	n, err := p.mlist.Join(p.resolvedPeers)
 	if err != nil {
-		level.Warn(l).Log("msg", "failed to join cluster", "err", err)
+		level.Warn(p.logger).Log("msg", "failed to join cluster", "err", err)
+		if reconnectInterval != 0 {
+			level.Info(p.logger).Log("msg", fmt.Sprintf("will retry joining cluster every %v", reconnectInterval.String()))
+		}
 	} else {
-		level.Debug(l).Log("msg", "joined cluster", "peers", n)
+		level.Debug(p.logger).Log("msg", "joined cluster", "peers", n)
 	}
 
 	if reconnectInterval != 0 {
-		go p.handleReconnect(reconnectInterval)
+		go p.runPeriodicTask(
+			reconnectInterval,
+			p.reconnect,
+		)
 	}
 	if reconnectTimeout != 0 {
-		go p.handleReconnectTimeout(5*time.Minute, reconnectTimeout)
+		go p.runPeriodicTask(
+			5*time.Minute,
+			func() { p.removeFailedPeers(reconnectTimeout) },
+		)
 	}
+	go p.runPeriodicTask(
+		DefaultRefreshInterval,
+		p.refresh,
+	)
 
-	return p, nil
+	return err
 }
 
 // All peers are initially added to the failed list. They will be removed from
@@ -298,6 +324,15 @@ func (p *Peer) register(reg prometheus.Registerer) {
 		Help: "A counter of the number of cluster peer reconnections.",
 	})
 
+	p.failedRefreshCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_refresh_join_failed_total",
+		Help: "A counter of the number of failed cluster peer joined attempts via refresh.",
+	})
+	p.refreshCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_refresh_join_total",
+		Help: "A counter of the number of cluster peer joined via refresh.",
+	})
+
 	p.peerLeaveCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_cluster_peers_left_total",
 		Help: "A counter of the number of peers that have left.",
@@ -312,10 +347,10 @@ func (p *Peer) register(reg prometheus.Registerer) {
 	})
 
 	reg.MustRegister(clusterFailedPeers, p.failedReconnectionsCounter, p.reconnectionsCounter,
-		p.peerLeaveCounter, p.peerUpdateCounter, p.peerJoinCounter)
+		p.peerLeaveCounter, p.peerUpdateCounter, p.peerJoinCounter, p.refreshCounter, p.failedRefreshCounter)
 }
 
-func (p *Peer) handleReconnectTimeout(d time.Duration, timeout time.Duration) {
+func (p *Peer) runPeriodicTask(d time.Duration, f func()) {
 	tick := time.NewTicker(d)
 	defer tick.Stop()
 
@@ -324,7 +359,7 @@ func (p *Peer) handleReconnectTimeout(d time.Duration, timeout time.Duration) {
 		case <-p.stopc:
 			return
 		case <-tick.C:
-			p.removeFailedPeers(timeout)
+			f()
 		}
 	}
 }
@@ -348,20 +383,6 @@ func (p *Peer) removeFailedPeers(timeout time.Duration) {
 	p.failedPeers = keep
 }
 
-func (p *Peer) handleReconnect(d time.Duration) {
-	tick := time.NewTicker(d)
-	defer tick.Stop()
-
-	for {
-		select {
-		case <-p.stopc:
-			return
-		case <-tick.C:
-			p.reconnect()
-		}
-	}
-}
-
 func (p *Peer) reconnect() {
 	p.peerLock.RLock()
 	failedPeers := p.failedPeers
@@ -378,6 +399,37 @@ func (p *Peer) reconnect() {
 		} else {
 			p.reconnectionsCounter.Inc()
 			level.Debug(logger).Log("result", "success", "peer", pr.Node, "addr", pr.Address())
+		}
+	}
+}
+
+func (p *Peer) refresh() {
+	logger := log.With(p.logger, "msg", "refresh")
+
+	resolvedPeers, err := resolvePeers(context.Background(), p.knownPeers, p.advertiseAddr, &net.Resolver{}, false)
+	if err != nil {
+		level.Debug(logger).Log("peers", p.knownPeers, "err", err)
+		return
+	}
+
+	members := p.mlist.Members()
+	for _, peer := range resolvedPeers {
+		var isPeerFound bool
+		for _, member := range members {
+			if member.Address() == peer {
+				isPeerFound = true
+				break
+			}
+		}
+
+		if !isPeerFound {
+			if _, err := p.mlist.Join([]string{peer}); err != nil {
+				p.failedRefreshCounter.Inc()
+				level.Warn(logger).Log("result", "failure", "addr", peer)
+			} else {
+				p.refreshCounter.Inc()
+				level.Debug(logger).Log("result", "success", "addr", peer)
+			}
 		}
 	}
 }
@@ -507,9 +559,9 @@ func (p *Peer) WaitReady() {
 func (p *Peer) Status() string {
 	if p.Ready() {
 		return "ready"
-	} else {
-		return "settling"
 	}
+
+	return "settling"
 }
 
 // Info returns a JSON-serializable dump of cluster state.
@@ -608,7 +660,7 @@ func (b simpleBroadcast) Message() []byte                       { return []byte(
 func (b simpleBroadcast) Invalidates(memberlist.Broadcast) bool { return false }
 func (b simpleBroadcast) Finished()                             {}
 
-func resolvePeers(ctx context.Context, peers []string, myAddress string, res net.Resolver, waitIfEmpty bool) ([]string, error) {
+func resolvePeers(ctx context.Context, peers []string, myAddress string, res *net.Resolver, waitIfEmpty bool) ([]string, error) {
 	var resolvedPeers []string
 
 	for _, peer := range peers {
@@ -618,6 +670,7 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res net
 		}
 
 		retryCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
 		ips, err := res.LookupIPAddr(ctx, host)
 		if err != nil {

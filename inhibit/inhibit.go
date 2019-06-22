@@ -20,16 +20,18 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/oklog/oklog/pkg/group"
+	"github.com/oklog/run"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
 )
 
-// An Inhibitor determines whether a given label set is muted
-// based on the currently active alerts and a set of inhibition rules.
+// An Inhibitor determines whether a given label set is muted based on the
+// currently active alerts and a set of inhibition rules. It implements the
+// Muter interface.
 type Inhibitor struct {
 	alerts provider.Alerts
 	rules  []*InhibitRule
@@ -54,19 +56,6 @@ func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker,
 	return ih
 }
 
-func (ih *Inhibitor) runGC(ctx context.Context) {
-	for {
-		select {
-		case <-time.After(15 * time.Minute):
-			for _, r := range ih.rules {
-				r.gc()
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (ih *Inhibitor) run(ctx context.Context) {
 	it := ih.alerts.Subscribe()
 	defer it.Close()
@@ -83,32 +72,31 @@ func (ih *Inhibitor) run(ctx context.Context) {
 			// Update the inhibition rules' cache.
 			for _, r := range ih.rules {
 				if r.SourceMatchers.Match(a.Labels) {
-					r.set(a)
+					if err := r.scache.Set(a); err != nil {
+						level.Error(ih.logger).Log("msg", "error on set alert", "err", err)
+					}
 				}
 			}
 		}
 	}
 }
 
-// Run the Inihibitor's background processing.
+// Run the Inhibitor's background processing.
 func (ih *Inhibitor) Run() {
 	var (
-		g   group.Group
+		g   run.Group
 		ctx context.Context
 	)
 
 	ih.mtx.Lock()
 	ctx, ih.cancel = context.WithCancel(context.Background())
 	ih.mtx.Unlock()
-	gcCtx, gcCancel := context.WithCancel(ctx)
 	runCtx, runCancel := context.WithCancel(ctx)
 
-	g.Add(func() error {
-		ih.runGC(gcCtx)
-		return nil
-	}, func(err error) {
-		gcCancel()
-	})
+	for _, rule := range ih.rules {
+		rule.scache.Run(runCtx)
+	}
+
 	g.Add(func() error {
 		ih.run(runCtx)
 		return nil
@@ -116,7 +104,9 @@ func (ih *Inhibitor) Run() {
 		runCancel()
 	})
 
-	g.Run()
+	if err := g.Run(); err != nil {
+		level.Warn(ih.logger).Log("msg", "error running inhibitor", "err", err)
+	}
 }
 
 // Stop the Inhibitor's background processing.
@@ -132,13 +122,19 @@ func (ih *Inhibitor) Stop() {
 	}
 }
 
-// Mutes returns true iff the given label set is muted.
+// Mutes returns true iff the given label set is muted. It implements the Muter
+// interface.
 func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
 
 	for _, r := range ih.rules {
-		// Only inhibit if target matchers match but source matchers don't.
-		if inhibitedByFP, eq := r.hasEqual(lset); !r.SourceMatchers.Match(lset) && r.TargetMatchers.Match(lset) && eq {
+		if !r.TargetMatchers.Match(lset) {
+			// If target side of rule doesn't match, we don't need to look any further.
+			continue
+		}
+		// If we are here, the target side matches. If the source side matches, too, we
+		// need to exclude inhibiting alerts for which the same is true.
+		if inhibitedByFP, eq := r.hasEqual(lset, r.SourceMatchers.Match(lset)); eq {
 			ih.marker.SetInhibited(fp, inhibitedByFP.String())
 			return true
 		}
@@ -164,12 +160,11 @@ type InhibitRule struct {
 	// target alerts in order for the inhibition to take effect.
 	Equal map[model.LabelName]struct{}
 
-	mtx sync.RWMutex
 	// Cache of alerts matching source labels.
-	scache map[model.Fingerprint]*types.Alert
+	scache *store.Alerts
 }
 
-// NewInhibitRule returns a new InihibtRule based on a configuration definition.
+// NewInhibitRule returns a new InhibitRule based on a configuration definition.
 func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	var (
 		sourcem types.Matchers
@@ -199,26 +194,17 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
 		Equal:          equal,
-		scache:         map[model.Fingerprint]*types.Alert{},
+		scache:         store.NewAlerts(15 * time.Minute),
 	}
 }
 
-// set the alert in the source cache.
-func (r *InhibitRule) set(a *types.Alert) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.scache[a.Fingerprint()] = a
-}
-
-// hasEqual checks whether the source cache contains alerts matching
-// the equal labels for the given label set.
-func (r *InhibitRule) hasEqual(lset model.LabelSet) (model.Fingerprint, bool) {
-	r.mtx.RLock()
-	defer r.mtx.RUnlock()
-
+// hasEqual checks whether the source cache contains alerts matching the equal
+// labels for the given label set. If so, the fingerprint of one of those alerts
+// is returned. If excludeTwoSidedMatch is true, alerts that match both the
+// source and the target side of the rule are disregarded.
+func (r *InhibitRule) hasEqual(lset model.LabelSet, excludeTwoSidedMatch bool) (model.Fingerprint, bool) {
 Outer:
-	for fp, a := range r.scache {
+	for _, a := range r.scache.List() {
 		// The cache might be stale and contain resolved alerts.
 		if a.Resolved() {
 			continue
@@ -228,19 +214,10 @@ Outer:
 				continue Outer
 			}
 		}
-		return fp, true
+		if excludeTwoSidedMatch && r.TargetMatchers.Match(a.Labels) {
+			continue Outer
+		}
+		return a.Fingerprint(), true
 	}
 	return model.Fingerprint(0), false
-}
-
-// gc clears out resolved alerts from the source cache.
-func (r *InhibitRule) gc() {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	for fp, a := range r.scache {
-		if a.Resolved() {
-			delete(r.scache, fp)
-		}
-	}
 }

@@ -1,11 +1,13 @@
-module Views.ReceiverBar.Types exposing (Model, Msg(..), initReceiverBar)
+module Views.ReceiverBar.Types exposing (Model, Msg(..), Receiver, apiReceiverToReceiver, initReceiverBar)
 
-import Utils.Types exposing (ApiData(Initial))
-import Alerts.Types exposing (Receiver)
+import Browser.Navigation exposing (Key)
+import Data.Receiver
+import Regex
+import Utils.Types exposing (ApiData(..))
 
 
 type Msg
-    = ReceiversFetched (ApiData (List Receiver))
+    = ReceiversFetched (ApiData (List Data.Receiver.Receiver))
     | UpdateReceiver String
     | EditReceivers
     | FilterByReceiver String
@@ -22,15 +24,37 @@ type alias Model =
     , selectedReceiver : Maybe Receiver
     , showReceivers : Bool
     , resultsHovered : Bool
+    , key : Key
     }
 
 
-initReceiverBar : Model
-initReceiverBar =
+type alias Receiver =
+    { name : String
+    , regex : String
+    }
+
+
+escapeRegExp : String -> String
+escapeRegExp text =
+    let
+        reg =
+            Regex.fromString "/[-[\\]{}()*+?.,\\\\^$|#\\s]/g" |> Maybe.withDefault Regex.never
+    in
+    Regex.replace reg (.match >> (++) "\\") text
+
+
+apiReceiverToReceiver : Data.Receiver.Receiver -> Receiver
+apiReceiverToReceiver r =
+    Receiver r.name (escapeRegExp r.name)
+
+
+initReceiverBar : Key -> Model
+initReceiverBar key =
     { receivers = []
     , matches = []
     , fieldText = ""
     , selectedReceiver = Nothing
     , showReceivers = False
     , resultsHovered = False
+    , key = key
     }

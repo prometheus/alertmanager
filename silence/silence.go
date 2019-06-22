@@ -23,6 +23,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"sync"
 	"time"
 
@@ -35,11 +36,11 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 // ErrNotFound is returned if a silence was not found.
-var ErrNotFound = fmt.Errorf("not found")
+var ErrNotFound = fmt.Errorf("silence not found")
 
 // ErrInvalidState is returned if the state isn't valid.
 var ErrInvalidState = fmt.Errorf("invalid state")
@@ -92,6 +93,90 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 	return ms, nil
 }
 
+// Silencer binds together a Marker and a Silences to implement the Muter
+// interface.
+type Silencer struct {
+	silences *Silences
+	marker   types.Marker
+	logger   log.Logger
+}
+
+// NewSilencer returns a new Silencer.
+func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
+	return &Silencer{
+		silences: s,
+		marker:   m,
+		logger:   l,
+	}
+}
+
+// Mutes implements the Muter interface.
+func (s *Silencer) Mutes(lset model.LabelSet) bool {
+	fp := lset.Fingerprint()
+	ids, markerVersion, _ := s.marker.Silenced(fp)
+
+	var (
+		err        error
+		sils       []*pb.Silence
+		newVersion = markerVersion
+	)
+	if markerVersion == s.silences.Version() {
+		// No new silences added, just need to check which of the old
+		// silences are still revelant.
+		if len(ids) == 0 {
+			// Super fast path: No silences ever applied to this
+			// alert, none have been added. We are done.
+			return false
+		}
+		// This is still a quite fast path: No silences have been added,
+		// we only need to check which of the applicable silences are
+		// currently active. Note that newVersion is left at
+		// markerVersion because the Query call might already return a
+		// newer version, which is not the version our old list of
+		// applicable silences is based on.
+		sils, _, err = s.silences.Query(
+			QIDs(ids...),
+			QState(types.SilenceStateActive),
+		)
+	} else {
+		// New silences have been added, do a full query.
+		sils, newVersion, err = s.silences.Query(
+			QState(types.SilenceStateActive),
+			QMatches(lset),
+		)
+	}
+	if err != nil {
+		level.Error(s.logger).Log("msg", "Querying silences failed, alerts might not get silenced correctly", "err", err)
+	}
+	if len(sils) == 0 {
+		s.marker.SetSilenced(fp, newVersion)
+		return false
+	}
+	idsChanged := len(sils) != len(ids)
+	if !idsChanged {
+		// Length is the same, but is the content the same?
+		for i, s := range sils {
+			if ids[i] != s.Id {
+				idsChanged = true
+				break
+			}
+		}
+	}
+	if idsChanged {
+		// Need to recreate ids.
+		ids = make([]string, len(sils))
+		for i, s := range sils {
+			ids[i] = s.Id
+		}
+		sort.Strings(ids) // For comparability.
+	}
+	if idsChanged || newVersion != markerVersion {
+		// Update marker only if something changed.
+		s.marker.SetSilenced(fp, newVersion, ids...)
+	}
+	return true
+}
+
 // Silences holds a silence state that can be modified, queried, and snapshot.
 type Silences struct {
 	logger    log.Logger
@@ -101,6 +186,7 @@ type Silences struct {
 
 	mtx       sync.RWMutex
 	st        state
+	version   int // Increments whenever silences are added.
 	broadcast func([]byte)
 	mc        matcherCache
 }
@@ -139,12 +225,14 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 	m := &metrics{}
 
 	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_silences_gc_duration_seconds",
-		Help: "Duration of the last silence garbage collection cycle.",
+		Name:       "alertmanager_silences_gc_duration_seconds",
+		Help:       "Duration of the last silence garbage collection cycle.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_silences_snapshot_duration_seconds",
-		Help: "Duration of the last silence snapshot.",
+		Name:       "alertmanager_silences_snapshot_duration_seconds",
+		Help:       "Duration of the last silence snapshot.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_silences_snapshot_size_bytes",
@@ -387,8 +475,8 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
-func (s *Silences) setSilence(sil *pb.Silence) error {
-	sil.UpdatedAt = s.now()
+func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
+	sil.UpdatedAt = now
 
 	if err := validateSilence(sil); err != nil {
 		return errors.Wrap(err, "silence invalid")
@@ -403,7 +491,9 @@ func (s *Silences) setSilence(sil *pb.Silence) error {
 		return err
 	}
 
-	s.st.merge(msil)
+	if s.st.merge(msil, now) {
+		s.version++
+	}
 	s.broadcast(b)
 
 	return nil
@@ -423,7 +513,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	}
 	if ok {
 		if canUpdate(prev, sil, now) {
-			return sil.Id, s.setSilence(sil)
+			return sil.Id, s.setSilence(sil, now)
 		}
 		if getState(prev, s.now()) != types.SilenceStateExpired {
 			// We cannot update the silence, expire the old one.
@@ -439,7 +529,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		sil.StartsAt = now
 	}
 
-	return sil.Id, s.setSilence(sil)
+	return sil.Id, s.setSilence(sil, now)
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -496,7 +586,7 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = now
 	}
 
-	return s.setSilence(sil)
+	return s.setSilence(sil, now)
 }
 
 // QueryParam expresses parameters along which silences are queried.
@@ -511,22 +601,11 @@ type query struct {
 // should be dropped from a result set for a given time.
 type silenceFilter func(*pb.Silence, *Silences, time.Time) (bool, error)
 
-var errNotSupported = errors.New("query parameter not supported")
-
 // QIDs configures a query to select the given silence IDs.
 func QIDs(ids ...string) QueryParam {
 	return func(q *query) error {
 		q.ids = append(q.ids, ids...)
 		return nil
-	}
-}
-
-// QTimeRange configures a query to search for silences that are active
-// in the given time range.
-// TODO(fabxc): not supported yet.
-func QTimeRange(start, end time.Time) QueryParam {
-	return func(q *query) error {
-		return errNotSupported
 	}
 }
 
@@ -577,7 +656,7 @@ func QState(states ...types.SilenceState) QueryParam {
 // QueryOne queries with the given parameters and returns the first result.
 // Returns ErrNotFound if the query result is empty.
 func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
-	res, err := s.Query(params...)
+	res, _, err := s.Query(params...)
 	if err != nil {
 		return nil, err
 	}
@@ -587,41 +666,46 @@ func (s *Silences) QueryOne(params ...QueryParam) (*pb.Silence, error) {
 	return res[0], nil
 }
 
-// Query for silences based on the given query parameters.
-func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, error) {
-	start := time.Now()
+// Query for silences based on the given query parameters. It returns the
+// resulting silences and the state version the result is based on.
+func (s *Silences) Query(params ...QueryParam) ([]*pb.Silence, int, error) {
 	s.metrics.queriesTotal.Inc()
+	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
-	sils, err := func() ([]*pb.Silence, error) {
-		q := &query{}
-		for _, p := range params {
-			if err := p(q); err != nil {
-				return nil, err
-			}
+	q := &query{}
+	for _, p := range params {
+		if err := p(q); err != nil {
+			s.metrics.queryErrorsTotal.Inc()
+			return nil, s.Version(), err
 		}
-		return s.query(q, s.now())
-	}()
+	}
+	sils, version, err := s.query(q, s.now())
 	if err != nil {
 		s.metrics.queryErrorsTotal.Inc()
 	}
-	s.metrics.queryDuration.Observe(time.Since(start).Seconds())
-	return sils, err
+	return sils, version, err
 }
 
-// Count silences by state.
+// Version of the silence state.
+func (s *Silences) Version() int {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	return s.version
+}
+
+// CountState counts silences by state.
 func (s *Silences) CountState(states ...types.SilenceState) (int, error) {
 	// This could probably be optimized.
-	sils, err := s.Query(QState(states...))
+	sils, _, err := s.Query(QState(states...))
 	if err != nil {
 		return -1, err
 	}
 	return len(sils), nil
 }
 
-func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, error) {
-	// If we have an ID constraint, all silences are our base set.
-	// This and the use of post-filter functions is the
-	// the trivial solution for now.
+func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
+	// If we have no ID constraint, all silences are our base set.  This and
+	// the use of post-filter functions is the trivial solution for now.
 	var res []*pb.Silence
 
 	s.mtx.Lock()
@@ -645,7 +729,7 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, error) {
 		for _, f := range q.filters {
 			ok, err := f(sil, s, now)
 			if err != nil {
-				return nil, err
+				return nil, s.version, err
 			}
 			if !ok {
 				remove = true
@@ -657,7 +741,7 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, error) {
 		}
 	}
 
-	return resf, nil
+	return resf, s.version, nil
 }
 
 // loadSnapshot loads a snapshot generated by Snapshot() into the state.
@@ -678,6 +762,7 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 	}
 	s.mtx.Lock()
 	s.st = st
+	s.version++
 	s.mtx.Unlock()
 
 	return nil
@@ -717,20 +802,27 @@ func (s *Silences) Merge(b []byte) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	now := s.now()
+
 	for _, e := range st {
-		if merged := s.st.merge(e); merged && !cluster.OversizedMessage(b) {
-			// If this is the first we've seen the message and it's
-			// not oversized, gossip it to other nodes. We don't
-			// propagate oversized messages because they're sent to
-			// all nodes already.
-			s.broadcast(b)
-			s.metrics.propagatedMessagesTotal.Inc()
-			level.Debug(s.logger).Log("msg", "gossiping new silence", "silence", e)
+		if merged := s.st.merge(e, now); merged {
+			s.version++
+			if !cluster.OversizedMessage(b) {
+				// If this is the first we've seen the message and it's
+				// not oversized, gossip it to other nodes. We don't
+				// propagate oversized messages because they're sent to
+				// all nodes already.
+				s.broadcast(b)
+				s.metrics.propagatedMessagesTotal.Inc()
+				level.Debug(s.logger).Log("msg", "Gossiping new silence", "silence", e)
+			}
 		}
 	}
 	return nil
 }
 
+// SetBroadcast sets the provided function as the one creating data to be
+// broadcast.
 func (s *Silences) SetBroadcast(f func([]byte)) {
 	s.mtx.Lock()
 	s.broadcast = f
@@ -739,7 +831,11 @@ func (s *Silences) SetBroadcast(f func([]byte)) {
 
 type state map[string]*pb.MeshSilence
 
-func (s state) merge(e *pb.MeshSilence) bool {
+func (s state) merge(e *pb.MeshSilence, now time.Time) bool {
+	id := e.Silence.Id
+	if e.ExpiresAt.Before(now) {
+		return false
+	}
 	// Comments list was moved to a single comment. Apply upgrade
 	// on silences received from peers.
 	if len(e.Silence.Comments) > 0 {
@@ -747,7 +843,6 @@ func (s state) merge(e *pb.MeshSilence) bool {
 		e.Silence.CreatedBy = e.Silence.Comments[0].Author
 		e.Silence.Comments = nil
 	}
-	id := e.Silence.Id
 
 	prev, ok := s[id]
 	if !ok || prev.Silence.UpdatedAt.Before(e.Silence.UpdatedAt) {

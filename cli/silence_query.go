@@ -17,16 +17,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/api"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/client"
 	"github.com/prometheus/alertmanager/pkg/parse"
-	"github.com/prometheus/alertmanager/types"
 )
 
 type silenceQueryCmd struct {
@@ -75,7 +73,7 @@ preceding duration.
 
 amtool silence query --within 2h --expired
 
-returns all silences that expired within the preceeding 2 hours.
+returns all silences that expired within the preceding 2 hours.
 `
 
 func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
@@ -88,51 +86,45 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
-	queryCmd.Action(c.query)
+	queryCmd.Action(execWithTimeout(c.query))
 }
 
-func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
-	var filterString = ""
-	if len(c.matchers) == 1 {
+func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) error {
+	if len(c.matchers) > 0 {
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
 		_, err := parse.Matcher(c.matchers[0])
 		if err != nil {
-			filterString = fmt.Sprintf("{alertname=%s}", c.matchers[0])
-		} else {
-			filterString = fmt.Sprintf("{%s}", strings.Join(c.matchers, ","))
+			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
 		}
-	} else if len(c.matchers) > 1 {
-		filterString = fmt.Sprintf("{%s}", strings.Join(c.matchers, ","))
 	}
 
-	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
-	if err != nil {
-		return err
-	}
-	silenceAPI := client.NewSilenceAPI(apiClient)
-	fetchedSilences, err := silenceAPI.List(context.Background(), filterString)
+	silenceParams := silence.NewGetSilencesParams().WithContext(ctx).WithFilter(c.matchers)
+
+	amclient := NewAlertmanagerClient(alertmanagerURL)
+
+	getOk, err := amclient.Silence.GetSilences(silenceParams)
 	if err != nil {
 		return err
 	}
 
-	displaySilences := []types.Silence{}
-	for _, silence := range fetchedSilences {
+	displaySilences := []models.GettableSilence{}
+	for _, silence := range getOk.Payload {
 		// skip expired silences if --expired is not set
-		if !c.expired && silence.EndsAt.Before(time.Now()) {
+		if !c.expired && time.Time(*silence.EndsAt).Before(time.Now()) {
 			continue
 		}
 		// skip active silences if --expired is set
-		if c.expired && silence.EndsAt.After(time.Now()) {
+		if c.expired && time.Time(*silence.EndsAt).After(time.Now()) {
 			continue
 		}
 		// skip active silences expiring after "--within"
-		if !c.expired && int64(c.within) > 0 && silence.EndsAt.After(time.Now().UTC().Add(c.within)) {
+		if !c.expired && int64(c.within) > 0 && time.Time(*silence.EndsAt).After(time.Now().UTC().Add(c.within)) {
 			continue
 		}
 		// skip silences that expired before "--within"
-		if c.expired && int64(c.within) > 0 && silence.EndsAt.Before(time.Now().UTC().Add(-c.within)) {
+		if c.expired && int64(c.within) > 0 && time.Time(*silence.EndsAt).Before(time.Now().UTC().Add(-c.within)) {
 			continue
 		}
 
@@ -141,14 +133,16 @@ func (c *silenceQueryCmd) query(ctx *kingpin.ParseContext) error {
 
 	if c.quiet {
 		for _, silence := range displaySilences {
-			fmt.Println(silence.ID)
+			fmt.Println(*silence.ID)
 		}
 	} else {
 		formatter, found := format.Formatters[output]
 		if !found {
 			return errors.New("unknown output formatter")
 		}
-		formatter.FormatSilences(displaySilences)
+		if err := formatter.FormatSilences(displaySilences); err != nil {
+			return fmt.Errorf("error formatting silences: %v", err)
+		}
 	}
 	return nil
 }

@@ -17,10 +17,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/prometheus/client_golang/api"
-	"gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/prometheus/alertmanager/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type silenceExpireCmd struct {
@@ -33,22 +32,20 @@ func configureSilenceExpireCmd(cc *kingpin.CmdClause) {
 		expireCmd = cc.Command("expire", "expire an alertmanager silence")
 	)
 	expireCmd.Arg("silence-ids", "Ids of silences to expire").StringsVar(&c.ids)
-	expireCmd.Action(c.expire)
+	expireCmd.Action(execWithTimeout(c.expire))
 }
 
-func (c *silenceExpireCmd) expire(ctx *kingpin.ParseContext) error {
+func (c *silenceExpireCmd) expire(ctx context.Context, _ *kingpin.ParseContext) error {
 	if len(c.ids) < 1 {
 		return errors.New("no silence IDs specified")
 	}
 
-	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
-	if err != nil {
-		return err
-	}
-	silenceAPI := client.NewSilenceAPI(apiClient)
+	amclient := NewAlertmanagerClient(alertmanagerURL)
 
 	for _, id := range c.ids {
-		err := silenceAPI.Expire(context.Background(), id)
+		params := silence.NewDeleteSilenceParams().WithContext(ctx)
+		params.SilenceID = strfmt.UUID(id)
+		_, err := amclient.Silence.DeleteSilence(params)
 		if err != nil {
 			return err
 		}

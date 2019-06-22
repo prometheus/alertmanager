@@ -14,18 +14,23 @@
 package format
 
 import (
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
+	"time"
+
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
-type ByEndAt []types.Silence
+type ByEndAt []models.GettableSilence
 
-func (s ByEndAt) Len() int           { return len(s) }
-func (s ByEndAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s ByEndAt) Less(i, j int) bool { return s[i].EndsAt.Before(s[j].EndsAt) }
+func (s ByEndAt) Len() int      { return len(s) }
+func (s ByEndAt) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s ByEndAt) Less(i, j int) bool {
+	return time.Time(*s[i].Silence.EndsAt).Before(time.Time(*s[j].Silence.EndsAt))
+}
 
-type ByStartsAt []*client.ExtendedAlert
+type ByStartsAt []*models.GettableAlert
 
-func (s ByStartsAt) Len() int           { return len(s) }
-func (s ByStartsAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s ByStartsAt) Less(i, j int) bool { return s[i].StartsAt.Before(s[j].StartsAt) }
+func (s ByStartsAt) Len() int      { return len(s) }
+func (s ByStartsAt) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s ByStartsAt) Less(i, j int) bool {
+	return time.Time(*s[i].StartsAt).Before(time.Time(*s[j].StartsAt))
+}
