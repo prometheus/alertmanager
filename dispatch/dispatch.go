@@ -312,7 +312,9 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		opts:     &r.RouteOpts,
 		timeout:  to,
 		alerts:   store.NewAlerts(15 * time.Minute),
+		done:     make(chan struct{}),
 	}
+
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 	ag.alerts.Run(ag.ctx)
 
@@ -338,8 +340,6 @@ func (ag *aggrGroup) String() string {
 }
 
 func (ag *aggrGroup) run(nf notifyFunc) {
-	ag.done = make(chan struct{})
-
 	defer close(ag.done)
 	defer ag.next.Stop()
 
