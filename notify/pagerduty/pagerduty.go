@@ -84,7 +84,7 @@ type pagerDutyLink struct {
 type pagerDutyImage struct {
 	Src  string `json:"src"`
 	Alt  string `json:"alt"`
-	Text string `json:"text"`
+	Href string `json:"href"`
 }
 
 type pagerDutyPayload struct {
@@ -187,7 +187,7 @@ func (n *Notifier) notifyV2(
 	for index, item := range n.conf.Images {
 		msg.Images[index].Src = tmpl(item.Src)
 		msg.Images[index].Alt = tmpl(item.Alt)
-		msg.Images[index].Text = tmpl(item.Text)
+		msg.Images[index].Href = tmpl(item.Href)
 	}
 
 	for index, item := range n.conf.Links {
