@@ -16,6 +16,7 @@ package cli
 import (
 	"net/url"
 	"os"
+	"path"
 	"time"
 
 	"github.com/go-openapi/strfmt"
@@ -75,7 +76,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		schemes = []string{amURL.Scheme}
 	}
 
-	cr := clientruntime.New(address, defaultAmApiv2path, schemes)
+	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
 	if amURL.User != nil {
 		password, _ := amURL.User.Password()
