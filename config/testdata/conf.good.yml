@@ -146,5 +146,5 @@ receivers:
     - channel: '#my-channel'
       image_url: 'http://some.img.com/img.png'
 - name: msteams-receiver
-  msteams:
+  msteams_configs:
     - api_url: 'http://special.api.msteams.com'
