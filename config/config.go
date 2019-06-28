@@ -307,6 +307,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sc.APIURL = c.Global.SlackAPIURL
 			}
 		}
+		for _, ms := range rcv.MsTeamsConfigs {
+			if ms.HTTPConfig == nil {
+				ms.HTTPConfig = c.Global.HTTPConfig
+			}
+			if ms.APIURL == nil {
+				if c.Global.MsTeamsAPIURL == nil {
+					return fmt.Errorf("no global MsTeams API URL set")
+				}
+				ms.APIURL = c.Global.MsTeamsAPIURL
+			}
+		}
 		for _, hc := range rcv.HipchatConfigs {
 			if hc.HTTPConfig == nil {
 				hc.HTTPConfig = c.Global.HTTPConfig
@@ -505,6 +516,7 @@ type GlobalConfig struct {
 	SMTPAuthIdentity string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS   bool       `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
 	SlackAPIURL      *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	MsTeamsAPIURL    *SecretURL `yaml:"msteams_api_url,omitempty" json:"msteams_api_url,omitempty"`
 	PagerdutyURL     *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	HipchatAPIURL    *URL       `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
 	HipchatAuthToken Secret     `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
@@ -664,6 +676,7 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	MsTeamsConfigs   []*MsTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

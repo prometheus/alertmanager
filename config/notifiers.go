@@ -139,6 +139,24 @@ var (
 		Expire:   duration(1 * time.Hour),
 		HTML:     false,
 	}
+
+	// DefaultMsTeamsConfig defines default values for MsTeams configurations.
+	DefaultMsTeamsConfig = MsTeamsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Type:          `MessageCard`,
+		Context:       `http://schema.org/extensions`,
+		ThemeColor:    `{{ if eq .Status "firing" }}FF0000{{ else }}00FF00{{ end }}`,
+		Summary:       `{{ template "msteams.default.summary" . }}`,
+		Sections: []*MsTeamsSections{
+			{
+				ActivityTitle:`{{ template "msteams.default.activityTitle" . }}`,
+				ActivitySubtitle:`{{ template "msteams.default.activitySubtitle" . }}`,
+				ActivityImage:`{{ template "msteams.default.activityImage" . }}`,
+			},
+		},
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -587,4 +605,44 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return nil
+}
+
+type MsTeamsSections struct {
+	ActivityTitle    string                 `yaml:"activityTitle,omitempty"  json:"activityTitle,omitempty"`
+	ActivitySubtitle string                 `yaml:"activitySubtitle,omitempty"  json:"activitySubtitle,omitempty"`
+	ActivityImage    string                 `yaml:"activityImage,omitempty"   json:"activityImage,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MsTeamsSections.
+func (c *MsTeamsSections) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MsTeamsSections
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.ActivityTitle == "" {
+		return fmt.Errorf("missing activityTitle in MsTeamsSection configuration")
+	}
+	return nil
+}
+
+// MsTeamsConfig configures notifications via MsTeams.
+type MsTeamsConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+
+	Type          string             `yaml:"@type,omitempty" json:"@type,omitempty"`
+	Context       string             `yaml:"@context,omitempty" json:"@context,omitempty"`
+	ThemeColor    string             `yaml:"themeColor,omitempty" json:"themeColor,omitempty"`
+	Summary       string             `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Sections      []*MsTeamsSections `yaml:"sections,omitempty" json:"sections,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *MsTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMsTeamsConfig
+	type plain MsTeamsConfig
+	return unmarshal((*plain)(c))
 }

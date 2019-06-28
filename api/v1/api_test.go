@@ -524,7 +524,7 @@ func TestSilenceFiltering(t *testing.T) {
 }
 
 func TestReceiversMatchFilter(t *testing.T) {
-	receivers := []string{"pagerduty", "slack", "hipchat"}
+	receivers := []string{"pagerduty", "slack", "hipchat", "msteams"}
 
 	filter, err := regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip.*"))
 	if err != nil {

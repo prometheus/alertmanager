@@ -24,6 +24,10 @@
 {{ define "slack.default.footer" }}{{ end }}
 
 
+{{ define "msteams.default.summary" }}{{ template "__subject" . }}{{ end }}
+{{ define "msteams.default.activityTitle" }}{{ template "__subject" . }}{{ end }}
+{{ define "msteams.default.activitySubtitle" }}{{ .CommonAnnotations.activitySubtitle }}{{ end }}
+
 {{ define "hipchat.default.from" }}{{ template "__alertmanager" . }}{{ end }}
 {{ define "hipchat.default.message" }}{{ template "__subject" . }}{{ end }}
 

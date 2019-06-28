@@ -16,6 +16,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/alertmanager/notify/msteams"
 	"net"
 	"net/http"
 	"net/url"
@@ -143,6 +144,9 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	}
 	for i, c := range nc.PushoverConfigs {
 		add("pushover", i, c, func(l log.Logger) (notify.Notifier, error) { return pushover.New(c, tmpl, l) })
+	}
+	for i, c := range nc.MsTeamsConfigs {
+		add("msteams", i, c, func(l log.Logger) (notify.Notifier, error) { return msteams.New(c, tmpl, l) })
 	}
 	if errs.Len() > 0 {
 		return nil, &errs

@@ -545,3 +545,87 @@ func TestOpsgenieTypeMatcher(t *testing.T) {
 func newBoolPointer(b bool) *bool {
 	return &b
 }
+
+
+func TestMsTeamsSectionsValidation(t *testing.T) {
+	var tests = []struct {
+		in       string
+		expected string
+	}{
+		{
+			in: `
+sections:
+- activitySubtitle: subtitle 
+  activityImage: image
+`,
+			expected: "missing activityTitle in MsTeamsSection configuration",
+		},
+		{
+			in: `
+sections:
+- activityImage: image
+`,
+			expected: "missing activityTitle in MsTeamsSection configuration",
+		},
+		{
+			in: `
+sections:
+- activityTitle: title
+`,
+			expected: "",
+		},
+	}
+
+	for _, rt := range tests {
+		var cfg MsTeamsConfig
+		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+
+		// Check if an error occurred when it was NOT expected to.
+		if rt.expected == "" && err != nil {
+			t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+		}
+		// Check that an error occurred if one was expected to.
+		if rt.expected != "" && err == nil {
+			t.Fatalf("\nno error returned, expected:\n%v", rt.expected)
+		}
+		// Check that the error that occurred was what was expected.
+		if err != nil && err.Error() != rt.expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected, err.Error())
+		}
+	}
+}
+
+func TestMsTeamsSectionConfigUnmarshalling(t *testing.T) {
+	in := `
+sections:
+- activityTitle: title
+  activitySubtitle: subtitle 
+  activityImage: image
+`
+	expected := []*MsTeamsSections{
+		{
+			ActivityTitle:    "title",
+			ActivitySubtitle: "subtitle",
+			ActivityImage:    "image",
+		},
+	}
+
+	var cfg MsTeamsConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+	}
+
+	for index, section := range cfg.Sections {
+		exp := expected[index]
+		if section.ActivityTitle != exp.ActivityTitle {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ActivityTitle, section.ActivityTitle)
+		}
+		if section.ActivityImage != exp.ActivityImage {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ActivityImage, section.ActivityImage)
+		}
+		if section.ActivitySubtitle != exp.ActivitySubtitle {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ActivitySubtitle, section.ActivitySubtitle)
+		}
+	}
+}

@@ -10,6 +10,7 @@ global:
   # Alternative host for Hipchat.
   hipchat_api_url: 'https://hipchat.foobar.org/'
   slack_api_url: "http://mysecret.example.com/"
+  msteams_api_url: "http://mymsteams.example.com/"
   http_config:
     proxy_url: 'http://127.0.0.1:1025'
 
@@ -144,3 +145,6 @@ receivers:
   slack_configs:
     - channel: '#my-channel'
       image_url: 'http://some.img.com/img.png'
+- name: msteams-receiver
+  msteams:
+    - api_url: 'http://special.api.msteams.com'
