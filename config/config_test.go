@@ -555,7 +555,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			HipchatAuthToken: "mysecret",
 			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
 			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
-			MsTeamsAPIURL:      (*SecretURL)(mustParseURL("https://outlook.office.com/webhook/")),
+			MsTeamsAPIURL:    (*SecretURL)(mustParseURL("https://outlook.office.com/webhook/")),
 			SMTPRequireTLS:   true,
 			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),

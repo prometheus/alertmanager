@@ -546,7 +546,6 @@ func newBoolPointer(b bool) *bool {
 	return &b
 }
 
-
 func TestMsTeamsSectionsValidation(t *testing.T) {
 	var tests = []struct {
 		in       string
