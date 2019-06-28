@@ -25,7 +25,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -326,7 +326,7 @@ func TestHideConfigSecrets(t *testing.T) {
 
 	// String method must not reveal authentication credentials.
 	s := c.String()
-	if strings.Count(s, "<secret>") != 15 || strings.Contains(s, "mysecret") {
+	if strings.Count(s, "<secret>") != 17 || strings.Contains(s, "mysecret") {
 		t.Fatal("config's String method reveals authentication credentials.")
 	}
 }
