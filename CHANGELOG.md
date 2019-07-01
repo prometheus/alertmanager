@@ -2,7 +2,7 @@
 
 * [CHANGE] Remove quantile labels from Summary metrics. #1921
 * [CHANGE] [OpsGenie] Moved from the deprecated `teams` field in the configuration to `responders`. #1863
-* [CHANGE] [ui] Collapse alert groups on the inial view. #1876
+* [CHANGE] [ui] Collapse alert groups on the initial view. #1876
 * [CHANGE] [Wechat] Set the default API secret to blank. #1888
 * [CHANGE/BUGFIX] [PagerDuty] Fix embedding of images, the `text` field in the configuration has been renamed to `href`. #1931
 * [ENHANCEMENT] Use persistent HTTP clients. #1904
