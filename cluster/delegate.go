@@ -44,6 +44,8 @@ type delegate struct {
 	messagesSent         *prometheus.CounterVec
 	messagesSentSize     *prometheus.CounterVec
 	messagesPruned       prometheus.Counter
+	nodeAlive            *prometheus.CounterVec
+	nodePingDuration     *prometheus.HistogramVec
 }
 
 func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit int) *delegate {
@@ -95,6 +97,17 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	}, func() float64 {
 		return float64(bcast.NumQueued())
 	})
+	nodeAlive := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_alive_messages_total",
+		Help: "Total number of received alive messages.",
+	}, []string{"peer"},
+	)
+	nodePingDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "alertmanager_cluster_pings_seconds",
+		Help:    "Histogram of latencies for ping messages.",
+		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5},
+	}, []string{"peer"},
+	)
 
 	messagesReceived.WithLabelValues(fullState)
 	messagesReceivedSize.WithLabelValues(fullState)
@@ -106,7 +119,9 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 	messagesSentSize.WithLabelValues(update)
 
 	reg.MustRegister(messagesReceived, messagesReceivedSize, messagesSent, messagesSentSize,
-		gossipClusterMembers, peerPosition, healthScore, messagesQueued, messagesPruned)
+		gossipClusterMembers, peerPosition, healthScore, messagesQueued, messagesPruned,
+		nodeAlive, nodePingDuration,
+	)
 
 	d := &delegate{
 		logger:               l,
@@ -117,6 +132,8 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 		messagesSent:         messagesSent,
 		messagesSentSize:     messagesSentSize,
 		messagesPruned:       messagesPruned,
+		nodeAlive:            nodeAlive,
+		nodePingDuration:     nodePingDuration,
 	}
 
 	go d.handleQueueDepth()
@@ -224,6 +241,22 @@ func (d *delegate) NotifyLeave(n *memberlist.Node) {
 func (d *delegate) NotifyUpdate(n *memberlist.Node) {
 	level.Debug(d.logger).Log("received", "NotifyUpdate", "node", n.Name, "addr", n.Address())
 	d.Peer.peerUpdate(n)
+}
+
+// NotifyAlive implements the memberlist.AliveDelegate interface.
+func (d *delegate) NotifyAlive(peer *memberlist.Node) error {
+	d.nodeAlive.WithLabelValues(peer.Name).Inc()
+	return nil
+}
+
+// AckPayload implements the memberlist.PingDelegate interface.
+func (d *delegate) AckPayload() []byte {
+	return []byte{}
+}
+
+// NotifyPingComplete implements the memberlist.PingDelegate interface.
+func (d *delegate) NotifyPingComplete(peer *memberlist.Node, rtt time.Duration, payload []byte) {
+	d.nodePingDuration.WithLabelValues(peer.Name).Observe(rtt.Seconds())
 }
 
 // handleQueueDepth ensures that the queue doesn't grow unbounded by pruning

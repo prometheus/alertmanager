@@ -179,7 +179,7 @@ func Create(
 		knownPeers:    knownPeers,
 	}
 
-	p.register(reg)
+	p.register(reg, name.String())
 
 	retransmit := len(knownPeers) / 2
 	if retransmit < 3 {
@@ -192,6 +192,8 @@ func Create(
 	cfg.BindAddr = bindHost
 	cfg.BindPort = bindPort
 	cfg.Delegate = p.delegate
+	cfg.Ping = p.delegate
+	cfg.Alive = p.delegate
 	cfg.Events = p.delegate
 	cfg.GossipInterval = gossipInterval
 	cfg.PushPullInterval = pushPullInterval
@@ -304,7 +306,15 @@ func (l *logWriter) Write(b []byte) (int, error) {
 	return len(b), level.Debug(l.l).Log("memberlist", string(b))
 }
 
-func (p *Peer) register(reg prometheus.Registerer) {
+func (p *Peer) register(reg prometheus.Registerer, name string) {
+	peerInfo := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name:        "alertmanager_cluster_peer_info",
+			Help:        "A metric with a constant '1' value labeled by peer name.",
+			ConstLabels: prometheus.Labels{"peer": name},
+		},
+	)
+	peerInfo.Set(1)
 	clusterFailedPeers := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "alertmanager_cluster_failed_peers",
 		Help: "Number indicating the current number of failed peers in the cluster.",
@@ -346,7 +356,7 @@ func (p *Peer) register(reg prometheus.Registerer) {
 		Help: "A counter of the number of peers that have joined.",
 	})
 
-	reg.MustRegister(clusterFailedPeers, p.failedReconnectionsCounter, p.reconnectionsCounter,
+	reg.MustRegister(peerInfo, clusterFailedPeers, p.failedReconnectionsCounter, p.reconnectionsCounter,
 		p.peerLeaveCounter, p.peerUpdateCounter, p.peerJoinCounter, p.refreshCounter, p.failedRefreshCounter)
 }
 
