@@ -1,13 +1,13 @@
 ## v0.18.0-rc.0 / 2019-07-01
 
 * [CHANGE] Remove quantile labels from Summary metrics. #1921
-* [CHANGE] [OpsGenie] Moved from the deprecated `teams` field in the configuration to `responders`. #1863
+* [CHANGE] [OpsGenie] Move from the deprecated `teams` field in the configuration to `responders`. #1863
 * [CHANGE] [ui] Collapse alert groups on the initial view. #1876
 * [CHANGE] [Wechat] Set the default API secret to blank. #1888
 * [CHANGE/BUGFIX] [PagerDuty] Fix embedding of images, the `text` field in the configuration has been renamed to `href`. #1931
 * [ENHANCEMENT] Use persistent HTTP clients. #1904
 * [ENHANCEMENT] Add `alertmanager_cluster_alive_messages_total`, `alertmanager_cluster_peer_info` and `alertmanager_cluster_pings_seconds` metrics. #1941
-* [ENHANCEMENT] [api] add missing metrics for API v2. #1902
+* [ENHANCEMENT] [api] Add missing metrics for API v2. #1902
 * [ENHANCEMENT] [Slack] Log error message on retry errors. #1655
 * [ENHANCEMENT] [ui] Allow to create silences from the alerts filter bar. #1911
 * [ENHANCEMENT] [ui] Enable auto resize the textarea fields. #1893
