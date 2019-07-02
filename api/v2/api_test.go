@@ -19,10 +19,13 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/types"
 )
 
 // If api.peers == nil, Alertmanager cluster feature is disabled. Make sure to
@@ -121,4 +124,47 @@ func TestGetSilencesHandler(t *testing.T) {
 	for i, sil := range silences {
 		assertEqualStrings(t, "silence-"+strconv.Itoa(i)+"-"+*sil.Status.State, *sil.ID)
 	}
+}
+
+func convertDateTime(ts time.Time) *strfmt.DateTime {
+	dt := strfmt.DateTime(ts)
+	return &dt
+}
+
+func TestAlertToOpenAPIAlert(t *testing.T) {
+	var (
+		start     = time.Now().Add(-time.Minute)
+		updated   = time.Now()
+		active    = "active"
+		fp        = "0223b772b51c29e1"
+		receivers = []string{"receiver1", "receiver2"}
+
+		alert = &types.Alert{
+			Alert: model.Alert{
+				Labels:   model.LabelSet{"severity": "critical", "alertname": "alert1"},
+				StartsAt: start,
+			},
+			UpdatedAt: updated,
+		}
+	)
+	openAPIAlert := alertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers)
+	require.Equal(t, &open_api_models.GettableAlert{
+		Annotations: open_api_models.LabelSet{},
+		Alert: open_api_models.Alert{
+			Labels: open_api_models.LabelSet{"severity": "critical", "alertname": "alert1"},
+		},
+		Status: &open_api_models.AlertStatus{
+			State:       &active,
+			InhibitedBy: []string{},
+			SilencedBy:  []string{},
+		},
+		StartsAt:    convertDateTime(start),
+		EndsAt:      convertDateTime(time.Time{}),
+		UpdatedAt:   convertDateTime(updated),
+		Fingerprint: &fp,
+		Receivers: []*open_api_models.Receiver{
+			&open_api_models.Receiver{Name: &receivers[0]},
+			&open_api_models.Receiver{Name: &receivers[1]},
+		},
+	}, openAPIAlert)
 }
