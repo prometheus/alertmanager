@@ -13,6 +13,7 @@
 * [ENHANCEMENT] [ui] Enable auto resize the textarea fields. #1893
 * [BUGFIX] [amtool] Use scheme, authentication and base path from the URL if present. #1892 #1940
 * [BUGFIX] [amtool] Support filtering alerts by receiver. #1915
+* [BUGFIX] [api] Fix /api/v2/alerts with multiple receivers. #1948
 * [BUGFIX] [PagerDuty] Truncate description to 1024 chars for PagerDuty v1. #1922
 * [BUGFIX] [ui] Add filtering based off of "active" query param. #1879
 
