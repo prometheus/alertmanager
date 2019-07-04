@@ -15,16 +15,15 @@ package template
 
 import (
 	"bytes"
+	tmplhtml "html/template"
 	"io/ioutil"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-	"time"
-
-	tmplhtml "html/template"
 	tmpltext "text/template"
+	"time"
 
 	"github.com/prometheus/common/model"
 
@@ -315,6 +314,9 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 			commonAnnotations = alerts[0].Annotations.Clone()
 		)
 		for _, a := range alerts[1:] {
+			if len(commonLabels) == 0 && len(commonAnnotations) == 0 {
+				break
+			}
 			for ln, lv := range commonLabels {
 				if a.Labels[ln] != lv {
 					delete(commonLabels, ln)
