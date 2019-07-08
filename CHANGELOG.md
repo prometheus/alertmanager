@@ -1,4 +1,4 @@
-## v0.18.0-rc.0 / 2019-07-03
+## 0.18.0 / 2019-07-08
 
 * [CHANGE] Remove quantile labels from Summary metrics. #1921
 * [CHANGE] [OpsGenie] Move from the deprecated `teams` field in the configuration to `responders`. #1863
