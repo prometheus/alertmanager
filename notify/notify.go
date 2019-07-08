@@ -364,7 +364,7 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 					// message should only be logged at the debug level.
 					lvl = level.Debug(l)
 				}
-				lvl.Log("msg", "Error on notify", "err", err)
+				lvl.Log("msg", "Error on notify", "err", err, "context_err", ctx.Err())
 			}
 			wg.Done()
 		}(s)

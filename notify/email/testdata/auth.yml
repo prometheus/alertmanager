@@ -1,0 +1,4 @@
+smarthost: localhost:1026
+server: http://localhost:1081/
+username: user
+password: pass
