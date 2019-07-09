@@ -24,6 +24,7 @@ type alias Model =
     , bootstrapCSS : ApiData String
     , fontAwesomeCSS : ApiData String
     , defaultCreator : String
+    , expandAll : Bool
     , key : Key
     }
 
@@ -49,6 +50,7 @@ type Msg
     | BootstrapCSSLoaded (ApiData String)
     | FontAwesomeCSSLoaded (ApiData String)
     | SetDefaultCreator String
+    | SetGroupExpandAll Bool
 
 
 type Route

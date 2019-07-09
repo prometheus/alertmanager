@@ -306,7 +306,6 @@ func (am *Alertmanager) Start() {
 		if err != nil {
 			am.t.Fatalf("Starting alertmanager failed: %s", err)
 		}
-		resp.Body.Close()
 		return
 	}
 	am.t.Fatalf("Starting alertmanager failed: timeout")

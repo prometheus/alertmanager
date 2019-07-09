@@ -73,10 +73,11 @@ else
 	GO_BUILD_PLATFORM ?= $(GOHOSTOS)-$(GOHOSTARCH)
 endif
 
-PROMU_VERSION ?= 0.3.0
+PROMU_VERSION ?= 0.5.0
 PROMU_URL     := https://github.com/prometheus/promu/releases/download/v$(PROMU_VERSION)/promu-$(PROMU_VERSION).$(GO_BUILD_PLATFORM).tar.gz
 
 GOLANGCI_LINT :=
+GOLANGCI_LINT_OPTS ?=
 GOLANGCI_LINT_VERSION ?= v1.16.0
 # golangci-lint only supports linux, darwin and windows platforms on i386/amd64.
 # windows isn't included here because of the path separator being different.
@@ -89,6 +90,8 @@ endif
 PREFIX                  ?= $(shell pwd)
 BIN_DIR                 ?= $(shell pwd)
 DOCKER_IMAGE_TAG        ?= $(subst /,-,$(shell git rev-parse --abbrev-ref HEAD))
+DOCKERFILE_PATH         ?= ./Dockerfile
+DOCKERBUILD_CONTEXT     ?= ./
 DOCKER_REPO             ?= prom
 
 DOCKER_ARCHS            ?= amd64
@@ -170,7 +173,7 @@ ifdef GO111MODULE
 # 'go list' needs to be executed before staticcheck to prepopulate the modules cache.
 # Otherwise staticcheck might fail randomly for some reason not yet explained.
 	GO111MODULE=$(GO111MODULE) $(GO) list -e -compiled -test=true -export=false -deps=true -find=false -tags= -- ./... > /dev/null
-	GO111MODULE=$(GO111MODULE) $(GOLANGCI_LINT) run $(pkgs)
+	GO111MODULE=$(GO111MODULE) $(GOLANGCI_LINT) run $(GOLANGCI_LINT_OPTS) $(pkgs)
 else
 	$(GOLANGCI_LINT) run $(pkgs)
 endif
@@ -213,9 +216,10 @@ common-tarball: promu
 common-docker: $(BUILD_DOCKER_ARCHS)
 $(BUILD_DOCKER_ARCHS): common-docker-%:
 	docker build -t "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:$(DOCKER_IMAGE_TAG)" \
+		-f $(DOCKERFILE_PATH) \
 		--build-arg ARCH="$*" \
 		--build-arg OS="linux" \
-		.
+		$(DOCKERBUILD_CONTEXT)
 
 .PHONY: common-docker-publish $(PUBLISH_DOCKER_ARCHS)
 common-docker-publish: $(PUBLISH_DOCKER_ARCHS)
@@ -254,7 +258,9 @@ proto:
 ifdef GOLANGCI_LINT
 $(GOLANGCI_LINT):
 	mkdir -p $(FIRST_GOPATH)/bin
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(FIRST_GOPATH)/bin $(GOLANGCI_LINT_VERSION)
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
+		| sed -e '/install -d/d' \
+		| sh -s -- -b $(FIRST_GOPATH)/bin $(GOLANGCI_LINT_VERSION)
 endif
 
 ifdef GOVENDOR

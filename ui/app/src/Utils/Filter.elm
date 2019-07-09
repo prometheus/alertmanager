@@ -2,6 +2,7 @@ module Utils.Filter exposing
     ( Filter
     , MatchOperator(..)
     , Matcher
+    , convertFilterMatcher
     , generateAPIQueryString
     , generateQueryParam
     , generateQueryString
@@ -29,6 +30,7 @@ type alias Filter =
     , receiver : Maybe String
     , showSilenced : Maybe Bool
     , showInhibited : Maybe Bool
+    , showActive : Maybe Bool
     }
 
 
@@ -40,6 +42,7 @@ nullFilter =
     , receiver = Nothing
     , showSilenced = Nothing
     , showInhibited = Nothing
+    , showActive = Nothing
     }
 
 
@@ -49,11 +52,12 @@ generateQueryParam name =
 
 
 generateQueryString : Filter -> String
-generateQueryString { receiver, customGrouping, showSilenced, showInhibited, text, group } =
+generateQueryString { receiver, customGrouping, showSilenced, showInhibited, showActive, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
             , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
+            , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
             , ( "filter", emptyToNothing text )
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )
@@ -71,7 +75,7 @@ generateQueryString { receiver, customGrouping, showSilenced, showInhibited, tex
 
 
 generateAPIQueryString : Filter -> String
-generateAPIQueryString { receiver, showSilenced, showInhibited, text, group } =
+generateAPIQueryString { receiver, showSilenced, showInhibited, showActive, text, group } =
     let
         filter_ =
             case parseFilter (Maybe.withDefault "" text) of
@@ -85,6 +89,7 @@ generateAPIQueryString { receiver, showSilenced, showInhibited, text, group } =
             filter_
                 ++ [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
                    , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
+                   , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
                    , ( "receiver", emptyToNothing receiver )
                    , ( "group", group )
                    ]
@@ -227,6 +232,14 @@ stringifyMatcher { key, op, value } =
         ++ "\""
 
 
+convertFilterMatcher : Matcher -> Data.Matcher.Matcher
+convertFilterMatcher { key, op, value } =
+    { name = key
+    , value = value
+    , isRegex = op == RegexMatch
+    }
+
+
 filter : Parser (List Matcher)
 filter =
     Parser.succeed identity
@@ -309,4 +322,5 @@ silencePreviewFilter apiMatchers =
                 |> Just
         , showSilenced = Just True
         , showInhibited = Just True
+        , showActive = Just True
     }
