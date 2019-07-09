@@ -68,6 +68,11 @@ init flags url key =
                 |> Json.decodeValue (Json.field "defaultCreator" Json.string)
                 |> Result.withDefault ""
 
+        groupExpandAll =
+            flags
+                |> Json.decodeValue (Json.field "groupExpandAll" Json.bool)
+                |> Result.withDefault False
+
         apiUrl =
             if prod then
                 Api.makeApiUrl url.path
@@ -87,7 +92,7 @@ init flags url key =
             (initSilenceList key)
             (initSilenceView key)
             (initSilenceForm key)
-            (initAlertList key)
+            (initAlertList key groupExpandAll)
             route
             filter
             initStatusModel
@@ -97,6 +102,7 @@ init flags url key =
             Loading
             Loading
             defaultCreator
+            groupExpandAll
             key
         )
 

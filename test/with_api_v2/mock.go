@@ -22,11 +22,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/alertmanager/notify"
+	"github.com/go-openapi/strfmt"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
-
-	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/alertmanager/notify/webhook"
 )
 
 // At is a convenience method to allow for declarative syntax of Acceptance
@@ -106,13 +105,15 @@ func (s *TestSilence) ID() string {
 func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *models.Silence {
 	nsil := &models.Silence{}
 
+	t := false
 	for i := 0; i < len(s.match); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &models.Matcher{
-			Name:  &s.match[i],
-			Value: &s.match[i+1],
+			Name:    &s.match[i],
+			Value:   &s.match[i+1],
+			IsRegex: &t,
 		})
 	}
-	t := true
+	t = true
 	for i := 0; i < len(s.matchRE); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &models.Matcher{
 			Name:    &s.matchRE[i],
@@ -297,7 +298,7 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	dec := json.NewDecoder(req.Body)
 	defer req.Body.Close()
 
-	var v notify.WebhookMessage
+	var v webhook.Message
 	if err := dec.Decode(&v); err != nil {
 		panic(err)
 	}

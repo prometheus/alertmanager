@@ -24,7 +24,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -277,7 +277,7 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	dec := json.NewDecoder(req.Body)
 	defer req.Body.Close()
 
-	var v notify.WebhookMessage
+	var v webhook.Message
 	if err := dec.Decode(&v); err != nil {
 		panic(err)
 	}

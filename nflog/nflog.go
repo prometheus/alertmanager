@@ -104,12 +104,14 @@ func newMetrics(r prometheus.Registerer) *metrics {
 	m := &metrics{}
 
 	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_nflog_gc_duration_seconds",
-		Help: "Duration of the last notification log garbage collection cycle.",
+		Name:       "alertmanager_nflog_gc_duration_seconds",
+		Help:       "Duration of the last notification log garbage collection cycle.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_nflog_snapshot_duration_seconds",
-		Help: "Duration of the last notification log snapshot.",
+		Name:       "alertmanager_nflog_snapshot_duration_seconds",
+		Help:       "Duration of the last notification log snapshot.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_nflog_snapshot_size_bytes",

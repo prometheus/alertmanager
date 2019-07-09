@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
 
+	"github.com/prometheus/alertmanager/api/metrics"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -74,9 +75,7 @@ type API struct {
 	uptime   time.Time
 	peer     *cluster.Peer
 	logger   log.Logger
-
-	numReceivedAlerts *prometheus.CounterVec
-	numInvalidAlerts  prometheus.Counter
+	m        *metrics.Alerts
 
 	getAlertStatus getAlertStatusFn
 
@@ -98,32 +97,14 @@ func New(
 		l = log.NewNopLogger()
 	}
 
-	numReceivedAlerts := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "alerts_received_total",
-		Help:      "The total number of received alerts.",
-	}, []string{"status"})
-
-	numInvalidAlerts := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "alerts_invalid_total",
-		Help:      "The total number of received alerts that were invalid.",
-	})
-	numReceivedAlerts.WithLabelValues("firing")
-	numReceivedAlerts.WithLabelValues("resolved")
-	if r != nil {
-		r.MustRegister(numReceivedAlerts, numInvalidAlerts)
-	}
-
 	return &API{
-		alerts:            alerts,
-		silences:          silences,
-		getAlertStatus:    sf,
-		uptime:            time.Now(),
-		peer:              peer,
-		logger:            l,
-		numReceivedAlerts: numReceivedAlerts,
-		numInvalidAlerts:  numInvalidAlerts,
+		alerts:         alerts,
+		silences:       silences,
+		getAlertStatus: sf,
+		uptime:         time.Now(),
+		peer:           peer,
+		logger:         l,
+		m:              metrics.NewAlerts("v1", r),
 	}
 }
 
@@ -450,9 +431,9 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 			alert.EndsAt = now.Add(resolveTimeout)
 		}
 		if alert.EndsAt.After(time.Now()) {
-			api.numReceivedAlerts.WithLabelValues("firing").Inc()
+			api.m.Firing().Inc()
 		} else {
-			api.numReceivedAlerts.WithLabelValues("resolved").Inc()
+			api.m.Resolved().Inc()
 		}
 	}
 
@@ -466,7 +447,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 
 		if err := a.Validate(); err != nil {
 			validationErrs.Add(err)
-			api.numInvalidAlerts.Inc()
+			api.m.Invalid().Inc()
 			continue
 		}
 		validAlerts = append(validAlerts, a)

@@ -36,7 +36,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 // ErrNotFound is returned if a silence was not found.
@@ -225,12 +225,14 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 	m := &metrics{}
 
 	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_silences_gc_duration_seconds",
-		Help: "Duration of the last silence garbage collection cycle.",
+		Name:       "alertmanager_silences_gc_duration_seconds",
+		Help:       "Duration of the last silence garbage collection cycle.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_silences_snapshot_duration_seconds",
-		Help: "Duration of the last silence snapshot.",
+		Name:       "alertmanager_silences_snapshot_duration_seconds",
+		Help:       "Duration of the last silence snapshot.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_silences_snapshot_size_bytes",
@@ -599,22 +601,11 @@ type query struct {
 // should be dropped from a result set for a given time.
 type silenceFilter func(*pb.Silence, *Silences, time.Time) (bool, error)
 
-var errNotSupported = errors.New("query parameter not supported")
-
 // QIDs configures a query to select the given silence IDs.
 func QIDs(ids ...string) QueryParam {
 	return func(q *query) error {
 		q.ids = append(q.ids, ids...)
 		return nil
-	}
-}
-
-// QTimeRange configures a query to search for silences that are active
-// in the given time range.
-// TODO(fabxc): not supported yet.
-func QTimeRange(start, end time.Time) QueryParam {
-	return func(q *query) error {
-		return errNotSupported
 	}
 }
 

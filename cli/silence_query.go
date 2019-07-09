@@ -133,7 +133,7 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 
 	if c.quiet {
 		for _, silence := range displaySilences {
-			fmt.Println(silence.ID)
+			fmt.Println(*silence.ID)
 		}
 	} else {
 		formatter, found := format.Formatters[output]
