@@ -112,7 +112,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 
 // Notify implements the Notifier interface.
 func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	// TODO: move the check to the config pacakge.
+	// TODO: move the check to the config package.
 	// We need to know the hostname for both auth and TLS.
 	host, port, err := net.SplitHostPort(n.conf.Smarthost)
 	if err != nil {
