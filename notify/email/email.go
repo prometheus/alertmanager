@@ -89,12 +89,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 			}
 			identity := n.conf.AuthIdentity
 
-			// We need to know the hostname for both auth and TLS.
-			host, _, err := net.SplitHostPort(n.conf.Smarthost)
-			if err != nil {
-				return nil, errors.Wrap(err, "split address")
-			}
-			return smtp.PlainAuth(identity, username, password, host), nil
+			return smtp.PlainAuth(identity, username, password, n.conf.Smarthost.Host), nil
 		case "LOGIN":
 			password := string(n.conf.AuthPassword)
 			if password == "" {
@@ -112,28 +107,22 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 
 // Notify implements the Notifier interface.
 func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	// TODO: move the check to the config package.
-	// We need to know the hostname for both auth and TLS.
-	host, port, err := net.SplitHostPort(n.conf.Smarthost)
-	if err != nil {
-		return false, errors.Wrap(err, "split address")
-	}
-
 	var (
 		c       *smtp.Client
 		conn    net.Conn
+		err     error
 		success = false
 	)
-	if port == "465" {
+	if n.conf.Smarthost.Port == "465" {
 		tlsConfig, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
 		if err != nil {
 			return false, errors.Wrap(err, "parse TLS configuration")
 		}
 		if tlsConfig.ServerName == "" {
-			tlsConfig.ServerName = host
+			tlsConfig.ServerName = n.conf.Smarthost.Host
 		}
 
-		conn, err = tls.Dial("tcp", n.conf.Smarthost, tlsConfig)
+		conn, err = tls.Dial("tcp", n.conf.Smarthost.String(), tlsConfig)
 		if err != nil {
 			return true, errors.Wrap(err, "establish TLS connection to server")
 		}
@@ -142,12 +131,12 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			d   = net.Dialer{}
 			err error
 		)
-		conn, err = d.DialContext(ctx, "tcp", n.conf.Smarthost)
+		conn, err = d.DialContext(ctx, "tcp", n.conf.Smarthost.String())
 		if err != nil {
 			return true, errors.Wrap(err, "establish connection to server")
 		}
 	}
-	c, err = smtp.NewClient(conn, host)
+	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
 		conn.Close()
 		return true, errors.Wrap(err, "create SMTP client")
@@ -177,7 +166,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return false, errors.Wrap(err, "parse TLS configuration")
 		}
 		if tlsConf.ServerName == "" {
-			tlsConf.ServerName = host
+			tlsConf.ServerName = n.conf.Smarthost.Host
 		}
 
 		if err := c.StartTLS(tlsConf); err != nil {

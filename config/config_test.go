@@ -29,7 +29,6 @@ import (
 )
 
 func TestLoadEmptyString(t *testing.T) {
-
 	var in string
 	_, err := Load(in)
 
@@ -442,7 +441,7 @@ func TestUnmarshalURL(t *testing.T) {
 	}
 	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in JSON.")
 
-	err = json.Unmarshal(b, &u)
+	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +549,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		Global: &GlobalConfig{
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			ResolveTimeout:   model.Duration(5 * time.Minute),
-			SMTPSmarthost:    "localhost:25",
+			SMTPSmarthost:    HostPort{Host: "localhost", Port: "25"},
 			SMTPFrom:         "alertmanager@example.org",
 			HipchatAuthToken: "mysecret",
 			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
@@ -594,7 +593,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 					{
 						To:         "team-X+alerts@example.org",
 						From:       "alertmanager@example.org",
-						Smarthost:  "localhost:25",
+						Smarthost:  HostPort{Host: "localhost", Port: "25"},
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
 					},
@@ -714,5 +713,66 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
   line 18: field teams not found in type config.plain`
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
+	}
+}
+
+func TestUnmarshalHostPort(t *testing.T) {
+	for _, tc := range []struct {
+		in string
+
+		exp     HostPort
+		jsonOut string
+		yamlOut string
+		err     bool
+	}{
+		{
+			in:  `""`,
+			exp: HostPort{},
+			yamlOut: `""
+`,
+			jsonOut: `""`,
+		},
+		{
+			in:  `"localhost:25"`,
+			exp: HostPort{Host: "localhost", Port: "25"},
+			yamlOut: `localhost:25
+`,
+			jsonOut: `"localhost:25"`,
+		},
+		{
+			in:  `":25"`,
+			exp: HostPort{Host: "", Port: "25"},
+			yamlOut: `:25
+`,
+			jsonOut: `":25"`,
+		},
+		{
+			in:  `"localhost"`,
+			err: true,
+		},
+		{
+			in:  `"localhost:"`,
+			err: true,
+		},
+	} {
+		tc := tc
+		t.Run(tc.in, func(t *testing.T) {
+			hp := HostPort{}
+			err := yaml.Unmarshal([]byte(tc.in), &hp)
+			if tc.err {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, hp)
+
+			b, err := yaml.Marshal(&hp)
+			require.NoError(t, err)
+			require.Equal(t, tc.yamlOut, string(b))
+
+			b, err = json.Marshal(&hp)
+			require.NoError(t, err)
+			require.Equal(t, tc.jsonOut, string(b))
+		})
 	}
 }
