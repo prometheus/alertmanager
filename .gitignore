@@ -11,6 +11,7 @@
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml
 !/config/testdata/*.yml
+!/notify/email/testdata/*.yml
 !/doc/examples/simple.yml
 !/circle.yml
 !/.travis.yml
