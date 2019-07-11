@@ -14,12 +14,12 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"time"
 
+	"github.com/pkg/errors"
 	apiv1 "github.com/prometheus/alertmanager/api/v1"
 	apiv2 "github.com/prometheus/alertmanager/api/v2"
 	"github.com/prometheus/alertmanager/cluster"
@@ -96,7 +96,7 @@ func (o Options) validate() error {
 // call is also needed to get the APIs into an operational state.
 func New(opts Options) (*API, error) {
 	if err := opts.validate(); err != nil {
-		return nil, fmt.Errorf("invalid API options: %s", err)
+		return nil, errors.Wrap(err, "invalid API options")
 	}
 	l := opts.Logger
 	if l == nil {
@@ -128,7 +128,6 @@ func New(opts Options) (*API, error) {
 		log.With(l, "version", "v2"),
 		opts.Registry,
 	)
-
 	if err != nil {
 		return nil, err
 	}
