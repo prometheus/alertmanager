@@ -1,14 +1,9 @@
-FROM registry.svc.ci.openshift.org/ocp/builder:golang-1.11 AS builder
+FROM registry.svc.ci.openshift.org/openshift/release:golang-1.11 AS builder
+WORKDIR /go/src/github.com/prometheus/alertmanager
+COPY . .
+RUN if yum install -y prometheus-promu; then export BUILD_PROMU=false; fi && make build
 
-ARG ALERTMANAGER_GOPATH=/go/src/github.com/prometheus/alertmanager
-ARG BUILD_PROMU=false
-COPY . ${ALERTMANAGER_GOPATH}
-RUN cd ${ALERTMANAGER_GOPATH} && \
-    yum install -y prometheus-promu && \
-    make build && \
-    yum clean all
-
-FROM  registry.svc.ci.openshift.org/ocp/4.0:base
+FROM  registry.svc.ci.openshift.org/openshift/origin-v4.0:base
 LABEL io.k8s.display-name="OpenShift Prometheus Alert Manager" \
       io.k8s.description="Prometheus Alert Manager" \
       io.openshift.tags="prometheus,monitoring" \
