@@ -26,7 +26,6 @@ import (
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
@@ -103,7 +102,7 @@ func NewAPI(
 	// load embedded swagger file
 	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load embedded swagger file")
+		return nil, fmt.Errorf("failed to load embedded swagger file: %v", err.Error())
 	}
 
 	// create new service API
@@ -704,7 +703,7 @@ func gettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 			t := true
 			matcher.IsRegex = &t
 		default:
-			return sil, errors.Errorf(
+			return sil, fmt.Errorf(
 				"unknown matcher type for matcher '%v' in silence '%v'",
 				m.Name,
 				s.Id,

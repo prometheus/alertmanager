@@ -513,7 +513,6 @@ func (h hostnameFunc) resolveExtURL(logger log.Logger, listen, external string) 
 		return nil, errors.Errorf("%q: invalid %q scheme, only 'http' and 'https' are supported", u.String(), u.Scheme)
 	}
 
-	fmt.Println("path:", u.Path, "raw", u.RawPath)
 	ppref := strings.TrimRight(u.Path, "/")
 	if ppref != "" && !strings.HasPrefix(ppref, "/") {
 		ppref = "/" + ppref
