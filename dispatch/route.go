@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -142,15 +143,16 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 	return all
 }
 
-// Key returns a key for the route. It does not uniquely identify a the route in general.
+// Key returns a key for the route. It does not uniquely identify the route in general.
 func (r *Route) Key() string {
-	b := make([]byte, 0, 1024)
+	b := strings.Builder{}
 
 	if r.parent != nil {
-		b = append(b, r.parent.Key()...)
-		b = append(b, '/')
+		b.WriteString(r.parent.Key())
+		b.WriteRune('/')
 	}
-	return string(append(b, r.Matchers.String()...))
+	b.WriteString(r.Matchers.String())
+	return b.String()
 }
 
 // RouteOpts holds various routing options necessary for processing alerts
