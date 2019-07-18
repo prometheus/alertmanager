@@ -92,7 +92,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 func TestExternalURL(t *testing.T) {
 	hostname := "foo"
 	for _, tc := range []struct {
-		hostnameResolver hostnameFunc
+		hostnameResolver func() (string, error)
 		external         string
 		listen           string
 
@@ -154,7 +154,7 @@ func TestExternalURL(t *testing.T) {
 			}
 		}
 		t.Run(fmt.Sprintf("external=%q,listen=%q", tc.external, tc.listen), func(t *testing.T) {
-			u, err := tc.hostnameResolver.resolveExtURL(log.NewNopLogger(), tc.listen, tc.external)
+			u, err := extURL(log.NewNopLogger(), tc.hostnameResolver, tc.listen, tc.external)
 			if tc.err {
 				require.Error(t, err)
 				return

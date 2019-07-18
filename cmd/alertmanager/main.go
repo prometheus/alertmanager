@@ -328,7 +328,7 @@ func run() int {
 		return 1
 	}
 
-	amURL, err := extURL(logger, *listenAddress, *externalURL)
+	amURL, err := extURL(logger, os.Hostname, *listenAddress, *externalURL)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to determine external URL", "err", err)
 		return 1
@@ -482,15 +482,9 @@ func clusterWait(p *cluster.Peer, timeout time.Duration) func() time.Duration {
 	}
 }
 
-type hostnameFunc func() (string, error)
-
-func extURL(logger log.Logger, listen, external string) (*url.URL, error) {
-	return hostnameFunc(os.Hostname).resolveExtURL(logger, listen, external)
-}
-
-func (h hostnameFunc) resolveExtURL(logger log.Logger, listen, external string) (*url.URL, error) {
+func extURL(logger log.Logger, hostnamef func() (string, error), listen, external string) (*url.URL, error) {
 	if external == "" {
-		hostname, err := h()
+		hostname, err := hostnamef()
 		if err != nil {
 			return nil, err
 		}
