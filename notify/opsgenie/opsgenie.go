@@ -18,11 +18,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -85,7 +88,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode)
+	return n.retry(resp.StatusCode, resp.Body)
 }
 
 // Like Split but filter out empty strings.
@@ -172,7 +175,7 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	apiKey := tmpl(string(n.conf.APIKey))
 
 	if err != nil {
-		return nil, false, fmt.Errorf("templating error: %s", err)
+		return nil, false, errors.Wrap(err, "templating error")
 	}
 
 	var buf bytes.Buffer
@@ -189,14 +192,19 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	return req.WithContext(ctx), true, nil
 }
 
-func (n *Notifier) retry(statusCode int) (bool, error) {
-	// https://docs.opsgenie.com/docs/response#section-response-codes
-	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
-	if statusCode/100 == 5 || statusCode == 429 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
+func (n *Notifier) retry(statusCode int, body io.Reader) (bool, error) {
+	if statusCode/100 == 2 {
+		return false, nil
 	}
 
-	return false, nil
+	err := errors.Errorf("unexpected status code %v", statusCode)
+	if body != nil {
+		if bs, errRead := ioutil.ReadAll(body); errRead == nil {
+			err = errors.Errorf("%s: %s", err, string(bs))
+		}
+	}
+
+	// https://docs.opsgenie.com/docs/response#section-response-codes
+	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
+	return statusCode/100 == 5 || statusCode == 429, err
 }
