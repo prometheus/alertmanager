@@ -77,9 +77,8 @@ type attachment struct {
 	ImageURL   string               `json:"image_url,omitempty"`
 	ThumbURL   string               `json:"thumb_url,omitempty"`
 	Footer     string               `json:"footer"`
-
-	Color    string   `json:"color,omitempty"`
-	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
+	Color      string               `json:"color,omitempty"`
+	MrkdwnIn   []string             `json:"mrkdwn_in,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -89,7 +88,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
-
+	var markdownIn []string
+	if len(n.conf.MrkdwnIn) == 0 {
+		markdownIn = []string{"fallback", "pretext", "text"}
+	} else {
+		markdownIn = n.conf.MrkdwnIn
+	}
 	att := &attachment{
 		Title:      tmplText(n.conf.Title),
 		TitleLink:  tmplText(n.conf.TitleLink),
@@ -101,7 +105,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		ThumbURL:   tmplText(n.conf.ThumbURL),
 		Footer:     tmplText(n.conf.Footer),
 		Color:      tmplText(n.conf.Color),
-		MrkdwnIn:   []string{"fallback", "pretext", "text"},
+		MrkdwnIn:   markdownIn,
 	}
 
 	var numFields = len(n.conf.Fields)
