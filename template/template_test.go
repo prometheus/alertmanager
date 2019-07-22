@@ -192,6 +192,7 @@ func TestData(t *testing.T) {
 						Labels:      KV{"severity": "warning", "job": "foo"},
 						Annotations: KV{"description": "something happened", "runbook": "foo"},
 						StartsAt:    startTime,
+						Fingerprint: "9266ef3da838ad95",
 					},
 					{
 						Status:      "resolved",
@@ -199,6 +200,7 @@ func TestData(t *testing.T) {
 						Annotations: KV{"description": "something else happened", "runbook": "foo"},
 						StartsAt:    startTime,
 						EndsAt:      endTime,
+						Fingerprint: "3b15fd163d36582e",
 					},
 				},
 				GroupLabels:       KV{"job": "foo"},
@@ -248,6 +250,7 @@ func TestData(t *testing.T) {
 						Labels:      KV{"severity": "warning", "job": "foo"},
 						Annotations: KV{"description": "something happened", "runbook": "foo"},
 						StartsAt:    startTime,
+						Fingerprint: "9266ef3da838ad95",
 					},
 					{
 						Status:      "resolved",
@@ -255,6 +258,7 @@ func TestData(t *testing.T) {
 						Annotations: KV{"description": "something else happened", "runbook": "bar"},
 						StartsAt:    startTime,
 						EndsAt:      endTime,
+						Fingerprint: "c7e68cb08e3e67f9",
 					},
 				},
 				GroupLabels:       KV{},
