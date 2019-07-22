@@ -30,6 +30,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
@@ -323,15 +324,16 @@ func run() int {
 	})
 
 	if err != nil {
-		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %v", err.Error()))
+		level.Error(logger).Log("err", errors.Wrap(err, "failed to create API"))
 		return 1
 	}
 
-	amURL, err := extURL(*listenAddress, *externalURL)
+	amURL, err := extURL(logger, os.Hostname, *listenAddress, *externalURL)
 	if err != nil {
-		level.Error(logger).Log("err", err)
+		level.Error(logger).Log("msg", "failed to determine external URL", "err", err)
 		return 1
 	}
+	level.Debug(logger).Log("externalURL", amURL.String())
 
 	waitFunc := func() time.Duration { return 0 }
 	if peer != nil {
@@ -357,7 +359,7 @@ func run() int {
 	configCoordinator.Subscribe(func(conf *config.Config) error {
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
-			return fmt.Errorf("failed to parse templates: %v", err.Error())
+			return errors.Wrap(err, "failed to parse templates")
 		}
 		tmpl.ExternalURL = amURL
 
@@ -404,14 +406,13 @@ func run() int {
 	}
 
 	// Make routePrefix default to externalURL path if empty string.
-	if routePrefix == nil || *routePrefix == "" {
+	if *routePrefix == "" {
 		*routePrefix = amURL.Path
 	}
-
 	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
+	level.Debug(logger).Log("routePrefix", *routePrefix)
 
 	router := route.New().WithInstrumentation(instrumentHandler)
-
 	if *routePrefix != "/" {
 		router = router.WithPrefix(*routePrefix)
 	}
@@ -481,15 +482,18 @@ func clusterWait(p *cluster.Peer, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func extURL(listen, external string) (*url.URL, error) {
+func extURL(logger log.Logger, hostnamef func() (string, error), listen, external string) (*url.URL, error) {
 	if external == "" {
-		hostname, err := os.Hostname()
+		hostname, err := hostnamef()
 		if err != nil {
 			return nil, err
 		}
 		_, port, err := net.SplitHostPort(listen)
 		if err != nil {
 			return nil, err
+		}
+		if port == "" {
+			level.Warn(logger).Log("msg", "no port found for listen address", "address", listen)
 		}
 
 		external = fmt.Sprintf("http://%s:%s/", hostname, port)
@@ -498,6 +502,9 @@ func extURL(listen, external string) (*url.URL, error) {
 	u, err := url.Parse(external)
 	if err != nil {
 		return nil, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, errors.Errorf("%q: invalid %q scheme, only 'http' and 'https' are supported", u.String(), u.Scheme)
 	}
 
 	ppref := strings.TrimRight(u.Path, "/")
