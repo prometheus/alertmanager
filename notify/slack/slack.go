@@ -17,9 +17,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/go-kit/kit/log"
@@ -33,10 +30,11 @@ import (
 
 // Notifier implements a Notifier for Slack notifications.
 type Notifier struct {
-	conf   *config.SlackConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
+	conf    *config.SlackConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
 }
 
 // New returns a new Slack notification handler.
@@ -47,10 +45,11 @@ func New(c *config.SlackConfig, t *template.Template, l log.Logger) (*Notifier, 
 	}
 
 	return &Notifier{
-		conf:   c,
-		tmpl:   t,
-		logger: l,
-		client: client,
+		conf:    c,
+		tmpl:    t,
+		logger:  l,
+		client:  client,
+		retrier: &notify.Retrier{},
 	}, nil
 }
 
@@ -177,22 +176,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode, resp.Body)
-}
-
-func (n *Notifier) retry(statusCode int, body io.Reader) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
-	if statusCode/100 == 2 {
-		return false, nil
-	}
-
-	err := fmt.Errorf("unexpected status code %v", statusCode)
-	if body != nil {
-		if bs, errRead := ioutil.ReadAll(body); errRead == nil {
-			err = fmt.Errorf("%s: %q", err, string(bs))
-		}
-	}
-	return statusCode/100 == 5, err
+	return n.retrier.Process(resp.StatusCode, resp.Body)
 }

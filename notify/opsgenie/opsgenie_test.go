@@ -14,10 +14,8 @@
 package opsgenie
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -36,42 +34,19 @@ import (
 )
 
 func TestOpsGenieRetry(t *testing.T) {
-	notifier := new(Notifier)
+	notifier, err := New(
+		&config.OpsGenieConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode, nil)
+		actual, _ := notifier.retrier.Process(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
-	}
-}
-
-func TestOpsGenieErr(t *testing.T) {
-	notifier := new(Notifier)
-	for _, tc := range []struct {
-		status   int
-		body     io.Reader
-		expected string
-	}{
-		{
-			status:   http.StatusUnprocessableEntity,
-			body:     nil,
-			expected: "unexpected status code 422",
-		},
-		{
-			status:   http.StatusUnprocessableEntity,
-			body:     bytes.NewBuffer([]byte(`{"message":"Request body is not processable. Please check the errors.","errors":{"priority":"should be one of [ P1, P2, P3, P4, P5 ]"},"took":0.002,"requestId":"865a4f83-99d9-48c8-9550-42a375a3a387"}`)),
-			expected: `unexpected status code 422: {"message":"Request body is not processable. Please check the errors.","errors":{"priority":"should be one of [ P1, P2, P3, P4, P5 ]"},"took":0.002,"requestId":"865a4f83-99d9-48c8-9550-42a375a3a387"}`,
-		},
-		{
-			status:   http.StatusInternalServerError,
-			body:     bytes.NewBuffer([]byte("internal error")),
-			expected: "unexpected status code 500: internal error",
-		},
-	} {
-		t.Run("", func(t *testing.T) {
-			_, err := notifier.retry(tc.status, tc.body)
-			require.Equal(t, err.Error(), tc.expected)
-		})
 	}
 }
 

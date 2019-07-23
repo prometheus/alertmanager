@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/go-kit/kit/log"
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
@@ -27,11 +29,21 @@ import (
 func TestWebhookRetry(t *testing.T) {
 	u, err := url.Parse("http://example.com")
 	if err != nil {
-		t.Fatalf("failed to parse URL: %v", err)
+		require.NoError(t, err)
 	}
-	notifier := &Notifier{conf: &config.WebhookConfig{URL: &config.URL{URL: u}}}
+	notifier, err := New(
+		&config.WebhookConfig{
+			URL:        &config.URL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	if err != nil {
+		require.NoError(t, err)
+	}
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
-		actual, _ := notifier.retry(statusCode)
+		actual, _ := notifier.retrier.Process(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }

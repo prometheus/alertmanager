@@ -27,10 +27,17 @@ import (
 )
 
 func TestHipchatRetry(t *testing.T) {
-	notifier := new(Notifier)
+	notifier, err := New(
+		&config.HipchatConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode)
+		actual, _ := notifier.retrier.Process(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
