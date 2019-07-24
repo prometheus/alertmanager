@@ -327,7 +327,7 @@ amtool config routes --alertmanager.url=http://localhost:9090
 
 ## High Availability
 
-AlertManager's high availability is in production use at many companies.
+AlertManager's high availability is in production use at many companies and is enabled by default.
 
 > Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
 
@@ -335,7 +335,7 @@ To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
 `--cluster.*` flags.
 
-- `--cluster.listen-address` string: cluster listen address (default "0.0.0.0:9094")
+- `--cluster.listen-address` string: cluster listen address (default "0.0.0.0:9094"; empty string disables HA mode)
 - `--cluster.advertise-address` string: cluster advertise address
 - `--cluster.peer` value: initial peers (repeat flag for each additional peer)
 - `--cluster.peer-timeout` value: peer timeout period (default "15s")
@@ -380,7 +380,6 @@ alerting:
 ### Disabling high availability
 
 If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` will prevent Alertmanager from listening to incoming peer requests.
-
 
 ## Contributing to the Front-End
 
