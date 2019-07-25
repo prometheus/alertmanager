@@ -80,12 +80,19 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
+	clusterEnabled = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_cluster_enabled",
+			Help: "Indicates whether the clustering is enabled or not.",
+		},
+	)
 	promlogConfig = promlog.Config{}
 )
 
 func init() {
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(responseSize)
+	prometheus.MustRegister(clusterEnabled)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -223,6 +230,7 @@ func run() int {
 			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)
 			return 1
 		}
+		clusterEnabled.Set(1)
 	}
 
 	stopc := make(chan struct{})
