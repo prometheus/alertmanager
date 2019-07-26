@@ -150,7 +150,7 @@ func (n *Notifier) notifyV1(
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Process(resp.StatusCode, resp.Body)
+	return n.retrier.Check(resp.StatusCode, resp.Body)
 }
 
 func (n *Notifier) notifyV2(
@@ -218,7 +218,7 @@ func (n *Notifier) notifyV2(
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Process(resp.StatusCode, resp.Body)
+	return n.retrier.Check(resp.StatusCode, resp.Body)
 }
 
 // Notify implements the Notifier interface.

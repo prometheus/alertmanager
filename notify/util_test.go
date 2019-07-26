@@ -91,7 +91,7 @@ func (b brokenReader) Read([]byte) (int, error) {
 	return 0, fmt.Errorf("some error")
 }
 
-func TestRetrierProcess(t *testing.T) {
+func TestRetrierCheck(t *testing.T) {
 	for _, tc := range []struct {
 		retrier Retrier
 		status  int
@@ -167,7 +167,7 @@ func TestRetrierProcess(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			retry, err := tc.retrier.Process(tc.status, tc.body)
+			retry, err := tc.retrier.Check(tc.status, tc.body)
 			require.Equal(t, tc.retry, retry)
 			if tc.expectedErr == "" {
 				require.NoError(t, err)

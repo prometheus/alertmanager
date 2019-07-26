@@ -108,5 +108,5 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Process(resp.StatusCode, nil)
+	return n.retrier.Check(resp.StatusCode, nil)
 }

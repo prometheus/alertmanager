@@ -93,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Process(resp.StatusCode, resp.Body)
+	return n.retrier.Check(resp.StatusCode, resp.Body)
 }
 
 // Like Split but filter out empty strings.

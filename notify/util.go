@@ -162,10 +162,10 @@ type Retrier struct {
 	RetryCodes []int
 }
 
-// Process returns a boolean indicating whether the request should be retried
+// Check returns a boolean indicating whether the request should be retried
 // and an optional error if the request has failed. If body is not nil, it will
 // be included in the error message.
-func (r *Retrier) Process(statusCode int, body io.Reader) (bool, error) {
+func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	// 2xx responses are considered to be always successful.
 	if statusCode/100 == 2 {
 		return false, nil
