@@ -392,10 +392,9 @@ mrkdwn_in:
 				t.Errorf("\nexpected:\n%v\ngot:\n%v\nat index %v", rt.expected.MrkdwnIn[i], cfg.MrkdwnIn[i], i)
 			}
 		}
-
 	}
-
 }
+
 func TestSlackFieldConfigValidation(t *testing.T) {
 	var tests = []struct {
 		in       string
