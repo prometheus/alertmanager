@@ -330,6 +330,7 @@ token: ''
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
+
 func TestLoadSlackConfiguration(t *testing.T) {
 	var tests = []struct {
 		in       string
