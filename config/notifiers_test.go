@@ -331,6 +331,71 @@ token: ''
 	}
 }
 
+func TestLoadSlackConfiguration(t *testing.T) {
+	var tests = []struct {
+		in       string
+		expected SlackConfig
+	}{
+		{
+			in: `
+color: green
+username: mark
+channel: engineering
+title_link: http://example.com/
+image_url: https://example.com/logo.png
+`,
+			expected: SlackConfig{Color: "green", Username: "mark", Channel: "engineering",
+				TitleLink: "http://example.com/",
+				ImageURL:  "https://example.com/logo.png"},
+		},
+		{
+			in: `
+color: green
+username: mark
+channel: alerts
+title_link: http://example.com/alert1
+mrkdwn_in:
+- pretext
+- text
+`,
+			expected: SlackConfig{Color: "green", Username: "mark", Channel: "alerts",
+				MrkdwnIn: []string{"pretext", "text"}, TitleLink: "http://example.com/alert1"},
+		}}
+	for _, rt := range tests {
+		var cfg SlackConfig
+		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+		if err != nil {
+			t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+		}
+		if rt.expected.Color != cfg.Color {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.Color, cfg.Color)
+		}
+		if rt.expected.Username != cfg.Username {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.Username, cfg.Username)
+		}
+		if rt.expected.Channel != cfg.Channel {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.Channel, cfg.Channel)
+		}
+		if rt.expected.ThumbURL != cfg.ThumbURL {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.ThumbURL, cfg.ThumbURL)
+		}
+		if rt.expected.TitleLink != cfg.TitleLink {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.TitleLink, cfg.TitleLink)
+		}
+		if rt.expected.ImageURL != cfg.ImageURL {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.ImageURL, cfg.ImageURL)
+		}
+		if len(rt.expected.MrkdwnIn) != len(cfg.MrkdwnIn) {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.MrkdwnIn, cfg.MrkdwnIn)
+		}
+		for i := range cfg.MrkdwnIn {
+			if rt.expected.MrkdwnIn[i] != cfg.MrkdwnIn[i] {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v\nat index %v", rt.expected.MrkdwnIn[i], cfg.MrkdwnIn[i], i)
+			}
+		}
+	}
+}
+
 func TestSlackFieldConfigValidation(t *testing.T) {
 	var tests = []struct {
 		in       string

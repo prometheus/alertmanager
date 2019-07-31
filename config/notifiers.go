@@ -361,6 +361,7 @@ type SlackConfig struct {
 	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`
 	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
 	LinkNames   bool           `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
