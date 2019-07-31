@@ -38,6 +38,7 @@ type Dispatcher struct {
 	stage  notify.Stage
 
 	marker  types.Marker
+	wait    func() time.Duration
 	timeout func(time.Duration) time.Duration
 
 	aggrGroups map[*Route]map[model.Fingerprint]*aggrGroup
@@ -56,6 +57,7 @@ func NewDispatcher(
 	r *Route,
 	s notify.Stage,
 	mk types.Marker,
+	wait func() time.Duration,
 	to func(time.Duration) time.Duration,
 	l log.Logger,
 ) *Dispatcher {
@@ -64,6 +66,7 @@ func NewDispatcher(
 		stage:   s,
 		route:   r,
 		marker:  mk,
+		wait:    wait,
 		timeout: to,
 		logger:  log.With(l, "component", "dispatcher"),
 	}
@@ -250,7 +253,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// If the group does not exist, create it.
 	ag, ok := group[fp]
 	if !ok {
-		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+		ag = newAggrGroup(d.ctx, groupLabels, route, d.wait, d.timeout, d.logger)
 		group[fp] = ag
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
@@ -297,6 +300,7 @@ type aggrGroup struct {
 	cancel  func()
 	done    chan struct{}
 	next    *time.Timer
+	wait    func() time.Duration
 	timeout func(time.Duration) time.Duration
 
 	mtx        sync.RWMutex
@@ -304,14 +308,18 @@ type aggrGroup struct {
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger log.Logger) *aggrGroup {
+func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, wait func() time.Duration, to func(time.Duration) time.Duration, logger log.Logger) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
+	}
+	if wait == nil {
+		wait = func() time.Duration { return time.Duration(0) }
 	}
 	ag := &aggrGroup{
 		labels:   labels,
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
+		wait:     wait,
 		timeout:  to,
 		alerts:   store.NewAlerts(15 * time.Minute),
 		done:     make(chan struct{}),
@@ -363,6 +371,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
+			ctx = notify.WithPeerWait(ctx, ag.wait())
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()

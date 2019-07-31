@@ -205,7 +205,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, 0)
 		require.Equal(t, c.res, res)
 	}
 }
@@ -236,6 +236,11 @@ func TestDedupStage(t *testing.T) {
 	require.EqualError(t, err, "repeat interval missing")
 
 	ctx = WithRepeatInterval(ctx, time.Hour)
+
+	_, _, err = s.Exec(ctx, log.NewNopLogger())
+	require.EqualError(t, err, "peer wait missing")
+
+	ctx = WithPeerWait(ctx, 0)
 
 	alerts := []*types.Alert{{}, {}, {}}
 

@@ -152,6 +152,7 @@ type notifyKey int
 const (
 	keyReceiverName notifyKey = iota
 	keyRepeatInterval
+	keyPeerWait
 	keyGroupLabels
 	keyGroupKey
 	keyFiringAlerts
@@ -187,6 +188,18 @@ func WithGroupLabels(ctx context.Context, lset model.LabelSet) context.Context {
 // WithNow populates a context with a now timestamp.
 func WithNow(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, keyNow, t)
+}
+
+// WithRepeatInterval populates a context with a repeat interval.
+func WithPeerWait(ctx context.Context, t time.Duration) context.Context {
+	return context.WithValue(ctx, keyPeerWait, t)
+}
+
+// RepeatInterval extracts a repeat interval from the context. Iff none exists, the
+// second argument is false.
+func PeerWait(ctx context.Context) (time.Duration, bool) {
+	v, ok := ctx.Value(keyPeerWait).(time.Duration)
+	return v, ok
 }
 
 // WithRepeatInterval populates a context with a repeat interval.
@@ -508,7 +521,7 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat, peerWait time.Duration) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
@@ -535,7 +548,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	return entry.Timestamp.Add(peerWait).Before(n.now().Add(-repeat))
 }
 
 // Exec implements the Stage interface.
@@ -548,6 +561,10 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
 		return ctx, nil, fmt.Errorf("repeat interval missing")
+	}
+	peerWait, ok := PeerWait(ctx)
+	if !ok {
+		return ctx, nil, fmt.Errorf("peer wait missing")
 	}
 
 	firingSet := map[uint64]struct{}{}
@@ -583,7 +600,7 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	case 2:
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, peerWait) {
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil

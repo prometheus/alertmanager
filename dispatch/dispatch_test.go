@@ -133,7 +133,7 @@ func TestAggrGroup(t *testing.T) {
 	}
 
 	// Test regular situation where we wait for group_wait to send out alerts.
-	ag := newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag := newAggrGroup(context.Background(), lset, route, nil, nil, log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -187,7 +187,7 @@ func TestAggrGroup(t *testing.T) {
 	// immediate flushing.
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
-	ag = newAggrGroup(context.Background(), lset, route, nil, log.NewNopLogger())
+	ag = newAggrGroup(context.Background(), lset, route, nil, nil, log.NewNopLogger())
 	go ag.run(ntfy)
 
 	ag.insert(a1)
@@ -367,9 +367,10 @@ route:
 	}
 	defer alerts.Close()
 
+	wait := func() time.Duration { return time.Duration(0) }
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, wait, timeout, logger)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
