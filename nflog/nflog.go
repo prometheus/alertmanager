@@ -73,10 +73,11 @@ func QGroupKey(gk string) QueryParam {
 }
 
 type Log struct {
-	logger    log.Logger
-	metrics   *metrics
-	now       func() time.Time
-	retention time.Duration
+	logger      log.Logger
+	metrics     *metrics
+	now         func() time.Time
+	retention   time.Duration
+	clusterWait func() time.Duration
 
 	runInterval time.Duration
 	snapf       string
@@ -155,6 +156,14 @@ type Option func(*Log) error
 func WithRetention(d time.Duration) Option {
 	return func(l *Log) error {
 		l.retention = d
+		return nil
+	}
+}
+
+// WithClusterWait sets the cluster wait time for log st.
+func WithClusterWait(d func() time.Duration) Option {
+	return func(l *Log) error {
+		l.clusterWait = d
 		return nil
 	}
 }
@@ -530,6 +539,9 @@ func (l *Log) Merge(b []byte) error {
 	now := l.now()
 
 	for _, e := range st {
+		// update entry timestamp to include cluster wait, then dedup
+		// won't be impacted if alert repeat time is smaller than max cluster wait time
+		e.Entry.Timestamp = e.Entry.Timestamp.Add(l.clusterWait())
 		if merged := l.st.merge(e, now); merged && !cluster.OversizedMessage(b) {
 			// If this is the first we've seen the message and it's
 			// not oversized, gossip it to other nodes. We don't

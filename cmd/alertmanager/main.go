@@ -237,8 +237,14 @@ func run() int {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
+	waitFunc := func() time.Duration { return 0 }
+	if peer != nil {
+		waitFunc = clusterWait(peer, *peerTimeout)
+	}
+
 	notificationLogOpts := []nflog.Option{
 		nflog.WithRetention(*retention),
+		nflog.WithClusterWait(waitFunc),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
@@ -343,10 +349,6 @@ func run() int {
 	}
 	level.Debug(logger).Log("externalURL", amURL.String())
 
-	waitFunc := func() time.Duration { return 0 }
-	if peer != nil {
-		waitFunc = clusterWait(peer, *peerTimeout)
-	}
 	timeoutFunc := func(d time.Duration) time.Duration {
 		if d < notify.MinTimeout {
 			d = notify.MinTimeout
