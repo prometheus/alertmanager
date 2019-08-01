@@ -16,12 +16,33 @@ package nflogpb
 // IsFiringSubset returns whether the given subset is a subset of the alerts
 // that were firing at the time of the last notification.
 func (m *Entry) IsFiringSubset(subset map[uint64]struct{}) bool {
-	set := map[uint64]struct{}{}
+	firingSet := map[uint64]struct{}{}
 	for i := range m.FiringAlerts {
-		set[m.FiringAlerts[i]] = struct{}{}
+		firingSet[m.FiringAlerts[i]] = struct{}{}
 	}
 
-	return isSubset(set, subset)
+	// make sure the alert is not resolved from peers already
+	var resolvedSet = map[uint64]struct{}{}
+	for i := range m.ResolvedAlerts {
+		resolvedSet[m.ResolvedAlerts[i]] = struct{}{}
+	}
+
+	var exists = true
+	for k := range subset {
+		if _, ok := firingSet[k]; !ok {
+			// check whether the entry is from cluster peer
+			if !m.Remote {
+				exists = false
+				break
+			}
+			// check whether the alert is resolved from cluster peer
+			if _, ok := resolvedSet[k]; !ok {
+				exists = false
+				break
+			}
+		}
+	}
+	return exists
 }
 
 // IsResolvedSubset returns whether the given subset is a subset of the alerts

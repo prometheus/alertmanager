@@ -203,7 +203,7 @@ func TestStateMerge(t *testing.T) {
 
 		res := c.a.clone()
 		for _, e := range cb {
-			res.merge(e, now)
+			res.merge(e, now, false)
 		}
 		require.Equal(t, c.final, res, "Merge result should match expectation")
 		require.Equal(t, c.b, cb, "Merged state should remain unmodified")
