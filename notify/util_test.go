@@ -14,7 +14,11 @@
 package notify
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -77,6 +81,99 @@ func TestTruncate(t *testing.T) {
 			s, trunc := Truncate(tc.in, tc.n)
 			require.Equal(t, tc.trunc, trunc)
 			require.Equal(t, tc.out, s)
+		})
+	}
+}
+
+type brokenReader struct{}
+
+func (b brokenReader) Read([]byte) (int, error) {
+	return 0, fmt.Errorf("some error")
+}
+
+func TestRetrierCheck(t *testing.T) {
+	for _, tc := range []struct {
+		retrier Retrier
+		status  int
+		body    io.Reader
+
+		retry       bool
+		expectedErr string
+	}{
+		{
+			retrier: Retrier{},
+			status:  http.StatusOK,
+			body:    bytes.NewBuffer([]byte("ok")),
+
+			retry: false,
+		},
+		{
+			retrier: Retrier{},
+			status:  http.StatusNoContent,
+
+			retry: false,
+		},
+		{
+			retrier: Retrier{},
+			status:  http.StatusBadRequest,
+
+			retry:       false,
+			expectedErr: "unexpected status code 400",
+		},
+		{
+			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+			status:  http.StatusBadRequest,
+			body:    bytes.NewBuffer([]byte("invalid request")),
+
+			retry:       false,
+			expectedErr: "unexpected status code 400: invalid request",
+		},
+		{
+			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+			status:  http.StatusTooManyRequests,
+
+			retry:       true,
+			expectedErr: "unexpected status code 429",
+		},
+		{
+			retrier: Retrier{},
+			status:  http.StatusServiceUnavailable,
+			body:    bytes.NewBuffer([]byte("retry later")),
+
+			retry:       true,
+			expectedErr: "unexpected status code 503: retry later",
+		},
+		{
+			retrier: Retrier{},
+			status:  http.StatusBadGateway,
+			body:    &brokenReader{},
+
+			retry:       true,
+			expectedErr: "unexpected status code 502",
+		},
+		{
+			retrier: Retrier{CustomDetailsFunc: func(status int, b io.Reader) string {
+				if status != http.StatusServiceUnavailable {
+					return "invalid"
+				}
+				bs, _ := ioutil.ReadAll(b)
+				return fmt.Sprintf("server response is %q", string(bs))
+			}},
+			status: http.StatusServiceUnavailable,
+			body:   bytes.NewBuffer([]byte("retry later")),
+
+			retry:       true,
+			expectedErr: "unexpected status code 503: server response is \"retry later\"",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			retry, err := tc.retrier.Check(tc.status, tc.body)
+			require.Equal(t, tc.retry, retry)
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.expectedErr)
 		})
 	}
 }

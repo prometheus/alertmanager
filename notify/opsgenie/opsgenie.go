@@ -18,8 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -37,10 +35,11 @@ import (
 
 // Notifier implements a Notifier for OpsGenie notifications.
 type Notifier struct {
-	conf   *config.OpsGenieConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
+	conf    *config.OpsGenieConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
 }
 
 // New returns a new OpsGenie notifier.
@@ -49,7 +48,13 @@ func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger) (*Notifie
 	if err != nil {
 		return nil, err
 	}
-	return &Notifier{conf: c, tmpl: t, logger: l, client: client}, nil
+	return &Notifier{
+		conf:    c,
+		tmpl:    t,
+		logger:  l,
+		client:  client,
+		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+	}, nil
 }
 
 type opsGenieCreateMessage struct {
@@ -88,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode, resp.Body)
+	return n.retrier.Check(resp.StatusCode, resp.Body)
 }
 
 // Like Split but filter out empty strings.
@@ -190,21 +195,4 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", apiKey))
 	return req.WithContext(ctx), true, nil
-}
-
-func (n *Notifier) retry(statusCode int, body io.Reader) (bool, error) {
-	if statusCode/100 == 2 {
-		return false, nil
-	}
-
-	err := errors.Errorf("unexpected status code %v", statusCode)
-	if body != nil {
-		if bs, errRead := ioutil.ReadAll(body); errRead == nil {
-			err = errors.Errorf("%s: %s", err, string(bs))
-		}
-	}
-
-	// https://docs.opsgenie.com/docs/response#section-response-codes
-	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
-	return statusCode/100 == 5 || statusCode == 429, err
 }
