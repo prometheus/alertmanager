@@ -39,7 +39,7 @@ type Notifier struct {
 
 // New returns a new Hipchat notification handler.
 func New(c *config.HipchatConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "hipchat")
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "hipchat", false)
 	if err != nil {
 		return nil, err
 	}
