@@ -44,7 +44,7 @@ type Notifier struct {
 
 // New returns a new OpsGenie notifier.
 func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie")
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie", false)
 	if err != nil {
 		return nil, err
 	}
