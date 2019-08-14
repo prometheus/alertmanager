@@ -97,7 +97,7 @@ func checkRoutingConfigInputFlags(alertmanagerURL *url.URL, configFile string) {
 func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*config.Config, error) {
 	checkRoutingConfigInputFlags(alertmanagerURL, configFile)
 	if configFile != "" {
-		cfg, _, err := config.LoadFile(configFile)
+		cfg, err := config.LoadFile(configFile)
 		if err != nil {
 			return nil, err
 		}

@@ -319,7 +319,7 @@ receivers:
 }
 
 func TestHideConfigSecrets(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -332,7 +332,7 @@ func TestHideConfigSecrets(t *testing.T) {
 }
 
 func TestJSONMarshal(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -486,7 +486,7 @@ func TestUnmarshalRelativeURL(t *testing.T) {
 }
 
 func TestJSONUnmarshal(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -498,7 +498,7 @@ func TestJSONUnmarshal(t *testing.T) {
 }
 
 func TestMarshalIdempotency(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -605,12 +605,12 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 
 	// Load a non-empty configuration to ensure that all fields are overwritten.
 	// See https://github.com/prometheus/alertmanager/issues/1649.
-	_, _, err := LoadFile("testdata/conf.good.yml")
+	_, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
-	config, _, err := LoadFile("testdata/conf.empty-fields.yml")
+	config, err := LoadFile("testdata/conf.empty-fields.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.empty-fields.yml", err)
 	}
@@ -631,7 +631,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 }
 
 func TestSMTPHello(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -644,7 +644,7 @@ func TestSMTPHello(t *testing.T) {
 }
 
 func TestGroupByAll(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.group-by-all.yml")
+	c, err := LoadFile("testdata/conf.group-by-all.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.group-by-all.yml", err)
 	}
@@ -655,7 +655,7 @@ func TestGroupByAll(t *testing.T) {
 }
 
 func TestVictorOpsDefaultAPIKey(t *testing.T) {
-	conf, _, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
+	conf, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
 	}
@@ -670,7 +670,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 }
 
 func TestVictorOpsNoAPIKey(t *testing.T) {
-	_, _, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
+	_, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
 	}
@@ -680,7 +680,7 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 }
 
 func TestOpsGenieDefaultAPIKey(t *testing.T) {
-	conf, _, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
+	conf, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
 	}
@@ -695,7 +695,7 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 }
 
 func TestOpsGenieNoAPIKey(t *testing.T) {
-	_, _, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
+	_, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
 	}
@@ -705,7 +705,7 @@ func TestOpsGenieNoAPIKey(t *testing.T) {
 }
 
 func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
-	_, _, err := LoadFile("testdata/conf.opsgenie-default-apikey-old-team.yml")
+	_, err := LoadFile("testdata/conf.opsgenie-default-apikey-old-team.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-old-team.yml", err)
 	}
