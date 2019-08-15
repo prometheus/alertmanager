@@ -250,6 +250,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		details[k] = detail
 	}
 
+	if n.conf.AppendCommonAnnotations {
+		for k, v := range data.CommonAnnotations {
+			level.Info(n.logger).Log(k, v)
+			details[k] = v
+		}
+	}
+
+	if n.conf.AppendCommonLabels {
+		for k, v := range data.CommonLabels {
+			details[k] = v
+		}
+	}
+
 	if n.apiV1 != "" {
 		return n.notifyV1(ctx, eventType, key, data, details, as...)
 	}
