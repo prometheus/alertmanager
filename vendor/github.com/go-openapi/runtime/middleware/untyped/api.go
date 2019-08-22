@@ -184,7 +184,7 @@ func (d *API) AuthenticatorsFor(schemes map[string]spec.SecurityScheme) map[stri
 	return result
 }
 
-// AuthorizersFor returns the registered authorizer
+// Authorizer returns the registered authorizer
 func (d *API) Authorizer() runtime.Authorizer {
 	return d.authorizer
 }
@@ -245,8 +245,8 @@ func (d *API) validate() error {
 
 func (d *API) verify(name string, registrations []string, expectations []string) error {
 
-	sort.Sort(sort.StringSlice(registrations))
-	sort.Sort(sort.StringSlice(expectations))
+	sort.Strings(registrations)
+	sort.Strings(expectations)
 
 	expected := map[string]struct{}{}
 	seen := map[string]struct{}{}
@@ -271,8 +271,8 @@ func (d *API) verify(name string, registrations []string, expectations []string)
 	for k := range expected {
 		unregistered = append(unregistered, k)
 	}
-	sort.Sort(sort.StringSlice(unspecified))
-	sort.Sort(sort.StringSlice(unregistered))
+	sort.Strings(unspecified)
+	sort.Strings(unregistered)
 
 	if len(unregistered) > 0 || len(unspecified) > 0 {
 		return &errors.APIVerificationFailed{

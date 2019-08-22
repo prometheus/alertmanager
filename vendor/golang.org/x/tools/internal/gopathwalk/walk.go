@@ -35,6 +35,7 @@ const (
 	RootGOPATH
 	RootCurrentModule
 	RootModuleCache
+	RootOther
 )
 
 // A Root is a starting point for a Walk.
@@ -66,7 +67,7 @@ func Walk(roots []Root, add func(root Root, dir string), opts Options) {
 func walkDir(root Root, add func(Root, string), opts Options) {
 	if _, err := os.Stat(root.Path); os.IsNotExist(err) {
 		if opts.Debug {
-			log.Printf("skipping nonexistant directory: %v", root.Path)
+			log.Printf("skipping nonexistent directory: %v", root.Path)
 		}
 		return
 	}
@@ -162,7 +163,7 @@ func (w *walker) shouldSkipDir(fi os.FileInfo) bool {
 func (w *walker) walk(path string, typ os.FileMode) error {
 	dir := filepath.Dir(path)
 	if typ.IsRegular() {
-		if dir == w.root.Path {
+		if dir == w.root.Path && (w.root.Type == RootGOROOT || w.root.Type == RootGOPATH) {
 			// Doesn't make sense to have regular files
 			// directly in your $GOPATH/src or $GOROOT/src.
 			return fastwalk.SkipFiles

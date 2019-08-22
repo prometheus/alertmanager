@@ -48,4 +48,3 @@ $ go test -benchtime 10s -bench '/xxhash,'
 
 - [InfluxDB](https://github.com/influxdata/influxdb)
 - [Prometheus](https://github.com/prometheus/prometheus)
-- [FreeCache](https://github.com/coocood/freecache)
