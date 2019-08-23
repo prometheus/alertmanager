@@ -253,6 +253,44 @@ func (p *Peer) Join(
 	return err
 }
 
+// AddPeer will ensure that a given peer addr is in the peer set
+func (p *Peer) AddPeer(peerAddr string) error {
+	p.peerLock.Lock()
+	defer p.peerLock.Unlock()
+
+	if _, ok := p.peers[peerAddr]; ok {
+		return nil
+	}
+
+	host, port, err := net.SplitHostPort(peerAddr)
+	if err != nil {
+		return err
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		// Don't add textual addresses since memberlist only advertises
+		// dotted decimal or IPv6 addresses.
+		return fmt.Errorf("Invalid peerAddr")
+	}
+	portUint, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return err
+	}
+
+	pr := peer{
+		status:    StatusFailed,
+		leaveTime: time.Now(),
+		Node: &memberlist.Node{
+			Addr: ip,
+			Port: uint16(portUint),
+		},
+	}
+	p.failedPeers = append(p.failedPeers, pr)
+	p.peers[peerAddr] = pr
+
+	return nil
+}
+
 // All peers are initially added to the failed list. They will be removed from
 // this list in peerJoin when making their initial connection.
 func (p *Peer) setInitialFailed(peers []string, myAddr string) {
