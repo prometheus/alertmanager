@@ -29,9 +29,6 @@ type Parser struct {
 	// NamespaceDelimiter separates group namespaces and option long names
 	NamespaceDelimiter string
 
-	// EnvNamespaceDelimiter separates group env namespaces and env keys
-	EnvNamespaceDelimiter string
-
 	// UnknownOptionsHandler is a function which gets called when the parser
 	// encounters an unknown option. The function receives the unknown option
 	// name, a SplitArgument which specifies its value if set with an argument
@@ -173,10 +170,9 @@ func NewParser(data interface{}, options Options) *Parser {
 // be added to this parser by using AddGroup and AddCommand.
 func NewNamedParser(appname string, options Options) *Parser {
 	p := &Parser{
-		Command:               newCommand(appname, "", "", nil),
-		Options:               options,
-		NamespaceDelimiter:    ".",
-		EnvNamespaceDelimiter: "_",
+		Command:            newCommand(appname, "", "", nil),
+		Options:            options,
+		NamespaceDelimiter: ".",
 	}
 
 	p.Command.parent = p

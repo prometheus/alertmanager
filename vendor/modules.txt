@@ -37,7 +37,7 @@ github.com/go-openapi/jsonpointer
 github.com/go-openapi/jsonreference
 # github.com/go-openapi/loads v0.19.2
 github.com/go-openapi/loads
-# github.com/go-openapi/runtime v0.19.3
+# github.com/go-openapi/runtime v0.19.4
 github.com/go-openapi/runtime/middleware
 github.com/go-openapi/runtime
 github.com/go-openapi/runtime/client
@@ -51,7 +51,7 @@ github.com/go-openapi/runtime/middleware/untyped
 github.com/go-openapi/spec
 # github.com/go-openapi/strfmt v0.19.2
 github.com/go-openapi/strfmt
-# github.com/go-openapi/swag v0.19.4
+# github.com/go-openapi/swag v0.19.5
 github.com/go-openapi/swag
 # github.com/go-openapi/validate v0.19.2
 github.com/go-openapi/validate
@@ -104,7 +104,7 @@ github.com/hashicorp/go-sockaddr
 github.com/hashicorp/golang-lru/simplelru
 # github.com/hashicorp/memberlist v0.1.4
 github.com/hashicorp/memberlist
-# github.com/jessevdk/go-flags v0.0.0-20180331124232-1c38ed7ad0cc
+# github.com/jessevdk/go-flags v1.4.0
 github.com/jessevdk/go-flags
 # github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
 github.com/jpillora/backoff

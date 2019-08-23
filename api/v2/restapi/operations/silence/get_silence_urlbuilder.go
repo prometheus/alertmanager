@@ -62,7 +62,7 @@ func (o *GetSilenceURL) Build() (*url.URL, error) {
 	if silenceID != "" {
 		_path = strings.Replace(_path, "{silenceID}", silenceID, -1)
 	} else {
-		return nil, errors.New("SilenceID is required on GetSilenceURL")
+		return nil, errors.New("silenceId is required on GetSilenceURL")
 	}
 
 	_basePath := o._basePath

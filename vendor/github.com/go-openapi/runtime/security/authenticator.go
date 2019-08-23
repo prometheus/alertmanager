@@ -75,6 +75,7 @@ type secCtxKey uint8
 
 const (
 	failedBasicAuth secCtxKey = iota
+	oauth2SchemeName
 )
 
 func FailedBasicAuth(r *http.Request) string {
@@ -83,6 +84,18 @@ func FailedBasicAuth(r *http.Request) string {
 
 func FailedBasicAuthCtx(ctx context.Context) string {
 	v, ok := ctx.Value(failedBasicAuth).(string)
+	if !ok {
+		return ""
+	}
+	return v
+}
+
+func OAuth2SchemeName(r *http.Request) string {
+	return OAuth2SchemeNameCtx(r.Context())
+}
+
+func OAuth2SchemeNameCtx(ctx context.Context) string {
+	v, ok := ctx.Value(oauth2SchemeName).(string)
 	if !ok {
 		return ""
 	}
@@ -224,6 +237,8 @@ func BearerAuth(name string, authenticate ScopedTokenAuthentication) runtime.Aut
 			return false, nil, nil
 		}
 
+		rctx := context.WithValue(r.Request.Context(), oauth2SchemeName, name)
+		*r.Request = *r.Request.WithContext(rctx)
 		p, err := authenticate(token, r.RequiredScopes)
 		return true, p, err
 	})
@@ -252,7 +267,8 @@ func BearerAuthCtx(name string, authenticate ScopedTokenAuthenticationCtx) runti
 			return false, nil, nil
 		}
 
-		ctx, p, err := authenticate(r.Request.Context(), token, r.RequiredScopes)
+		rctx := context.WithValue(r.Request.Context(), oauth2SchemeName, name)
+		ctx, p, err := authenticate(rctx, token, r.RequiredScopes)
 		*r.Request = *r.Request.WithContext(ctx)
 		return true, p, err
 	})

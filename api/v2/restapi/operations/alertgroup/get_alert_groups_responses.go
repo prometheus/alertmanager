@@ -65,13 +65,13 @@ func (o *GetAlertGroupsOK) WriteResponse(rw http.ResponseWriter, producer runtim
 	rw.WriteHeader(200)
 	payload := o.Payload
 	if payload == nil {
-		payload = make(models.AlertGroups, 0, 50)
+		// return empty array
+		payload = models.AlertGroups{}
 	}
 
 	if err := producer.Produce(rw, payload); err != nil {
 		panic(err) // let the recovery middleware deal with this
 	}
-
 }
 
 // GetAlertGroupsBadRequestCode is the HTTP code returned for type GetAlertGroupsBadRequest
@@ -114,7 +114,6 @@ func (o *GetAlertGroupsBadRequest) WriteResponse(rw http.ResponseWriter, produce
 	if err := producer.Produce(rw, payload); err != nil {
 		panic(err) // let the recovery middleware deal with this
 	}
-
 }
 
 // GetAlertGroupsInternalServerErrorCode is the HTTP code returned for type GetAlertGroupsInternalServerError
@@ -157,5 +156,4 @@ func (o *GetAlertGroupsInternalServerError) WriteResponse(rw http.ResponseWriter
 	if err := producer.Produce(rw, payload); err != nil {
 		panic(err) // let the recovery middleware deal with this
 	}
-
 }
