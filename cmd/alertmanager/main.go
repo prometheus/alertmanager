@@ -371,6 +371,7 @@ func run() int {
 		tmpl      *template.Template
 	)
 
+	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configCoordinator := config.NewCoordinator(
 		*configFile,
 		prometheus.DefaultRegisterer,
@@ -399,7 +400,7 @@ func run() int {
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
-		pipeline := notify.BuildPipeline(
+		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
 			inhibitor,
