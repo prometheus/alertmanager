@@ -186,18 +186,18 @@ func Load(s string) (*Config, error) {
 }
 
 // LoadFile parses the given YAML file into a Config.
-func LoadFile(filename string) (*Config, []byte, error) {
+func LoadFile(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	cfg, err := Load(string(content))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	resolveFilepaths(filepath.Dir(filename), cfg)
-	return cfg, content, nil
+	return cfg, nil
 }
 
 // resolveFilepaths joins all relative paths in a configuration

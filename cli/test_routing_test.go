@@ -50,7 +50,7 @@ func TestRoutingTest(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		cfg, _, err := config.LoadFile(test.configFile)
+		cfg, err := config.LoadFile(test.configFile)
 		if err != nil {
 			t.Fatalf("failed to load test configuration: %v", err)
 		}
