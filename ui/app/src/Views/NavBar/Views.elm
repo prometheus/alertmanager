@@ -19,9 +19,6 @@ navBar currentRoute =
                 SilenceFormEditRoute _ ->
                     text ""
 
-                SilenceFormRecreateRoute _ ->
-                    text ""
-
                 SilenceFormNewRoute _ ->
                     text ""
 
@@ -69,9 +66,6 @@ routeToTab currentRoute =
             noneTab
 
         SilenceFormEditRoute _ ->
-            silencesTab
-
-        SilenceFormRecreateRoute _ ->
             silencesTab
 
         SilenceFormNewRoute _ ->

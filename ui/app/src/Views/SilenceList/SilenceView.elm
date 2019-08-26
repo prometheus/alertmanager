@@ -15,7 +15,7 @@ import Utils.List
 import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Dialog as Dialog
-import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers)
+import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers, newSilenceFromMatchersAndComment)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 
 
@@ -100,9 +100,6 @@ matcherButton matcher =
 editButton : GettableSilence -> Html Msg
 editButton silence =
     let
-        recreateUrl =
-            String.join "/" [ "#/silences", silence.id, "recreate" ]
-
         editUrl =
             String.join "/" [ "#/silences", silence.id, "edit" ]
 
@@ -117,7 +114,7 @@ editButton silence =
         Expired ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href recreateUrl
+                , href (newSilenceFromMatchersAndComment silence.matchers silence.comment)
                 ]
                 [ text "Recreate"
                 ]

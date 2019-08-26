@@ -123,11 +123,8 @@ urlUpdate url =
         SilenceFormEditRoute silenceId ->
             NavigateToSilenceFormEdit silenceId
 
-        SilenceFormRecreateRoute silenceId ->
-            NavigateToSilenceFormRecreate silenceId
-
-        SilenceFormNewRoute matchers ->
-            NavigateToSilenceFormNew matchers
+        SilenceFormNewRoute params ->
+            NavigateToSilenceFormNew params
 
         AlertsRoute filter ->
             NavigateToAlerts filter

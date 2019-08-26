@@ -4,7 +4,7 @@ import Data.GettableAlert exposing (GettableAlert)
 import Html exposing (Html, a, button, div, fieldset, h1, input, label, legend, span, strong, text, textarea)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
-import Utils.Filter
+import Utils.Filter exposing (SilenceFormGetParams, emptySilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
@@ -13,8 +13,8 @@ import Views.Shared.Types exposing (Msg)
 import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
-view : Maybe String -> List Utils.Filter.Matcher -> String -> Model -> Html SilenceFormMsg
-view maybeId matchers defaultCreator { form, silenceId, alerts, activeAlertId } =
+view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
+view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -22,7 +22,7 @@ view maybeId matchers defaultCreator { form, silenceId, alerts, activeAlertId } 
                     ( "Edit Silence", FetchSilence silenceId_ )
 
                 Nothing ->
-                    ( "New Silence", NewSilenceFromMatchers defaultCreator matchers )
+                    ( "New Silence", NewSilenceFromMatchersAndComment defaultCreator emptySilenceFormGetParams )
     in
     div []
         [ h1 [] [ text title ]

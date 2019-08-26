@@ -5,11 +5,10 @@ module Views.SilenceForm.Types exposing
     , SilenceFormFieldMsg(..)
     , SilenceFormMsg(..)
     , emptyMatcher
-    , fromMatchersAndTime
+    , fromMatchersAndCommentAndTime
     , fromSilence
     , initSilenceForm
     , parseEndsAt
-    , setTime
     , toSilence
     , validateForm
     )
@@ -68,12 +67,9 @@ type SilenceFormMsg
     | AlertGroupsPreview (ApiData (List GettableAlert))
     | SetActiveAlert (Maybe String)
     | FetchSilence String
-    | FetchSilenceAndSetTime String
-    | NewSilenceFromMatchers String (List Utils.Filter.Matcher)
-    | NewSilenceFromMatchersAndTime String (List Utils.Filter.Matcher) Posix
+    | NewSilenceFromMatchersAndComment String Utils.Filter.SilenceFormGetParams
+    | NewSilenceFromMatchersAndCommentAndTime String (List Utils.Filter.Matcher) String Posix
     | SilenceFetch (ApiData GettableSilence)
-    | SilenceFetchAndSetTime (ApiData GettableSilence)
-    | SetTime GettableSilence Posix
     | SilenceCreate (ApiData String)
 
 
@@ -138,18 +134,6 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     }
 
 
-setTime : GettableSilence -> Posix -> SilenceForm
-setTime { id, createdBy, comment, startsAt, endsAt, matchers } now =
-    { id = Just id
-    , createdBy = initialField createdBy
-    , comment = initialField comment
-    , startsAt = initialField (timeToString now)
-    , endsAt = initialField (timeToString (addDuration defaultDuration now))
-    , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
-    , matchers = List.map fromMatcher matchers
-    }
-
-
 validateForm : SilenceForm -> SilenceForm
 validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
     { id = id
@@ -210,8 +194,8 @@ defaultDuration =
     2 * 60 * 60 * 1000
 
 
-fromMatchersAndTime : String -> List Utils.Filter.Matcher -> Posix -> SilenceForm
-fromMatchersAndTime defaultCreator matchers now =
+fromMatchersAndCommentAndTime : String -> List Utils.Filter.Matcher -> String -> Posix -> SilenceForm
+fromMatchersAndCommentAndTime defaultCreator matchers comment now =
     { empty
         | startsAt = initialField (timeToString now)
         , endsAt = initialField (timeToString (addDuration defaultDuration now))
@@ -224,6 +208,7 @@ fromMatchersAndTime defaultCreator matchers now =
 
             else
                 List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
+        , comment = initialField comment
     }
 
 

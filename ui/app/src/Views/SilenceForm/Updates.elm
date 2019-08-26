@@ -18,10 +18,9 @@ import Views.SilenceForm.Types
         , SilenceFormFieldMsg(..)
         , SilenceFormMsg(..)
         , emptyMatcher
-        , fromMatchersAndTime
+        , fromMatchersAndCommentAndTime
         , fromSilence
         , parseEndsAt
-        , setTime
         , toSilence
         , validateForm
         )
@@ -208,11 +207,11 @@ update msg model basePath apiUrl =
             in
             ( { model | silenceId = silenceId }, cmd )
 
-        NewSilenceFromMatchers defaultCreator matchers ->
-            ( model, Task.perform (NewSilenceFromMatchersAndTime defaultCreator matchers >> MsgForSilenceForm) Time.now )
+        NewSilenceFromMatchersAndComment defaultCreator params ->
+            ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment >> MsgForSilenceForm) Time.now )
 
-        NewSilenceFromMatchersAndTime defaultCreator matchers time ->
-            ( { form = fromMatchersAndTime defaultCreator matchers time
+        NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment time ->
+            ( { form = fromMatchersAndCommentAndTime defaultCreator matchers comment time
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
@@ -230,22 +229,6 @@ update msg model basePath apiUrl =
             )
 
         SilenceFetch _ ->
-            ( model, Cmd.none )
-
-        FetchSilenceAndSetTime silenceId ->
-            ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetchAndSetTime >> MsgForSilenceForm) )
-
-        SilenceFetchAndSetTime (Success silence) ->
-            ( { model | form = fromSilence silence }
-            , Task.perform (SetTime silence >> MsgForSilenceForm) Time.now
-            )
-
-        SetTime silence time ->
-            ( { model | form = setTime silence time }
-            , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
-            )
-
-        SilenceFetchAndSetTime _ ->
             ( model, Cmd.none )
 
         PreviewSilence ->

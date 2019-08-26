@@ -47,18 +47,13 @@ update msg ({ basePath, apiUrl } as model) =
             , Cmd.map MsgForSilenceView cmd
             )
 
-        NavigateToSilenceFormNew matchers ->
-            ( { model | route = SilenceFormNewRoute matchers }
-            , Task.perform (NewSilenceFromMatchers model.defaultCreator >> MsgForSilenceForm) (Task.succeed matchers)
+        NavigateToSilenceFormNew params ->
+            ( { model | route = SilenceFormNewRoute params }
+            , Task.perform (NewSilenceFromMatchersAndComment model.defaultCreator >> MsgForSilenceForm) (Task.succeed params)
             )
 
         NavigateToSilenceFormEdit uuid ->
             ( { model | route = SilenceFormEditRoute uuid }, Task.perform identity (Task.succeed <| (FetchSilence uuid |> MsgForSilenceForm)) )
-
-        NavigateToSilenceFormRecreate uuid ->
-            ( { model | route = SilenceFormRecreateRoute uuid }
-            , Task.perform identity (Task.succeed <| (FetchSilenceAndSetTime uuid |> MsgForSilenceForm))
-            )
 
         NavigateToNotFound ->
             ( { model | route = NotFoundRoute }, Cmd.none )

@@ -5,6 +5,7 @@ import Html.Attributes exposing (class, href, rel, src, style)
 import Html.Events exposing (on)
 import Json.Decode exposing (succeed)
 import Types exposing (Model, Msg(..), Route(..))
+import Utils.Filter exposing (emptySilenceFormGetParams)
 import Utils.Types exposing (ApiData(..))
 import Utils.Views exposing (error, loading)
 import Views.AlertList.Views as AlertList
@@ -81,14 +82,11 @@ currentView model =
         SilenceListRoute _ ->
             SilenceList.view model.silenceList
 
-        SilenceFormNewRoute matchers ->
-            SilenceForm.view Nothing matchers model.defaultCreator model.silenceForm |> Html.map MsgForSilenceForm
+        SilenceFormNewRoute getParams ->
+            SilenceForm.view Nothing getParams model.defaultCreator model.silenceForm |> Html.map MsgForSilenceForm
 
         SilenceFormEditRoute silenceId ->
-            SilenceForm.view (Just silenceId) [] "" model.silenceForm |> Html.map MsgForSilenceForm
-
-        SilenceFormRecreateRoute silenceId ->
-            SilenceForm.view Nothing [] "" model.silenceForm |> Html.map MsgForSilenceForm
+            SilenceForm.view (Just silenceId) emptySilenceFormGetParams "" model.silenceForm |> Html.map MsgForSilenceForm
 
         TopLevelRoute ->
             Utils.Views.loading
