@@ -246,9 +246,7 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		m.numFailedNotifications.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
 	}
-	if r != nil {
-		r.MustRegister(m.numNotifications, m.numFailedNotifications, m.notificationLatencySeconds)
-	}
+	r.MustRegister(m.numNotifications, m.numFailedNotifications, m.notificationLatencySeconds)
 	return m
 }
 
