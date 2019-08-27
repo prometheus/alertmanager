@@ -15,7 +15,7 @@ import Utils.List
 import Utils.Views exposing (buttonLink)
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Dialog as Dialog
-import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers)
+import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers, newSilenceFromMatchersAndComment)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 
 
@@ -114,7 +114,7 @@ editButton silence =
         Expired ->
             a
                 [ class "btn btn-outline-info border-0"
-                , href (newSilenceFromMatchers silence.matchers)
+                , href (newSilenceFromMatchersAndComment silence.matchers silence.comment)
                 ]
                 [ text "Recreate"
                 ]
