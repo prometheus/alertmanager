@@ -95,6 +95,7 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
                 , filterBar = newFilterBar
                 , groupBar = newGroupBar
                 , activeId = Nothing
+                , activeGroups = Set.empty
               }
             , Cmd.batch
                 [ if filter.customGrouping then
@@ -159,7 +160,7 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
                 allGroupLabels =
                     case ( alertGroups, expanded ) of
                         ( Success groups, True ) ->
-                            List.map (.labels >> Dict.toList) groups
+                            List.range 0 (List.length groups)
                                 |> Set.fromList
 
                         _ ->
