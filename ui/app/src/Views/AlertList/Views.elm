@@ -102,11 +102,11 @@ defaultAlertGroups activeId activeGroups expandAll groups =
 
         _ ->
             div [ class "pl-5" ]
-                (List.indexedMap Tuple.pair groups
-                    |> List.map
-                        (\( index, group ) ->
-                            alertGroup activeId activeGroups (Dict.toList group.labels) group.alerts index expandAll
-                        )
+                (List.indexedMap
+                    (\index group ->
+                        alertGroup activeId activeGroups (Dict.toList group.labels) group.alerts index expandAll
+                    )
+                    groups
                 )
 
 
