@@ -2,7 +2,9 @@ module Utils.Filter exposing
     ( Filter
     , MatchOperator(..)
     , Matcher
+    , SilenceFormGetParams
     , convertFilterMatcher
+    , emptySilenceFormGetParams
     , generateAPIQueryString
     , generateQueryParam
     , generateQueryString
@@ -323,4 +325,17 @@ silencePreviewFilter apiMatchers =
         , showSilenced = Just True
         , showInhibited = Just True
         , showActive = Just True
+    }
+
+
+type alias SilenceFormGetParams =
+    { matchers : List Matcher
+    , comment : String
+    }
+
+
+emptySilenceFormGetParams : SilenceFormGetParams
+emptySilenceFormGetParams =
+    { matchers = []
+    , comment = ""
     }
