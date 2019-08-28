@@ -137,10 +137,10 @@ func (m *mailDev) doEmailRequest(method string, path string) (int, []byte, error
 
 // emailTestConfig is the configuration for the tests.
 type emailTestConfig struct {
-	Smarthost string   `yaml:"smarthost"`
-	Username  string   `yaml:"username"`
-	Password  string   `yaml:"password"`
-	Server    *mailDev `yaml:"server"`
+	Smarthost config.HostPort `yaml:"smarthost"`
+	Username  string          `yaml:"username"`
+	Password  string          `yaml:"password"`
+	Server    *mailDev        `yaml:"server"`
 }
 
 func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
@@ -223,13 +223,6 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 		errMsg   string
 		hasEmail bool
 	}{
-		{
-			title: "invalid address",
-			updateCfg: func(cfg *config.EmailConfig) {
-				cfg.Smarthost = "example.com"
-			},
-			errMsg: "split address:",
-		},
 		{
 			title: "invalid 'from' template",
 			updateCfg: func(cfg *config.EmailConfig) {
