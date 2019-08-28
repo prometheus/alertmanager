@@ -30,6 +30,7 @@ require (
 	github.com/stretchr/testify v1.3.0
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
 	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80
+	golang.org/x/sys v0.0.0-20190826190057-c7b8b68b1456 // indirect
 	golang.org/x/tools v0.0.0-20190813034749-528a2984e271
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v2 v2.2.2
