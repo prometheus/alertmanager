@@ -17,8 +17,7 @@ jobs:
     - run:
         name: Remove existing Go installation
         command: sudo rm -rf /usr/local/go
-    # Whenever the Go version is updated here, .travis.yml and .promu.yml
-    # should also be updated.
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
     - go/install:
         version: "1.12.9"
     - run:
@@ -38,8 +37,7 @@ jobs:
 
   test:
     docker:
-    # Whenever the Go version is updated here, .travis.yml and .promu.yml
-    # should also be updated.
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
     - image: circleci/golang:1.12
     # maildev containers are for running the email tests against a "real" SMTP server.
     # See notify/email_test.go for details.
