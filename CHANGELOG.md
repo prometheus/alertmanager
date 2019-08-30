@@ -1,3 +1,18 @@
+## 0.19.0-rc.0 / 2019-08-29
+
+* [CHANGE] Reject invalid external URLs at startup. #1960
+* [CHANGE] Add Fingerprint to template data. #1945
+* [CHANGE] Check Smarthost validity at config loading. #1957
+* [ENHANCEMENT] Improve error messages for email receiver. #1953
+* [ENHANCEMENT] Log error messages from OpsGenie API. #1965
+* [ENHANCEMENT] Add the ability to configure Slack markdown field. #1967
+* [ENHANCEMENT] Log warning when repeat_interval > retention. #1993
+* [ENHANCEMENT] Add `alertmanager_cluster_enabled` metric. #1973
+* [ENHANCEMENT] [ui] Recreate silence with previous comment. #1927
+* [BUGFIX] [ui] Fix /api/v2/alerts/groups endpoint with similar alert groups. #1964
+* [BUGFIX] Allow slashes in receivers. #2011
+* [BUGFIX] [ui] Fix expand/collapse button with identical alert groups. #2012
+
 ## 0.18.0 / 2019-07-08
 
 * [CHANGE] Remove quantile labels from Summary metrics. #1921
