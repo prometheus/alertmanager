@@ -1,4 +1,4 @@
-## 0.19.0-rc.0 / 2019-08-29
+## 0.19.0 / 2019-09-03
 
 * [CHANGE] Reject invalid external URLs at startup. #1960
 * [CHANGE] Add Fingerprint to template data. #1945
