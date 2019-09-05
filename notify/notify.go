@@ -238,6 +238,7 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		"wechat",
 		"pushover",
 		"slack",
+		"teams",
 		"opsgenie",
 		"webhook",
 		"victorops",

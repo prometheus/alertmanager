@@ -144,3 +144,6 @@ receivers:
   slack_configs:
     - channel: '#my-channel'
       image_url: 'http://some.img.com/img.png'
+- name: teams-receiver
+  teams_configs:
+    - webhook_url: mysecret

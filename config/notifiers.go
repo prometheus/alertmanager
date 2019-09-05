@@ -139,6 +139,16 @@ var (
 		Expire:   duration(1 * time.Hour),
 		HTML:     false,
 	}
+
+	// DefaultTeamsConfig defines default values for Teams configurations.
+	DefaultTeamsConfig = TeamsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title:   `{{ template "teams.default.title" . }}`,
+		Summary: `{{ template "teams.default.summary" . }}`,
+		Link:    `{{ template "teams.default.link" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -586,6 +596,29 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	if c.Token == "" {
 		return fmt.Errorf("missing token in Pushover config")
+	}
+	return nil
+}
+
+// TeamsConfig configures notifications via Teams.
+type TeamsConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	WEBHOOKURL *SecretURL `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+
+	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
+	Summary string `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Link    string `yaml:"link,omitempty" json:"link,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTeamsConfig
+	type plain TeamsConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
 	}
 	return nil
 }

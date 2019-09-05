@@ -221,3 +221,7 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 {{ define "pushover.default.url" }}{{ template "__alertmanagerURL" . }}{{ end }}
+
+{{ define "teams.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "teams.default.summary" }}{{ template "__subject" . }}{{ end }}
+{{ define "teams.default.link" }}{{ template "__alertmanagerURL" . }}{{ end }}

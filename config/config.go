@@ -333,6 +333,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				poc.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
+		for _, poc := range rcv.TeamsConfigs {
+			if poc.HTTPConfig == nil {
+				poc.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
 		for _, pdc := range rcv.PagerdutyConfigs {
 			if pdc.HTTPConfig == nil {
 				pdc.HTTPConfig = c.Global.HTTPConfig
@@ -710,6 +715,7 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	TeamsConfigs     []*TeamsConfig     `yaml:"teams_configs,omitempty" json:"teams_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
