@@ -3,12 +3,41 @@ version: 2.1
 
 orbs:
   prometheus: prometheus/prometheus@0.1.0
+  go: circleci/go@0.2.0
 
 jobs:
+  test_frontend:
+    # We need to use a machine executor because the front-end validation runs
+    # containers with mounted volumes which isn't supported with the docker
+    # executor (even with setup_remote_docker).
+    machine: true
+    steps:
+    - checkout
+    - run: sudo service docker restart
+    - run:
+        name: Remove existing Go installation
+        command: sudo rm -rf /usr/local/go
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
+    - go/install:
+        version: "1.12.9"
+    - run:
+        name: Remove generated code
+        command: make clean
+    - run:
+        name: Generate front-end code
+        command: make all
+        working_directory: ~/project/ui/app
+    - run:
+        name: Generate assets
+        command: make assets
+    - run:
+        name: Generate API v2 code
+        command: make apiv2
+    - run: git diff --exit-code
+
   test:
     docker:
-    # Whenever the Go version is updated here, .travis.yml and .promu.yml
-    # should also be updated.
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
     - image: circleci/golang:1.12
     # maildev containers are for running the email tests against a "real" SMTP server.
     # See notify/email_test.go for details.
@@ -59,10 +88,15 @@ jobs:
     - prometheus/store_artifact:
         file: amtool
 
+
 workflows:
   version: 2
   alertmanager:
     jobs:
+    - test_frontend:
+        filters:
+          tags:
+            only: /.*/
     - test:
         filters:
           tags:
@@ -75,6 +109,7 @@ workflows:
     - prometheus/publish_master:
         context: org-context
         requires:
+        - test_frontend
         - test
         - build
         filters:

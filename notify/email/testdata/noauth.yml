@@ -1,0 +1,2 @@
+smarthost: localhost:1025
+server: http://localhost:1080/

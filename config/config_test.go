@@ -29,7 +29,6 @@ import (
 )
 
 func TestLoadEmptyString(t *testing.T) {
-
 	var in string
 	_, err := Load(in)
 
@@ -319,7 +318,7 @@ receivers:
 }
 
 func TestHideConfigSecrets(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -332,7 +331,7 @@ func TestHideConfigSecrets(t *testing.T) {
 }
 
 func TestJSONMarshal(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -442,7 +441,7 @@ func TestUnmarshalURL(t *testing.T) {
 	}
 	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in JSON.")
 
-	err = json.Unmarshal(b, &u)
+	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -486,7 +485,7 @@ func TestUnmarshalRelativeURL(t *testing.T) {
 }
 
 func TestJSONUnmarshal(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -498,7 +497,7 @@ func TestJSONUnmarshal(t *testing.T) {
 }
 
 func TestMarshalIdempotency(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -550,7 +549,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		Global: &GlobalConfig{
 			HTTPConfig:       &commoncfg.HTTPClientConfig{},
 			ResolveTimeout:   model.Duration(5 * time.Minute),
-			SMTPSmarthost:    "localhost:25",
+			SMTPSmarthost:    HostPort{Host: "localhost", Port: "25"},
 			SMTPFrom:         "alertmanager@example.org",
 			HipchatAuthToken: "mysecret",
 			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
@@ -594,7 +593,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 					{
 						To:         "team-X+alerts@example.org",
 						From:       "alertmanager@example.org",
-						Smarthost:  "localhost:25",
+						Smarthost:  HostPort{Host: "localhost", Port: "25"},
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
 					},
@@ -605,12 +604,12 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 
 	// Load a non-empty configuration to ensure that all fields are overwritten.
 	// See https://github.com/prometheus/alertmanager/issues/1649.
-	_, _, err := LoadFile("testdata/conf.good.yml")
+	_, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
 
-	config, _, err := LoadFile("testdata/conf.empty-fields.yml")
+	config, err := LoadFile("testdata/conf.empty-fields.yml")
 	if err != nil {
 		t.Errorf("Error parsing %s: %s", "testdata/conf.empty-fields.yml", err)
 	}
@@ -631,7 +630,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 }
 
 func TestSMTPHello(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.good.yml")
+	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.good.yml", err)
 	}
@@ -644,7 +643,7 @@ func TestSMTPHello(t *testing.T) {
 }
 
 func TestGroupByAll(t *testing.T) {
-	c, _, err := LoadFile("testdata/conf.group-by-all.yml")
+	c, err := LoadFile("testdata/conf.group-by-all.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.group-by-all.yml", err)
 	}
@@ -655,7 +654,7 @@ func TestGroupByAll(t *testing.T) {
 }
 
 func TestVictorOpsDefaultAPIKey(t *testing.T) {
-	conf, _, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
+	conf, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
 	}
@@ -670,7 +669,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 }
 
 func TestVictorOpsNoAPIKey(t *testing.T) {
-	_, _, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
+	_, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
 	}
@@ -680,7 +679,7 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 }
 
 func TestOpsGenieDefaultAPIKey(t *testing.T) {
-	conf, _, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
+	conf, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
 	}
@@ -695,7 +694,7 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 }
 
 func TestOpsGenieNoAPIKey(t *testing.T) {
-	_, _, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
+	_, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
 	}
@@ -705,7 +704,7 @@ func TestOpsGenieNoAPIKey(t *testing.T) {
 }
 
 func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
-	_, _, err := LoadFile("testdata/conf.opsgenie-default-apikey-old-team.yml")
+	_, err := LoadFile("testdata/conf.opsgenie-default-apikey-old-team.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-old-team.yml", err)
 	}
@@ -714,5 +713,66 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
   line 18: field teams not found in type config.plain`
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
+	}
+}
+
+func TestUnmarshalHostPort(t *testing.T) {
+	for _, tc := range []struct {
+		in string
+
+		exp     HostPort
+		jsonOut string
+		yamlOut string
+		err     bool
+	}{
+		{
+			in:  `""`,
+			exp: HostPort{},
+			yamlOut: `""
+`,
+			jsonOut: `""`,
+		},
+		{
+			in:  `"localhost:25"`,
+			exp: HostPort{Host: "localhost", Port: "25"},
+			yamlOut: `localhost:25
+`,
+			jsonOut: `"localhost:25"`,
+		},
+		{
+			in:  `":25"`,
+			exp: HostPort{Host: "", Port: "25"},
+			yamlOut: `:25
+`,
+			jsonOut: `":25"`,
+		},
+		{
+			in:  `"localhost"`,
+			err: true,
+		},
+		{
+			in:  `"localhost:"`,
+			err: true,
+		},
+	} {
+		tc := tc
+		t.Run(tc.in, func(t *testing.T) {
+			hp := HostPort{}
+			err := yaml.Unmarshal([]byte(tc.in), &hp)
+			if tc.err {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, hp)
+
+			b, err := yaml.Marshal(&hp)
+			require.NoError(t, err)
+			require.Equal(t, tc.yamlOut, string(b))
+
+			b, err = json.Marshal(&hp)
+			require.NoError(t, err)
+			require.Equal(t, tc.jsonOut, string(b))
+		})
 	}
 }

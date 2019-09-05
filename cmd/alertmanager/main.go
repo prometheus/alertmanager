@@ -30,6 +30,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
@@ -79,12 +80,19 @@ var (
 		},
 		[]string{"handler", "method"},
 	)
+	clusterEnabled = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_cluster_enabled",
+			Help: "Indicates whether the clustering is enabled or not.",
+		},
+	)
 	promlogConfig = promlog.Config{}
 )
 
 func init() {
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(responseSize)
+	prometheus.MustRegister(clusterEnabled)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -149,6 +157,18 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	}
 	return integrations, nil
 }
+
+// walkRoute traverses the route tree in depth-first order.
+func walkRoute(r *dispatch.Route, visit func(*dispatch.Route)) {
+	visit(r)
+	if r.Routes == nil {
+		return
+	}
+	for i := range r.Routes {
+		walkRoute(r.Routes[i], visit)
+	}
+}
+
 func main() {
 	os.Exit(run())
 }
@@ -171,7 +191,7 @@ func run() int {
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
-		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster.").
+		clusterBindAddr = kingpin.Flag("cluster.listen-address", "Listen address for cluster. Set to empty string to disable HA mode.").
 				Default(defaultClusterAddr).String()
 		clusterAdvertiseAddr = kingpin.Flag("cluster.advertise-address", "Explicit address to advertise in cluster.").String()
 		peers                = kingpin.Flag("cluster.peer", "Initial peers (may be repeated).").Strings()
@@ -222,6 +242,7 @@ func run() int {
 			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)
 			return 1
 		}
+		clusterEnabled.Set(1)
 	}
 
 	stopc := make(chan struct{})
@@ -323,15 +344,16 @@ func run() int {
 	})
 
 	if err != nil {
-		level.Error(logger).Log("err", fmt.Errorf("failed to create API: %v", err.Error()))
+		level.Error(logger).Log("err", errors.Wrap(err, "failed to create API"))
 		return 1
 	}
 
-	amURL, err := extURL(*listenAddress, *externalURL)
+	amURL, err := extURL(logger, os.Hostname, *listenAddress, *externalURL)
 	if err != nil {
-		level.Error(logger).Log("err", err)
+		level.Error(logger).Log("msg", "failed to determine external URL", "err", err)
 		return 1
 	}
+	level.Debug(logger).Log("externalURL", amURL.String())
 
 	waitFunc := func() time.Duration { return 0 }
 	if peer != nil {
@@ -349,6 +371,7 @@ func run() int {
 		tmpl      *template.Template
 	)
 
+	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configCoordinator := config.NewCoordinator(
 		*configFile,
 		prometheus.DefaultRegisterer,
@@ -357,7 +380,7 @@ func run() int {
 	configCoordinator.Subscribe(func(conf *config.Config) error {
 		tmpl, err = template.FromGlobs(conf.Templates...)
 		if err != nil {
-			return fmt.Errorf("failed to parse templates: %v", err.Error())
+			return errors.Wrap(err, "failed to parse templates")
 		}
 		tmpl.ExternalURL = amURL
 
@@ -377,7 +400,7 @@ func run() int {
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
-		pipeline := notify.BuildPipeline(
+		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
 			inhibitor,
@@ -391,7 +414,22 @@ func run() int {
 			silencer.Mutes(labels)
 		})
 
-		disp = dispatch.NewDispatcher(alerts, dispatch.NewRoute(conf.Route, nil), pipeline, marker, timeoutFunc, logger)
+		routes := dispatch.NewRoute(conf.Route, nil)
+		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, logger)
+		walkRoute(routes, func(r *dispatch.Route) {
+			if r.RouteOpts.RepeatInterval > *retention {
+				level.Warn(log.With(logger, "component", "configuration")).Log(
+					"msg",
+					"repeat_interval is greater than the data retention period. It can lead to notifications being repeated more often than expected.",
+					"repeat_interval",
+					r.RouteOpts.RepeatInterval,
+					"retention",
+					*retention,
+					"route",
+					r.Key(),
+				)
+			}
+		})
 
 		go disp.Run()
 		go inhibitor.Run()
@@ -404,14 +442,13 @@ func run() int {
 	}
 
 	// Make routePrefix default to externalURL path if empty string.
-	if routePrefix == nil || *routePrefix == "" {
+	if *routePrefix == "" {
 		*routePrefix = amURL.Path
 	}
-
 	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
+	level.Debug(logger).Log("routePrefix", *routePrefix)
 
 	router := route.New().WithInstrumentation(instrumentHandler)
-
 	if *routePrefix != "/" {
 		router = router.WithPrefix(*routePrefix)
 	}
@@ -481,15 +518,18 @@ func clusterWait(p *cluster.Peer, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func extURL(listen, external string) (*url.URL, error) {
+func extURL(logger log.Logger, hostnamef func() (string, error), listen, external string) (*url.URL, error) {
 	if external == "" {
-		hostname, err := os.Hostname()
+		hostname, err := hostnamef()
 		if err != nil {
 			return nil, err
 		}
 		_, port, err := net.SplitHostPort(listen)
 		if err != nil {
 			return nil, err
+		}
+		if port == "" {
+			level.Warn(logger).Log("msg", "no port found for listen address", "address", listen)
 		}
 
 		external = fmt.Sprintf("http://%s:%s/", hostname, port)
@@ -498,6 +538,9 @@ func extURL(listen, external string) (*url.URL, error) {
 	u, err := url.Parse(external)
 	if err != nil {
 		return nil, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, errors.Errorf("%q: invalid %q scheme, only 'http' and 'https' are supported", u.String(), u.Scheme)
 	}
 
 	ppref := strings.TrimRight(u.Path, "/")

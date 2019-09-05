@@ -29,27 +29,37 @@ import (
 )
 
 func TestPagerDutyRetryV1(t *testing.T) {
-	notifier := new(Notifier)
+	notifier, err := New(
+		&config.PagerdutyConfig{
+			ServiceKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusForbidden)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
-		resp := &http.Response{
-			StatusCode: statusCode,
-		}
-		actual, _ := notifier.retryV1(resp)
+		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("retryv1 - error on status %d", statusCode))
 	}
 }
 
 func TestPagerDutyRetryV2(t *testing.T) {
-	notifier := new(Notifier)
+	notifier, err := New(
+		&config.PagerdutyConfig{
+			RoutingKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
-		resp := &http.Response{
-			StatusCode: statusCode,
-		}
-		actual, _ := notifier.retryV2(resp)
+		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("retryv2 - error on status %d", statusCode))
 	}
 }
@@ -92,7 +102,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
 }
 
-func TestPagerDutyErr(t *testing.T) {
+func TestErrDetails(t *testing.T) {
 	for _, tc := range []struct {
 		status int
 		body   io.Reader
@@ -111,25 +121,23 @@ func TestPagerDutyErr(t *testing.T) {
 			status: http.StatusBadRequest,
 			body:   bytes.NewBuffer([]byte(`{"status"}`)),
 
-			exp: "unexpected status code: 400",
+			exp: "",
 		},
 		{
 			status: http.StatusBadRequest,
-			body:   nil,
 
-			exp: "unexpected status code: 400",
+			exp: "",
 		},
 		{
 			status: http.StatusTooManyRequests,
-			body:   bytes.NewBuffer([]byte("")),
 
-			exp: "unexpected status code: 429",
+			exp: "",
 		},
 	} {
 		tc := tc
 		t.Run("", func(t *testing.T) {
-			err := pagerDutyErr(tc.status, tc.body)
-			require.Contains(t, err.Error(), tc.exp)
+			err := errDetails(tc.status, tc.body)
+			require.Contains(t, err, tc.exp)
 		})
 	}
 }

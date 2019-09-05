@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-kit/kit/log"
@@ -35,15 +36,16 @@ var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // Notifier implements a Notifier for generic webhooks.
 type Notifier struct {
-	conf   *config.WebhookConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
+	conf    *config.WebhookConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
 }
 
 // New returns a new Webhook.
 func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook")
+	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", false)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +54,13 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 		tmpl:   t,
 		logger: l,
 		client: client,
+		// Webhooks are assumed to respond with 2xx response codes on a successful
+		// request and 5xx response codes are assumed to be recoverable.
+		retrier: &notify.Retrier{
+			CustomDetailsFunc: func(int, io.Reader) string {
+				return conf.URL.String()
+			},
+		},
 	}, nil
 }
 
@@ -97,15 +106,5 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 	notify.Drain(resp)
 
-	return n.retry(resp.StatusCode)
-}
-
-func (n *Notifier) retry(statusCode int) (bool, error) {
-	// Webhooks are assumed to respond with 2xx response codes on a successful
-	// request and 5xx response codes are assumed to be recoverable.
-	if statusCode/100 != 2 {
-		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, n.conf.URL)
-	}
-
-	return false, nil
+	return n.retrier.Check(resp.StatusCode, nil)
 }

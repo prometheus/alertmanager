@@ -12,6 +12,7 @@ import (
 
 	io "io"
 	math "math"
+	math_bits "math/bits"
 	time "time"
 )
 
@@ -81,7 +82,7 @@ func (m *Matcher) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Matcher.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +125,7 @@ func (m *Comment) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Comment.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -180,7 +181,7 @@ func (m *Silence) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Silence.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +224,7 @@ func (m *MeshSilence) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_MeshSilence.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -287,7 +288,7 @@ var fileDescriptor_7fc56058cf68dbd8 = []byte{
 func (m *Matcher) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -295,37 +296,45 @@ func (m *Matcher) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Matcher) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Matcher) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Type != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintSilence(dAtA, i, uint64(m.Type))
-	}
-	if len(m.Name) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSilence(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Pattern) > 0 {
-		dAtA[i] = 0x1a
-		i++
+		i -= len(m.Pattern)
+		copy(dAtA[i:], m.Pattern)
 		i = encodeVarintSilence(dAtA, i, uint64(len(m.Pattern)))
-		i += copy(dAtA[i:], m.Pattern)
+		i--
+		dAtA[i] = 0x1a
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintSilence(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if m.Type != 0 {
+		i = encodeVarintSilence(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *Comment) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -333,40 +342,48 @@ func (m *Comment) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Comment) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Comment) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Author) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSilence(dAtA, i, uint64(len(m.Author)))
-		i += copy(dAtA[i:], m.Author)
-	}
-	if len(m.Comment) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSilence(dAtA, i, uint64(len(m.Comment)))
-		i += copy(dAtA[i:], m.Comment)
-	}
-	dAtA[i] = 0x1a
-	i++
-	i = encodeVarintSilence(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.Timestamp)))
-	n1, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Timestamp, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n1
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	n1, err1 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Timestamp, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Timestamp):])
+	if err1 != nil {
+		return 0, err1
+	}
+	i -= n1
+	i = encodeVarintSilence(dAtA, i, uint64(n1))
+	i--
+	dAtA[i] = 0x1a
+	if len(m.Comment) > 0 {
+		i -= len(m.Comment)
+		copy(dAtA[i:], m.Comment)
+		i = encodeVarintSilence(dAtA, i, uint64(len(m.Comment)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Author) > 0 {
+		i -= len(m.Author)
+		copy(dAtA[i:], m.Author)
+		i = encodeVarintSilence(dAtA, i, uint64(len(m.Author)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *Silence) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -374,86 +391,99 @@ func (m *Silence) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Silence) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Silence) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Id) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSilence(dAtA, i, uint64(len(m.Id)))
-		i += copy(dAtA[i:], m.Id)
-	}
-	if len(m.Matchers) > 0 {
-		for _, msg := range m.Matchers {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintSilence(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	dAtA[i] = 0x1a
-	i++
-	i = encodeVarintSilence(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.StartsAt)))
-	n2, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartsAt, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n2
-	dAtA[i] = 0x22
-	i++
-	i = encodeVarintSilence(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.EndsAt)))
-	n3, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndsAt, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n3
-	dAtA[i] = 0x2a
-	i++
-	i = encodeVarintSilence(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.UpdatedAt)))
-	n4, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.UpdatedAt, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n4
-	if len(m.Comments) > 0 {
-		for _, msg := range m.Comments {
-			dAtA[i] = 0x3a
-			i++
-			i = encodeVarintSilence(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	if len(m.CreatedBy) > 0 {
-		dAtA[i] = 0x42
-		i++
-		i = encodeVarintSilence(dAtA, i, uint64(len(m.CreatedBy)))
-		i += copy(dAtA[i:], m.CreatedBy)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Comment) > 0 {
-		dAtA[i] = 0x4a
-		i++
+		i -= len(m.Comment)
+		copy(dAtA[i:], m.Comment)
 		i = encodeVarintSilence(dAtA, i, uint64(len(m.Comment)))
-		i += copy(dAtA[i:], m.Comment)
+		i--
+		dAtA[i] = 0x4a
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.CreatedBy) > 0 {
+		i -= len(m.CreatedBy)
+		copy(dAtA[i:], m.CreatedBy)
+		i = encodeVarintSilence(dAtA, i, uint64(len(m.CreatedBy)))
+		i--
+		dAtA[i] = 0x42
 	}
-	return i, nil
+	if len(m.Comments) > 0 {
+		for iNdEx := len(m.Comments) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Comments[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSilence(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
+	n2, err2 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.UpdatedAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.UpdatedAt):])
+	if err2 != nil {
+		return 0, err2
+	}
+	i -= n2
+	i = encodeVarintSilence(dAtA, i, uint64(n2))
+	i--
+	dAtA[i] = 0x2a
+	n3, err3 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndsAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndsAt):])
+	if err3 != nil {
+		return 0, err3
+	}
+	i -= n3
+	i = encodeVarintSilence(dAtA, i, uint64(n3))
+	i--
+	dAtA[i] = 0x22
+	n4, err4 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartsAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartsAt):])
+	if err4 != nil {
+		return 0, err4
+	}
+	i -= n4
+	i = encodeVarintSilence(dAtA, i, uint64(n4))
+	i--
+	dAtA[i] = 0x1a
+	if len(m.Matchers) > 0 {
+		for iNdEx := len(m.Matchers) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Matchers[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSilence(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Id) > 0 {
+		i -= len(m.Id)
+		copy(dAtA[i:], m.Id)
+		i = encodeVarintSilence(dAtA, i, uint64(len(m.Id)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *MeshSilence) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -461,42 +491,52 @@ func (m *MeshSilence) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *MeshSilence) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MeshSilence) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Silence != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSilence(dAtA, i, uint64(m.Silence.Size()))
-		n5, err := m.Silence.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n5
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintSilence(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.ExpiresAt)))
-	n6, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ExpiresAt, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n6
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	n5, err5 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ExpiresAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ExpiresAt):])
+	if err5 != nil {
+		return 0, err5
+	}
+	i -= n5
+	i = encodeVarintSilence(dAtA, i, uint64(n5))
+	i--
+	dAtA[i] = 0x12
+	if m.Silence != nil {
+		{
+			size, err := m.Silence.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSilence(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintSilence(dAtA []byte, offset int, v uint64) int {
+	offset -= sovSilence(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Matcher) Size() (n int) {
 	if m == nil {
@@ -604,14 +644,7 @@ func (m *MeshSilence) Size() (n int) {
 }
 
 func sovSilence(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozSilence(x uint64) (n int) {
 	return sovSilence(uint64((x << 1) ^ uint64((int64(x) >> 63))))

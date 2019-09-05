@@ -15,7 +15,7 @@
 package asset
 
 import (
-	// The blank import is to make govendor happy.
+	// The blank import is to make go modules happy.
 	_ "github.com/shurcooL/vfsgen"
 )
 

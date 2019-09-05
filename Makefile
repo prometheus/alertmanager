@@ -25,8 +25,11 @@ STATICCHECK_IGNORE =
 # Will build both the front-end as well as the back-end
 build-all: assets apiv2 build
 
-assets: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl
-	GO111MODULE=$(GO111MODULE) $(GO) generate ./asset
+.PHONY: assets
+assets: asset/assets_vfsdata.go
+
+asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl
+	GO111MODULE=$(GO111MODULE) $(GO) generate $(GOOPTS) ./asset
 	@$(GOFMT) -w ./asset
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml

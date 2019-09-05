@@ -1,7 +1,7 @@
 module Types exposing (Model, Msg(..), Route(..))
 
 import Browser.Navigation exposing (Key)
-import Utils.Filter exposing (Filter, Matcher)
+import Utils.Filter exposing (Filter, Matcher, SilenceFormGetParams)
 import Utils.Types exposing (ApiData)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
@@ -39,7 +39,7 @@ type Msg
     | NavigateToNotFound
     | NavigateToSilenceView String
     | NavigateToSilenceFormEdit String
-    | NavigateToSilenceFormNew (List Matcher)
+    | NavigateToSilenceFormNew SilenceFormGetParams
     | NavigateToSilenceList Filter
     | NavigateToStatus
     | NavigateToInternalUrl String
@@ -57,7 +57,7 @@ type Route
     = AlertsRoute Filter
     | NotFoundRoute
     | SilenceFormEditRoute String
-    | SilenceFormNewRoute (List Matcher)
+    | SilenceFormNewRoute SilenceFormGetParams
     | SilenceListRoute Filter
     | SilenceViewRoute String
     | StatusRoute

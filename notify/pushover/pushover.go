@@ -33,25 +33,27 @@ import (
 
 // Notifier implements a Notifier for Pushover notifications.
 type Notifier struct {
-	conf   *config.PushoverConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
-	apiURL string // for tests.
+	conf    *config.PushoverConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
+	apiURL  string // for tests.
 }
 
 // New returns a new Pushover notifier.
 func New(c *config.PushoverConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pushover")
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pushover", false)
 	if err != nil {
 		return nil, err
 	}
 	return &Notifier{
-		conf:   c,
-		tmpl:   t,
-		logger: l,
-		client: client,
-		apiURL: "https://api.pushover.net/1/messages.json",
+		conf:    c,
+		tmpl:    t,
+		logger:  l,
+		client:  client,
+		retrier: &notify.Retrier{},
+		apiURL:  "https://api.pushover.net/1/messages.json",
 	}, nil
 }
 
@@ -128,18 +130,5 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode)
-}
-
-func (n *Notifier) retry(statusCode int) (bool, error) {
-	// Only documented behaviour is that 2xx response codes are successful and
-	// 4xx are unsuccessful, therefore assuming only 5xx are recoverable.
-	// https://pushover.net/api#response
-	if statusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
-	}
-
-	return false, nil
+	return n.retrier.Check(resp.StatusCode, nil)
 }
