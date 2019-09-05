@@ -15,15 +15,16 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -186,18 +187,18 @@ func Load(s string) (*Config, error) {
 }
 
 // LoadFile parses the given YAML file into a Config.
-func LoadFile(filename string) (*Config, []byte, error) {
+func LoadFile(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	cfg, err := Load(string(content))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	resolveFilepaths(filepath.Dir(filename), cfg)
-	return cfg, content, nil
+	return cfg, nil
 }
 
 // resolveFilepaths joins all relative paths in a configuration
@@ -264,8 +265,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, ec := range rcv.EmailConfigs {
-			if ec.Smarthost == "" {
-				if c.Global.SMTPSmarthost == "" {
+			if ec.Smarthost.String() == "" {
+				if c.Global.SMTPSmarthost.String() == "" {
 					return fmt.Errorf("no global SMTP smarthost set")
 				}
 				ec.Smarthost = c.Global.SMTPSmarthost
@@ -487,6 +488,51 @@ func parseURL(s string) (*URL, error) {
 	return &URL{u}, nil
 }
 
+// HostPort represents a "host:port" network address.
+type HostPort struct {
+	Host string
+	Port string
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for HostPort.
+func (hp *HostPort) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var (
+		s   string
+		err error
+	)
+	if err = unmarshal(&s); err != nil {
+		return err
+	}
+	if s == "" {
+		return nil
+	}
+	hp.Host, hp.Port, err = net.SplitHostPort(s)
+	if err != nil {
+		return err
+	}
+	if hp.Port == "" {
+		return errors.Errorf("address %q: port cannot be empty", s)
+	}
+	return nil
+}
+
+// MarshalYAML implements the yaml.Marshaler interface for HostPort.
+func (hp HostPort) MarshalYAML() (interface{}, error) {
+	return hp.String(), nil
+}
+
+// MarshalJSON implements the json.Marshaler interface for HostPort.
+func (hp HostPort) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hp.String())
+}
+
+func (hp HostPort) String() string {
+	if hp.Host == "" && hp.Port == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", hp.Host, hp.Port)
+}
+
 // GlobalConfig defines configuration parameters that are valid globally
 // unless overwritten.
 type GlobalConfig struct {
@@ -498,7 +544,7 @@ type GlobalConfig struct {
 
 	SMTPFrom         string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello        string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost    string     `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPSmarthost    HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername string     `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
 	SMTPAuthPassword Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthSecret   Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`

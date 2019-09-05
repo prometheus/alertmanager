@@ -35,61 +35,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	numNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_total",
-		Help:      "The total number of attempted notifications.",
-	}, []string{"integration"})
-
-	numFailedNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_failed_total",
-		Help:      "The total number of failed notifications.",
-	}, []string{"integration"})
-
-	notificationLatencySeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "alertmanager",
-		Name:      "notification_latency_seconds",
-		Help:      "The latency of notifications in seconds.",
-		Buckets:   []float64{1, 5, 10, 15, 20},
-	}, []string{"integration"})
-)
-
-func init() {
-	numNotifications.WithLabelValues("email")
-	numNotifications.WithLabelValues("hipchat")
-	numNotifications.WithLabelValues("pagerduty")
-	numNotifications.WithLabelValues("wechat")
-	numNotifications.WithLabelValues("pushover")
-	numNotifications.WithLabelValues("slack")
-	numNotifications.WithLabelValues("opsgenie")
-	numNotifications.WithLabelValues("webhook")
-	numNotifications.WithLabelValues("victorops")
-	numFailedNotifications.WithLabelValues("email")
-	numFailedNotifications.WithLabelValues("hipchat")
-	numFailedNotifications.WithLabelValues("pagerduty")
-	numFailedNotifications.WithLabelValues("wechat")
-	numFailedNotifications.WithLabelValues("pushover")
-	numFailedNotifications.WithLabelValues("slack")
-	numFailedNotifications.WithLabelValues("opsgenie")
-	numFailedNotifications.WithLabelValues("webhook")
-	numFailedNotifications.WithLabelValues("victorops")
-	notificationLatencySeconds.WithLabelValues("email")
-	notificationLatencySeconds.WithLabelValues("hipchat")
-	notificationLatencySeconds.WithLabelValues("pagerduty")
-	notificationLatencySeconds.WithLabelValues("wechat")
-	notificationLatencySeconds.WithLabelValues("pushover")
-	notificationLatencySeconds.WithLabelValues("slack")
-	notificationLatencySeconds.WithLabelValues("opsgenie")
-	notificationLatencySeconds.WithLabelValues("webhook")
-	notificationLatencySeconds.WithLabelValues("victorops")
-
-	prometheus.MustRegister(numNotifications)
-	prometheus.MustRegister(numFailedNotifications)
-	prometheus.MustRegister(notificationLatencySeconds)
-}
-
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {
 	SendResolved() bool
@@ -261,8 +206,62 @@ type NotificationLog interface {
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
-// BuildPipeline builds a map of receivers to Stages.
-func BuildPipeline(
+type metrics struct {
+	numNotifications           *prometheus.CounterVec
+	numFailedNotifications     *prometheus.CounterVec
+	notificationLatencySeconds *prometheus.HistogramVec
+}
+
+func newMetrics(r prometheus.Registerer) *metrics {
+	m := &metrics{
+		numNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notifications_total",
+			Help:      "The total number of attempted notifications.",
+		}, []string{"integration"}),
+		numFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notifications_failed_total",
+			Help:      "The total number of failed notifications.",
+		}, []string{"integration"}),
+		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "alertmanager",
+			Name:      "notification_latency_seconds",
+			Help:      "The latency of notifications in seconds.",
+			Buckets:   []float64{1, 5, 10, 15, 20},
+		}, []string{"integration"}),
+	}
+	for _, integration := range []string{
+		"email",
+		"hipchat",
+		"pagerduty",
+		"wechat",
+		"pushover",
+		"slack",
+		"opsgenie",
+		"webhook",
+		"victorops",
+	} {
+		m.numNotifications.WithLabelValues(integration)
+		m.numFailedNotifications.WithLabelValues(integration)
+		m.notificationLatencySeconds.WithLabelValues(integration)
+	}
+	r.MustRegister(m.numNotifications, m.numFailedNotifications, m.notificationLatencySeconds)
+	return m
+}
+
+type PipelineBuilder struct {
+	metrics *metrics
+}
+
+func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
+	return &PipelineBuilder{
+		metrics: newMetrics(r),
+	}
+}
+
+// New returns a map of receivers to Stages.
+func (pb *PipelineBuilder) New(
 	receivers map[string][]Integration,
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
@@ -277,14 +276,20 @@ func BuildPipeline(
 	ss := NewMuteStage(silencer)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
 		rs[name] = MultiStage{ms, is, ss, st}
 	}
 	return rs
 }
 
 // createReceiverStage creates a pipeline of stages for a receiver.
-func createReceiverStage(name string, integrations []Integration, wait func() time.Duration, notificationLog NotificationLog) Stage {
+func createReceiverStage(
+	name string,
+	integrations []Integration,
+	wait func() time.Duration,
+	notificationLog NotificationLog,
+	metrics *metrics,
+) Stage {
 	var fs FanoutStage
 	for i := range integrations {
 		recv := &nflogpb.Receiver{
@@ -295,7 +300,7 @@ func createReceiverStage(name string, integrations []Integration, wait func() ti
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
 		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name))
+		s = append(s, NewRetryStage(integrations[i], name, metrics))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -364,7 +369,7 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 					// message should only be logged at the debug level.
 					lvl = level.Debug(l)
 				}
-				lvl.Log("msg", "Error on notify", "err", err)
+				lvl.Log("msg", "Error on notify", "err", err, "context_err", ctx.Err())
 			}
 			wg.Done()
 		}(s)
@@ -594,13 +599,15 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 type RetryStage struct {
 	integration Integration
 	groupName   string
+	metrics     *metrics
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *metrics) *RetryStage {
 	return &RetryStage{
 		integration: i,
 		groupName:   groupName,
+		metrics:     metrics,
 	}
 }
 
@@ -653,10 +660,10 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
-			numNotifications.WithLabelValues(r.integration.Name()).Inc()
+			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
+			r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 			if err != nil {
-				numFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+				r.metrics.numFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
 				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.Name(), "receiver", r.groupName, "err", err)
 				if !retry {
 					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.Name(), err)

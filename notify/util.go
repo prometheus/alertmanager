@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -108,7 +109,7 @@ type Key string
 func ExtractGroupKey(ctx context.Context) (Key, error) {
 	key, ok := GroupKey(ctx)
 	if !ok {
-		return "", fmt.Errorf("group key missing")
+		return "", errors.Errorf("group key missing")
 	}
 	return Key(key), nil
 }
@@ -138,4 +139,58 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 		level.Error(l).Log("msg", "Missing group labels")
 	}
 	return tmpl.Data(recv, groupLabels, alerts...)
+}
+
+func readAll(r io.Reader) string {
+	if r == nil {
+		return ""
+	}
+	bs, err := ioutil.ReadAll(r)
+	if err != nil {
+		return ""
+	}
+	return string(bs)
+}
+
+// Retrier knows when to retry an HTTP request to a receiver. 2xx status codes
+// are successful, anything else is a failure and only 5xx status codes should
+// be retried.
+type Retrier struct {
+	// Function to return additional information in the error message.
+	CustomDetailsFunc func(code int, body io.Reader) string
+	// Additional HTTP status codes that should be retried.
+	RetryCodes []int
+}
+
+// Check returns a boolean indicating whether the request should be retried
+// and an optional error if the request has failed. If body is not nil, it will
+// be included in the error message.
+func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
+	// 2xx responses are considered to be always successful.
+	if statusCode/100 == 2 {
+		return false, nil
+	}
+
+	// 5xx responses are considered to be always retried.
+	retry := statusCode/100 == 5
+	if !retry {
+		for _, code := range r.RetryCodes {
+			if code == statusCode {
+				retry = true
+				break
+			}
+		}
+	}
+
+	s := fmt.Sprintf("unexpected status code %v", statusCode)
+	var details string
+	if r.CustomDetailsFunc != nil {
+		details = r.CustomDetailsFunc(statusCode, body)
+	} else {
+		details = readAll(body)
+	}
+	if details != "" {
+		s = fmt.Sprintf("%s: %s", s, details)
+	}
+	return retry, errors.New(s)
 }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -34,19 +35,26 @@ import (
 
 // Notifier implements a Notifier for OpsGenie notifications.
 type Notifier struct {
-	conf   *config.OpsGenieConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
+	conf    *config.OpsGenieConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
 }
 
 // New returns a new OpsGenie notifier.
 func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie")
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie", false)
 	if err != nil {
 		return nil, err
 	}
-	return &Notifier{conf: c, tmpl: t, logger: l, client: client}, nil
+	return &Notifier{
+		conf:    c,
+		tmpl:    t,
+		logger:  l,
+		client:  client,
+		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+	}, nil
 }
 
 type opsGenieCreateMessage struct {
@@ -85,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode)
+	return n.retrier.Check(resp.StatusCode, resp.Body)
 }
 
 // Like Split but filter out empty strings.
@@ -172,7 +180,7 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	apiKey := tmpl(string(n.conf.APIKey))
 
 	if err != nil {
-		return nil, false, fmt.Errorf("templating error: %s", err)
+		return nil, false, errors.Wrap(err, "templating error")
 	}
 
 	var buf bytes.Buffer
@@ -187,16 +195,4 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", apiKey))
 	return req.WithContext(ctx), true, nil
-}
-
-func (n *Notifier) retry(statusCode int) (bool, error) {
-	// https://docs.opsgenie.com/docs/response#section-response-codes
-	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
-	if statusCode/100 == 5 || statusCode == 429 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
-	}
-
-	return false, nil
 }

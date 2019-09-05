@@ -83,9 +83,17 @@ func TestVictorOpsCustomFields(t *testing.T) {
 }
 
 func TestVictorOpsRetry(t *testing.T) {
-	notifier := new(Notifier)
+	notifier, err := New(
+		&config.VictorOpsConfig{
+			APIKey:     config.Secret("secret"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
-		actual, _ := notifier.retry(statusCode)
+		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }

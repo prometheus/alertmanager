@@ -25,7 +25,7 @@ type AlertListMsg
     | ToggleSilenced Bool
     | ToggleInhibited Bool
     | SetActive (Maybe String)
-    | ActiveGroups Labels
+    | ActiveGroups Int
     | SetTab Tab
     | ToggleExpandAll Bool
 
@@ -43,7 +43,7 @@ type alias Model =
     , filterBar : FilterBar.Model
     , tab : Tab
     , activeId : Maybe String
-    , activeGroups : Set Labels
+    , activeGroups : Set Int
     , key : Key
     , expandAll : Bool
     }

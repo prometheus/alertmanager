@@ -87,7 +87,7 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, act
         ]
 
 
-defaultAlertGroups : Maybe String -> Set Labels -> Bool -> List AlertGroup -> Html Msg
+defaultAlertGroups : Maybe String -> Set Int -> Bool -> List AlertGroup -> Html Msg
 defaultAlertGroups activeId activeGroups expandAll groups =
     case groups of
         [] ->
@@ -98,23 +98,23 @@ defaultAlertGroups activeId activeGroups expandAll groups =
                 labels_ =
                     Dict.toList labels
             in
-            alertGroup activeId (Set.singleton labels_) labels_ alerts expandAll
+            alertGroup activeId (Set.singleton 0) labels_ alerts 0 expandAll
 
         _ ->
             div [ class "pl-5" ]
-                (List.map
-                    (\{ labels, alerts } ->
-                        alertGroup activeId activeGroups (Dict.toList labels) alerts expandAll
+                (List.indexedMap
+                    (\index group ->
+                        alertGroup activeId activeGroups (Dict.toList group.labels) group.alerts index expandAll
                     )
                     groups
                 )
 
 
-alertGroup : Maybe String -> Set Labels -> Labels -> List GettableAlert -> Bool -> Html Msg
-alertGroup activeId activeGroups labels alerts expandAll =
+alertGroup : Maybe String -> Set Int -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
+alertGroup activeId activeGroups labels alerts groupId expandAll =
     let
         groupActive =
-            expandAll || Set.member labels activeGroups
+            expandAll || Set.member groupId activeGroups
 
         labels_ =
             case labels of
@@ -144,7 +144,7 @@ alertGroup activeId activeGroups labels alerts expandAll =
                         labels
 
         expandButton =
-            expandAlertGroup groupActive labels
+            expandAlertGroup groupActive groupId
                 |> Html.map (\msg -> MsgForAlertList (ActiveGroups msg))
 
         alertCount =
@@ -170,8 +170,8 @@ alertGroup activeId activeGroups labels alerts expandAll =
         ]
 
 
-expandAlertGroup : Bool -> Labels -> Html Labels
-expandAlertGroup expanded labels =
+expandAlertGroup : Bool -> Int -> Html Int
+expandAlertGroup expanded groupId =
     let
         icon =
             if expanded then
@@ -181,7 +181,7 @@ expandAlertGroup expanded labels =
                 "fa-plus"
     in
     button
-        [ onClick labels
+        [ onClick groupId
         , class "btn btn-outline-info border-0 mr-1 mb-1"
         , style "margin-left" "-3rem"
         ]

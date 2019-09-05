@@ -33,15 +33,16 @@ import (
 
 // Notifier implements a Notifier for VictorOps notifications.
 type Notifier struct {
-	conf   *config.VictorOpsConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
+	conf    *config.VictorOpsConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
 }
 
 // New returns a new VictorOps notifier.
 func New(c *config.VictorOpsConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "victorops")
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "victorops", false)
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +51,9 @@ func New(c *config.VictorOpsConfig, t *template.Template, l log.Logger) (*Notifi
 		tmpl:   t,
 		logger: l,
 		client: client,
+		// Missing documentation therefore assuming only 5xx response codes are
+		// recoverable.
+		retrier: &notify.Retrier{},
 	}, nil
 }
 
@@ -80,7 +84,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode)
+	return n.retrier.Check(resp.StatusCode, nil)
 }
 
 // Create the JSON payload to be sent to the VictorOps API.
@@ -143,16 +147,4 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		return nil, err
 	}
 	return &buf, nil
-}
-
-func (n *Notifier) retry(statusCode int) (bool, error) {
-	// Missing documentation therefore assuming only 5xx response codes are
-	// recoverable.
-	if statusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", statusCode)
-	} else if statusCode/100 != 2 {
-		return false, fmt.Errorf("unexpected status code %v", statusCode)
-	}
-
-	return false, nil
 }

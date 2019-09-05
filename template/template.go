@@ -15,16 +15,15 @@ package template
 
 import (
 	"bytes"
+	tmplhtml "html/template"
 	"io/ioutil"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-	"time"
-
-	tmplhtml "html/template"
 	tmpltext "text/template"
+	"time"
 
 	"github.com/prometheus/common/model"
 
@@ -246,6 +245,7 @@ type Alert struct {
 	StartsAt     time.Time `json:"startsAt"`
 	EndsAt       time.Time `json:"endsAt"`
 	GeneratorURL string    `json:"generatorURL"`
+	Fingerprint  string    `json:"fingerprint"`
 }
 
 // Alerts is a list of Alert objects.
@@ -276,7 +276,7 @@ func (as Alerts) Resolved() []Alert {
 // Data assembles data for template expansion.
 func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*types.Alert) *Data {
 	data := &Data{
-		Receiver:          regexp.QuoteMeta(strings.SplitN(recv, "/", 2)[0]),
+		Receiver:          regexp.QuoteMeta(recv),
 		Status:            string(types.Alerts(alerts...).Status()),
 		Alerts:            make(Alerts, 0, len(alerts)),
 		GroupLabels:       KV{},
@@ -295,6 +295,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 			StartsAt:     a.StartsAt,
 			EndsAt:       a.EndsAt,
 			GeneratorURL: a.GeneratorURL,
+			Fingerprint:  a.Fingerprint().String(),
 		}
 		for k, v := range a.Labels {
 			alert.Labels[string(k)] = string(v)
@@ -315,6 +316,9 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 			commonAnnotations = alerts[0].Annotations.Clone()
 		)
 		for _, a := range alerts[1:] {
+			if len(commonLabels) == 0 && len(commonAnnotations) == 0 {
+				break
+			}
 			for ln, lv := range commonLabels {
 				if a.Labels[ln] != lv {
 					delete(commonLabels, ln)

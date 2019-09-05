@@ -158,7 +158,7 @@ type EmailConfig struct {
 	To           string              `yaml:"to,omitempty" json:"to,omitempty"`
 	From         string              `yaml:"from,omitempty" json:"from,omitempty"`
 	Hello        string              `yaml:"hello,omitempty" json:"hello,omitempty"`
-	Smarthost    string              `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
+	Smarthost    HostPort            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername string              `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
 	AuthPassword Secret              `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
 	AuthSecret   Secret              `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
@@ -361,6 +361,7 @@ type SlackConfig struct {
 	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`
 	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
 	LinkNames   bool           `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 

@@ -47,9 +47,9 @@ update msg ({ basePath, apiUrl } as model) =
             , Cmd.map MsgForSilenceView cmd
             )
 
-        NavigateToSilenceFormNew matchers ->
-            ( { model | route = SilenceFormNewRoute matchers }
-            , Task.perform (NewSilenceFromMatchers model.defaultCreator >> MsgForSilenceForm) (Task.succeed matchers)
+        NavigateToSilenceFormNew params ->
+            ( { model | route = SilenceFormNewRoute params }
+            , Task.perform (NewSilenceFromMatchersAndComment model.defaultCreator >> MsgForSilenceForm) (Task.succeed params)
             )
 
         NavigateToSilenceFormEdit uuid ->

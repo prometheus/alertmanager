@@ -329,11 +329,36 @@ func TestGroupByAllLabels(t *testing.T) {
 }
 
 func TestGroups(t *testing.T) {
-	logger := log.NewNopLogger()
-	conf, _, err := config.LoadFile("testdata/conf.yml")
+	confData := `receivers:
+- name: 'kafka'
+- name: 'prod'
+- name: 'testing'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10ms
+  group_interval: 10ms
+  receiver: 'prod'
+  routes:
+  - match:
+      env: 'testing'
+    receiver: 'testing'
+    group_by: ['alertname', 'service']
+  - match:
+      env: 'prod'
+    receiver: 'prod'
+    group_by: ['alertname', 'service', 'cluster']
+    continue: true
+  - match:
+      kafka: 'yes'
+    receiver: 'kafka'
+    group_by: ['alertname', 'service', 'cluster']`
+	conf, err := config.Load(confData)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	logger := log.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
 	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
@@ -341,25 +366,34 @@ func TestGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer alerts.Close()
+
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	recorder := &recordStage{t: t, alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
 	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
 	// Create alerts. the dispatcher will automatically create the groups.
-	alerts.Put(
-		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api"}),
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api"}),
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api"}),
-		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes"}),
-	)
+	inputAlerts := []*types.Alert{
+		// Matches the parent route.
+		newAlert(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"}),
+		// Matches the first sub-route.
+		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api", "instance": "inst1"}),
+		// Matches the second sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst1"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst2"}),
+		// Matches the second sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api", "instance": "inst1"}),
+		// Matches the second and third sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
+	}
+	alerts.Put(inputAlerts...)
 
 	// Let alerts get processed.
-	for i := 0; len(recorder.Alerts()) != 5 && i < 10; i++ {
-		time.Sleep(100 * time.Millisecond)
+	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
 	}
-	require.Equal(t, 5, len(recorder.Alerts()))
+	require.Equal(t, 7, len(recorder.Alerts()))
 
 	alertGroups, receivers := dispatcher.Groups(
 		func(*Route) bool {
@@ -369,39 +403,70 @@ func TestGroups(t *testing.T) {
 		},
 	)
 
-	// Verify that grouping works.
-	require.Equal(t, 5, len(alertGroups))
-	for _, ag := range alertGroups {
-		if len(ag.Labels) == 2 {
-			// testing receiver
-			require.Equal(t, 2, len(ag.Labels))
-			require.Equal(t, model.LabelSet{"alertname": "TestingAlert", "service": "api"}, ag.Labels)
-			for _, alert := range ag.Alerts {
-				alertsReceivers, ok := receivers[alert.Fingerprint()]
-				require.True(t, ok)
-				require.Equal(t, 1, len(alertsReceivers))
-				require.Equal(t, "testing", alertsReceivers[0])
-			}
-			continue
-		}
-		require.Equal(t, 3, len(ag.Labels))
-		for _, alert := range ag.Alerts {
-			alertsReceivers, ok := receivers[alert.Fingerprint()]
-			require.True(t, ok)
-			sort.Strings(alertsReceivers)
-			if labelValue := ag.Labels["alertname"]; string(labelValue) == "HighLatency" {
-				// Matches both prod and kafka receivers
-				require.Equal(t, []string{"kafka", "prod"}, alertsReceivers)
-				continue
-			}
-			require.Equal(t, 1, len(alertsReceivers))
-			require.Equal(t, "prod", alertsReceivers[0])
-		}
-	}
+	require.Equal(t, AlertGroups{
+		&AlertGroup{
+			Alerts: []*types.Alert{inputAlerts[0]},
+			Labels: model.LabelSet{
+				model.LabelName("alertname"): model.LabelValue("OtherAlert"),
+			},
+			Receiver: "prod",
+		},
+		&AlertGroup{
+			Alerts: []*types.Alert{inputAlerts[1]},
+			Labels: model.LabelSet{
+				model.LabelName("alertname"): model.LabelValue("TestingAlert"),
+				model.LabelName("service"):   model.LabelValue("api"),
+			},
+			Receiver: "testing",
+		},
+		&AlertGroup{
+			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
+			Labels: model.LabelSet{
+				model.LabelName("alertname"): model.LabelValue("HighErrorRate"),
+				model.LabelName("service"):   model.LabelValue("api"),
+				model.LabelName("cluster"):   model.LabelValue("aa"),
+			},
+			Receiver: "prod",
+		},
+		&AlertGroup{
+			Alerts: []*types.Alert{inputAlerts[4]},
+			Labels: model.LabelSet{
+				model.LabelName("alertname"): model.LabelValue("HighErrorRate"),
+				model.LabelName("service"):   model.LabelValue("api"),
+				model.LabelName("cluster"):   model.LabelValue("bb"),
+			},
+			Receiver: "prod",
+		},
+		&AlertGroup{
+			Alerts: []*types.Alert{inputAlerts[5]},
+			Labels: model.LabelSet{
+				model.LabelName("alertname"): model.LabelValue("HighLatency"),
+				model.LabelName("service"):   model.LabelValue("db"),
+				model.LabelName("cluster"):   model.LabelValue("bb"),
+			},
+			Receiver: "kafka",
+		},
+		&AlertGroup{
+			Alerts: []*types.Alert{inputAlerts[5]},
+			Labels: model.LabelSet{
+				model.LabelName("alertname"): model.LabelValue("HighLatency"),
+				model.LabelName("service"):   model.LabelValue("db"),
+				model.LabelName("cluster"):   model.LabelValue("bb"),
+			},
+			Receiver: "prod",
+		},
+	}, alertGroups)
+	require.Equal(t, map[model.Fingerprint][]string{
+		inputAlerts[0].Fingerprint(): []string{"prod"},
+		inputAlerts[1].Fingerprint(): []string{"testing"},
+		inputAlerts[2].Fingerprint(): []string{"prod"},
+		inputAlerts[3].Fingerprint(): []string{"prod"},
+		inputAlerts[4].Fingerprint(): []string{"prod"},
+		inputAlerts[5].Fingerprint(): []string{"kafka", "prod"},
+	}, receivers)
 }
 
 type recordStage struct {
-	t      *testing.T
 	mtx    sync.RWMutex
 	alerts map[string]map[model.Fingerprint]*types.Alert
 }

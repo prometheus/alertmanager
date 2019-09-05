@@ -95,7 +95,7 @@ func (c *Coordinator) notifySubscribers() error {
 
 // loadFromFile triggers a configuration load, discarding the old configuration.
 func (c *Coordinator) loadFromFile() error {
-	conf, plainConfig, err := LoadFile(c.configFilePath)
+	conf, err := LoadFile(c.configFilePath)
 	if err != nil {
 		c.configSuccessMetric.Set(0)
 		return err
@@ -104,7 +104,7 @@ func (c *Coordinator) loadFromFile() error {
 	c.config = conf
 	c.configSuccessMetric.Set(1)
 	c.configSuccessTimeMetric.Set(float64(time.Now().Unix()))
-	hash := md5HashAsMetricValue(plainConfig)
+	hash := md5HashAsMetricValue([]byte(c.config.original))
 	c.configHashMetric.Set(hash)
 
 	return nil

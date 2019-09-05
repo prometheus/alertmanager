@@ -17,9 +17,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/go-kit/kit/log"
@@ -33,24 +30,26 @@ import (
 
 // Notifier implements a Notifier for Slack notifications.
 type Notifier struct {
-	conf   *config.SlackConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
+	conf    *config.SlackConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
 }
 
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack")
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", false)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Notifier{
-		conf:   c,
-		tmpl:   t,
-		logger: l,
-		client: client,
+		conf:    c,
+		tmpl:    t,
+		logger:  l,
+		client:  client,
+		retrier: &notify.Retrier{},
 	}, nil
 }
 
@@ -77,9 +76,8 @@ type attachment struct {
 	ImageURL   string               `json:"image_url,omitempty"`
 	ThumbURL   string               `json:"thumb_url,omitempty"`
 	Footer     string               `json:"footer"`
-
-	Color    string   `json:"color,omitempty"`
-	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
+	Color      string               `json:"color,omitempty"`
+	MrkdwnIn   []string             `json:"mrkdwn_in,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -89,7 +87,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
-
+	var markdownIn []string
+	if len(n.conf.MrkdwnIn) == 0 {
+		markdownIn = []string{"fallback", "pretext", "text"}
+	} else {
+		markdownIn = n.conf.MrkdwnIn
+	}
 	att := &attachment{
 		Title:      tmplText(n.conf.Title),
 		TitleLink:  tmplText(n.conf.TitleLink),
@@ -101,7 +104,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		ThumbURL:   tmplText(n.conf.ThumbURL),
 		Footer:     tmplText(n.conf.Footer),
 		Color:      tmplText(n.conf.Color),
-		MrkdwnIn:   []string{"fallback", "pretext", "text"},
+		MrkdwnIn:   markdownIn,
 	}
 
 	var numFields = len(n.conf.Fields)
@@ -177,22 +180,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode, resp.Body)
-}
-
-func (n *Notifier) retry(statusCode int, body io.Reader) (bool, error) {
 	// Only 5xx response codes are recoverable and 2xx codes are successful.
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
-	if statusCode/100 == 2 {
-		return false, nil
-	}
-
-	err := fmt.Errorf("unexpected status code %v", statusCode)
-	if body != nil {
-		if bs, errRead := ioutil.ReadAll(body); errRead == nil {
-			err = fmt.Errorf("%s: %q", err, string(bs))
-		}
-	}
-	return statusCode/100 == 5, err
+	return n.retrier.Check(resp.StatusCode, resp.Body)
 }

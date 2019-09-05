@@ -31,15 +31,16 @@ import (
 
 // Notifier implements a Notifier for Hipchat notifications.
 type Notifier struct {
-	conf   *config.HipchatConfig
-	tmpl   *template.Template
-	logger log.Logger
-	client *http.Client
+	conf    *config.HipchatConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
 }
 
 // New returns a new Hipchat notification handler.
 func New(c *config.HipchatConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "hipchat")
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "hipchat", false)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +49,10 @@ func New(c *config.HipchatConfig, t *template.Template, l log.Logger) (*Notifier
 		tmpl:   t,
 		logger: l,
 		client: client,
+		// Response codes 429 (rate limiting) and 5xx can potentially recover.
+		// 2xx response codes indicate successful requests.
+		// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
+		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
 	}, nil
 }
 
@@ -103,16 +108,5 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retry(resp.StatusCode)
-}
-
-func (n *Notifier) retry(statusCode int) (bool, error) {
-	// Response codes 429 (rate limiting) and 5xx can potentially recover.
-	// 2xx response codes indicate successful requests.
-	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
-	if statusCode/100 != 2 {
-		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
-	}
-
-	return false, nil
+	return n.retrier.Check(resp.StatusCode, nil)
 }

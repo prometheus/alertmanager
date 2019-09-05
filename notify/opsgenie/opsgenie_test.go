@@ -34,11 +34,18 @@ import (
 )
 
 func TestOpsGenieRetry(t *testing.T) {
-	notifier := new(Notifier)
+	notifier, err := New(
+		&config.OpsGenieConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
 
 	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
 	for statusCode, expected := range test.RetryTests(retryCodes) {
-		actual, _ := notifier.retry(statusCode)
+		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
