@@ -1,4 +1,5 @@
-FROM registry.svc.ci.openshift.org/openshift/release:golang-1.11 AS builder
+# FROM directives are overriden by CI system (both Prow CI and OSBS)
+FROM registry.svc.ci.openshift.org/openshift/release:golang-1.12 AS builder
 WORKDIR /go/src/github.com/prometheus/alertmanager
 COPY . .
 RUN if yum install -y prometheus-promu; then export BUILD_PROMU=false; fi && make build
