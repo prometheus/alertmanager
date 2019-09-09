@@ -52,33 +52,51 @@ func configureAPI(api *operations.AlertmanagerAPI) http.Handler {
 
 	api.JSONProducer = runtime.JSONProducer()
 
-	api.SilenceDeleteSilenceHandler = silence.DeleteSilenceHandlerFunc(func(params silence.DeleteSilenceParams) middleware.Responder {
-		return middleware.NotImplemented("operation silence.DeleteSilence has not yet been implemented")
-	})
-	api.AlertgroupGetAlertGroupsHandler = alertgroup.GetAlertGroupsHandlerFunc(func(params alertgroup.GetAlertGroupsParams) middleware.Responder {
-		return middleware.NotImplemented("operation alertgroup.GetAlertGroups has not yet been implemented")
-	})
-	api.AlertGetAlertsHandler = alert.GetAlertsHandlerFunc(func(params alert.GetAlertsParams) middleware.Responder {
-		return middleware.NotImplemented("operation alert.GetAlerts has not yet been implemented")
-	})
-	api.ReceiverGetReceiversHandler = receiver.GetReceiversHandlerFunc(func(params receiver.GetReceiversParams) middleware.Responder {
-		return middleware.NotImplemented("operation receiver.GetReceivers has not yet been implemented")
-	})
-	api.SilenceGetSilenceHandler = silence.GetSilenceHandlerFunc(func(params silence.GetSilenceParams) middleware.Responder {
-		return middleware.NotImplemented("operation silence.GetSilence has not yet been implemented")
-	})
-	api.SilenceGetSilencesHandler = silence.GetSilencesHandlerFunc(func(params silence.GetSilencesParams) middleware.Responder {
-		return middleware.NotImplemented("operation silence.GetSilences has not yet been implemented")
-	})
-	api.GeneralGetStatusHandler = general.GetStatusHandlerFunc(func(params general.GetStatusParams) middleware.Responder {
-		return middleware.NotImplemented("operation general.GetStatus has not yet been implemented")
-	})
-	api.AlertPostAlertsHandler = alert.PostAlertsHandlerFunc(func(params alert.PostAlertsParams) middleware.Responder {
-		return middleware.NotImplemented("operation alert.PostAlerts has not yet been implemented")
-	})
-	api.SilencePostSilencesHandler = silence.PostSilencesHandlerFunc(func(params silence.PostSilencesParams) middleware.Responder {
-		return middleware.NotImplemented("operation silence.PostSilences has not yet been implemented")
-	})
+	if api.SilenceDeleteSilenceHandler == nil {
+		api.SilenceDeleteSilenceHandler = silence.DeleteSilenceHandlerFunc(func(params silence.DeleteSilenceParams) middleware.Responder {
+			return middleware.NotImplemented("operation silence.DeleteSilence has not yet been implemented")
+		})
+	}
+	if api.AlertgroupGetAlertGroupsHandler == nil {
+		api.AlertgroupGetAlertGroupsHandler = alertgroup.GetAlertGroupsHandlerFunc(func(params alertgroup.GetAlertGroupsParams) middleware.Responder {
+			return middleware.NotImplemented("operation alertgroup.GetAlertGroups has not yet been implemented")
+		})
+	}
+	if api.AlertGetAlertsHandler == nil {
+		api.AlertGetAlertsHandler = alert.GetAlertsHandlerFunc(func(params alert.GetAlertsParams) middleware.Responder {
+			return middleware.NotImplemented("operation alert.GetAlerts has not yet been implemented")
+		})
+	}
+	if api.ReceiverGetReceiversHandler == nil {
+		api.ReceiverGetReceiversHandler = receiver.GetReceiversHandlerFunc(func(params receiver.GetReceiversParams) middleware.Responder {
+			return middleware.NotImplemented("operation receiver.GetReceivers has not yet been implemented")
+		})
+	}
+	if api.SilenceGetSilenceHandler == nil {
+		api.SilenceGetSilenceHandler = silence.GetSilenceHandlerFunc(func(params silence.GetSilenceParams) middleware.Responder {
+			return middleware.NotImplemented("operation silence.GetSilence has not yet been implemented")
+		})
+	}
+	if api.SilenceGetSilencesHandler == nil {
+		api.SilenceGetSilencesHandler = silence.GetSilencesHandlerFunc(func(params silence.GetSilencesParams) middleware.Responder {
+			return middleware.NotImplemented("operation silence.GetSilences has not yet been implemented")
+		})
+	}
+	if api.GeneralGetStatusHandler == nil {
+		api.GeneralGetStatusHandler = general.GetStatusHandlerFunc(func(params general.GetStatusParams) middleware.Responder {
+			return middleware.NotImplemented("operation general.GetStatus has not yet been implemented")
+		})
+	}
+	if api.AlertPostAlertsHandler == nil {
+		api.AlertPostAlertsHandler = alert.PostAlertsHandlerFunc(func(params alert.PostAlertsParams) middleware.Responder {
+			return middleware.NotImplemented("operation alert.PostAlerts has not yet been implemented")
+		})
+	}
+	if api.SilencePostSilencesHandler == nil {
+		api.SilencePostSilencesHandler = silence.PostSilencesHandlerFunc(func(params silence.PostSilencesParams) middleware.Responder {
+			return middleware.NotImplemented("operation silence.PostSilences has not yet been implemented")
+		})
+	}
 
 	api.ServerShutdown = func() {}
 

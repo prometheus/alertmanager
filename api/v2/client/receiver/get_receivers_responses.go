@@ -38,7 +38,6 @@ type GetReceiversReader struct {
 // ReadResponse reads a server response into the received o.
 func (o *GetReceiversReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
 	switch response.Code() {
-
 	case 200:
 		result := NewGetReceiversOK()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -66,6 +65,10 @@ type GetReceiversOK struct {
 
 func (o *GetReceiversOK) Error() string {
 	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK  %+v", 200, o.Payload)
+}
+
+func (o *GetReceiversOK) GetPayload() []*models.Receiver {
+	return o.Payload
 }
 
 func (o *GetReceiversOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {

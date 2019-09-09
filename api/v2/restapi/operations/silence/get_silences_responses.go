@@ -65,13 +65,13 @@ func (o *GetSilencesOK) WriteResponse(rw http.ResponseWriter, producer runtime.P
 	rw.WriteHeader(200)
 	payload := o.Payload
 	if payload == nil {
-		payload = make(models.GettableSilences, 0, 50)
+		// return empty array
+		payload = models.GettableSilences{}
 	}
 
 	if err := producer.Produce(rw, payload); err != nil {
 		panic(err) // let the recovery middleware deal with this
 	}
-
 }
 
 // GetSilencesInternalServerErrorCode is the HTTP code returned for type GetSilencesInternalServerError
@@ -114,5 +114,4 @@ func (o *GetSilencesInternalServerError) WriteResponse(rw http.ResponseWriter, p
 	if err := producer.Produce(rw, payload); err != nil {
 		panic(err) // let the recovery middleware deal with this
 	}
-
 }
