@@ -3,6 +3,7 @@ module Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab, 
 import Browser.Navigation exposing (Key)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus exposing (State(..))
+import Time exposing (Posix)
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 
@@ -14,6 +15,7 @@ type SilenceListMsg
     | FetchSilences
     | MsgForFilterBar FilterBar.Msg
     | SetTab State
+    | SetTimeToSilenceList
 
 
 type alias SilenceTab =
@@ -28,15 +30,17 @@ type alias Model =
     , filterBar : FilterBar.Model
     , tab : State
     , showConfirmationDialog : Maybe String
+    , timeNow : Posix
     , key : Key
     }
 
 
-initSilenceList : Key -> Model
-initSilenceList key =
+initSilenceList : Key -> Posix -> Model
+initSilenceList key now =
     { silences = Initial
     , filterBar = FilterBar.initFilterBar key
     , tab = Active
     , showConfirmationDialog = Nothing
+    , timeNow = now
     , key = key
     }

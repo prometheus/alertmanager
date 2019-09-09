@@ -4,6 +4,7 @@ import Browser.Navigation as Navigation
 import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus exposing (State(..))
 import Silences.Api as Api
+import Time exposing (Posix)
 import Utils.Api as ApiData
 import Utils.Filter exposing (Filter, generateQueryString)
 import Utils.Types as Types exposing (ApiData(..), Matchers, Time)
@@ -11,8 +12,8 @@ import Views.FilterBar.Updates as FilterBar
 import Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab)
 
 
-update : SilenceListMsg -> Model -> Filter -> String -> String -> ( Model, Cmd SilenceListMsg )
-update msg model filter basePath apiUrl =
+update : SilenceListMsg -> Model -> Filter -> String -> String -> Posix -> ( Model, Cmd SilenceListMsg )
+update msg model filter basePath apiUrl now =
     case msg of
         SilencesFetch fetchedSilences ->
             ( { model
@@ -61,6 +62,9 @@ update msg model filter basePath apiUrl =
 
         SetTab tab ->
             ( { model | tab = tab }, Cmd.none )
+
+        SetTimeToSilenceList ->
+            ( { model | timeNow = now }, Cmd.none )
 
 
 groupSilencesByState : List GettableSilence -> State -> SilenceTab

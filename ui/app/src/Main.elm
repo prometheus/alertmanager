@@ -4,6 +4,8 @@ import Browser exposing (UrlRequest(..))
 import Browser.Navigation exposing (Key)
 import Json.Decode as Json
 import Parsing
+import Task
+import Time
 import Types exposing (Model, Msg(..), Route(..))
 import Updates exposing (update)
 import Url exposing (Url)
@@ -28,7 +30,7 @@ main =
                 { title = "Alertmanager"
                 , body = [ Views.view model ]
                 }
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         , onUrlRequest =
             \request ->
                 case request of
@@ -89,7 +91,7 @@ init flags url key =
     in
     update (urlUpdate url)
         (Model
-            (initSilenceList key)
+            (initSilenceList key (Time.millisToPosix 0))
             (initSilenceView key)
             (initSilenceForm key)
             (initAlertList key groupExpandAll)
@@ -103,6 +105,7 @@ init flags url key =
             Loading
             defaultCreator
             groupExpandAll
+            (Time.millisToPosix 0)
             key
         )
 
@@ -137,3 +140,8 @@ urlUpdate url =
 
         NotFoundRoute ->
             NavigateToNotFound
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Time.every 1000 SetTime

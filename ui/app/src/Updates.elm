@@ -3,6 +3,7 @@ module Updates exposing (update)
 import Browser.Navigation as Navigation
 import String exposing (trim)
 import Task
+import Time
 import Types exposing (Model, Msg(..), Route(..))
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.AlertList.Updates
@@ -29,7 +30,7 @@ update msg ({ basePath, apiUrl } as model) =
         NavigateToSilenceList filter ->
             let
                 ( silenceList, cmd ) =
-                    Views.SilenceList.Updates.update FetchSilences model.silenceList filter basePath apiUrl
+                    Views.SilenceList.Updates.update FetchSilences model.silenceList filter basePath apiUrl model.timeNow
             in
             ( { model | silenceList = silenceList, route = SilenceListRoute filter, filter = filter }
             , Cmd.map MsgForSilenceList cmd
@@ -97,7 +98,7 @@ update msg ({ basePath, apiUrl } as model) =
         MsgForSilenceList subMsg ->
             let
                 ( silenceList, cmd ) =
-                    Views.SilenceList.Updates.update subMsg model.silenceList model.filter basePath apiUrl
+                    Views.SilenceList.Updates.update subMsg model.silenceList model.filter basePath apiUrl model.timeNow
             in
             ( { model | silenceList = silenceList }, Cmd.map MsgForSilenceList cmd )
 
@@ -126,3 +127,12 @@ update msg ({ basePath, apiUrl } as model) =
 
         SetGroupExpandAll expanded ->
             ( { model | expandAll = expanded }, Cmd.none )
+
+        SetTime now ->
+            let
+                ( silenceList, cmd ) =
+                    Views.SilenceList.Updates.update SetTimeToSilenceList model.silenceList model.filter basePath apiUrl now
+            in
+            ( { model | silenceList = silenceList, timeNow = now }
+            , Cmd.map MsgForSilenceList cmd
+            )

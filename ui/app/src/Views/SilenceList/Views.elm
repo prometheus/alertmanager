@@ -5,8 +5,9 @@ import Data.SilenceStatus exposing (State(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Keyed
-import Html.Lazy exposing (lazy, lazy2, lazy3)
+import Html.Lazy exposing (lazy, lazy2, lazy4)
 import Silences.Types exposing (stateToString)
+import Time exposing (Posix)
 import Types exposing (Msg(..))
 import Utils.String as StringUtils
 import Utils.Types exposing (ApiData(..), Matcher)
@@ -17,14 +18,14 @@ import Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab)
 
 
 view : Model -> Html Msg
-view { filterBar, tab, silences, showConfirmationDialog } =
+view { filterBar, tab, silences, showConfirmationDialog, timeNow } =
     div []
         [ div [ class "mb-4" ]
             [ label [ class "mb-2", for "filter-bar-matcher" ] [ text "Filter" ]
             , Html.map (MsgForFilterBar >> MsgForSilenceList) (FilterBar.view filterBar)
             ]
         , lazy2 tabsView tab silences
-        , lazy3 silencesView showConfirmationDialog tab silences
+        , lazy4 silencesView showConfirmationDialog tab silences timeNow
         ]
 
 
@@ -55,8 +56,8 @@ tabView currentTab count tab =
                 ]
 
 
-silencesView : Maybe String -> State -> ApiData (List SilenceTab) -> Html Msg
-silencesView showConfirmationDialog tab silencesTab =
+silencesView : Maybe String -> State -> ApiData (List SilenceTab) -> Posix -> Html Msg
+silencesView showConfirmationDialog tab silencesTab now =
     case silencesTab of
         Success tabs ->
             tabs
@@ -75,6 +76,7 @@ silencesView showConfirmationDialog tab silencesTab =
                                         ( silence.id
                                         , Views.SilenceList.SilenceView.view
                                             (showConfirmationDialog == Just silence.id)
+                                            now
                                             silence
                                         )
                                     )

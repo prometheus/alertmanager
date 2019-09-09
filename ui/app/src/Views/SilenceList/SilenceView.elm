@@ -19,8 +19,8 @@ import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers, newSilenceFro
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 
 
-view : Bool -> GettableSilence -> Html Msg
-view showConfirmationDialog silence =
+view : Bool -> Posix -> GettableSilence -> Html Msg
+view showConfirmationDialog now silence =
     li
         [ -- speedup rendering in Chrome, because list-group-item className
           -- creates a new layer in the rendering engine
@@ -40,6 +40,7 @@ view showConfirmationDialog silence =
             , detailsButton silence.id
             , editButton silence
             , deleteButton silence False
+            , progressBar now silence
             ]
         , div [ class "" ] (List.map matcherButton silence.matchers)
         , Dialog.view
@@ -151,3 +152,39 @@ detailsButton id =
     a [ class "btn btn-outline-info border-0", href ("#/silences/" ++ id) ]
         [ text "View"
         ]
+
+
+progressBar : Posix -> GettableSilence -> Html Msg
+progressBar now silence =
+    let
+        per =
+            ((Time.posixToMillis silence.endsAt - Time.posixToMillis now) * 100)
+                // (Time.posixToMillis silence.endsAt - Time.posixToMillis silence.startsAt)
+                |> clamp 0 100
+
+        duration =
+            Utils.Date.timeDifference now silence.endsAt
+                |> Utils.Date.durationFormat
+                |> Maybe.withDefault "Expired"
+    in
+    case silence.status.state of
+        Active ->
+            div [ style "width" "7rem", class "progress position-relative" ]
+                [ div
+                    [ style "width" (String.fromInt per ++ "%")
+                    , style "height" "2.3rem"
+                    , class "progress-bar bg-info progress-bar-striped progress-bar-animated"
+                    ]
+                    []
+                , small
+                    [ class "text-center d-flex align-items-center ml-2"
+                    , style "position" "absolute"
+                    , style "width" "7rem"
+                    , style "height" "2.3rem"
+                    ]
+                    [ text duration
+                    ]
+                ]
+
+        _ ->
+            text ""

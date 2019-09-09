@@ -1,6 +1,7 @@
 module Types exposing (Model, Msg(..), Route(..))
 
 import Browser.Navigation exposing (Key)
+import Time exposing (Posix)
 import Utils.Filter exposing (Filter, Matcher, SilenceFormGetParams)
 import Utils.Types exposing (ApiData)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
@@ -25,6 +26,7 @@ type alias Model =
     , fontAwesomeCSS : ApiData String
     , defaultCreator : String
     , expandAll : Bool
+    , timeNow : Posix
     , key : Key
     }
 
@@ -51,6 +53,7 @@ type Msg
     | FontAwesomeCSSLoaded (ApiData String)
     | SetDefaultCreator String
     | SetGroupExpandAll Bool
+    | SetTime Posix
 
 
 type Route
