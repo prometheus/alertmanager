@@ -122,8 +122,12 @@ func (m *memMarker) registerMetrics(r prometheus.Registerer) {
 	alertsActive := newAlertMetricByState(AlertStateActive)
 	alertsSuppressed := newAlertMetricByState(AlertStateSuppressed)
 
-	r.MustRegister(alertsActive)
-	r.MustRegister(alertsSuppressed)
+	if r != nil {
+		r.MustRegister(
+			alertsActive,
+			alertsSuppressed,
+		)
+	}
 }
 
 // Count implements Marker.
