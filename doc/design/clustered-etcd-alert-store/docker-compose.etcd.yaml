@@ -1,0 +1,70 @@
+---
+version: '3.7'
+
+services:
+  etcd0:
+    image: quay.io/coreos/etcd:latest
+    command:
+      - etcd
+      - --name=etcd0
+      - --data-dir=/data
+      - --advertise-client-urls=http://etcd0:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --initial-advertise-peer-urls=http://etcd0:2380
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-cluster=etcd0=http://etcd0:2380
+      - --initial-cluster-state=new
+    ports:
+      - 2379:2379
+    networks:
+      net1:
+        ipv4_address: 192.168.100.10
+
+  alertmanager0:
+    image: dcwangmit01/alertmanager-linux-amd64:etcd-persist-01
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --alerts.storage.provider=etcd
+      - --alerts.etcd.endpoint=etcd0:2379
+      - --alerts.etcd.prefix=am/alerts-
+      - --web.listen-address=:9093
+      - --cluster.listen-address=:9094
+      - --cluster.advertise-address=:9094
+      - --cluster.peer=alertmanager0:9094
+      - --alerts.gc-interval=1m
+      - --log.level=debug
+    ports:
+      - 9001:9093
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      net1:
+        ipv4_address: 192.168.100.20
+  alertmanager1:
+    image: dcwangmit01/alertmanager-linux-amd64:etcd-persist-01
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --alerts.storage.provider=etcd
+      - --alerts.etcd.endpoint=etcd0:2379
+      - --alerts.etcd.prefix=am/alerts-
+      - --web.listen-address=:9093
+      - --cluster.listen-address=:9094
+      - --cluster.advertise-address=:9094
+      - --cluster.peer=alertmanager0:9094
+      - --alerts.gc-interval=1m
+      - --log.level=debug
+    ports:
+      - 9002:9093
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      net1:
+        ipv4_address: 192.168.100.21
+
+networks:
+  net1:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.100.0/24
