@@ -211,6 +211,7 @@ common-tarball: promu
 .PHONY: common-docker $(BUILD_DOCKER_ARCHS)
 common-docker: $(BUILD_DOCKER_ARCHS)
 $(BUILD_DOCKER_ARCHS): common-docker-%:
+	@find ./provider -type s -delete  # cleanup leftover unix named pipes from etcd integration tests
 	docker build -t "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:$(DOCKER_IMAGE_TAG)" \
 		-f $(DOCKERFILE_PATH) \
 		--build-arg ARCH="$*" \

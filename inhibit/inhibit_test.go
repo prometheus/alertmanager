@@ -247,6 +247,7 @@ func newFakeAlerts(alerts []*types.Alert) *fakeAlerts {
 func (f *fakeAlerts) GetPending() provider.AlertIterator          { return nil }
 func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, nil }
 func (f *fakeAlerts) Put(...*types.Alert) error                   { return nil }
+func (f *fakeAlerts) Close()                                      {}
 func (f *fakeAlerts) Subscribe() provider.AlertIterator {
 	ch := make(chan *types.Alert)
 	done := make(chan struct{})

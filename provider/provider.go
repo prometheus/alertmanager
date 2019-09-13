@@ -85,4 +85,6 @@ type Alerts interface {
 	Get(model.Fingerprint) (*types.Alert, error)
 	// Put adds the given alert to the set.
 	Put(...*types.Alert) error
+	// Close the alert provider.
+	Close()
 }

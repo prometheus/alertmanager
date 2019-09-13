@@ -62,6 +62,7 @@ func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, 
 func (f *fakeAlerts) Put(alerts ...*types.Alert) error {
 	return f.err
 }
+func (f *fakeAlerts) Close() {}
 func (f *fakeAlerts) GetPending() provider.AlertIterator {
 	ch := make(chan *types.Alert)
 	done := make(chan struct{})
