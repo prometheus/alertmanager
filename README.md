@@ -33,7 +33,7 @@ $ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager/cmd/...
 $ alertmanager --config.file=<your_file>
 ```
 
-Or checkout the source code and build manually:
+Or check out the source code and build manually:
 
 ```
 $ mkdir -p $GOPATH/src/github.com/prometheus
@@ -195,7 +195,7 @@ _API v2 is still under heavy development and thereby subject to change._
 
 ## Amtool
 
-`amtool` is a cli tool for interacting with the alertmanager api. It is bundled with all releases of alertmanager.
+`amtool` is a cli tool for interacting with the Alertmanager API. It is bundled with all releases of Alertmanager.
 
 ### Install
 
@@ -206,7 +206,7 @@ go get github.com/prometheus/alertmanager/cmd/amtool
 
 ### Examples
 
-View all currently firing alerts
+View all currently firing alerts:
 ```
 $ amtool alert
 Alertname        Starts At                Summary
@@ -216,7 +216,7 @@ Check_Foo_Fails  2017-08-02 18:30:18 UTC  This is a testing alert!
 Check_Foo_Fails  2017-08-02 18:30:18 UTC  This is a testing alert!
 ```
 
-View all currently firing alerts with extended output
+View all currently firing alerts with extended output:
 ```
 $ amtool -o extended alert
 Labels                                        Annotations                                                    Starts At                Ends At                  Generator URL
@@ -226,7 +226,7 @@ alertname="Check_Foo_Fails" instance="node0"  link="https://example.com" summary
 alertname="Check_Foo_Fails" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
 ```
 
-In addition to viewing alerts you can use the rich query syntax provided by alertmanager
+In addition to viewing alerts, you can use the rich query syntax provided by Alertmanager:
 ```
 $ amtool -o extended alert query alertname="Test_Alert"
 Labels                                   Annotations                                                    Starts At                Ends At                  Generator URL
@@ -243,7 +243,7 @@ Labels                                   Annotations                            
 alertname="Test_Alert" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
 ```
 
-Silence an alert
+Silence an alert:
 ```
 $ amtool silence add alertname=Test_Alert
 b3ede22e-ca14-4aa0-932c-ca2f3445f926
@@ -252,7 +252,7 @@ $ amtool silence add alertname="Test_Alert" instance=~".+0"
 e48cb58a-0b17-49ba-b734-3585139b1d25
 ```
 
-View silences
+View silenced alerts:
 ```
 $ amtool silence query
 ID                                    Matchers              Ends At                  Created By  Comment
@@ -263,12 +263,12 @@ ID                                    Matchers                            Ends A
 e48cb58a-0b17-49ba-b734-3585139b1d25  alertname=Test_Alert instance=~.+0  2017-08-02 22:41:39 UTC  kellel
 ```
 
-Expire a silence
+Expire a silence:
 ```
 $ amtool silence expire b3ede22e-ca14-4aa0-932c-ca2f3445f926
 ```
 
-Expire all silences matching a query
+Expire all silences matching a query:
 ```
 $ amtool silence query instance=~".+0"
 ID                                    Matchers                            Ends At                  Created By  Comment
@@ -280,7 +280,7 @@ $ amtool silence query instance=~".+0"
 
 ```
 
-Expire all silences
+Expire all silences:
 ```
 $ amtool silence expire $(amtool silence query -q)
 ```
@@ -289,7 +289,7 @@ $ amtool silence expire $(amtool silence query -q)
 
 Amtool allows a config file to specify some options for convenience. The default config file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
 
-An example configfile might look like the following:
+An example config file might look like the following:
 
 ```
 # Define the path that amtool can find your `alertmanager` instance at
@@ -313,7 +313,7 @@ receiver: team-X-pager
 Amtool allows you to visualize the routes of your configuration in form of text tree view.
 Also you can use it to test the routing by passing it label set of an alert
 and it prints out all receivers the alert would match ordered and separated by `,`.
-(If you use `--verify.receivers` amtool returns error code 1 on mismatch)
+(If you use `--verify.receivers` amtool returns error code 1 on mismatch.)
 
 Example of usage:
 ```
@@ -326,7 +326,7 @@ amtool config routes --alertmanager.url=http://localhost:9090
 
 ## High Availability
 
-AlertManager's high availability is in production use at many companies and is enabled by default.
+Alertmanager's high availability is in production use at many companies and is enabled by default.
 
 > Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
 
@@ -378,11 +378,11 @@ alerting:
 
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
 
-### Disabling high availability
+### Turn off high availability
 
-If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` will prevent Alertmanager from listening to incoming peer requests.
+If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` prevents Alertmanager from listening to incoming peer requests.
 
-## Contributing to the Front-End
+## Contribute to the front end
 
 Refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
