@@ -11,28 +11,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package parse
+package labels
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/prometheus/prometheus/pkg/labels"
 )
 
 var (
 	re      = regexp.MustCompile(`(?:\s?)(\w+)(=|=~|!=|!~)(?:\"([^"=~!]+)\"|([^"=~!]+)|\"\")`)
-	typeMap = map[string]labels.MatchType{
-		"=":  labels.MatchEqual,
-		"!=": labels.MatchNotEqual,
-		"=~": labels.MatchRegexp,
-		"!~": labels.MatchNotRegexp,
+	typeMap = map[string]MatchType{
+		"=":  MatchEqual,
+		"!=": MatchNotEqual,
+		"=~": MatchRegexp,
+		"!~": MatchNotRegexp,
 	}
 )
 
-func Matchers(s string) ([]*labels.Matcher, error) {
-	matchers := []*labels.Matcher{}
+func ParseMatchers(s string) ([]*Matcher, error) {
+	matchers := []*Matcher{}
 	s = strings.TrimPrefix(s, "{")
 	s = strings.TrimSuffix(s, "}")
 
@@ -54,7 +52,7 @@ func Matchers(s string) ([]*labels.Matcher, error) {
 		tokens = append(tokens, token)
 	}
 	for _, token := range tokens {
-		m, err := Matcher(token)
+		m, err := ParseMatcher(token)
 		if err != nil {
 			return nil, err
 		}
@@ -64,28 +62,26 @@ func Matchers(s string) ([]*labels.Matcher, error) {
 	return matchers, nil
 }
 
-func Matcher(s string) (*labels.Matcher, error) {
-	name, value, matchType, err := Input(s)
-	if err != nil {
-		return nil, err
-	}
+func ParseMatcher(s string) (*Matcher, error) {
+	var (
+		name, value string
+		matchType   MatchType
+	)
 
-	m, err := labels.NewMatcher(matchType, name, value)
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func Input(s string) (name, value string, matchType labels.MatchType, err error) {
 	ms := re.FindStringSubmatch(s)
 	if len(ms) < 4 {
-		return "", "", labels.MatchEqual, fmt.Errorf("bad matcher format: %s", s)
+		return nil, fmt.Errorf("bad matcher format: %s", s)
 	}
 
-	var prs bool
 	name = ms[1]
-	matchType, prs = typeMap[ms[2]]
+	if name == "" {
+		return nil, fmt.Errorf("failed to parse label name")
+	}
+
+	matchType, found := typeMap[ms[2]]
+	if !found {
+		return nil, fmt.Errorf("failed to find match operator")
+	}
 
 	if ms[3] != "" {
 		value = ms[3]
@@ -93,9 +89,5 @@ func Input(s string) (name, value string, matchType labels.MatchType, err error)
 		value = ms[4]
 	}
 
-	if name == "" || !prs {
-		return "", "", labels.MatchEqual, fmt.Errorf("failed to parse")
-	}
-
-	return name, value, matchType, nil
+	return NewMatcher(matchType, name, value)
 }
