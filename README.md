@@ -33,7 +33,7 @@ $ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager/cmd/...
 $ alertmanager --config.file=<your_file>
 ```
 
-Or check out the source code and build manually:
+Or clone the repository and build manually:
 
 ```
 $ mkdir -p $GOPATH/src/github.com/prometheus
@@ -193,7 +193,7 @@ relate to `/alertmanager/api/v2/status`.
 
 _API v2 is still under heavy development and thereby subject to change._
 
-## Amtool
+## amtool
 
 `amtool` is a cli tool for interacting with the Alertmanager API. It is bundled with all releases of Alertmanager.
 
@@ -252,7 +252,7 @@ $ amtool silence add alertname="Test_Alert" instance=~".+0"
 e48cb58a-0b17-49ba-b734-3585139b1d25
 ```
 
-View silenced alerts:
+View silences:
 ```
 $ amtool silence query
 ID                                    Matchers              Ends At                  Created By  Comment
@@ -285,15 +285,14 @@ Expire all silences:
 $ amtool silence expire $(amtool silence query -q)
 ```
 
-### Config
+### Configuration
 
-Amtool allows a config file to specify some options for convenience. The default config file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
+`amtool` allows a configuration file to specify some options for convenience. The default configuration file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
 
-An example config file might look like the following:
+An example configuration file might look like the following:
 
 ```
-# Define the path that amtool can find your `alertmanager` instance at
-alertmanager.url: "http://localhost:9093"
+# Define the path that `amtool` can find your `alertmanager` instance at alertmanager.url: "http://localhost:9093"
 
 # Override the default author. (unset defaults to your username)
 author: me@example.com
@@ -310,7 +309,7 @@ receiver: team-X-pager
 
 ### Routes
 
-Amtool allows you to visualize the routes of your configuration in form of text tree view.
+`amtool` allows you to visualize the routes of your configuration in form of text tree view.
 Also you can use it to test the routing by passing it label set of an alert
 and it prints out all receivers the alert would match ordered and separated by `,`.
 (If you use `--verify.receivers` amtool returns error code 1 on mismatch.)
@@ -384,13 +383,22 @@ If running Alertmanager in high availability mode is not desired, setting `--clu
 
 ## Contribute to the front end
 
-Refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
+Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
 
 ## Architecture
 
 ![](doc/arch.svg)
 
-
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager
 [quay]: https://quay.io/repository/prometheus/alertmanager
+
+## License
+
+Apache License 2.0, see [LICENSE](https://github.com/prometheus/prometheus/blob/master/LICENSE).
+
+[travis]: https://travis-ci.org/prometheus/prometheus
+[hub]: https://hub.docker.com/r/prom/prometheus/
+[circleci]: https://circleci.com/gh/prometheus/prometheus
+[quay]: https://quay.io/repository/prometheus/prometheus
+
