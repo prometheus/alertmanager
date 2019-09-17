@@ -312,7 +312,7 @@ receiver: team-X-pager
 `amtool` allows you to visualize the routes of your configuration in form of text tree view.
 Also you can use it to test the routing by passing it label set of an alert
 and it prints out all receivers the alert would match ordered and separated by `,`.
-(If you use `--verify.receivers` amtool returns error code 1 on mismatch.)
+(If you use `--verify.receivers` amtool returns error code 1 on mismatch)
 
 Example of usage:
 ```
@@ -396,9 +396,3 @@ Check the [Prometheus contributing page](https://github.com/prometheus/prometheu
 ## License
 
 Apache License 2.0, see [LICENSE](https://github.com/prometheus/prometheus/blob/master/LICENSE).
-
-[travis]: https://travis-ci.org/prometheus/prometheus
-[hub]: https://hub.docker.com/r/prom/prometheus/
-[circleci]: https://circleci.com/gh/prometheus/prometheus
-[quay]: https://quay.io/repository/prometheus/prometheus
-
