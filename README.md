@@ -348,6 +348,8 @@ be configured to communicate with each other. This is configured using the
 - `--cluster.probe-timeout` value: time to wait for ack before marking node unhealthy
   (default "500ms")
 - `--cluster.probe-interval` value: interval between random node probes (default "1s")
+- `--cluster.reconnect-interval` value: interval between attempting to reconnect to lost peers (default "10s")
+- `--cluster.reconnect-timeout` value: length of time to attempt to reconnect to a lost peer (default: "6h0m0s")
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.
