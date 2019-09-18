@@ -28,8 +28,8 @@ func TestSetGet(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	a := NewAlerts(d)
-	a.Run(ctx)
+	a := NewAlerts()
+	a.Run(ctx, d)
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -46,8 +46,8 @@ func TestDelete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	a := NewAlerts(d)
-	a.Run(ctx)
+	a := NewAlerts()
+	a.Run(ctx, d)
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -82,18 +82,29 @@ func TestGC(t *testing.T) {
 		newAlert("a", -10, -5),
 		newAlert("d", -10, -1),
 	}
-	s := NewAlerts(5 * time.Minute)
-	var n int
+	s := NewAlerts()
+	var (
+		n    int
+		done = make(chan struct{})
+	)
 	s.SetGCCallback(func(a []*types.Alert) {
-		for range a {
-			n++
+		n += len(a)
+		if n >= len(resolved) {
+			close(done)
 		}
 	})
 	for _, alert := range append(active, resolved...) {
 		require.NoError(t, s.Set(alert))
 	}
-
-	s.gc()
+	ctx, cancel := context.WithCancel(context.Background())
+	s.Run(ctx, 10*time.Millisecond)
+	select {
+	case <-done:
+		cancel()
+		break
+	case <-time.After(1 * time.Second):
+		t.Fatal("garbage collection didn't complete in time")
+	}
 
 	for _, alert := range active {
 		if _, err := s.Get(alert.Fingerprint()); err != nil {

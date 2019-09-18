@@ -313,12 +313,10 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
 		timeout:  to,
-		alerts:   store.NewAlerts(15 * time.Minute),
+		alerts:   store.NewAlerts(),
 		done:     make(chan struct{}),
 	}
-
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
-	ag.alerts.Run(ag.ctx)
 
 	ag.logger = log.With(logger, "aggrGroup", ag)
 
@@ -438,14 +436,13 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 			fp := a.Fingerprint()
 			got, err := ag.alerts.Get(fp)
 			if err != nil {
-				// This should only happen if the Alert was
-				// deleted from the store during the flush.
-				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err)
+				// This should never happen.
+				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
 				continue
 			}
 			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
 				if err := ag.alerts.Delete(fp); err != nil {
-					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err)
+					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
 				}
 			}
 		}
