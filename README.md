@@ -1,12 +1,11 @@
 # Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
 
-[![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status)][quay]
+[![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
 
 The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
 * [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
-
 
 ## Install
 
@@ -381,18 +380,20 @@ alerting:
 
 If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` prevents Alertmanager from listening to incoming peer requests.
 
-## Contribute to the front end
+## Contributing
 
 Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
+
+To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
 ## Architecture
 
 ![](doc/arch.svg)
 
+## License
+
+Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/master/LICENSE).
+
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager
 [quay]: https://quay.io/repository/prometheus/alertmanager
-
-## License
-
-Apache License 2.0, see [LICENSE](https://github.com/prometheus/prometheus/blob/master/LICENSE).
