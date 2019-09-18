@@ -382,7 +382,7 @@ alerting:
 
 If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` will prevent Alertmanager from listening to incoming peer requests.
 
-## Contributing to the Front-End
+## Contributing
 
 Refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
