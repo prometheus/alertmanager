@@ -371,6 +371,7 @@ func run() int {
 		tmpl      *template.Template
 	)
 
+	dispMetrics := dispatch.NewDispatcherMetrics(prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configCoordinator := config.NewCoordinator(
 		*configFile,
@@ -415,7 +416,7 @@ func run() int {
 		})
 
 		routes := dispatch.NewRoute(conf.Route, nil)
-		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, logger)
+		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, logger, dispMetrics)
 		walkRoute(routes, func(r *dispatch.Route) {
 			if r.RouteOpts.RepeatInterval > *retention {
 				level.Warn(log.With(logger, "component", "configuration")).Log(
