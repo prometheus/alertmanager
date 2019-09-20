@@ -47,11 +47,11 @@ func (h previewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groupByStr := strings.Replace(r.FormValue("group-by"), ",", " ", -1)
-	groupBy := strings.Split(groupByStr, ",")
+	groupBy := strings.Split(r.FormValue("group-by"), ",")
 	groupLabels := model.LabelSet{}
 	for _, l := range groupBy {
-		groupLabels[model.LabelName(l)] = as[0].Labels[model.LabelName(l)]
+		ln := model.LabelName(strings.TrimSpace(l))
+		groupLabels[ln] = as[0].Labels[ln]
 	}
 
 	ctx := context.Background()
@@ -110,7 +110,11 @@ func (h previewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slackCfg.APIURL = (*config.SecretURL)(&config.URL{URL: u})
-	n := notify.NewSlack(slackCfg, tmpl, h.logger)
+	n, err := notify.NewSlack(slackCfg, tmpl, h.logger)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("error creating Slack notifier: %v", err), http.StatusInternalServerError)
+		return
+	}
 	_, err = n.Notify(ctx, as...)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("error sending notification: %v", err), http.StatusInternalServerError)
@@ -134,66 +138,4 @@ func main() {
 
 	http.Handle("/preview", previewHandler{logger: logger})
 	http.ListenAndServe(*listenAddress, nil)
-
-	cfg, err := config.Load(`
-route:
-  receiver: default
-
-receivers:
-  - name: default
-    slack_configs:
-    - api_url: "https://foo"
-`)
-	if err != nil {
-		//log.Fatalln("Error loading configuration:", err)
-	}
-	var slackCfg *config.SlackConfig
-	for _, rcv := range cfg.Receivers {
-		if len(rcv.SlackConfigs) > 0 {
-			slackCfg = rcv.SlackConfigs[0]
-			break
-		}
-	}
-
-	tmpl, err := template.FromGlobs(cfg.Templates...)
-	if err != nil {
-		//log.Fatalln("Error loading templates:", err)
-	}
-	u, err := url.Parse("https://alertmanager.local/")
-	if err != nil {
-		//log.Fatalln("Error parsing external URL:", err)
-	}
-	tmpl.ExternalURL = u
-
-	as := []*types.Alert{
-		&types.Alert{
-			Alert: model.Alert{
-				Labels:      nil,
-				Annotations: nil,
-			},
-		},
-	}
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("error reading request body: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Printf("https://api.slack.com/docs/messages/builder?msg=%s", url.QueryEscape(string(body)))
-	}))
-	defer srv.Close()
-
-	u, err = url.Parse(srv.URL)
-	if err != nil {
-		//log.Fatalln("Error parsing test server URL:", err)
-	}
-
-	slackCfg.APIURL = (*config.SecretURL)(&config.URL{URL: u})
-	n := notify.NewSlack(slackCfg, tmpl, logger)
-	_, err = n.Notify(context.Background(), as...)
-	if err != nil {
-		//log.Fatalln("Error sending notification:", err)
-	}
 }
