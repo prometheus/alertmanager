@@ -17,8 +17,97 @@ github.com/beorn7/perks/quantile
 github.com/cenkalti/backoff
 # github.com/cespare/xxhash v1.1.0
 github.com/cespare/xxhash
+# github.com/coreos/bbolt v1.3.3
+github.com/coreos/bbolt
+# github.com/coreos/etcd v3.3.15+incompatible
+github.com/coreos/etcd/alarm
+github.com/coreos/etcd/auth
+github.com/coreos/etcd/auth/authpb
+github.com/coreos/etcd/client
+github.com/coreos/etcd/clientv3
+github.com/coreos/etcd/clientv3/balancer
+github.com/coreos/etcd/clientv3/balancer/connectivity
+github.com/coreos/etcd/clientv3/balancer/picker
+github.com/coreos/etcd/clientv3/balancer/resolver/endpoint
+github.com/coreos/etcd/clientv3/concurrency
+github.com/coreos/etcd/clientv3/credentials
+github.com/coreos/etcd/clientv3/namespace
+github.com/coreos/etcd/clientv3/naming
+github.com/coreos/etcd/compactor
+github.com/coreos/etcd/discovery
+github.com/coreos/etcd/embed
+github.com/coreos/etcd/error
+github.com/coreos/etcd/etcdserver
+github.com/coreos/etcd/etcdserver/api
+github.com/coreos/etcd/etcdserver/api/etcdhttp
+github.com/coreos/etcd/etcdserver/api/v2http
+github.com/coreos/etcd/etcdserver/api/v2http/httptypes
+github.com/coreos/etcd/etcdserver/api/v2v3
+github.com/coreos/etcd/etcdserver/api/v3client
+github.com/coreos/etcd/etcdserver/api/v3election
+github.com/coreos/etcd/etcdserver/api/v3election/v3electionpb
+github.com/coreos/etcd/etcdserver/api/v3election/v3electionpb/gw
+github.com/coreos/etcd/etcdserver/api/v3lock
+github.com/coreos/etcd/etcdserver/api/v3lock/v3lockpb
+github.com/coreos/etcd/etcdserver/api/v3lock/v3lockpb/gw
+github.com/coreos/etcd/etcdserver/api/v3rpc
+github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes
+github.com/coreos/etcd/etcdserver/auth
+github.com/coreos/etcd/etcdserver/etcdserverpb
+github.com/coreos/etcd/etcdserver/etcdserverpb/gw
+github.com/coreos/etcd/etcdserver/membership
+github.com/coreos/etcd/etcdserver/stats
+github.com/coreos/etcd/lease
+github.com/coreos/etcd/lease/leasehttp
+github.com/coreos/etcd/lease/leasepb
+github.com/coreos/etcd/mvcc
+github.com/coreos/etcd/mvcc/backend
+github.com/coreos/etcd/mvcc/mvccpb
+github.com/coreos/etcd/pkg/adt
+github.com/coreos/etcd/pkg/contention
+github.com/coreos/etcd/pkg/cors
+github.com/coreos/etcd/pkg/cpuutil
+github.com/coreos/etcd/pkg/crc
+github.com/coreos/etcd/pkg/debugutil
+github.com/coreos/etcd/pkg/fileutil
+github.com/coreos/etcd/pkg/httputil
+github.com/coreos/etcd/pkg/idutil
+github.com/coreos/etcd/pkg/ioutil
+github.com/coreos/etcd/pkg/logutil
+github.com/coreos/etcd/pkg/netutil
+github.com/coreos/etcd/pkg/pathutil
+github.com/coreos/etcd/pkg/pbutil
+github.com/coreos/etcd/pkg/runtime
+github.com/coreos/etcd/pkg/schedule
+github.com/coreos/etcd/pkg/srv
+github.com/coreos/etcd/pkg/systemd
+github.com/coreos/etcd/pkg/testutil
+github.com/coreos/etcd/pkg/tlsutil
+github.com/coreos/etcd/pkg/transport
+github.com/coreos/etcd/pkg/types
+github.com/coreos/etcd/pkg/wait
+github.com/coreos/etcd/proxy/grpcproxy
+github.com/coreos/etcd/proxy/grpcproxy/adapter
+github.com/coreos/etcd/proxy/grpcproxy/cache
+github.com/coreos/etcd/raft
+github.com/coreos/etcd/raft/raftpb
+github.com/coreos/etcd/rafthttp
+github.com/coreos/etcd/snap
+github.com/coreos/etcd/snap/snappb
+github.com/coreos/etcd/store
+github.com/coreos/etcd/version
+github.com/coreos/etcd/wal
+github.com/coreos/etcd/wal/walpb
+# github.com/coreos/go-semver v0.3.0
+github.com/coreos/go-semver/semver
+# github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f
+github.com/coreos/go-systemd/journal
+# github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
+github.com/coreos/pkg/capnslog
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
+# github.com/dgrijalva/jwt-go v3.2.0+incompatible
+github.com/dgrijalva/jwt-go
 # github.com/docker/go-units v0.4.0
 github.com/docker/go-units
 # github.com/go-kit/kit v0.9.0
@@ -86,10 +175,35 @@ github.com/gogo/protobuf/sortkeys
 github.com/gogo/protobuf/types
 github.com/gogo/protobuf/vanity
 github.com/gogo/protobuf/vanity/command
+# github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6
+github.com/golang/groupcache/lru
 # github.com/golang/protobuf v1.3.2
+github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
+github.com/golang/protobuf/protoc-gen-go/descriptor
+github.com/golang/protobuf/protoc-gen-go/generator
+github.com/golang/protobuf/protoc-gen-go/generator/internal/remap
+github.com/golang/protobuf/protoc-gen-go/plugin
+github.com/golang/protobuf/ptypes
+github.com/golang/protobuf/ptypes/any
+github.com/golang/protobuf/ptypes/duration
+github.com/golang/protobuf/ptypes/struct
+github.com/golang/protobuf/ptypes/timestamp
+github.com/golang/protobuf/ptypes/wrappers
 # github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
 github.com/google/btree
+# github.com/google/uuid v1.1.1
+github.com/google/uuid
+# github.com/gorilla/websocket v1.4.1
+github.com/gorilla/websocket
+# github.com/grpc-ecosystem/go-grpc-middleware v1.1.0
+github.com/grpc-ecosystem/go-grpc-middleware
+# github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+github.com/grpc-ecosystem/go-grpc-prometheus
+# github.com/grpc-ecosystem/grpc-gateway v1.11.2
+github.com/grpc-ecosystem/grpc-gateway/internal
+github.com/grpc-ecosystem/grpc-gateway/runtime
+github.com/grpc-ecosystem/grpc-gateway/utilities
 # github.com/hashicorp/errwrap v1.0.0
 github.com/hashicorp/errwrap
 # github.com/hashicorp/go-immutable-radix v1.0.0
@@ -106,8 +220,14 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/hashicorp/memberlist
 # github.com/jessevdk/go-flags v1.4.0
 github.com/jessevdk/go-flags
+# github.com/jonboulle/clockwork v0.1.0
+github.com/jonboulle/clockwork
+# github.com/json-iterator/go v1.1.7
+github.com/json-iterator/go
 # github.com/julienschmidt/httprouter v1.2.0
 github.com/julienschmidt/httprouter
+# github.com/konsorten/go-windows-terminal-sequences v1.0.1
+github.com/konsorten/go-windows-terminal-sequences
 # github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515
 github.com/kr/logfmt
 # github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb
@@ -123,6 +243,10 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/miekg/dns
 # github.com/mitchellh/mapstructure v1.1.2
 github.com/mitchellh/mapstructure
+# github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+github.com/modern-go/concurrent
+# github.com/modern-go/reflect2 v1.0.1
+github.com/modern-go/reflect2
 # github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223
 github.com/mwitkow/go-conntrack
 # github.com/oklog/run v1.0.0
@@ -164,11 +288,22 @@ github.com/shurcooL/httpfs/union
 github.com/shurcooL/httpfs/vfsutil
 # github.com/shurcooL/vfsgen v0.0.0-20181202132449-6a9ea43bcacd
 github.com/shurcooL/vfsgen
-# github.com/stretchr/testify v1.3.0
+# github.com/sirupsen/logrus v1.4.2
+github.com/sirupsen/logrus
+# github.com/soheilhy/cmux v0.1.4
+github.com/soheilhy/cmux
+# github.com/stretchr/testify v1.4.0
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
+# github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5
+github.com/tmc/grpc-websocket-proxy/wsproxy
+# github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2
+github.com/xiang90/probing
 # github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
 github.com/xlab/treeprint
+# go.etcd.io/etcd v3.3.15+incompatible
+go.etcd.io/etcd/clientv3
+go.etcd.io/etcd/integration
 # go.mongodb.org/mongo-driver v1.0.3
 go.mongodb.org/mongo-driver/bson
 go.mongodb.org/mongo-driver/bson/bsoncodec
@@ -176,11 +311,28 @@ go.mongodb.org/mongo-driver/bson/bsonrw
 go.mongodb.org/mongo-driver/bson/bsontype
 go.mongodb.org/mongo-driver/bson/primitive
 go.mongodb.org/mongo-driver/x/bsonx/bsoncore
+# go.uber.org/atomic v1.4.0
+go.uber.org/atomic
+# go.uber.org/multierr v1.1.0
+go.uber.org/multierr
+# go.uber.org/zap v1.10.0
+go.uber.org/zap
+go.uber.org/zap/buffer
+go.uber.org/zap/internal/bufferpool
+go.uber.org/zap/internal/color
+go.uber.org/zap/internal/exit
+go.uber.org/zap/zapcore
 # golang.org/x/crypto v0.0.0-20190617133340-57b3e21c3d56
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
 # golang.org/x/net v0.0.0-20190724013045-ca1201d0de80
 golang.org/x/net/bpf
+golang.org/x/net/context
+golang.org/x/net/http/httpguts
+golang.org/x/net/http2
+golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/iana
 golang.org/x/net/internal/socket
@@ -198,6 +350,8 @@ golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/width
+# golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
+golang.org/x/time/rate
 # golang.org/x/tools v0.0.0-20190813034749-528a2984e271
 golang.org/x/tools/cmd/goimports
 golang.org/x/tools/go/ast/astutil
@@ -210,7 +364,50 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/module
 golang.org/x/tools/internal/semver
+# google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
+google.golang.org/genproto/googleapis/api/annotations
+google.golang.org/genproto/googleapis/api/httpbody
+google.golang.org/genproto/googleapis/rpc/status
+google.golang.org/genproto/protobuf/field_mask
+# google.golang.org/grpc v1.23.1
+google.golang.org/grpc
+google.golang.org/grpc/balancer
+google.golang.org/grpc/balancer/base
+google.golang.org/grpc/balancer/roundrobin
+google.golang.org/grpc/binarylog/grpc_binarylog_v1
+google.golang.org/grpc/codes
+google.golang.org/grpc/connectivity
+google.golang.org/grpc/credentials
+google.golang.org/grpc/credentials/internal
+google.golang.org/grpc/encoding
+google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/grpclog
+google.golang.org/grpc/health
+google.golang.org/grpc/health/grpc_health_v1
+google.golang.org/grpc/internal
+google.golang.org/grpc/internal/backoff
+google.golang.org/grpc/internal/balancerload
+google.golang.org/grpc/internal/binarylog
+google.golang.org/grpc/internal/channelz
+google.golang.org/grpc/internal/envconfig
+google.golang.org/grpc/internal/grpcrand
+google.golang.org/grpc/internal/grpcsync
+google.golang.org/grpc/internal/syscall
+google.golang.org/grpc/internal/transport
+google.golang.org/grpc/keepalive
+google.golang.org/grpc/metadata
+google.golang.org/grpc/naming
+google.golang.org/grpc/peer
+google.golang.org/grpc/resolver
+google.golang.org/grpc/resolver/dns
+google.golang.org/grpc/resolver/passthrough
+google.golang.org/grpc/serviceconfig
+google.golang.org/grpc/stats
+google.golang.org/grpc/status
+google.golang.org/grpc/tap
 # gopkg.in/alecthomas/kingpin.v2 v2.2.6
 gopkg.in/alecthomas/kingpin.v2
 # gopkg.in/yaml.v2 v2.2.2
 gopkg.in/yaml.v2
+# sigs.k8s.io/yaml v1.1.0
+sigs.k8s.io/yaml
