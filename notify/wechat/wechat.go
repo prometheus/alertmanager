@@ -171,15 +171,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
+	if resp.StatusCode != 200 {
+		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return true, err
 	}
 	level.Debug(n.logger).Log("response", string(body), "incident", key)
-
-	if resp.StatusCode != 200 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	}
 
 	var weResp weChatResponse
 	if err := json.Unmarshal(body, &weResp); err != nil {
