@@ -14,11 +14,10 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"sort"
-
-	"bytes"
 
 	"github.com/prometheus/common/model"
 )
@@ -38,10 +37,11 @@ func (m *Matcher) Init() error {
 		return nil
 	}
 	re, err := regexp.Compile("^(?:" + m.Value + ")$")
-	if err == nil {
-		m.regex = re
+	if err != nil {
+		return err
 	}
-	return err
+	m.regex = re
+	return nil
 }
 
 func (m *Matcher) String() string {
@@ -131,19 +131,6 @@ func (ms Matchers) Less(i, j int) bool {
 		return true
 	}
 	return !ms[i].IsRegex && ms[j].IsRegex
-}
-
-// Equal returns whether both Matchers are equal.
-func (ms Matchers) Equal(o Matchers) bool {
-	if len(ms) != len(o) {
-		return false
-	}
-	for i, a := range ms {
-		if *a != *o[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // Match checks whether all matchers are fulfilled against the given label set.
