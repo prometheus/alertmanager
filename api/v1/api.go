@@ -791,6 +791,7 @@ func (api *API) receive(r *http.Request, v interface{}) error {
 	err := dec.Decode(v)
 	if err != nil {
 		level.Debug(api.logger).Log("msg", "Decoding request failed", "err", err)
+		return err
 	}
-	return err
+	return nil
 }
