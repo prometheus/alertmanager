@@ -5,7 +5,24 @@
 
 The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
-* [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
+  * [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
+  * [Install](#install)
+     * [Precompiled binaries](#precompiled-binaries)
+     * [Docker images](#docker-images)
+     * [Compiling the binary](#compiling-the-binary)
+  * [Architecture](#architecture)
+  * [Configuration](#configuration)
+  * [API](#api)
+  * [amtool](#amtool)
+     * [Install](#install-1)
+     * [Examples](#examples)
+     * [Configuration](#configuration-1)
+     * [Routes](#routes)
+  * [High Availability](#high-availability)
+     * [Turn off high availability](#turn-off-high-availability)
+  * [Contributing](#contributing)
+  * [License](#license)
+
 
 ## Install
 
@@ -48,7 +65,11 @@ You can also build just one of the binaries in this repo by passing a name to th
 $ make build BINARIES=amtool
 ```
 
-## Example
+## Architecture
+
+![](doc/arch.svg)
+
+## Configuration
 
 This is an example configuration that should cover most relevant aspects of the new YAML configuration format. The full documentation of the configuration can be found [here](https://prometheus.io/docs/alerting/configuration/).
 
@@ -385,10 +406,6 @@ If running Alertmanager in high availability mode is not desired, setting `--clu
 Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
 
 To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
-
-## Architecture
-
-![](doc/arch.svg)
 
 ## License
 
