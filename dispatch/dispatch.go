@@ -114,21 +114,24 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			}
 
 		case <-cleanup.C:
-			d.mtx.Lock()
-
-			for _, groups := range d.aggrGroups {
-				for _, ag := range groups {
-					if ag.empty() {
-						ag.stop()
-						delete(groups, ag.fingerprint())
-					}
-				}
-			}
-
-			d.mtx.Unlock()
+			d.cleanup()
 
 		case <-d.ctx.Done():
 			return
+		}
+	}
+}
+
+func (d *Dispatcher) cleanup() {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	for _, groups := range d.aggrGroups {
+		for _, ag := range groups {
+			if ag.empty() {
+				ag.stop()
+				delete(groups, ag.fingerprint())
+			}
 		}
 	}
 }
