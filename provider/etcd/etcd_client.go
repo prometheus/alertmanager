@@ -108,6 +108,13 @@ func (ec *EtcdClient) CheckAndPut(alert *types.Alert) error {
 	// then put into Etcd because unnecessarily putting any alert into etcd will result in the
 	// put alert being sent to all the AMs which are watching etcd.
 
+	if len(alert.Labels) == 0 {
+		// TODO: Saw this case happen.  Unsure if it was due to someone curling against AM.
+		//   For now, skip etcd write so it doesn't propogate to other AMs
+		level.Warn(ec.logger).Log("msg", "Skipping write of alert with empty LabelSet")
+		return nil // skip write to etcd
+	}
+
 	etcdAlert, err := ec.Get(alert.Fingerprint())
 	if err == nil {
 		if AlertsEqualExceptForUpdatedAt(etcdAlert, alert) {
@@ -215,6 +222,12 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 				if ev.Type.String() == "PUT" {
 					alert, err := UnmarshalAlert(string(ev.Kv.Value))
 					if err != nil {
+						continue
+					}
+					if len(alert.Labels) == 0 {
+						// TODO: Saw this case happen.  Unsure if it was due to someone curling against AM.
+						//   For now, skip loading of this alert
+						level.Warn(ec.logger).Log("msg", "Watch received Unmarshalled alert with empty LabelSet")
 						continue
 					}
 					_ = ec.alerts.Put(alert) // best effort only
