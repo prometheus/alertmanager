@@ -38,8 +38,11 @@ func TestAggrGroup(t *testing.T) {
 		"b": "v2",
 	}
 	opts := &RouteOpts{
-		Receiver:       "n1",
-		GroupBy:        map[model.LabelName]struct{}{},
+		Receiver: "n1",
+		GroupBy: map[model.LabelName]struct{}{
+			"a": struct{}{},
+			"b": struct{}{},
+		},
 		GroupWait:      1 * time.Second,
 		GroupInterval:  300 * time.Millisecond,
 		RepeatInterval: 1 * time.Hour,
