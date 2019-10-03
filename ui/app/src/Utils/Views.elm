@@ -150,6 +150,7 @@ validatedTextareaField labelText classes inputMsg blurMsg field =
                     , onBlur blurMsg
                     , class "form-control form-control-success"
                     , rows lineCount
+                    , disableGrammarly
                     ]
                     []
                 ]
@@ -163,6 +164,7 @@ validatedTextareaField labelText classes inputMsg blurMsg field =
                     , onBlur blurMsg
                     , class "form-control"
                     , rows lineCount
+                    , disableGrammarly
                     ]
                     []
                 ]
@@ -176,6 +178,7 @@ validatedTextareaField labelText classes inputMsg blurMsg field =
                     , onBlur blurMsg
                     , class "form-control form-control-danger"
                     , rows lineCount
+                    , disableGrammarly
                     ]
                     []
                 , div [ class "form-control-feedback" ] [ text error_ ]
@@ -194,7 +197,7 @@ textField : String -> String -> String -> (String -> msg) -> Html msg
 textField labelText content classes msg =
     div [ class <| "d-flex flex-column " ++ classes ]
         [ label [] [ strong [] [ text labelText ] ]
-        , textarea [ value content, onInput msg ] []
+        , textarea [ value content, onInput msg, disableGrammarly ] []
         ]
 
 
@@ -237,3 +240,8 @@ error : String -> Html msg
 error err =
     div [ class "alert alert-warning" ]
         [ text (Utils.String.capitalizeFirst err) ]
+
+
+disableGrammarly : Html.Attribute msg
+disableGrammarly =
+    attribute "data-gramm_editor" "false"
