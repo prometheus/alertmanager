@@ -16,11 +16,9 @@ package email
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"math"
-	"math/big"
+	"math/rand"
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
@@ -29,7 +27,6 @@ import (
 	"net/smtp"
 	"net/textproto"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -46,12 +43,11 @@ import (
 
 // Email implements a Notifier for email notifications.
 type Email struct {
-	conf   *config.EmailConfig
-	tmpl   *template.Template
-	logger log.Logger
+	conf     *config.EmailConfig
+	tmpl     *template.Template
+	logger   log.Logger
+	hostname string
 }
-
-var reHeaderMessageId = regexp.MustCompile(`(?im)^message-id:`)
 
 // New returns a new Email notifier.
 func New(c *config.EmailConfig, t *template.Template, l log.Logger) *Email {
@@ -64,7 +60,13 @@ func New(c *config.EmailConfig, t *template.Template, l log.Logger) *Email {
 	if _, ok := c.Headers["From"]; !ok {
 		c.Headers["From"] = c.From
 	}
-	return &Email{conf: c, tmpl: t, logger: l}
+
+	h, err := os.Hostname()
+	// If we can't get the hostname, we'll use localhost
+	if err != nil {
+		h = "localhost.localdomain"
+	}
+	return &Email{conf: c, tmpl: t, logger: l, hostname: h}
 }
 
 // auth resolves a string of authentication mechanisms.
@@ -243,11 +245,8 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		fmt.Fprintf(buffer, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
 	}
 
-	if reHeaderMessageId.Find(buffer.Bytes()) == nil {
-		id, err := generateMessageID()
-		if err == nil {
-			fmt.Fprintf(buffer, "Message-Id: %s\r\n", id)
-		}
+	if _, ok := n.conf.Headers["Message-Id"]; !ok {
+		fmt.Fprintf(buffer, "Message-Id: %s\r\n", fmt.Sprintf("<%d.%d@%s>", time.Now().UnixNano(), rand.Uint64(), n.hostname))
 	}
 
 	multipartBuffer := &bytes.Buffer{}
@@ -353,28 +352,4 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
-}
-
-var maxBigInt = big.NewInt(math.MaxInt64)
-
-// generateMessageID generates and returns a string suitable for an RFC 2822
-// compliant Message-ID, e.g.:
-// <1444789264909237300.1819418242800517193@DESKTOP01>
-//
-// The following parameters are used to generate a Message-ID:
-// - The nanoseconds since Epoch
-// - A cryptographically random int64
-// - The sending hostname
-func generateMessageID() (string, error) {
-	t := time.Now().UnixNano()
-	rint, err := rand.Int(rand.Reader, maxBigInt)
-	if err != nil {
-		return "", err
-	}
-	h, err := os.Hostname()
-	// If we can't get the hostname, we'll use localhost
-	if err != nil {
-		h = "localhost.localdomain"
-	}
-	return fmt.Sprintf("<%d.%d@%s>", t, rint, h), nil
 }
