@@ -1,7 +1,6 @@
-# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
+# Alertmanager [![CircleCI](https://circleci.com/gh/cisco-kusanagi/alertmanager-ha/tree/master.svg?style=shield)][circleci]
 
-[![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
-[![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
+[![Docker Pulls](https://img.shields.io/docker/pulls/ciscokusanagi/alertmanager-ha.svg?maxAge=604800)][hub]
 
 The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
