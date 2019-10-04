@@ -54,7 +54,7 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		alerts:    store.NewAlerts(intervalGC),
+		alerts:    store.NewAlerts(),
 		cancel:    cancel,
 		listeners: map[int]listeningAlerts{},
 		next:      0,
@@ -82,7 +82,7 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 		}
 		a.mtx.Unlock()
 	})
-	a.alerts.Run(ctx)
+	a.alerts.Run(ctx, intervalGC)
 
 	// initialize etcd client
 	etcdClient, err := NewEtcdClient(ctx, a, etcdEndpoints, etcdPrefix)
