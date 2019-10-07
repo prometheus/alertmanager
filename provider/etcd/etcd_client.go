@@ -109,7 +109,7 @@ func (ec *EtcdClient) CheckAndPut(alert *types.Alert) error {
 	// put alert being sent to all the AMs which are watching etcd.
 
 	etcdAlert, err := ec.Get(alert.Fingerprint())
-	if err != nil {
+	if err != nil && err.Error() != "etcdGet did not receive exactly one result for fingerprint" {
 		return err
 	} else if AlertsEqualExceptForUpdatedAt(etcdAlert, alert) {
 		return nil // skip write to etcd
