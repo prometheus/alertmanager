@@ -10,16 +10,9 @@ The Alertmanager handles alerts sent by client applications such as the Promethe
 
 There are various ways of installing Alertmanager.
 
-### Precompiled binaries
-
-Precompiled binaries for released versions are available in the
-[*download* section](https://prometheus.io/download/)
-on [prometheus.io](https://prometheus.io). Using the latest production release binary
-is the recommended way of installing Alertmanager.
-
 ### Docker images
 
-Docker images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager).
+Docker images are available on [DockerHub](https://hub.docker.com/r/ciscokusanagi/alertmanager-ha).
 
 ### Compiling the binary
 
