@@ -34,7 +34,9 @@ import (
 )
 
 var (
-	ErrorEtcdNotInitialized = errors.New("Etcd not initialized")
+	ErrorEtcdNotInitialized     = errors.New("Etcd not initialized")
+	ErrorEtcdGetNoResult        = errors.New("etcdGet did not receive a result for fingerprint")
+	ErrorEtcdGetMultipleResults = errors.New("etcdGet received multiple results for fingerprint")
 )
 
 type EtcdClient struct {
@@ -109,7 +111,8 @@ func (ec *EtcdClient) CheckAndPut(alert *types.Alert) error {
 	// put alert being sent to all the AMs which are watching etcd.
 
 	etcdAlert, err := ec.Get(alert.Fingerprint())
-	if err != nil && err.Error() != "etcdGet did not receive exactly one result for fingerprint" {
+	if err != nil && err != ErrorEtcdGetNoResult {
+		// it's ok if the result doesn't exist; all other errors are fatal
 		return err
 	} else if AlertsEqualExceptForUpdatedAt(etcdAlert, alert) {
 		return nil // skip write to etcd
@@ -144,8 +147,10 @@ func (ec *EtcdClient) Get(fp model.Fingerprint) (*types.Alert, error) {
 		return nil, err
 	}
 
-	if len(resp.Kvs) != 1 {
-		return nil, errors.New("etcdGet did not receive exactly one result for fingerprint")
+	if len(resp.Kvs) == 0 {
+		return nil, ErrorEtcdGetNoResult
+	} else if len(resp.Kvs) != 1 {
+		return nil, ErrorEtcdGetMultipleResults
 	}
 
 	alert, err := UnmarshalAlert(string(resp.Kvs[0].Value))

@@ -178,7 +178,10 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 			level.Error(a.logger).Log("msg", "error on set alert", "err", err)
 			continue
 		}
-		_ = a.EtcdClient.CheckAndPut(alert) // best effort only
+		// best effort only; if there are errors, log and move on
+		if err := a.EtcdClient.CheckAndPut(alert); err != nil {
+			level.Error(a.logger).Log("msg", "error on put to etcd", "err", err)
+		}
 
 		a.mtx.Lock()
 		for _, l := range a.listeners {
