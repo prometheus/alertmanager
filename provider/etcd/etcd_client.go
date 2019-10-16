@@ -39,6 +39,12 @@ var (
 	ErrorEtcdGetMultipleResults = errors.New("etcdGet received multiple results for fingerprint")
 )
 
+const EtcdTimeoutGet = 150 * time.Millisecond
+const EtcdTimeoutPut = 250 * time.Millisecond
+const EtcdDelayRunWatch = 10 * time.Second
+const EtcdDelayRunLoad = 15 * time.Second
+const EtcdRetryGetFailure = 5 * time.Second
+
 type EtcdClient struct {
 	alerts    *Alerts
 	endpoints []string
@@ -136,7 +142,7 @@ func (ec *EtcdClient) Get(fp model.Fingerprint) (*types.Alert, error) {
 	}
 
 	// ensure the operation does not take too long
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), EtcdTimeoutGet)
 	defer cancel()
 
 	ec.mtx.Lock()
@@ -177,7 +183,7 @@ func (ec *EtcdClient) Put(alert *types.Alert) error {
 	}
 
 	// ensure the operation does not take too long
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), EtcdTimeoutPut)
 	defer cancel()
 
 	ec.mtx.Lock()
@@ -220,6 +226,7 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 		rch := ec.client.Watch(ctx, ec.prefix, clientv3.WithPrefix())
 		ec.mtx.Unlock()
 
+		level.Info(ec.logger).Log("msg", "Etcd Watch Started")
 		for wresp := range rch {
 			for _, ev := range wresp.Events {
 				level.Debug(ec.logger).Log("msg", "watch received",
@@ -244,13 +251,14 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 
 func (ec *EtcdClient) RunLoadAllAlerts(ctx context.Context) {
 	go func() {
+		level.Info(ec.logger).Log("msg", "Etcd Load All Alerts Started")
 		for {
 			ec.mtx.Lock()
 			resp, err := ec.client.Get(ctx, ec.prefix, clientv3.WithPrefix())
 			ec.mtx.Unlock()
 			if err != nil {
 				level.Error(ec.logger).Log("msg", "Error fetching all alerts etcd", "err", err)
-				time.Sleep(5 * time.Second)
+				time.Sleep(EtcdRetryGetFailure)
 				continue // retry
 			}
 
@@ -263,6 +271,7 @@ func (ec *EtcdClient) RunLoadAllAlerts(ctx context.Context) {
 				}
 				_ = ec.alerts.Put(alert) // best effort only
 			}
+			level.Info(ec.logger).Log("msg", "Etcd Load All Alerts Finished")
 			return // we only need to load all of the alerts once
 		}
 	}()
