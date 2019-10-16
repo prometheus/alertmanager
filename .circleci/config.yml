@@ -97,7 +97,6 @@ jobs:
     - prometheus/setup_build_environment
     - run: promu crossbuild tarballs
     - run: promu checksum .tarballs
-    - run: promu release .tarballs
     - store_artifacts:
         destination: releases
         path: .tarballs
