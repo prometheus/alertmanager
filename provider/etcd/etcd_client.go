@@ -136,7 +136,7 @@ func (ec *EtcdClient) Get(fp model.Fingerprint) (*types.Alert, error) {
 	}
 
 	// ensure the operation does not take too long
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
 	ec.mtx.Lock()
@@ -177,7 +177,7 @@ func (ec *EtcdClient) Put(alert *types.Alert) error {
 	}
 
 	// ensure the operation does not take too long
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
 	ec.mtx.Lock()
@@ -216,14 +216,10 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 	ctx = clientv3.WithRequireLeader(ctx)
 
 	go func() {
-		// delay start the run etcd loops so subscribers have time to initialize
-		time.Sleep(10 * time.Second)
-
 		ec.mtx.Lock()
 		rch := ec.client.Watch(ctx, ec.prefix, clientv3.WithPrefix())
 		ec.mtx.Unlock()
 
-		level.Info(ec.logger).Log("msg", "Etcd Watch Started")
 		for wresp := range rch {
 			for _, ev := range wresp.Events {
 				level.Debug(ec.logger).Log("msg", "watch received",
@@ -243,16 +239,11 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 				} // else, ignore all other etcd operations, especially DELETE
 			}
 		}
-		level.Info(ec.logger).Log("msg", "Etcd Watch Stopped")
 	}()
 }
 
 func (ec *EtcdClient) RunLoadAllAlerts(ctx context.Context) {
 	go func() {
-		// delay start the run etcd loops so subscribers have time to initialize
-		time.Sleep(15 * time.Second)
-
-		level.Info(ec.logger).Log("msg", "Etcd Load All Alerts Started")
 		for {
 			ec.mtx.Lock()
 			resp, err := ec.client.Get(ctx, ec.prefix, clientv3.WithPrefix())
@@ -272,7 +263,6 @@ func (ec *EtcdClient) RunLoadAllAlerts(ctx context.Context) {
 				}
 				_ = ec.alerts.Put(alert) // best effort only
 			}
-			level.Info(ec.logger).Log("msg", "Etcd Load All Alerts Finished")
 			return // we only need to load all of the alerts once
 		}
 	}()
