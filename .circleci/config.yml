@@ -2,7 +2,7 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.1.0
+  prometheus: prometheus/prometheus@0.2.0
   go: circleci/go@0.2.0
 
 jobs:
@@ -87,6 +87,26 @@ jobs:
         file: alertmanager
     - prometheus/store_artifact:
         file: amtool
+  # adapted from prometheus/publish_release orb
+  publish_release:
+    description: |
+      Build and publish binaries and container images for a given release tag.
+    docker:
+    - image: circleci/golang
+    steps:
+    - prometheus/setup_build_environment
+    - run: promu crossbuild tarballs
+    - run: promu checksum .tarballs
+    - run: promu release .tarballs
+    - store_artifacts:
+        destination: releases
+        path: .tarballs
+    - prometheus/publish_release_images:
+        login_variable: DOCKER_LOGIN
+        organization: ciscokusanagi
+        container_image_name: alertmanager-ha
+        password_variable: DOCKER_PASSWORD
+        registry: docker.io
 
 
 workflows:
@@ -105,23 +125,16 @@ workflows:
         name: build
         filters:
           tags:
-            only: /.*/
-#    - prometheus/publish_master:
-#        context: org-context
-#        requires:
-#        - test_frontend
-#        - test
-#        - build
-#        filters:
-#          branches:
-#            only: master
-#    - prometheus/publish_release:
-#        context: org-context
-#        requires:
-#        - test
-#        - build
-#        filters:
-#          tags:
-#            only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
-#          branches:
-#            ignore: /.*/
+            only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
+          branches:
+            ignore: /.*/
+    - publish_release:
+        context: kusanagi-context
+        requires:
+        - test
+        - build
+        filters:
+          tags:
+            only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
+          branches:
+            ignore: /.*/
