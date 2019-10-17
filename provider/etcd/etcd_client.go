@@ -31,12 +31,44 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
 	ErrorEtcdNotInitialized     = errors.New("Etcd not initialized")
 	ErrorEtcdGetNoResult        = errors.New("etcdGet did not receive a result for fingerprint")
 	ErrorEtcdGetMultipleResults = errors.New("etcdGet received multiple results for fingerprint")
+
+	// Prometheus Counters
+	etcdCheckAndPutTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_etcd_checkandput_total",
+			Help: "The total number of CheckAndPut calls received",
+		},
+		[]string{"status"},
+	) // "status":"filtered|accepted|error"
+	etcdOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_etcd_operations_total",
+			Help: "The total number of operations initiated to etcd",
+		},
+		[]string{"operation", "result"},
+	) // "operation": "get|put|delete", "result":"success|error"
+	etcdWatchOperationsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "alertmanager_etcd_watch_operations_total",
+			Help: "The total number of operations received from etcd watch",
+		},
+		[]string{"operation"},
+	) // "operation":"put|delete"
+	etcdQueueLength = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_etcd_queue_length",
+			Help: "The total number of operations pending to be processed by etcd watch",
+		},
+		[]string{"name"},
+	)
 )
 
 const EtcdTimeoutGet = 150 * time.Millisecond
@@ -119,8 +151,10 @@ func (ec *EtcdClient) CheckAndPut(alert *types.Alert) error {
 	etcdAlert, err := ec.Get(alert.Fingerprint())
 	if err != nil && err != ErrorEtcdGetNoResult {
 		// it's ok if the result doesn't exist; all other errors are fatal
+		etcdCheckAndPutTotal.With(prometheus.Labels{"status": "error"}).Inc()
 		return err
 	} else if AlertsEqualExceptForUpdatedAt(etcdAlert, alert) {
+		etcdCheckAndPutTotal.With(prometheus.Labels{"status": "filtered"}).Inc()
 		return nil // skip write to etcd
 	}
 
@@ -128,9 +162,11 @@ func (ec *EtcdClient) CheckAndPut(alert *types.Alert) error {
 		// TODO: Saw this case happen.  Unsure if it was due to someone curling against AM.
 		//   For now, skip etcd write so it doesn't propogate to other AMs
 		level.Warn(ec.logger).Log("msg", "Skipping write of alert with empty LabelSet")
+		etcdCheckAndPutTotal.With(prometheus.Labels{"status": "filtered"}).Inc()
 		return nil // skip write to etcd
 	}
 
+	etcdCheckAndPutTotal.With(prometheus.Labels{"status": "accepted"}).Inc()
 	return ec.Put(alert)
 }
 
@@ -150,21 +186,26 @@ func (ec *EtcdClient) Get(fp model.Fingerprint) (*types.Alert, error) {
 	ec.mtx.Unlock()
 	if err != nil {
 		level.Error(ec.logger).Log("msg", "Error getting alert from etcd", "err", err)
+		etcdOperationsTotal.With(prometheus.Labels{"operation": "get", "result": "error"}).Inc()
 		return nil, err
 	}
 
 	if len(resp.Kvs) == 0 {
+		etcdOperationsTotal.With(prometheus.Labels{"operation": "get", "result": "notfound"}).Inc()
 		return nil, ErrorEtcdGetNoResult
 	} else if len(resp.Kvs) != 1 {
+		etcdOperationsTotal.With(prometheus.Labels{"operation": "get", "result": "error"}).Inc()
 		return nil, ErrorEtcdGetMultipleResults
 	}
 
 	alert, err := UnmarshalAlert(string(resp.Kvs[0].Value))
 	if err != nil {
 		level.Error(ec.logger).Log("msg", "Error unmarshaling JSON Alert", "err", err)
+		etcdOperationsTotal.With(prometheus.Labels{"operation": "get", "result": "error"}).Inc()
 		return nil, err
 	}
 
+	etcdOperationsTotal.With(prometheus.Labels{"operation": "get", "result": "success"}).Inc()
 	return alert, nil
 }
 
@@ -179,6 +220,7 @@ func (ec *EtcdClient) Put(alert *types.Alert) error {
 	alertStr, err := MarshalAlert(alert)
 	if err != nil {
 		level.Error(ec.logger).Log("msg", "Error marshaling JSON Alert", "err", err)
+		etcdOperationsTotal.With(prometheus.Labels{"operation": "put", "result": "error"}).Inc()
 		return err
 	}
 
@@ -191,8 +233,11 @@ func (ec *EtcdClient) Put(alert *types.Alert) error {
 	ec.mtx.Unlock()
 	if err != nil {
 		level.Error(ec.logger).Log("msg", "Error putting alert to etcd", "err", err)
+		etcdOperationsTotal.With(prometheus.Labels{"operation": "put", "result": "error"}).Inc()
 		return err
 	}
+
+	etcdOperationsTotal.With(prometheus.Labels{"operation": "put", "result": "success"}).Inc()
 	return nil
 }
 
@@ -211,8 +256,10 @@ func (ec *EtcdClient) Del(fp model.Fingerprint) error {
 	_, err := ec.client.Delete(ctx, ec.prefix+fp.String())
 	ec.mtx.Unlock()
 	if err != nil {
+		etcdOperationsTotal.With(prometheus.Labels{"operation": "del", "result": "error"}).Inc()
 		return err
 	}
+	etcdOperationsTotal.With(prometheus.Labels{"operation": "del", "result": "success"}).Inc()
 	return nil
 }
 
@@ -228,10 +275,13 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 
 		level.Info(ec.logger).Log("msg", "Etcd Watch Started")
 		for wresp := range rch {
+			etcdQueueLength.With(prometheus.Labels{"name": "watch"}).Set(float64(len(rch)))
+
 			for _, ev := range wresp.Events {
 				level.Debug(ec.logger).Log("msg", "watch received",
 					"type", ev.Type, "key", fmt.Sprintf("%q", ev.Kv.Key), "value", fmt.Sprintf("%q", ev.Kv.Value))
 				if ev.Type.String() == "PUT" {
+					etcdWatchOperationsTotal.With(prometheus.Labels{"operation": "put"}).Inc()
 					alert, err := UnmarshalAlert(string(ev.Kv.Value))
 					if err != nil {
 						continue
@@ -243,6 +293,8 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 						continue
 					}
 					_ = ec.alerts.Put(alert) // best effort only
+				} else if ev.Type.String() == "DELETE" { // ignore DELETE operations
+					etcdWatchOperationsTotal.With(prometheus.Labels{"operation": "del"}).Inc()
 				} // else, ignore all other etcd operations, especially DELETE
 			}
 		}
@@ -252,6 +304,7 @@ func (ec *EtcdClient) RunWatch(ctx context.Context) {
 func (ec *EtcdClient) RunLoadAllAlerts(ctx context.Context) {
 	go func() {
 		level.Info(ec.logger).Log("msg", "Etcd Load All Alerts Started")
+		count := 0
 		for {
 			ec.mtx.Lock()
 			resp, err := ec.client.Get(ctx, ec.prefix, clientv3.WithPrefix())
@@ -269,9 +322,10 @@ func (ec *EtcdClient) RunLoadAllAlerts(ctx context.Context) {
 				if err != nil {
 					continue // retry
 				}
+				count += 1
 				_ = ec.alerts.Put(alert) // best effort only
 			}
-			level.Info(ec.logger).Log("msg", "Etcd Load All Alerts Finished")
+			level.Info(ec.logger).Log("msg", "Etcd Load All Alerts Finished", "count", count)
 			return // we only need to load all of the alerts once
 		}
 	}()

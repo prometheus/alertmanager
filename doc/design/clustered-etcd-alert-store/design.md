@@ -125,7 +125,7 @@ be demo'd.
 # Start (via pre-made docker images)
 #   - 1 node etcd cluster (192.168.100.10)
 #   - 2 node alertmanager cluster (192.168.100.20, 192.168.100.21)
-docker-compose -p am-etcd -f docker-compose.etcd.yaml up
+docker-compose -f docker-compose.etcd.yaml up
 
 # Start an Etcd watch to see alert state writes to Etcd
 etcdctl --endpoints=192.168.100.10:2379 watch --prefix am
