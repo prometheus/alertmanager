@@ -135,7 +135,7 @@ github.com/oklog/ulid
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus/client_golang v1.2.0
+# github.com/prometheus/client_golang v1.2.1
 github.com/prometheus/client_golang/api
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
