@@ -62,6 +62,8 @@ jobs:
 
     steps:
     - prometheus/setup_environment
+    - go/load-cache:
+        key: v1-go-mod
     - run:
         command: |
           cat \<<EOF > $EMAIL_NO_AUTH_CONFIG
@@ -87,6 +89,8 @@ jobs:
         file: alertmanager
     - prometheus/store_artifact:
         file: amtool
+    - go/save-cache:
+        key: v1-go-mod
 
 
 workflows:
