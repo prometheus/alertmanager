@@ -76,7 +76,7 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 		}
 		a.mtx.Unlock()
 	})
-	a.alerts.Run(ctx, intervalGC)
+	go a.alerts.Run(ctx, intervalGC)
 
 	return a, nil
 }

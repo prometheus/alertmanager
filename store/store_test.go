@@ -24,12 +24,7 @@ import (
 )
 
 func TestSetGet(t *testing.T) {
-	d := time.Minute
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	a := NewAlerts()
-	a.Run(ctx, d)
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -42,12 +37,7 @@ func TestSetGet(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	d := time.Minute
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	a := NewAlerts()
-	a.Run(ctx, d)
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -84,23 +74,25 @@ func TestGC(t *testing.T) {
 	}
 	s := NewAlerts()
 	var (
-		n    int
-		done = make(chan struct{})
+		n           int
+		done        = make(chan struct{})
+		ctx, cancel = context.WithCancel(context.Background())
 	)
 	s.SetGCCallback(func(a []*types.Alert) {
 		n += len(a)
 		if n >= len(resolved) {
-			close(done)
+			cancel()
 		}
 	})
 	for _, alert := range append(active, resolved...) {
 		require.NoError(t, s.Set(alert))
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s.Run(ctx, 10*time.Millisecond)
+	go func() {
+		s.Run(ctx, 10*time.Millisecond)
+		close(done)
+	}()
 	select {
 	case <-done:
-		cancel()
 		break
 	case <-time.After(1 * time.Second):
 		t.Fatal("garbage collection didn't complete in time")
