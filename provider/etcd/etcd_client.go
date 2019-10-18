@@ -137,31 +137,11 @@ func NewEtcdClient(ctx context.Context, a *Alerts, endpoints []string, prefix st
 	return ec, nil
 }
 
-func (ec *EtcdClient) CheckAndPut(alert *types.Alert) error {
-	// Reduce writes to Etcd.  Only put to Etcd if the current alert is different than the same
-	// alert in etcd (excluding/ignoring the alert.UpdatedAt field).  To do this we:
-	//   1) Fetch the alert with the same fingerprint from Etcd
-	//   2) Compare our current alert with the alert from Etcd.
-	//   3) If the alerts are different, then write it back.
-	//
-	// This mechanism is simple and convergent. It is more effiencient to get from Etcd, check,
-	// then put into Etcd because unnecessarily putting any alert into etcd will result in the
-	// put alert being sent to all the AMs which are watching etcd.
-
-	etcdAlert, err := ec.Get(alert.Fingerprint())
-	if err != nil && err != ErrorEtcdGetNoResult {
-		// it's ok if the result doesn't exist; all other errors are fatal
-		etcdCheckAndPutTotal.With(prometheus.Labels{"status": "error"}).Inc()
-		return err
-	} else if AlertsEqualExceptForUpdatedAt(etcdAlert, alert) {
-		etcdCheckAndPutTotal.With(prometheus.Labels{"status": "filtered"}).Inc()
-		return nil // skip write to etcd
-	}
-
-	if len(alert.Labels) == 0 {
-		// TODO: Saw this case happen.  Unsure if it was due to someone curling against AM.
-		//   For now, skip etcd write so it doesn't propogate to other AMs
-		level.Warn(ec.logger).Log("msg", "Skipping write of alert with empty LabelSet")
+func (ec *EtcdClient) CheckAndPut(oldAlert *types.Alert, alert *types.Alert) error {
+	// Reduce writes to Etcd.  Only put to Etcd if the current alert is
+	// "different" enough than the same alert in memory, as denoted by the
+	// AlertsShouldWriteToEtcd function.
+	if !AlertsShouldWriteToEtcd(oldAlert, alert) {
 		etcdCheckAndPutTotal.With(prometheus.Labels{"status": "filtered"}).Inc()
 		return nil // skip write to etcd
 	}
@@ -331,31 +311,39 @@ func (ec *EtcdClient) RunLoadAllAlerts(ctx context.Context) {
 	}()
 }
 
-// Equals returns a true if the two alerts have the same values, false otherwise
-func AlertsEqualExceptForUpdatedAt(a *types.Alert, o *types.Alert) bool {
+func AlertsShouldWriteToEtcd(a *types.Alert, o *types.Alert) bool {
+	// Check if the alerts are "different" enough.
+	// If alerts ARE "different" enough then return 'true' in order to write to Etcd
+	// If alerts are NOT "different" enough then return 'false' to skip writing to etcd
+
 	if a == nil || o == nil {
-		return false
+		return true
 	}
 	if !reflect.DeepEqual(a.Labels, o.Labels) {
-		return false
+		return true
 	}
 	if !reflect.DeepEqual(a.Annotations, o.Annotations) {
-		return false
+		return true
 	}
 	if a.GeneratorURL != o.GeneratorURL {
-		return false
+		return true
 	}
 	if !a.StartsAt.Equal(o.StartsAt) {
-		return false
+		return true
 	}
-	if !a.EndsAt.Equal(o.EndsAt) {
-		return false
+
+	// Write to etcd if EndsAt's are "different" enough
+	significantTimeDifference := 300 * time.Second
+	if (a.EndsAt.Before(o.EndsAt) && o.EndsAt.Sub(a.EndsAt) > significantTimeDifference) || (o.EndsAt.Before(a.EndsAt) && a.EndsAt.Sub(o.EndsAt) > significantTimeDifference) {
+		// Update because EndsAt is different enough
+		return true
 	}
+
 	// we explicitly ignore UpdatedAt
 	// if !a.UpdatedAt.Equal(o.UpdatedAt) {
-	// 	return false
+	// 	return true
 	// }
-	return a.Timeout == o.Timeout
+	return a.Timeout != o.Timeout
 }
 
 func MarshalAlert(alert *types.Alert) (string, error) {

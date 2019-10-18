@@ -166,7 +166,9 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 		// Check that there's an alert existing within the store before
 		// trying to merge.
-		if old, err := a.alerts.Get(fp); err == nil {
+		var old *types.Alert
+		var err error
+		if old, err = a.alerts.Get(fp); err == nil {
 			// Merge alerts if there is an overlap in activity range.
 			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
 				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
@@ -179,7 +181,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 			continue
 		}
 		// best effort only; if there are errors, log and move on
-		if err := a.EtcdClient.CheckAndPut(alert); err != nil {
+		if err := a.EtcdClient.CheckAndPut(old, alert); err != nil {
 			level.Error(a.logger).Log("msg", "error on put to etcd", "err", err)
 		}
 
