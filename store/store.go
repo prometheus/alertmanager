@@ -58,16 +58,16 @@ func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 
 // Run starts the GC loop. The interval must be greater than zero; if not, the function will panic.
 func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
-	go func(t *time.Ticker) {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				a.gc()
-			}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			a.gc()
 		}
-	}(time.NewTicker(interval))
+	}
 }
 
 func (a *Alerts) gc() {
