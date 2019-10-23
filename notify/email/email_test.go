@@ -356,7 +356,7 @@ func TestEmailNotifyWithoutAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err = notifyEmail(
+	mail, _, err := notifyEmail(
 		&config.EmailConfig{
 			Smarthost: c.Smarthost,
 			To:        emailTo,
@@ -367,6 +367,18 @@ func TestEmailNotifyWithoutAuthentication(t *testing.T) {
 		c.Server,
 	)
 	require.NoError(t, err)
+	var (
+		foundMsgID bool
+		headers    []string
+	)
+	for k := range mail.Headers {
+		if strings.ToLower(k) == "message-id" {
+			foundMsgID = true
+			break
+		}
+		headers = append(headers, k)
+	}
+	require.True(t, foundMsgID, "Couldn't find 'message-id' in %v", headers)
 }
 
 // TestEmailNotifyWithSTARTTLS connects to the server, upgrades the connection
