@@ -106,7 +106,7 @@ receivers:
 
 	// Silence everything for a long time and delete the silence after
 	// two iterations.
-	sil := Silence(1.5, 100).MatchRE("alertname", ".*")
+	sil := Silence(1.5, 100).MatchRE("alertname", ".+")
 
 	am.SetSilence(At(1.3), sil)
 	am.DelSilence(At(3.5), sil)
