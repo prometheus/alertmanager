@@ -579,7 +579,7 @@ type Route struct {
 	GroupByAll bool              `yaml:"-" json:"-"`
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
-	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	MatchRE  MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
 	Continue bool              `yaml:"continue,omitempty" json:"continue,omitempty"`
 	Routes   []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
@@ -601,11 +601,6 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	for k := range r.MatchRE {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
 	for _, l := range r.GroupByStr {
 		if l == "..." {
 			r.GroupByAll = true
@@ -650,13 +645,13 @@ type InhibitRule struct {
 	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
 	// SourceMatchRE defines pairs like SourceMatch but does regular expression
 	// matching.
-	SourceMatchRE map[string]Regexp `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
+	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts.
 	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
 	// TargetMatchRE defines pairs like TargetMatch but does regular expression
 	// matching.
-	TargetMatchRE map[string]Regexp `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
+	TargetMatchRE MatchRegexps `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
@@ -675,19 +670,7 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	for k := range r.SourceMatchRE {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
 	for k := range r.TargetMatch {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
-	for k := range r.TargetMatchRE {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
 		}
@@ -720,6 +703,26 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.Name == "" {
 		return fmt.Errorf("missing name in receiver")
+	}
+	return nil
+}
+
+// MatchRegexps represents a map of Regexp.
+type MatchRegexps map[string]Regexp
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MatchRegexps.
+func (m *MatchRegexps) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MatchRegexps
+	if err := unmarshal((*plain)(m)); err != nil {
+		return err
+	}
+	for k, v := range *m {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+		if v.Regexp == nil {
+			return fmt.Errorf("invalid regexp value for %q", k)
+		}
 	}
 	return nil
 }
