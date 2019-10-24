@@ -461,7 +461,7 @@ func validateSilence(s *pb.Silence) error {
 		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
 	}
 	if allMatchEmpty {
-		return errors.New("at least one matcher must not match empty string")
+		return errors.New("at least one matcher must not match the empty string")
 	}
 	if s.StartsAt.IsZero() {
 		return errors.New("invalid zero start timestamp")

@@ -982,7 +982,7 @@ func TestValidateSilence(t *testing.T) {
 				EndsAt:    validTimestamp,
 				UpdatedAt: validTimestamp,
 			},
-			err: "at least one matcher must not match empty",
+			err: "at least one matcher must not match the empty string",
 		},
 		{
 			s: &pb.Silence{
