@@ -14,7 +14,6 @@
 package dispatch
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -181,27 +180,4 @@ func (ro *RouteOpts) String() string {
 	}
 	return fmt.Sprintf("<RouteOpts send_to:%q group_by:%q group_by_all:%t timers:%q|%q>",
 		ro.Receiver, labels, ro.GroupByAll, ro.GroupWait, ro.GroupInterval)
-}
-
-// MarshalJSON returns a JSON representation of the routing options.
-func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
-	v := struct {
-		Receiver       string           `json:"receiver"`
-		GroupBy        model.LabelNames `json:"groupBy"`
-		GroupByAll     bool             `json:"groupByAll"`
-		GroupWait      time.Duration    `json:"groupWait"`
-		GroupInterval  time.Duration    `json:"groupInterval"`
-		RepeatInterval time.Duration    `json:"repeatInterval"`
-	}{
-		Receiver:       ro.Receiver,
-		GroupByAll:     ro.GroupByAll,
-		GroupWait:      ro.GroupWait,
-		GroupInterval:  ro.GroupInterval,
-		RepeatInterval: ro.RepeatInterval,
-	}
-	for ln := range ro.GroupBy {
-		v.GroupBy = append(v.GroupBy, ln)
-	}
-
-	return json.Marshal(&v)
 }
