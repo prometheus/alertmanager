@@ -217,7 +217,7 @@ type PagerdutyConfig struct {
 
 // PagerdutyLink is a link
 type PagerdutyLink struct {
-	HRef string `yaml:"href,omitempty" json:"href,omitempty"`
+	Href string `yaml:"href,omitempty" json:"href,omitempty"`
 	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 

@@ -15,17 +15,25 @@ package pagerduty
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestPagerDutyRetryV1(t *testing.T) {
@@ -100,6 +108,128 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+}
+
+func TestPagerDutyTemplating(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dec := json.NewDecoder(r.Body)
+		out := make(map[string]interface{})
+		err := dec.Decode(&out)
+		if err != nil {
+			panic(err)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	for _, tc := range []struct {
+		title string
+		cfg   *config.PagerdutyConfig
+
+		retry  bool
+		errMsg string
+	}{
+		{
+			title: "full-blown message",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Images: []config.PagerdutyImage{
+					{
+						Src:  "{{ .Status }}",
+						Alt:  "{{ .Status }}",
+						Href: "{{ .Status }}",
+					},
+				},
+				Links: []config.PagerdutyLink{
+					{
+						Href: "{{ .Status }}",
+						Text: "{{ .Status }}",
+					},
+				},
+				Details: map[string]string{
+					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
+					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+					"num_firing":   `{{ .Alerts.Firing | len }}`,
+					"num_resolved": `{{ .Alerts.Resolved | len }}`,
+				},
+			},
+		},
+		{
+			title: "details with templating errors",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Details: map[string]string{
+					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing`,
+					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+					"num_firing":   `{{ .Alerts.Firing | len }}`,
+					"num_resolved": `{{ .Alerts.Resolved | len }}`,
+				},
+			},
+			errMsg: "failed to template",
+		},
+		{
+			title: "v2 message with templating errors",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Severity:   "{{ ",
+			},
+			errMsg: "failed to template",
+		},
+		{
+			title: "v1 message with templating errors",
+			cfg: &config.PagerdutyConfig{
+				ServiceKey: config.Secret("01234567890123456789012345678901"),
+				Client:     "{{ ",
+			},
+			errMsg: "failed to template",
+		},
+		{
+			title: "routing key cannot be empty",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret(`{{ "" }}`),
+			},
+			errMsg: "routing key cannot be empty",
+		},
+		{
+			title: "service_key cannot be empty",
+			cfg: &config.PagerdutyConfig{
+				ServiceKey: config.Secret(`{{ "" }}`),
+			},
+			errMsg: "service key cannot be empty",
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			tc.cfg.URL = &config.URL{URL: u}
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+			pd, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			require.NoError(t, err)
+			if pd.apiV1 != "" {
+				pd.apiV1 = u.String()
+			}
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			ok, err := pd.Notify(ctx, []*types.Alert{
+				&types.Alert{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"lbl1": "val1",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			}...)
+			if tc.errMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errMsg)
+			}
+			require.Equal(t, tc.retry, ok)
+		})
+	}
 }
 
 func TestErrDetails(t *testing.T) {
