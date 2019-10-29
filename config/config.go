@@ -105,20 +105,6 @@ func (u URL) MarshalJSON() ([]byte, error) {
 	return nil, nil
 }
 
-// UnmarshalJSON implements the json.Marshaler interface for URL.
-func (u *URL) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	urlp, err := parseURL(s)
-	if err != nil {
-		return err
-	}
-	u.URL = urlp.URL
-	return nil
-}
-
 // SecretURL is a URL that must not be revealed on marshaling.
 type SecretURL URL
 
@@ -149,18 +135,6 @@ func (s *SecretURL) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // MarshalJSON implements the json.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalJSON() ([]byte, error) {
 	return json.Marshal(secretToken)
-}
-
-// UnmarshalJSON implements the json.Marshaler interface for SecretURL.
-func (s *SecretURL) UnmarshalJSON(data []byte) error {
-	// In order to deserialize a previously serialized configuration (eg from
-	// the Alertmanager API with amtool), `<secret>` needs to be treated
-	// specially, as it isn't a valid URL.
-	if string(data) == secretToken || string(data) == secretTokenJSON {
-		s.URL = &url.URL{}
-		return nil
-	}
-	return json.Unmarshal(data, (*URL)(s))
 }
 
 // Load parses the YAML input s into a Config.
@@ -752,29 +726,6 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (re Regexp) MarshalYAML() (interface{}, error) {
 	if re.original != "" {
 		return re.original, nil
-	}
-	return nil, nil
-}
-
-// UnmarshalJSON implements the json.Marshaler interface for Regexp
-func (re *Regexp) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	regex, err := regexp.Compile("^(?:" + s + ")$")
-	if err != nil {
-		return err
-	}
-	re.Regexp = regex
-	re.original = s
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaler interface for Regexp.
-func (re Regexp) MarshalJSON() ([]byte, error) {
-	if re.original != "" {
-		return json.Marshal(re.original)
 	}
 	return nil, nil
 }
