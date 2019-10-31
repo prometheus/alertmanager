@@ -280,7 +280,7 @@ func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 			// dotted decimal or IPv6 addresses.
 			continue
 		}
-		portUint, err := strconv.ParseUint(port, 10, 16)
+		portUint, err := strconv.Atoi(port)
 		if err != nil {
 			continue
 		}
