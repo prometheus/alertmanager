@@ -18,11 +18,16 @@
             },
           },
           {
+	    // TODO(beorn7): This alert is problematic for Alertmanager clusters
+	    // spanning regions because the cross-regional Alertmanager clusters
+	    // has more members than what the local Prometheus can see. In that
+	    // case, local Alertmanagers not able to join the cluster won't be
+	    // detected by this alert.
             alert:'AlertmanagerMembersInconsistent',
             expr: |||
               alertmanager_cluster_members{%(alertmanagerSelector)s}
-                != on (service)
-              count by (service) (alertmanager_cluster_members{%(alertmanagerSelector)s})
+                < on (job) group_left
+              count by (job) (alertmanager_cluster_members{%(alertmanagerSelector)s})
             ||| % $._config,
             'for': '5m',
             labels: {
