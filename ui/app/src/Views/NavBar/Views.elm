@@ -3,7 +3,7 @@ module Views.NavBar.Views exposing (navBar)
 import Html exposing (Html, a, div, header, li, nav, text, ul)
 import Html.Attributes exposing (class, href, style, title)
 import Types exposing (Route(..))
-import Views.NavBar.Types exposing (Tab, alertsTab, noneTab, silencesTab, statusTab, tabs)
+import Views.NavBar.Types exposing (SingleTab, Tab(..), alertsTab, noneTab, silencesTab, statusTab, tabs)
 
 
 navBar : Route -> Html msg
@@ -41,10 +41,12 @@ navBarItems currentRoute =
 
 navBarItem : Route -> Tab -> Html msg
 navBarItem currentRoute tab =
-    li [ class <| "nav-item" ++ isActive currentRoute tab ]
-        [ a [ class "nav-link", href tab.link, title tab.name ]
-            [ text tab.name ]
-        ]
+    case tab of
+        ST st ->
+            li [ class <| "nav-item" ++ isActive currentRoute tab ]
+                [ a [ class "nav-link", href st.link, title st.name ]
+                    [ text st.name ]
+                ]
 
 
 isActive : Route -> Tab -> String
