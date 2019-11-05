@@ -4,7 +4,7 @@ import Html exposing (Html, a, div, header, li, nav, text, ul)
 import Html.Attributes exposing (attribute, class, href, style, target, title)
 import String exposing (startsWith)
 import Types exposing (Route(..))
-import Views.NavBar.Types exposing (SingleTab, Tab(..), alertsTab, noneTab, silencesTab, statusTab, tabs)
+import Views.NavBar.Types exposing (Tab(..), alertsTab, noneTab, silencesTab, statusTab, tabs)
 
 
 navBar : Route -> Html msg
