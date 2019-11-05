@@ -1,7 +1,8 @@
 module Views.NavBar.Views exposing (navBar)
 
 import Html exposing (Html, a, div, header, li, nav, text, ul)
-import Html.Attributes exposing (class, href, style, title)
+import Html.Attributes exposing (attribute, class, href, style, target, title)
+import String exposing (startsWith)
 import Types exposing (Route(..))
 import Views.NavBar.Types exposing (SingleTab, Tab(..), alertsTab, noneTab, silencesTab, statusTab, tabs)
 
@@ -44,9 +45,25 @@ navBarItem currentRoute tab =
     case tab of
         ST st ->
             li [ class <| "nav-item" ++ isActive currentRoute tab ]
-                [ a [ class "nav-link", href st.link, title st.name ]
+                [ a [ class "nav-link", href st.link, title st.name, target (linkToTarget st.link) ]
                     [ text st.name ]
                 ]
+
+        DT dt ->
+            li [ class <| "dropdown" ]
+                [ a [ target "_blank", class "nav-link dropdown-toggle", attribute "data-toggle" "dropdown", attribute "role" "button", href "#", attribute "aria-haspopup" "true", attribute "aria-expanded" "false" ]
+                    [ text dt.name ]
+                , ul [ class "dropdown-menu" ] (List.map (navBarItem currentRoute) dt.lTab)
+                ]
+
+
+linkToTarget : String -> String
+linkToTarget link =
+    if startsWith "http" link then
+        "_blank"
+
+    else
+        ""
 
 
 isActive : Route -> Tab -> String
