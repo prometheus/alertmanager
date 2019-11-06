@@ -1,16 +1,17 @@
 global:
-  resolve_timeout: 5m
+  resolve_timeout: 10s
 
 route:
   group_by: ['alertname']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'web.hook'
+  group_wait: 1s
+  group_interval: 1s
+  repeat_interval: 10s
+  receiver: 'log'
 receivers:
-- name: 'web.hook'
-  webhook_configs:
-  - url: 'http://127.0.0.1:5001/'
+- name: 'log'
+  log_configs:
+    - file_path: '/tmp/test.log'
+      logger: logfmt
 inhibit_rules:
   - source_match:
       severity: 'critical'

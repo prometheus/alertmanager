@@ -48,6 +48,7 @@ import (
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/email"
+	logNotifier "github.com/prometheus/alertmanager/notify/log"
 	"github.com/prometheus/alertmanager/notify/hipchat"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
@@ -127,6 +128,9 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 
 	for i, c := range nc.WebhookConfigs {
 		add("webhook", i, c, func(l log.Logger) (notify.Notifier, error) { return webhook.New(c, tmpl, l) })
+	}
+	for i, c := range nc.LogConfigs {
+		add("log", i, c, func(l log.Logger) (notify.Notifier, error) { return logNotifier.New(c, tmpl, l) })
 	}
 	for i, c := range nc.EmailConfigs {
 		add("email", i, c, func(l log.Logger) (notify.Notifier, error) { return email.New(c, tmpl, l), nil })

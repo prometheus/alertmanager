@@ -32,6 +32,14 @@ var (
 		},
 	}
 
+	// DefaultLogConfig defines default values for File configurations.
+	DefaultLogConfig = LogConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Logger: "std",
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -423,6 +431,33 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
 		return fmt.Errorf("scheme required for webhook url")
+	}
+	return nil
+}
+
+// LogConfig configures notifications via a generic file.
+type LogConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	// Log file path to log alerts to.
+	FilePath *string `yaml:"file_path" json:"file_path"`
+
+	// Logger used to log alerts to. Values: std, logfmt, json
+	Logger string `yaml:"logger" json:"logger"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *LogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultLogConfig
+	type plain LogConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Logger != "std" && c.Logger != "logfmt" && c.Logger != "json" {
+		return fmt.Errorf("unknown logger (supported: std, fmt, json)")
+	}
+	if c.Logger != "std" && c.FilePath == nil {
+		return fmt.Errorf("missing file path in file config")
 	}
 	return nil
 }
