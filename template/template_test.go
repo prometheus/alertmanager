@@ -77,6 +77,20 @@ func TestKVSortedPairs(t *testing.T) {
 	}
 }
 
+func TestKVRemoveKeys(t *testing.T) {
+	kv := KV{
+		"key1": "val1",
+		"key2": "val2",
+		"key3": "val3",
+		"key4": "val4",
+	}
+
+	kv = kv.RemoveKeys("key2", "key4")
+
+	expected := []string{"key1", "key3"}
+	require.EqualValues(t, expected, kv.Names())
+}
+
 func TestKVRemove(t *testing.T) {
 	kv := KV{
 		"key1": "val1",
@@ -356,6 +370,19 @@ func TestTemplateExpansion(t *testing.T) {
 			title: "Template using reReplaceAll",
 			in:    `{{ reReplaceAll "ab" "AB" "abcdabcda"}}`,
 			exp:   "ABcdABcda",
+		},
+		{
+			title: "Template which calls RemoveKeys",
+			in:    `{{ with .GroupLabels }}{{ with .RemoveKeys "key1" "key3" }}{{ .SortedPairs.Values }}{{ end }}{{ end }}`,
+			data: Data{
+				GroupLabels: KV{
+					"key1": "key1",
+					"key2": "key2",
+					"key3": "key3",
+					"key4": "key4",
+				},
+			},
+			exp: "[key2 key4]",
 		},
 	} {
 		tc := tc

@@ -195,6 +195,11 @@ func (kv KV) SortedPairs() Pairs {
 	return pairs
 }
 
+// RemoveKeys returns a copy of the key/value set without the given keys.
+func (kv KV) RemoveKeys(key ...string) KV {
+	return kv.Remove(key)
+}
+
 // Remove returns a copy of the key/value set without the given keys.
 func (kv KV) Remove(keys []string) KV {
 	keySet := make(map[string]struct{}, len(keys))
