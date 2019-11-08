@@ -55,6 +55,6 @@ src/Data: ../../api/v2/openapi.yaml
 
 
 clean:
-	- @rm -rf script.js elm-stuff src/Data src/DateTime.elm openapi-*
+	- @rm -rf script.js elm-stuff src/Data src/DateTime.elm openapi-* elm-*
 	- @if [ ! -z "$(docker images -q $(DOCKER_IMG))" ]; then \
              docker rmi $(DOCKER_IMG); fi
