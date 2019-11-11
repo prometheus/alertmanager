@@ -26,9 +26,9 @@ import (
 
 // Notifier implements a Notifier for generic loggers.
 type Notifier struct {
-	conf       *config.LogConfig
-	tmpl       *template.Template
-	logger     log.Logger
+	conf   *config.LogConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // New returns a new Log Notifier.
