@@ -77,7 +77,6 @@ func (a *Alerts) gc() {
 	var resolved []*types.Alert
 	for fp, alert := range a.c {
 		if alert.Resolved() {
-			delete(a.c, fp)
 			resolved = append(resolved, alert)
 		}
 	}
