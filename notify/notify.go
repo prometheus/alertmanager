@@ -576,18 +576,19 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	ctx = WithResolvedAlerts(ctx, resolved)
 
 	entries, err := n.nflog.Query(nflog.QGroupKey(gkey), nflog.QReceiver(n.recv))
-
 	if err != nil && err != nflog.ErrNotFound {
 		return ctx, nil, err
 	}
+
 	var entry *nflogpb.Entry
 	switch len(entries) {
 	case 0:
 	case 1:
 		entry = entries[0]
-	case 2:
+	default:
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
+
 	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
 		return ctx, alerts, nil
 	}
