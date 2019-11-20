@@ -260,8 +260,8 @@ func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 		return
 	}
 
-	p.peerLock.RLock()
-	defer p.peerLock.RUnlock()
+	p.peerLock.Lock()
+	defer p.peerLock.Unlock()
 
 	now := time.Now()
 	for _, peerAddr := range peers {
