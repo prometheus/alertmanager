@@ -139,6 +139,14 @@ var (
 		Expire:   duration(1 * time.Hour),
 		HTML:     false,
 	}
+
+	DefaultWebexConfig = WebexConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:       `{{ template "webex.default.message" . }}`,
+		MessageFormat: `text`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -588,4 +596,21 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return nil
+}
+
+type WebexConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIURL        *SecretURL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Message       string     `yaml:"message,omitempty" json:"message,omitempty"`
+	MessageFormat string     `yaml:"message_format,omitempty" json:"message_format,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWebexConfig
+	type plain WebexConfig
+	return unmarshal((*plain)(c))
 }
