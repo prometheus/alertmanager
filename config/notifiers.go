@@ -206,6 +206,7 @@ type PagerdutyConfig struct {
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
 	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Secondary   string            `yaml:"secondary,omitempty" json:"secondary,omitempty"`
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
 	Images      []PagerdutyImage  `yaml:"images,omitempty" json:"images,omitempty"`
 	Links       []PagerdutyLink   `yaml:"links,omitempty" json:"links,omitempty"`

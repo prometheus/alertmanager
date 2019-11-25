@@ -218,15 +218,30 @@ func (n *Notifier) notifyV2(
 		return false, errors.New("routing key cannot be empty")
 	}
 
+	retryPrimary, primaryErr := n.postV2Notification(ctx, msg)
+	if retryPrimary || primaryErr != nil {
+		return retryPrimary, primaryErr
+	}
+
+	secondarySummary, truncated := notify.Truncate(tmpl(n.conf.Secondary), 1024)
+	if truncated {
+		level.Debug(n.logger).Log("msg", "Truncated secondary summary", "secondarySummary", secondarySummary, "key", key)
+	}
+
+	return n.postV2Notification(ctx, msg)
+}
+
+func (n *Notifier) postV2Notification(ctx context.Context, msg *pagerDutyMessage) (bool, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, errors.Wrap(err, "failed to encode PagerDuty v2 message")
+		return true, errors.Wrap(err, "failed to encode PagerDuty v2 message")
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &buf)
 	if err != nil {
 		return true, errors.Wrap(err, "failed to post message to PagerDuty")
 	}
+
 	defer notify.Drain(resp)
 
 	return n.retrier.Check(resp.StatusCode, resp.Body)
