@@ -86,6 +86,12 @@ var (
 			Help: "Indicates whether the clustering is enabled or not.",
 		},
 	)
+	configuredReceivers = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_receivers",
+			Help: "Number of configured receivers.",
+		},
+	)
 	promlogConfig = promlog.Config{}
 )
 
@@ -93,6 +99,7 @@ func init() {
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(clusterEnabled)
+	prometheus.MustRegister(configuredReceivers)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -373,10 +380,11 @@ func run() int {
 
 	dispMetrics := dispatch.NewDispatcherMetrics(prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
+	configLogger := log.With(logger, "component", "configuration")
 	configCoordinator := config.NewCoordinator(
 		*configFile,
 		prometheus.DefaultRegisterer,
-		log.With(logger, "component", "configuration"),
+		configLogger,
 	)
 	configCoordinator.Subscribe(func(conf *config.Config) error {
 		tmpl, err = template.FromGlobs(conf.Templates...)
@@ -385,9 +393,21 @@ func run() int {
 		}
 		tmpl.ExternalURL = amURL
 
+		// Build the routing tree and record which receivers are used.
+		routes := dispatch.NewRoute(conf.Route, nil)
+		activeReceivers := make(map[string]struct{})
+		walkRoute(routes, func(r *dispatch.Route) {
+			activeReceivers[r.RouteOpts.Receiver] = struct{}{}
+		})
+
 		// Build the map of receiver to integrations.
-		receivers := make(map[string][]notify.Integration, len(conf.Receivers))
+		receivers := make(map[string][]notify.Integration, len(activeReceivers))
 		for _, rcv := range conf.Receivers {
+			if _, found := activeReceivers[rcv.Name]; !found {
+				// No need to build a receiver if no route is using it.
+				level.Info(configLogger).Log("msg", "skipping creation of receiver not referenced by any route", "receiver", rcv.Name)
+				continue
+			}
 			integrations, err := buildReceiverIntegrations(rcv, tmpl, logger)
 			if err != nil {
 				return err
@@ -409,17 +429,17 @@ func run() int {
 			notificationLog,
 			peer,
 		)
+		configuredReceivers.Set(float64(len(activeReceivers)))
 
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)
 			silencer.Mutes(labels)
 		})
 
-		routes := dispatch.NewRoute(conf.Route, nil)
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, logger, dispMetrics)
 		walkRoute(routes, func(r *dispatch.Route) {
 			if r.RouteOpts.RepeatInterval > *retention {
-				level.Warn(log.With(logger, "component", "configuration")).Log(
+				level.Warn(configLogger).Log(
 					"msg",
 					"repeat_interval is greater than the data retention period. It can lead to notifications being repeated more often than expected.",
 					"repeat_interval",
