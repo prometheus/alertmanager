@@ -92,6 +92,12 @@ var (
 			Help: "Number of configured receivers.",
 		},
 	)
+	configuredIntegrations = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "alertmanager_integrations",
+			Help: "Number of configured integrations.",
+		},
+	)
 	promlogConfig = promlog.Config{}
 )
 
@@ -100,6 +106,7 @@ func init() {
 	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(clusterEnabled)
 	prometheus.MustRegister(configuredReceivers)
+	prometheus.MustRegister(configuredIntegrations)
 	prometheus.MustRegister(version.NewCollector("alertmanager"))
 }
 
@@ -402,6 +409,7 @@ func run() int {
 
 		// Build the map of receiver to integrations.
 		receivers := make(map[string][]notify.Integration, len(activeReceivers))
+		var integrationsNum int
 		for _, rcv := range conf.Receivers {
 			if _, found := activeReceivers[rcv.Name]; !found {
 				// No need to build a receiver if no route is using it.
@@ -414,6 +422,7 @@ func run() int {
 			}
 			// rcv.Name is guaranteed to be unique across all receivers.
 			receivers[rcv.Name] = integrations
+			integrationsNum += len(integrations)
 		}
 
 		inhibitor.Stop()
@@ -430,6 +439,7 @@ func run() int {
 			peer,
 		)
 		configuredReceivers.Set(float64(len(activeReceivers)))
+		configuredIntegrations.Set(float64(integrationsNum))
 
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)
