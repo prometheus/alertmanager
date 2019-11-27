@@ -1,3 +1,37 @@
+## 0.20.0-rc.0 / 2019-11-27
+
+* [CHANGE] Check that at least one silence matcher matches a non-empty string. #2081
+* [ENHANCEMENT] [pagerduty] Check that PagerDuty keys aren't empty. #2085
+* [ENHANCEMENT] [template] Add the `stringSlice` function. #2101
+* [ENHANCEMENT] Add `alertmanager_dispatcher_aggregation_groups` and `alertmanager_dispatcher_alert_processing_duration_seconds` metrics. #2113
+* [ENHANCEMENT] Log unused receivers. #2114
+* [ENHANCEMENT] Add `alertmanager_receivers` metric. #2114
+* [ENHANCEMENT] Add `alertmanager_integrations` metric. #2117
+* [ENHANCEMENT] [email] Add Message-Id Header to outgoing emails. #2057
+* [BUGFIX] Don't garbage-collect alerts from the store. #2040
+* [BUGFIX] [ui] Disable the grammarly plugin on all textareas. #2061
+* [BUGFIX] [config] Forbid nil regexp matchers. #2083
+* [BUGFIX] [slack] Retry 429 errors. #2112
+* [BUGFIX] [ui] Fix Silences UI when several filters are applied. #2075
+
+Contributors:
+
+* @CharlesJUDITH
+* @NotAFile
+* @Pger-Y
+* @TheMeier
+* @johncming
+* @n33pm
+* @ntk148v
+* @oddlittlebird
+* @perlun
+* @qoops-1
+* @roidelapluie
+* @simonpasquier
+* @stephenreddek
+* @sylr
+* @vrischmann
+
 ## 0.19.0 / 2019-09-03
 
 * [CHANGE] Reject invalid external URLs at startup. #1960
