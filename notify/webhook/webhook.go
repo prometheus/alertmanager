@@ -55,7 +55,7 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 		logger: l,
 		client: client,
 		// Webhooks are assumed to respond with 2xx response codes on a successful
-		// request and 5xx response codes are assumed to be recoverable.
+		// request and 5xx and 429 response codes are assumed to be recoverable.
 		retrier: &notify.Retrier{
 			CustomDetailsFunc: func(int, io.Reader) string {
 				return conf.URL.String()

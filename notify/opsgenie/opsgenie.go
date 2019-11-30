@@ -53,7 +53,7 @@ func New(c *config.OpsGenieConfig, t *template.Template, l log.Logger) (*Notifie
 		tmpl:    t,
 		logger:  l,
 		client:  client,
-		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+		retrier: &notify.Retrier{},
 	}, nil
 }
 

@@ -171,8 +171,8 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 		return false, nil
 	}
 
-	// 5xx responses are considered to be always retried.
-	retry := statusCode/100 == 5
+	// 5xx and 429 responses are considered to be always retried.
+	retry := statusCode/100 == 5 || statusCode == http.StatusTooManyRequests
 	if !retry {
 		for _, code := range r.RetryCodes {
 			if code == statusCode {

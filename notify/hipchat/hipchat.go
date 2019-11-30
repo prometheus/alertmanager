@@ -52,7 +52,7 @@ func New(c *config.HipchatConfig, t *template.Template, l log.Logger) (*Notifier
 		// Response codes 429 (rate limiting) and 5xx can potentially recover.
 		// 2xx response codes indicate successful requests.
 		// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
-		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+		retrier: &notify.Retrier{},
 	}, nil
 }
 

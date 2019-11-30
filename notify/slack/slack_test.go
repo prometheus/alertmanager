@@ -15,7 +15,6 @@ package slack
 
 import (
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/go-kit/kit/log"
@@ -36,7 +35,7 @@ func TestSlackRetry(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
+	retryCodes := append(test.DefaultRetryCodes())
 	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))

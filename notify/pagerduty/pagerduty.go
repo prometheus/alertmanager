@@ -59,7 +59,7 @@ func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger) (*Notifi
 	} else {
 		// Retrying can solve the issue on 429 (rate limiting) and 5xx response codes.
 		// https://v2.developer.pagerduty.com/docs/events-api-v2#api-response-codes--retry-logic
-		n.retrier = &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}, CustomDetailsFunc: errDetails}
+		n.retrier = &notify.Retrier{CustomDetailsFunc: errDetails}
 	}
 	return n, nil
 }

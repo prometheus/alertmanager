@@ -121,7 +121,7 @@ func TestRetrierCheck(t *testing.T) {
 			expectedErr: "unexpected status code 400",
 		},
 		{
-			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+			retrier: Retrier{RetryCodes: []int{http.StatusForbidden}},
 			status:  http.StatusBadRequest,
 			body:    bytes.NewBuffer([]byte("invalid request")),
 
@@ -129,7 +129,14 @@ func TestRetrierCheck(t *testing.T) {
 			expectedErr: "unexpected status code 400: invalid request",
 		},
 		{
-			retrier: Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+			retrier: Retrier{RetryCodes: []int{http.StatusForbidden}},
+			status:  http.StatusForbidden,
+
+			retry:       true,
+			expectedErr: "unexpected status code 403",
+		},
+		{
+			retrier: Retrier{},
 			status:  http.StatusTooManyRequests,
 
 			retry:       true,

@@ -112,6 +112,7 @@ func RetryTests(retryCodes []int) map[int]bool {
 // DefaultRetryCodes returns the list of HTTP status codes that need to be retried.
 func DefaultRetryCodes() []int {
 	return []int{
+		http.StatusTooManyRequests,
 		http.StatusInternalServerError,
 		http.StatusNotImplemented,
 		http.StatusBadGateway,
