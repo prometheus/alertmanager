@@ -11,7 +11,6 @@
 * [BUGFIX] Don't garbage-collect alerts from the store. #2040
 * [BUGFIX] [ui] Disable the grammarly plugin on all textareas. #2061
 * [BUGFIX] [config] Forbid nil regexp matchers. #2083
-* [BUGFIX] [slack] Retry 429 errors. #2112
 * [BUGFIX] [ui] Fix Silences UI when several filters are applied. #2075
 
 Contributors:
