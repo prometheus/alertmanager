@@ -49,7 +49,7 @@ func New(c *config.SlackConfig, t *template.Template, l log.Logger) (*Notifier, 
 		tmpl:    t,
 		logger:  l,
 		client:  client,
-		retrier: &notify.Retrier{RetryCodes: []int{http.StatusTooManyRequests}},
+		retrier: &notify.Retrier{},
 	}, nil
 }
 
