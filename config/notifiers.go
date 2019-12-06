@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 )
 
 var (
@@ -409,6 +409,9 @@ type WebhookConfig struct {
 
 	// URL to send POST request to.
 	URL *URL `yaml:"url" json:"url"`
+
+	// Timeout to tell server cancel response after timeout
+	Timeout model.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

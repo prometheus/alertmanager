@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -57,6 +58,7 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 		// Webhooks are assumed to respond with 2xx response codes on a successful
 		// request and 5xx response codes are assumed to be recoverable.
 		retrier: &notify.Retrier{
+			RetryCodes: []int{http.StatusRequestTimeout},
 			CustomDetailsFunc: func(int, io.Reader) string {
 				return conf.URL.String()
 			},
@@ -99,6 +101,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", userAgentHeader)
+	req.Header.Set("X-Alertmanager-Notify-Timeout-Seconds", fmt.Sprintf("%f", time.Duration(n.conf.Timeout).Seconds()))
 
 	resp, err := n.client.Do(req.WithContext(ctx))
 	if err != nil {
