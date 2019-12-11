@@ -1,4 +1,4 @@
-## 0.20.0-rc.0 / 2019-11-27
+## 0.20.0 / 2019-12-11
 
 * [CHANGE] Check that at least one silence matcher matches a non-empty string. #2081
 * [ENHANCEMENT] [pagerduty] Check that PagerDuty keys aren't empty. #2085
