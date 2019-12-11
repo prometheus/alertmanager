@@ -122,6 +122,7 @@ workflows:
     - prometheus/publish_release:
         context: org-context
         requires:
+        - test_frontend
         - test
         - build
         filters:
