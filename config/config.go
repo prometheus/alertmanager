@@ -516,6 +516,28 @@ func (hp *HostPort) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface for HostPort.
+func (hp *HostPort) UnmarshalJSON(data []byte) error {
+	var (
+		s   string
+		err error
+	)
+	if err = json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		return nil
+	}
+	hp.Host, hp.Port, err = net.SplitHostPort(s)
+	if err != nil {
+		return err
+	}
+	if hp.Port == "" {
+		return errors.Errorf("address %q: port cannot be empty", s)
+	}
+	return nil
+}
+
 // MarshalYAML implements the yaml.Marshaler interface for HostPort.
 func (hp HostPort) MarshalYAML() (interface{}, error) {
 	return hp.String(), nil
