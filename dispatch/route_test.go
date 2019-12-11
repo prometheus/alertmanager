@@ -267,3 +267,88 @@ routes:
 		}
 	}
 }
+
+func TestRouteWalk(t *testing.T) {
+	in := `
+receiver: 'notify-def'
+
+routes:
+- match:
+    owner: 'team-A'
+
+  receiver: 'notify-A'
+
+  routes:
+  - match:
+      env: 'testing'
+
+    receiver: 'notify-testing'
+    group_by: [...]
+
+  - match:
+      env: "production"
+
+    receiver: 'notify-productionA'
+    group_wait: 1m
+
+    continue: true
+
+  - match_re:
+      env: "produ.*"
+      job: ".*"
+
+    receiver: 'notify-productionB'
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 1h
+    group_by: ['job']
+
+
+- match_re:
+    owner: 'team-(B|C)'
+
+  group_by: ['foo', 'bar']
+  group_wait: 2m
+  receiver: 'notify-BC'
+
+- match:
+    group_by: 'role'
+  group_by: ['role']
+
+  routes:
+  - match:
+      env: 'testing'
+    receiver: 'notify-testing'
+    routes:
+    - match:
+        wait: 'long'
+      group_wait: 2m
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+	tree := NewRoute(&ctree, nil)
+
+	expected := []string{
+		"notify-def",
+		"notify-A",
+		"notify-testing",
+		"notify-productionA",
+		"notify-productionB",
+		"notify-BC",
+		"notify-def",
+		"notify-testing",
+		"notify-testing",
+	}
+
+	var got []string
+	tree.Walk(func(r *Route) {
+		got = append(got, r.RouteOpts.Receiver)
+	})
+
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, got)
+	}
+}

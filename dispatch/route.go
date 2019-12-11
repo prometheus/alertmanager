@@ -154,6 +154,17 @@ func (r *Route) Key() string {
 	return b.String()
 }
 
+// Walk traverses the route tree in depth-first order.
+func (r *Route) Walk(visit func(*Route)) {
+	visit(r)
+	if r.Routes == nil {
+		return
+	}
+	for i := range r.Routes {
+		r.Routes[i].Walk(visit)
+	}
+}
+
 // RouteOpts holds various routing options necessary for processing alerts
 // that match a given route.
 type RouteOpts struct {
