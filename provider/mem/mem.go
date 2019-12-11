@@ -146,6 +146,20 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 	return a.alerts.Get(fp)
 }
 
+func overlap(old, new *types.Alert) bool {
+	// Check the right boundary
+	if !new.EndsAt.Before(old.StartsAt) && !new.EndsAt.After(old.EndsAt) {
+		return true
+	}
+
+	// Check the left boundary
+	if !new.StartsAt.Before(old.StartsAt) && !new.StartsAt.After(old.EndsAt) {
+		return true
+	}
+
+	return false
+}
+
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
 
@@ -156,8 +170,7 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		// trying to merge.
 		if old, err := a.alerts.Get(fp); err == nil {
 			// Merge alerts if there is an overlap in activity range.
-			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
-				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
+			if overlap(old, alert) {
 				alert = old.Merge(alert)
 			}
 		}

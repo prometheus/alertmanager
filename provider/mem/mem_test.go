@@ -18,10 +18,9 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
-
-	"sync"
 
 	"github.com/go-kit/kit/log"
 	"github.com/kylelemons/godebug/pretty"
@@ -339,4 +338,47 @@ func alertsEqual(a1, a2 *types.Alert) bool {
 		return false
 	}
 	return a1.Timeout == a2.Timeout
+}
+
+func TestOverlap(t *testing.T) {
+	type args struct {
+		old *types.Alert
+		new *types.Alert
+	}
+
+	newAlert := func(start, end time.Time) *types.Alert {
+		return &types.Alert{
+			Alert: model.Alert{
+				StartsAt: start,
+				EndsAt:   end,
+			},
+		}
+	}
+
+	old := newAlert(t0, t1)
+
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{"equal", args{old, newAlert(t0, t1)}, true},
+		// endat
+		{"new alert endat equal to old alert startat", args{old, newAlert(t0.Add(-time.Second), t0)}, true},
+		{"new alert endat in old alert startat and endat", args{old, newAlert(t0.Add(-1000*time.Millisecond), t0.Add(50*time.Millisecond))}, true},
+		{"new alert endat equal to old alert endat", args{old, newAlert(t0.Add(-1000*time.Millisecond), t1)}, true},
+		// startat
+		{"new alert startat equal to old alert startat", args{old, newAlert(t0, t1.Add(50*time.Millisecond))}, true},
+		{"new alert startat in old alert startat and endat", args{old, newAlert(t0.Add(50*time.Millisecond), t1.Add(50*time.Millisecond))}, true},
+		{"new alert startat equal to old alert endat", args{old, newAlert(t1, t1.Add(50*time.Millisecond))}, true},
+		// no overlap
+		{"no overlap", args{old, newAlert(t0.Add(-1000*time.Millisecond), t0.Add(-500*time.Millisecond))}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := overlap(tt.args.old, tt.args.new); got != tt.want {
+				t.Errorf("overlap() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
