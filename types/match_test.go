@@ -143,6 +143,68 @@ func TestMatchersString(t *testing.T) {
 	}
 }
 
+func TestMatchersSort(t *testing.T) {
+	type input struct {
+		name  string
+		value string
+		regex bool
+	}
+
+	cases := []struct {
+		name   string
+		i1, i2 input
+		expect Matchers
+	}{
+		{
+			name:   "name asc order",
+			i1:     input{name: "foo", value: "bar"},
+			i2:     input{name: "goo", value: "bar"},
+			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "goo", Value: "bar"}},
+		},
+		{
+			name:   "name desc order",
+			i1:     input{name: "foo", value: "bar"},
+			i2:     input{name: "doo", value: "bar"},
+			expect: Matchers{&Matcher{Name: "doo", Value: "bar"}, &Matcher{Name: "foo", Value: "bar"}},
+		},
+		{
+			name:   "name equal",
+			i1:     input{name: "foo", value: "bar"},
+			i2:     input{name: "foo", value: "bar"},
+			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "foo", Value: "bar"}},
+		},
+		{
+			name:   "type asc order",
+			i1:     input{name: "foo", value: "bar"},
+			i2:     input{name: "foo", value: "car"},
+			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "foo", Value: "car"}},
+		},
+		{
+			name:   "type desc order",
+			i1:     input{name: "foo", value: "bar"},
+			i2:     input{name: "foo", value: "aar"},
+			expect: Matchers{&Matcher{Name: "foo", Value: "aar"}, &Matcher{Name: "foo", Value: "bar"}},
+		},
+		{
+			name:   "regexp and no regexp",
+			i1:     input{name: "foo", value: "bar"},
+			i2:     input{name: "foo", value: "bar", regex: true},
+			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "foo", Value: "bar", IsRegex: true}},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m1 := &Matcher{Name: c.i1.name, Value: c.i1.value, IsRegex: c.i1.regex}
+			m1.Init()
+			m2 := &Matcher{Name: c.i2.name, Value: c.i2.value, IsRegex: c.i2.regex}
+			m2.Init()
+			got := NewMatchers(m1, m2)
+			require.True(t, equalMachers(c.expect, got))
+		})
+	}
+}
+
 func TestMatchersMatch(t *testing.T) {
 
 	m1 := &Matcher{Name: "label1", Value: "value1"}
@@ -186,7 +248,23 @@ func TestMatchersEqual(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := test.matchers1.Equal(test.matchers2)
+		actual := equalMachers(test.matchers1, test.matchers2)
 		require.EqualValues(t, test.expected, actual)
 	}
+}
+
+func equalMatcher(m, n *Matcher) bool {
+	return m.Name == n.Name && m.Value == n.Value && m.IsRegex == n.IsRegex
+}
+
+func equalMachers(m, n Matchers) bool {
+	if len(m) != len(n) {
+		return false
+	}
+	for i, a := range m {
+		if !equalMatcher(a, n[i]) {
+			return false
+		}
+	}
+	return true
 }

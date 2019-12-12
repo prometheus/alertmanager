@@ -21,30 +21,14 @@ import (
 	"os"
 	"path"
 
+	"github.com/prometheus/common/model"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/prometheus/alertmanager/pkg/parse"
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
-
-type ByAlphabetical []labels.Matcher
-
-func (s ByAlphabetical) Len() int      { return len(s) }
-func (s ByAlphabetical) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s ByAlphabetical) Less(i, j int) bool {
-	if s[i].Name != s[j].Name {
-		return s[i].Name < s[j].Name
-	} else if s[i].Type != s[j].Type {
-		return s[i].Type < s[j].Type
-	} else if s[i].Value != s[j].Value {
-		return s[i].Value < s[j].Value
-	}
-	return false
-}
 
 // GetAlertmanagerURL appends the given path to the alertmanager base URL
 func GetAlertmanagerURL(p string) url.URL {
@@ -53,21 +37,17 @@ func GetAlertmanagerURL(p string) url.URL {
 	return amURL
 }
 
-// Parse a list of matchers (cli arguments)
+// parseMatchers parses a list of matchers (cli arguments).
 func parseMatchers(inputMatchers []string) ([]labels.Matcher, error) {
-	matchers := make([]labels.Matcher, 0)
+	matchers := make([]labels.Matcher, 0, len(inputMatchers))
 
 	for _, v := range inputMatchers {
-		name, value, matchType, err := parse.Input(v)
+		matcher, err := labels.ParseMatcher(v)
 		if err != nil {
 			return []labels.Matcher{}, err
 		}
 
-		matchers = append(matchers, labels.Matcher{
-			Type:  matchType,
-			Name:  name,
-			Value: value,
-		})
+		matchers = append(matchers, *matcher)
 	}
 
 	return matchers, nil
@@ -122,20 +102,20 @@ func convertClientToCommonLabelSet(cls models.LabelSet) model.LabelSet {
 	return mls
 }
 
-// Parse a list of labels (cli arguments)
+// parseLabels parses a list of labels (cli arguments).
 func parseLabels(inputLabels []string) (models.LabelSet, error) {
 	labelSet := make(models.LabelSet, len(inputLabels))
 
 	for _, l := range inputLabels {
-		name, value, matchType, err := parse.Input(l)
+		matcher, err := labels.ParseMatcher(l)
 		if err != nil {
 			return models.LabelSet{}, err
 		}
-		if matchType != labels.MatchEqual {
+		if matcher.Type != labels.MatchEqual {
 			return models.LabelSet{}, errors.New("labels must be specified as key=value pairs")
 		}
 
-		labelSet[name] = value
+		labelSet[matcher.Name] = matcher.Value
 	}
 
 	return labelSet, nil

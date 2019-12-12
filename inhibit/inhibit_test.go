@@ -122,7 +122,7 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 	for _, c := range cases {
 		r := &InhibitRule{
 			Equal:  map[model.LabelName]struct{}{},
-			scache: store.NewAlerts(5 * time.Minute),
+			scache: store.NewAlerts(),
 		}
 		for _, ln := range c.equal {
 			r.Equal[ln] = struct{}{}
@@ -170,9 +170,9 @@ func TestInhibitRuleMatches(t *testing.T) {
 		},
 	}
 
-	ih.rules[0].scache = store.NewAlerts(5 * time.Minute)
+	ih.rules[0].scache = store.NewAlerts()
 	ih.rules[0].scache.Set(sourceAlert1)
-	ih.rules[1].scache = store.NewAlerts(5 * time.Minute)
+	ih.rules[1].scache = store.NewAlerts()
 	ih.rules[1].scache.Set(sourceAlert2)
 
 	cases := []struct {

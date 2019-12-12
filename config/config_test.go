@@ -16,6 +16,7 @@ package config
 import (
 	"encoding/json"
 	"net/url"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -773,6 +774,35 @@ func TestUnmarshalHostPort(t *testing.T) {
 			b, err = json.Marshal(&hp)
 			require.NoError(t, err)
 			require.Equal(t, tc.jsonOut, string(b))
+		})
+	}
+}
+
+func TestNilRegexp(t *testing.T) {
+	for _, tc := range []struct {
+		file   string
+		errMsg string
+	}{
+		{
+			file:   "testdata/conf.nil-match_re-route.yml",
+			errMsg: "invalid_label",
+		},
+		{
+			file:   "testdata/conf.nil-source_match_re-inhibitiion.yml",
+			errMsg: "invalid_source_label",
+		},
+		{
+			file:   "testdata/conf.nil-target_match_re-inhibitiion.yml",
+			errMsg: "invalid_target_label",
+		},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			_, err := os.Stat(tc.file)
+			require.NoError(t, err)
+
+			_, err = LoadFile(tc.file)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.errMsg)
 		})
 	}
 }

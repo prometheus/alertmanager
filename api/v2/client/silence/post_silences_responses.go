@@ -37,21 +37,18 @@ type PostSilencesReader struct {
 // ReadResponse reads a server response into the received o.
 func (o *PostSilencesReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
 	switch response.Code() {
-
 	case 200:
 		result := NewPostSilencesOK()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
 		return result, nil
-
 	case 400:
 		result := NewPostSilencesBadRequest()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
 		return nil, result
-
 	case 404:
 		result := NewPostSilencesNotFound()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -79,6 +76,10 @@ type PostSilencesOK struct {
 
 func (o *PostSilencesOK) Error() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesOK  %+v", 200, o.Payload)
+}
+
+func (o *PostSilencesOK) GetPayload() *PostSilencesOKBody {
+	return o.Payload
 }
 
 func (o *PostSilencesOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -110,6 +111,10 @@ func (o *PostSilencesBadRequest) Error() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest  %+v", 400, o.Payload)
 }
 
+func (o *PostSilencesBadRequest) GetPayload() string {
+	return o.Payload
+}
+
 func (o *PostSilencesBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	// response payload
@@ -135,6 +140,10 @@ type PostSilencesNotFound struct {
 
 func (o *PostSilencesNotFound) Error() string {
 	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound  %+v", 404, o.Payload)
+}
+
+func (o *PostSilencesNotFound) GetPayload() string {
+	return o.Payload
 }
 
 func (o *PostSilencesNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {

@@ -29,13 +29,12 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
-	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/prometheus/alertmanager/api/metrics"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/pkg/parse"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -258,7 +257,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if filter := r.FormValue("filter"); filter != "" {
-		matchers, err = parse.Matchers(filter)
+		matchers, err = labels.ParseMatchers(filter)
 		if err != nil {
 			api.respondError(w, apiError{
 				typ: errorBadData,
@@ -579,7 +578,7 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 
 	matchers := []*labels.Matcher{}
 	if filter := r.FormValue("filter"); filter != "" {
-		matchers, err = parse.Matchers(filter)
+		matchers, err = labels.ParseMatchers(filter)
 		if err != nil {
 			api.respondError(w, apiError{
 				typ: errorBadData,
@@ -792,6 +791,7 @@ func (api *API) receive(r *http.Request, v interface{}) error {
 	err := dec.Decode(v)
 	if err != nil {
 		level.Debug(api.logger).Log("msg", "Decoding request failed", "err", err)
+		return err
 	}
-	return err
+	return nil
 }
