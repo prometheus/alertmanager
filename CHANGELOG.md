@@ -1,4 +1,4 @@
-## 0.20.0-rc.0 / 2019-11-27
+## 0.20.0 / 2019-12-11
 
 * [CHANGE] Check that at least one silence matcher matches a non-empty string. #2081
 * [ENHANCEMENT] [pagerduty] Check that PagerDuty keys aren't empty. #2085
@@ -11,7 +11,6 @@
 * [BUGFIX] Don't garbage-collect alerts from the store. #2040
 * [BUGFIX] [ui] Disable the grammarly plugin on all textareas. #2061
 * [BUGFIX] [config] Forbid nil regexp matchers. #2083
-* [BUGFIX] [slack] Retry 429 errors. #2112
 * [BUGFIX] [ui] Fix Silences UI when several filters are applied. #2075
 
 Contributors:

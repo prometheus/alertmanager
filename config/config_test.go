@@ -367,13 +367,27 @@ func TestMarshalSecretURL(t *testing.T) {
 	}
 	u := &SecretURL{urlp}
 
-	c, err := yaml.Marshal(u)
+	c, err := json.Marshal(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// u003c -> "<"
+	// u003e -> ">"
+	require.Equal(t, "\"\\u003csecret\\u003e\"", string(c), "SecretURL not properly elided in JSON.")
+	// Check that the marshaled data can be unmarshaled again.
+	out := &SecretURL{}
+	err = json.Unmarshal(c, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, err = yaml.Marshal(u)
 	if err != nil {
 		t.Fatal(err)
 	}
 	require.Equal(t, "<secret>\n", string(c), "SecretURL not properly elided in YAML.")
 	// Check that the marshaled data can be unmarshaled again.
-	out := &SecretURL{}
+	out = &SecretURL{}
 	err = yaml.Unmarshal(c, &out)
 	if err != nil {
 		t.Fatal(err)
@@ -384,7 +398,13 @@ func TestUnmarshalSecretURL(t *testing.T) {
 	b := []byte(`"http://example.com/se cret"`)
 	var u SecretURL
 
-	err := yaml.Unmarshal(b, &u)
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in JSON.")
+
+	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +436,13 @@ func TestUnmarshalURL(t *testing.T) {
 	b := []byte(`"http://example.com/a b"`)
 	var u URL
 
-	err := yaml.Unmarshal(b, &u)
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in JSON.")
+
+	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,7 +457,12 @@ func TestUnmarshalInvalidURL(t *testing.T) {
 	} {
 		var u URL
 
-		err := yaml.Unmarshal(b, &u)
+		err := json.Unmarshal(b, &u)
+		if err == nil {
+			t.Errorf("Expected an error unmarshalling %q from JSON", string(b))
+		}
+
+		err = yaml.Unmarshal(b, &u)
 		if err == nil {
 			t.Errorf("Expected an error unmarshalling %q from YAML", string(b))
 		}
@@ -443,9 +474,26 @@ func TestUnmarshalRelativeURL(t *testing.T) {
 	b := []byte(`"/home"`)
 	var u URL
 
-	err := yaml.Unmarshal(b, &u)
+	err := json.Unmarshal(b, &u)
 	if err == nil {
 		t.Errorf("Expected an error parsing URL")
+	}
+
+	err = yaml.Unmarshal(b, &u)
+	if err == nil {
+		t.Errorf("Expected an error parsing URL")
+	}
+}
+
+func TestJSONUnmarshal(t *testing.T) {
+	c, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	_, err = json.Marshal(c)
+	if err != nil {
+		t.Fatal("JSON Marshaling failed:", err)
 	}
 }
 
