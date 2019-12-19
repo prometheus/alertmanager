@@ -60,6 +60,7 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 			CustomDetailsFunc: func(int, io.Reader) string {
 				return conf.URL.String()
 			},
+			RetryCodes: []int{http.StatusTooManyRequests},
 		},
 	}, nil
 }

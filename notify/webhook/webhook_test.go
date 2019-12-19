@@ -15,6 +15,7 @@ package webhook
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -42,7 +43,8 @@ func TestWebhookRetry(t *testing.T) {
 	if err != nil {
 		require.NoError(t, err)
 	}
-	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
+	retryCodes := append(test.DefaultRetryCodes(), http.StatusTooManyRequests)
+	for statusCode, expected := range test.RetryTests(retryCodes) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
