@@ -90,9 +90,18 @@ func TestAPI(t *testing.T) {
 	client := &fakeAPIClient{T: t, ch: make(chan fakeAPIResponse, 1)}
 	now := time.Now()
 
+	u, err := url.Parse("http://example.com")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 	statusData := &ServerStatus{
-		ConfigYAML:    "{}",
-		ConfigJSON:    &config.Config{},
+		ConfigYAML: "{}",
+		ConfigJSON: &config.Config{
+			Global: &config.GlobalConfig{
+				PagerdutyURL:  &config.URL{URL: u},
+				SMTPSmarthost: config.HostPort{Host: "localhost", Port: "25"},
+			},
+		},
 		VersionInfo:   map[string]string{"version": "v1"},
 		Uptime:        now,
 		ClusterStatus: &ClusterStatus{Peers: []PeerStatus{}},

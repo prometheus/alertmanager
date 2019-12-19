@@ -975,6 +975,19 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
+					&pb.Matcher{Name: "a", Pattern: ""},
+					&pb.Matcher{Name: "b", Pattern: ".*", Type: pb.Matcher_REGEXP},
+				},
+				StartsAt:  validTimestamp,
+				EndsAt:    validTimestamp,
+				UpdatedAt: validTimestamp,
+			},
+			err: "at least one matcher must not match the empty string",
+		},
+		{
+			s: &pb.Silence{
+				Id: "some_id",
+				Matchers: []*pb.Matcher{
 					&pb.Matcher{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  now,

@@ -204,10 +204,7 @@ func (m *memMarker) SetActive(alert model.Fingerprint) {
 
 	s, found := m.m[alert]
 	if !found {
-		s = &AlertStatus{
-			SilencedBy:  []string{},
-			InhibitedBy: []string{},
-		}
+		s = &AlertStatus{}
 		m.m[alert] = s
 	}
 

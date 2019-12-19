@@ -135,5 +135,4 @@ func (o *GetSilenceInternalServerError) WriteResponse(rw http.ResponseWriter, pr
 	if err := producer.Produce(rw, payload); err != nil {
 		panic(err) // let the recovery middleware deal with this
 	}
-
 }

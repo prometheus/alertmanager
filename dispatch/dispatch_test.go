@@ -38,8 +38,11 @@ func TestAggrGroup(t *testing.T) {
 		"b": "v2",
 	}
 	opts := &RouteOpts{
-		Receiver:       "n1",
-		GroupBy:        map[model.LabelName]struct{}{},
+		Receiver: "n1",
+		GroupBy: map[model.LabelName]struct{}{
+			"a": struct{}{},
+			"b": struct{}{},
+		},
 		GroupWait:      1 * time.Second,
 		GroupInterval:  300 * time.Millisecond,
 		RepeatInterval: 1 * time.Hour,
@@ -369,7 +372,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger)
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 

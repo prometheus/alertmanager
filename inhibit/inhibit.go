@@ -94,7 +94,7 @@ func (ih *Inhibitor) Run() {
 	runCtx, runCancel := context.WithCancel(ctx)
 
 	for _, rule := range ih.rules {
-		rule.scache.Run(runCtx)
+		go rule.scache.Run(runCtx, 15*time.Minute)
 	}
 
 	g.Add(func() error {
@@ -194,7 +194,7 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		SourceMatchers: sourcem,
 		TargetMatchers: targetm,
 		Equal:          equal,
-		scache:         store.NewAlerts(15 * time.Minute),
+		scache:         store.NewAlerts(),
 	}
 }
 

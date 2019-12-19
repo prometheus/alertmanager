@@ -434,6 +434,18 @@ func validateMatcher(m *pb.Matcher) error {
 	return nil
 }
 
+func matchesEmpty(m *pb.Matcher) bool {
+	switch m.Type {
+	case pb.Matcher_EQUAL:
+		return m.Pattern == ""
+	case pb.Matcher_REGEXP:
+		matched, _ := regexp.MatchString(m.Pattern, "")
+		return matched
+	default:
+		return false
+	}
+}
+
 func validateSilence(s *pb.Silence) error {
 	if s.Id == "" {
 		return errors.New("ID missing")
@@ -441,10 +453,15 @@ func validateSilence(s *pb.Silence) error {
 	if len(s.Matchers) == 0 {
 		return errors.New("at least one matcher required")
 	}
+	allMatchEmpty := true
 	for i, m := range s.Matchers {
 		if err := validateMatcher(m); err != nil {
 			return fmt.Errorf("invalid label matcher %d: %s", i, err)
 		}
+		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
+	}
+	if allMatchEmpty {
+		return errors.New("at least one matcher must not match the empty string")
 	}
 	if s.StartsAt.IsZero() {
 		return errors.New("invalid zero start timestamp")

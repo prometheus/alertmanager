@@ -38,21 +38,18 @@ type GetSilenceReader struct {
 // ReadResponse reads a server response into the received o.
 func (o *GetSilenceReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
 	switch response.Code() {
-
 	case 200:
 		result := NewGetSilenceOK()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
 		return result, nil
-
 	case 404:
 		result := NewGetSilenceNotFound()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
 		return nil, result
-
 	case 500:
 		result := NewGetSilenceInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -80,6 +77,10 @@ type GetSilenceOK struct {
 
 func (o *GetSilenceOK) Error() string {
 	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
+}
+
+func (o *GetSilenceOK) GetPayload() *models.GettableSilence {
+	return o.Payload
 }
 
 func (o *GetSilenceOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -130,6 +131,10 @@ type GetSilenceInternalServerError struct {
 
 func (o *GetSilenceInternalServerError) Error() string {
 	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
+}
+
+func (o *GetSilenceInternalServerError) GetPayload() string {
+	return o.Payload
 }
 
 func (o *GetSilenceInternalServerError) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {

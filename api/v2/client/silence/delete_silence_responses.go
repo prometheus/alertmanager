@@ -36,14 +36,12 @@ type DeleteSilenceReader struct {
 // ReadResponse reads a server response into the received o.
 func (o *DeleteSilenceReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
 	switch response.Code() {
-
 	case 200:
 		result := NewDeleteSilenceOK()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
 		return result, nil
-
 	case 500:
 		result := NewDeleteSilenceInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -92,6 +90,10 @@ type DeleteSilenceInternalServerError struct {
 
 func (o *DeleteSilenceInternalServerError) Error() string {
 	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError  %+v", 500, o.Payload)
+}
+
+func (o *DeleteSilenceInternalServerError) GetPayload() string {
+	return o.Payload
 }
 
 func (o *DeleteSilenceInternalServerError) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
