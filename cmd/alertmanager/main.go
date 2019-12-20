@@ -172,17 +172,6 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	return integrations, nil
 }
 
-// walkRoute traverses the route tree in depth-first order.
-func walkRoute(r *dispatch.Route, visit func(*dispatch.Route)) {
-	visit(r)
-	if r.Routes == nil {
-		return
-	}
-	for i := range r.Routes {
-		walkRoute(r.Routes[i], visit)
-	}
-}
-
 func main() {
 	os.Exit(run())
 }
@@ -403,7 +392,7 @@ func run() int {
 		// Build the routing tree and record which receivers are used.
 		routes := dispatch.NewRoute(conf.Route, nil)
 		activeReceivers := make(map[string]struct{})
-		walkRoute(routes, func(r *dispatch.Route) {
+		routes.Walk(func(r *dispatch.Route) {
 			activeReceivers[r.RouteOpts.Receiver] = struct{}{}
 		})
 
@@ -447,7 +436,7 @@ func run() int {
 		})
 
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, logger, dispMetrics)
-		walkRoute(routes, func(r *dispatch.Route) {
+		routes.Walk(func(r *dispatch.Route) {
 			if r.RouteOpts.RepeatInterval > *retention {
 				level.Warn(configLogger).Log(
 					"msg",
