@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
@@ -351,4 +352,34 @@ routes:
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, got)
 	}
+}
+
+func TestInheritParentGroupByAll(t *testing.T) {
+	in := `
+routes:
+- match:
+    env: 'parent'
+  group_by: ['...']
+
+  routes:
+  - match:
+      env: 'child1'
+
+  - match:
+      env: 'child2'
+    group_by: ['foo']
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+
+	tree := NewRoute(&ctree, nil)
+	parent := tree.Routes[0]
+	child1 := parent.Routes[0]
+	child2 := parent.Routes[1]
+	require.Equal(t, parent.RouteOpts.GroupByAll, true)
+	require.Equal(t, child1.RouteOpts.GroupByAll, true)
+	require.Equal(t, child2.RouteOpts.GroupByAll, false)
 }
