@@ -14,10 +14,7 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
-	"io"
-	"os"
 	"testing"
 
 	"github.com/go-kit/kit/log"
@@ -49,21 +46,7 @@ func TestOversizedMessagesGossiped(t *testing.T) {
 		func(_ *memberlist.Node, _ []byte) error { sent = true; cancel(); return nil },
 	)
 
-	f, err := os.Open("/dev/zero")
-	if err != nil {
-		t.Fatalf("failed to open /dev/zero: %v", err)
-	}
-	defer f.Close()
-
-	buf := new(bytes.Buffer)
-	toCopy := int64(800)
-	if n, err := io.CopyN(buf, f, toCopy); err != nil {
-		t.Fatalf("failed to copy bytes: %v", err)
-	} else if n != toCopy {
-		t.Fatalf("wanted to copy %d bytes, only copied %d", toCopy, n)
-	}
-
-	c.Broadcast(buf.Bytes())
+	c.Broadcast(make([]byte, 800))
 
 	<-ctx.Done()
 
