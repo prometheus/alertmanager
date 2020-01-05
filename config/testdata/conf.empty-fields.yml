@@ -11,7 +11,7 @@ global:
 
 
 templates:
-- '/etc/alertmanager/template/*.tmpl'
+- 'template/*.tmpl'
 
 route:
   group_by: ['alertname', 'cluster', 'service']
