@@ -19,6 +19,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -539,6 +540,11 @@ receivers:
 }
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
+	templatePath := "testdata/template/*.tmpl"
+	//allow test to check file path on a non-*nix system
+	if runtime.GOOS == "windows" {
+		templatePath = "testdata\\template\\*.tmpl"
+	}
 	boolFoo := true
 	var regexpFoo = Regexp{
 		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
@@ -563,7 +569,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		},
 
 		Templates: []string{
-			"/etc/alertmanager/template/*.tmpl",
+			templatePath,
 		},
 		Route: &Route{
 			Receiver: "team-X-mails",
