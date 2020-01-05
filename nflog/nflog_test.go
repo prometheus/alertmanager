@@ -139,8 +139,8 @@ func TestReplaceFile(t *testing.T) {
 	require.NoError(t, err, "writing replace file failed")
 
 	require.NotEqual(t, nf.Name(), of.Name(), "replacement file must have different name while editing")
-	require.NoError(t, nf.Close(), "closing replacement file failed")
 	require.NoError(t, of.Close(), "closing original file failed")
+	require.NoError(t, nf.Close(), "closing replacement file failed")
 
 	ofr, err := os.Open(origFilename)
 	require.NoError(t, err, "opening original file failed")
