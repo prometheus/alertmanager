@@ -16,7 +16,9 @@ package email
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"mime"
@@ -32,6 +34,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/martinlindhe/base36"
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
@@ -254,6 +257,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	fmt.Fprintf(buffer, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	fmt.Fprintf(buffer, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
+	fmt.Fprintf(buffer, "Message-ID: %s\r\n", generateMessageID())
 	fmt.Fprintf(buffer, "MIME-Version: 1.0\r\n\r\n")
 
 	// TODO: Add some useful headers here, such as URL of the alertmanager
@@ -325,6 +329,26 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	success = true
 	return false, nil
+}
+
+// Generates an RFC 2822-compliant Message-Id based on the informational draft
+// "Recommendations for generating Message IDs", for lack of a better
+// authoritative source.
+func generateMessageID() string {
+	var (
+		now   bytes.Buffer
+		nonce []byte = make([]byte, 8)
+	)
+	binary.Write(&now, binary.BigEndian, time.Now().UnixNano())
+	rand.Read(nonce)
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "localhost"
+	}
+	return fmt.Sprintf("<%s.%s@%s>",
+		base36.EncodeBytes(now.Bytes()),
+		base36.EncodeBytes(nonce),
+		hostname)
 }
 
 type loginAuth struct {
