@@ -70,9 +70,12 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		for _, ln := range cr.GroupBy {
 			opts.GroupBy[ln] = struct{}{}
 		}
+		opts.GroupByAll = false
+	} else {
+		if cr.GroupByAll {
+			opts.GroupByAll = cr.GroupByAll
+		}
 	}
-
-	opts.GroupByAll = cr.GroupByAll
 
 	if cr.GroupWait != nil {
 		opts.GroupWait = time.Duration(*cr.GroupWait)
