@@ -224,6 +224,21 @@ func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
 }
 
+// UniqValues returns a sorted list of unique values in the LabelSet.
+func (kv KV) UniqValues() []string {
+	vs := kv.Values()
+	vsCopy := make([]string, len(vs))
+	copy(vsCopy, vs)
+	sort.Strings(vsCopy)
+	uniqVs := vsCopy[:0]
+	for _, v := range vsCopy {
+		if len(uniqVs) == 0 || uniqVs[len(uniqVs)-1] != v {
+			uniqVs = append(uniqVs, v)
+		}
+	}
+	return uniqVs
+}
+
 // Data is the data passed to notification templates and webhook pushes.
 //
 // End-users should not be exposed to Go's type system, as this will confuse them and prevent

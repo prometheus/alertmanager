@@ -91,6 +91,34 @@ func TestKVRemove(t *testing.T) {
 	require.EqualValues(t, expected, kv.Names())
 }
 
+func TestKVUniqValues(t *testing.T) {
+	// one value is duplicated
+	kv := KV{
+		"key1": "val1",
+		"key2": "val2",
+		"key3": "val3",
+		"key4": "val3",
+	}
+
+	expected := []string{"val1", "val2", "val3"}
+	require.EqualValues(t, expected, kv.UniqValues())
+
+	// all keys have the same value
+	kv = KV{
+		"key1": "val1",
+		"key2": "val1",
+		"key3": "val1",
+	}
+
+	expected = []string{"val1"}
+	require.EqualValues(t, expected, kv.UniqValues())
+
+	kv = KV{}
+
+	expected = []string{}
+	require.EqualValues(t, expected, kv.UniqValues())
+}
+
 func TestAlertsFiring(t *testing.T) {
 	alerts := Alerts{
 		{Status: string(model.AlertFiring)},
