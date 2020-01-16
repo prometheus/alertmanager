@@ -788,11 +788,11 @@ func TestNilRegexp(t *testing.T) {
 			errMsg: "invalid_label",
 		},
 		{
-			file:   "testdata/conf.nil-source_match_re-inhibitiion.yml",
+			file:   "testdata/conf.nil-source_match_re-inhibition.yml",
 			errMsg: "invalid_source_label",
 		},
 		{
-			file:   "testdata/conf.nil-target_match_re-inhibitiion.yml",
+			file:   "testdata/conf.nil-target_match_re-inhibition.yml",
 			errMsg: "invalid_target_label",
 		},
 	} {
