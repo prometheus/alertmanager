@@ -212,7 +212,7 @@ url: 'http://example.com'
 	}
 }
 
-func TestWebhookPasswordIsObsfucated(t *testing.T) {
+func TestWebhookPasswordIsObfuscated(t *testing.T) {
 	in := `
 url: 'http://example.com'
 http_config:
