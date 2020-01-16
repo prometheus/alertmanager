@@ -285,7 +285,7 @@ func TestQuery(t *testing.T) {
 	require.EqualError(t, err, "no query parameters specified")
 
 	// no entry
-	_, err = nl.Query(QGroupKey("nonexistingkey"), QReceiver(recv))
+	_, err = nl.Query(QGroupKey("nonexistentkey"), QReceiver(recv))
 	require.EqualError(t, err, "not found")
 
 	// existing entry
