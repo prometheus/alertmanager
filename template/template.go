@@ -233,9 +233,10 @@ type Data struct {
 	Status   string `json:"status"`
 	Alerts   Alerts `json:"alerts"`
 
-	GroupLabels       KV `json:"groupLabels"`
-	CommonLabels      KV `json:"commonLabels"`
-	CommonAnnotations KV `json:"commonAnnotations"`
+	GroupLabels       KV     `json:"groupLabels"`
+	GroupFingerprint  string `json:"groupFingerprint"`
+	CommonLabels      KV     `json:"commonLabels"`
+	CommonAnnotations KV     `json:"commonAnnotations"`
 
 	ExternalURL string `json:"externalURL"`
 }
@@ -286,6 +287,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		CommonLabels:      KV{},
 		CommonAnnotations: KV{},
 		ExternalURL:       t.ExternalURL.String(),
+		GroupFingerprint:  groupLabels.Fingerprint().String(),
 	}
 
 	// The call to types.Alert is necessary to correctly resolve the internal
