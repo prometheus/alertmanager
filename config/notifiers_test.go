@@ -453,7 +453,7 @@ fields:
 	}
 }
 
-func TestSlackFieldConfigUnmarshalling(t *testing.T) {
+func TestSlackFieldConfigUnmarshaling(t *testing.T) {
 	in := `
 fields:
 - title: first

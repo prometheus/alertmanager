@@ -459,12 +459,12 @@ func TestUnmarshalInvalidURL(t *testing.T) {
 
 		err := json.Unmarshal(b, &u)
 		if err == nil {
-			t.Errorf("Expected an error unmarshalling %q from JSON", string(b))
+			t.Errorf("Expected an error unmarshaling %q from JSON", string(b))
 		}
 
 		err = yaml.Unmarshal(b, &u)
 		if err == nil {
-			t.Errorf("Expected an error unmarshalling %q from YAML", string(b))
+			t.Errorf("Expected an error unmarshaling %q from YAML", string(b))
 		}
 		t.Logf("%s", err)
 	}
