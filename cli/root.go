@@ -89,7 +89,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 // Execute is the main function for the amtool command
 func Execute() {
 	var (
-		app = kingpin.New("amtool", helpRoot).DefaultEnvars()
+		app = kingpin.New("amtool", helpRoot)
 	)
 
 	format.InitFormatFlags(app)
