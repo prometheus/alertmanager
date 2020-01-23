@@ -402,14 +402,14 @@ func TestUnmarshalSecretURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in JSON.")
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in JSON.")
 
 	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in YAML.")
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in YAML.")
 }
 
 func TestMarshalURL(t *testing.T) {
@@ -423,13 +423,13 @@ func TestMarshalURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshalled in JSON.")
+	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshaled in JSON.")
 
 	c, err = yaml.Marshal(u)
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshalled in YAML.")
+	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshaled in YAML.")
 }
 
 func TestUnmarshalURL(t *testing.T) {
@@ -440,13 +440,13 @@ func TestUnmarshalURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in JSON.")
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in JSON.")
 
 	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in YAML.")
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in YAML.")
 }
 
 func TestUnmarshalInvalidURL(t *testing.T) {
@@ -459,12 +459,12 @@ func TestUnmarshalInvalidURL(t *testing.T) {
 
 		err := json.Unmarshal(b, &u)
 		if err == nil {
-			t.Errorf("Expected an error unmarshalling %q from JSON", string(b))
+			t.Errorf("Expected an error unmarshaling %q from JSON", string(b))
 		}
 
 		err = yaml.Unmarshal(b, &u)
 		if err == nil {
-			t.Errorf("Expected an error unmarshalling %q from YAML", string(b))
+			t.Errorf("Expected an error unmarshaling %q from YAML", string(b))
 		}
 		t.Logf("%s", err)
 	}
@@ -788,11 +788,11 @@ func TestNilRegexp(t *testing.T) {
 			errMsg: "invalid_label",
 		},
 		{
-			file:   "testdata/conf.nil-source_match_re-inhibitiion.yml",
+			file:   "testdata/conf.nil-source_match_re-inhibition.yml",
 			errMsg: "invalid_source_label",
 		},
 		{
-			file:   "testdata/conf.nil-target_match_re-inhibitiion.yml",
+			file:   "testdata/conf.nil-target_match_re-inhibition.yml",
 			errMsg: "invalid_target_label",
 		},
 	} {

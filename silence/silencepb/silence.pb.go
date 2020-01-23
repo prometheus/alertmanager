@@ -155,7 +155,7 @@ type Silence struct {
 	// The time range during which the silence is active.
 	StartsAt time.Time `protobuf:"bytes,3,opt,name=starts_at,json=startsAt,proto3,stdtime" json:"starts_at"`
 	EndsAt   time.Time `protobuf:"bytes,4,opt,name=ends_at,json=endsAt,proto3,stdtime" json:"ends_at"`
-	// The last motification made to the silence.
+	// The last notification made to the silence.
 	UpdatedAt time.Time `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3,stdtime" json:"updated_at"`
 	// DEPRECATED: A set of comments made on the silence.
 	Comments []*Comment `protobuf:"bytes,7,rep,name=comments,proto3" json:"comments,omitempty"`

@@ -212,7 +212,7 @@ url: 'http://example.com'
 	}
 }
 
-func TestWebhookPasswordIsObsfucated(t *testing.T) {
+func TestWebhookPasswordIsObfuscated(t *testing.T) {
 	in := `
 url: 'http://example.com'
 http_config:
@@ -453,7 +453,7 @@ fields:
 	}
 }
 
-func TestSlackFieldConfigUnmarshalling(t *testing.T) {
+func TestSlackFieldConfigUnmarshaling(t *testing.T) {
 	in := `
 fields:
 - title: first
