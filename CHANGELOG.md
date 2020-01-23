@@ -152,7 +152,7 @@ deprecated. API v1 will be removed with Alertmanager release v0.18.0.
 * [ENHANCEMENT] Add name, value and SlackConfirmationField to action in Slack notifier (#1557)
 * [ENHANCEMENT] Show more alert information on silence form and silence view pages (#1601)
 * [ENHANCEMENT] Add cluster peers DNS refresh job (#1428)
-* [BUGFIX] Fix unmarshalling of secret URLs in config (#1663)
+* [BUGFIX] Fix unmarshaling of secret URLs in config (#1663)
 * [BUGFIX] Do not write groupbyall and groupby when marshaling config (#1665)
 * [BUGFIX] Make a copy of firing alerts with EndsAt=0 when flushing (#1686)
 * [BUGFIX] Respect regex matchers when recreating silences in UI (#1697)
@@ -348,7 +348,7 @@ deprecated. API v1 will be removed with Alertmanager release v0.18.0.
 * [ENHANCEMENT] Add possibility to have a global victorops api_key (#897)
 * [ENHANCEMENT] Add EntityDisplayName and improve StateMessage for Victorops
   (#769)
-* [ENHANCEMENT] Omit empty config fields and show regex upon re-marshalling to
+* [ENHANCEMENT] Omit empty config fields and show regex upon re-marshaling to
   elide secrets (#864)
 * [ENHANCEMENT] Parse API error messages in UI (#866)
 * [ENHANCEMENT] Enable sending mail via smtp port 465 (#704)
