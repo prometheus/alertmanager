@@ -25,7 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -314,15 +313,15 @@ func (am *Alertmanager) Start() {
 // Terminate kills the underlying Alertmanager process and remove intermediate
 // data.
 func (am *Alertmanager) Terminate() {
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Fatalf("error sending SIGTERM to Alertmanager process: %v", err)
+	if err := am.cmd.Process.Kill(); err != nil {
+		am.t.Fatalf("Error terminating Alertmanager process: %v", err)
 	}
 }
 
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("error sending SIGHUP to Alertmanager process: %v", err)
+	if _, err := http.Post(am.getURL("/-/reload"), "text/plain", nil); err != nil {
+		am.t.Fatalf("Error reloading Alertmanager config: %v", err)
 	}
 }
 
@@ -426,6 +425,7 @@ func (am *Alertmanager) UpdateConfig(conf string) {
 		am.t.Fatal(err)
 		return
 	}
+	am.confFile.Close()
 }
 
 func (am *Alertmanager) getURL(path string) string {
