@@ -25,9 +25,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -120,11 +120,15 @@ func freeAddress() string {
 // AmtoolOk verifies that the "amtool" file exists in the correct location for testing,
 // and is a regular file.
 func AmtoolOk() (bool, error) {
-	stat, err := os.Stat(amtool)
+	fileName := amtool
+	if runtime.GOOS == "windows" {
+		fileName += ".exe"
+	}
+	stat, err := os.Stat(fileName)
 	if err != nil {
 		return false, fmt.Errorf("Error accessing amtool command, try 'make build' to generate the file. %v", err)
 	} else if stat.IsDir() {
-		return false, fmt.Errorf("file %s is a directory, expecting a binary executable file", amtool)
+		return false, fmt.Errorf("file %s is a directory, expecting a binary executable file", fileName)
 	}
 	return true, nil
 }
@@ -411,8 +415,8 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Fatalf("Error sending SIGTERM to Alertmanager process: %v", err)
+	if err := am.cmd.Process.Kill(); err != nil {
+		am.t.Fatalf("Error terminating Alertmanager process: %v", err)
 	}
 }
 
@@ -426,8 +430,8 @@ func (amc *AlertmanagerCluster) Reload() {
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+	if _, err := http.Post(am.getURL("/-/reload"), "text/plain", nil); err != nil {
+		am.t.Fatalf("Error reloading Alertmanager config: %v", err)
 	}
 }
 
@@ -658,6 +662,7 @@ func (am *Alertmanager) UpdateConfig(conf string) {
 		am.t.Fatal(err)
 		return
 	}
+	am.confFile.Close()
 }
 
 func (am *Alertmanager) getURL(path string) string {
