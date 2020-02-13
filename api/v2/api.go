@@ -723,7 +723,7 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	}
 
 	if sil.StartsAt.After(sil.EndsAt) || sil.StartsAt.Equal(sil.EndsAt) {
-		msg := "failed to create silence: start time must be greater than end time"
+		msg := "failed to create silence: start time must be before end time"
 		level.Error(api.logger).Log("msg", msg, "err", err)
 		return silence_ops.NewPostSilencesBadRequest().WithPayload(msg)
 	}
