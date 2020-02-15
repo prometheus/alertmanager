@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 
@@ -72,6 +73,8 @@ type Message struct {
 	Version         string `json:"version"`
 	GroupKey        string `json:"groupKey"`
 	TruncatedAlerts uint64 `json:"truncatedAlerts"`
+	// Expanded text templates.
+	Templated map[string]string `json:"templated,omitempty"`
 }
 
 func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
@@ -87,6 +90,15 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
+	templated := map[string]string{}
+	for name, t := range n.conf.Templates {
+		text, err := n.tmpl.ExecuteTextString(t, data)
+		if err != nil {
+			return false, errors.Wrapf(err, "execute '%s' template", name)
+		}
+		templated[name] = text
+	}
+
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		level.Error(n.logger).Log("err", err)
@@ -97,6 +109,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		Data:            data,
 		GroupKey:        groupKey.String(),
 		TruncatedAlerts: numTruncated,
+		Templated:       templated,
 	}
 
 	var buf bytes.Buffer
