@@ -23,7 +23,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -35,6 +34,7 @@ import (
 
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
+	"net/http"
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected
@@ -383,8 +383,8 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Fatalf("Error sending SIGTERM to Alertmanager process: %v", err)
+	if err := am.cmd.Process.Kill(); err != nil {
+		am.t.Fatalf("Error terminating Alertmanager process: %v", err)
 	}
 }
 
@@ -398,8 +398,8 @@ func (amc *AlertmanagerCluster) Reload() {
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+	if _, err := http.Post("http://"+am.apiAddr+am.opts.RoutePrefix+"/-/reload", "text/plain", nil); err != nil {
+		am.t.Fatalf("Error reloading Alertmanager config: %v", err)
 	}
 }
 
@@ -514,6 +514,7 @@ func (am *Alertmanager) UpdateConfig(conf string) {
 		am.t.Fatal(err)
 		return
 	}
+	am.confFile.Close()
 }
 
 // Client returns a client to interact with the API v2 endpoint.
