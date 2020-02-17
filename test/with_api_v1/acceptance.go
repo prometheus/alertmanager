@@ -76,14 +76,11 @@ func (opts *AcceptanceOpts) relativeTime(act time.Time) float64 {
 // NewAcceptanceTest returns a new acceptance test with the base time
 // set to the current time.
 func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
-	test := &AcceptanceTest{
+	return &AcceptanceTest{
 		T:       t,
 		opts:    opts,
 		actions: map[float64][]func(){},
 	}
-	opts.baseTime = time.Now()
-
-	return test
 }
 
 // freeAddress returns a new listen address not currently in use.
@@ -154,7 +151,7 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 		name:      name,
 		opts:      t.opts,
 		collected: map[float64][]model.Alerts{},
-		expected:  map[Interval][]model.Alerts{},
+		expected:  map[Interval][][]*TestAlert{},
 	}
 	t.collectors = append(t.collectors, co)
 
@@ -177,6 +174,9 @@ func (t *AcceptanceTest) Run() {
 			t.Logf("stderr:\n%v", am.cmd.Stderr)
 		}(am)
 	}
+
+	// set test base time after AM binaries are started
+	t.opts.baseTime = time.Now()
 
 	go t.runActions()
 
@@ -334,28 +334,28 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas []client.Alert
-	for i := range alerts {
-		a := alerts[i].nativeAlert(am.opts)
-		al := client.Alert{
-			Labels:       client.LabelSet{},
-			Annotations:  client.LabelSet{},
-			StartsAt:     a.StartsAt,
-			EndsAt:       a.EndsAt,
-			GeneratorURL: a.GeneratorURL,
-		}
-		for n, v := range a.Labels {
-			al.Labels[client.LabelName(n)] = client.LabelValue(v)
-		}
-		for n, v := range a.Annotations {
-			al.Annotations[client.LabelName(n)] = client.LabelValue(v)
-		}
-		cas = append(cas, al)
-	}
-
-	alertAPI := client.NewAlertAPI(am.client)
-
 	am.t.Do(at, func() {
+		var cas []client.Alert
+		for i := range alerts {
+			a := alerts[i].nativeAlert(am.opts)
+			al := client.Alert{
+				Labels:       client.LabelSet{},
+				Annotations:  client.LabelSet{},
+				StartsAt:     a.StartsAt,
+				EndsAt:       a.EndsAt,
+				GeneratorURL: a.GeneratorURL,
+			}
+			for n, v := range a.Labels {
+				al.Labels[client.LabelName(n)] = client.LabelValue(v)
+			}
+			for n, v := range a.Annotations {
+				al.Annotations[client.LabelName(n)] = client.LabelValue(v)
+			}
+			cas = append(cas, al)
+		}
+
+		alertAPI := client.NewAlertAPI(am.client)
+
 		if err := alertAPI.Push(context.Background(), cas...); err != nil {
 			am.t.Errorf("Error pushing %v: %s", cas, err)
 		}
