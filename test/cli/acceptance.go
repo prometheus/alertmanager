@@ -87,17 +87,11 @@ func (opts *AcceptanceOpts) relativeTime(act time.Time) float64 {
 // NewAcceptanceTest returns a new acceptance test with the base time
 // set to the current time.
 func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
-	test := &AcceptanceTest{
+	return &AcceptanceTest{
 		T:       t,
 		opts:    opts,
 		actions: map[float64][]func(){},
 	}
-	// TODO: Should this really be set during creation time? Why not do this
-	// during Run() time, maybe there is something else long happening between
-	// creation and running.
-	opts.baseTime = time.Now()
-
-	return test
 }
 
 // freeAddress returns a new listen address not currently in use.
@@ -183,7 +177,7 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 		name:      name,
 		opts:      t.opts,
 		collected: map[float64][]models.GettableAlerts{},
-		expected:  map[Interval][]models.GettableAlerts{},
+		expected:  map[Interval][][]*TestAlert{},
 	}
 	t.collectors = append(t.collectors, co)
 
@@ -209,6 +203,9 @@ func (t *AcceptanceTest) Run() {
 	if err != nil {
 		t.T.Fatal(err)
 	}
+
+	// set test base time after AM binaries are started
+    t.opts.baseTime = time.Now()
 
 	go t.runActions()
 
