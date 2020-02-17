@@ -31,7 +31,7 @@ type Collector struct {
 	opts *AcceptanceOpts
 
 	collected map[float64][]models.GettableAlerts
-	expected  map[Interval][]models.GettableAlerts
+	expected  map[Interval][][]*TestAlert
 
 	mtx sync.RWMutex
 }
@@ -87,12 +87,8 @@ func (c *Collector) latest() float64 {
 func (c *Collector) Want(iv Interval, alerts ...*TestAlert) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	var nas models.GettableAlerts
-	for _, a := range alerts {
-		nas = append(nas, a.nativeAlert(c.opts))
-	}
 
-	c.expected[iv] = append(c.expected[iv], nas)
+	c.expected[iv] = append(c.expected[iv], alerts)
 }
 
 // add the given alerts to the collected alerts.
@@ -124,12 +120,14 @@ func (c *Collector) Check() string {
 
 			report += fmt.Sprintf("---\n")
 
-			for _, e := range exp {
-				report += fmt.Sprintf("- %v\n", c.opts.alertString(e))
+			nativeAlerts := make(models.GettableAlerts, len(exp))
+			for i, e := range exp {
+				nativeAlerts[i] = e.nativeAlert(c.opts)
+				report += fmt.Sprintf("- %v\n", c.opts.alertString(nativeAlerts[i]))
 			}
 
 			for _, a := range alerts {
-				if batchesEqual(exp, a, c.opts) {
+				if batchesEqual(nativeAlerts, a, c.opts) {
 					found = true
 					break
 				}
