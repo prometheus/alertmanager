@@ -38,7 +38,7 @@ escapeRegExp : String -> String
 escapeRegExp text =
     let
         reg =
-            Regex.fromString "/[-[\\]{}()*+?.,\\\\^$|#\\s]/g" |> Maybe.withDefault Regex.never
+            Regex.fromString "[-[\\]{}()*+?.,\\\\^$|#\\s]" |> Maybe.withDefault Regex.never
     in
     Regex.replace reg (.match >> (++) "\\") text
 
