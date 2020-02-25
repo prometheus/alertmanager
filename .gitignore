@@ -3,9 +3,11 @@
 /amtool
 *.yml
 *.yaml
+*.exe
 /.build
 /.release
 /.tarballs
+/.idea
 
 !.golangci.yml
 !/cli/testdata/*.yml
