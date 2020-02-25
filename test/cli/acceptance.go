@@ -205,7 +205,7 @@ func (t *AcceptanceTest) Run() {
 	}
 
 	// set test base time after AM binaries are started
-    t.opts.baseTime = time.Now()
+	t.opts.baseTime = time.Now()
 
 	go t.runActions()
 
