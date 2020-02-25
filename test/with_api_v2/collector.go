@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
@@ -190,7 +191,7 @@ func alertsToString(as []*models.GettableAlert) (string, error) {
 }
 
 // CompareCollectors compares two collectors based on their collected alerts
-func CompareCollectors(a, b *Collector, opts *AcceptanceOpts) (bool, error) {
+func CompareCollectors(a, b *Collector, optsA, optsB *AcceptanceOpts) (bool, error) {
 	f := func(collected map[float64][]models.GettableAlerts) []*models.GettableAlert {
 		result := []*models.GettableAlert{}
 		for _, batches := range collected {
@@ -225,9 +226,11 @@ func CompareCollectors(a, b *Collector, opts *AcceptanceOpts) (bool, error) {
 	}
 
 	for _, aAlert := range aAlerts {
+		aAlert = relativizeAlertTimes(*aAlert, optsA)
 		found := false
 		for _, bAlert := range bAlerts {
-			if equalAlerts(aAlert, bAlert, opts) {
+			bAlert = relativizeAlertTimes(*bAlert, optsB)
+			if equalAlerts(aAlert, bAlert, optsA) {
 				found = true
 				break
 			}
@@ -253,4 +256,17 @@ func CompareCollectors(a, b *Collector, opts *AcceptanceOpts) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func relativizeAlertTimes(alert models.GettableAlert, opts *AcceptanceOpts) *models.GettableAlert {
+	zeroTime := time.Time{}
+	diff := time.Time(*alert.StartsAt).Sub(opts.baseTime)
+	newStart := strfmt.DateTime(zeroTime.Add(diff))
+	alert.StartsAt = &newStart
+	if !time.Time(*alert.EndsAt).IsZero() {
+		diff = time.Time(*alert.EndsAt).Sub(opts.baseTime)
+		newEnd := strfmt.DateTime(zeroTime.Add(diff))
+		alert.EndsAt = &newEnd
+	}
+	return &alert
 }

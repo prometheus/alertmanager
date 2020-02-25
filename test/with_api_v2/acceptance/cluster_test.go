@@ -77,15 +77,16 @@ receivers:
   - url: 'http://%s'
 `
 
-	acceptanceOpts := &a.AcceptanceOpts{
-		Tolerance: 2 * time.Second,
+	acceptanceOptsFirst := &a.AcceptanceOpts{
+		Tolerance: 200 * time.Millisecond,
 	}
+	acceptanceOptsSecond := *acceptanceOptsFirst
 
 	clusterSizes := []int{1, 3}
 
 	tests := []*a.AcceptanceTest{
-		a.NewAcceptanceTest(t, acceptanceOpts),
-		a.NewAcceptanceTest(t, acceptanceOpts),
+		a.NewAcceptanceTest(t, acceptanceOptsFirst),
+		a.NewAcceptanceTest(t, &acceptanceOptsSecond),
 	}
 
 	collectors := []*a.Collector{}
@@ -118,7 +119,7 @@ receivers:
 
 	wg.Wait()
 
-	_, err := a.CompareCollectors(collectors[0], collectors[1], acceptanceOpts)
+	_, err := a.CompareCollectors(collectors[0], collectors[1], acceptanceOptsFirst, &acceptanceOptsSecond)
 	if err != nil {
 		t.Fatal(err)
 	}
