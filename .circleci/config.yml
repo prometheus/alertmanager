@@ -92,26 +92,76 @@ jobs:
     - go/save-cache:
         key: v1-go-mod
 
+  Build_Docker:
+    machine: true
+    description: Build and push a Docker image to AWS ECR
+    parameters:
+      image:
+        description: The name of the container image to build.
+        type: string
+      dockerfile:
+        description: The path to the Dockerfile to use.
+        type: string
+
+    steps:
+      - checkout
+      - run:
+          name: Set up environment variables for Non-Prod AWS
+          command: |
+            echo '
+              export AWS_REGION=$AWS_REGION
+              export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID_NONPROD
+              export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY_NONPROD
+              export CONTAINER_REGISTRY=$CONTAINER_REGISTRY
+              export IMAGE_TAG='$(grep -oP "(?<=IMAGE_TAG=).+" VERSION.env)'
+            ' >> $BASH_ENV
+
+      - aws-ecr/ecr-login:
+          region: AWS_REGION
+
+      - run:
+          name: Create the `<< parameters.image >>` AWS ECR repository (if not exists)
+          command: |
+            aws ecr describe-repositories \
+              --region $AWS_REGION \
+              --repository-names << parameters.image >> \
+                > /dev/null 2>&1 || \
+            aws ecr create-repository \
+              --region $AWS_REGION \
+              --repository-name << parameters.image >> && \
+            echo OK!
+
+      - run:
+          name: Build the `<< parameters.image >>` Docker image
+          command: |
+            docker build \
+              --tag << parameters.image >> \
+              --file << parameters.dockerfile >> \
+              .
+
+      - run:
+          name: Push `<< parameters.image >>` to AWS ECR (Non-Prod)
+          command: |
+            docker tag << parameters.image >> $CONTAINER_REGISTRY/<< parameters.image >>:$IMAGE_TAG && \
+            docker tag << parameters.image >> $CONTAINER_REGISTRY/<< parameters.image >>:$(git rev-parse --short=8 HEAD) && \
+            docker push $CONTAINER_REGISTRY/<< parameters.image >>:$IMAGE_TAG && \
+            docker push $CONTAINER_REGISTRY/<< parameters.image >>:$(git rev-parse --short=8 HEAD) && \
+            echo Pushed tags: latest, $(git rev-parse --short=8 HEAD), $IMAGE_TAG
+
+
 
 workflows:
   version: 2
   alertmanager:
     jobs:
     - test_frontend:
-        filters:
-          tags:
-            only: /.*/
     - test:
-        filters:
-          tags:
-            only: /.*/
     - prometheus/build:
         name: build
-        filters:
-          tags:
-            only: /.*/
-    - prometheus/publish_master:
-        context: org-context
+    - Build_Docker:
+        name: build_and_push_docker_image
+        dockerfile: ./Dockerfile
+        image: avengers/prometheus/alert-manager
         requires:
         - test_frontend
         - test
@@ -119,14 +169,3 @@ workflows:
         filters:
           branches:
             only: master
-    - prometheus/publish_release:
-        context: org-context
-        requires:
-        - test_frontend
-        - test
-        - build
-        filters:
-          tags:
-            only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
-          branches:
-            ignore: /.*/
