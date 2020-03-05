@@ -154,8 +154,8 @@ workflows:
   version: 2
   alertmanager:
     jobs:
-    - test_frontend:
-    - test:
+    - test_frontend
+    - test
     - prometheus/build:
         name: build
     - Build_Docker:
