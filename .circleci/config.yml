@@ -4,6 +4,7 @@ version: 2.1
 orbs:
   prometheus: prometheus/prometheus@0.1.0
   go: circleci/go@0.2.0
+  aws-ecr: circleci/aws-ecr@3.1.0
 
 jobs:
   test_frontend:
