@@ -166,6 +166,7 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 		},
 		Cluster: &open_api_models.ClusterStatus{
 			Status: &status,
+			Peers:  []*open_api_models.PeerStatus{},
 		},
 	}
 

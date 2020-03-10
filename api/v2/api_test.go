@@ -47,8 +47,11 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 		t.Fatal("expected cluster status not to be nil, violating the openapi specification")
 	}
 
-	if c.Peers != nil {
-		t.Fatal("expected cluster peers to be nil when api.peer is nil, violating the openapi specification")
+	if c.Peers == nil {
+		t.Fatal("expected cluster peers to be not nil when api.peer is nil, violating the openapi specification")
+	}
+	if len(c.Peers) != 0 {
+		t.Fatal("expected cluster peers to be empty when api.peer is nil, violating the openapi specification")
 	}
 
 	if c.Name != "" {
