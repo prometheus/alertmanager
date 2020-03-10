@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 alerts1='[
   {
     "labels": {
