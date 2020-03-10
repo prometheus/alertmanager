@@ -54,9 +54,7 @@ func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
 		),
 	}
 
-	if r != nil {
-		r.MustRegister(m.aggrGroups, m.processingDuration)
-	}
+	r.MustRegister(m.aggrGroups, m.processingDuration)
 
 	return &m
 }
