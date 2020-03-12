@@ -111,9 +111,8 @@ func (d *Dispatcher) Run() {
 	d.mtx.Lock()
 	d.aggrGroups = map[*Route]map[model.Fingerprint]*aggrGroup{}
 	d.metrics.aggrGroups.Set(0)
-	d.mtx.Unlock()
-
 	d.ctx, d.cancel = context.WithCancel(context.Background())
+	d.mtx.Unlock()
 
 	d.run(d.alerts.Subscribe())
 	close(d.done)
@@ -255,11 +254,13 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
+	d.mtx.Lock()
 	if d == nil || d.cancel == nil {
 		return
 	}
 	d.cancel()
 	d.cancel = nil
+	d.mtx.Unlock()
 
 	<-d.done
 }
