@@ -91,7 +91,8 @@ jobs:
         file: amtool
     - go/save-cache:
         key: v1-go-mod
-
+    - store_test_results:
+        path: test-results
 
 workflows:
   version: 2
