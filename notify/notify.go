@@ -665,7 +665,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 			if err != nil {
 				r.metrics.numFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
-				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.Name(), "receiver", r.groupName, "err", err)
+				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.Name(), "receiver", r.groupName, "retry", retry, "err", err)
 				if !retry {
 					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.Name(), err)
 				}
