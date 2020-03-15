@@ -51,6 +51,7 @@ func testJoinLeave(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -78,6 +79,7 @@ func testJoinLeave(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -110,6 +112,7 @@ func testReconnect(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -133,6 +136,7 @@ func testReconnect(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -171,6 +175,7 @@ func testRemoveFailedPeers(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -220,6 +225,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 		DefaultTcpTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
