@@ -27,6 +27,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"io/ioutil"
+	"bytes"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -172,6 +174,20 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	return integrations, nil
 }
 
+func readKeys(files []string) ([][]byte, error) {
+	keys := make([][]byte, 0, len(files))
+
+	for _, file := range files {
+		key, err := ioutil.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, bytes.TrimSpace(key))
+	}
+
+	return keys, nil
+}
+
 func main() {
 	os.Exit(run())
 }
@@ -207,6 +223,7 @@ func run() int {
 		settleTimeout        = kingpin.Flag("cluster.settle-timeout", "Maximum time to wait for cluster connections to settle before evaluating notifications.").Default(cluster.DefaultPushPullInterval.String()).Duration()
 		reconnectInterval    = kingpin.Flag("cluster.reconnect-interval", "Interval between attempting to reconnect to lost peers.").Default(cluster.DefaultReconnectInterval.String()).Duration()
 		peerReconnectTimeout = kingpin.Flag("cluster.reconnect-timeout", "Length of time to attempt to reconnect to a lost peer.").Default(cluster.DefaultReconnectTimeout.String()).Duration()
+		gossipKeyFiles = kingpin.Flag("cluster.key-file", "File containing private keys for the cluster").ExistingFiles()
 	)
 
 	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
@@ -226,6 +243,12 @@ func run() int {
 		return 1
 	}
 
+	gossipKeys, err := readKeys(*gossipKeyFiles)
+	if err != nil {
+		level.Error(logger).Log("msg", "Unable to read gossip key file", "err", err)
+		return 1
+	}
+
 	var peer *cluster.Peer
 	if *clusterBindAddr != "" {
 		peer, err = cluster.Create(
@@ -240,6 +263,7 @@ func run() int {
 			*tcpTimeout,
 			*probeTimeout,
 			*probeInterval,
+			gossipKeys,
 		)
 		if err != nil {
 			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)
@@ -305,8 +329,7 @@ func run() int {
 	if peer != nil {
 		err = peer.Join(
 			*reconnectInterval,
-			*peerReconnectTimeout,
-		)
+			*peerReconnectTimeout)
 		if err != nil {
 			level.Warn(logger).Log("msg", "unable to join gossip mesh", "err", err)
 		}
