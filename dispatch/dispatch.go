@@ -254,6 +254,9 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
+	if d == nil {
+		return
+	}
 	d.mtx.Lock()
 	if d == nil || d.cancel == nil {
 		return
