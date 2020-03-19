@@ -522,3 +522,18 @@ func newAlert(labels model.LabelSet) *types.Alert {
 		Timeout:   false,
 	}
 }
+
+func TestDispatcherRace(t *testing.T) {
+	logger := log.NewNopLogger()
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
+	go dispatcher.Run()
+	dispatcher.Stop()
+}
