@@ -148,6 +148,10 @@ inhibit_rules:
   target_match:
     severity: 'warning'
   # Apply inhibition if the alertname is the same.
+  # CAUTION: 
+  #   If all label names listed in `equal` are missing 
+  #   from both the source and target alerts,
+  #   the inhibition rule will apply!
   equal: ['alertname']
 
 
