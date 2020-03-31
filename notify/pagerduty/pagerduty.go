@@ -107,6 +107,37 @@ type pagerDutyPayload struct {
 	CustomDetails map[string]string `json:"custom_details,omitempty"`
 }
 
+func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return buf, errors.Wrap(err, "failed to encode PagerDuty message")
+	}
+
+	if buf.Len() >= n.conf.MaxEventSize {
+		truncated_msg := "Custom details have been removed because the original event was too big"
+
+		if n.apiV1 != "" {
+			error_msg, ok := msg.Details["error"]
+			if ok && error_msg == truncated_msg {
+				return buf, errors.New("PagerDuty event is too big")
+			}
+
+			msg.Details = map[string]string{"error": truncated_msg}
+			return n.encodeMessage(msg)
+		} else {
+			error_msg, ok := msg.Payload.CustomDetails["error"]
+			if ok && error_msg == truncated_msg {
+				return buf, errors.New("PagerDuty event is too big")
+			}
+
+			msg.Payload.CustomDetails = map[string]string{"error": truncated_msg}
+			return n.encodeMessage(msg)
+		}
+	}
+
+	return buf, nil
+}
+
 func (n *Notifier) notifyV1(
 	ctx context.Context,
 	eventType string,
@@ -145,12 +176,12 @@ func (n *Notifier) notifyV1(
 		return false, errors.New("service key cannot be empty")
 	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, errors.Wrap(err, "failed to encode PagerDuty v1 message")
+	encoded_msg, err := n.encodeMessage(msg)
+	if err != nil {
+		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &buf)
+	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &encoded_msg)
 	if err != nil {
 		return true, errors.Wrap(err, "failed to post message to PagerDuty v1")
 	}
@@ -218,12 +249,12 @@ func (n *Notifier) notifyV2(
 		return false, errors.New("routing key cannot be empty")
 	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, errors.Wrap(err, "failed to encode PagerDuty v2 message")
+	encoded_msg, err := n.encodeMessage(msg)
+	if err != nil {
+		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &buf)
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &encoded_msg)
 	if err != nil {
 		return true, errors.Wrap(err, "failed to post message to PagerDuty")
 	}

@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,8 +40,9 @@ import (
 func TestPagerDutyRetryV1(t *testing.T) {
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			ServiceKey: config.Secret("01234567890123456789012345678901"),
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			ServiceKey:   config.Secret("01234567890123456789012345678901"),
+			HTTPConfig:   &commoncfg.HTTPClientConfig{},
+			MaxEventSize: 512000,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -57,8 +59,9 @@ func TestPagerDutyRetryV1(t *testing.T) {
 func TestPagerDutyRetryV2(t *testing.T) {
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			RoutingKey: config.Secret("01234567890123456789012345678901"),
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			RoutingKey:   config.Secret("01234567890123456789012345678901"),
+			HTTPConfig:   &commoncfg.HTTPClientConfig{},
+			MaxEventSize: 512000,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -79,8 +82,9 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			ServiceKey: config.Secret(key),
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			ServiceKey:   config.Secret(key),
+			HTTPConfig:   &commoncfg.HTTPClientConfig{},
+			MaxEventSize: 512000,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -98,9 +102,10 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			URL:        &config.URL{URL: u},
-			RoutingKey: config.Secret(key),
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			URL:          &config.URL{URL: u},
+			RoutingKey:   config.Secret(key),
+			HTTPConfig:   &commoncfg.HTTPClientConfig{},
+			MaxEventSize: 512000,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -152,6 +157,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
 					"num_resolved": `{{ .Alerts.Resolved | len }}`,
 				},
+				MaxEventSize: 512000,
 			},
 		},
 		{
@@ -164,38 +170,57 @@ func TestPagerDutyTemplating(t *testing.T) {
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
 					"num_resolved": `{{ .Alerts.Resolved | len }}`,
 				},
+				MaxEventSize: 512000,
 			},
 			errMsg: "failed to template",
 		},
 		{
 			title: "v2 message with templating errors",
 			cfg: &config.PagerdutyConfig{
-				RoutingKey: config.Secret("01234567890123456789012345678901"),
-				Severity:   "{{ ",
+				RoutingKey:   config.Secret("01234567890123456789012345678901"),
+				Severity:     "{{ ",
+				MaxEventSize: 512000,
 			},
 			errMsg: "failed to template",
 		},
 		{
 			title: "v1 message with templating errors",
 			cfg: &config.PagerdutyConfig{
-				ServiceKey: config.Secret("01234567890123456789012345678901"),
-				Client:     "{{ ",
+				ServiceKey:   config.Secret("01234567890123456789012345678901"),
+				Client:       "{{ ",
+				MaxEventSize: 512000,
 			},
 			errMsg: "failed to template",
 		},
 		{
 			title: "routing key cannot be empty",
 			cfg: &config.PagerdutyConfig{
-				RoutingKey: config.Secret(`{{ "" }}`),
+				RoutingKey:   config.Secret(`{{ "" }}`),
+				MaxEventSize: 512000,
 			},
 			errMsg: "routing key cannot be empty",
 		},
 		{
 			title: "service_key cannot be empty",
 			cfg: &config.PagerdutyConfig{
-				ServiceKey: config.Secret(`{{ "" }}`),
+				ServiceKey:   config.Secret(`{{ "" }}`),
+				MaxEventSize: 512000,
 			},
 			errMsg: "service key cannot be empty",
+		},
+		{
+			title: "Event is too big",
+			cfg: &config.PagerdutyConfig{
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Details: map[string]string{
+					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
+					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+					"num_firing":   `{{ .Alerts.Firing | len }}`,
+					"num_resolved": `{{ .Alerts.Resolved | len }}`,
+				},
+				MaxEventSize: 10,
+			},
+			errMsg: "PagerDuty event is too big",
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
@@ -270,4 +295,56 @@ func TestErrDetails(t *testing.T) {
 			require.Contains(t, err, tc.exp)
 		})
 	}
+}
+
+func TestEventSizeEnforcement(t *testing.T) {
+	bigDetails := map[string]string{
+		"firing": strings.Repeat("a", 1000),
+	}
+
+	// V1 Messages
+	msgV1 := &pagerDutyMessage{
+		ServiceKey: "01234567890123456789012345678901",
+		EventType:  "trigger",
+		Details:    bigDetails,
+	}
+
+	notifierV1, err := New(
+		&config.PagerdutyConfig{
+			ServiceKey:   config.Secret("01234567890123456789012345678901"),
+			HTTPConfig:   &commoncfg.HTTPClientConfig{},
+			MaxEventSize: 800,
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	encodedV1, err := notifierV1.encodeMessage(msgV1)
+	require.NoError(t, err)
+	require.Contains(t, encodedV1.String(), `"details":{"error":"Custom details have been removed because the original event was too big"}`)
+
+	// V2 Messages
+	msgV2 := &pagerDutyMessage{
+		RoutingKey:  "01234567890123456789012345678901",
+		EventAction: "trigger",
+		Payload: &pagerDutyPayload{
+			CustomDetails: bigDetails,
+		},
+	}
+
+	notifierV2, err := New(
+		&config.PagerdutyConfig{
+			RoutingKey:   config.Secret("01234567890123456789012345678901"),
+			HTTPConfig:   &commoncfg.HTTPClientConfig{},
+			MaxEventSize: 800,
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	encodedV2, err := notifierV2.encodeMessage(msgV2)
+	require.NoError(t, err)
+	require.Contains(t, encodedV2.String(), `"custom_details":{"error":"Custom details have been removed because the original event was too big"}`)
 }
