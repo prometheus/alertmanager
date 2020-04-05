@@ -299,7 +299,7 @@ func TestErrDetails(t *testing.T) {
 
 func TestEventSizeEnforcement(t *testing.T) {
 	bigDetails := map[string]string{
-		"firing": strings.Repeat("a", 1000),
+		"firing": strings.Repeat("a", 1100),
 	}
 
 	// V1 Messages
@@ -313,7 +313,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 		&config.PagerdutyConfig{
 			ServiceKey:   config.Secret("01234567890123456789012345678901"),
 			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 800,
+			MaxEventSize: 1000,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -322,7 +322,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 
 	encodedV1, err := notifierV1.encodeMessage(msgV1)
 	require.NoError(t, err)
-	require.Contains(t, encodedV1.String(), `"details":{"error":"Custom details have been removed because the original event was too big"}`)
+	require.Contains(t, encodedV1.String(), `"details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 1KB"}`)
 
 	// V2 Messages
 	msgV2 := &pagerDutyMessage{
@@ -337,7 +337,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 		&config.PagerdutyConfig{
 			RoutingKey:   config.Secret("01234567890123456789012345678901"),
 			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 800,
+			MaxEventSize: 1000,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -346,5 +346,5 @@ func TestEventSizeEnforcement(t *testing.T) {
 
 	encodedV2, err := notifierV2.encodeMessage(msgV2)
 	require.NoError(t, err)
-	require.Contains(t, encodedV2.String(), `"custom_details":{"error":"Custom details have been removed because the original event was too big"}`)
+	require.Contains(t, encodedV2.String(), `"custom_details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 1KB"}`)
 }

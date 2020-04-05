@@ -114,7 +114,7 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 	}
 
 	if buf.Len() >= n.conf.MaxEventSize {
-		truncated_msg := "Custom details have been removed because the original event was too big"
+		truncated_msg := fmt.Sprintf("Custom details have been removed because the original event exceeds the maximum size of %dKB", n.conf.MaxEventSize/1000)
 
 		if n.apiV1 != "" {
 			error_msg, ok := msg.Details["error"]

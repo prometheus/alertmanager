@@ -214,7 +214,7 @@ type PagerdutyConfig struct {
 	Class        string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component    string            `yaml:"component,omitempty" json:"component,omitempty"`
 	Group        string            `yaml:"group,omitempty" json:"group,omitempty"`
-	MaxEventSize int               `yaml:"max_event_size,omitempty" json:"max_event_size"`
+	MaxEventSize int               `yaml:"max_event_size,omitempty" json:"max_event_size"` // in KB
 }
 
 // PagerdutyLink is a link
