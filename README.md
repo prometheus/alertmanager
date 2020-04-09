@@ -332,7 +332,7 @@ Alertmanager's high availability is in production use at many companies and is e
 
 > Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
 >  - If you are using a firewall, make sure to whitelist the clustering port for both protocols.
->  - If you are using docker, make sure to expose the clustering port for both protocols (i.e. `-p 9094:9094/tcp -p 9094:9094/udp`)
+>  - If you are using docker, make sure to expose the clustering port for both protocols (i.e. `-p 9094:9094/tcp -p 9094:9094/udp`).
 
 To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
