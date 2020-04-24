@@ -40,9 +40,8 @@ import (
 func TestPagerDutyRetryV1(t *testing.T) {
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			ServiceKey:   config.Secret("01234567890123456789012345678901"),
-			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 512000,
+			ServiceKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -59,9 +58,8 @@ func TestPagerDutyRetryV1(t *testing.T) {
 func TestPagerDutyRetryV2(t *testing.T) {
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			RoutingKey:   config.Secret("01234567890123456789012345678901"),
-			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 512000,
+			RoutingKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -82,9 +80,8 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			ServiceKey:   config.Secret(key),
-			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 512000,
+			ServiceKey: config.Secret(key),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -102,10 +99,9 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	key := "01234567890123456789012345678901"
 	notifier, err := New(
 		&config.PagerdutyConfig{
-			URL:          &config.URL{URL: u},
-			RoutingKey:   config.Secret(key),
-			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 512000,
+			URL:        &config.URL{URL: u},
+			RoutingKey: config.Secret(key),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -157,7 +153,6 @@ func TestPagerDutyTemplating(t *testing.T) {
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
 					"num_resolved": `{{ .Alerts.Resolved | len }}`,
 				},
-				MaxEventSize: 512000,
 			},
 		},
 		{
@@ -170,41 +165,36 @@ func TestPagerDutyTemplating(t *testing.T) {
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
 					"num_resolved": `{{ .Alerts.Resolved | len }}`,
 				},
-				MaxEventSize: 512000,
 			},
 			errMsg: "failed to template",
 		},
 		{
 			title: "v2 message with templating errors",
 			cfg: &config.PagerdutyConfig{
-				RoutingKey:   config.Secret("01234567890123456789012345678901"),
-				Severity:     "{{ ",
-				MaxEventSize: 512000,
+				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Severity:   "{{ ",
 			},
 			errMsg: "failed to template",
 		},
 		{
 			title: "v1 message with templating errors",
 			cfg: &config.PagerdutyConfig{
-				ServiceKey:   config.Secret("01234567890123456789012345678901"),
-				Client:       "{{ ",
-				MaxEventSize: 512000,
+				ServiceKey: config.Secret("01234567890123456789012345678901"),
+				Client:     "{{ ",
 			},
 			errMsg: "failed to template",
 		},
 		{
 			title: "routing key cannot be empty",
 			cfg: &config.PagerdutyConfig{
-				RoutingKey:   config.Secret(`{{ "" }}`),
-				MaxEventSize: 512000,
+				RoutingKey: config.Secret(`{{ "" }}`),
 			},
 			errMsg: "routing key cannot be empty",
 		},
 		{
 			title: "service_key cannot be empty",
 			cfg: &config.PagerdutyConfig{
-				ServiceKey:   config.Secret(`{{ "" }}`),
-				MaxEventSize: 512000,
+				ServiceKey: config.Secret(`{{ "" }}`),
 			},
 			errMsg: "service key cannot be empty",
 		},
@@ -212,13 +202,13 @@ func TestPagerDutyTemplating(t *testing.T) {
 			title: "Event is too big",
 			cfg: &config.PagerdutyConfig{
 				RoutingKey: config.Secret("01234567890123456789012345678901"),
+				Group:      strings.Repeat("a", 513000),
 				Details: map[string]string{
 					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
 					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
 					"num_firing":   `{{ .Alerts.Firing | len }}`,
 					"num_resolved": `{{ .Alerts.Resolved | len }}`,
 				},
-				MaxEventSize: 10,
 			},
 			errMsg: "PagerDuty event is too big",
 		},
@@ -299,7 +289,7 @@ func TestErrDetails(t *testing.T) {
 
 func TestEventSizeEnforcement(t *testing.T) {
 	bigDetails := map[string]string{
-		"firing": strings.Repeat("a", 1100),
+		"firing": strings.Repeat("a", 513000),
 	}
 
 	// V1 Messages
@@ -311,9 +301,8 @@ func TestEventSizeEnforcement(t *testing.T) {
 
 	notifierV1, err := New(
 		&config.PagerdutyConfig{
-			ServiceKey:   config.Secret("01234567890123456789012345678901"),
-			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 1000,
+			ServiceKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -322,7 +311,7 @@ func TestEventSizeEnforcement(t *testing.T) {
 
 	encodedV1, err := notifierV1.encodeMessage(msgV1)
 	require.NoError(t, err)
-	require.Contains(t, encodedV1.String(), `"details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 1KB"}`)
+	require.Contains(t, encodedV1.String(), `"details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 512KB"}`)
 
 	// V2 Messages
 	msgV2 := &pagerDutyMessage{
@@ -335,9 +324,8 @@ func TestEventSizeEnforcement(t *testing.T) {
 
 	notifierV2, err := New(
 		&config.PagerdutyConfig{
-			RoutingKey:   config.Secret("01234567890123456789012345678901"),
-			HTTPConfig:   &commoncfg.HTTPClientConfig{},
-			MaxEventSize: 1000,
+			RoutingKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -346,5 +334,5 @@ func TestEventSizeEnforcement(t *testing.T) {
 
 	encodedV2, err := notifierV2.encodeMessage(msgV2)
 	require.NoError(t, err)
-	require.Contains(t, encodedV2.String(), `"custom_details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 1KB"}`)
+	require.Contains(t, encodedV2.String(), `"custom_details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 512KB"}`)
 }

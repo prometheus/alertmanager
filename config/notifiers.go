@@ -57,10 +57,9 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Description:  `{{ template "pagerduty.default.description" .}}`,
-		Client:       `{{ template "pagerduty.default.client" . }}`,
-		ClientURL:    `{{ template "pagerduty.default.clientURL" . }}`,
-		MaxEventSize: 512000,
+		Description: `{{ template "pagerduty.default.description" .}}`,
+		Client:      `{{ template "pagerduty.default.client" . }}`,
+		ClientURL:   `{{ template "pagerduty.default.clientURL" . }}`,
 	}
 
 	// DefaultSlackConfig defines default values for Slack configurations.
@@ -201,20 +200,19 @@ type PagerdutyConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	ServiceKey   Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
-	RoutingKey   Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
-	URL          *URL              `yaml:"url,omitempty" json:"url,omitempty"`
-	Client       string            `yaml:"client,omitempty" json:"client,omitempty"`
-	ClientURL    string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
-	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Details      map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
-	Images       []PagerdutyImage  `yaml:"images,omitempty" json:"images,omitempty"`
-	Links        []PagerdutyLink   `yaml:"links,omitempty" json:"links,omitempty"`
-	Severity     string            `yaml:"severity,omitempty" json:"severity,omitempty"`
-	Class        string            `yaml:"class,omitempty" json:"class,omitempty"`
-	Component    string            `yaml:"component,omitempty" json:"component,omitempty"`
-	Group        string            `yaml:"group,omitempty" json:"group,omitempty"`
-	MaxEventSize int               `yaml:"max_event_size,omitempty" json:"max_event_size"` // in KB
+	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
+	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
+	URL         *URL              `yaml:"url,omitempty" json:"url,omitempty"`
+	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
+	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
+	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+	Images      []PagerdutyImage  `yaml:"images,omitempty" json:"images,omitempty"`
+	Links       []PagerdutyLink   `yaml:"links,omitempty" json:"links,omitempty"`
+	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
+	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
+	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
 }
 
 // PagerdutyLink is a link
