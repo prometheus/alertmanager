@@ -295,7 +295,8 @@ $ amtool silence expire $(amtool silence query -q)
 An example configuration file might look like the following:
 
 ```
-# Define the path that `amtool` can find your `alertmanager` instance at alertmanager.url: "http://localhost:9093"
+# Define the path that `amtool` can find your `alertmanager` instance
+alertmanager.url: "http://localhost:9093"
 
 # Override the default author. (unset defaults to your username)
 author: me@example.com
