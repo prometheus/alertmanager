@@ -37,6 +37,8 @@ import (
 
 const MaxEventSize int = 512000
 
+var truncatedCustomDetailsMsg = fmt.Sprintf("Custom details have been removed because the original event exceeds the maximum size of %s", units.MetricBytes(MaxEventSize).String())
+
 // Notifier implements a Notifier for PagerDuty notifications.
 type Notifier struct {
 	conf    *config.PagerdutyConfig
@@ -117,23 +119,21 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 	}
 
 	if buf.Len() >= MaxEventSize {
-		truncatedMsg := fmt.Sprintf("Custom details have been removed because the original event exceeds the maximum size of %s", units.MetricBytes(MaxEventSize).String())
-
 		if n.apiV1 != "" {
 			errorMsg, ok := msg.Details["error"]
-			if ok && errorMsg == truncatedMsg {
+			if ok && errorMsg == truncatedCustomDetailsMsg {
 				return buf, errors.New("PagerDuty event is too big")
 			}
 
-			msg.Details = map[string]string{"error": truncatedMsg}
+			msg.Details = map[string]string{"error": truncatedCustomDetailsMsg}
 			return n.encodeMessage(msg)
 		} else {
 			errorMsg, ok := msg.Payload.CustomDetails["error"]
-			if ok && errorMsg == truncatedMsg {
+			if ok && errorMsg == truncatedCustomDetailsMsg {
 				return buf, errors.New("PagerDuty event is too big")
 			}
 
-			msg.Payload.CustomDetails = map[string]string{"error": truncatedMsg}
+			msg.Payload.CustomDetails = map[string]string{"error": truncatedCustomDetailsMsg}
 			return n.encodeMessage(msg)
 		}
 	}
