@@ -198,20 +198,6 @@ func TestPagerDutyTemplating(t *testing.T) {
 			},
 			errMsg: "service key cannot be empty",
 		},
-		{
-			title: "Event is too big",
-			cfg: &config.PagerdutyConfig{
-				RoutingKey: config.Secret("01234567890123456789012345678901"),
-				Group:      strings.Repeat("a", 513000),
-				Details: map[string]string{
-					"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
-					"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
-					"num_firing":   `{{ .Alerts.Firing | len }}`,
-					"num_resolved": `{{ .Alerts.Resolved | len }}`,
-				},
-			},
-			errMsg: "PagerDuty event is too big",
-		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			tc.cfg.URL = &config.URL{URL: u}
