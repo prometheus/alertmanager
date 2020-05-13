@@ -111,6 +111,7 @@ func Execute() {
 	configureAlertCmd(app)
 	configureSilenceCmd(app)
 	configureCheckConfigCmd(app)
+	configureClusterCmd(app)
 	configureConfigCmd(app)
 
 	err = resolver.Bind(app, os.Args[1:])
