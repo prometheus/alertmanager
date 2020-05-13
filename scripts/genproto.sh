@@ -14,20 +14,20 @@ if ! [[ "$0" =~ "scripts/genproto.sh" ]]; then
     exit 255
 fi
 
-if ! [[ $(protoc --version) =~ "3.5.1" ]]; then
-    echo "could not find protoc 3.5.1, is it installed + in PATH?"
+if ! [[ $(protoc --version) =~ "3.11.4" ]]; then
+    echo "could not find protoc 3.11.4, is it installed + in PATH?"
     exit 255
 fi
 
 echo "installing plugins"
-GO111MODULE=on go mod download
+go mod download
 
 INSTALL_PKGS="golang.org/x/tools/cmd/goimports github.com/gogo/protobuf/protoc-gen-gogofast"
 for pkg in ${INSTALL_PKGS}; do
-    GO111MODULE=on go install -mod=vendor "$pkg"
+    go install -mod=vendor "$pkg"
 done
 
-GOGOPROTO_ROOT="$(GO111MODULE=on go list -f '{{ .Dir }}' -m github.com/gogo/protobuf)"
+GOGOPROTO_ROOT="$(go list -mod=readonly -f '{{ .Dir }}' -m github.com/gogo/protobuf)"
 GOGOPROTO_PATH="${GOGOPROTO_ROOT}:${GOGOPROTO_ROOT}/protobuf"
 
 DIRS="nflog/nflogpb silence/silencepb cluster/clusterpb"
