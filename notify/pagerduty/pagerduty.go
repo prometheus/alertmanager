@@ -35,7 +35,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-const MaxEventSize int = 512000
+const maxEventSize int = 512000
 
 // Notifier implements a Notifier for PagerDuty notifications.
 type Notifier struct {
@@ -116,8 +116,8 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 		return buf, errors.Wrap(err, "failed to encode PagerDuty message")
 	}
 
-	if buf.Len() >= MaxEventSize {
-		truncatedMsg := fmt.Sprintf("Custom details have been removed because the original event exceeds the maximum size of %s", units.MetricBytes(MaxEventSize).String())
+	if buf.Len() > maxEventSize {
+		truncatedMsg := fmt.Sprintf("Custom details have been removed because the original event exceeds the maximum size of %s", units.MetricBytes(maxEventSize).String())
 
 		if n.apiV1 != "" {
 			msg.Details = map[string]string{"error": truncatedMsg}
@@ -125,7 +125,7 @@ func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
 			msg.Payload.CustomDetails = map[string]string{"error": truncatedMsg}
 		}
 
-		warningMsg := fmt.Sprintf("Truncated Details because message of size %s exceeds limit %s", units.MetricBytes(buf.Len()).String(), units.MetricBytes(MaxEventSize).String())
+		warningMsg := fmt.Sprintf("Truncated Details because message of size %s exceeds limit %s", units.MetricBytes(buf.Len()).String(), units.MetricBytes(maxEventSize).String())
 		level.Warn(n.logger).Log("msg", warningMsg)
 
 		buf.Reset()
