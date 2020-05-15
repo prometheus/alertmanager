@@ -1,6 +1,7 @@
 module github.com/prometheus/alertmanager
 
 require (
+	github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4
 	github.com/cenkalti/backoff v0.0.0-20181003080854-62661b46c409
 	github.com/cespare/xxhash v1.1.0
 	github.com/go-kit/kit v0.9.0
