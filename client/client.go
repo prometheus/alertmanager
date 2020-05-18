@@ -84,10 +84,10 @@ func (e *clientError) Error() string {
 	return fmt.Sprintf("%s (code: %d)", e.msg, e.code)
 }
 
-func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
-	resp, body, warnings, err := c.Client.Do(ctx, req)
+func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	resp, body, err := c.Client.Do(ctx, req)
 	if err != nil {
-		return resp, body, warnings, err
+		return resp, body, err
 	}
 
 	code := resp.StatusCode
@@ -96,14 +96,14 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	if err = json.Unmarshal(body, &result); err != nil {
 		// Pass the returned body rather than the JSON error because some API
 		// endpoints return plain text instead of JSON payload.
-		return resp, body, warnings, &clientError{
+		return resp, body, &clientError{
 			code: code,
 			msg:  string(body),
 		}
 	}
 
 	if (code/100 == 2) && (result.Status != statusSuccess) {
-		return resp, body, warnings, &clientError{
+		return resp, body, &clientError{
 			code: code,
 			msg:  "inconsistent body for response code",
 		}
@@ -116,7 +116,7 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 		}
 	}
 
-	return resp, []byte(result.Data), warnings, err
+	return resp, []byte(result.Data), err
 }
 
 // StatusAPI provides bindings for the Alertmanager's status API.
@@ -142,7 +142,7 @@ func (h *httpStatusAPI) Get(ctx context.Context) (*ServerStatus, error) {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (h *httpAlertAPI) List(ctx context.Context, filter, receiver string, silenc
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, body, _, err := h.client.Do(ctx, req) // ignoring warnings.
+	_, body, err := h.client.Do(ctx, req) // ignoring warnings.
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (h *httpAlertAPI) Push(ctx context.Context, alerts ...Alert) error {
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, _, _, err = h.client.Do(ctx, req) // Ignoring warnings.
+	_, _, err = h.client.Do(ctx, req)
 	return err
 }
 
@@ -273,7 +273,7 @@ func (h *httpSilenceAPI) Get(ctx context.Context, id string) (*types.Silence, er
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (h *httpSilenceAPI) Expire(ctx context.Context, id string) error {
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, _, _, err = h.client.Do(ctx, req) // Ignoring warnings.
+	_, _, err = h.client.Do(ctx, req)
 	return err
 }
 
@@ -311,7 +311,7 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil types.Silence) (string, er
 		return "", fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -337,7 +337,7 @@ func (h *httpSilenceAPI) List(ctx context.Context, filter string) ([]*types.Sile
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, body, _, err := h.client.Do(ctx, req) // Ignoring warnings.
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
