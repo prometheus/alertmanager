@@ -1,7 +1,9 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, a, button, div, fieldset, h1, input, label, legend, span, strong, text, textarea)
+import Date exposing (Date)
+import DatePicker
+import Html exposing (Html, a, button, div, fieldset, h1, i, input, label, legend, span, strong, text, textarea)
 import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
 import Utils.Filter exposing (SilenceFormGetParams, emptySilenceFormGetParams)
@@ -10,7 +12,7 @@ import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
+import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), datePickerSettings)
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
@@ -27,6 +29,14 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
     div []
         [ h1 [] [ text title ]
         , timeInput form.startsAt form.endsAt form.duration
+        , div [ class "row justify-content-strat" ]
+            [ DatePicker.view form.startsAtDate datePickerSettings form.startsAtDatePicker
+                |> Html.map (StartsAtDatePicker >> UpdateField)
+            ]
+        , div [ class "row justify-content-end" ]
+            [ DatePicker.view form.endsAtDate datePickerSettings form.endsAtDatePicker
+                |> Html.map (EndsAtDatePicker >> UpdateField)
+            ]
         , matcherInput form.matchers
         , validatedField input
             "Creator"
@@ -57,10 +67,23 @@ timeInput startsAt endsAt duration =
     div [ class <| "row " ++ inputSectionPadding ]
         [ validatedField input
             "Start"
-            "col-5"
+            "col-4 pr-0"
             (UpdateStartsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             startsAt
+        , div [ class "flex-column form-group" ]
+            [ label
+                []
+                [ text "\u{00A0}" ]
+            , button
+                [ class "form-control"
+                , onClick (StartsAtDatePickerDisplayAction |> UpdateField)
+                ]
+                [ i
+                    [ class "fa fa-calendar" ]
+                    []
+                ]
+            ]
         , validatedField input
             "Duration"
             "col-2"
@@ -69,10 +92,23 @@ timeInput startsAt endsAt duration =
             duration
         , validatedField input
             "End"
-            "col-5"
+            "col-4 pr-0"
             (UpdateEndsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             endsAt
+        , div [ class "flex-column form-group" ]
+            [ label
+                []
+                [ text "\u{00A0}" ]
+            , button
+                [ class "form-control"
+                , onClick (EndsAtDatePickerDisplayAction |> UpdateField)
+                ]
+                [ i
+                    [ class "fa fa-calendar" ]
+                    []
+                ]
+            ]
         ]
 
 

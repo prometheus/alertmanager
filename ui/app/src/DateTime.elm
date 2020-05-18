@@ -1,10 +1,11 @@
-module DateTime exposing (DateTime, decoder, encoder, toString)
+module DateTime exposing (DateTime, decoder, encoder, toDate, toString)
 
+import Date exposing (Date, fromPosix)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Result
-import Time
+import Time exposing (utc)
 
 
 type alias DateTime =
@@ -35,3 +36,8 @@ decodeIsoString str =
 toString : DateTime -> String
 toString =
     Iso8601.fromTime
+
+
+toDate : Time.Posix -> Date
+toDate time =
+    fromPosix utc time

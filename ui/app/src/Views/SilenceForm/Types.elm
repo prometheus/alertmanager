@@ -4,6 +4,7 @@ module Views.SilenceForm.Types exposing
     , SilenceForm
     , SilenceFormFieldMsg(..)
     , SilenceFormMsg(..)
+    , datePickerSettings
     , emptyMatcher
     , fromMatchersAndCommentAndTime
     , fromSilence
@@ -18,8 +19,12 @@ import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.PostableSilence exposing (PostableSilence)
+import Date exposing (Date, fromPosix)
+import DatePicker exposing (defaultSettings)
+import DateTime exposing (toDate)
+import Html.Attributes exposing (hidden)
 import Silences.Types exposing (nullSilence)
-import Time exposing (Posix)
+import Time exposing (Posix, utc)
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
 import Utils.Filter
 import Utils.FormValidation
@@ -50,6 +55,10 @@ type alias SilenceForm =
     , endsAt : ValidatedField
     , duration : ValidatedField
     , matchers : List MatcherForm
+    , startsAtDate : Maybe Date
+    , startsAtDatePicker : DatePicker.DatePicker
+    , endsAtDate : Maybe Date
+    , endsAtDatePicker : DatePicker.DatePicker
     }
 
 
@@ -89,6 +98,10 @@ type SilenceFormFieldMsg
     | UpdateMatcherValue Int String
     | ValidateMatcherValue Int
     | UpdateMatcherRegex Int Bool
+    | StartsAtDatePicker DatePicker.Msg
+    | EndsAtDatePicker DatePicker.Msg
+    | StartsAtDatePickerDisplayAction
+    | EndsAtDatePickerDisplayAction
 
 
 initSilenceForm : Key -> Model
@@ -124,6 +137,16 @@ toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
 
 fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
+    let
+        date =
+            toDate startsAt
+
+        maybeDate =
+            Just date
+
+        datePicker =
+            DatePicker.initFromDate date
+    in
     { id = Just id
     , createdBy = initialField createdBy
     , comment = initialField comment
@@ -131,11 +154,15 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
     , matchers = List.map fromMatcher matchers
+    , startsAtDate = maybeDate
+    , startsAtDatePicker = datePicker
+    , endsAtDate = maybeDate
+    , endsAtDatePicker = datePicker
     }
 
 
 validateForm : SilenceForm -> SilenceForm
-validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers, startsAtDate, startsAtDatePicker, endsAtDate, endsAtDatePicker } =
     { id = id
     , createdBy = validate stringNotEmpty createdBy
     , comment = validate stringNotEmpty comment
@@ -143,6 +170,10 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
     , endsAt = validate (parseEndsAt startsAt.value) endsAt
     , duration = validate parseDuration duration
     , matchers = List.map validateMatcherForm matchers
+    , startsAtDate = startsAtDate
+    , startsAtDatePicker = startsAtDatePicker
+    , endsAtDate = endsAtDate
+    , endsAtDatePicker = endsAtDatePicker
     }
 
 
@@ -170,6 +201,10 @@ validateMatcherForm { name, value, isRegex } =
 
 empty : SilenceForm
 empty =
+    let
+        ( datePicker, _ ) =
+            DatePicker.init
+    in
     { id = Nothing
     , createdBy = initialField ""
     , comment = initialField ""
@@ -177,6 +212,10 @@ empty =
     , endsAt = initialField ""
     , duration = initialField ""
     , matchers = []
+    , startsAtDate = Nothing
+    , startsAtDatePicker = datePicker
+    , endsAtDate = Nothing
+    , endsAtDatePicker = datePicker
     }
 
 
@@ -196,6 +235,13 @@ defaultDuration =
 
 fromMatchersAndCommentAndTime : String -> List Utils.Filter.Matcher -> String -> Posix -> SilenceForm
 fromMatchersAndCommentAndTime defaultCreator matchers comment now =
+    let
+        datePicker =
+            DatePicker.initFromDate (fromPosix utc now)
+
+        maybeDate =
+            Just (toDate now)
+    in
     { empty
         | startsAt = initialField (timeToString now)
         , endsAt = initialField (timeToString (addDuration defaultDuration now))
@@ -209,6 +255,10 @@ fromMatchersAndCommentAndTime defaultCreator matchers comment now =
             else
                 List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
         , comment = initialField comment
+        , startsAtDate = maybeDate
+        , startsAtDatePicker = datePicker
+        , endsAtDate = maybeDate
+        , endsAtDatePicker = datePicker
     }
 
 
@@ -238,4 +288,23 @@ fromMatcher { name, value, isRegex } =
     { name = initialField name
     , value = initialField value
     , isRegex = isRegex
+    }
+
+
+datePickerSettings : DatePicker.Settings
+datePickerSettings =
+    let
+        inputAttributes =
+            [ hidden True ]
+
+        containerClassList =
+            [ ( "col-5", True ) ]
+
+        placeholder =
+            ""
+    in
+    { defaultSettings
+        | inputAttributes = inputAttributes
+        , containerClassList = containerClassList
+        , placeholder = placeholder
     }

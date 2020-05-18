@@ -2,9 +2,12 @@ port module Views.SilenceForm.Updates exposing (update)
 
 import Alerts.Api
 import Browser.Navigation as Navigation
+import Date exposing (Date, fromPosix)
+import DatePicker exposing (DateEvent(..), isOpen)
 import Silences.Api
+import String
 import Task
-import Time
+import Time exposing (millisToPosix, utc)
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
 import Utils.Filter exposing (silencePreviewFilter)
@@ -17,6 +20,7 @@ import Views.SilenceForm.Types
         , SilenceForm
         , SilenceFormFieldMsg(..)
         , SilenceFormMsg(..)
+        , datePickerSettings
         , emptyMatcher
         , fromMatchersAndCommentAndTime
         , fromSilence
@@ -171,6 +175,120 @@ updateForm msg form =
                         form.matchers
             in
             { form | matchers = matchers }
+
+        StartsAtDatePicker subMsg ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    DatePicker.update datePickerSettings subMsg form.startsAtDatePicker
+
+                newDate =
+                    case dateEvent of
+                        Picked changedDate ->
+                            Just changedDate
+
+                        _ ->
+                            form.startsAtDate
+
+                strDate =
+                    newDate |> Maybe.withDefault (fromPosix utc (millisToPosix 0)) |> Date.toIsoString
+
+                time =
+                    strDate ++ String.dropLeft 10 form.startsAt.value
+
+                startsAt =
+                    Utils.Date.timeFromString time
+
+                endsAt =
+                    Utils.Date.timeFromString form.endsAt.value
+
+                durationValue =
+                    case Result.map2 Utils.Date.timeDifference startsAt endsAt of
+                        Ok duration ->
+                            case Utils.Date.durationFormat duration of
+                                Just value ->
+                                    value
+
+                                Nothing ->
+                                    form.duration.value
+
+                        Err _ ->
+                            form.duration.value
+            in
+            { form
+                | startsAt = updateValue time form.startsAt
+                , duration = updateValue durationValue form.duration
+                , startsAtDate = newDate
+                , startsAtDatePicker = newDatePicker
+            }
+
+        EndsAtDatePicker subMsg ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    DatePicker.update datePickerSettings subMsg form.endsAtDatePicker
+
+                newDate =
+                    case dateEvent of
+                        Picked changedDate ->
+                            Just changedDate
+
+                        _ ->
+                            form.endsAtDate
+
+                strDate =
+                    newDate |> Maybe.withDefault (fromPosix utc (millisToPosix 0)) |> Date.toIsoString
+
+                time =
+                    strDate ++ String.dropLeft 10 form.endsAt.value
+
+                endsAt =
+                    Utils.Date.timeFromString time
+
+                startsAt =
+                    Utils.Date.timeFromString form.startsAt.value
+
+                durationValue =
+                    case Result.map2 Utils.Date.timeDifference startsAt endsAt of
+                        Ok duration ->
+                            case Utils.Date.durationFormat duration of
+                                Just value ->
+                                    value
+
+                                Nothing ->
+                                    form.duration.value
+
+                        Err _ ->
+                            form.duration.value
+            in
+            { form
+                | endsAt = updateValue time form.endsAt
+                , duration = updateValue durationValue form.duration
+                , endsAtDate = newDate
+                , endsAtDatePicker = newDatePicker
+            }
+
+        StartsAtDatePickerDisplayAction ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    case isOpen form.startsAtDatePicker of
+                        True ->
+                            DatePicker.update datePickerSettings DatePicker.close form.startsAtDatePicker
+
+                        _ ->
+                            DatePicker.update datePickerSettings DatePicker.open form.startsAtDatePicker
+            in
+            { form | startsAtDatePicker = newDatePicker }
+
+        EndsAtDatePickerDisplayAction ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    case isOpen form.endsAtDatePicker of
+                        True ->
+                            DatePicker.update datePickerSettings DatePicker.close form.endsAtDatePicker
+
+                        _ ->
+                            DatePicker.update datePickerSettings DatePicker.open form.endsAtDatePicker
+            in
+            { form | endsAtDatePicker = newDatePicker }
 
 
 update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
