@@ -21,7 +21,7 @@ import Data.Matcher exposing (Matcher)
 import Data.PostableSilence exposing (PostableSilence)
 import Date exposing (Date, fromPosix)
 import DatePicker exposing (defaultSettings)
-import DateTime exposing (toDate)
+import DateTime exposing (DateTime)
 import Html.Attributes exposing (hidden)
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix, utc)
@@ -139,7 +139,7 @@ fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     let
         date =
-            toDate startsAt
+            DateTime.toDate startsAt
 
         maybeDate =
             Just date
@@ -240,7 +240,7 @@ fromMatchersAndCommentAndTime defaultCreator matchers comment now =
             DatePicker.initFromDate (fromPosix utc now)
 
         maybeDate =
-            Just (toDate now)
+            Just (DateTime.toDate now)
     in
     { empty
         | startsAt = initialField (timeToString now)
