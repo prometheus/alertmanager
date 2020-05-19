@@ -27,6 +27,8 @@ jobs:
         name: Generate front-end code
         command: make all
         working_directory: ~/project/ui/app
+        environment:
+          JUNIT_DIR: ~/test-results
     - run:
         name: Generate assets
         command: make assets
@@ -34,6 +36,8 @@ jobs:
         name: Generate API v2 code
         command: make apiv2
     - run: git diff --exit-code
+    - store_test_results:
+        path: ~/test-results
 
   test:
     docker:
