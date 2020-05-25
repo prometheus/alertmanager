@@ -4,7 +4,7 @@ import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Result
-import Time exposing (utc)
+import Time
 
 
 type alias DateTime =
