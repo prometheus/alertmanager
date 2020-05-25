@@ -678,7 +678,7 @@ type InhibitRule struct {
 	// for them to be a match.
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
 	// Compare all labels except those in source and target matchers
-	EqualAll bool `yaml:"equal_all,omitempty" json:"equal,omitempty"`
+	EqualAll bool `yaml:"equal_all,omitempty" json:"equal_all,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
