@@ -139,7 +139,7 @@ fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     let
         date =
-            DateTime.toDate startsAt
+            fromPosix utc startsAt
 
         maybeDate =
             Just date
@@ -240,7 +240,7 @@ fromMatchersAndCommentAndTime defaultCreator matchers comment now =
             DatePicker.initFromDate (fromPosix utc now)
 
         maybeDate =
-            Just (DateTime.toDate now)
+            Just (fromPosix utc now)
     in
     { empty
         | startsAt = initialField (timeToString now)
