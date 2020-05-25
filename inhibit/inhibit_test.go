@@ -34,10 +34,11 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 
 	now := time.Now()
 	cases := []struct {
-		initial map[model.Fingerprint]*types.Alert
-		equal   model.LabelNames
-		input   model.LabelSet
-		result  bool
+		initial  map[model.Fingerprint]*types.Alert
+		equal    model.LabelNames
+		equalAll bool
+		input    model.LabelSet
+		result   bool
 	}{
 		{
 			// No source alerts at all.
@@ -117,12 +118,59 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			input:  model.LabelSet{"a": "b"},
 			result: false,
 		},
+		{
+			// EqualAll label does not match.
+			initial: map[model.Fingerprint]*types.Alert{
+				1: &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "c", "c": "d"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Minute),
+					},
+				},
+				2: &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "c", "c": "f"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Minute),
+					},
+				},
+			},
+			equal:    model.LabelNames{},
+			equalAll: true,
+			input:    model.LabelSet{"a": "b"},
+			result:   false,
+		},
+		{
+			// EqualAll
+			initial: map[model.Fingerprint]*types.Alert{
+				1: &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "c", "c": "d"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Minute),
+					},
+				},
+				2: &types.Alert{
+					Alert: model.Alert{
+						Labels:   model.LabelSet{"a": "c", "c": "d"},
+						StartsAt: now.Add(-time.Minute),
+						EndsAt:   now.Add(time.Minute),
+					},
+				},
+			},
+			equal:    model.LabelNames{},
+			equalAll: true,
+			input:    model.LabelSet{"a": "c", "c": "d"},
+			result:   true,
+		},
 	}
 
 	for _, c := range cases {
 		r := &InhibitRule{
-			Equal:  map[model.LabelName]struct{}{},
-			scache: store.NewAlerts(),
+			Equal:    map[model.LabelName]struct{}{},
+			EqualAll: c.equalAll,
+			scache:   store.NewAlerts(),
 		}
 		for _, ln := range c.equal {
 			r.Equal[ln] = struct{}{}

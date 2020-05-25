@@ -159,6 +159,8 @@ type InhibitRule struct {
 	// A set of label names whose label values need to be identical in source and
 	// target alerts in order for the inhibition to take effect.
 	Equal map[model.LabelName]struct{}
+	// Whether to compare all labels except the ones in source and target matchers
+	EqualAll bool
 
 	// Cache of alerts matching source labels.
 	scache *store.Alerts
@@ -212,6 +214,33 @@ Outer:
 		for n := range r.Equal {
 			if a.Labels[n] != lset[n] {
 				continue Outer
+			}
+		}
+		if r.EqualAll {
+			commonLabels := make(map[model.LabelName]struct{})
+			for k := range lset {
+				commonLabels[k] = struct{}{}
+			}
+			for k := range a.Labels {
+				_, ok := commonLabels[k]
+				if !ok {
+					delete(commonLabels, k)
+				}
+			}
+
+			for _, matcher := range r.SourceMatchers {
+				delete(commonLabels, model.LabelName(matcher.Name))
+			}
+			for _, matcher := range r.TargetMatchers {
+				delete(commonLabels, model.LabelName(matcher.Name))
+			}
+
+			if len(commonLabels) > 0 {
+				for k := range commonLabels {
+					if a.Labels[k] != lset[k] {
+						continue Outer
+					}
+				}
 			}
 		}
 		if excludeTwoSidedMatch && r.TargetMatchers.Match(a.Labels) {
