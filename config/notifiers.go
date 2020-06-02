@@ -409,6 +409,10 @@ type WebhookConfig struct {
 
 	// URL to send POST request to.
 	URL *URL `yaml:"url" json:"url"`
+	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts.
+	MaxAlerts int `yaml:"max_alerts" json:"max_alerts"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

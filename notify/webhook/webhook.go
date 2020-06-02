@@ -73,9 +73,17 @@ type Message struct {
 	GroupKey string `json:"groupKey"`
 }
 
+func truncateAlerts(maxAlerts int, alerts []*types.Alert) []*types.Alert {
+	if maxAlerts > 0 && len(alerts) > maxAlerts {
+		return alerts[:maxAlerts]
+	}
+
+	return alerts
+}
+
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
+	data := notify.GetTemplateData(ctx, n.tmpl, truncateAlerts(n.conf.MaxAlerts, alerts), n.logger)
 
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
