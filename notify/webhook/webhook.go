@@ -71,7 +71,7 @@ type Message struct {
 	// The protocol version.
 	Version         string `json:"version"`
 	GroupKey        string `json:"groupKey"`
-	TruncatedAlerts uint64 `json:"truncatedAlerts`
+	TruncatedAlerts uint64 `json:"truncatedAlerts"`
 }
 
 func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
