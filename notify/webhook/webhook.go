@@ -73,8 +73,8 @@ type Message struct {
 	GroupKey string `json:"groupKey"`
 }
 
-func truncateAlerts(maxAlerts int, alerts []*types.Alert) []*types.Alert {
-	if maxAlerts > 0 && len(alerts) > maxAlerts {
+func truncateAlerts(maxAlerts uint32, alerts []*types.Alert) []*types.Alert {
+	if maxAlerts != 0 && uint32(len(alerts)) > maxAlerts {
 		return alerts[:maxAlerts]
 	}
 

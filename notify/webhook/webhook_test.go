@@ -52,7 +52,6 @@ func TestWebhookRetry(t *testing.T) {
 func TestWebhookTruncateAlerts(t *testing.T) {
 	alerts := make([]*types.Alert, 10)
 	require.Len(t, truncateAlerts(0, alerts), 10)
-	require.Len(t, truncateAlerts(-1, alerts), 10)
 	require.Len(t, truncateAlerts(5, alerts), 5)
 	require.Len(t, truncateAlerts(100, alerts), 10)
 }
