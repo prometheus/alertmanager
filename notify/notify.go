@@ -676,7 +676,11 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				// integration upon context timeout.
 				iErr = err
 			} else {
-				level.Debug(l).Log("msg", "Notify success", "attempts", i)
+				lvl := level.Debug(l)
+				if i > 1 {
+					lvl = level.Info(l)
+				}
+				lvl.Log("msg", "Notify success", "attempts", i)
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
