@@ -120,9 +120,27 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
-	details := make(map[string]string, len(n.conf.Details))
-	for k, v := range n.conf.Details {
-		details[k] = tmpl(v)
+	var details map[string]string
+
+	if n.conf.AllLabelsAsDetails {
+		details = make(map[string]string, len(data.CommonLabels))
+		for k, v := range data.CommonLabels {
+			details[k] = v
+		}
+	} else if len(n.conf.LabelsAsDetails) > 0 {
+		details = make(map[string]string, len(n.conf.LabelsAsDetails))
+		for _, k := range n.conf.LabelsAsDetails {
+			if v, ok := data.CommonLabels[k]; ok {
+				details[k] = v
+			} else {
+				details[k] = "N/A"
+			}
+		}
+	} else {
+		details = make(map[string]string, len(n.conf.Details))
+		for k, v := range n.conf.Details {
+			details[k] = tmpl(v)
+		}
 	}
 
 	var (
