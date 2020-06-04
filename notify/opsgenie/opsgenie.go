@@ -122,18 +122,20 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	var details map[string]string
 
-	if n.conf.AllLabelsAsDetails {
+	if n.conf.DetailsLabelsAll {
 		details = make(map[string]string, len(data.CommonLabels))
 		for k, v := range data.CommonLabels {
 			details[k] = v
 		}
-	} else if len(n.conf.LabelsAsDetails) > 0 {
-		details = make(map[string]string, len(n.conf.LabelsAsDetails))
-		for _, k := range n.conf.LabelsAsDetails {
-			if v, ok := data.CommonLabels[k]; ok {
-				details[k] = v
+	} else if len(n.conf.DetailsLabels) > 0 {
+		details = make(map[string]string, len(n.conf.DetailsLabels))
+		for _, k := range n.conf.DetailsLabels {
+			label := string(k)
+
+			if v, ok := data.CommonLabels[label]; ok {
+				details[label] = v
 			} else {
-				details[k] = "N/A"
+				details[label] = "N/A"
 			}
 		}
 	} else {
