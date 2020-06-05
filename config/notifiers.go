@@ -22,7 +22,6 @@ import (
 	"github.com/pkg/errors"
 
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 )
 
 var (
@@ -457,18 +456,17 @@ type OpsGenieConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey           Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIURL           *URL                      `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	Message          string                    `yaml:"message,omitempty" json:"message,omitempty"`
-	Description      string                    `yaml:"description,omitempty" json:"description,omitempty"`
-	Source           string                    `yaml:"source,omitempty" json:"source,omitempty"`
-	Details          map[string]string         `yaml:"details,omitempty" json:"details,omitempty"`
-	DetailsLabels    []string                  `yaml:"details_labels,omitempty" json:"details_labels,omitempty"`
-	DetailsLabelsAll bool                      `yaml:"-" json:"-"`
-	Responders       []OpsGenieConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
-	Tags             string                    `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Note             string                    `yaml:"note,omitempty" json:"note,omitempty"`
-	Priority         string                    `yaml:"priority,omitempty" json:"priority,omitempty"`
+	APIKey                 Secret                    `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIURL                 *URL                      `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Message                string                    `yaml:"message,omitempty" json:"message,omitempty"`
+	Description            string                    `yaml:"description,omitempty" json:"description,omitempty"`
+	Source                 string                    `yaml:"source,omitempty" json:"source,omitempty"`
+	Details                map[string]string         `yaml:"details,omitempty" json:"details,omitempty"`
+	DetailsUseCommonLabels bool                      `yaml:"details_use_common_labels,omitempty" json:"details_use_common_labels,omitempty"`
+	Responders             []OpsGenieConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
+	Tags                   string                    `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Note                   string                    `yaml:"note,omitempty" json:"note,omitempty"`
+	Priority               string                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 }
 
 const opsgenieValidTypesRe = `^(team|user|escalation|schedule)$`
@@ -494,19 +492,8 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		}
 	}
 
-	if c.DetailsLabels != nil && c.Details != nil {
-		return errors.Errorf("OpsGenieConfig can only contain details or details_labels, but both fields were provided")
-	}
-
-	for _, l := range c.DetailsLabels {
-		if l == "..." {
-			c.DetailsLabelsAll = true
-		} else {
-			labelName := model.LabelName(l)
-			if !labelName.IsValid() {
-				return errors.Errorf("invalid label name %q in details_labels list", l)
-			}
-		}
+	if c.Details != nil && c.DetailsUseCommonLabels == true {
+		return errors.Errorf("OpsGenieConfig can only contain details or details_use_common_labels, but both fields were provided")
 	}
 
 	return nil
