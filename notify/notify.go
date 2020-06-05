@@ -661,9 +661,10 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		return ctx, nil, fmt.Errorf("group_interval missing")
 	}
 
-	a := groupInterval / 3
-	if b.MaxElapsedTime > a {
-		b.MaxElapsedTime = a
+	//
+	retryTimeOut := groupInterval / 5
+	if b.MaxElapsedTime > retryTimeOut {
+		b.MaxElapsedTime = retryTimeOut
 	}
 
 	tick := backoff.NewTicker(b)
@@ -685,7 +686,11 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		select {
 		// now this is a real bug, if tick.C stop and next flush not coming yet, then this case will always match sinc <-tick.C will always
 		// get a zero value.
-		case <-tick.C:
+		case t := <-tick.C:
+			// if get zero value from this channel, must be retry timeout
+			if t.IsZero() {
+				return ctx, alerts, iErr
+			}
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
