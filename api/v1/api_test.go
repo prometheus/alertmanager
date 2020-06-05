@@ -525,15 +525,15 @@ func TestSilenceFiltering(t *testing.T) {
 }
 
 func TestReceiversMatchFilter(t *testing.T) {
-	receivers := []string{"pagerduty", "slack", "hipchat"}
+	receivers := []string{"pagerduty", "slack", "pushover"}
 
-	filter, err := regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip.*"))
+	filter, err := regexp.Compile(fmt.Sprintf("^(?:%s)$", "push.*"))
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
 	require.True(t, receiversMatchFilter(receivers, filter))
 
-	filter, err = regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip"))
+	filter, err = regexp.Compile(fmt.Sprintf("^(?:%s)$", "push"))
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
