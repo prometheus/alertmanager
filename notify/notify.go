@@ -102,6 +102,7 @@ const (
 	keyFiringAlerts
 	keyResolvedAlerts
 	keyNow
+	keyGroupInterval
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -137,6 +138,18 @@ func WithNow(ctx context.Context, t time.Time) context.Context {
 // WithRepeatInterval populates a context with a repeat interval.
 func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 	return context.WithValue(ctx, keyRepeatInterval, t)
+}
+
+// WithGroupInterval populates a context with a group interval
+func WithGroupInterval(ctx context.Context, t time.Duration) context.Context {
+	return context.WithValue(ctx, keyGroupInterval, t)
+}
+
+// GroupInterval extracts a repeat interval from the context. Iff none exists, the
+// second argument is false.
+func GroupInterval(ctx context.Context) (time.Duration, bool) {
+	v, ok := ctx.Value(keyGroupInterval).(time.Duration)
+	return v, ok
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -637,11 +650,23 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	}
 
 	var (
-		i    = 0
-		b    = backoff.NewExponentialBackOff()
-		tick = backoff.NewTicker(b)
+		i = 0
+		b = backoff.NewExponentialBackOff()
+		//tick = backoff.NewTicker(b)
 		iErr error
 	)
+
+	groupInterval, ok := GroupInterval(ctx)
+	if !ok {
+		return ctx, nil, fmt.Errorf("group_interval missing")
+	}
+
+	a := groupInterval / 3
+	if b.MaxElapsedTime > a {
+		b.MaxElapsedTime = a
+	}
+
+	tick := backoff.NewTicker(b)
 	defer tick.Stop()
 
 	for {
@@ -658,6 +683,8 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		}
 
 		select {
+		// now this is a real bug, if tick.C stop and next flush not coming yet, then this case will always match sinc <-tick.C will always
+		// get a zero value.
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
