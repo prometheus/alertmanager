@@ -48,13 +48,13 @@ src/Data: ../../api/v2/openapi.yaml
 		-i /local/api/v2/openapi.yaml \
 	  -g elm \
 		-o /local/ui/app/$(TEMPOPENAPI)
-	# We only want data directory & DateTime package.
+	# We only want data directory & DateTimeLocal package.
 	cp -r $(TEMPOPENAPI)/src/Data src/Data
-	cp -r $(TEMPOPENAPI)/src/DateTime.elm src/DateTime.elm
+	cp -r $(TEMPOPENAPI)/src/DateTimeLocal.elm src/DateTimeLocal.elm
 	rm -rf $(TEMPOPENAPI)
 
 
 clean:
-	- @rm -rf script.js elm-stuff src/Data src/DateTime.elm openapi-* elm-*
+	- @rm -rf script.js elm-stuff src/Data src/DateTimeLocal.elm openapi-* elm-*
 	- @if [ ! -z "$(docker images -q $(DOCKER_IMG))" ]; then \
              docker rmi $(DOCKER_IMG); fi

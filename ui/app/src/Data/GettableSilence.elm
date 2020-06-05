@@ -14,7 +14,7 @@ module Data.GettableSilence exposing (GettableSilence, decoder, encoder)
 
 import Data.Matcher as Matcher exposing (Matcher)
 import Data.SilenceStatus as SilenceStatus exposing (SilenceStatus)
-import DateTime exposing (DateTime)
+import DateTimeLocal exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -37,24 +37,24 @@ decoder : Decoder GettableSilence
 decoder =
     Decode.succeed GettableSilence
         |> required "matchers" (Decode.list Matcher.decoder)
-        |> required "startsAt" DateTime.decoder
-        |> required "endsAt" DateTime.decoder
+        |> required "startsAt" DateTimeLocal.decoder
+        |> required "endsAt" DateTimeLocal.decoder
         |> required "createdBy" Decode.string
         |> required "comment" Decode.string
         |> required "id" Decode.string
         |> required "status" SilenceStatus.decoder
-        |> required "updatedAt" DateTime.decoder
+        |> required "updatedAt" DateTimeLocal.decoder
 
 
 encoder : GettableSilence -> Encode.Value
 encoder model =
     Encode.object
         [ ( "matchers", Encode.list Matcher.encoder model.matchers )
-        , ( "startsAt", DateTime.encoder model.startsAt )
-        , ( "endsAt", DateTime.encoder model.endsAt )
+        , ( "startsAt", DateTimeLocal.encoder model.startsAt )
+        , ( "endsAt", DateTimeLocal.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
         , ( "comment", Encode.string model.comment )
         , ( "id", Encode.string model.id )
         , ( "status", SilenceStatus.encoder model.status )
-        , ( "updatedAt", DateTime.encoder model.updatedAt )
+        , ( "updatedAt", DateTimeLocal.encoder model.updatedAt )
         ]

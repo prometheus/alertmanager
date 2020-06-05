@@ -1,10 +1,9 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Date exposing (Date)
 import DatePicker
-import Html exposing (Html, a, button, div, fieldset, h1, i, input, label, legend, span, strong, text, textarea)
-import Html.Attributes exposing (class, href)
+import Html exposing (Html, a, button, div, fieldset, h1, h5, i, input, label, legend, span, strong, text, textarea)
+import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
 import Utils.Filter exposing (SilenceFormGetParams, emptySilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
@@ -12,7 +11,7 @@ import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), datePickerSettings)
+import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
@@ -29,14 +28,6 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
     div []
         [ h1 [] [ text title ]
         , timeInput form.startsAt form.endsAt form.duration
-        , div [ class "row justify-content-strat" ]
-            [ DatePicker.view form.startsAtDate datePickerSettings form.startsAtDatePicker
-                |> Html.map (StartsAtDatePicker >> UpdateField)
-            ]
-        , div [ class "row justify-content-end" ]
-            [ DatePicker.view form.endsAtDate datePickerSettings form.endsAtDatePicker
-                |> Html.map (EndsAtDatePicker >> UpdateField)
-            ]
         , matcherInput form.matchers
         , validatedField input
             "Creator"
@@ -54,6 +45,68 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
             [ informationBlock activeAlertId silenceId alerts
             , silenceActionButtons maybeId form resetClick
             ]
+        , case form.showStartsAtPicker of
+            True ->
+                datetimePickerDialog
+                    (div []
+                        [ DatePicker.view form.startsAtPicker
+                            |> Html.map (StartsAtPicker >> UpdateField)
+                        ]
+                    )
+                    (CloseStartsAtPicker |> UpdateField)
+                    (UpdateStartsAtFromDatePicker |> UpdateField)
+                    "Starts At"
+
+            _ ->
+                div [] []
+        , case form.showEndsAtPicker of
+            True ->
+                datetimePickerDialog
+                    (div []
+                        [ DatePicker.view form.endsAtPicker
+                            |> Html.map (EndsAtPicker >> UpdateField)
+                        ]
+                    )
+                    (CloseEndsAtPicker |> UpdateField)
+                    (UpdateEndsAtFromDatePicker |> UpdateField)
+                    "Ends At"
+
+            _ ->
+                div [] []
+        ]
+
+
+datetimePickerDialog : Html msg -> msg -> msg -> String -> Html msg
+datetimePickerDialog body onClose setTime title =
+    div []
+        [ div [ class "modal fade show", style "display" "block" ]
+            [ div [ class "modal-dialog modal-dialog-centered" ]
+                [ div [ class "modal-content" ]
+                    [ div [ class "modal-header" ]
+                        [ h5 [ class "modal-title" ] [ text title ]
+                        , button
+                            [ class "close"
+                            , onClick onClose
+                            ]
+                            [ text "x" ]
+                        ]
+                    , div [ class "modal-body" ] [ body ]
+                    , div [ class "modal-footer" ]
+                        [ button
+                            [ class "ml-2 btn btn-outline-success pull-left"
+                            , onClick onClose
+                            ]
+                            [ text "Cancel" ]
+                        , button
+                            [ class "ml-2 btn btn-primary"
+                            , onClick setTime
+                            ]
+                            [ text "Set Date/Time" ]
+                        ]
+                    ]
+                ]
+            ]
+        , div [ class "modal-backdrop fade show" ] []
         ]
 
 
@@ -77,7 +130,7 @@ timeInput startsAt endsAt duration =
                 [ text "\u{00A0}" ]
             , button
                 [ class "form-control"
-                , onClick (StartsAtDatePickerDisplayAction |> UpdateField)
+                , onClick (OpenStartsAtPicker |> UpdateField)
                 ]
                 [ i
                     [ class "fa fa-calendar" ]
@@ -102,7 +155,7 @@ timeInput startsAt endsAt duration =
                 [ text "\u{00A0}" ]
             , button
                 [ class "form-control"
-                , onClick (EndsAtDatePickerDisplayAction |> UpdateField)
+                , onClick (OpenEndsAtPicker |> UpdateField)
                 ]
                 [ i
                     [ class "fa fa-calendar" ]
