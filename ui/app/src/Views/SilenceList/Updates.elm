@@ -100,6 +100,8 @@ updateFilter maybeFilter =
     { receiver = Nothing
     , showSilenced = Nothing
     , showInhibited = Nothing
+    , showActive = Nothing
     , group = Nothing
+    , customGrouping = False
     , text = maybeFilter
     }

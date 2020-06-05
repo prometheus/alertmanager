@@ -38,6 +38,7 @@ type Tree interface {
 	Bytes() []byte
 
 	SetValue(value Value)
+	SetMetaValue(meta MetaValue)
 }
 
 type node struct {
@@ -127,7 +128,11 @@ func (n *node) Bytes() []byte {
 	level := 0
 	var levelsEnded []int
 	if n.Root == nil {
-		buf.WriteString(fmt.Sprintf("%v",n.Value))
+		if n.Meta != nil {
+			buf.WriteString(fmt.Sprintf("[%v]  %v", n.Meta, n.Value))
+		} else {
+			buf.WriteString(fmt.Sprintf("%v",n.Value))
+		}
 		buf.WriteByte('\n')
 	} else {
 		edge := EdgeTypeMid
@@ -149,6 +154,10 @@ func (n *node) String() string {
 
 func (n *node) SetValue(value Value){
 	n.Value = value
+}
+
+func (n *node) SetMetaValue(meta MetaValue){
+	n.Meta = meta
 }
 
 func printNodes(wr io.Writer,

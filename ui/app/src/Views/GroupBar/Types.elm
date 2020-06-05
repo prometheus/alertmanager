@@ -25,6 +25,7 @@ type Msg
     | Focus Bool
     | ResultsHovered Bool
     | UpdateFieldText String
+    | CustomGrouping Bool
     | Noop
 
 

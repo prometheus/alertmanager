@@ -61,7 +61,7 @@ Your app should be available at `http://localhost:<port>`. Navigate to
 `src/Main.elm`. Any changes to the file system are detected automatically,
 triggering a recompile of the project.
 
-## Commiting changes
+## Committing changes
 
 Before you commit changes, please run `make build-all` on the root level
 Makefile. Please include `asset/*_vfsdata.go` in your commit.

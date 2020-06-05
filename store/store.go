@@ -1,3 +1,16 @@
+// Copyright 2018 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package store
 
 import (
@@ -20,23 +33,16 @@ var (
 // gcInterval. An optional callback can be set which receives a slice of all
 // resolved alerts that have been removed.
 type Alerts struct {
-	gcInterval time.Duration
-
 	sync.Mutex
 	c  map[model.Fingerprint]*types.Alert
 	cb func([]*types.Alert)
 }
 
 // NewAlerts returns a new Alerts struct.
-func NewAlerts(gcInterval time.Duration) *Alerts {
-	if gcInterval == 0 {
-		gcInterval = time.Minute
-	}
-
+func NewAlerts() *Alerts {
 	a := &Alerts{
-		c:          make(map[model.Fingerprint]*types.Alert),
-		cb:         func(_ []*types.Alert) {},
-		gcInterval: gcInterval,
+		c:  make(map[model.Fingerprint]*types.Alert),
+		cb: func(_ []*types.Alert) {},
 	}
 
 	return a
@@ -50,25 +56,25 @@ func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
 	a.cb = cb
 }
 
-// Run starts the GC loop.
-func (a *Alerts) Run(ctx context.Context) {
-	go func(t *time.Ticker) {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				a.gc()
-			}
+// Run starts the GC loop. The interval must be greater than zero; if not, the function will panic.
+func (a *Alerts) Run(ctx context.Context, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			a.gc()
 		}
-	}(time.NewTicker(a.gcInterval))
+	}
 }
 
 func (a *Alerts) gc() {
 	a.Lock()
 	defer a.Unlock()
 
-	resolved := []*types.Alert{}
+	var resolved []*types.Alert
 	for fp, alert := range a.c {
 		if alert.Resolved() {
 			delete(a.c, fp)
@@ -109,24 +115,23 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	return nil
 }
 
-// List returns a buffered channel of Alerts currently held in memory.
-func (a *Alerts) List() <-chan *types.Alert {
+// List returns a slice of Alerts currently held in memory.
+func (a *Alerts) List() []*types.Alert {
 	a.Lock()
 	defer a.Unlock()
 
-	c := make(chan *types.Alert, len(a.c))
+	alerts := make([]*types.Alert, 0, len(a.c))
 	for _, alert := range a.c {
-		c <- alert
+		alerts = append(alerts, alert)
 	}
-	close(c)
 
-	return c
+	return alerts
 }
 
-// Count returns the number of items within the store.
-func (a *Alerts) Count() int {
+// Empty returns true if the store is empty.
+func (a *Alerts) Empty() bool {
 	a.Lock()
 	defer a.Unlock()
 
-	return len(a.c)
+	return len(a.c) == 0
 }

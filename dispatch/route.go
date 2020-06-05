@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -69,9 +70,12 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		for _, ln := range cr.GroupBy {
 			opts.GroupBy[ln] = struct{}{}
 		}
+		opts.GroupByAll = false
+	} else {
+		if cr.GroupByAll {
+			opts.GroupByAll = cr.GroupByAll
+		}
 	}
-
-	opts.GroupByAll = cr.GroupByAll
 
 	if cr.GroupWait != nil {
 		opts.GroupWait = time.Duration(*cr.GroupWait)
@@ -142,15 +146,27 @@ func (r *Route) Match(lset model.LabelSet) []*Route {
 	return all
 }
 
-// Key returns a key for the route. It does not uniquely identify a the route in general.
+// Key returns a key for the route. It does not uniquely identify the route in general.
 func (r *Route) Key() string {
-	b := make([]byte, 0, 1024)
+	b := strings.Builder{}
 
 	if r.parent != nil {
-		b = append(b, r.parent.Key()...)
-		b = append(b, '/')
+		b.WriteString(r.parent.Key())
+		b.WriteRune('/')
 	}
-	return string(append(b, r.Matchers.String()...))
+	b.WriteString(r.Matchers.String())
+	return b.String()
+}
+
+// Walk traverses the route tree in depth-first order.
+func (r *Route) Walk(visit func(*Route)) {
+	visit(r)
+	if r.Routes == nil {
+		return
+	}
+	for i := range r.Routes {
+		r.Routes[i].Walk(visit)
+	}
 }
 
 // RouteOpts holds various routing options necessary for processing alerts

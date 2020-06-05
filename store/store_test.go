@@ -1,3 +1,16 @@
+// Copyright 2018 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package store
 
 import (
@@ -11,12 +24,7 @@ import (
 )
 
 func TestSetGet(t *testing.T) {
-	d := time.Minute
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	a := NewAlerts(d)
-	a.Run(ctx)
+	a := NewAlerts()
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -29,12 +37,7 @@ func TestSetGet(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	d := time.Minute
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	a := NewAlerts(d)
-	a.Run(ctx)
+	a := NewAlerts()
 	alert := &types.Alert{
 		UpdatedAt: time.Now(),
 	}
@@ -69,18 +72,31 @@ func TestGC(t *testing.T) {
 		newAlert("a", -10, -5),
 		newAlert("d", -10, -1),
 	}
-	s := NewAlerts(5 * time.Minute)
-	var n int
+	s := NewAlerts()
+	var (
+		n           int
+		done        = make(chan struct{})
+		ctx, cancel = context.WithCancel(context.Background())
+	)
 	s.SetGCCallback(func(a []*types.Alert) {
-		for range a {
-			n++
+		n += len(a)
+		if n >= len(resolved) {
+			cancel()
 		}
 	})
 	for _, alert := range append(active, resolved...) {
 		require.NoError(t, s.Set(alert))
 	}
-
-	s.gc()
+	go func() {
+		s.Run(ctx, 10*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-done:
+		break
+	case <-time.After(1 * time.Second):
+		t.Fatal("garbage collection didn't complete in time")
+	}
 
 	for _, alert := range active {
 		if _, err := s.Get(alert.Fingerprint()); err != nil {

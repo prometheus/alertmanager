@@ -14,18 +14,42 @@
 package format
 
 import (
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/alertmanager/types"
+	"bytes"
+	"net"
+	"strconv"
+	"time"
+
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
-type ByEndAt []types.Silence
+type ByEndAt []models.GettableSilence
 
-func (s ByEndAt) Len() int           { return len(s) }
-func (s ByEndAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s ByEndAt) Less(i, j int) bool { return s[i].EndsAt.Before(s[j].EndsAt) }
+func (s ByEndAt) Len() int      { return len(s) }
+func (s ByEndAt) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s ByEndAt) Less(i, j int) bool {
+	return time.Time(*s[i].Silence.EndsAt).Before(time.Time(*s[j].Silence.EndsAt))
+}
 
-type ByStartsAt []*client.ExtendedAlert
+type ByStartsAt []*models.GettableAlert
 
-func (s ByStartsAt) Len() int           { return len(s) }
-func (s ByStartsAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s ByStartsAt) Less(i, j int) bool { return s[i].StartsAt.Before(s[j].StartsAt) }
+func (s ByStartsAt) Len() int      { return len(s) }
+func (s ByStartsAt) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s ByStartsAt) Less(i, j int) bool {
+	return time.Time(*s[i].StartsAt).Before(time.Time(*s[j].StartsAt))
+}
+
+type ByAddress []*models.PeerStatus
+
+func (s ByAddress) Len() int      { return len(s) }
+func (s ByAddress) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s ByAddress) Less(i, j int) bool {
+	ip1, port1, _ := net.SplitHostPort(*s[i].Address)
+	ip2, port2, _ := net.SplitHostPort(*s[j].Address)
+	if ip1 == ip2 {
+		p1, _ := strconv.Atoi(port1)
+		p2, _ := strconv.Atoi(port2)
+		return p1 < p2
+	} else {
+		return bytes.Compare(net.ParseIP(ip1), net.ParseIP(ip2)) < 0
+	}
+}

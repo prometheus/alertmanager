@@ -1,10 +1,12 @@
 module Views.AlertList.Views exposing (view)
 
+import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Set exposing (Set)
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter)
 import Utils.List
@@ -19,13 +21,13 @@ import Views.ReceiverBar.Views as ReceiverBar
 
 
 renderCheckbox : String -> Maybe Bool -> (Bool -> AlertListMsg) -> Html Msg
-renderCheckbox textLabel maybeShowSilenced toggleMsg =
+renderCheckbox textLabel maybeChecked toggleMsg =
     li [ class "nav-item" ]
         [ label [ class "mt-1 ml-1 custom-control custom-checkbox" ]
             [ input
                 [ type_ "checkbox"
                 , class "custom-control-input"
-                , checked (Maybe.withDefault False maybeShowSilenced)
+                , checked (Maybe.withDefault False maybeChecked)
                 , onCheck (toggleMsg >> MsgForAlertList)
                 ]
                 []
@@ -35,15 +37,24 @@ renderCheckbox textLabel maybeShowSilenced toggleMsg =
         ]
 
 
+groupTabName : Bool -> Html msg
+groupTabName customGrouping =
+    if customGrouping then
+        text "Group (custom)"
+
+    else
+        text "Group"
+
+
 view : Model -> Filter -> Html Msg
-view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
+view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups, expandAll } filter =
     div []
         [ div
-            [ class "card mb-5" ]
+            [ class "card mb-3" ]
             [ div [ class "card-header" ]
                 [ ul [ class "nav nav-tabs card-header-tabs" ]
                     [ Utils.Views.tab FilterTab tab (SetTab >> MsgForAlertList) [ text "Filter" ]
-                    , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ text "Group" ]
+                    , Utils.Views.tab GroupTab tab (SetTab >> MsgForAlertList) [ groupTabName filter.customGrouping ]
                     , receiverBar
                         |> ReceiverBar.view filter.receiver
                         |> Html.map (MsgForReceiverBar >> MsgForAlertList)
@@ -57,64 +68,63 @@ view { alerts, groupBar, filterBar, receiverBar, tab, activeId } filter =
                         Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
 
                     GroupTab ->
-                        Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar)
+                        Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar filter.customGrouping)
                 ]
             ]
-        , case alerts of
-            Success alerts_ ->
-                alertGroups activeId filter groupBar alerts_
+        , div []
+            [ button
+                [ class "btn btn-outline-secondary border-0 mr-1 mb-3"
+                , onClick (MsgForAlertList (ToggleExpandAll (not expandAll)))
+                ]
+                (if expandAll then
+                    [ i [ class "fa fa-minus mr-3" ] [], text "Collapse all groups" ]
 
-            Loading ->
-                Utils.Views.loading
-
-            Initial ->
-                Utils.Views.loading
-
-            Failure msg ->
-                Utils.Views.error msg
+                 else
+                    [ i [ class "fa fa-plus mr-3" ] [], text "Expand all groups" ]
+                )
+            ]
+        , Utils.Views.apiData (defaultAlertGroups activeId activeGroups expandAll) alertGroups
         ]
 
 
-alertGroups : Maybe String -> Filter -> GroupBar.Model -> List GettableAlert -> Html Msg
-alertGroups activeId filter { fields } alerts =
+defaultAlertGroups : Maybe String -> Set Int -> Bool -> List AlertGroup -> Html Msg
+defaultAlertGroups activeId activeGroups expandAll groups =
+    case groups of
+        [] ->
+            Utils.Views.error "No alert groups found"
+
+        [ { labels, alerts } ] ->
+            let
+                labels_ =
+                    Dict.toList labels
+            in
+            alertGroup activeId (Set.singleton 0) labels_ alerts 0 expandAll
+
+        _ ->
+            div [ class "pl-5" ]
+                (List.indexedMap
+                    (\index group ->
+                        alertGroup activeId activeGroups (Dict.toList group.labels) group.alerts index expandAll
+                    )
+                    groups
+                )
+
+
+alertGroup : Maybe String -> Set Int -> Labels -> List GettableAlert -> Int -> Bool -> Html Msg
+alertGroup activeId activeGroups labels alerts groupId expandAll =
     let
-        grouped =
-            alerts
-                |> Utils.List.groupBy
-                    (.labels >> Dict.toList >> List.filter (\( key, _ ) -> List.member key fields))
-    in
-    grouped
-        |> Dict.keys
-        |> List.partition ((/=) [])
-        |> (\( a, b ) -> (++) a b)
-        |> List.filterMap
-            (\labels ->
-                Maybe.map
-                    (alertList activeId labels filter)
-                    (Dict.get labels grouped)
-            )
-        |> (\list ->
-                if List.isEmpty list then
-                    [ Utils.Views.error "No alerts found" ]
+        groupActive =
+            expandAll || Set.member groupId activeGroups
 
-                else
-                    list
-           )
-        |> div []
-
-
-alertList : Maybe String -> Labels -> Filter -> List GettableAlert -> Html Msg
-alertList activeId labels filter alerts =
-    div []
-        [ div []
-            (case labels of
+        labels_ =
+            case labels of
                 [] ->
-                    [ span [ class "btn btn-secondary mr-1 mb-3" ] [ text "Not grouped" ] ]
+                    [ span [ class "btn btn-secondary mr-1 mb-1" ] [ text "Not grouped" ] ]
 
                 _ ->
                     List.map
                         (\( key, value ) ->
-                            div [ class "btn-group mr-1 mb-3" ]
+                            div [ class "btn-group mr-1 mb-1" ]
                                 [ span
                                     [ class "btn text-muted"
                                     , style "user-select" "initial"
@@ -132,6 +142,47 @@ alertList activeId labels filter alerts =
                                 ]
                         )
                         labels
-            )
-        , ul [ class "list-group mb-4" ] (List.map (AlertView.view labels activeId) alerts)
+
+        expandButton =
+            expandAlertGroup groupActive groupId
+                |> Html.map (\msg -> MsgForAlertList (ActiveGroups msg))
+
+        alertCount =
+            List.length alerts
+
+        alertText =
+            if alertCount == 1 then
+                String.fromInt alertCount ++ " alert"
+
+            else
+                String.fromInt alertCount ++ " alerts"
+
+        alertEl =
+            [ span [ class "ml-1 mb-0", style "white-space" "nowrap" ] [ text alertText ] ]
+    in
+    div []
+        [ div [ class "mb-3" ] (expandButton :: labels_ ++ alertEl)
+        , if groupActive then
+            ul [ class "list-group mb-0" ] (List.map (AlertView.view labels activeId) alerts)
+
+          else
+            text ""
         ]
+
+
+expandAlertGroup : Bool -> Int -> Html Int
+expandAlertGroup expanded groupId =
+    let
+        icon =
+            if expanded then
+                "fa-minus"
+
+            else
+                "fa-plus"
+    in
+    button
+        [ onClick groupId
+        , class "btn btn-outline-info border-0 mr-1 mb-1"
+        , style "margin-left" "-3rem"
+        ]
+        [ i [ class ("fa " ++ icon) ] [] ]

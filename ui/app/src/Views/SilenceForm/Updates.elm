@@ -7,7 +7,7 @@ import Task
 import Time
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
-import Utils.Filter exposing (nullFilter)
+import Utils.Filter exposing (silencePreviewFilter)
 import Utils.FormValidation exposing (fromResult, stringNotEmpty, updateValue, validate)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
@@ -18,7 +18,7 @@ import Views.SilenceForm.Types
         , SilenceFormFieldMsg(..)
         , SilenceFormMsg(..)
         , emptyMatcher
-        , fromMatchersAndTime
+        , fromMatchersAndCommentAndTime
         , fromSilence
         , parseEndsAt
         , toSilence
@@ -207,11 +207,11 @@ update msg model basePath apiUrl =
             in
             ( { model | silenceId = silenceId }, cmd )
 
-        NewSilenceFromMatchers defaultCreator matchers ->
-            ( model, Task.perform (NewSilenceFromMatchersAndTime defaultCreator matchers >> MsgForSilenceForm) Time.now )
+        NewSilenceFromMatchersAndComment defaultCreator params ->
+            ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment >> MsgForSilenceForm) Time.now )
 
-        NewSilenceFromMatchersAndTime defaultCreator matchers time ->
-            ( { form = fromMatchersAndTime defaultCreator matchers time
+        NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment time ->
+            ( { form = fromMatchersAndCommentAndTime defaultCreator matchers comment time
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
@@ -237,7 +237,7 @@ update msg model basePath apiUrl =
                     ( { model | alerts = Loading }
                     , Alerts.Api.fetchAlerts
                         apiUrl
-                        { nullFilter | text = Just (Utils.List.mjoin silence.matchers) }
+                        (silencePreviewFilter silence.matchers)
                         |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
                     )
 

@@ -20,84 +20,81 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/cespare/xxhash"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/cluster"
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	numNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_total",
-		Help:      "The total number of attempted notifications.",
-	}, []string{"integration"})
-
-	numFailedNotifications = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "alertmanager",
-		Name:      "notifications_failed_total",
-		Help:      "The total number of failed notifications.",
-	}, []string{"integration"})
-
-	notificationLatencySeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "alertmanager",
-		Name:      "notification_latency_seconds",
-		Help:      "The latency of notifications in seconds.",
-		Buckets:   []float64{1, 5, 10, 15, 20},
-	}, []string{"integration"})
-)
-
-func init() {
-	numNotifications.WithLabelValues("email")
-	numNotifications.WithLabelValues("hipchat")
-	numNotifications.WithLabelValues("pagerduty")
-	numNotifications.WithLabelValues("wechat")
-	numNotifications.WithLabelValues("pushover")
-	numNotifications.WithLabelValues("slack")
-	numNotifications.WithLabelValues("opsgenie")
-	numNotifications.WithLabelValues("webhook")
-	numNotifications.WithLabelValues("victorops")
-	numFailedNotifications.WithLabelValues("email")
-	numFailedNotifications.WithLabelValues("hipchat")
-	numFailedNotifications.WithLabelValues("pagerduty")
-	numFailedNotifications.WithLabelValues("wechat")
-	numFailedNotifications.WithLabelValues("pushover")
-	numFailedNotifications.WithLabelValues("slack")
-	numFailedNotifications.WithLabelValues("opsgenie")
-	numFailedNotifications.WithLabelValues("webhook")
-	numFailedNotifications.WithLabelValues("victorops")
-	notificationLatencySeconds.WithLabelValues("email")
-	notificationLatencySeconds.WithLabelValues("hipchat")
-	notificationLatencySeconds.WithLabelValues("pagerduty")
-	notificationLatencySeconds.WithLabelValues("wechat")
-	notificationLatencySeconds.WithLabelValues("pushover")
-	notificationLatencySeconds.WithLabelValues("slack")
-	notificationLatencySeconds.WithLabelValues("opsgenie")
-	notificationLatencySeconds.WithLabelValues("webhook")
-	notificationLatencySeconds.WithLabelValues("victorops")
-
-	prometheus.MustRegister(numNotifications)
-	prometheus.MustRegister(numFailedNotifications)
-	prometheus.MustRegister(notificationLatencySeconds)
-}
-
-type notifierConfig interface {
+// ResolvedSender returns true if resolved notifications should be sent.
+type ResolvedSender interface {
 	SendResolved() bool
 }
 
 // MinTimeout is the minimum timeout that is set for the context of a call
 // to a notification pipeline.
 const MinTimeout = 10 * time.Second
+
+// Notifier notifies about alerts under constraints of the given context. It
+// returns an error if unsuccessful and a flag whether the error is
+// recoverable. This information is useful for a retry logic.
+type Notifier interface {
+	Notify(context.Context, ...*types.Alert) (bool, error)
+}
+
+// Integration wraps a notifier and its configuration to be uniquely identified
+// by name and index from its origin in the configuration.
+type Integration struct {
+	notifier Notifier
+	rs       ResolvedSender
+	name     string
+	idx      int
+}
+
+// NewIntegration returns a new integration.
+func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) Integration {
+	return Integration{
+		notifier: notifier,
+		rs:       rs,
+		name:     name,
+		idx:      idx,
+	}
+}
+
+// Notify implements the Notifier interface.
+func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	return i.notifier.Notify(ctx, alerts...)
+}
+
+// SendResolved implements the ResolvedSender interface.
+func (i *Integration) SendResolved() bool {
+	return i.rs.SendResolved()
+}
+
+// Name returns the name of the integration.
+func (i *Integration) Name() string {
+	return i.name
+}
+
+// Index returns the index of the integration.
+func (i *Integration) Index() int {
+	return i.idx
+}
+
+// String implements the Stringer interface.
+func (i *Integration) String() string {
+	return fmt.Sprintf("%s[%d]", i.name, i.idx)
+}
 
 // notifyKey defines a custom type with which a context is populated to
 // avoid accidental collisions.
@@ -162,27 +159,11 @@ func ReceiverName(ctx context.Context) (string, bool) {
 	return v, ok
 }
 
-func receiverName(ctx context.Context, l log.Logger) string {
-	recv, ok := ReceiverName(ctx)
-	if !ok {
-		level.Error(l).Log("msg", "Missing receiver")
-	}
-	return recv
-}
-
 // GroupKey extracts a group key from the context. Iff none exists, the
 // second argument is false.
 func GroupKey(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(keyGroupKey).(string)
 	return v, ok
-}
-
-func groupLabels(ctx context.Context, l log.Logger) model.LabelSet {
-	groupLabels, ok := GroupLabels(ctx)
-	if !ok {
-		level.Error(l).Log("msg", "Missing group labels")
-	}
-	return groupLabels
 }
 
 // GroupLabels extracts grouping label set from the context. Iff none exists, the
@@ -231,43 +212,101 @@ type NotificationLog interface {
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
-// BuildPipeline builds a map of receivers to Stages.
-func BuildPipeline(
-	confs []*config.Receiver,
-	tmpl *template.Template,
+type metrics struct {
+	numNotifications           *prometheus.CounterVec
+	numFailedNotifications     *prometheus.CounterVec
+	notificationLatencySeconds *prometheus.HistogramVec
+}
+
+func newMetrics(r prometheus.Registerer) *metrics {
+	m := &metrics{
+		numNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notifications_total",
+			Help:      "The total number of attempted notifications.",
+		}, []string{"integration"}),
+		numFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notifications_failed_total",
+			Help:      "The total number of failed notifications.",
+		}, []string{"integration"}),
+		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "alertmanager",
+			Name:      "notification_latency_seconds",
+			Help:      "The latency of notifications in seconds.",
+			Buckets:   []float64{1, 5, 10, 15, 20},
+		}, []string{"integration"}),
+	}
+	for _, integration := range []string{
+		"email",
+		"hipchat",
+		"pagerduty",
+		"wechat",
+		"pushover",
+		"slack",
+		"opsgenie",
+		"webhook",
+		"victorops",
+	} {
+		m.numNotifications.WithLabelValues(integration)
+		m.numFailedNotifications.WithLabelValues(integration)
+		m.notificationLatencySeconds.WithLabelValues(integration)
+	}
+	r.MustRegister(m.numNotifications, m.numFailedNotifications, m.notificationLatencySeconds)
+	return m
+}
+
+type PipelineBuilder struct {
+	metrics *metrics
+}
+
+func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
+	return &PipelineBuilder{
+		metrics: newMetrics(r),
+	}
+}
+
+// New returns a map of receivers to Stages.
+func (pb *PipelineBuilder) New(
+	receivers map[string][]Integration,
 	wait func() time.Duration,
-	muter types.Muter,
-	silences *silence.Silences,
+	inhibitor *inhibit.Inhibitor,
+	silencer *silence.Silencer,
 	notificationLog NotificationLog,
-	marker types.Marker,
 	peer *cluster.Peer,
-	logger log.Logger,
 ) RoutingStage {
-	rs := RoutingStage{}
+	rs := make(RoutingStage, len(receivers))
 
 	ms := NewGossipSettleStage(peer)
-	is := NewInhibitStage(muter)
-	ss := NewSilenceStage(silences, marker)
+	is := NewMuteStage(inhibitor)
+	ss := NewMuteStage(silencer)
 
-	for _, rc := range confs {
-		rs[rc.Name] = MultiStage{ms, is, ss, createStage(rc, tmpl, wait, notificationLog, logger)}
+	for name := range receivers {
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		rs[name] = MultiStage{ms, is, ss, st}
 	}
 	return rs
 }
 
-// createStage creates a pipeline of stages for a receiver.
-func createStage(rc *config.Receiver, tmpl *template.Template, wait func() time.Duration, notificationLog NotificationLog, logger log.Logger) Stage {
+// createReceiverStage creates a pipeline of stages for a receiver.
+func createReceiverStage(
+	name string,
+	integrations []Integration,
+	wait func() time.Duration,
+	notificationLog NotificationLog,
+	metrics *metrics,
+) Stage {
 	var fs FanoutStage
-	for _, i := range BuildReceiverIntegrations(rc, tmpl, logger) {
+	for i := range integrations {
 		recv := &nflogpb.Receiver{
-			GroupName:   rc.Name,
-			Integration: i.name,
-			Idx:         uint32(i.idx),
+			GroupName:   name,
+			Integration: integrations[i].Name(),
+			Idx:         uint32(integrations[i].Index()),
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(i, notificationLog, recv))
-		s = append(s, NewRetryStage(i, rc.Name))
+		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
+		s = append(s, NewRetryStage(integrations[i], name, metrics))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -283,18 +322,18 @@ type RoutingStage map[string]Stage
 func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	receiver, ok := ReceiverName(ctx)
 	if !ok {
-		return ctx, nil, fmt.Errorf("receiver missing")
+		return ctx, nil, errors.New("receiver missing")
 	}
 
 	s, ok := rs[receiver]
 	if !ok {
-		return ctx, nil, fmt.Errorf("stage for receiver missing")
+		return ctx, nil, errors.New("stage for receiver missing")
 	}
 
 	return s.Exec(ctx, l, alerts...)
 }
 
-// A MultiStage executes a series of stages sequencially.
+// A MultiStage executes a series of stages sequentially.
 type MultiStage []Stage
 
 // Exec implements the Stage interface.
@@ -329,7 +368,6 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 		go func(s Stage) {
 			if _, _, err := s.Exec(ctx, l, alerts...); err != nil {
 				me.Add(err)
-				level.Error(l).Log("msg", "Error on notify", "err", err)
 			}
 			wg.Done()
 		}(s)
@@ -359,72 +397,27 @@ func (n *GossipSettleStage) Exec(ctx context.Context, l log.Logger, alerts ...*t
 	return ctx, alerts, nil
 }
 
-// InhibitStage filters alerts through an inhibition muter.
-type InhibitStage struct {
+// MuteStage filters alerts through a Muter.
+type MuteStage struct {
 	muter types.Muter
 }
 
-// NewInhibitStage return a new InhibitStage.
-func NewInhibitStage(m types.Muter) *InhibitStage {
-	return &InhibitStage{muter: m}
+// NewMuteStage return a new MuteStage.
+func NewMuteStage(m types.Muter) *MuteStage {
+	return &MuteStage{muter: m}
 }
 
 // Exec implements the Stage interface.
-func (n *InhibitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *MuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
-		// Do not send the alert if the silencer mutes it.
+		// Do not send the alert if muted.
 		if !n.muter.Mutes(a.Labels) {
-			// TODO(fabxc): increment muted alerts counter.
 			filtered = append(filtered, a)
 		}
+		// TODO(fabxc): increment muted alerts counter if muted.
 	}
-
-	return ctx, filtered, nil
-}
-
-// SilenceStage filters alerts through a silence muter.
-type SilenceStage struct {
-	silences *silence.Silences
-	marker   types.Marker
-}
-
-// NewSilenceStage returns a new SilenceStage.
-func NewSilenceStage(s *silence.Silences, mk types.Marker) *SilenceStage {
-	return &SilenceStage{
-		silences: s,
-		marker:   mk,
-	}
-}
-
-// Exec implements the Stage interface.
-func (n *SilenceStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	var filtered []*types.Alert
-	for _, a := range alerts {
-		// TODO(fabxc): increment total alerts counter.
-		// Do not send the alert if the silencer mutes it.
-		sils, err := n.silences.Query(
-			silence.QState(types.SilenceStateActive),
-			silence.QMatches(a.Labels),
-		)
-		if err != nil {
-			level.Error(l).Log("msg", "Querying silences failed", "err", err)
-		}
-
-		if len(sils) == 0 {
-			// TODO(fabxc): increment muted alerts counter.
-			filtered = append(filtered, a)
-			n.marker.SetSilenced(a.Labels.Fingerprint())
-		} else {
-			ids := make([]string, len(sils))
-			for i, s := range sils {
-				ids[i] = s.Id
-			}
-			n.marker.SetSilenced(a.Labels.Fingerprint(), ids...)
-		}
-	}
-
 	return ctx, filtered, nil
 }
 
@@ -454,20 +447,20 @@ func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 // DedupStage filters alerts.
 // Filtering happens based on a notification log.
 type DedupStage struct {
+	rs    ResolvedSender
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
-	conf  notifierConfig
 
 	now  func() time.Time
 	hash func(*types.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-func NewDedupStage(i Integration, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
+func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
+		rs:    rs,
 		nflog: l,
 		recv:  recv,
-		conf:  i.conf,
 		now:   utcNow,
 		hash:  hashAlert,
 	}
@@ -540,7 +533,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return len(entry.FiringAlerts) > 0
 	}
 
-	if n.conf.SendResolved() && !entry.IsResolvedSubset(resolved) {
+	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
 		return true
 	}
 
@@ -552,12 +545,12 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	gkey, ok := GroupKey(ctx)
 	if !ok {
-		return ctx, nil, fmt.Errorf("group key missing")
+		return ctx, nil, errors.New("group key missing")
 	}
 
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
-		return ctx, nil, fmt.Errorf("repeat interval missing")
+		return ctx, nil, errors.New("repeat interval missing")
 	}
 
 	firingSet := map[uint64]struct{}{}
@@ -581,18 +574,19 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 	ctx = WithResolvedAlerts(ctx, resolved)
 
 	entries, err := n.nflog.Query(nflog.QGroupKey(gkey), nflog.QReceiver(n.recv))
-
 	if err != nil && err != nflog.ErrNotFound {
 		return ctx, nil, err
 	}
+
 	var entry *nflogpb.Entry
 	switch len(entries) {
 	case 0:
 	case 1:
 		entry = entries[0]
-	case 2:
-		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
+	default:
+		return ctx, nil, errors.Errorf("unexpected entry result size %d", len(entries))
 	}
+
 	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
 		return ctx, alerts, nil
 	}
@@ -604,13 +598,15 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 type RetryStage struct {
 	integration Integration
 	groupName   string
+	metrics     *metrics
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *metrics) *RetryStage {
 	return &RetryStage{
 		integration: i,
 		groupName:   groupName,
+		metrics:     metrics,
 	}
 }
 
@@ -621,10 +617,10 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	// If we shouldn't send notifications for resolved alerts, but there are only
 	// resolved alerts, report them all as successfully notified (we still want the
 	// notification log to log them for the next run of DedupStage).
-	if !r.integration.conf.SendResolved() {
+	if !r.integration.SendResolved() {
 		firing, ok := FiringAlerts(ctx)
 		if !ok {
-			return ctx, nil, fmt.Errorf("firing alerts missing")
+			return ctx, nil, errors.New("firing alerts missing")
 		}
 		if len(firing) == 0 {
 			return ctx, alerts, nil
@@ -645,17 +641,18 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		iErr error
 	)
 	defer tick.Stop()
+	l = log.With(l, "receiver", r.groupName, "integration", r.integration.String())
 
 	for {
 		i++
 		// Always check the context first to not notify again.
 		select {
 		case <-ctx.Done():
-			if iErr != nil {
-				return ctx, nil, iErr
+			if iErr == nil {
+				iErr = ctx.Err()
 			}
 
-			return ctx, nil, ctx.Err()
+			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
 		default:
 		}
 
@@ -663,27 +660,35 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			notificationLatencySeconds.WithLabelValues(r.integration.name).Observe(time.Since(now).Seconds())
-			numNotifications.WithLabelValues(r.integration.name).Inc()
+			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
+			r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 			if err != nil {
-				numFailedNotifications.WithLabelValues(r.integration.name).Inc()
-				level.Debug(l).Log("msg", "Notify attempt failed", "attempt", i, "integration", r.integration.name, "receiver", r.groupName, "err", err)
+				r.metrics.numFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
 				if !retry {
-					return ctx, alerts, fmt.Errorf("cancelling notify retry for %q due to unrecoverable error: %s", r.integration.name, err)
+					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
+				}
+				if ctx.Err() == nil && (iErr == nil || err.Error() != iErr.Error()) {
+					// Log the error if the context isn't done and the error isn't the same as before.
+					level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err)
 				}
 
 				// Save this error to be able to return the last seen error by an
 				// integration upon context timeout.
 				iErr = err
 			} else {
+				lvl := level.Debug(l)
+				if i > 1 {
+					lvl = level.Info(l)
+				}
+				lvl.Log("msg", "Notify success", "attempts", i)
 				return ctx, alerts, nil
 			}
 		case <-ctx.Done():
-			if iErr != nil {
-				return ctx, nil, iErr
+			if iErr == nil {
+				iErr = ctx.Err()
 			}
 
-			return ctx, nil, ctx.Err()
+			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
 		}
 	}
 }
@@ -707,17 +712,17 @@ func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver) *SetNotifies
 func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	gkey, ok := GroupKey(ctx)
 	if !ok {
-		return ctx, nil, fmt.Errorf("group key missing")
+		return ctx, nil, errors.New("group key missing")
 	}
 
 	firing, ok := FiringAlerts(ctx)
 	if !ok {
-		return ctx, nil, fmt.Errorf("firing alerts missing")
+		return ctx, nil, errors.New("firing alerts missing")
 	}
 
 	resolved, ok := ResolvedAlerts(ctx)
 	if !ok {
-		return ctx, nil, fmt.Errorf("resolved alerts missing")
+		return ctx, nil, errors.New("resolved alerts missing")
 	}
 
 	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved)

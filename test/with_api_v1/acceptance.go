@@ -48,7 +48,7 @@ type AcceptanceTest struct {
 	actions map[float64][]func()
 }
 
-// AcceptanceOpts defines configuration paramters for an acceptance test.
+// AcceptanceOpts defines configuration parameters for an acceptance test.
 type AcceptanceOpts struct {
 	RoutePrefix string
 	Tolerance   time.Duration
@@ -306,7 +306,6 @@ func (am *Alertmanager) Start() {
 		if err != nil {
 			am.t.Fatalf("Starting alertmanager failed: %s", err)
 		}
-		resp.Body.Close()
 		return
 	}
 	am.t.Fatalf("Starting alertmanager failed: timeout")

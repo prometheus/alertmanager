@@ -63,7 +63,7 @@ func CheckConfig(args []string) error {
 
 	for _, arg := range args {
 		fmt.Printf("Checking '%s'", arg)
-		cfg, _, err := config.LoadFile(arg)
+		cfg, err := config.LoadFile(arg)
 		if err != nil {
 			fmt.Printf("  FAILED: %s\n", err)
 			failed++

@@ -25,13 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/stretchr/testify/require"
 )
 
 // fakeAlerts is a struct implementing the provider.Alerts interface for tests.
@@ -51,7 +52,7 @@ func newFakeAlerts(alerts []*types.Alert, withErr bool) *fakeAlerts {
 		fps:    fps,
 	}
 	if withErr {
-		f.err = errors.New("Error occured")
+		f.err = errors.New("error occurred")
 	}
 	return f
 }
@@ -132,7 +133,13 @@ func TestAddAlerts(t *testing.T) {
 		}
 
 		alertsProvider := newFakeAlerts([]*types.Alert{}, tc.err)
-		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil)
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil)
+		defaultGlobalConfig := config.DefaultGlobalConfig()
+		route := config.Route{}
+		api.Update(&config.Config{
+			Global: &defaultGlobalConfig,
+			Route:  &route,
+		})
 
 		r, err := http.NewRequest("POST", "/api/v1/alerts", bytes.NewReader(b))
 		w := httptest.NewRecorder()
@@ -259,7 +266,7 @@ func TestListAlerts(t *testing.T) {
 		},
 	} {
 		alertsProvider := newFakeAlerts(alerts, tc.err)
-		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil)
+		api := New(alertsProvider, nil, newGetAlertStatus(alertsProvider), nil, nil, nil)
 		api.route = dispatch.NewRoute(&config.Route{Receiver: "def-receiver"}, nil)
 
 		r, err := http.NewRequest("GET", "/api/v1/alerts", nil)

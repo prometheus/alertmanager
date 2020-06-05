@@ -1,10 +1,26 @@
-module Utils.Views exposing (buttonLink, checkbox, error, formField, formInput, iconButtonMsg, labelButton, linkifyText, loading, tab, textField, validatedField)
+module Utils.Views exposing
+    ( apiData
+    , buttonLink
+    , checkbox
+    , error
+    , formField
+    , formInput
+    , iconButtonMsg
+    , labelButton
+    , linkifyText
+    , loading
+    , tab
+    , textField
+    , validatedField
+    , validatedTextareaField
+    )
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onBlur, onCheck, onClick, onInput)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.String
+import Utils.Types as Types
 
 
 tab : tab -> tab -> (tab -> msg) -> List (Html msg) -> Html msg
@@ -116,6 +132,59 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                 ]
 
 
+validatedTextareaField : String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
+validatedTextareaField labelText classes inputMsg blurMsg field =
+    let
+        lineCount =
+            String.lines field.value
+                |> List.length
+                |> clamp 3 15
+    in
+    case field.validationState of
+        Valid ->
+            div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-success"
+                    , rows lineCount
+                    , disableGrammarly
+                    ]
+                    []
+                ]
+
+        Initial ->
+            div [ class <| "d-flex flex-column form-group " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control"
+                    , rows lineCount
+                    , disableGrammarly
+                    ]
+                    []
+                ]
+
+        Invalid error_ ->
+            div [ class <| "d-flex flex-column form-group has-danger " ++ classes ]
+                [ label [] [ strong [] [ text labelText ] ]
+                , textarea
+                    [ value field.value
+                    , onInput inputMsg
+                    , onBlur blurMsg
+                    , class "form-control form-control-danger"
+                    , rows lineCount
+                    , disableGrammarly
+                    ]
+                    []
+                , div [ class "form-control-feedback" ] [ text error_ ]
+                ]
+
+
 formField : String -> String -> String -> (String -> msg) -> Html msg
 formField labelText content classes msg =
     div [ class <| "d-flex flex-column " ++ classes ]
@@ -128,7 +197,7 @@ textField : String -> String -> String -> (String -> msg) -> Html msg
 textField labelText content classes msg =
     div [ class <| "d-flex flex-column " ++ classes ]
         [ label [] [ strong [] [ text labelText ] ]
-        , textarea [ value content, onInput msg ] []
+        , textarea [ value content, onInput msg, disableGrammarly ] []
         ]
 
 
@@ -144,6 +213,22 @@ formInput inputValue classes msg =
     Html.input [ class <| "w-100 " ++ classes, value inputValue, onInput msg ] []
 
 
+apiData : (a -> Html msg) -> Types.ApiData a -> Html msg
+apiData onSuccess data =
+    case data of
+        Types.Success payload ->
+            onSuccess payload
+
+        Types.Loading ->
+            loading
+
+        Types.Initial ->
+            loading
+
+        Types.Failure msg ->
+            error msg
+
+
 loading : Html msg
 loading =
     div []
@@ -155,3 +240,8 @@ error : String -> Html msg
 error err =
     div [ class "alert alert-warning" ]
         [ text (Utils.String.capitalizeFirst err) ]
+
+
+disableGrammarly : Html.Attribute msg
+disableGrammarly =
+    attribute "data-gramm_editor" "false"

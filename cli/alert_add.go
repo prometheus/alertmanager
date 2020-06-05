@@ -19,14 +19,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/prometheus/alertmanager/client"
-	"github.com/prometheus/client_golang/api"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/models"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type alertAddCmd struct {
 	annotations  []string
-	generatorUrl string
+	generatorURL string
 	labels       []string
 	start        string
 	end          string
@@ -61,7 +62,7 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 		addCmd = cc.Command("add", alertAddHelp)
 	)
 	addCmd.Arg("labels", "List of labels to be included with the alert").StringsVar(&a.labels)
-	addCmd.Flag("generator-url", "Set the URL of the source that generated the alert").StringVar(&a.generatorUrl)
+	addCmd.Flag("generator-url", "Set the URL of the source that generated the alert").StringVar(&a.generatorURL)
 	addCmd.Flag("start", "Set when the alert should start. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&a.start)
 	addCmd.Flag("end", "Set when the alert should should end. RFC3339 format 2006-01-02T15:04:05-07:00").StringVar(&a.end)
 	addCmd.Flag("annotation", "Set an annotation to be included with the alert").StringsVar(&a.annotations)
@@ -69,11 +70,6 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 }
 
 func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) error {
-	c, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
-	if err != nil {
-		return err
-	}
-	alertAPI := client.NewAlertAPI(c)
 
 	if len(a.labels) > 0 {
 		// Allow the alertname label to be defined implicitly as the first argument rather
@@ -107,11 +103,20 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 		}
 	}
 
-	return alertAPI.Push(ctx, client.Alert{
-		Labels:       labels,
-		Annotations:  annotations,
-		StartsAt:     startsAt,
-		EndsAt:       endsAt,
-		GeneratorURL: a.generatorUrl,
-	})
+	pa := &models.PostableAlert{
+		Alert: models.Alert{
+			GeneratorURL: strfmt.URI(a.generatorURL),
+			Labels:       labels,
+		},
+		Annotations: annotations,
+		StartsAt:    strfmt.DateTime(startsAt),
+		EndsAt:      strfmt.DateTime(endsAt),
+	}
+	alertParams := alert.NewPostAlertsParams().WithContext(ctx).
+		WithAlerts(models.PostableAlerts{pa})
+
+	amclient := NewAlertmanagerClient(alertmanagerURL)
+
+	_, err = amclient.Alert.PostAlerts(alertParams)
+	return err
 }

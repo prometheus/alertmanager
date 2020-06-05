@@ -12,4 +12,6 @@ route:
 receivers:
 - name: 'team-X-opsgenie'
   opsgenie_configs:
-  - teams: 'team-X'
+  - responders:
+    - name: 'team-X'
+      type: 'team'

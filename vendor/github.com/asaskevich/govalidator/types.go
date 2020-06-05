@@ -3,6 +3,7 @@ package govalidator
 import (
 	"reflect"
 	"regexp"
+	"sort"
 	"sync"
 )
 
@@ -15,7 +16,27 @@ type CustomTypeValidator func(i interface{}, o interface{}) bool
 
 // ParamValidator is a wrapper for validator functions that accepts additional parameters.
 type ParamValidator func(str string, params ...string) bool
-type tagOptionsMap map[string]string
+type InterfaceParamValidator func(in interface{}, params ...string) bool
+type tagOptionsMap map[string]tagOption
+
+func (t tagOptionsMap) orderedKeys() []string {
+	var keys []string
+	for k := range t {
+		keys = append(keys, k)
+	}
+
+	sort.Slice(keys, func(a, b int) bool {
+		return t[keys[a]].order < t[keys[b]].order
+	})
+
+	return keys
+}
+
+type tagOption struct {
+	name               string
+	customErrorMessage string
+	order              int
+}
 
 // UnsupportedTypeError is a wrapper for reflect.Type
 type UnsupportedTypeError struct {
@@ -26,15 +47,27 @@ type UnsupportedTypeError struct {
 // It implements the methods to sort by string.
 type stringValues []reflect.Value
 
+// InterfaceParamTagMap is a map of functions accept variants parameters for an interface value
+var InterfaceParamTagMap = map[string]InterfaceParamValidator{
+	"type": IsType,
+}
+
+// InterfaceParamTagRegexMap maps interface param tags to their respective regexes.
+var InterfaceParamTagRegexMap = map[string]*regexp.Regexp{
+	"type": regexp.MustCompile(`^type\((.*)\)$`),
+}
+
 // ParamTagMap is a map of functions accept variants parameters
 var ParamTagMap = map[string]ParamValidator{
-	"length":       ByteLength,
-	"range":        Range,
-	"runelength":   RuneLength,
-	"stringlength": StringLength,
-	"matches":      StringMatches,
-	"in":           isInRaw,
-	"rsapub":       IsRsaPub,
+	"length":          ByteLength,
+	"range":           Range,
+	"runelength":      RuneLength,
+	"stringlength":    StringLength,
+	"matches":         StringMatches,
+	"in":              IsInRaw,
+	"rsapub":          IsRsaPub,
+	"minstringlength": MinStringLength,
+	"maxstringlength": MaxStringLength,
 }
 
 // ParamTagRegexMap maps param tags to their respective regexes.
@@ -46,6 +79,8 @@ var ParamTagRegexMap = map[string]*regexp.Regexp{
 	"in":           regexp.MustCompile(`^in\((.*)\)`),
 	"matches":      regexp.MustCompile(`^matches\((.+)\)$`),
 	"rsapub":       regexp.MustCompile("^rsapub\\((\\d+)\\)$"),
+	"minstringlength": regexp.MustCompile("^minstringlength\\((\\d+)\\)$"),
+	"maxstringlength": regexp.MustCompile("^maxstringlength\\((\\d+)\\)$"),
 }
 
 type customTypeTagMap struct {
@@ -94,6 +129,7 @@ var TagMap = map[string]Validator{
 	"int":                IsInt,
 	"float":              IsFloat,
 	"null":               IsNull,
+	"notnull":            IsNotNull,
 	"uuid":               IsUUID,
 	"uuidv3":             IsUUIDv3,
 	"uuidv4":             IsUUIDv4,

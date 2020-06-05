@@ -17,6 +17,7 @@ package runtime
 import (
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -41,6 +42,8 @@ type ClientRequestWriter interface {
 type ClientRequest interface {
 	SetHeaderParam(string, ...string) error
 
+	GetHeaderParams() http.Header
+
 	SetQueryParam(string, ...string) error
 
 	SetFormParam(string, ...string) error
@@ -60,6 +63,10 @@ type ClientRequest interface {
 	GetPath() string
 
 	GetBody() []byte
+
+	GetBodyParam() interface{}
+
+	GetFileParam() map[string][]NamedReadCloser
 }
 
 // NamedReadCloser represents a named ReadCloser interface

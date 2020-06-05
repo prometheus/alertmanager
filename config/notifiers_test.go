@@ -212,7 +212,7 @@ url: 'http://example.com'
 	}
 }
 
-func TestWebhookPasswordIsObsfucated(t *testing.T) {
+func TestWebhookPasswordIsObfuscated(t *testing.T) {
 	in := `
 url: 'http://example.com'
 http_config:
@@ -233,40 +233,6 @@ http_config:
 	}
 	if strings.Contains(string(ycfg), "supersecret") {
 		t.Errorf("Found password in the YAML cfg: %s\n", ycfg)
-	}
-}
-
-func TestWechatAPIKeyIsPresent(t *testing.T) {
-	in := `
-api_secret: ''
-`
-	var cfg WechatConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "missing Wechat APISecret in Wechat config"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-func TestWechatCorpIDIsPresent(t *testing.T) {
-	in := `
-api_secret: 'api_secret'
-corp_id: ''
-`
-	var cfg WechatConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "missing Wechat CorpID in Wechat config"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
 	}
 }
 
@@ -365,6 +331,71 @@ token: ''
 	}
 }
 
+func TestLoadSlackConfiguration(t *testing.T) {
+	var tests = []struct {
+		in       string
+		expected SlackConfig
+	}{
+		{
+			in: `
+color: green
+username: mark
+channel: engineering
+title_link: http://example.com/
+image_url: https://example.com/logo.png
+`,
+			expected: SlackConfig{Color: "green", Username: "mark", Channel: "engineering",
+				TitleLink: "http://example.com/",
+				ImageURL:  "https://example.com/logo.png"},
+		},
+		{
+			in: `
+color: green
+username: mark
+channel: alerts
+title_link: http://example.com/alert1
+mrkdwn_in:
+- pretext
+- text
+`,
+			expected: SlackConfig{Color: "green", Username: "mark", Channel: "alerts",
+				MrkdwnIn: []string{"pretext", "text"}, TitleLink: "http://example.com/alert1"},
+		}}
+	for _, rt := range tests {
+		var cfg SlackConfig
+		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+		if err != nil {
+			t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+		}
+		if rt.expected.Color != cfg.Color {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.Color, cfg.Color)
+		}
+		if rt.expected.Username != cfg.Username {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.Username, cfg.Username)
+		}
+		if rt.expected.Channel != cfg.Channel {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.Channel, cfg.Channel)
+		}
+		if rt.expected.ThumbURL != cfg.ThumbURL {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.ThumbURL, cfg.ThumbURL)
+		}
+		if rt.expected.TitleLink != cfg.TitleLink {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.TitleLink, cfg.TitleLink)
+		}
+		if rt.expected.ImageURL != cfg.ImageURL {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.ImageURL, cfg.ImageURL)
+		}
+		if len(rt.expected.MrkdwnIn) != len(cfg.MrkdwnIn) {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", rt.expected.MrkdwnIn, cfg.MrkdwnIn)
+		}
+		for i := range cfg.MrkdwnIn {
+			if rt.expected.MrkdwnIn[i] != cfg.MrkdwnIn[i] {
+				t.Errorf("\nexpected:\n%v\ngot:\n%v\nat index %v", rt.expected.MrkdwnIn[i], cfg.MrkdwnIn[i], i)
+			}
+		}
+	}
+}
+
 func TestSlackFieldConfigValidation(t *testing.T) {
 	var tests = []struct {
 		in       string
@@ -422,7 +453,7 @@ fields:
 	}
 }
 
-func TestSlackFieldConfigUnmarshalling(t *testing.T) {
+func TestSlackFieldConfigUnmarshaling(t *testing.T) {
 	in := `
 fields:
 - title: first
@@ -557,6 +588,21 @@ actions:
 			if action.ConfirmField.DismissText != exp.ConfirmField.DismissText {
 				t.Errorf("\nexpected:\n%v\ngot:\n%v", exp.ConfirmField.DismissText, action.ConfirmField.DismissText)
 			}
+		}
+	}
+}
+
+func TestOpsgenieTypeMatcher(t *testing.T) {
+	good := []string{"team", "user", "escalation", "schedule"}
+	for _, g := range good {
+		if !opsgenieTypeMatcher.MatchString(g) {
+			t.Fatalf("failed to match with %s", g)
+		}
+	}
+	bad := []string{"0user", "team1", "2escalation3", "sche4dule", "User", "TEAM"}
+	for _, b := range bad {
+		if opsgenieTypeMatcher.MatchString(b) {
+			t.Errorf("mistakenly match with %s", b)
 		}
 	}
 }

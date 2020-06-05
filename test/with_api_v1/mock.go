@@ -24,7 +24,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -160,7 +160,7 @@ func Alert(keyval ...interface{}) *TestAlert {
 }
 
 // nativeAlert converts the declared test alert into a full alert based
-// on the given paramters.
+// on the given parameters.
 func (a *TestAlert) nativeAlert(opts *AcceptanceOpts) *model.Alert {
 	na := &model.Alert{
 		Labels:      a.labels,
@@ -277,7 +277,7 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	dec := json.NewDecoder(req.Body)
 	defer req.Body.Close()
 
-	var v notify.WebhookMessage
+	var v webhook.Message
 	if err := dec.Decode(&v); err != nil {
 		panic(err)
 	}

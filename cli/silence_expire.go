@@ -17,10 +17,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/prometheus/client_golang/api"
-	"gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/prometheus/alertmanager/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type silenceExpireCmd struct {
@@ -41,14 +40,12 @@ func (c *silenceExpireCmd) expire(ctx context.Context, _ *kingpin.ParseContext) 
 		return errors.New("no silence IDs specified")
 	}
 
-	apiClient, err := api.NewClient(api.Config{Address: alertmanagerURL.String()})
-	if err != nil {
-		return err
-	}
-	silenceAPI := client.NewSilenceAPI(apiClient)
+	amclient := NewAlertmanagerClient(alertmanagerURL)
 
 	for _, id := range c.ids {
-		err := silenceAPI.Expire(ctx, id)
+		params := silence.NewDeleteSilenceParams().WithContext(ctx)
+		params.SilenceID = strfmt.UUID(id)
+		_, err := amclient.Silence.DeleteSilence(params)
 		if err != nil {
 			return err
 		}

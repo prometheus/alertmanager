@@ -214,7 +214,7 @@ func (h *httpAlertAPI) List(ctx context.Context, filter, receiver string, silenc
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, body, err := h.client.Do(ctx, req)
+	_, body, err := h.client.Do(ctx, req) // ignoring warnings.
 	if err != nil {
 		return nil, err
 	}

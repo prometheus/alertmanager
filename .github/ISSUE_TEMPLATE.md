@@ -29,7 +29,7 @@
 
 * Prometheus version:
 
-	insert output of `prometheus -version` here (if relevant to the issue)
+	insert output of `prometheus --version` here (if relevant to the issue)
 
 * Alertmanager configuration file:
 ```

@@ -125,10 +125,6 @@ The following is a list of tags for struct fields supported by go-flags:
                           gets prepended to every option's long name and
                           subgroup's namespace of this group, separated by
                           the parser's namespace delimiter (optional)
-    env-namespace:        when specified on a group struct field, the env-namespace
-                          gets prepended to every option's env key and
-                          subgroup's env-namespace of this group, separated by
-                          the parser's env-namespace delimiter (optional)
     command:              when specified on a struct field, makes the struct
                           field a (sub)command with the given name (optional)
     subcommands-optional: when specified on a command struct field, makes

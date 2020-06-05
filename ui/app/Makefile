@@ -2,12 +2,15 @@
 # elm files change during execution.
 ELM_FILES = $(shell find src -iname *.elm)
 DOCKER_IMG := elm-env
-DOCKER_CMD := docker run --rm -t -v $(PWD):/app -w /app $(DOCKER_IMG)
+DOCKER_RUN_CURRENT_USER := docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER))
+DOCKER_CMD := $(DOCKER_RUN_CURRENT_USER) --rm -t -v $(PWD):/app -w /app -e "ELM_HOME=/app" $(DOCKER_IMG)
 # macOS requires mktemp template to be at the end of the filename.
 TEMPFILE := $(shell mktemp ./elm-XXXXXXXXXX)
 # --output flag for elm make must end in .js or .html.
 TEMPFILE_JS := "$(TEMPFILE).js"
 TEMPOPENAPI := $(shell mktemp -d ./openapi-XXXXXXXXXX)
+# If JUNIT_DIR is set, the tests are executed with the JUnit reporter and the result is stored in the given directory.
+JUNIT_DIR ?=
 
 ifeq ($(NO_DOCKER), true)
   DOCKER_CMD=
@@ -28,7 +31,12 @@ format: elm-env $(ELM_FILES)
 test: src/Data elm-env
 	@$(DOCKER_CMD) rm -rf elm-stuff/generated-code
 	@$(DOCKER_CMD) elm-format $(ELM_FILES) --validate
+ifneq ($(JUNIT_DIR),)
+	mkdir -p $(JUNIT_DIR)
+	@$(DOCKER_CMD) elm-test --report=junit | tee $(JUNIT_DIR)/junit.xml
+else
 	@$(DOCKER_CMD) elm-test
+endif
 
 dev-server:
 	elm reactor
@@ -43,10 +51,7 @@ script.js: src/Data elm-env format $(ELM_FILES)
 
 src/Data: ../../api/v2/openapi.yaml
 	-rm -r src/Data
-	# TODO: Use released version instead of `@sha256:d9f87079bb4d7[...]` that
-	# includes patch for
-	# https://github.com/OpenAPITools/openapi-generator/issues/1465
-	docker run --user=$(shell id -u $(USER)):$(shell id -g $(USER)) --rm -v ${PWD}/../..:/local openapitools/openapi-generator-cli@sha256:d9f87079bb4d769e2c6f2a6b72677f4d5e64db687db0455eb41227663290e53c generate \
+	$(DOCKER_RUN_CURRENT_USER) --rm -v ${PWD}/../..:/local openapitools/openapi-generator-cli:v3.3.4 generate \
 		-i /local/api/v2/openapi.yaml \
 	  -g elm \
 		-o /local/ui/app/$(TEMPOPENAPI)
@@ -57,9 +62,6 @@ src/Data: ../../api/v2/openapi.yaml
 
 
 clean:
-	- @rm script.js
-	- @rm -rf elm-stuff
-	- @rm -rf src/Data
-	- @rm -f src/DateTime.elm
-	- @docker rmi $(DOCKER_IMG)
-	- rm -r openapi-*
+	- @rm -rf script.js elm-stuff src/Data src/DateTime.elm openapi-* elm-*
+	- @if [ ! -z "$(docker images -q $(DOCKER_IMG))" ]; then \
+             docker rmi $(DOCKER_IMG); fi

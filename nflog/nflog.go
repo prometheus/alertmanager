@@ -39,7 +39,7 @@ import (
 var ErrNotFound = errors.New("not found")
 
 // ErrInvalidState is returned if the state isn't valid.
-var ErrInvalidState = fmt.Errorf("invalid state")
+var ErrInvalidState = errors.New("invalid state")
 
 // query currently allows filtering by and/or receiver group key.
 // It is configured via QueryParameter functions.
@@ -104,12 +104,14 @@ func newMetrics(r prometheus.Registerer) *metrics {
 	m := &metrics{}
 
 	m.gcDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_nflog_gc_duration_seconds",
-		Help: "Duration of the last notification log garbage collection cycle.",
+		Name:       "alertmanager_nflog_gc_duration_seconds",
+		Help:       "Duration of the last notification log garbage collection cycle.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "alertmanager_nflog_snapshot_duration_seconds",
-		Help: "Duration of the last notification log snapshot.",
+		Name:       "alertmanager_nflog_snapshot_duration_seconds",
+		Help:       "Duration of the last notification log snapshot.",
+		Objectives: map[float64]float64{},
 	})
 	m.snapshotSize = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_nflog_snapshot_size_bytes",
@@ -191,7 +193,7 @@ func WithMetrics(r prometheus.Registerer) Option {
 func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
 	return func(l *Log) error {
 		if d == 0 {
-			return fmt.Errorf("maintenance interval must not be 0")
+			return errors.New("maintenance interval must not be 0")
 		}
 		l.runInterval = d
 		l.stopc = stopc

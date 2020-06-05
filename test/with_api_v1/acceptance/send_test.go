@@ -84,7 +84,7 @@ receivers:
 
 	co.Want(Between(6, 6.5), Alert("alertname", "test").Active(5.3))
 
-	// Test against a bug which ocurrec after a restart. The previous occurrence of
+	// Test against a bug which occurred after a restart. The previous occurrence of
 	// the alert was sent rather than the most recent one.
 	//
 	// XXX(fabxc) disabled as notification info won't be persisted. Thus, with a mesh
@@ -121,7 +121,7 @@ receivers:
 
 	// Create a new acceptance test that instantiates new Alertmanagers
 	// with the given configuration and verifies times with the given
-	// tollerance.
+	// tolerance.
 	at := NewAcceptanceTest(t, &AcceptanceOpts{
 		Tolerance: 150 * time.Millisecond,
 	})

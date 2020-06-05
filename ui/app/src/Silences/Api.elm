@@ -6,7 +6,7 @@ import Http
 import Json.Decode
 import Silences.Decoders
 import Utils.Api
-import Utils.Filter exposing (Filter, generateQueryString)
+import Utils.Filter exposing (Filter, generateAPIQueryString)
 import Utils.Types exposing (ApiData(..))
 
 
@@ -14,7 +14,7 @@ getSilences : String -> Filter -> (ApiData (List GettableSilence) -> msg) -> Cmd
 getSilences apiUrl filter msg =
     let
         url =
-            String.join "/" [ apiUrl, "silences" ++ generateQueryString filter ]
+            String.join "/" [ apiUrl, "silences" ++ generateAPIQueryString filter ]
     in
     Utils.Api.send (Utils.Api.get url (Json.Decode.list Data.GettableSilence.decoder))
         |> Cmd.map msg
