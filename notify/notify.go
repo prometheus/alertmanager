@@ -661,7 +661,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		return ctx, nil, fmt.Errorf("group_interval missing")
 	}
 
-	//
+	// set retry timeout to 20% of flush interval
 	retryTimeOut := groupInterval / 5
 	if b.MaxElapsedTime > retryTimeOut {
 		b.MaxElapsedTime = retryTimeOut
