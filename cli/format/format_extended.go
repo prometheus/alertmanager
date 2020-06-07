@@ -89,6 +89,27 @@ func (formatter *ExtendedFormatter) FormatConfig(status *models.AlertmanagerStat
 	return nil
 }
 
+// FormatClusterStatus formats the cluster status with peers into a readable string.
+func (formatter *ExtendedFormatter) FormatClusterStatus(status *models.ClusterStatus) error {
+	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w,
+		"Cluster Status:\t%s\nNode Name:\t%s\n\n",
+		*status.Status,
+		status.Name,
+	)
+	fmt.Fprintln(w, "Address\tName")
+	sort.Sort(ByAddress(status.Peers))
+	for _, peer := range status.Peers {
+		fmt.Fprintf(
+			w,
+			"%s\t%s\t\n",
+			*peer.Address,
+			*peer.Name,
+		)
+	}
+	return w.Flush()
+}
+
 func extendedFormatLabels(labels models.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {

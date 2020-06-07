@@ -26,7 +26,6 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/client_golang/api"
 )
 
 type apiTest struct {
@@ -68,7 +67,7 @@ func (c *fakeAPIClient) URL(ep string, args map[string]string) *url.URL {
 	}
 }
 
-func (c *fakeAPIClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
+func (c *fakeAPIClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	test := <-c.ch
 
 	if req.URL.Path != test.path {
@@ -83,7 +82,7 @@ func (c *fakeAPIClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 		c.Fatal(err)
 	}
 
-	return &http.Response{}, b, nil, test.err
+	return &http.Response{}, b, test.err
 }
 
 func TestAPI(t *testing.T) {
@@ -352,11 +351,11 @@ func (c fakeClient) URL(string, map[string]string) *url.URL {
 	return nil
 }
 
-func (c fakeClient) Do(context.Context, *http.Request) (*http.Response, []byte, api.Warnings, error) {
+func (c fakeClient) Do(context.Context, *http.Request) (*http.Response, []byte, error) {
 	fakeRes := <-c.ch
 
 	if fakeRes.err != nil {
-		return nil, nil, nil, fakeRes.err
+		return nil, nil, fakeRes.err
 	}
 
 	var b []byte
@@ -371,7 +370,7 @@ func (c fakeClient) Do(context.Context, *http.Request) (*http.Response, []byte, 
 		}
 	}
 
-	return &http.Response{StatusCode: fakeRes.code}, b, nil, nil
+	return &http.Response{StatusCode: fakeRes.code}, b, nil
 }
 
 type apiClientTest struct {
@@ -440,7 +439,7 @@ func TestAPIClientDo(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			fake.ch <- test.response
 
-			_, body, _, err := client.Do(context.Background(), &http.Request{})
+			_, body, err := client.Do(context.Background(), &http.Request{})
 			if test.err != nil {
 				if err == nil {
 					t.Errorf("expected error %q but got none", test.err)

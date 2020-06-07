@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -270,4 +271,54 @@ func TestErrDetails(t *testing.T) {
 			require.Contains(t, err, tc.exp)
 		})
 	}
+}
+
+func TestEventSizeEnforcement(t *testing.T) {
+	bigDetails := map[string]string{
+		"firing": strings.Repeat("a", 513000),
+	}
+
+	// V1 Messages
+	msgV1 := &pagerDutyMessage{
+		ServiceKey: "01234567890123456789012345678901",
+		EventType:  "trigger",
+		Details:    bigDetails,
+	}
+
+	notifierV1, err := New(
+		&config.PagerdutyConfig{
+			ServiceKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	encodedV1, err := notifierV1.encodeMessage(msgV1)
+	require.NoError(t, err)
+	require.Contains(t, encodedV1.String(), `"details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 512KB"}`)
+
+	// V2 Messages
+	msgV2 := &pagerDutyMessage{
+		RoutingKey:  "01234567890123456789012345678901",
+		EventAction: "trigger",
+		Payload: &pagerDutyPayload{
+			CustomDetails: bigDetails,
+		},
+	}
+
+	notifierV2, err := New(
+		&config.PagerdutyConfig{
+			RoutingKey: config.Secret("01234567890123456789012345678901"),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	encodedV2, err := notifierV2.encodeMessage(msgV2)
+	require.NoError(t, err)
+	require.Contains(t, encodedV2.String(), `"custom_details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 512KB"}`)
 }
