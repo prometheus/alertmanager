@@ -9,6 +9,8 @@ TEMPFILE := $(shell mktemp ./elm-XXXXXXXXXX)
 # --output flag for elm make must end in .js or .html.
 TEMPFILE_JS := "$(TEMPFILE).js"
 TEMPOPENAPI := $(shell mktemp -d ./openapi-XXXXXXXXXX)
+# If JUNIT_DIR is set, the tests are executed with the JUnit reporter and the result is stored in the given directory.
+JUNIT_DIR ?=
 
 ifeq ($(NO_DOCKER), true)
   DOCKER_CMD=
@@ -29,7 +31,12 @@ format: elm-env $(ELM_FILES)
 test: src/Data elm-env
 	@$(DOCKER_CMD) rm -rf elm-stuff/generated-code
 	@$(DOCKER_CMD) elm-format $(ELM_FILES) --validate
+ifneq ($(JUNIT_DIR),)
+	mkdir -p $(JUNIT_DIR)
+	@$(DOCKER_CMD) elm-test --report=junit | tee $(JUNIT_DIR)/junit.xml
+else
 	@$(DOCKER_CMD) elm-test
+endif
 
 dev-server:
 	elm reactor

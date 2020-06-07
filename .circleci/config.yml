@@ -2,7 +2,7 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.1.0
+  prometheus: prometheus/prometheus@0.8.0
   go: circleci/go@0.2.0
 
 jobs:
@@ -27,6 +27,8 @@ jobs:
         name: Generate front-end code
         command: make all
         working_directory: ~/project/ui/app
+        environment:
+          JUNIT_DIR: ~/test-results
     - run:
         name: Generate assets
         command: make assets
@@ -34,6 +36,8 @@ jobs:
         name: Generate API v2 code
         command: make apiv2
     - run: git diff --exit-code
+    - store_test_results:
+        path: ~/test-results
 
   test:
     docker:
@@ -84,14 +88,16 @@ jobs:
           # don't limit this to the number of allocated cores, the job is
           # likely to get OOMed and killed.
           GOOPTS: "-p 2"
-    - prometheus/check_proto
+    - prometheus/check_proto:
+        version: "3.11.4"
     - prometheus/store_artifact:
         file: alertmanager
     - prometheus/store_artifact:
         file: amtool
     - go/save-cache:
         key: v1-go-mod
-
+    - store_test_results:
+        path: test-results
 
 workflows:
   version: 2

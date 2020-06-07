@@ -470,6 +470,9 @@ func run() int {
 
 	router := route.New().WithInstrumentation(instrumentHandler)
 	if *routePrefix != "/" {
+		router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, *routePrefix, http.StatusFound)
+		})
 		router = router.WithPrefix(*routePrefix)
 	}
 
