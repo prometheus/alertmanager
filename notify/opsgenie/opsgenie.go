@@ -122,10 +122,8 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	details := make(map[string]string)
 
-	if n.conf.CommonLabelsAsDetails {
-		for k, v := range data.CommonLabels {
-			details[k] = v
-		}
+	for k, v := range data.CommonLabels {
+		details[k] = v
 	}
 
 	for k, v := range n.conf.Details {
