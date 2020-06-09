@@ -637,9 +637,12 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	var (
 		i    = 0
 		b    = backoff.NewExponentialBackOff()
-		tick = backoff.NewTicker(b)
 		iErr error
 	)
+
+	// always retry until next flush
+	b.MaxElapsedTime = 0
+	tick := backoff.NewTicker(b)
 	defer tick.Stop()
 	l = log.With(l, "receiver", r.groupName, "integration", r.integration.String())
 
@@ -657,7 +660,11 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		}
 
 		select {
-		case <-tick.C:
+		case t := <-tick.C:
+			// return if timer stop
+			if t.IsZero() {
+				return ctx, alerts, iErr
+			}
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
