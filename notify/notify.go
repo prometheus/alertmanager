@@ -661,7 +661,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 
 		select {
 		case t := <-tick.C:
-			// return if timer stop
+			// return when timer stop
 			if t.IsZero() {
 				return ctx, alerts, iErr
 			}
