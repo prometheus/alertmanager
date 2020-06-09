@@ -13,6 +13,7 @@
 * [BUGFIX] Fix a potential race condition in dispatcher. #2208
 * [BUGFIX] [API v2] Return an empty array of peers when the clustering is disabled. #2203
 * [BUGFIX] Fix the registration of `alertmanager_dispatcher_aggregation_groups` and `alertmanager_dispatcher_alert_processing_duration_seconds` metrics. #2200
+* [BUGFIX] Always retry notifications with back-off. #2290
 
 ## 0.20.0 / 2019-12-11
 
