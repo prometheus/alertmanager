@@ -294,7 +294,7 @@ A `tls_config` allows configuring TLS connections.
 
 Receiver is a named configuration of one or more notification integrations.
 
-__We're not actively adding new receivers, we recommend implementing custom notification integrations via the [webhook](/docs/alerting/configuration/#webhook_config) receiver.__
+__We're not actively adding new receivers, we recommend implementing custom notification integrations via the [webhook](#webhook_config) receiver.__
 
 ```yaml
 # The unique name of the receiver.
@@ -714,7 +714,7 @@ endpoint:
 ```
 
 There is a list of
-[integrations](/docs/operating/integrations/#alertmanager-webhook-receiver) with
+[integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
 
 ## `<wechat_config>`
