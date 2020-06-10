@@ -572,6 +572,7 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 
 # A set of arbitrary key/value pairs that provide further detail
 # about the incident.
+# All common labels are included as details by default.
 [ details: { <string>: <tmpl_string>, ... } ]
 
 # List of responders responsible for notifications.
