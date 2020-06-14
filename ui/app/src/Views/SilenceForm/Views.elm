@@ -1,17 +1,17 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import DatePicker
-import Html exposing (Html, a, button, div, fieldset, h1, h5, i, input, label, legend, span, strong, text, textarea)
+import Html exposing (Html, a, button, div, fieldset, h1, i, input, label, legend, span, strong, text, textarea)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
+import Utils.DateTimePicker.Views exposing (viewDateTimePicker)
 import Utils.Filter exposing (SilenceFormGetParams, emptySilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
+import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), dateTimePickerSettings)
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
@@ -45,68 +45,7 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
             [ informationBlock activeAlertId silenceId alerts
             , silenceActionButtons maybeId form resetClick
             ]
-        , case form.showStartsAtPicker of
-            True ->
-                datetimePickerDialog
-                    (div []
-                        [ DatePicker.view form.startsAtPicker
-                            |> Html.map (StartsAtPicker >> UpdateField)
-                        ]
-                    )
-                    (CloseStartsAtPicker |> UpdateField)
-                    (UpdateStartsAtFromDatePicker |> UpdateField)
-                    "Starts At"
-
-            _ ->
-                div [] []
-        , case form.showEndsAtPicker of
-            True ->
-                datetimePickerDialog
-                    (div []
-                        [ DatePicker.view form.endsAtPicker
-                            |> Html.map (EndsAtPicker >> UpdateField)
-                        ]
-                    )
-                    (CloseEndsAtPicker |> UpdateField)
-                    (UpdateEndsAtFromDatePicker |> UpdateField)
-                    "Ends At"
-
-            _ ->
-                div [] []
-        ]
-
-
-datetimePickerDialog : Html msg -> msg -> msg -> String -> Html msg
-datetimePickerDialog body onClose setTime title =
-    div []
-        [ div [ class "modal fade show", style "display" "block" ]
-            [ div [ class "modal-dialog modal-dialog-centered" ]
-                [ div [ class "modal-content" ]
-                    [ div [ class "modal-header" ]
-                        [ h5 [ class "modal-title" ] [ text title ]
-                        , button
-                            [ class "close"
-                            , onClick onClose
-                            ]
-                            [ text "x" ]
-                        ]
-                    , div [ class "modal-body" ] [ body ]
-                    , div [ class "modal-footer" ]
-                        [ button
-                            [ class "ml-2 btn btn-outline-success pull-left"
-                            , onClick onClose
-                            ]
-                            [ text "Cancel" ]
-                        , button
-                            [ class "ml-2 btn btn-primary"
-                            , onClick setTime
-                            ]
-                            [ text "Set Date/Time" ]
-                        ]
-                    ]
-                ]
-            ]
-        , div [ class "modal-backdrop fade show" ] []
+        , viewDateTimePicker dateTimePickerSettings form.dateTimePicker
         ]
 
 
@@ -120,23 +59,10 @@ timeInput startsAt endsAt duration =
     div [ class <| "row " ++ inputSectionPadding ]
         [ validatedField input
             "Start"
-            "col-4 pr-0"
+            "col-4"
             (UpdateStartsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             startsAt
-        , div [ class "flex-column form-group" ]
-            [ label
-                []
-                [ text "\u{00A0}" ]
-            , button
-                [ class "form-control"
-                , onClick (OpenStartsAtPicker |> UpdateField)
-                ]
-                [ i
-                    [ class "fa fa-calendar" ]
-                    []
-                ]
-            ]
         , validatedField input
             "Duration"
             "col-2"
@@ -149,13 +75,15 @@ timeInput startsAt endsAt duration =
             (UpdateEndsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             endsAt
-        , div [ class "flex-column form-group" ]
+        , div
+            [ class "flex-column form-group"
+            , onClick OpenDateTimePicker
+            ]
             [ label
                 []
                 [ text "\u{00A0}" ]
             , button
                 [ class "form-control"
-                , onClick (OpenEndsAtPicker |> UpdateField)
                 ]
                 [ i
                     [ class "fa fa-calendar" ]

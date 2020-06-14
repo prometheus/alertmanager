@@ -14,7 +14,7 @@ module Data.GettableAlert exposing (GettableAlert, decoder, encoder)
 
 import Data.AlertStatus as AlertStatus exposing (AlertStatus)
 import Data.Receiver as Receiver exposing (Receiver)
-import DateTimeLocal exposing (DateTime)
+import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -42,9 +42,9 @@ decoder =
         |> required "annotations" (Decode.dict Decode.string)
         |> required "receivers" (Decode.list Receiver.decoder)
         |> required "fingerprint" Decode.string
-        |> required "startsAt" DateTimeLocal.decoder
-        |> required "updatedAt" DateTimeLocal.decoder
-        |> required "endsAt" DateTimeLocal.decoder
+        |> required "startsAt" DateTime.decoder
+        |> required "updatedAt" DateTime.decoder
+        |> required "endsAt" DateTime.decoder
         |> required "status" AlertStatus.decoder
 
 
@@ -56,8 +56,8 @@ encoder model =
         , ( "annotations", Encode.dict identity Encode.string model.annotations )
         , ( "receivers", Encode.list Receiver.encoder model.receivers )
         , ( "fingerprint", Encode.string model.fingerprint )
-        , ( "startsAt", DateTimeLocal.encoder model.startsAt )
-        , ( "updatedAt", DateTimeLocal.encoder model.updatedAt )
-        , ( "endsAt", DateTimeLocal.encoder model.endsAt )
+        , ( "startsAt", DateTime.encoder model.startsAt )
+        , ( "updatedAt", DateTime.encoder model.updatedAt )
+        , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "status", AlertStatus.encoder model.status )
         ]

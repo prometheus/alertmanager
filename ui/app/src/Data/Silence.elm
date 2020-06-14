@@ -13,7 +13,7 @@
 module Data.Silence exposing (Silence(..), decoder, encoder)
 
 import Data.Matcher as Matcher exposing (Matcher)
-import DateTimeLocal exposing (DateTime)
+import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -33,8 +33,8 @@ decoder : Decoder Silence
 decoder =
     Decode.succeed Silence
         |> required "matchers" (Decode.list Matcher.decoder)
-        |> required "startsAt" DateTimeLocal.decoder
-        |> required "endsAt" DateTimeLocal.decoder
+        |> required "startsAt" DateTime.decoder
+        |> required "endsAt" DateTime.decoder
         |> required "createdBy" Decode.string
         |> required "comment" Decode.string
 
@@ -43,8 +43,8 @@ encoder : Silence -> Encode.Value
 encoder model =
     Encode.object
         [ ( "matchers", Encode.list Matcher.encoder model.matchers )
-        , ( "startsAt", DateTimeLocal.encoder model.startsAt )
-        , ( "endsAt", DateTimeLocal.encoder model.endsAt )
+        , ( "startsAt", DateTime.encoder model.startsAt )
+        , ( "endsAt", DateTime.encoder model.endsAt )
         , ( "createdBy", Encode.string model.createdBy )
         , ( "comment", Encode.string model.comment )
         ]

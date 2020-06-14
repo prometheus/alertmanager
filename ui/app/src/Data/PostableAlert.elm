@@ -12,7 +12,7 @@
 
 module Data.PostableAlert exposing (PostableAlert, decoder, encoder)
 
-import DateTimeLocal exposing (DateTime)
+import DateTime exposing (DateTime)
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -33,8 +33,8 @@ decoder =
     Decode.succeed PostableAlert
         |> required "labels" (Decode.dict Decode.string)
         |> optional "generatorURL" (Decode.nullable Decode.string) Nothing
-        |> optional "startsAt" (Decode.nullable DateTimeLocal.decoder) Nothing
-        |> optional "endsAt" (Decode.nullable DateTimeLocal.decoder) Nothing
+        |> optional "startsAt" (Decode.nullable DateTime.decoder) Nothing
+        |> optional "endsAt" (Decode.nullable DateTime.decoder) Nothing
         |> optional "annotations" (Decode.nullable (Decode.dict Decode.string)) Nothing
 
 
@@ -43,7 +43,7 @@ encoder model =
     Encode.object
         [ ( "labels", Encode.dict identity Encode.string model.labels )
         , ( "generatorURL", Maybe.withDefault Encode.null (Maybe.map Encode.string model.generatorURL) )
-        , ( "startsAt", Maybe.withDefault Encode.null (Maybe.map DateTimeLocal.encoder model.startsAt) )
-        , ( "endsAt", Maybe.withDefault Encode.null (Maybe.map DateTimeLocal.encoder model.endsAt) )
+        , ( "startsAt", Maybe.withDefault Encode.null (Maybe.map DateTime.encoder model.startsAt) )
+        , ( "endsAt", Maybe.withDefault Encode.null (Maybe.map DateTime.encoder model.endsAt) )
         , ( "annotations", Maybe.withDefault Encode.null (Maybe.map (Encode.dict identity Encode.string) model.annotations) )
         ]

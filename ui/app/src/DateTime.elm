@@ -1,4 +1,4 @@
-module DateTimeLocal exposing (DateTime, decoder, encoder, toString)
+module DateTime exposing (DateTime, decoder, encoder, toString)
 
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)

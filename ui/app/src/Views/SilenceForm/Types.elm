@@ -4,34 +4,27 @@ module Views.SilenceForm.Types exposing
     , SilenceForm
     , SilenceFormFieldMsg(..)
     , SilenceFormMsg(..)
-    , calendarConfig
+    , dateTimePickerSettings
     , emptyMatcher
+    , fromDateTimePicker
     , fromMatchersAndCommentAndTime
     , fromSilence
     , initSilenceForm
+    , openDateTimePicker
     , parseEndsAt
-    , timePickerConfig
     , toSilence
     , validateForm
     )
 
 import Browser.Navigation exposing (Key)
-import Clock
 import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.PostableSilence exposing (PostableSilence)
-import DatePicker
-import DatePicker.Types exposing (DateLimit(..), ViewType(..))
-import DateTime exposing (DateTime)
-import DateTimeLocal
-import Html.Attributes exposing (hidden)
-import Iso8601
-import Json.Decode as Decode
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix, utc)
-import TimePicker.Types as TimePicker
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
+import Utils.DateTimePicker.Types exposing (DateTimePicker(..), Settings, defaultSettings, openPicker)
 import Utils.Filter
 import Utils.FormValidation
     exposing
@@ -61,12 +54,7 @@ type alias SilenceForm =
     , endsAt : ValidatedField
     , duration : ValidatedField
     , matchers : List MatcherForm
-    , showStartsAtPicker : Bool
-    , startsAtDateTime : Maybe DateTime
-    , startsAtPicker : DatePicker.Model
-    , showEndsAtPicker : Bool
-    , endsAtDateTime : Maybe DateTime
-    , endsAtPicker : DatePicker.Model
+    , dateTimePicker : DateTimePicker
     }
 
 
@@ -88,6 +76,8 @@ type SilenceFormMsg
     | NewSilenceFromMatchersAndCommentAndTime String (List Utils.Filter.Matcher) String Posix
     | SilenceFetch (ApiData GettableSilence)
     | SilenceCreate (ApiData String)
+    | UpdateDateTimePicker ( DateTimePicker, Maybe ( Posix, Posix ) )
+    | OpenDateTimePicker
 
 
 type SilenceFormFieldMsg
@@ -106,14 +96,6 @@ type SilenceFormFieldMsg
     | UpdateMatcherValue Int String
     | ValidateMatcherValue Int
     | UpdateMatcherRegex Int Bool
-    | StartsAtPicker DatePicker.Msg
-    | UpdateStartsAtFromDatePicker
-    | EndsAtPicker DatePicker.Msg
-    | UpdateEndsAtFromDatePicker
-    | OpenStartsAtPicker
-    | OpenEndsAtPicker
-    | CloseStartsAtPicker
-    | CloseEndsAtPicker
 
 
 initSilenceForm : Key -> Model
@@ -149,23 +131,6 @@ toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
 
 fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
-    let
-        startsPosix =
-            case Utils.Date.timeFromString (DateTimeLocal.toString startsAt) of
-                Ok starts ->
-                    Just starts
-
-                _ ->
-                    Nothing
-
-        endsPosix =
-            case Utils.Date.timeFromString (DateTimeLocal.toString endsAt) of
-                Ok ends ->
-                    Just ends
-
-                _ ->
-                    Nothing
-    in
     { id = Just id
     , createdBy = initialField createdBy
     , comment = initialField comment
@@ -173,17 +138,29 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
     , matchers = List.map fromMatcher matchers
-    , showStartsAtPicker = False
-    , startsAtDateTime = Nothing
-    , startsAtPicker = DatePicker.initialise Single (calendarConfig startsPosix) (timePickerConfig startsPosix)
-    , showEndsAtPicker = False
-    , endsAtDateTime = Nothing
-    , endsAtPicker = DatePicker.initialise Single (calendarConfig endsPosix) (timePickerConfig endsPosix)
+    , dateTimePicker = Utils.DateTimePicker.Types.initFromMaybePosix utc (Just startsAt) (Just endsAt)
     }
 
 
 validateForm : SilenceForm -> SilenceForm
-validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers, showStartsAtPicker, startsAtDateTime, startsAtPicker, showEndsAtPicker, endsAtDateTime, endsAtPicker } =
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
+    let
+        startsAtTime =
+            case timeFromString startsAt.value of
+                Ok time ->
+                    Just time
+
+                _ ->
+                    Nothing
+
+        endsAtTime =
+            case timeFromString endsAt.value of
+                Ok time ->
+                    Just time
+
+                _ ->
+                    Nothing
+    in
     { id = id
     , createdBy = validate stringNotEmpty createdBy
     , comment = validate stringNotEmpty comment
@@ -191,12 +168,7 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers, sho
     , endsAt = validate (parseEndsAt startsAt.value) endsAt
     , duration = validate parseDuration duration
     , matchers = List.map validateMatcherForm matchers
-    , showStartsAtPicker = showStartsAtPicker
-    , startsAtDateTime = startsAtDateTime
-    , startsAtPicker = startsAtPicker
-    , showEndsAtPicker = showEndsAtPicker
-    , endsAtDateTime = endsAtDateTime
-    , endsAtPicker = endsAtPicker
+    , dateTimePicker = Utils.DateTimePicker.Types.initFromMaybePosix utc startsAtTime endsAtTime
     }
 
 
@@ -231,12 +203,7 @@ empty =
     , endsAt = initialField ""
     , duration = initialField ""
     , matchers = []
-    , showStartsAtPicker = False
-    , startsAtDateTime = Nothing
-    , startsAtPicker = DatePicker.initialise Single (calendarConfig Nothing) (timePickerConfig Nothing)
-    , showEndsAtPicker = False
-    , endsAtDateTime = Nothing
-    , endsAtPicker = DatePicker.initialise Single (calendarConfig Nothing) (timePickerConfig Nothing)
+    , dateTimePicker = Utils.DateTimePicker.Types.init
     }
 
 
@@ -269,12 +236,7 @@ fromMatchersAndCommentAndTime defaultCreator matchers comment now =
             else
                 List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
         , comment = initialField comment
-        , showStartsAtPicker = False
-        , startsAtDateTime = Just (DateTime.fromPosix now)
-        , startsAtPicker = DatePicker.initialise Single (Just now |> calendarConfig) (Just now |> timePickerConfig)
-        , showEndsAtPicker = False
-        , endsAtDateTime = Nothing
-        , endsAtPicker = DatePicker.initialise Single (Just now |> calendarConfig) (Just now |> timePickerConfig)
+        , dateTimePicker = Utils.DateTimePicker.Types.initFromMaybePosix utc (Just now) (Just (addDuration defaultDuration now))
     }
 
 
@@ -307,62 +269,79 @@ fromMatcher { name, value, isRegex } =
     }
 
 
-incrementMonths : Int -> DateTime -> DateTime
-incrementMonths count dateTime =
-    if count > 0 then
-        incrementMonths (count - 1) (DateTime.incrementMonth dateTime)
-
-    else
-        dateTime
+dateTimePickerSettings : Settings SilenceFormMsg
+dateTimePickerSettings =
+    defaultSettings utc UpdateDateTimePicker
 
 
-decrementMonths : Int -> DateTime -> DateTime
-decrementMonths count dateTime =
-    if count > 0 then
-        decrementMonths (count - 1) (DateTime.decrementMonth dateTime)
-
-    else
-        dateTime
-
-
-calendarConfig : Maybe Posix -> DatePicker.Types.CalendarConfig
-calendarConfig maybeTime =
+openDateTimePicker : SilenceForm -> SilenceForm
+openDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } =
     let
-        today =
-            case maybeTime of
-                Just time ->
-                    DateTime.fromPosix time
+        startsAtTime =
+            case timeFromString startsAt.value of
+                Ok time ->
+                    Just time
 
-                Nothing ->
-                    DateTime.fromPosix (Time.millisToPosix 0)
+                _ ->
+                    Nothing
 
-        ( minDate, maxDate ) =
-            let
-                ( past, future ) =
-                    ( decrementMonths 6 today
-                    , incrementMonths 6 today
-                    )
-            in
-            ( Maybe.withDefault past <| DateTime.setDay 1 past
-            , Maybe.withDefault future <| DateTime.setDay (DateTime.lastDayOf future) future
-            )
+        endsAtTime =
+            case timeFromString endsAt.value of
+                Ok time ->
+                    Just time
+
+                _ ->
+                    Nothing
+
+        newPicker =
+            openPicker utc startsAtTime startsAtTime endsAtTime dateTimePicker
     in
-    { today = today
-    , primaryDate = Nothing
-    , dateLimit = DateLimit { minDate = minDate, maxDate = maxDate }
+    { id = id
+    , createdBy = createdBy
+    , comment = comment
+    , startsAt = startsAt
+    , endsAt = endsAt
+    , duration = duration
+    , matchers = matchers
+    , dateTimePicker = newPicker
     }
 
 
-timePickerConfig : Maybe Posix -> Maybe DatePicker.Types.TimePickerConfig
-timePickerConfig maybeTime =
-    Just
-        { pickerType = TimePicker.HH_MM { hoursStep = 1, minutesStep = 1 }
-        , defaultTime =
-            case maybeTime of
-                Just time ->
-                    Clock.fromPosix time
+fromDateTimePicker : SilenceForm -> Maybe ( Posix, Posix ) -> DateTimePicker -> SilenceForm
+fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } newTimes newPicker =
+    let
+        startsAtPicker =
+            case newTimes of
+                Just ( start, end ) ->
+                    validate timeFromString (initialField (timeToString start))
 
                 Nothing ->
-                    Clock.midnight
-        , pickerTitle = ""
-        }
+                    startsAt
+
+        endsAtPicker =
+            case newTimes of
+                Just ( start, end ) ->
+                    validate (parseEndsAt (timeToString start)) (initialField (timeToString end))
+
+                -- validate timeFromString (initialField (timeToString end))
+                Nothing ->
+                    endsAt
+
+        durationPicker =
+            case newTimes of
+                Just ( start, end ) ->
+                    initialField (durationFormat (timeDifference start end) |> Maybe.withDefault "")
+                        |> validate parseDuration
+
+                Nothing ->
+                    duration
+    in
+    { id = id
+    , createdBy = createdBy
+    , comment = comment
+    , startsAt = startsAtPicker
+    , endsAt = endsAtPicker
+    , duration = durationPicker
+    , matchers = matchers
+    , dateTimePicker = newPicker
+    }
