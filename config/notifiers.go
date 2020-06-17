@@ -80,18 +80,6 @@ var (
 		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
 
-	// DefaultHipchatConfig defines default values for Hipchat configurations.
-	DefaultHipchatConfig = HipchatConfig{
-		NotifierConfig: NotifierConfig{
-			VSendResolved: false,
-		},
-		Color:         `{{ if eq .Status "firing" }}red{{ else }}green{{ end }}`,
-		From:          `{{ template "hipchat.default.from" . }}`,
-		Notify:        false,
-		Message:       `{{ template "hipchat.default.message" . }}`,
-		MessageFormat: `text`,
-	}
-
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		NotifierConfig: NotifierConfig{
@@ -370,35 +358,6 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultSlackConfig
 	type plain SlackConfig
 	return unmarshal((*plain)(c))
-}
-
-// HipchatConfig configures notifications via Hipchat.
-type HipchatConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
-	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
-	From          string `yaml:"from,omitempty" json:"from,omitempty"`
-	Notify        bool   `yaml:"notify,omitempty" json:"notify,omitempty"`
-	Message       string `yaml:"message,omitempty" json:"message,omitempty"`
-	MessageFormat string `yaml:"message_format,omitempty" json:"message_format,omitempty"`
-	Color         string `yaml:"color,omitempty" json:"color,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultHipchatConfig
-	type plain HipchatConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.RoomID == "" {
-		return fmt.Errorf("missing room id in Hipchat config")
-	}
-	return nil
 }
 
 // WebhookConfig configures notifications via a generic webhook.

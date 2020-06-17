@@ -5,10 +5,6 @@ global:
   smtp_auth_username: 'alertmanager'
   smtp_auth_password: "multiline\nmysecret"
   smtp_hello: "host.example.org"
-  # The auth token for Hipchat.
-  hipchat_auth_token: "mysecret"
-  # Alternative host for Hipchat.
-  hipchat_api_url: 'https://hipchat.foobar.org/'
   slack_api_url: "http://mysecret.example.com/"
   http_config:
     proxy_url: 'http://127.0.0.1:1025'
@@ -123,12 +119,6 @@ receivers:
 - name: 'team-DB-pager'
   pagerduty_configs:
   - routing_key: "mysecret"
-- name: 'team-X-hipchat'
-  hipchat_configs:
-  - auth_token: "mysecret"
-    room_id: 85
-    message_format: html
-    notify: true
 - name: victorOps-receiver
   victorops_configs:
     - api_key: mysecret
