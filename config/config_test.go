@@ -326,7 +326,7 @@ func TestHideConfigSecrets(t *testing.T) {
 
 	// String method must not reveal authentication credentials.
 	s := c.String()
-	if strings.Count(s, "<secret>") != 15 || strings.Contains(s, "mysecret") {
+	if strings.Count(s, "<secret>") != 13 || strings.Contains(s, "mysecret") {
 		t.Fatal("config's String method reveals authentication credentials.")
 	}
 }
@@ -548,18 +548,16 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	var expectedConf = Config{
 
 		Global: &GlobalConfig{
-			HTTPConfig:       &commoncfg.HTTPClientConfig{},
-			ResolveTimeout:   model.Duration(5 * time.Minute),
-			SMTPSmarthost:    HostPort{Host: "localhost", Port: "25"},
-			SMTPFrom:         "alertmanager@example.org",
-			HipchatAuthToken: "mysecret",
-			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
-			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
-			SMTPRequireTLS:   true,
-			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
-			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+			HTTPConfig:      &commoncfg.HTTPClientConfig{},
+			ResolveTimeout:  model.Duration(5 * time.Minute),
+			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
+			SMTPFrom:        "alertmanager@example.org",
+			SlackAPIURL:     (*SecretURL)(mustParseURL("http://slack.example.com/")),
+			SMTPRequireTLS:  true,
+			PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+			OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
+			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		},
 
 		Templates: []string{

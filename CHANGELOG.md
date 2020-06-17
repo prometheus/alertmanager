@@ -1,3 +1,22 @@
+## 0.21.0 / 2020-06-16
+
+This release removes the HipChat integration as it is discontinued by Atlassian on June 30th 2020.
+
+* [CHANGE] [HipChat] Remove HipChat integration as it is end-of-life. #2282
+* [CHANGE] [amtool] Remove default assignment of environment variables. #2161
+* [CHANGE] [PagerDuty] Enforce 512KB event size limit. #2225
+* [ENHANCEMENT] [amtool] Add `cluster` command to show cluster and peer statuses. #2256
+* [ENHANCEMENT] Add redirection from `/` to the routes prefix when it isn't empty. #2235
+* [ENHANCEMENT] [Webhook] Add `max_alerts` option to limit the number of alerts included in the payload. #2274
+* [ENHANCEMENT] Improve logs for API v2, notifications and clustering. #2177 #2188 #2260 #2261 #2273
+* [BUGFIX] Fix child routes not inheriting their parent route's grouping when `group_by: [...]`. #2154
+* [BUGFIX] [UI] Fix the receiver selector in the Alerts page when the receiver name contains regular expression metacharacters such as `+`. #2090
+* [BUGFIX] Fix error message about start and end time validation. #2173
+* [BUGFIX] Fix a potential race condition in dispatcher. #2208
+* [BUGFIX] [API v2] Return an empty array of peers when the clustering is disabled. #2203
+* [BUGFIX] Fix the registration of `alertmanager_dispatcher_aggregation_groups` and `alertmanager_dispatcher_alert_processing_duration_seconds` metrics. #2200
+* [BUGFIX] Always retry notifications with back-off. #2290
+
 ## 0.20.0 / 2019-12-11
 
 * [CHANGE] Check that at least one silence matcher matches a non-empty string. #2081
