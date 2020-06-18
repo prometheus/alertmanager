@@ -46,6 +46,7 @@ The `Alerts` type exposes functions for filtering alerts:
 | StartsAt | time.Time | The time the alert started firing. If omitted, the current time is assigned by the Alertmanager. |
 | EndsAt | time.Time | Only set if the end time of an alert is known. Otherwise set to a configurable timeout period from the time since the last alert was received. |
 | GeneratorURL | string | A backlink which identifies the causing entity of this alert. |
+| Fingerprint | string | Fingerprint that can be used to identify the alert. |
 
 ## KV
 

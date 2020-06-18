@@ -679,7 +679,8 @@ endpoint:
       "annotations": <object>,
       "startsAt": "<rfc3339>",
       "endsAt": "<rfc3339>",
-      "generatorURL": <string>       // identifies the entity that caused the alert
+      "generatorURL": <string>,      // identifies the entity that caused the alert
+      "fingerprint": <string>        // fingerprint to identify the alert
     },
     ...
   ]
