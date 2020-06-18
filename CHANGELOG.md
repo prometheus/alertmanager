@@ -1,3 +1,22 @@
+## 0.21.0 / 2020-06-16
+
+This release removes the HipChat integration as it is discontinued by Atlassian on June 30th 2020.
+
+* [CHANGE] [HipChat] Remove HipChat integration as it is end-of-life. #2282
+* [CHANGE] [amtool] Remove default assignment of environment variables. #2161
+* [CHANGE] [PagerDuty] Enforce 512KB event size limit. #2225
+* [ENHANCEMENT] [amtool] Add `cluster` command to show cluster and peer statuses. #2256
+* [ENHANCEMENT] Add redirection from `/` to the routes prefix when it isn't empty. #2235
+* [ENHANCEMENT] [Webhook] Add `max_alerts` option to limit the number of alerts included in the payload. #2274
+* [ENHANCEMENT] Improve logs for API v2, notifications and clustering. #2177 #2188 #2260 #2261 #2273
+* [BUGFIX] Fix child routes not inheriting their parent route's grouping when `group_by: [...]`. #2154
+* [BUGFIX] [UI] Fix the receiver selector in the Alerts page when the receiver name contains regular expression metacharacters such as `+`. #2090
+* [BUGFIX] Fix error message about start and end time validation. #2173
+* [BUGFIX] Fix a potential race condition in dispatcher. #2208
+* [BUGFIX] [API v2] Return an empty array of peers when the clustering is disabled. #2203
+* [BUGFIX] Fix the registration of `alertmanager_dispatcher_aggregation_groups` and `alertmanager_dispatcher_alert_processing_duration_seconds` metrics. #2200
+* [BUGFIX] Always retry notifications with back-off. #2290
+
 ## 0.20.0 / 2019-12-11
 
 * [CHANGE] Check that at least one silence matcher matches a non-empty string. #2081
@@ -152,7 +171,7 @@ deprecated. API v1 will be removed with Alertmanager release v0.18.0.
 * [ENHANCEMENT] Add name, value and SlackConfirmationField to action in Slack notifier (#1557)
 * [ENHANCEMENT] Show more alert information on silence form and silence view pages (#1601)
 * [ENHANCEMENT] Add cluster peers DNS refresh job (#1428)
-* [BUGFIX] Fix unmarshalling of secret URLs in config (#1663)
+* [BUGFIX] Fix unmarshaling of secret URLs in config (#1663)
 * [BUGFIX] Do not write groupbyall and groupby when marshaling config (#1665)
 * [BUGFIX] Make a copy of firing alerts with EndsAt=0 when flushing (#1686)
 * [BUGFIX] Respect regex matchers when recreating silences in UI (#1697)
@@ -348,7 +367,7 @@ deprecated. API v1 will be removed with Alertmanager release v0.18.0.
 * [ENHANCEMENT] Add possibility to have a global victorops api_key (#897)
 * [ENHANCEMENT] Add EntityDisplayName and improve StateMessage for Victorops
   (#769)
-* [ENHANCEMENT] Omit empty config fields and show regex upon re-marshalling to
+* [ENHANCEMENT] Omit empty config fields and show regex upon re-marshaling to
   elide secrets (#864)
 * [ENHANCEMENT] Parse API error messages in UI (#866)
 * [ENHANCEMENT] Enable sending mail via smtp port 465 (#704)

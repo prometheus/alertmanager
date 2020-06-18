@@ -148,6 +148,10 @@ inhibit_rules:
   target_match:
     severity: 'warning'
   # Apply inhibition if the alertname is the same.
+  # CAUTION: 
+  #   If all label names listed in `equal` are missing 
+  #   from both the source and target alerts,
+  #   the inhibition rule will apply!
   equal: ['alertname']
 
 
@@ -291,7 +295,8 @@ $ amtool silence expire $(amtool silence query -q)
 An example configuration file might look like the following:
 
 ```
-# Define the path that `amtool` can find your `alertmanager` instance at alertmanager.url: "http://localhost:9093"
+# Define the path that `amtool` can find your `alertmanager` instance
+alertmanager.url: "http://localhost:9093"
 
 # Override the default author. (unset defaults to your username)
 author: me@example.com
@@ -327,6 +332,8 @@ $ amtool config routes test --config.file=doc/examples/simple.yml --tree --verif
 Alertmanager's high availability is in production use at many companies and is enabled by default.
 
 > Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
+>  - If you are using a firewall, make sure to whitelist the clustering port for both protocols.
+>  - If you are running in a container, make sure to expose the clustering port for both protocols.
 
 To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the

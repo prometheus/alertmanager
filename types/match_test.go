@@ -200,7 +200,7 @@ func TestMatchersSort(t *testing.T) {
 			m2 := &Matcher{Name: c.i2.name, Value: c.i2.value, IsRegex: c.i2.regex}
 			m2.Init()
 			got := NewMatchers(m1, m2)
-			require.True(t, equalMachers(c.expect, got))
+			require.True(t, equalMatchers(c.expect, got))
 		})
 	}
 }
@@ -248,7 +248,7 @@ func TestMatchersEqual(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := equalMachers(test.matchers1, test.matchers2)
+		actual := equalMatchers(test.matchers1, test.matchers2)
 		require.EqualValues(t, test.expected, actual)
 	}
 }
@@ -257,7 +257,7 @@ func equalMatcher(m, n *Matcher) bool {
 	return m.Name == n.Name && m.Value == n.Value && m.IsRegex == n.IsRegex
 }
 
-func equalMachers(m, n Matchers) bool {
+func equalMatchers(m, n Matchers) bool {
 	if len(m) != len(n) {
 		return false
 	}
