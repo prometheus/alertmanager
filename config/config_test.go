@@ -326,7 +326,7 @@ func TestHideConfigSecrets(t *testing.T) {
 
 	// String method must not reveal authentication credentials.
 	s := c.String()
-	if strings.Count(s, "<secret>") != 15 || strings.Contains(s, "mysecret") {
+	if strings.Count(s, "<secret>") != 13 || strings.Contains(s, "mysecret") {
 		t.Fatal("config's String method reveals authentication credentials.")
 	}
 }
@@ -402,14 +402,14 @@ func TestUnmarshalSecretURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in JSON.")
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in JSON.")
 
 	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshalled in YAML.")
+	require.Equal(t, "http://example.com/se%20cret", u.String(), "SecretURL not properly unmarshaled in YAML.")
 }
 
 func TestMarshalURL(t *testing.T) {
@@ -423,13 +423,13 @@ func TestMarshalURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshalled in JSON.")
+	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshaled in JSON.")
 
 	c, err = yaml.Marshal(u)
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshalled in YAML.")
+	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshaled in YAML.")
 }
 
 func TestUnmarshalURL(t *testing.T) {
@@ -440,13 +440,13 @@ func TestUnmarshalURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in JSON.")
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in JSON.")
 
 	err = yaml.Unmarshal(b, &u)
 	if err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshalled in YAML.")
+	require.Equal(t, "http://example.com/a%20b", u.String(), "URL not properly unmarshaled in YAML.")
 }
 
 func TestUnmarshalInvalidURL(t *testing.T) {
@@ -459,12 +459,12 @@ func TestUnmarshalInvalidURL(t *testing.T) {
 
 		err := json.Unmarshal(b, &u)
 		if err == nil {
-			t.Errorf("Expected an error unmarshalling %q from JSON", string(b))
+			t.Errorf("Expected an error unmarshaling %q from JSON", string(b))
 		}
 
 		err = yaml.Unmarshal(b, &u)
 		if err == nil {
-			t.Errorf("Expected an error unmarshalling %q from YAML", string(b))
+			t.Errorf("Expected an error unmarshaling %q from YAML", string(b))
 		}
 		t.Logf("%s", err)
 	}
@@ -548,18 +548,16 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	var expectedConf = Config{
 
 		Global: &GlobalConfig{
-			HTTPConfig:       &commoncfg.HTTPClientConfig{},
-			ResolveTimeout:   model.Duration(5 * time.Minute),
-			SMTPSmarthost:    HostPort{Host: "localhost", Port: "25"},
-			SMTPFrom:         "alertmanager@example.org",
-			HipchatAuthToken: "mysecret",
-			HipchatAPIURL:    mustParseURL("https://hipchat.foobar.org/"),
-			SlackAPIURL:      (*SecretURL)(mustParseURL("http://slack.example.com/")),
-			SMTPRequireTLS:   true,
-			PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-			OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
-			WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-			VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+			HTTPConfig:      &commoncfg.HTTPClientConfig{},
+			ResolveTimeout:  model.Duration(5 * time.Minute),
+			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
+			SMTPFrom:        "alertmanager@example.org",
+			SlackAPIURL:     (*SecretURL)(mustParseURL("http://slack.example.com/")),
+			SMTPRequireTLS:  true,
+			PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+			OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
+			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		},
 
 		Templates: []string{
@@ -788,11 +786,11 @@ func TestNilRegexp(t *testing.T) {
 			errMsg: "invalid_label",
 		},
 		{
-			file:   "testdata/conf.nil-source_match_re-inhibitiion.yml",
+			file:   "testdata/conf.nil-source_match_re-inhibition.yml",
 			errMsg: "invalid_source_label",
 		},
 		{
-			file:   "testdata/conf.nil-target_match_re-inhibitiion.yml",
+			file:   "testdata/conf.nil-target_match_re-inhibition.yml",
 			errMsg: "invalid_target_label",
 		},
 	} {

@@ -75,6 +75,16 @@ func (formatter *SimpleFormatter) FormatConfig(status *models.AlertmanagerStatus
 	return nil
 }
 
+func (formatter *SimpleFormatter) FormatClusterStatus(status *models.ClusterStatus) error {
+	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w,
+		"Cluster Status:\t%s\nNode Name:\t%s\n",
+		*status.Status,
+		status.Name,
+	)
+	return w.Flush()
+}
+
 func simpleFormatMatchers(matchers models.Matchers) string {
 	output := []string{}
 	for _, matcher := range matchers {
