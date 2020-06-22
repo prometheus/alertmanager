@@ -51,13 +51,14 @@ type token struct {
 }
 
 type weChatMessage struct {
-	Text    weChatMessageContent `yaml:"text,omitempty" json:"text,omitempty"`
-	ToUser  string               `yaml:"touser,omitempty" json:"touser,omitempty"`
-	ToParty string               `yaml:"toparty,omitempty" json:"toparty,omitempty"`
-	Totag   string               `yaml:"totag,omitempty" json:"totag,omitempty"`
-	AgentID string               `yaml:"agentid,omitempty" json:"agentid,omitempty"`
-	Safe    string               `yaml:"safe,omitempty" json:"safe,omitempty"`
-	Type    string               `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+	Text     weChatMessageContent `yaml:"text,omitempty" json:"text,omitempty"`
+	ToUser   string               `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty  string               `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag    string               `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID  string               `yaml:"agentid,omitempty" json:"agentid,omitempty"`
+	Safe     string               `yaml:"safe,omitempty" json:"safe,omitempty"`
+	Type     string               `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+	Markdown weChatMessageContent `yaml:"markdown,omitempty" json:"markdown,omitempty"`
 }
 
 type weChatMessageContent struct {
@@ -134,16 +135,29 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		n.accessTokenAt = time.Now()
 	}
 
+	// Define base message params
 	msg := &weChatMessage{
-		Text: weChatMessageContent{
-			Content: tmpl(n.conf.Message),
-		},
 		ToUser:  tmpl(n.conf.ToUser),
 		ToParty: tmpl(n.conf.ToParty),
 		Totag:   tmpl(n.conf.ToTag),
 		AgentID: tmpl(n.conf.AgentID),
-		Type:    "text",
-		Safe:    "0",
+	}
+
+	// Determine message type
+	switch n.conf.MessageType {
+	case "markdown":
+		msg.Markdown = weChatMessageContent{
+			Content: tmpl(n.conf.Message),
+		}
+		msg.Type = "markdown"
+	case "text":
+		fallthrough
+	default:
+		msg.Text = weChatMessageContent{
+			Content: tmpl(n.conf.Message),
+		}
+		msg.Type = "text"
+		msg.Safe = "0"
 	}
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
