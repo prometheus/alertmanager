@@ -407,11 +407,27 @@ type WechatConfig struct {
 	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
 }
 
+const wechatValidTypesRe = `^(text|markdown)$`
+
+var wechatTypeMatcher = regexp.MustCompile(wechatValidTypesRe)
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
-	return unmarshal((*plain)(c))
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.MessageType == "" {
+		c.MessageType = "text"
+	}
+
+	if !wechatTypeMatcher.MatchString(c.MessageType) {
+		return errors.Errorf("WeChat responder `MessageType` type does not match valid options %s", wechatValidTypesRe)
+	}
+
+	return nil
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
