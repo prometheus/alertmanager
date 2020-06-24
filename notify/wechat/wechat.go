@@ -135,7 +135,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		n.accessTokenAt = time.Now()
 	}
 
-	// Define base message params
 	msg := &weChatMessage{
 		ToUser:  tmpl(n.conf.ToUser),
 		ToParty: tmpl(n.conf.ToParty),
@@ -143,7 +142,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		AgentID: tmpl(n.conf.AgentID),
 	}
 
-	// Determine message type
 	switch n.conf.MessageType {
 	case "markdown":
 		msg.Markdown = weChatMessageContent{
