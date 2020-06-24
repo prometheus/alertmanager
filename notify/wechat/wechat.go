@@ -140,21 +140,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		ToParty: tmpl(n.conf.ToParty),
 		Totag:   tmpl(n.conf.ToTag),
 		AgentID: tmpl(n.conf.AgentID),
+		Type:    n.conf.MessageType,
 	}
 
-	switch n.conf.MessageType {
-	case "markdown":
+	if msg.Type == "markdown" {
 		msg.Markdown = weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		}
-		msg.Type = "markdown"
-	case "text":
-		fallthrough
-	default:
+	} else {
 		msg.Text = weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		}
-		msg.Type = "text"
 		msg.Safe = "0"
 	}
 	if err != nil {
