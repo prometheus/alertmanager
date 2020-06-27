@@ -711,7 +711,7 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 
 # API request data as defined by the WeChat API.
 [ message: <tmpl_string> | default = '{{ template "wechat.default.message" . }}' ]
-# The message type only support for `text` and `markdown`.
+# Type of the message type, supported values are `text` and `markdown`.
 [ message_type: <string> | default = 'text' ]
 [ agent_id: <string> | default = '{{ template "wechat.default.agent_id" . }}' ]
 [ to_user: <string> | default = '{{ template "wechat.default.to_user" . }}' ]
