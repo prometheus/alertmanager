@@ -141,6 +141,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Totag:   tmpl(n.conf.ToTag),
 		AgentID: tmpl(n.conf.AgentID),
 		Type:    n.conf.MessageType,
+		Safe:    "0",
 	}
 
 	if msg.Type == "markdown" {
@@ -151,7 +152,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		msg.Text = weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		}
-		msg.Safe = "0"
 	}
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
