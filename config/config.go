@@ -34,6 +34,9 @@ const secretToken = "<secret>"
 
 var secretTokenJSON string
 
+// MarshalSecrets toggles whether or not secrets are marshalled
+var MarshalSecrets bool
+
 func init() {
 	b, err := json.Marshal(secretToken)
 	if err != nil {
@@ -48,7 +51,10 @@ type Secret string
 // MarshalYAML implements the yaml.Marshaler interface for Secret.
 func (s Secret) MarshalYAML() (interface{}, error) {
 	if s != "" {
-		return secretToken, nil
+		if !MarshalSecrets {
+			return secretToken, nil
+		}
+		return s, nil
 	}
 	return nil, nil
 }
@@ -125,7 +131,10 @@ type SecretURL URL
 // MarshalYAML implements the yaml.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalYAML() (interface{}, error) {
 	if s.URL != nil {
-		return secretToken, nil
+		if !MarshalSecrets {
+			return secretToken, nil
+		}
+		return s.URL.String(), nil
 	}
 	return nil, nil
 }
@@ -148,7 +157,10 @@ func (s *SecretURL) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // MarshalJSON implements the json.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalJSON() ([]byte, error) {
-	return json.Marshal(secretToken)
+	if !MarshalSecrets {
+		return json.Marshal(secretToken)
+	}
+	return json.Marshal(s)
 }
 
 // UnmarshalJSON implements the json.Marshaler interface for SecretURL.
