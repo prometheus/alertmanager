@@ -340,7 +340,7 @@ type SlackConfig struct {
 	Pretext     string         `yaml:"pretext,omitempty" json:"pretext,omitempty"`
 	Text        string         `yaml:"text,omitempty" json:"text,omitempty"`
 	Fields      []*SlackField  `yaml:"fields,omitempty" json:"fields,omitempty"`
-	ShortFields bool           `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
+	ShortFields bool           `yaml:"short_fields" json:"short_fields,omitempty"`
 	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
 	Fallback    string         `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	CallbackID  string         `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
@@ -348,7 +348,7 @@ type SlackConfig struct {
 	IconURL     string         `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
 	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`
 	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
-	LinkNames   bool           `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
@@ -534,7 +534,7 @@ type PushoverConfig struct {
 	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Expire   duration `yaml:"expire,omitempty" json:"expire,omitempty"`
-	HTML     bool     `yaml:"html,omitempty" json:"html,omitempty"`
+	HTML     bool     `yaml:"html" json:"html,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
