@@ -288,7 +288,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 
 	// The call to types.Alert is necessary to correctly resolve the internal
 	// representation to the user representation.
-	for _, a := range types.Alerts(alerts...) {
+	for _, a := range alerts {
 		alert := Alert{
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),

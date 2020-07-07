@@ -20,6 +20,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	uuid "github.com/satori/go.uuid"
 )
 
 // AlertState is used as part of AlertStatus.
@@ -317,6 +318,7 @@ type Alert struct {
 	model.Alert
 
 	// The authoritative timestamp.
+	UUID      string
 	UpdatedAt time.Time
 	Timeout   bool
 }
@@ -360,6 +362,10 @@ func Alerts(alerts ...*Alert) model.Alerts {
 		res = append(res, &v)
 	}
 	return res
+}
+
+func (a *Alert) GeneratorUUID() {
+	a.UUID = uuid.NewV4().String()
 }
 
 // Merge merges the timespan of two alerts based and overwrites annotations
