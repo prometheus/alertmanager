@@ -93,6 +93,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 	for {
 		select {
 		case alert, ok := <-it.Next():
+			alert.GeneratorUUID()
 			if !ok {
 				// Iterator exhausted for some reason.
 				if err := it.Err(); err != nil {
