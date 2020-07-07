@@ -16,6 +16,8 @@ package model
 import (
 	"fmt"
 	"time"
+
+	uuid "github.com/google/uuid"
 )
 
 type AlertStatus string
@@ -38,11 +40,17 @@ type Alert struct {
 	StartsAt     time.Time `json:"startsAt,omitempty"`
 	EndsAt       time.Time `json:"endsAt,omitempty"`
 	GeneratorURL string    `json:"generatorURL"`
+	UUID         string    `json:uuid`
 }
 
 // Name returns the name of the alert. It is equivalent to the "alertname" label.
 func (a *Alert) Name() string {
 	return string(a.Labels[AlertNameLabel])
+}
+
+// GeneratorUUID set the uuid of ther alert
+func (a *Alert) GeneratorUUID() {
+	a.UUID = uuid.New()
 }
 
 // Fingerprint returns a unique hash for the alert. It is equivalent to
