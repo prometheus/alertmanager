@@ -1,7 +1,7 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, a, button, div, fieldset, h1, i, input, label, legend, span, strong, text, textarea)
+import Html exposing (Html, a, button, div, fieldset, h1, h5, i, input, label, legend, span, strong, text, textarea)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
 import Utils.DateTimePicker.Views exposing (viewDateTimePicker)
@@ -11,7 +11,7 @@ import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), dateTimePickerSettings)
+import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), dateTimePickerConfig)
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
@@ -45,8 +45,50 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
             [ informationBlock activeAlertId silenceId alerts
             , silenceActionButtons maybeId form resetClick
             ]
-        , viewDateTimePicker dateTimePickerSettings form.dateTimePicker
+        , dateTimePickerDialog form
         ]
+
+
+dateTimePickerDialog : SilenceForm -> Html SilenceFormMsg
+dateTimePickerDialog form =
+    case form.viewDateTimePicker of
+        True ->
+            div []
+                [ div [ class "modal fade show", style "display" "block" ]
+                    [ div [ class "modal-dialog modal-dialog-centered" ]
+                        [ div [ class "modal-content" ]
+                            [ div [ class "modal-header" ]
+                                [ button
+                                    [ class "close ml-auto"
+                                    , onClick (CloseDateTimePicker |> UpdateField)
+                                    ]
+                                    [ text "x" ]
+                                ]
+                            , div [ class "modal-body" ]
+                                [ viewDateTimePicker dateTimePickerConfig form.dateTimePicker ]
+                            , div [ class "modal-footer" ]
+                                [ button
+                                    [ class "ml-2 btn btn-outline-success mr-auto"
+                                    , onClick (CloseDateTimePicker |> UpdateField)
+                                    ]
+                                    [ text "Cancel" ]
+                                , button
+                                    [ class "ml-2 btn btn-primary"
+                                    , onClick (UpdateTimesFromPicker |> UpdateField)
+                                    ]
+                                    [ text "Set Date/Time" ]
+                                ]
+                            ]
+                        ]
+                    ]
+                , div [ class "modal-backdrop fade show" ] []
+                ]
+
+        False ->
+            div [ style "clip" "rect(0,0,0,0)", style "position" "fixed" ]
+                [ div [ class "modal fade" ] []
+                , div [ class "modal-backdrop fade" ] []
+                ]
 
 
 inputSectionPadding : String
@@ -77,16 +119,17 @@ timeInput startsAt endsAt duration =
             endsAt
         , div
             [ class "flex-column form-group"
-            , onClick OpenDateTimePicker
             ]
             [ label
                 []
                 [ text "\u{00A0}" ]
             , button
-                [ class "form-control"
+                [ class "form-control cursor-pointer"
+                , onClick (OpenDateTimePicker |> UpdateField)
                 ]
                 [ i
-                    [ class "fa fa-calendar" ]
+                    [ class "fa fa-calendar"
+                    ]
                     []
                 ]
             ]

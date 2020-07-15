@@ -1,85 +1,41 @@
 module Utils.DateTimePicker.Types exposing
-    ( DateTimePicker(..)
+    ( DateTimePicker
     , InputHourOrMinute(..)
-    , Model
     , Msg(..)
-    , Settings
+    , PickerConfig
     , StartOrEnd(..)
-    , Status(..)
-    , defaultSettings
-    , init
-    , initFromMaybePosix
-    , openPicker
+    , defaultPickerConfig
+    , initDateTimePicker
+    , initFromStartAndEndTime
     )
 
 import Time exposing (Posix, Zone)
-import Time.Extra as Time exposing (Interval(..))
-import Utils.DateTimePicker.Utils exposing (calculatePickerOffset, floorMinute, pickUpTimeFromDateTimePosix)
 
 
-type alias Model =
-    { status : Status
-    , tmpStart : Maybe Posix
-    , pickedStart : Maybe Posix
-    , timeStart : Maybe Posix
-    , tmpEnd : Maybe Posix
-    , pickedEnd : Maybe Posix
-    , timeEnd : Maybe Posix
-    , hovered : Maybe Posix
-    , pickerOffset : Int
+type alias DateTimePicker =
+    { month : Maybe Posix
+    , mouseOverDay : Maybe Posix
+    , startDate : Maybe Posix
+    , endDate : Maybe Posix
+    , startTime : Maybe Posix
+    , endTime : Maybe Posix
     }
 
 
-type DateTimePicker
-    = DateTimePicker Model
-
-
-init : DateTimePicker
-init =
-    DateTimePicker
-        { status = Closed
-        , tmpStart = Nothing
-        , pickedStart = Nothing
-        , timeStart = Nothing
-        , tmpEnd = Nothing
-        , pickedEnd = Nothing
-        , timeEnd = Nothing
-        , hovered = Nothing
-        , pickerOffset = 0
-        }
-
-
-initFromMaybePosix : Zone -> Maybe Posix -> Maybe Posix -> DateTimePicker
-initFromMaybePosix zone start end =
-    DateTimePicker
-        { status = Closed
-        , tmpStart = start
-        , pickedStart = start
-        , timeStart = pickUpTimeFromDateTimePosix zone start
-        , tmpEnd = end
-        , pickedEnd = end
-        , timeEnd = pickUpTimeFromDateTimePosix zone end
-        , hovered = Nothing
-        , pickerOffset = 0
-        }
+type alias PickerConfig msg =
+    { zone : Zone
+    , pickerMsg : ( DateTimePicker, Maybe ( Posix, Posix ) ) -> msg
+    }
 
 
 type Msg
-    = SetRange
-    | SetHoveredDay Posix
-    | NextMonth
+    = NextMonth
     | PrevMonth
-    | NextYear
-    | PrevYear
+    | MouseOverDay Posix
+    | OnClickDay
+    | ClearMouseOverDay
     | SetInputTime StartOrEnd InputHourOrMinute Int
-    | Close
-    | Cancel
     | IncrementTime StartOrEnd InputHourOrMinute Int
-
-
-type Status
-    = Closed
-    | Open Posix
 
 
 type StartOrEnd
@@ -92,46 +48,30 @@ type InputHourOrMinute
     | InputMinute
 
 
-type alias Settings msg =
-    { zone : Zone
-    , internalMsg : ( DateTimePicker, Maybe ( Posix, Posix ) ) -> msg
-    }
-
-
-defaultSettings : Zone -> (( DateTimePicker, Maybe ( Posix, Posix ) ) -> msg) -> Settings msg
-defaultSettings zone internalMsg =
+defaultPickerConfig : Zone -> (( DateTimePicker, Maybe ( Posix, Posix ) ) -> msg) -> PickerConfig msg
+defaultPickerConfig zone pickerMsg =
     { zone = zone
-    , internalMsg = internalMsg
+    , pickerMsg = pickerMsg
     }
 
 
-openPicker : Zone -> Maybe Posix -> Maybe Posix -> Maybe Posix -> DateTimePicker -> DateTimePicker
-openPicker zone maybeBaseTime start end (DateTimePicker model) =
-    let
-        baseTime =
-            case maybeBaseTime of
-                Just time ->
-                    time
+initDateTimePicker : DateTimePicker
+initDateTimePicker =
+    { month = Nothing
+    , mouseOverDay = Nothing
+    , startDate = Nothing
+    , endDate = Nothing
+    , startTime = Nothing
+    , endTime = Nothing
+    }
 
-                Nothing ->
-                    case model.pickedStart of
-                        Just time ->
-                            time
 
-                        Nothing ->
-                            Time.millisToPosix 0
-
-        pickerOffset =
-            calculatePickerOffset zone baseTime start
-    in
-    DateTimePicker
-        { model
-            | status = Open baseTime
-            , tmpStart = start
-            , pickedStart = floorMinute zone start
-            , timeStart = pickUpTimeFromDateTimePosix zone start
-            , tmpEnd = end
-            , pickedEnd = floorMinute zone end
-            , timeEnd = pickUpTimeFromDateTimePosix zone end
-            , pickerOffset = pickerOffset
-        }
+initFromStartAndEndTime : Zone -> Maybe Posix -> Maybe Posix -> DateTimePicker
+initFromStartAndEndTime zone start end =
+    { month = start
+    , mouseOverDay = Nothing
+    , startDate = start
+    , endDate = end
+    , startTime = start
+    , endTime = end
+    }

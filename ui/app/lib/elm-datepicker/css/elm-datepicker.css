@@ -1,158 +1,140 @@
-.elm-datetimepicker-duration--picker-container {
-    background-color: #fff;
-    position: absolute;
-    color: #22292f;
-    font-size: .875rem;
-    padding: .75rem;
-    border-radius: 5px;
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15)
+.cursor-pointer {cursor: pointer;}
+
+.month {
+    height: 270px;
 }
 
-.elm-datetimepicker-duration--picker-header-chevrons {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.calendar_ .date-container {
 }
 
-.elm-datetimepicker-duration--picker-header-chevron {
+.calendar_ .weekheader {
+    margin-top: 5px;
+}
+
+.calendar_ .date {
+    color: #C0C0C0;
     cursor: pointer;
-}
-
-.elm-datetimepicker-duration--picker-header-chevron:hover {
-    color: #38c172;
-}
-
-.elm-datetimepicker-duration--calendars-container {
-    display: flex;
-    margin-bottom: 1rem;
-}
-
-.elm-datetimepicker-duration--calendar {
-    display: inline-flex;
-}
-
-.elm-datetimepicker-duration--calendar-spacer {
-    display: inline-flex;
-    width: 2rem;
-}
-
-.elm-datetimepicker-duration--calendar-header {
-    padding: .25rem 0 0 0;
-    font-weight: bold;
-}
-
-.elm-datetimepicker-duration--calendar-header-row {
-    display: flex;
-    justify-content: center;
-}
-
-.elm-datetimepicker-duration--calendar-header-text {
-    display: inline-flex;
-    align-items: center;
-}
-
-.elm-datetimepicker-duration--calendar-header-chevron.elm-datetimepicker-duration--hidden {
-    visibility: hidden;
-}
-
-.elm-datetimepicker-duration--calendar-header-week {
-    display: flex;
-    color: #a0aec0;
-    font-weight: normal;
-    padding: .5rem 0 .25rem 0
-}
-
-.elm-datetimepicker-duration--calendar-header-day {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     height: 30px;
-    width: 30px;
-}
-
-.elm-datetimepicker-duration--calendar-month {
-    height: 180px;
-    width: 210px;
-}
-
-.elm-datetimepicker-duration--calendar-week {
-    display: flex;
-}
-
-.elm-datetimepicker-duration--calendar-day {
-    height: 30px;
-    width: 30px;
+    width: 40px;
     display: inline-flex;
     justify-content: center;
     align-items: center;
     font-size: .75rem;
     background-color: #fff;
+}
+
+.calendar_ .date.thismonth {
     color: #22292f;
-    cursor: pointer;
 }
 
-.elm-datetimepicker-duration--calendar-day:hover {
-    background-color: #a0aec0;
+.calendar_ .date.front {
+    background-color: rgba(0,0,0,0);
 }
 
-.elm-datetimepicker-duration--calendar-day.elm-datetimepicker-duration--hidden {
-    visibility: hidden;
+.calendar_ .date.back {
+    margin-bottom: 5px;
 }
 
-.elm-datetimepicker-duration--calendar-day.elm-datetimepicker-duration--disabled {
-    color: #a0aec0;
-    cursor: default;
-    background-color: #fff;
+.calendar_ .date.front.mouseover {
+    background-color: #EEEEEE;
+    border-radius: 50%;
 }
 
-.elm-datetimepicker-duration--calendar-day.elm-datetimepicker-duration--picked {
-    background-color: #3490dc;
-    color: #fff;
+.calendar_ .date.front.start {
+    background-color: #b0c4de;
+    border-radius: 50%;
 }
 
-.elm-datetimepicker-duration--calendar-day.elm-datetimepicker-duration--today {
-    color: #3490dc;
+.calendar_ .date.front.end {
+    background-color: #b0c4de;
+    border-radius: 50%;
 }
 
-.elm-datetimepicker-duration--calendar-day.elm-datetimepicker-duration--between {
-    background-color: #f1f5f8;
+.calendar_ .date.back.start {
+    background-color: #b0c4de;
+    border-top-left-radius: 50%;
+    border-bottom-left-radius: 50%;
 }
 
-.elm-datetimepicker-duration--calendar-day.elm-datetimepicker-duration--today-between {
-    background-color: #f1f5f8;
-    color: #3490dc;
+.calendar_ .date.back.end {
+    background-color: #b0c4de;
+    border-top-right-radius: 50%;
+    border-bottom-right-radius: 50%;
 }
 
-.elm-datetimepicker-duration--footer-container {
-    display: flex;
+.calendar_ .date.back.between {
+    background-color: #b0c4de;
 }
 
-.elm-datetimepicker-duration--footer {
-    display: flex;
-    width: 100%;
-    justify-content: space-between;
-    border-top: 1px solid #a0aec0;
-    padding: .75rem .75rem .25rem .75rem;
+.timepicker {
+    height:60px;
+    width:80%;
+    margin-top: 10px;
 }
 
-.elm-datetimepicker-duration--time-pickers-container {
-    width: 100%;
+.timepicker .subject {
+    padding:10px;
+    width:20%;
+    vertical-align:middle;
 }
 
-.elm-datetimepicker-duration--time-picker-information-container {
+.timepicker .hour {
+    width:10%;
+}
+
+.timepicker .minute {
+    width:10%;
+}
+
+.timepicker .view {
+    width:100%;
+    height:50%;
+    text-align:center;
+    border: 0px none;
+}
+
+.timepicker .up-button {
+    width:100%;
+    height:25%;
+    border: 0px none;
+}
+
+.timepicker .down-button {
+    width:100%;
+    height:25%;
+    border: 0px none;
+}
+
+.timepicker .colon {
+    width: 5%;
+}
+
+.timepicker .timeview {
+    width:50%;
+}
+
+.month-header {
+    width:70%;
+    margin: 0 auto;
+}
+
+.month-header .prev-month {
+    width:20%;
+}
+
+.month-header .month-text {
+    width:60%;
+    font-weight: bold;
+    font-size: 12px;
+    text-align: center;
+}
+
+.month-header .next-month {
+    width:20%;
+}
+
+.d-flex-center {
+    display:flex;
     align-items: center;
-    width: 100%;
-}
-
-.elm-datetimepicker-duration--time-picker-container {
-    display: inline-flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 35%;
-}
-
-.elm-datetimepicker-duration--date-display-container {
-    display: inline-flex;
-    justify-content: flex-end;
-    width: 65%;
+    justify-content: space-around;
 }

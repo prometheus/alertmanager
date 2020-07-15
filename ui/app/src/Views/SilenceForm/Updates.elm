@@ -7,9 +7,9 @@ import Task
 import Time exposing (utc)
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
-import Utils.DateTimePicker.Types exposing (DateTimePicker(..))
+import Utils.DateTimePicker.Types exposing (initFromStartAndEndTime)
 import Utils.Filter exposing (silencePreviewFilter)
-import Utils.FormValidation exposing (fromResult, stringNotEmpty, updateValue, validate)
+import Utils.FormValidation exposing (fromResult, initialField, stringNotEmpty, updateValue, validate)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
 import Views.SilenceForm.Types
@@ -22,7 +22,6 @@ import Views.SilenceForm.Types
         , fromDateTimePicker
         , fromMatchersAndCommentAndTime
         , fromSilence
-        , openDateTimePicker
         , parseEndsAt
         , toSilence
         , validateForm
@@ -175,6 +174,55 @@ updateForm msg form =
             in
             { form | matchers = matchers }
 
+        UpdateTimesFromPicker ->
+            let
+                ( startsAt, endsAt, duration ) =
+                    case ( form.pickedStart, form.pickedEnd ) of
+                        ( Just start, Just end ) ->
+                            ( validate timeFromString (initialField (Utils.Date.timeToString start))
+                            , validate (parseEndsAt (Utils.Date.timeToString start)) (initialField (Utils.Date.timeToString end))
+                            , initialField (Utils.Date.durationFormat (Utils.Date.timeDifference start end) |> Maybe.withDefault "")
+                                |> validate Utils.Date.parseDuration
+                            )
+
+                        _ ->
+                            ( form.startsAt, form.endsAt, form.duration )
+            in
+            { form
+                | startsAt = startsAt
+                , endsAt = endsAt
+                , duration = duration
+                , viewDateTimePicker = False
+            }
+
+        OpenDateTimePicker ->
+            let
+                startsAtTime =
+                    case timeFromString form.startsAt.value of
+                        Ok time ->
+                            Just time
+
+                        _ ->
+                            form.pickedStart
+
+                endsAtTime =
+                    case timeFromString form.endsAt.value of
+                        Ok time ->
+                            Just time
+
+                        _ ->
+                            Nothing
+            in
+            { form
+                | viewDateTimePicker = True
+                , dateTimePicker = initFromStartAndEndTime utc startsAtTime endsAtTime
+            }
+
+        CloseDateTimePicker ->
+            { form
+                | viewDateTimePicker = False
+            }
+
 
 update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
 update msg model basePath apiUrl =
@@ -275,13 +323,6 @@ update msg model basePath apiUrl =
         UpdateDateTimePicker ( newPicker, maybeNewTimes ) ->
             ( { model
                 | form = fromDateTimePicker model.form maybeNewTimes newPicker
-              }
-            , Cmd.none
-            )
-
-        OpenDateTimePicker ->
-            ( { model
-                | form = openDateTimePicker model.form
               }
             , Cmd.none
             )

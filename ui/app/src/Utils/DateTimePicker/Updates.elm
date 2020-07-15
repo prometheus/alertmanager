@@ -1,164 +1,198 @@
 module Utils.DateTimePicker.Updates exposing (update)
 
 import Time exposing (Posix)
-import Utils.DateTimePicker.Types exposing (DateTimePicker(..), InputHourOrMinute(..), Model, Msg(..), Settings, StartOrEnd(..), Status(..))
+import Utils.DateTimePicker.Types
+    exposing
+        ( DateTimePicker
+        , InputHourOrMinute(..)
+        , Msg(..)
+        , PickerConfig
+        , StartOrEnd(..)
+        )
 import Utils.DateTimePicker.Utils
     exposing
-        ( addDateAndTime
-        , addMaybePosix
-        , determineDateTimeRange
-        , doDaysMatch
-        , pickUpTimeFromDateTimePosix
-        , validRuntimeOrNothing
+        ( addHour
+        , addMinute
+        , firstDayOfNextMonth
+        , firstDayOfPrevMonth
+        , floorDate
+        , trimTime
+        , updateHour
+        , updateMinute
         )
 
 
-update : Settings msg -> Msg -> DateTimePicker -> ( DateTimePicker, Maybe ( Posix, Posix ) )
-update settings msg (DateTimePicker model) =
-    case model.status of
-        Open baseTime ->
-            case msg of
-                NextMonth ->
-                    ( DateTimePicker { model | pickerOffset = model.pickerOffset + 1 }, Nothing )
+update : PickerConfig msg -> Msg -> DateTimePicker -> ( DateTimePicker, Maybe ( Posix, Posix ) )
+update pickerConfig msg dateTimePicker =
+    let
+        justMonth =
+            dateTimePicker.month
+                |> Maybe.withDefault (Time.millisToPosix 0)
 
-                PrevMonth ->
-                    ( DateTimePicker { model | pickerOffset = model.pickerOffset - 1 }, Nothing )
+        setTime_ : StartOrEnd -> InputHourOrMinute -> (InputHourOrMinute -> Posix -> Posix) -> ( Maybe Posix, Maybe Posix )
+        setTime_ soe ihom updateTime =
+            let
+                set_ : Maybe Posix -> Maybe Posix
+                set_ a =
+                    Maybe.map (\b -> updateTime ihom b) a
+            in
+            case soe of
+                Start ->
+                    ( set_ dateTimePicker.startTime, dateTimePicker.endTime )
 
-                NextYear ->
-                    ( DateTimePicker { model | pickerOffset = model.pickerOffset + 12 }, Nothing )
+                End ->
+                    ( dateTimePicker.startTime, set_ dateTimePicker.endTime )
+    in
+    case msg of
+        NextMonth ->
+            ( { dateTimePicker | month = Just (firstDayOfNextMonth pickerConfig.zone justMonth) }, Nothing )
 
-                PrevYear ->
-                    ( DateTimePicker { model | pickerOffset = model.pickerOffset - 12 }, Nothing )
+        PrevMonth ->
+            ( { dateTimePicker | month = Just (firstDayOfPrevMonth pickerConfig.zone justMonth) }, Nothing )
 
-                SetHoveredDay time ->
-                    ( DateTimePicker { model | hovered = Just time }, Nothing )
+        MouseOverDay time ->
+            ( { dateTimePicker | mouseOverDay = Just time }, Nothing )
 
-                SetRange ->
-                    case ( model.pickedStart, model.pickedEnd ) of
-                        ( Just s, Just e ) ->
-                            Maybe.map
-                                (\hovered ->
-                                    if doDaysMatch settings.zone e hovered then
-                                        ( DateTimePicker { model | pickedStart = addDateAndTime settings.zone (Just s) model.timeStart, pickedEnd = Nothing }, Nothing )
+        ClearMouseOverDay ->
+            ( { dateTimePicker | mouseOverDay = Nothing }, Nothing )
 
-                                    else if doDaysMatch settings.zone s hovered then
-                                        ( DateTimePicker { model | pickedStart = Nothing, pickedEnd = Just e }, Nothing )
+        OnClickDay ->
+            let
+                addDateTime_ : Posix -> Maybe Posix -> Posix
+                addDateTime_ date maybeTime =
+                    case maybeTime of
+                        Just time ->
+                            floorDate pickerConfig.zone date
+                                |> Time.posixToMillis
+                                |> (\d ->
+                                        trimTime pickerConfig.zone time
+                                            |> Time.posixToMillis
+                                            |> (\t -> d + t)
+                                   )
+                                |> Time.millisToPosix
 
-                                    else
-                                        ( DateTimePicker { model | pickedStart = addDateAndTime settings.zone (Just hovered) model.timeStart, pickedEnd = Nothing }, Nothing )
-                                )
-                                model.hovered
-                                |> Maybe.withDefault ( DateTimePicker model, Nothing )
+                        Nothing ->
+                            floorDate pickerConfig.zone date
+
+                updateTime_ : Maybe Posix -> Maybe Posix -> Maybe Posix
+                updateTime_ maybeDate maybeTime =
+                    case maybeDate of
+                        Just date ->
+                            Just <| addDateTime_ date maybeTime
+
+                        Nothing ->
+                            maybeTime
+
+                ( startDate, endDate, selectedDate ) =
+                    case dateTimePicker.mouseOverDay of
+                        Just m ->
+                            case ( dateTimePicker.startDate, dateTimePicker.endDate ) of
+                                ( Nothing, Nothing ) ->
+                                    ( Just m
+                                    , Nothing
+                                    , Nothing
+                                    )
+
+                                ( Just start, Nothing ) ->
+                                    case
+                                        compare (floorDate pickerConfig.zone m |> Time.posixToMillis)
+                                            (floorDate pickerConfig.zone start |> Time.posixToMillis)
+                                    of
+                                        LT ->
+                                            ( Just m
+                                            , Just start
+                                            , Just ( addDateTime_ m dateTimePicker.startTime, addDateTime_ start dateTimePicker.endTime )
+                                            )
+
+                                        _ ->
+                                            ( Just start
+                                            , Just m
+                                            , Just ( addDateTime_ start dateTimePicker.startTime, addDateTime_ m dateTimePicker.endTime )
+                                            )
+
+                                ( Nothing, Just end ) ->
+                                    ( Just m
+                                    , Just end
+                                    , Just ( addDateTime_ m dateTimePicker.startTime, addDateTime_ end dateTimePicker.endTime )
+                                    )
+
+                                ( Just start, Just end ) ->
+                                    ( Just m
+                                    , Nothing
+                                    , Nothing
+                                    )
 
                         _ ->
-                            let
-                                ( dateStart, dateEnd ) =
-                                    determineDateTimeRange settings.zone model.pickedStart model.pickedEnd model.hovered
-
-                                start =
-                                    addDateAndTime settings.zone dateStart model.timeStart
-
-                                end =
-                                    addDateAndTime settings.zone dateEnd model.timeEnd
-                            in
-                            ( DateTimePicker { model | pickedStart = start, pickedEnd = end }, validRuntimeOrNothing start end )
-
-                SetInputTime startOrEnd hourOrMinute inputInt ->
-                    let
-                        toMillis =
-                            case hourOrMinute of
-                                InputHour ->
-                                    1000 * 60 * 60
-
-                                InputMinute ->
-                                    1000 * 60
-
-                        toHourOrMinute =
-                            case hourOrMinute of
-                                InputHour ->
-                                    Time.toHour
-
-                                InputMinute ->
-                                    Time.toMinute
-
-                        picked =
-                            \s ->
-                                case s of
-                                    Just time ->
-                                        toHourOrMinute settings.zone time
-                                            |> (\h ->
-                                                    (inputInt - h)
-                                                        |> (\diff -> diff * toMillis)
-                                                        |> (\m -> m + Time.posixToMillis time)
-                                               )
-                                            |> Time.millisToPosix
-                                            |> Just
-
-                                    Nothing ->
-                                        s
-                    in
-                    case startOrEnd of
-                        Start ->
-                            let
-                                pickedStart =
-                                    picked model.pickedStart
-
-                                timeStart =
-                                    pickUpTimeFromDateTimePosix settings.zone pickedStart
-                            in
-                            ( DateTimePicker { model | pickedStart = pickedStart, timeStart = timeStart }, validRuntimeOrNothing pickedStart model.pickedEnd )
-
-                        End ->
-                            let
-                                pickedEnd =
-                                    picked model.pickedEnd
-
-                                timeEnd =
-                                    pickUpTimeFromDateTimePosix settings.zone pickedEnd
-                            in
-                            ( DateTimePicker { model | pickedEnd = pickedEnd, timeEnd = timeEnd }, validRuntimeOrNothing model.pickedStart pickedEnd )
-
-                IncrementTime startOrEnd hourOrMinute num ->
-                    let
-                        diffPosix =
-                            case hourOrMinute of
-                                InputHour ->
-                                    1000 * 60 * 60 * num |> Time.millisToPosix
-
-                                InputMinute ->
-                                    1000 * 60 * num |> Time.millisToPosix
-                    in
-                    case startOrEnd of
-                        Start ->
-                            ( DateTimePicker
-                                { model
-                                    | pickedStart = addMaybePosix model.pickedStart diffPosix
-                                    , timeStart = addMaybePosix model.timeStart diffPosix
-                                }
-                            , validRuntimeOrNothing (addMaybePosix model.pickedStart diffPosix) model.pickedEnd
+                            ( dateTimePicker.startDate
+                            , dateTimePicker.endDate
+                            , Nothing
                             )
+            in
+            ( { dateTimePicker
+                | startDate = startDate
+                , endDate = endDate
+                , startTime = updateTime_ startDate dateTimePicker.startTime
+                , endTime = updateTime_ endDate dateTimePicker.endTime
+              }
+            , selectedDate
+            )
 
-                        End ->
-                            ( DateTimePicker
-                                { model
-                                    | pickedEnd = addMaybePosix model.pickedEnd diffPosix
-                                    , timeEnd = addMaybePosix model.timeEnd diffPosix
-                                }
-                            , validRuntimeOrNothing model.pickedStart (addMaybePosix model.pickedEnd diffPosix)
-                            )
+        SetInputTime startOrEnd inputHourOrMinute num ->
+            let
+                limit_ : Int -> Int -> Int
+                limit_ limit n =
+                    if n < 0 then
+                        0
 
-                Close ->
-                    ( DateTimePicker { model | status = Closed }, Nothing )
+                    else
+                        modBy limit n
 
-                Cancel ->
-                    ( DateTimePicker
-                        { model
-                            | status = Closed
-                            , pickedStart = model.tmpStart
-                            , pickedEnd = model.tmpEnd
-                        }
-                    , validRuntimeOrNothing model.tmpStart model.tmpEnd
-                    )
+                updateHourOrMinute_ : InputHourOrMinute -> Posix -> Posix
+                updateHourOrMinute_ ihom s =
+                    case ihom of
+                        InputHour ->
+                            updateHour pickerConfig.zone (limit_ 24 num) s
 
-        Closed ->
-            ( DateTimePicker model, Nothing )
+                        InputMinute ->
+                            updateMinute pickerConfig.zone (limit_ 60 num) s
+
+                ( startTime, endTime ) =
+                    setTime_ startOrEnd inputHourOrMinute updateHourOrMinute_
+
+                selectedTime =
+                    Maybe.map2 (\s e -> ( s, e )) startTime endTime
+            in
+            ( { dateTimePicker | startTime = startTime, endTime = endTime }, selectedTime )
+
+        IncrementTime startOrEnd inputHourOrMinute num ->
+            let
+                updateHourOrMinute_ : InputHourOrMinute -> Posix -> Posix
+                updateHourOrMinute_ ihom s =
+                    let
+                        compare_ : Posix -> Posix
+                        compare_ a =
+                            if
+                                (floorDate pickerConfig.zone s |> Time.posixToMillis)
+                                    == (floorDate pickerConfig.zone a |> Time.posixToMillis)
+                            then
+                                a
+
+                            else
+                                s
+                    in
+                    case ihom of
+                        InputHour ->
+                            addHour pickerConfig.zone num s
+                                |> compare_
+
+                        InputMinute ->
+                            addMinute pickerConfig.zone num s
+                                |> compare_
+
+                ( startTime, endTime ) =
+                    setTime_ startOrEnd inputHourOrMinute updateHourOrMinute_
+
+                selectedTime =
+                    Maybe.map2 (\s e -> ( s, e )) startTime endTime
+            in
+            ( { dateTimePicker | startTime = startTime, endTime = endTime }, selectedTime )

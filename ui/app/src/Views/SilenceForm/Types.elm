@@ -4,13 +4,12 @@ module Views.SilenceForm.Types exposing
     , SilenceForm
     , SilenceFormFieldMsg(..)
     , SilenceFormMsg(..)
-    , dateTimePickerSettings
+    , dateTimePickerConfig
     , emptyMatcher
     , fromDateTimePicker
     , fromMatchersAndCommentAndTime
     , fromSilence
     , initSilenceForm
-    , openDateTimePicker
     , parseEndsAt
     , toSilence
     , validateForm
@@ -21,10 +20,11 @@ import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.PostableSilence exposing (PostableSilence)
+import DateTime
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix, utc)
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
-import Utils.DateTimePicker.Types exposing (DateTimePicker(..), Settings, defaultSettings, openPicker)
+import Utils.DateTimePicker.Types exposing (DateTimePicker, PickerConfig, defaultPickerConfig, initDateTimePicker, initFromStartAndEndTime)
 import Utils.Filter
 import Utils.FormValidation
     exposing
@@ -54,7 +54,10 @@ type alias SilenceForm =
     , endsAt : ValidatedField
     , duration : ValidatedField
     , matchers : List MatcherForm
+    , pickedStart : Maybe Posix
+    , pickedEnd : Maybe Posix
     , dateTimePicker : DateTimePicker
+    , viewDateTimePicker : Bool
     }
 
 
@@ -77,7 +80,6 @@ type SilenceFormMsg
     | SilenceFetch (ApiData GettableSilence)
     | SilenceCreate (ApiData String)
     | UpdateDateTimePicker ( DateTimePicker, Maybe ( Posix, Posix ) )
-    | OpenDateTimePicker
 
 
 type SilenceFormFieldMsg
@@ -96,6 +98,9 @@ type SilenceFormFieldMsg
     | UpdateMatcherValue Int String
     | ValidateMatcherValue Int
     | UpdateMatcherRegex Int Bool
+    | UpdateTimesFromPicker
+    | OpenDateTimePicker
+    | CloseDateTimePicker
 
 
 initSilenceForm : Key -> Model
@@ -131,6 +136,23 @@ toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
 
 fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
+    let
+        startsPosix =
+            case Utils.Date.timeFromString (DateTime.toString startsAt) of
+                Ok starts ->
+                    Just starts
+
+                _ ->
+                    Nothing
+
+        endsPosix =
+            case Utils.Date.timeFromString (DateTime.toString endsAt) of
+                Ok ends ->
+                    Just ends
+
+                _ ->
+                    Nothing
+    in
     { id = Just id
     , createdBy = initialField createdBy
     , comment = initialField comment
@@ -138,29 +160,15 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
     , matchers = List.map fromMatcher matchers
-    , dateTimePicker = Utils.DateTimePicker.Types.initFromMaybePosix utc (Just startsAt) (Just endsAt)
+    , pickedStart = startsPosix
+    , pickedEnd = endsPosix
+    , dateTimePicker = initFromStartAndEndTime utc startsPosix endsPosix
+    , viewDateTimePicker = False
     }
 
 
 validateForm : SilenceForm -> SilenceForm
-validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
-    let
-        startsAtTime =
-            case timeFromString startsAt.value of
-                Ok time ->
-                    Just time
-
-                _ ->
-                    Nothing
-
-        endsAtTime =
-            case timeFromString endsAt.value of
-                Ok time ->
-                    Just time
-
-                _ ->
-                    Nothing
-    in
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers, pickedStart, pickedEnd, dateTimePicker } =
     { id = id
     , createdBy = validate stringNotEmpty createdBy
     , comment = validate stringNotEmpty comment
@@ -168,7 +176,10 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
     , endsAt = validate (parseEndsAt startsAt.value) endsAt
     , duration = validate parseDuration duration
     , matchers = List.map validateMatcherForm matchers
-    , dateTimePicker = Utils.DateTimePicker.Types.initFromMaybePosix utc startsAtTime endsAtTime
+    , pickedStart = pickedStart
+    , pickedEnd = pickedEnd
+    , dateTimePicker = dateTimePicker
+    , viewDateTimePicker = False
     }
 
 
@@ -203,7 +214,10 @@ empty =
     , endsAt = initialField ""
     , duration = initialField ""
     , matchers = []
-    , dateTimePicker = Utils.DateTimePicker.Types.init
+    , pickedStart = Nothing
+    , pickedEnd = Nothing
+    , dateTimePicker = initDateTimePicker
+    , viewDateTimePicker = False
     }
 
 
@@ -236,7 +250,10 @@ fromMatchersAndCommentAndTime defaultCreator matchers comment now =
             else
                 List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
         , comment = initialField comment
-        , dateTimePicker = Utils.DateTimePicker.Types.initFromMaybePosix utc (Just now) (Just (addDuration defaultDuration now))
+        , pickedStart = Just now
+        , pickedEnd = Just (addDuration defaultDuration now)
+        , dateTimePicker = initFromStartAndEndTime utc (Just now) (Just (addDuration defaultDuration now))
+        , viewDateTimePicker = False
     }
 
 
@@ -269,32 +286,21 @@ fromMatcher { name, value, isRegex } =
     }
 
 
-dateTimePickerSettings : Settings SilenceFormMsg
-dateTimePickerSettings =
-    defaultSettings utc UpdateDateTimePicker
+dateTimePickerConfig : PickerConfig SilenceFormMsg
+dateTimePickerConfig =
+    defaultPickerConfig utc UpdateDateTimePicker
 
 
-openDateTimePicker : SilenceForm -> SilenceForm
-openDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } =
+fromDateTimePicker : SilenceForm -> Maybe ( Posix, Posix ) -> DateTimePicker -> SilenceForm
+fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matchers, pickedStart, pickedEnd, dateTimePicker } newTimes newPicker =
     let
-        startsAtTime =
-            case timeFromString startsAt.value of
-                Ok time ->
-                    Just time
+        ( newPickedStart, newPickedEnd ) =
+            case newTimes of
+                Just ( start, end ) ->
+                    ( Just start, Just end )
 
-                _ ->
-                    Nothing
-
-        endsAtTime =
-            case timeFromString endsAt.value of
-                Ok time ->
-                    Just time
-
-                _ ->
-                    Nothing
-
-        newPicker =
-            openPicker utc startsAtTime startsAtTime endsAtTime dateTimePicker
+                Nothing ->
+                    ( pickedStart, pickedEnd )
     in
     { id = id
     , createdBy = createdBy
@@ -303,45 +309,8 @@ openDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matcher
     , endsAt = endsAt
     , duration = duration
     , matchers = matchers
+    , pickedStart = newPickedStart
+    , pickedEnd = newPickedEnd
     , dateTimePicker = newPicker
-    }
-
-
-fromDateTimePicker : SilenceForm -> Maybe ( Posix, Posix ) -> DateTimePicker -> SilenceForm
-fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } newTimes newPicker =
-    let
-        startsAtPicker =
-            case newTimes of
-                Just ( start, end ) ->
-                    validate timeFromString (initialField (timeToString start))
-
-                Nothing ->
-                    startsAt
-
-        endsAtPicker =
-            case newTimes of
-                Just ( start, end ) ->
-                    validate (parseEndsAt (timeToString start)) (initialField (timeToString end))
-
-                -- validate timeFromString (initialField (timeToString end))
-                Nothing ->
-                    endsAt
-
-        durationPicker =
-            case newTimes of
-                Just ( start, end ) ->
-                    initialField (durationFormat (timeDifference start end) |> Maybe.withDefault "")
-                        |> validate parseDuration
-
-                Nothing ->
-                    duration
-    in
-    { id = id
-    , createdBy = createdBy
-    , comment = comment
-    , startsAt = startsAtPicker
-    , endsAt = endsAtPicker
-    , duration = durationPicker
-    , matchers = matchers
-    , dateTimePicker = newPicker
+    , viewDateTimePicker = True
     }
