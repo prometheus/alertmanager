@@ -4,10 +4,11 @@ import Alerts.Api
 import Browser.Navigation as Navigation
 import Silences.Api
 import Task
-import Time exposing (utc)
+import Time
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
 import Utils.DateTimePicker.Types exposing (initFromStartAndEndTime)
+import Utils.DateTimePicker.Updates as DateTimePickerUpdates
 import Utils.Filter exposing (silencePreviewFilter)
 import Utils.FormValidation exposing (fromResult, initialField, stringNotEmpty, updateValue, validate)
 import Utils.List
@@ -177,7 +178,7 @@ updateForm msg form =
         UpdateTimesFromPicker ->
             let
                 ( startsAt, endsAt, duration ) =
-                    case ( form.pickedStart, form.pickedEnd ) of
+                    case ( form.dateTimePicker.startTime, form.dateTimePicker.endTime ) of
                         ( Just start, Just end ) ->
                             ( validate timeFromString (initialField (Utils.Date.timeToString start))
                             , validate (parseEndsAt (Utils.Date.timeToString start)) (initialField (Utils.Date.timeToString end))
@@ -203,7 +204,7 @@ updateForm msg form =
                             Just time
 
                         _ ->
-                            form.pickedStart
+                            form.dateTimePicker.startTime
 
                 endsAtTime =
                     case timeFromString form.endsAt.value of
@@ -215,7 +216,7 @@ updateForm msg form =
             in
             { form
                 | viewDateTimePicker = True
-                , dateTimePicker = initFromStartAndEndTime utc startsAtTime endsAtTime
+                , dateTimePicker = initFromStartAndEndTime startsAtTime endsAtTime
             }
 
         CloseDateTimePicker ->
@@ -320,9 +321,13 @@ update msg model basePath apiUrl =
             , Cmd.none
             )
 
-        UpdateDateTimePicker ( newPicker, maybeNewTimes ) ->
+        UpdateDateTimePicker subMsg ->
+            let
+                newPicker =
+                    DateTimePickerUpdates.update subMsg model.form.dateTimePicker
+            in
             ( { model
-                | form = fromDateTimePicker model.form maybeNewTimes newPicker
+                | form = fromDateTimePicker model.form newPicker
               }
             , Cmd.none
             )

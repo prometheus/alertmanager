@@ -2,14 +2,13 @@ module Utils.DateTimePicker.Types exposing
     ( DateTimePicker
     , InputHourOrMinute(..)
     , Msg(..)
-    , PickerConfig
     , StartOrEnd(..)
-    , defaultPickerConfig
     , initDateTimePicker
     , initFromStartAndEndTime
     )
 
-import Time exposing (Posix, Zone)
+import Time exposing (Posix)
+import Utils.DateTimePicker.Utils exposing (floorMinute)
 
 
 type alias DateTimePicker =
@@ -19,12 +18,6 @@ type alias DateTimePicker =
     , endDate : Maybe Posix
     , startTime : Maybe Posix
     , endTime : Maybe Posix
-    }
-
-
-type alias PickerConfig msg =
-    { zone : Zone
-    , pickerMsg : ( DateTimePicker, Maybe ( Posix, Posix ) ) -> msg
     }
 
 
@@ -48,13 +41,6 @@ type InputHourOrMinute
     | InputMinute
 
 
-defaultPickerConfig : Zone -> (( DateTimePicker, Maybe ( Posix, Posix ) ) -> msg) -> PickerConfig msg
-defaultPickerConfig zone pickerMsg =
-    { zone = zone
-    , pickerMsg = pickerMsg
-    }
-
-
 initDateTimePicker : DateTimePicker
 initDateTimePicker =
     { month = Nothing
@@ -66,12 +52,19 @@ initDateTimePicker =
     }
 
 
-initFromStartAndEndTime : Zone -> Maybe Posix -> Maybe Posix -> DateTimePicker
-initFromStartAndEndTime zone start end =
+initFromStartAndEndTime : Maybe Posix -> Maybe Posix -> DateTimePicker
+initFromStartAndEndTime start end =
+    let
+        startTime =
+            Maybe.map (\s -> floorMinute s) start
+
+        endTime =
+            Maybe.map (\e -> floorMinute e) end
+    in
     { month = start
     , mouseOverDay = Nothing
     , startDate = start
     , endDate = end
-    , startTime = start
-    , endTime = end
+    , startTime = startTime
+    , endTime = endTime
     }

@@ -11,7 +11,7 @@ import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), dateTimePickerConfig)
+import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
@@ -65,7 +65,7 @@ dateTimePickerDialog form =
                                     [ text "x" ]
                                 ]
                             , div [ class "modal-body" ]
-                                [ viewDateTimePicker dateTimePickerConfig form.dateTimePicker ]
+                                [ viewDateTimePicker form.dateTimePicker |> Html.map UpdateDateTimePicker ]
                             , div [ class "modal-footer" ]
                                 [ button
                                     [ class "ml-2 btn btn-outline-success mr-auto"

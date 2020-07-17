@@ -5,8 +5,8 @@ import Html.Attributes exposing (class, maxlength, value)
 import Html.Events exposing (on, onClick, onMouseOut, onMouseOver)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
-import Time exposing (Posix, Zone, utc)
-import Utils.DateTimePicker.Types exposing (DateTimePicker, InputHourOrMinute(..), Msg(..), PickerConfig, StartOrEnd(..))
+import Time exposing (Posix, utc)
+import Utils.DateTimePicker.Types exposing (DateTimePicker, InputHourOrMinute(..), Msg(..), StartOrEnd(..))
 import Utils.DateTimePicker.Updates exposing (update)
 import Utils.DateTimePicker.Utils
     exposing
@@ -19,36 +19,36 @@ import Utils.DateTimePicker.Utils
         )
 
 
-viewDateTimePicker : PickerConfig msg -> DateTimePicker -> Html msg
-viewDateTimePicker pickerConfig dateTimePicker =
+viewDateTimePicker : DateTimePicker -> Html Msg
+viewDateTimePicker dateTimePicker =
     div [ class "w-100 container" ]
-        [ viewCalendar pickerConfig dateTimePicker
+        [ viewCalendar dateTimePicker
         , div [ class "pt-4 row justify-content-center" ]
-            [ viewTimePicker pickerConfig dateTimePicker Start
-            , viewTimePicker pickerConfig dateTimePicker End
+            [ viewTimePicker dateTimePicker Start
+            , viewTimePicker dateTimePicker End
             ]
         ]
 
 
-viewCalendar : PickerConfig msg -> DateTimePicker -> Html msg
-viewCalendar pickerConfig dateTimePicker =
+viewCalendar : DateTimePicker -> Html Msg
+viewCalendar dateTimePicker =
     let
         justViewTime =
             dateTimePicker.month
                 |> Maybe.withDefault (Time.millisToPosix 0)
     in
     div [ class "calendar_ month" ]
-        [ viewMonthHeader pickerConfig dateTimePicker justViewTime
-        , viewMonth pickerConfig dateTimePicker justViewTime
+        [ viewMonthHeader dateTimePicker justViewTime
+        , viewMonth dateTimePicker justViewTime
         ]
 
 
-viewMonthHeader : PickerConfig msg -> DateTimePicker -> Posix -> Html msg
-viewMonthHeader pickerConfig dateTimePicker justViewTime =
+viewMonthHeader : DateTimePicker -> Posix -> Html Msg
+viewMonthHeader dateTimePicker justViewTime =
     div [ class "row month-header" ]
         [ div
             [ class "prev-month d-flex-center"
-            , onClick <| pickerConfig.pickerMsg <| update pickerConfig PrevMonth dateTimePicker
+            , onClick PrevMonth
             ]
             [ p
                 [ class "arrow" ]
@@ -59,13 +59,13 @@ viewMonthHeader pickerConfig dateTimePicker justViewTime =
             ]
         , div
             [ class "month-text d-flex-center" ]
-            [ text (Time.toYear pickerConfig.zone justViewTime |> String.fromInt)
+            [ text (Time.toYear utc justViewTime |> String.fromInt)
             , br [] []
-            , text (Time.toMonth pickerConfig.zone justViewTime |> monthToString)
+            , text (Time.toMonth utc justViewTime |> monthToString)
             ]
         , div
             [ class "next-month d-flex-center"
-            , onClick <| pickerConfig.pickerMsg <| update pickerConfig NextMonth dateTimePicker
+            , onClick NextMonth
             ]
             [ p
                 [ class "arrow" ]
@@ -77,11 +77,11 @@ viewMonthHeader pickerConfig dateTimePicker justViewTime =
         ]
 
 
-viewMonth : PickerConfig msg -> DateTimePicker -> Posix -> Html msg
-viewMonth pickerConfig dateTimePicker justViewTime =
+viewMonth : DateTimePicker -> Posix -> Html Msg
+viewMonth dateTimePicker justViewTime =
     let
         days =
-            listDaysOfMonth pickerConfig.zone justViewTime
+            listDaysOfMonth justViewTime
 
         weeks =
             splitWeek days []
@@ -91,31 +91,31 @@ viewMonth pickerConfig dateTimePicker justViewTime =
             (List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ])
         , div
             [ class "date-container"
-            , onMouseOut <| pickerConfig.pickerMsg (update pickerConfig ClearMouseOverDay dateTimePicker)
+            , onMouseOut ClearMouseOverDay
             ]
-            (List.map (viewWeek pickerConfig dateTimePicker justViewTime) weeks)
+            (List.map (viewWeek dateTimePicker justViewTime) weeks)
         ]
 
 
-viewWeekHeader : String -> Html msg
+viewWeekHeader : String -> Html Msg
 viewWeekHeader weekday =
     div [ class "date text-muted" ]
         [ text weekday ]
 
 
-viewWeek : PickerConfig msg -> DateTimePicker -> Posix -> List Posix -> Html msg
-viewWeek pickerConfig dateTimePicker justViewTime days =
+viewWeek : DateTimePicker -> Posix -> List Posix -> Html Msg
+viewWeek dateTimePicker justViewTime days =
     div []
-        [ div [] (List.map (viewDay pickerConfig dateTimePicker justViewTime) days) ]
+        [ div [] (List.map (viewDay dateTimePicker justViewTime) days) ]
 
 
-viewDay : PickerConfig msg -> DateTimePicker -> Posix -> Posix -> Html msg
-viewDay pickerConfig dateTimePicker justViewTime day =
+viewDay : DateTimePicker -> Posix -> Posix -> Html Msg
+viewDay dateTimePicker justViewTime day =
     let
         compareDate_ : Posix -> Posix -> Order
         compareDate_ a b =
-            compare (floorDate pickerConfig.zone a |> Time.posixToMillis)
-                (floorDate pickerConfig.zone b |> Time.posixToMillis)
+            compare (floorDate a |> Time.posixToMillis)
+                (floorDate b |> Time.posixToMillis)
 
         setClass_ : Maybe Posix -> String -> String
         setClass_ d s =
@@ -132,10 +132,7 @@ viewDay pickerConfig dateTimePicker justViewTime day =
                     ""
 
         thisMonthClass =
-            if
-                floorMonth pickerConfig.zone justViewTime
-                    == floorMonth pickerConfig.zone day
-            then
+            if floorMonth justViewTime == floorMonth day then
                 " thismonth"
 
             else
@@ -170,15 +167,15 @@ viewDay pickerConfig dateTimePicker justViewTime day =
     div [ class ("date back" ++ startClassBack ++ endClassBack ++ betweenClass) ]
         [ div
             [ class ("date front" ++ mouseoverClass ++ startClass ++ endClass ++ thisMonthClass)
-            , onMouseOver <| pickerConfig.pickerMsg (update pickerConfig (MouseOverDay day) dateTimePicker)
-            , onClick <| pickerConfig.pickerMsg (update pickerConfig OnClickDay dateTimePicker)
+            , onMouseOver <| MouseOverDay day
+            , onClick OnClickDay
             ]
-            [ text (Time.toDay pickerConfig.zone day |> String.fromInt) ]
+            [ text (Time.toDay utc day |> String.fromInt) ]
         ]
 
 
-viewTimePicker : PickerConfig msg -> DateTimePicker -> StartOrEnd -> Html msg
-viewTimePicker pickerConfig dateTimePicker startOrEnd =
+viewTimePicker : DateTimePicker -> StartOrEnd -> Html Msg
+viewTimePicker dateTimePicker startOrEnd =
     div
         [ class "row timepicker" ]
         [ strong [ class "subject" ]
@@ -194,20 +191,20 @@ viewTimePicker pickerConfig dateTimePicker startOrEnd =
         , div [ class "hour" ]
             [ button
                 [ class "up-button d-flex-center"
-                , onClick <| pickerConfig.pickerMsg <| update pickerConfig (IncrementTime startOrEnd InputHour 1) dateTimePicker
+                , onClick <| IncrementTime startOrEnd InputHour 1
                 ]
                 [ i
                     [ class "fa fa-angle-up" ]
                     []
                 ]
             , input
-                [ on "blur" (Decode.map pickerConfig.pickerMsg (Decode.map (\msg -> update pickerConfig msg dateTimePicker) (Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse)))
+                [ on "blur" <| Decode.map (SetInputTime startOrEnd InputHour) targetValueIntParse
                 , value
                     (case startOrEnd of
                         Start ->
                             case dateTimePicker.startTime of
                                 Just t ->
-                                    Time.toHour pickerConfig.zone t |> String.fromInt
+                                    Time.toHour utc t |> String.fromInt
 
                                 Nothing ->
                                     "0"
@@ -215,7 +212,7 @@ viewTimePicker pickerConfig dateTimePicker startOrEnd =
                         End ->
                             case dateTimePicker.endTime of
                                 Just t ->
-                                    Time.toHour pickerConfig.zone t |> String.fromInt
+                                    Time.toHour utc t |> String.fromInt
 
                                 Nothing ->
                                     "0"
@@ -226,7 +223,7 @@ viewTimePicker pickerConfig dateTimePicker startOrEnd =
                 []
             , button
                 [ class "down-button d-flex-center"
-                , onClick <| pickerConfig.pickerMsg <| update pickerConfig (IncrementTime startOrEnd InputHour -1) dateTimePicker
+                , onClick <| IncrementTime startOrEnd InputHour -1
                 ]
                 [ i
                     [ class "fa fa-angle-down" ]
@@ -237,20 +234,20 @@ viewTimePicker pickerConfig dateTimePicker startOrEnd =
         , div [ class "minute" ]
             [ button
                 [ class "up-button d-flex-center"
-                , onClick <| pickerConfig.pickerMsg <| update pickerConfig (IncrementTime startOrEnd InputMinute 1) dateTimePicker
+                , onClick <| IncrementTime startOrEnd InputMinute 1
                 ]
                 [ i
                     [ class "fa fa-angle-up" ]
                     []
                 ]
             , input
-                [ on "blur" (Decode.map pickerConfig.pickerMsg (Decode.map (\msg -> update pickerConfig msg dateTimePicker) (Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse)))
+                [ on "blur" <| Decode.map (SetInputTime startOrEnd InputMinute) targetValueIntParse
                 , value
                     (case startOrEnd of
                         Start ->
                             case dateTimePicker.startTime of
                                 Just t ->
-                                    Time.toMinute pickerConfig.zone t |> String.fromInt
+                                    Time.toMinute utc t |> String.fromInt
 
                                 Nothing ->
                                     "0"
@@ -258,7 +255,7 @@ viewTimePicker pickerConfig dateTimePicker startOrEnd =
                         End ->
                             case dateTimePicker.endTime of
                                 Just t ->
-                                    Time.toMinute pickerConfig.zone t |> String.fromInt
+                                    Time.toMinute utc t |> String.fromInt
 
                                 Nothing ->
                                     "0"
@@ -269,7 +266,7 @@ viewTimePicker pickerConfig dateTimePicker startOrEnd =
                 []
             , button
                 [ class "down-button d-flex-center"
-                , onClick <| pickerConfig.pickerMsg <| update pickerConfig (IncrementTime startOrEnd InputMinute -1) dateTimePicker
+                , onClick <| IncrementTime startOrEnd InputMinute -1
                 ]
                 [ i
                     [ class "fa fa-angle-down" ]

@@ -4,6 +4,7 @@ module Utils.DateTimePicker.Utils exposing
     , firstDayOfNextMonth
     , firstDayOfPrevMonth
     , floorDate
+    , floorMinute
     , floorMonth
     , listDaysOfMonth
     , monthToString
@@ -20,17 +21,17 @@ import Time exposing (Month(..), Posix, Weekday(..), Zone, utc)
 import Time.Extra as Time exposing (Interval(..))
 
 
-listDaysOfMonth : Zone -> Posix -> List Posix
-listDaysOfMonth zone time =
+listDaysOfMonth : Posix -> List Posix
+listDaysOfMonth time =
     let
         firstOfMonth =
-            Time.floor Time.Month zone time
+            Time.floor Time.Month utc time
 
         firstOfNextMonth =
-            firstDayOfNextMonth zone time
+            firstDayOfNextMonth time
 
         padFront =
-            weekToInt (Time.toWeekday zone firstOfMonth)
+            weekToInt (Time.toWeekday utc firstOfMonth)
                 |> (\wd ->
                         if wd == 7 then
                             0
@@ -38,30 +39,30 @@ listDaysOfMonth zone time =
                         else
                             wd
                    )
-                |> (\w -> Time.add Time.Day -w zone firstOfMonth)
-                |> (\d -> Time.range Time.Day 1 zone d firstOfMonth)
+                |> (\w -> Time.add Time.Day -w utc firstOfMonth)
+                |> (\d -> Time.range Time.Day 1 utc d firstOfMonth)
 
         padBack =
-            weekToInt (Time.toWeekday zone firstOfNextMonth)
-                |> (\w -> Time.add Time.Day (7 - w) zone firstOfNextMonth)
-                |> Time.range Time.Day 1 zone firstOfNextMonth
+            weekToInt (Time.toWeekday utc firstOfNextMonth)
+                |> (\w -> Time.add Time.Day (7 - w) utc firstOfNextMonth)
+                |> Time.range Time.Day 1 utc firstOfNextMonth
     in
-    Time.range Time.Day 1 zone firstOfMonth firstOfNextMonth
+    Time.range Time.Day 1 utc firstOfMonth firstOfNextMonth
         |> (\m -> padFront ++ m ++ padBack)
 
 
-firstDayOfNextMonth : Zone -> Posix -> Posix
-firstDayOfNextMonth zone time =
-    Time.floor Time.Month zone time
-        |> Time.add Time.Day 1 zone
-        |> Time.ceiling Time.Month zone
+firstDayOfNextMonth : Posix -> Posix
+firstDayOfNextMonth time =
+    Time.floor Time.Month utc time
+        |> Time.add Time.Day 1 utc
+        |> Time.ceiling Time.Month utc
 
 
-firstDayOfPrevMonth : Zone -> Posix -> Posix
-firstDayOfPrevMonth zone time =
-    Time.floor Time.Month zone time
-        |> Time.add Time.Day -1 zone
-        |> Time.floor Time.Month zone
+firstDayOfPrevMonth : Posix -> Posix
+firstDayOfPrevMonth time =
+    Time.floor Time.Month utc time
+        |> Time.add Time.Day -1 utc
+        |> Time.floor Time.Month utc
 
 
 splitWeek : List Posix -> List (List Posix) -> List (List Posix)
@@ -74,19 +75,24 @@ splitWeek days weeks =
             |> splitWeek (List.drop 7 days)
 
 
-floorDate : Zone -> Posix -> Posix
-floorDate zone time =
-    Time.floor Time.Day zone time
+floorDate : Posix -> Posix
+floorDate time =
+    Time.floor Time.Day utc time
 
 
-floorMonth : Zone -> Posix -> Posix
-floorMonth zone time =
-    Time.floor Time.Month zone time
+floorMonth : Posix -> Posix
+floorMonth time =
+    Time.floor Time.Month utc time
 
 
-trimTime : Zone -> Posix -> Posix
-trimTime zone time =
-    Time.floor Time.Day zone time
+floorMinute : Posix -> Posix
+floorMinute time =
+    Time.floor Time.Minute utc time
+
+
+trimTime : Posix -> Posix
+trimTime time =
+    Time.floor Time.Day utc time
         |> Time.posixToMillis
         |> (\d ->
                 Time.posixToMillis time - d
@@ -94,32 +100,32 @@ trimTime zone time =
         |> Time.millisToPosix
 
 
-updateHour : Zone -> Int -> Posix -> Posix
-updateHour zone n time =
+updateHour : Int -> Posix -> Posix
+updateHour n time =
     let
         diff =
-            n - Time.toHour zone time
+            n - Time.toHour utc time
     in
-    Time.add Hour diff zone time
+    Time.add Hour diff utc time
 
 
-updateMinute : Zone -> Int -> Posix -> Posix
-updateMinute zone n time =
+updateMinute : Int -> Posix -> Posix
+updateMinute n time =
     let
         diff =
-            n - Time.toMinute zone time
+            n - Time.toMinute utc time
     in
-    Time.add Minute diff zone time
+    Time.add Minute diff utc time
 
 
-addHour : Zone -> Int -> Posix -> Posix
-addHour zone n time =
-    Time.add Hour n zone time
+addHour : Int -> Posix -> Posix
+addHour n time =
+    Time.add Hour n utc time
 
 
-addMinute : Zone -> Int -> Posix -> Posix
-addMinute zone n time =
-    Time.add Minute n zone time
+addMinute : Int -> Posix -> Posix
+addMinute n time =
+    Time.add Minute n utc time
 
 
 weekToInt : Weekday -> Int

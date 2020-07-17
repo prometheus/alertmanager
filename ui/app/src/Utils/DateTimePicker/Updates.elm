@@ -6,7 +6,6 @@ import Utils.DateTimePicker.Types
         ( DateTimePicker
         , InputHourOrMinute(..)
         , Msg(..)
-        , PickerConfig
         , StartOrEnd(..)
         )
 import Utils.DateTimePicker.Utils
@@ -22,8 +21,8 @@ import Utils.DateTimePicker.Utils
         )
 
 
-update : PickerConfig msg -> Msg -> DateTimePicker -> ( DateTimePicker, Maybe ( Posix, Posix ) )
-update pickerConfig msg dateTimePicker =
+update : Msg -> DateTimePicker -> DateTimePicker
+update msg dateTimePicker =
     let
         justMonth =
             dateTimePicker.month
@@ -45,16 +44,16 @@ update pickerConfig msg dateTimePicker =
     in
     case msg of
         NextMonth ->
-            ( { dateTimePicker | month = Just (firstDayOfNextMonth pickerConfig.zone justMonth) }, Nothing )
+            { dateTimePicker | month = Just (firstDayOfNextMonth justMonth) }
 
         PrevMonth ->
-            ( { dateTimePicker | month = Just (firstDayOfPrevMonth pickerConfig.zone justMonth) }, Nothing )
+            { dateTimePicker | month = Just (firstDayOfPrevMonth justMonth) }
 
         MouseOverDay time ->
-            ( { dateTimePicker | mouseOverDay = Just time }, Nothing )
+            { dateTimePicker | mouseOverDay = Just time }
 
         ClearMouseOverDay ->
-            ( { dateTimePicker | mouseOverDay = Nothing }, Nothing )
+            { dateTimePicker | mouseOverDay = Nothing }
 
         OnClickDay ->
             let
@@ -62,17 +61,17 @@ update pickerConfig msg dateTimePicker =
                 addDateTime_ date maybeTime =
                     case maybeTime of
                         Just time ->
-                            floorDate pickerConfig.zone date
+                            floorDate date
                                 |> Time.posixToMillis
                                 |> (\d ->
-                                        trimTime pickerConfig.zone time
+                                        trimTime time
                                             |> Time.posixToMillis
                                             |> (\t -> d + t)
                                    )
                                 |> Time.millisToPosix
 
                         Nothing ->
-                            floorDate pickerConfig.zone date
+                            floorDate date
 
                 updateTime_ : Maybe Posix -> Maybe Posix -> Maybe Posix
                 updateTime_ maybeDate maybeTime =
@@ -83,59 +82,51 @@ update pickerConfig msg dateTimePicker =
                         Nothing ->
                             maybeTime
 
-                ( startDate, endDate, selectedDate ) =
+                ( startDate, endDate ) =
                     case dateTimePicker.mouseOverDay of
                         Just m ->
                             case ( dateTimePicker.startDate, dateTimePicker.endDate ) of
                                 ( Nothing, Nothing ) ->
                                     ( Just m
                                     , Nothing
-                                    , Nothing
                                     )
 
                                 ( Just start, Nothing ) ->
                                     case
-                                        compare (floorDate pickerConfig.zone m |> Time.posixToMillis)
-                                            (floorDate pickerConfig.zone start |> Time.posixToMillis)
+                                        compare (floorDate m |> Time.posixToMillis)
+                                            (floorDate start |> Time.posixToMillis)
                                     of
                                         LT ->
                                             ( Just m
                                             , Just start
-                                            , Just ( addDateTime_ m dateTimePicker.startTime, addDateTime_ start dateTimePicker.endTime )
                                             )
 
                                         _ ->
                                             ( Just start
                                             , Just m
-                                            , Just ( addDateTime_ start dateTimePicker.startTime, addDateTime_ m dateTimePicker.endTime )
                                             )
 
                                 ( Nothing, Just end ) ->
                                     ( Just m
                                     , Just end
-                                    , Just ( addDateTime_ m dateTimePicker.startTime, addDateTime_ end dateTimePicker.endTime )
                                     )
 
                                 ( Just start, Just end ) ->
                                     ( Just m
-                                    , Nothing
                                     , Nothing
                                     )
 
                         _ ->
                             ( dateTimePicker.startDate
                             , dateTimePicker.endDate
-                            , Nothing
                             )
             in
-            ( { dateTimePicker
+            { dateTimePicker
                 | startDate = startDate
                 , endDate = endDate
                 , startTime = updateTime_ startDate dateTimePicker.startTime
                 , endTime = updateTime_ endDate dateTimePicker.endTime
-              }
-            , selectedDate
-            )
+            }
 
         SetInputTime startOrEnd inputHourOrMinute num ->
             let
@@ -151,18 +142,15 @@ update pickerConfig msg dateTimePicker =
                 updateHourOrMinute_ ihom s =
                     case ihom of
                         InputHour ->
-                            updateHour pickerConfig.zone (limit_ 24 num) s
+                            updateHour (limit_ 24 num) s
 
                         InputMinute ->
-                            updateMinute pickerConfig.zone (limit_ 60 num) s
+                            updateMinute (limit_ 60 num) s
 
                 ( startTime, endTime ) =
                     setTime_ startOrEnd inputHourOrMinute updateHourOrMinute_
-
-                selectedTime =
-                    Maybe.map2 (\s e -> ( s, e )) startTime endTime
             in
-            ( { dateTimePicker | startTime = startTime, endTime = endTime }, selectedTime )
+            { dateTimePicker | startTime = startTime, endTime = endTime }
 
         IncrementTime startOrEnd inputHourOrMinute num ->
             let
@@ -172,8 +160,8 @@ update pickerConfig msg dateTimePicker =
                         compare_ : Posix -> Posix
                         compare_ a =
                             if
-                                (floorDate pickerConfig.zone s |> Time.posixToMillis)
-                                    == (floorDate pickerConfig.zone a |> Time.posixToMillis)
+                                (floorDate s |> Time.posixToMillis)
+                                    == (floorDate a |> Time.posixToMillis)
                             then
                                 a
 
@@ -182,17 +170,14 @@ update pickerConfig msg dateTimePicker =
                     in
                     case ihom of
                         InputHour ->
-                            addHour pickerConfig.zone num s
+                            addHour num s
                                 |> compare_
 
                         InputMinute ->
-                            addMinute pickerConfig.zone num s
+                            addMinute num s
                                 |> compare_
 
                 ( startTime, endTime ) =
                     setTime_ startOrEnd inputHourOrMinute updateHourOrMinute_
-
-                selectedTime =
-                    Maybe.map2 (\s e -> ( s, e )) startTime endTime
             in
-            ( { dateTimePicker | startTime = startTime, endTime = endTime }, selectedTime )
+            { dateTimePicker | startTime = startTime, endTime = endTime }
