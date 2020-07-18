@@ -135,20 +135,12 @@ fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     let
         startsPosix =
-            case Utils.Date.timeFromString (DateTime.toString startsAt) of
-                Ok starts ->
-                    Just starts
-
-                _ ->
-                    Nothing
+            Utils.Date.timeFromString (DateTime.toString startsAt)
+                |> Result.toMaybe
 
         endsPosix =
-            case Utils.Date.timeFromString (DateTime.toString endsAt) of
-                Ok ends ->
-                    Just ends
-
-                _ ->
-                    Nothing
+            Utils.Date.timeFromString (DateTime.toString endsAt)
+                |> Result.toMaybe
     in
     { id = Just id
     , createdBy = initialField createdBy

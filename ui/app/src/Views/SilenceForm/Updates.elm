@@ -207,12 +207,7 @@ updateForm msg form =
                             form.dateTimePicker.startTime
 
                 endsAtTime =
-                    case timeFromString form.endsAt.value of
-                        Ok time ->
-                            Just time
-
-                        _ ->
-                            Nothing
+                    timeFromString form.endsAt.value |> Result.toMaybe
             in
             { form
                 | viewDateTimePicker = True
