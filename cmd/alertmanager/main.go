@@ -426,9 +426,9 @@ func run() int {
 		configuredReceivers.Set(float64(len(activeReceivers)))
 		configuredIntegrations.Set(float64(integrationsNum))
 
-		api.Update(conf, func(labels model.LabelSet) {
-			inhibitor.Mutes(labels)
-			silencer.Mutes(labels)
+		api.Update(conf, func(labels model.LabelSet, extras model.LabelSet) {
+			inhibitor.Mutes(labels, extras)
+			silencer.Mutes(labels, extras)
 		})
 
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, logger, dispMetrics)

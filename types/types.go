@@ -390,18 +390,22 @@ func (a *Alert) Merge(o *Alert) *Alert {
 	return &res
 }
 
-// A Muter determines whether a given label set is muted. Implementers that
-// maintain an underlying Marker are expected to update it during a call of
-// Mutes.
+func (a Alert) GetExtraLabels() model.LabelSet {
+	return model.LabelSet{"__generatorURL": model.LabelValue(a.GeneratorURL)}
+}
+
+// A Muter determines whether one of the given label sets is muted.
+// Implementers that maintain an underlying Marker are expected to update it
+// during a call of Mutes.
 type Muter interface {
-	Mutes(model.LabelSet) bool
+	Mutes(model.LabelSet, model.LabelSet) bool
 }
 
 // A MuteFunc is a function that implements the Muter interface.
-type MuteFunc func(model.LabelSet) bool
+type MuteFunc func(model.LabelSet, model.LabelSet) bool
 
 // Mutes implements the Muter interface.
-func (f MuteFunc) Mutes(lset model.LabelSet) bool { return f(lset) }
+func (f MuteFunc) Mutes(lset model.LabelSet, extra model.LabelSet) bool { return f(lset, extra) }
 
 // A Silence determines whether a given label set is muted.
 type Silence struct {

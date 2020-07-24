@@ -111,7 +111,7 @@ func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
 }
 
 // Mutes implements the Muter interface.
-func (s *Silencer) Mutes(lset model.LabelSet) bool {
+func (s *Silencer) Mutes(lset model.LabelSet, extras model.LabelSet) bool {
 	fp := lset.Fingerprint()
 	ids, markerVersion, _ := s.marker.Silenced(fp)
 
@@ -142,7 +142,7 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 		// New silences have been added, do a full query.
 		sils, newVersion, err = s.silences.Query(
 			QState(types.SilenceStateActive),
-			QMatches(lset),
+			QMatches(lset, extras),
 		)
 	}
 	if err != nil {
@@ -627,14 +627,19 @@ func QIDs(ids ...string) QueryParam {
 }
 
 // QMatches returns silences that match the given label set.
-func QMatches(set model.LabelSet) QueryParam {
+func QMatches(sets ...model.LabelSet) QueryParam {
 	return func(q *query) error {
 		f := func(sil *pb.Silence, s *Silences, _ time.Time) (bool, error) {
 			m, err := s.mc.Get(sil)
 			if err != nil {
 				return true, err
 			}
-			return m.Match(set), nil
+			for _, set := range sets {
+				if m.Match(set) {
+					return true, nil
+				}
+			}
+			return false, nil
 		}
 		q.filters = append(q.filters, f)
 		return nil

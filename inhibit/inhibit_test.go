@@ -226,7 +226,8 @@ func TestInhibitRuleMatches(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if actual := ih.Mutes(c.target); actual != c.expected {
+		// TODO(zecke): Add tests for the extras too.
+		if actual := ih.Mutes(c.target, model.LabelSet{}); actual != c.expected {
 			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
 		}
 	}
@@ -369,7 +370,7 @@ func TestInhibit(t *testing.T) {
 		inhibitor.Run()
 
 		for _, expected := range tc.expected {
-			if inhibitor.Mutes(expected.lbls) != expected.muted {
+			if inhibitor.Mutes(expected.lbls, model.LabelSet{}) != expected.muted {
 				mute := "unmuted"
 				if expected.muted {
 					mute = "muted"

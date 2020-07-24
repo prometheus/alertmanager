@@ -581,21 +581,26 @@ func TestSetNotifiesStage(t *testing.T) {
 
 func TestMuteStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
-	muter := types.MuteFunc(func(lset model.LabelSet) bool {
-		_, ok := lset["mute"]
-		return ok
+	muter := types.MuteFunc(func(lset model.LabelSet, extra model.LabelSet) bool {
+		_, lsetOk := lset["mute"]
+		genURL := extra["__generatorURL"]
+		return lsetOk || genURL == "mute"
 	})
 
 	stage := NewMuteStage(muter)
 
-	in := []model.LabelSet{
-		{},
-		{"test": "set"},
-		{"mute": "me"},
-		{"foo": "bar", "test": "set"},
-		{"foo": "bar", "mute": "me"},
-		{},
-		{"not": "muted"},
+	in := []struct {
+		labels       model.LabelSet
+		generatorURL string
+	}{
+		{labels: model.LabelSet{}},
+		{labels: model.LabelSet{"test": "set"}},
+		{labels: model.LabelSet{"mute": "me"}},
+		{labels: model.LabelSet{"foo": "bar", "test": "set"}},
+		{labels: model.LabelSet{"foo": "bar", "mute": "me"}},
+		{labels: model.LabelSet{}},
+		{labels: model.LabelSet{"not": "muted"}},
+		{labels: model.LabelSet{"not": "muted here"}, generatorURL: "mute"},
 	}
 	out := []model.LabelSet{
 		{},
@@ -608,7 +613,7 @@ func TestMuteStage(t *testing.T) {
 	var inAlerts []*types.Alert
 	for _, lset := range in {
 		inAlerts = append(inAlerts, &types.Alert{
-			Alert: model.Alert{Labels: lset},
+			Alert: model.Alert{Labels: lset.labels, GeneratorURL: lset.generatorURL},
 		})
 	}
 

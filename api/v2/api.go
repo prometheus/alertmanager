@@ -75,7 +75,7 @@ type API struct {
 
 type groupsFn func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
-type setAlertStatusFn func(prometheus_model.LabelSet)
+type setAlertStatusFn func(prometheus_model.LabelSet, prometheus_model.LabelSet)
 
 // NewAPI returns a new Alertmanager API v2
 func NewAPI(
@@ -412,7 +412,7 @@ func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, act
 		}
 
 		// Set alert's current status based on its label set.
-		api.setAlertStatus(a.Labels)
+		api.setAlertStatus(a.Labels, a.GetExtraLabels())
 
 		// Get alert's current status after seeing if it is suppressed.
 		status := api.getAlertStatus(a.Fingerprint())
