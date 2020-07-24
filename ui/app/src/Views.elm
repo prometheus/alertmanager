@@ -21,17 +21,20 @@ view : Model -> Html Msg
 view model =
     div []
         [ renderCSS model.libUrl
-        , case ( model.bootstrapCSS, model.fontAwesomeCSS ) of
-            ( Success _, Success _ ) ->
+        , case ( model.bootstrapCSS, model.fontAwesomeCSS, model.elmDatepickerCSS ) of
+            ( Success _, Success _, Success _ ) ->
                 div []
                     [ navBar model.route
                     , div [ class "container pb-4" ] [ currentView model ]
                     ]
 
-            ( Failure err, _ ) ->
+            ( Failure err, _, _ ) ->
                 failureView model err
 
-            ( _, Failure err ) ->
+            ( _, Failure err, _ ) ->
+                failureView model err
+
+            ( _, _, Failure err ) ->
                 failureView model err
 
             _ ->
@@ -53,6 +56,7 @@ renderCSS assetsUrl =
     div []
         [ cssNode (assetsUrl ++ "lib/bootstrap-4.0.0-alpha.6-dist/css/bootstrap.min.css") BootstrapCSSLoaded
         , cssNode (assetsUrl ++ "lib/font-awesome-4.7.0/css/font-awesome.min.css") FontAwesomeCSSLoaded
+        , cssNode (assetsUrl ++ "lib/elm-datepicker/css/elm-datepicker.css") ElmDatepickerCSSLoaded
         ]
 
 

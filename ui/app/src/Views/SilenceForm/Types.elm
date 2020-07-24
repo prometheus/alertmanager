@@ -5,6 +5,7 @@ module Views.SilenceForm.Types exposing
     , SilenceFormFieldMsg(..)
     , SilenceFormMsg(..)
     , emptyMatcher
+    , fromDateTimePicker
     , fromMatchersAndCommentAndTime
     , fromSilence
     , initSilenceForm
@@ -18,9 +19,11 @@ import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher exposing (Matcher)
 import Data.PostableSilence exposing (PostableSilence)
+import DateTime
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix)
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
+import Utils.DateTimePicker.Types exposing (DateTimePicker, initDateTimePicker, initFromStartAndEndTime)
 import Utils.Filter
 import Utils.FormValidation
     exposing
@@ -50,6 +53,8 @@ type alias SilenceForm =
     , endsAt : ValidatedField
     , duration : ValidatedField
     , matchers : List MatcherForm
+    , dateTimePicker : DateTimePicker
+    , viewDateTimePicker : Bool
     }
 
 
@@ -71,6 +76,7 @@ type SilenceFormMsg
     | NewSilenceFromMatchersAndCommentAndTime String (List Utils.Filter.Matcher) String Posix
     | SilenceFetch (ApiData GettableSilence)
     | SilenceCreate (ApiData String)
+    | UpdateDateTimePicker Utils.DateTimePicker.Types.Msg
 
 
 type SilenceFormFieldMsg
@@ -89,6 +95,9 @@ type SilenceFormFieldMsg
     | UpdateMatcherValue Int String
     | ValidateMatcherValue Int
     | UpdateMatcherRegex Int Bool
+    | UpdateTimesFromPicker
+    | OpenDateTimePicker
+    | CloseDateTimePicker
 
 
 initSilenceForm : Key -> Model
@@ -124,6 +133,15 @@ toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
 
 fromSilence : GettableSilence -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
+    let
+        startsPosix =
+            Utils.Date.timeFromString (DateTime.toString startsAt)
+                |> Result.toMaybe
+
+        endsPosix =
+            Utils.Date.timeFromString (DateTime.toString endsAt)
+                |> Result.toMaybe
+    in
     { id = Just id
     , createdBy = initialField createdBy
     , comment = initialField comment
@@ -131,11 +149,13 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
     , matchers = List.map fromMatcher matchers
+    , dateTimePicker = initFromStartAndEndTime startsPosix endsPosix
+    , viewDateTimePicker = False
     }
 
 
 validateForm : SilenceForm -> SilenceForm
-validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } =
     { id = id
     , createdBy = validate stringNotEmpty createdBy
     , comment = validate stringNotEmpty comment
@@ -143,6 +163,8 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers } =
     , endsAt = validate (parseEndsAt startsAt.value) endsAt
     , duration = validate parseDuration duration
     , matchers = List.map validateMatcherForm matchers
+    , dateTimePicker = dateTimePicker
+    , viewDateTimePicker = False
     }
 
 
@@ -177,6 +199,8 @@ empty =
     , endsAt = initialField ""
     , duration = initialField ""
     , matchers = []
+    , dateTimePicker = initDateTimePicker
+    , viewDateTimePicker = False
     }
 
 
@@ -209,6 +233,8 @@ fromMatchersAndCommentAndTime defaultCreator matchers comment now =
             else
                 List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
         , comment = initialField comment
+        , dateTimePicker = initFromStartAndEndTime (Just now) (Just (addDuration defaultDuration now))
+        , viewDateTimePicker = False
     }
 
 
@@ -238,4 +264,18 @@ fromMatcher { name, value, isRegex } =
     { name = initialField name
     , value = initialField value
     , isRegex = isRegex
+    }
+
+
+fromDateTimePicker : SilenceForm -> DateTimePicker -> SilenceForm
+fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } newPicker =
+    { id = id
+    , createdBy = createdBy
+    , comment = comment
+    , startsAt = startsAt
+    , endsAt = endsAt
+    , duration = duration
+    , matchers = matchers
+    , dateTimePicker = newPicker
+    , viewDateTimePicker = True
     }
