@@ -249,6 +249,7 @@ type Alert struct {
 	EndsAt       time.Time `json:"endsAt"`
 	GeneratorURL string    `json:"generatorURL"`
 	Fingerprint  string    `json:"fingerprint"`
+	UUID         string    `json:"uuid"`
 }
 
 // Alerts is a list of Alert objects.
@@ -290,7 +291,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 
 	// The call to types.Alert is necessary to correctly resolve the internal
 	// representation to the user representation.
-	for _, a := range types.Alerts(alerts...) {
+	for _, a := range alerts {
 		alert := Alert{
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),
@@ -299,6 +300,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 			EndsAt:       a.EndsAt,
 			GeneratorURL: a.GeneratorURL,
 			Fingerprint:  a.Fingerprint().String(),
+			UUID:         a.UUID,
 		}
 		for k, v := range a.Labels {
 			alert.Labels[string(k)] = string(v)
