@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -30,12 +31,43 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// DispatcherMetrics represents metrics associated to a dispatcher.
+type DispatcherMetrics struct {
+	aggrGroups         prometheus.Gauge
+	processingDuration prometheus.Summary
+}
+
+// NewDispatcherMetrics returns a new registered DispatchMetrics.
+func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
+	m := DispatcherMetrics{
+		aggrGroups: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "alertmanager_dispatcher_aggregation_groups",
+				Help: "Number of active aggregation groups",
+			},
+		),
+		processingDuration: prometheus.NewSummary(
+			prometheus.SummaryOpts{
+				Name: "alertmanager_dispatcher_alert_processing_duration_seconds",
+				Help: "Summary of latencies for the processing of alerts.",
+			},
+		),
+	}
+
+	if r != nil {
+		r.MustRegister(m.aggrGroups, m.processingDuration)
+	}
+
+	return &m
+}
+
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	route  *Route
-	alerts provider.Alerts
-	stage  notify.Stage
+	route   *Route
+	alerts  provider.Alerts
+	stage   notify.Stage
+	metrics *DispatcherMetrics
 
 	marker  types.Marker
 	timeout func(time.Duration) time.Duration
@@ -58,6 +90,7 @@ func NewDispatcher(
 	mk types.Marker,
 	to func(time.Duration) time.Duration,
 	l log.Logger,
+	m *DispatcherMetrics,
 ) *Dispatcher {
 	disp := &Dispatcher{
 		alerts:  ap,
@@ -66,6 +99,7 @@ func NewDispatcher(
 		marker:  mk,
 		timeout: to,
 		logger:  log.With(l, "component", "dispatcher"),
+		metrics: m,
 	}
 	return disp
 }
@@ -76,9 +110,9 @@ func (d *Dispatcher) Run() {
 
 	d.mtx.Lock()
 	d.aggrGroups = map[*Route]map[model.Fingerprint]*aggrGroup{}
-	d.mtx.Unlock()
-
+	d.metrics.aggrGroups.Set(0)
 	d.ctx, d.cancel = context.WithCancel(context.Background())
+	d.mtx.Unlock()
 
 	d.run(d.alerts.Subscribe())
 	close(d.done)
@@ -110,9 +144,11 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 				continue
 			}
 
+			now := time.Now()
 			for _, r := range d.route.Match(alert.Labels) {
 				d.processAlert(alert, r)
 			}
+			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 
 		case <-cleanup.C:
 			d.mtx.Lock()
@@ -122,6 +158,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 					if ag.empty() {
 						ag.stop()
 						delete(groups, ag.fingerprint())
+						d.metrics.aggrGroups.Dec()
 					}
 				}
 			}
@@ -218,11 +255,16 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
-	if d == nil || d.cancel == nil {
+	if d == nil {
+		return
+	}
+	d.mtx.Lock()
+	if d.cancel == nil {
 		return
 	}
 	d.cancel()
 	d.cancel = nil
+	d.mtx.Unlock()
 
 	<-d.done
 }
@@ -253,6 +295,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	if !ok {
 		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
 		group[fp] = ag
+		d.metrics.aggrGroups.Inc()
 
 		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
@@ -314,12 +357,10 @@ func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(
 		routeKey: r.Key(),
 		opts:     &r.RouteOpts,
 		timeout:  to,
-		alerts:   store.NewAlerts(15 * time.Minute),
+		alerts:   store.NewAlerts(),
 		done:     make(chan struct{}),
 	}
-
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
-	ag.alerts.Run(ag.ctx)
 
 	ag.logger = log.With(logger, "aggrGroup", ag)
 
@@ -439,14 +480,13 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 			fp := a.Fingerprint()
 			got, err := ag.alerts.Get(fp)
 			if err != nil {
-				// This should only happen if the Alert was
-				// deleted from the store during the flush.
-				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err)
+				// This should never happen.
+				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
 				continue
 			}
 			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
 				if err := ag.alerts.Delete(fp); err != nil {
-					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err)
+					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
 				}
 			}
 		}

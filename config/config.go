@@ -308,26 +308,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sc.APIURL = c.Global.SlackAPIURL
 			}
 		}
-		for _, hc := range rcv.HipchatConfigs {
-			if hc.HTTPConfig == nil {
-				hc.HTTPConfig = c.Global.HTTPConfig
-			}
-			if hc.APIURL == nil {
-				if c.Global.HipchatAPIURL == nil {
-					return fmt.Errorf("no global Hipchat API URL set")
-				}
-				hc.APIURL = c.Global.HipchatAPIURL
-			}
-			if !strings.HasSuffix(hc.APIURL.Path, "/") {
-				hc.APIURL.Path += "/"
-			}
-			if hc.AuthToken == "" {
-				if c.Global.HipchatAuthToken == "" {
-					return fmt.Errorf("no global Hipchat Auth Token set")
-				}
-				hc.AuthToken = c.Global.HipchatAuthToken
-			}
-		}
 		for _, poc := range rcv.PushoverConfigs {
 			if poc.HTTPConfig == nil {
 				poc.HTTPConfig = c.Global.HTTPConfig
@@ -459,7 +439,6 @@ func DefaultGlobalConfig() GlobalConfig {
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-		HipchatAPIURL:   mustParseURL("https://api.hipchat.com/"),
 		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
@@ -516,6 +495,28 @@ func (hp *HostPort) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface for HostPort.
+func (hp *HostPort) UnmarshalJSON(data []byte) error {
+	var (
+		s   string
+		err error
+	)
+	if err = json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		return nil
+	}
+	hp.Host, hp.Port, err = net.SplitHostPort(s)
+	if err != nil {
+		return err
+	}
+	if hp.Port == "" {
+		return errors.Errorf("address %q: port cannot be empty", s)
+	}
+	return nil
+}
+
 // MarshalYAML implements the yaml.Marshaler interface for HostPort.
 func (hp HostPort) MarshalYAML() (interface{}, error) {
 	return hp.String(), nil
@@ -549,11 +550,9 @@ type GlobalConfig struct {
 	SMTPAuthPassword Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthSecret   Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthIdentity string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS   bool       `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
+	SMTPRequireTLS   bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
 	SlackAPIURL      *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	PagerdutyURL     *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	HipchatAPIURL    *URL       `yaml:"hipchat_api_url,omitempty" json:"hipchat_api_url,omitempty"`
-	HipchatAuthToken Secret     `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIURL   *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey   Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
 	WeChatAPIURL     *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
@@ -579,8 +578,8 @@ type Route struct {
 	GroupByAll bool              `yaml:"-" json:"-"`
 
 	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
-	MatchRE  map[string]Regexp `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	Continue bool              `yaml:"continue,omitempty" json:"continue,omitempty"`
+	MatchRE  MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Continue bool              `yaml:"continue" json:"continue,omitempty"`
 	Routes   []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
@@ -601,11 +600,6 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	for k := range r.MatchRE {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
 	for _, l := range r.GroupByStr {
 		if l == "..." {
 			r.GroupByAll = true
@@ -650,13 +644,13 @@ type InhibitRule struct {
 	SourceMatch map[string]string `yaml:"source_match,omitempty" json:"source_match,omitempty"`
 	// SourceMatchRE defines pairs like SourceMatch but does regular expression
 	// matching.
-	SourceMatchRE map[string]Regexp `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
+	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
 	// TargetMatch defines a set of labels that have to equal the given
 	// value for target alerts.
 	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
 	// TargetMatchRE defines pairs like TargetMatch but does regular expression
 	// matching.
-	TargetMatchRE map[string]Regexp `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
+	TargetMatchRE MatchRegexps `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
@@ -675,19 +669,7 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	for k := range r.SourceMatchRE {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
 	for k := range r.TargetMatch {
-		if !model.LabelNameRE.MatchString(k) {
-			return fmt.Errorf("invalid label name %q", k)
-		}
-	}
-
-	for k := range r.TargetMatchRE {
 		if !model.LabelNameRE.MatchString(k) {
 			return fmt.Errorf("invalid label name %q", k)
 		}
@@ -703,7 +685,6 @@ type Receiver struct {
 
 	EmailConfigs     []*EmailConfig     `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	HipchatConfigs   []*HipchatConfig   `yaml:"hipchat_configs,omitempty" json:"hipchat_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
@@ -720,6 +701,26 @@ func (c *Receiver) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.Name == "" {
 		return fmt.Errorf("missing name in receiver")
+	}
+	return nil
+}
+
+// MatchRegexps represents a map of Regexp.
+type MatchRegexps map[string]Regexp
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MatchRegexps.
+func (m *MatchRegexps) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MatchRegexps
+	if err := unmarshal((*plain)(m)); err != nil {
+		return err
+	}
+	for k, v := range *m {
+		if !model.LabelNameRE.MatchString(k) {
+			return fmt.Errorf("invalid label name %q", k)
+		}
+		if v.Regexp == nil {
+			return fmt.Errorf("invalid regexp value for %q", k)
+		}
 	}
 	return nil
 }

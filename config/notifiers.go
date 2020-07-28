@@ -80,18 +80,6 @@ var (
 		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
 
-	// DefaultHipchatConfig defines default values for Hipchat configurations.
-	DefaultHipchatConfig = HipchatConfig{
-		NotifierConfig: NotifierConfig{
-			VSendResolved: false,
-		},
-		Color:         `{{ if eq .Status "firing" }}red{{ else }}green{{ end }}`,
-		From:          `{{ template "hipchat.default.from" . }}`,
-		Notify:        false,
-		Message:       `{{ template "hipchat.default.message" . }}`,
-		MessageFormat: `text`,
-	}
-
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		NotifierConfig: NotifierConfig{
@@ -217,7 +205,7 @@ type PagerdutyConfig struct {
 
 // PagerdutyLink is a link
 type PagerdutyLink struct {
-	HRef string `yaml:"href,omitempty" json:"href,omitempty"`
+	Href string `yaml:"href,omitempty" json:"href,omitempty"`
 	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
@@ -352,7 +340,7 @@ type SlackConfig struct {
 	Pretext     string         `yaml:"pretext,omitempty" json:"pretext,omitempty"`
 	Text        string         `yaml:"text,omitempty" json:"text,omitempty"`
 	Fields      []*SlackField  `yaml:"fields,omitempty" json:"fields,omitempty"`
-	ShortFields bool           `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
+	ShortFields bool           `yaml:"short_fields" json:"short_fields,omitempty"`
 	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
 	Fallback    string         `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	CallbackID  string         `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
@@ -360,7 +348,7 @@ type SlackConfig struct {
 	IconURL     string         `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
 	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`
 	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
-	LinkNames   bool           `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
@@ -372,35 +360,6 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return unmarshal((*plain)(c))
 }
 
-// HipchatConfig configures notifications via Hipchat.
-type HipchatConfig struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APIURL        *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	AuthToken     Secret `yaml:"auth_token,omitempty" json:"auth_token,omitempty"`
-	RoomID        string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
-	From          string `yaml:"from,omitempty" json:"from,omitempty"`
-	Notify        bool   `yaml:"notify,omitempty" json:"notify,omitempty"`
-	Message       string `yaml:"message,omitempty" json:"message,omitempty"`
-	MessageFormat string `yaml:"message_format,omitempty" json:"message_format,omitempty"`
-	Color         string `yaml:"color,omitempty" json:"color,omitempty"`
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultHipchatConfig
-	type plain HipchatConfig
-	if err := unmarshal((*plain)(c)); err != nil {
-		return err
-	}
-	if c.RoomID == "" {
-		return fmt.Errorf("missing room id in Hipchat config")
-	}
-	return nil
-}
-
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
@@ -409,6 +368,10 @@ type WebhookConfig struct {
 
 	// URL to send POST request to.
 	URL *URL `yaml:"url" json:"url"`
+	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -433,21 +396,38 @@ type WechatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APISecret Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
-	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
-	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL    *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser    string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
-	ToParty   string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
-	ToTag     string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
-	AgentID   string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	APISecret   Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	CorpID      string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL      *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser      string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty     string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag       string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
 }
+
+const wechatValidTypesRe = `^(text|markdown)$`
+
+var wechatTypeMatcher = regexp.MustCompile(wechatValidTypesRe)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
-	return unmarshal((*plain)(c))
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.MessageType == "" {
+		c.MessageType = "text"
+	}
+
+	if !wechatTypeMatcher.MatchString(c.MessageType) {
+		return errors.Errorf("WeChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
+	}
+
+	return nil
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
@@ -571,7 +551,7 @@ type PushoverConfig struct {
 	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Expire   duration `yaml:"expire,omitempty" json:"expire,omitempty"`
-	HTML     bool     `yaml:"html,omitempty" json:"html,omitempty"`
+	HTML     bool     `yaml:"html" json:"html,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

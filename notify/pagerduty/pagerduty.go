@@ -22,8 +22,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/alecthomas/units"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -32,6 +34,8 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+const maxEventSize int = 512000
 
 // Notifier implements a Notifier for PagerDuty notifications.
 type Notifier struct {
@@ -106,6 +110,33 @@ type pagerDutyPayload struct {
 	CustomDetails map[string]string `json:"custom_details,omitempty"`
 }
 
+func (n *Notifier) encodeMessage(msg *pagerDutyMessage) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return buf, errors.Wrap(err, "failed to encode PagerDuty message")
+	}
+
+	if buf.Len() > maxEventSize {
+		truncatedMsg := fmt.Sprintf("Custom details have been removed because the original event exceeds the maximum size of %s", units.MetricBytes(maxEventSize).String())
+
+		if n.apiV1 != "" {
+			msg.Details = map[string]string{"error": truncatedMsg}
+		} else {
+			msg.Payload.CustomDetails = map[string]string{"error": truncatedMsg}
+		}
+
+		warningMsg := fmt.Sprintf("Truncated Details because message of size %s exceeds limit %s", units.MetricBytes(buf.Len()).String(), units.MetricBytes(maxEventSize).String())
+		level.Warn(n.logger).Log("msg", warningMsg)
+
+		buf.Reset()
+		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+			return buf, errors.Wrap(err, "failed to encode PagerDuty message")
+		}
+	}
+
+	return buf, nil
+}
+
 func (n *Notifier) notifyV1(
 	ctx context.Context,
 	eventType string,
@@ -136,17 +167,22 @@ func (n *Notifier) notifyV1(
 	}
 
 	if tmplErr != nil {
-		return false, fmt.Errorf("failed to template PagerDuty v1 message: %v", tmplErr)
+		return false, errors.Wrap(tmplErr, "failed to template PagerDuty v1 message")
 	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+	// Ensure that the service key isn't empty after templating.
+	if msg.ServiceKey == "" {
+		return false, errors.New("service key cannot be empty")
+	}
+
+	encodedMsg, err := n.encodeMessage(msg)
+	if err != nil {
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &buf)
+	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &encodedMsg)
 	if err != nil {
-		return true, err
+		return true, errors.Wrap(err, "failed to post message to PagerDuty v1")
 	}
 	defer notify.Drain(resp)
 
@@ -199,22 +235,27 @@ func (n *Notifier) notifyV2(
 	}
 
 	for index, item := range n.conf.Links {
-		msg.Links[index].HRef = tmpl(item.HRef)
+		msg.Links[index].HRef = tmpl(item.Href)
 		msg.Links[index].Text = tmpl(item.Text)
 	}
 
 	if tmplErr != nil {
-		return false, fmt.Errorf("failed to template PagerDuty v2 message: %v", tmplErr)
+		return false, errors.Wrap(tmplErr, "failed to template PagerDuty v2 message")
 	}
 
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, fmt.Errorf("failed to encode PagerDuty v2 message: %v", err)
+	// Ensure that the routing key isn't empty after templating.
+	if msg.RoutingKey == "" {
+		return false, errors.New("routing key cannot be empty")
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &buf)
+	encodedMsg, err := n.encodeMessage(msg)
 	if err != nil {
-		return true, fmt.Errorf("failed to post message to PagerDuty: %v", err)
+		return false, err
+	}
+
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &encodedMsg)
+	if err != nil {
+		return true, errors.Wrap(err, "failed to post message to PagerDuty")
 	}
 	defer notify.Drain(resp)
 
@@ -222,8 +263,6 @@ func (n *Notifier) notifyV2(
 }
 
 // Notify implements the Notifier interface.
-//
-// https://v2.developer.pagerduty.com/docs/events-api-v2
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
@@ -245,7 +284,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	for k, v := range n.conf.Details {
 		detail, err := n.tmpl.ExecuteTextString(v, data)
 		if err != nil {
-			return false, fmt.Errorf("failed to template %q: %v", v, err)
+			return false, errors.Wrapf(err, "%q: failed to template %q", k, v)
 		}
 		details[k] = detail
 	}

@@ -42,7 +42,7 @@ func testJoinLeave(t *testing.T) {
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
-		"0.0.0.0:0",
+		"127.0.0.1:0",
 		"",
 		[]string{},
 		true,
@@ -69,7 +69,7 @@ func testJoinLeave(t *testing.T) {
 	p2, err := Create(
 		logger,
 		prometheus.NewRegistry(),
-		"0.0.0.0:0",
+		"127.0.0.1:0",
 		"",
 		[]string{p.Self().Address()},
 		true,
@@ -101,7 +101,7 @@ func testReconnect(t *testing.T) {
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
-		"0.0.0.0:0",
+		"127.0.0.1:0",
 		"",
 		[]string{},
 		true,
@@ -124,7 +124,7 @@ func testReconnect(t *testing.T) {
 	p2, err := Create(
 		logger,
 		prometheus.NewRegistry(),
-		"0.0.0.0:0",
+		"127.0.0.1:0",
 		"",
 		[]string{},
 		true,
@@ -162,7 +162,7 @@ func testRemoveFailedPeers(t *testing.T) {
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
-		"0.0.0.0:0",
+		"127.0.0.1:0",
 		"",
 		[]string{},
 		true,
@@ -211,7 +211,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 	p, err := Create(
 		logger,
 		prometheus.NewRegistry(),
-		"0.0.0.0:0",
+		"127.0.0.1:0",
 		"",
 		[]string{},
 		true,

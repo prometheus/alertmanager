@@ -121,11 +121,11 @@ func Create(
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "invalid listen address")
 	}
 	bindPort, err := strconv.Atoi(bindPortStr)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid listen address")
+		return nil, errors.Wrapf(err, "address %s: invalid port", bindAddr)
 	}
 
 	var advertiseHost string
@@ -138,7 +138,7 @@ func Create(
 		}
 		advertisePort, err = strconv.Atoi(advertisePortStr)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid advertise address, wrong port")
+			return nil, errors.Wrapf(err, "address %s: invalid port", advertiseAddr)
 		}
 	}
 
@@ -260,8 +260,8 @@ func (p *Peer) setInitialFailed(peers []string, myAddr string) {
 		return
 	}
 
-	p.peerLock.RLock()
-	defer p.peerLock.RUnlock()
+	p.peerLock.Lock()
+	defer p.peerLock.Unlock()
 
 	now := time.Now()
 	for _, peerAddr := range peers {
@@ -405,7 +405,7 @@ func (p *Peer) reconnect() {
 		// peerJoin().
 		if _, err := p.mlist.Join([]string{pr.Address()}); err != nil {
 			p.failedReconnectionsCounter.Inc()
-			level.Debug(logger).Log("result", "failure", "peer", pr.Node, "addr", pr.Address())
+			level.Debug(logger).Log("result", "failure", "peer", pr.Node, "addr", pr.Address(), "err", err)
 		} else {
 			p.reconnectionsCounter.Inc()
 			level.Debug(logger).Log("result", "success", "peer", pr.Node, "addr", pr.Address())
@@ -435,7 +435,7 @@ func (p *Peer) refresh() {
 		if !isPeerFound {
 			if _, err := p.mlist.Join([]string{peer}); err != nil {
 				p.failedRefreshCounter.Inc()
-				level.Warn(logger).Log("result", "failure", "addr", peer)
+				level.Warn(logger).Log("result", "failure", "addr", peer, "err", err)
 			} else {
 				p.refreshCounter.Inc()
 				level.Debug(logger).Log("result", "success", "addr", peer)

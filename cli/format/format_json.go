@@ -47,3 +47,8 @@ func (formatter *JSONFormatter) FormatConfig(status *models.AlertmanagerStatus) 
 	enc := json.NewEncoder(formatter.writer)
 	return enc.Encode(status)
 }
+
+func (formatter *JSONFormatter) FormatClusterStatus(status *models.ClusterStatus) error {
+	enc := json.NewEncoder(formatter.writer)
+	return enc.Encode(status)
+}

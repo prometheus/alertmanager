@@ -61,16 +61,17 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []models.GettableSil
 func (formatter *ExtendedFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
-	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
+	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\tState\t")
 	for _, alert := range alerts {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t\n",
 			extendedFormatLabels(alert.Labels),
 			extendedFormatAnnotations(alert.Annotations),
 			FormatDate(*alert.StartsAt),
 			FormatDate(*alert.EndsAt),
 			alert.GeneratorURL,
+			*alert.Status.State,
 		)
 	}
 	return w.Flush()
@@ -87,6 +88,27 @@ func (formatter *ExtendedFormatter) FormatConfig(status *models.AlertmanagerStat
 	fmt.Fprintln(formatter.writer, "buildDate", status.VersionInfo.BuildDate)
 	fmt.Fprintln(formatter.writer, "uptime", status.Uptime)
 	return nil
+}
+
+// FormatClusterStatus formats the cluster status with peers into a readable string.
+func (formatter *ExtendedFormatter) FormatClusterStatus(status *models.ClusterStatus) error {
+	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w,
+		"Cluster Status:\t%s\nNode Name:\t%s\n\n",
+		*status.Status,
+		status.Name,
+	)
+	fmt.Fprintln(w, "Address\tName")
+	sort.Sort(ByAddress(status.Peers))
+	for _, peer := range status.Peers {
+		fmt.Fprintf(
+			w,
+			"%s\t%s\t\n",
+			*peer.Address,
+			*peer.Name,
+		)
+	}
+	return w.Flush()
 }
 
 func extendedFormatLabels(labels models.LabelSet) string {

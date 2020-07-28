@@ -67,12 +67,12 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 
 	qs := make(url.Values)
 
-	var active string
+	var activeQ string
 	if o.Active != nil {
-		active = swag.FormatBool(*o.Active)
+		activeQ = swag.FormatBool(*o.Active)
 	}
-	if active != "" {
-		qs.Set("active", active)
+	if activeQ != "" {
+		qs.Set("active", activeQ)
 	}
 
 	var filterIR []string
@@ -89,36 +89,36 @@ func (o *GetAlertsURL) Build() (*url.URL, error) {
 		qs.Add("filter", qsv)
 	}
 
-	var inhibited string
+	var inhibitedQ string
 	if o.Inhibited != nil {
-		inhibited = swag.FormatBool(*o.Inhibited)
+		inhibitedQ = swag.FormatBool(*o.Inhibited)
 	}
-	if inhibited != "" {
-		qs.Set("inhibited", inhibited)
+	if inhibitedQ != "" {
+		qs.Set("inhibited", inhibitedQ)
 	}
 
-	var receiver string
+	var receiverQ string
 	if o.Receiver != nil {
-		receiver = *o.Receiver
+		receiverQ = *o.Receiver
 	}
-	if receiver != "" {
-		qs.Set("receiver", receiver)
+	if receiverQ != "" {
+		qs.Set("receiver", receiverQ)
 	}
 
-	var silenced string
+	var silencedQ string
 	if o.Silenced != nil {
-		silenced = swag.FormatBool(*o.Silenced)
+		silencedQ = swag.FormatBool(*o.Silenced)
 	}
-	if silenced != "" {
-		qs.Set("silenced", silenced)
+	if silencedQ != "" {
+		qs.Set("silenced", silencedQ)
 	}
 
-	var unprocessed string
+	var unprocessedQ string
 	if o.Unprocessed != nil {
-		unprocessed = swag.FormatBool(*o.Unprocessed)
+		unprocessedQ = swag.FormatBool(*o.Unprocessed)
 	}
-	if unprocessed != "" {
-		qs.Set("unprocessed", unprocessed)
+	if unprocessedQ != "" {
+		qs.Set("unprocessed", unprocessedQ)
 	}
 
 	_result.RawQuery = qs.Encode()

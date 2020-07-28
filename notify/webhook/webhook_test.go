@@ -24,6 +24,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestWebhookRetry(t *testing.T) {
@@ -46,4 +47,20 @@ func TestWebhookRetry(t *testing.T) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
+}
+
+func TestWebhookTruncateAlerts(t *testing.T) {
+	alerts := make([]*types.Alert, 10)
+
+	truncatedAlerts, numTruncated := truncateAlerts(0, alerts)
+	require.Len(t, truncatedAlerts, 10)
+	require.EqualValues(t, numTruncated, 0)
+
+	truncatedAlerts, numTruncated = truncateAlerts(4, alerts)
+	require.Len(t, truncatedAlerts, 4)
+	require.EqualValues(t, numTruncated, 6)
+
+	truncatedAlerts, numTruncated = truncateAlerts(100, alerts)
+	require.Len(t, truncatedAlerts, 10)
+	require.EqualValues(t, numTruncated, 0)
 }

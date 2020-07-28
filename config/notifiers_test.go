@@ -148,23 +148,6 @@ details:
 	}
 }
 
-func TestHipchatRoomIDIsPresent(t *testing.T) {
-	in := `
-room_id: ''
-`
-	var cfg HipchatConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
-	expected := "missing room id in Hipchat config"
-
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
-}
-
 func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
 	var cfg WebhookConfig
@@ -212,7 +195,7 @@ url: 'http://example.com'
 	}
 }
 
-func TestWebhookPasswordIsObsfucated(t *testing.T) {
+func TestWebhookPasswordIsObfuscated(t *testing.T) {
 	in := `
 url: 'http://example.com'
 http_config:
@@ -453,7 +436,7 @@ fields:
 	}
 }
 
-func TestSlackFieldConfigUnmarshalling(t *testing.T) {
+func TestSlackFieldConfigUnmarshaling(t *testing.T) {
 	in := `
 fields:
 - title: first
@@ -602,6 +585,21 @@ func TestOpsgenieTypeMatcher(t *testing.T) {
 	bad := []string{"0user", "team1", "2escalation3", "sche4dule", "User", "TEAM"}
 	for _, b := range bad {
 		if opsgenieTypeMatcher.MatchString(b) {
+			t.Errorf("mistakenly match with %s", b)
+		}
+	}
+}
+
+func TestWeChatTypeMatcher(t *testing.T) {
+	good := []string{"text", "markdown"}
+	for _, g := range good {
+		if !wechatTypeMatcher.MatchString(g) {
+			t.Fatalf("failed to match with %s", g)
+		}
+	}
+	bad := []string{"TEXT", "MarkDOwn"}
+	for _, b := range bad {
+		if wechatTypeMatcher.MatchString(b) {
 			t.Errorf("mistakenly match with %s", b)
 		}
 	}

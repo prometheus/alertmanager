@@ -57,14 +57,15 @@ func (formatter *SimpleFormatter) FormatSilences(silences []models.GettableSilen
 func (formatter *SimpleFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
-	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\t")
+	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\tState\t")
 	for _, alert := range alerts {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t\n",
+			"%s\t%s\t%s\t%s\t\n",
 			alert.Labels["alertname"],
 			FormatDate(*alert.StartsAt),
 			alert.Annotations["summary"],
+			*alert.Status.State,
 		)
 	}
 	return w.Flush()
@@ -73,6 +74,16 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*models.GettableAlert) e
 func (formatter *SimpleFormatter) FormatConfig(status *models.AlertmanagerStatus) error {
 	fmt.Fprintln(formatter.writer, *status.Config.Original)
 	return nil
+}
+
+func (formatter *SimpleFormatter) FormatClusterStatus(status *models.ClusterStatus) error {
+	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w,
+		"Cluster Status:\t%s\nNode Name:\t%s\n",
+		*status.Status,
+		status.Name,
+	)
+	return w.Flush()
 }
 
 func simpleFormatMatchers(matchers models.Matchers) string {

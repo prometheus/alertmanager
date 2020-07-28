@@ -38,21 +38,18 @@ type GetAlertsReader struct {
 // ReadResponse reads a server response into the received o.
 func (o *GetAlertsReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (interface{}, error) {
 	switch response.Code() {
-
 	case 200:
 		result := NewGetAlertsOK()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
 		return result, nil
-
 	case 400:
 		result := NewGetAlertsBadRequest()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
 			return nil, err
 		}
 		return nil, result
-
 	case 500:
 		result := NewGetAlertsInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -82,6 +79,10 @@ func (o *GetAlertsOK) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
 }
 
+func (o *GetAlertsOK) GetPayload() models.GettableAlerts {
+	return o.Payload
+}
+
 func (o *GetAlertsOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	// response payload
@@ -109,6 +110,10 @@ func (o *GetAlertsBadRequest) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
 }
 
+func (o *GetAlertsBadRequest) GetPayload() string {
+	return o.Payload
+}
+
 func (o *GetAlertsBadRequest) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	// response payload
@@ -134,6 +139,10 @@ type GetAlertsInternalServerError struct {
 
 func (o *GetAlertsInternalServerError) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
+}
+
+func (o *GetAlertsInternalServerError) GetPayload() string {
+	return o.Payload
 }
 
 func (o *GetAlertsInternalServerError) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {

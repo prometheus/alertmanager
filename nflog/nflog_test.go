@@ -50,7 +50,7 @@ func TestLogGC(t *testing.T) {
 	expected := state{
 		"a2": newEntry(now.Add(time.Second)),
 	}
-	require.Equal(t, l.st, expected, "unepexcted state after garbage collection")
+	require.Equal(t, l.st, expected, "unexpected state after garbage collection")
 }
 
 func TestLogSnapshot(t *testing.T) {
@@ -285,7 +285,7 @@ func TestQuery(t *testing.T) {
 	require.EqualError(t, err, "no query parameters specified")
 
 	// no entry
-	_, err = nl.Query(QGroupKey("nonexistingkey"), QReceiver(recv))
+	_, err = nl.Query(QGroupKey("nonexistentkey"), QReceiver(recv))
 	require.EqualError(t, err, "not found")
 
 	// existing entry

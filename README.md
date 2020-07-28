@@ -1,12 +1,11 @@
 # Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
 
-[![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status)][quay]
+[![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
 
 The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
 * [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
-
 
 ## Install
 
@@ -33,7 +32,7 @@ $ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager/cmd/...
 $ alertmanager --config.file=<your_file>
 ```
 
-Or checkout the source code and build manually:
+Or clone the repository and build manually:
 
 ```
 $ mkdir -p $GOPATH/src/github.com/prometheus
@@ -149,6 +148,10 @@ inhibit_rules:
   target_match:
     severity: 'warning'
   # Apply inhibition if the alertname is the same.
+  # CAUTION: 
+  #   If all label names listed in `equal` are missing 
+  #   from both the source and target alerts,
+  #   the inhibition rule will apply!
   equal: ['alertname']
 
 
@@ -193,9 +196,9 @@ relate to `/alertmanager/api/v2/status`.
 
 _API v2 is still under heavy development and thereby subject to change._
 
-## Amtool
+## amtool
 
-`amtool` is a cli tool for interacting with the alertmanager api. It is bundled with all releases of alertmanager.
+`amtool` is a cli tool for interacting with the Alertmanager API. It is bundled with all releases of Alertmanager.
 
 ### Install
 
@@ -206,7 +209,7 @@ go get github.com/prometheus/alertmanager/cmd/amtool
 
 ### Examples
 
-View all currently firing alerts
+View all currently firing alerts:
 ```
 $ amtool alert
 Alertname        Starts At                Summary
@@ -216,7 +219,7 @@ Check_Foo_Fails  2017-08-02 18:30:18 UTC  This is a testing alert!
 Check_Foo_Fails  2017-08-02 18:30:18 UTC  This is a testing alert!
 ```
 
-View all currently firing alerts with extended output
+View all currently firing alerts with extended output:
 ```
 $ amtool -o extended alert
 Labels                                        Annotations                                                    Starts At                Ends At                  Generator URL
@@ -226,7 +229,7 @@ alertname="Check_Foo_Fails" instance="node0"  link="https://example.com" summary
 alertname="Check_Foo_Fails" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
 ```
 
-In addition to viewing alerts you can use the rich query syntax provided by alertmanager
+In addition to viewing alerts, you can use the rich query syntax provided by Alertmanager:
 ```
 $ amtool -o extended alert query alertname="Test_Alert"
 Labels                                   Annotations                                                    Starts At                Ends At                  Generator URL
@@ -243,7 +246,7 @@ Labels                                   Annotations                            
 alertname="Test_Alert" instance="node1"  link="https://example.com" summary="This is a testing alert!"  2017-08-02 18:31:24 UTC  0001-01-01 00:00:00 UTC  http://my.testing.script.local
 ```
 
-Silence an alert
+Silence an alert:
 ```
 $ amtool silence add alertname=Test_Alert
 b3ede22e-ca14-4aa0-932c-ca2f3445f926
@@ -252,7 +255,7 @@ $ amtool silence add alertname="Test_Alert" instance=~".+0"
 e48cb58a-0b17-49ba-b734-3585139b1d25
 ```
 
-View silences
+View silences:
 ```
 $ amtool silence query
 ID                                    Matchers              Ends At                  Created By  Comment
@@ -263,12 +266,12 @@ ID                                    Matchers                            Ends A
 e48cb58a-0b17-49ba-b734-3585139b1d25  alertname=Test_Alert instance=~.+0  2017-08-02 22:41:39 UTC  kellel
 ```
 
-Expire a silence
+Expire a silence:
 ```
 $ amtool silence expire b3ede22e-ca14-4aa0-932c-ca2f3445f926
 ```
 
-Expire all silences matching a query
+Expire all silences matching a query:
 ```
 $ amtool silence query instance=~".+0"
 ID                                    Matchers                            Ends At                  Created By  Comment
@@ -280,19 +283,19 @@ $ amtool silence query instance=~".+0"
 
 ```
 
-Expire all silences
+Expire all silences:
 ```
 $ amtool silence expire $(amtool silence query -q)
 ```
 
-### Config
+### Configuration
 
-Amtool allows a config file to specify some options for convenience. The default config file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
+`amtool` allows a configuration file to specify some options for convenience. The default configuration file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
 
-An example configfile might look like the following:
+An example configuration file might look like the following:
 
 ```
-# Define the path that amtool can find your `alertmanager` instance at
+# Define the path that `amtool` can find your `alertmanager` instance
 alertmanager.url: "http://localhost:9093"
 
 # Override the default author. (unset defaults to your username)
@@ -310,7 +313,7 @@ receiver: team-X-pager
 
 ### Routes
 
-Amtool allows you to visualize the routes of your configuration in form of text tree view.
+`amtool` allows you to visualize the routes of your configuration in form of text tree view.
 Also you can use it to test the routing by passing it label set of an alert
 and it prints out all receivers the alert would match ordered and separated by `,`.
 (If you use `--verify.receivers` amtool returns error code 1 on mismatch)
@@ -318,17 +321,19 @@ and it prints out all receivers the alert would match ordered and separated by `
 Example of usage:
 ```
 # View routing tree of remote Alertmanager
-amtool config routes --alertmanager.url=http://localhost:9090
+$ amtool config routes --alertmanager.url=http://localhost:9090
 
 # Test if alert matches expected receiver
-./amtool config routes test --config.file=doc/examples/simple.yml --tree --verify.receivers=team-X-pager service=database owner=team-X
+$ amtool config routes test --config.file=doc/examples/simple.yml --tree --verify.receivers=team-X-pager service=database owner=team-X
 ```
 
 ## High Availability
 
-AlertManager's high availability is in production use at many companies and is enabled by default.
+Alertmanager's high availability is in production use at many companies and is enabled by default.
 
 > Important: Both UDP and TCP are needed in alertmanager 0.15 and higher for the cluster to work.
+>  - If you are using a firewall, make sure to whitelist the clustering port for both protocols.
+>  - If you are running in a container, make sure to expose the clustering port for both protocols.
 
 To create a highly available cluster of the Alertmanager the instances need to
 be configured to communicate with each other. This is configured using the
@@ -348,6 +353,8 @@ be configured to communicate with each other. This is configured using the
 - `--cluster.probe-timeout` value: time to wait for ack before marking node unhealthy
   (default "500ms")
 - `--cluster.probe-interval` value: interval between random node probes (default "1s")
+- `--cluster.reconnect-interval` value: interval between attempting to reconnect to lost peers (default "10s")
+- `--cluster.reconnect-timeout` value: length of time to attempt to reconnect to a lost peer (default: "6h0m0s")
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.
@@ -356,7 +363,7 @@ The `cluster.advertise-address` flag is required if the instance doesn't have
 an IP address that is part of [RFC 6980](https://tools.ietf.org/html/rfc6890)
 with a default route.
 
-To start a cluster of three peers on your local machine use `goreman` and the
+To start a cluster of three peers on your local machine use [`goreman`](https://github.com/mattn/goreman) and the
 Procfile within this repository.
 
 	goreman start
@@ -376,18 +383,23 @@ alerting:
 
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
 
-### Disabling high availability
+### Turn off high availability
 
-If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` will prevent Alertmanager from listening to incoming peer requests.
+If running Alertmanager in high availability mode is not desired, setting `--cluster.listen-address=` prevents Alertmanager from listening to incoming peer requests.
 
-## Contributing to the Front-End
+## Contributing
 
-Refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
+Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
+
+To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
 ## Architecture
 
 ![](doc/arch.svg)
 
+## License
+
+Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/master/LICENSE).
 
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager

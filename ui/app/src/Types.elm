@@ -23,6 +23,7 @@ type alias Model =
     , libUrl : String
     , bootstrapCSS : ApiData String
     , fontAwesomeCSS : ApiData String
+    , elmDatepickerCSS : ApiData String
     , defaultCreator : String
     , expandAll : Bool
     , key : Key
@@ -49,6 +50,7 @@ type Msg
     | UpdateFilter String
     | BootstrapCSSLoaded (ApiData String)
     | FontAwesomeCSSLoaded (ApiData String)
+    | ElmDatepickerCSSLoaded (ApiData String)
     | SetDefaultCreator String
     | SetGroupExpandAll Bool
 

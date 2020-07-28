@@ -25,13 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/stretchr/testify/require"
 )
 
 // fakeAlerts is a struct implementing the provider.Alerts interface for tests.
@@ -524,15 +525,15 @@ func TestSilenceFiltering(t *testing.T) {
 }
 
 func TestReceiversMatchFilter(t *testing.T) {
-	receivers := []string{"pagerduty", "slack", "hipchat"}
+	receivers := []string{"pagerduty", "slack", "pushover"}
 
-	filter, err := regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip.*"))
+	filter, err := regexp.Compile(fmt.Sprintf("^(?:%s)$", "push.*"))
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
 	require.True(t, receiversMatchFilter(receivers, filter))
 
-	filter, err = regexp.Compile(fmt.Sprintf("^(?:%s)$", "hip"))
+	filter, err = regexp.Compile(fmt.Sprintf("^(?:%s)$", "push"))
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
