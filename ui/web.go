@@ -15,8 +15,10 @@ package ui
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
+	"os"
 	"path"
 
 	"github.com/go-kit/kit/log"
@@ -24,10 +26,15 @@ import (
 	"github.com/prometheus/common/route"
 
 	"github.com/prometheus/alertmanager/asset"
+	"github.com/prometheus/alertmanager/config"
+)
+
+const (
+	CONF_HTTP_MIME_TYPE = "text/vnd.yaml"
 )
 
 // Register registers handlers to serve files for the web interface.
-func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
+func Register(r *route.Router, curConf func() config.Config, confPath string, reloadCh chan<- chan error, logger log.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
@@ -70,6 +77,36 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		if err := <-errc; err != nil {
 			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
 		}
+	}))
+
+	r.Post("/-/config", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		errc := make(chan error)
+		defer close(errc)
+
+		if CONF_HTTP_MIME_TYPE != req.Header.Get("Content-Type") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		configFile, err := os.OpenFile(confPath, os.O_RDWR|os.O_CREATE, 0644)
+		defer configFile.Close()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to open old config: %s", err), http.StatusInternalServerError)
+		}
+
+		if _, err := io.Copy(configFile, req.Body); err != nil {
+			http.Error(w, fmt.Sprintf("failed to sync config: %s", err), http.StatusInternalServerError)
+		}
+
+		reloadCh <- errc
+		if err := <-errc; err != nil {
+			http.Error(w, fmt.Sprintf("failed to reload config: %s", err), http.StatusInternalServerError)
+		}
+	}))
+
+	r.Get("/-/config", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", CONF_HTTP_MIME_TYPE)
+		w.Write([]byte(curConf().String()))
 	}))
 
 	r.Get("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

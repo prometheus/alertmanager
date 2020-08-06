@@ -15,6 +15,8 @@ package config
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/go-kit/kit/log"
@@ -79,5 +81,32 @@ func TestCoordinatorFailReloadWhenSubscriberFails(t *testing.T) {
 
 	if err.Error() != errMessage {
 		t.Fatalf("expected error message %q but got %q", errMessage, err)
+	}
+}
+
+func TestCoordinatorConfigBackup(t *testing.T) {
+	fr := fakeRegisterer{}
+	c := NewCoordinator("testdata/conf.good.yml", &fr, log.NewNopLogger())
+
+	c.Subscribe(func(*Config) error {
+		return nil
+	})
+
+	if err := c.Reload(); err != nil {
+		t.Errorf("load config got unexpected error %v", err)
+	}
+
+	if filepath, err := c.backupConfig(); err != nil {
+		t.Errorf("backup got unexpected error %v", err)
+	} else {
+		backupContent, err := ioutil.ReadFile(filepath)
+		if err != nil {
+			t.Errorf("backup file load failed: %v", err)
+		}
+		if string(backupContent) != c.Config().String() {
+			t.Errorf("backup file content mismatch")
+		}
+		// test clean up
+		_ = os.Remove(filepath)
 	}
 }

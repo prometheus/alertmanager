@@ -201,6 +201,11 @@ func LoadFile(filename string) (*Config, error) {
 	return cfg, nil
 }
 
+// DumpFile will dump config to specified file with perm 644(rw-r-r)
+func DumpFile(filename string, conf Config) error {
+	return ioutil.WriteFile(filename, []byte(conf.String()), 0644)
+}
+
 // resolveFilepaths joins all relative paths in a configuration
 // with a given base directory.
 func resolveFilepaths(baseDir string, cfg *Config) {
