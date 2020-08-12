@@ -1,6 +1,3 @@
-global:
-  resolve_timeout: 5m
-
 route:
   group_by: ['alertname']
   group_wait: 30s
