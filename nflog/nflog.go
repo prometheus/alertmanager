@@ -500,8 +500,8 @@ func (l *Log) Snapshot(w io.Writer) (int64, error) {
 	start := time.Now()
 	defer func() { l.metrics.snapshotDuration.Observe(time.Since(start).Seconds()) }()
 
-	l.mtx.RLock()
-	defer l.mtx.RUnlock()
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
 
 	b, err := l.st.MarshalBinary()
 	if err != nil {
