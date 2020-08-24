@@ -53,7 +53,7 @@ func New(c *config.PushoverConfig, t *template.Template, l log.Logger) (*Notifie
 		logger:  l,
 		client:  client,
 		retrier: &notify.Retrier{},
-		apiURL:  "https://api.pushover.net/1/messages.json",
+		apiURL:  "https://api.pushover.net./1/messages.json",
 	}, nil
 }
 

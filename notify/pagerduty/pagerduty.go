@@ -55,7 +55,7 @@ func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger) (*Notifi
 	}
 	n := &Notifier{conf: c, tmpl: t, logger: l, client: client}
 	if c.ServiceKey != "" {
-		n.apiV1 = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
+		n.apiV1 = "https://events.pagerduty.com./generic/2010-04-15/create_event.json"
 		// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 		// https://v2.developer.pagerduty.com/docs/trigger-events
 		n.retrier = &notify.Retrier{RetryCodes: []int{http.StatusForbidden}, CustomDetailsFunc: errDetails}
