@@ -37,7 +37,7 @@ value is set to the specified default.
 
 Generic placeholders are defined as follows:
 
-* `<duration>`: a duration matching the regular expression `[0-9]+(ms|[smhdwy])`
+* `<duration>`: a duration matching the regular expression `((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)`, e.g. `1d`, `1h30m`, `5m`, `10s`
 * `<labelname>`: a string matching the regular expression `[a-zA-Z_][a-zA-Z0-9_]*`
 * `<labelvalue>`: a string of unicode characters
 * `<filepath>`: a valid path in the current working directory
