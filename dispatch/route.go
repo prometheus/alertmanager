@@ -34,6 +34,7 @@ var DefaultRouteOpts = RouteOpts{
 	RepeatInterval: 4 * time.Hour,
 	GroupBy:        map[model.LabelName]struct{}{},
 	GroupByAll:     false,
+	MuteTimes:      []string{},
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -65,6 +66,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	if cr.Receiver != "" {
 		opts.Receiver = cr.Receiver
 	}
+
 	if cr.GroupBy != nil {
 		opts.GroupBy = map[model.LabelName]struct{}{}
 		for _, ln := range cr.GroupBy {
@@ -97,6 +99,8 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
 	sort.Sort(matchers)
+
+	opts.MuteTimes = cr.MuteTimes
 
 	route := &Route{
 		parent:    parent,
@@ -186,6 +190,9 @@ type RouteOpts struct {
 	GroupWait      time.Duration
 	GroupInterval  time.Duration
 	RepeatInterval time.Duration
+
+	// A list of time intervals for which the route is muted
+	MuteTimes []string
 }
 
 func (ro *RouteOpts) String() string {
