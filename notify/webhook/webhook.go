@@ -100,8 +100,30 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, err
+	if n.conf.Json != "" {
+		body, err := n.tmpl.ExecuteTextString(n.conf.Json, data)
+		if err != nil {
+			return false, err
+		}
+		if !json.Valid([]byte(body)) {
+			return false, fmt.Errorf("Json格式异常: %s ", body)
+		}
+		if err := json.Indent(&buf, []byte(body), "", "  "); err != nil {
+			return false, fmt.Errorf("Json格式异常: %s ", body)
+		}
+	} else if n.conf.Text != "" {
+		body, err := n.tmpl.ExecuteTextString(n.conf.Json, data)
+		if err != nil {
+			return false, err
+		}
+		err = json.NewEncoder(&buf).Encode(body)
+		if err != nil {
+			return false, err
+		}
+	} else {
+		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+			return false, err
+		}
 	}
 
 	req, err := http.NewRequest("POST", n.conf.URL.String(), &buf)
