@@ -16,11 +16,11 @@ package config
 import (
 	"crypto/md5"
 	"encoding/binary"
+	"sync"
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"sync"
-	"time"
 )
 
 // Coordinator coordinates Alertmanager configurations beyond the lifetime of a
@@ -139,7 +139,7 @@ func (c *Coordinator) Reload() error {
 	}
 
 	c.configSuccessMetric.Set(1)
-	c.configSuccessTimeMetric.Set(float64(time.Now().Unix()))
+	c.configSuccessTimeMetric.SetToCurrentTime()
 	hash := md5HashAsMetricValue([]byte(c.config.original))
 	c.configHashMetric.Set(hash)
 
