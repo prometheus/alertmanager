@@ -1,0 +1,2 @@
+- Unmarshalling is weird. Alertmanager has a status page that just marshalls config into a string. When I tried to use my library with it, it blew up because the timeinterval library hides many of its internal fields and thus they can't be marshalled.
+  I worked around this by creating a 'config.TimeInterval' concept. Real timeintervals can be created from this representation by re-unmarshalling maybe?
