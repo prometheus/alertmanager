@@ -406,6 +406,15 @@ images:
 links:
   [ <link_config> ... ]
 
+# The part or component of the affected system that is broken.
+[ component: <tmpl_string> ]
+
+# A cluster or grouping of sources.
+[ group: <tmpl_string> ]
+
+# The class/type of the event.
+[ class: <tmpl_string> ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
