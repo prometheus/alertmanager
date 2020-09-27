@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/benridley/gotime"
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -220,10 +219,19 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	}
 }
 
-// A MuteTimeInterval represents a named set of time intervals for which a route should be muted
+// A MuteTimeInterval represents a named set of time intervals for which a route should be muted.
 type MuteTimeInterval struct {
-	Name          string                `yaml:"name" json:"name"`
-	TimeIntervals []gotime.TimeInterval `yaml:"time_intervals"`
+	Name          string         `yaml:"name" json:"name"`
+	TimeIntervals []TimeInterval `yaml:"time_intervals"`
+}
+
+// A TimeInterval describes intervals of time.
+type TimeInterval struct {
+	Times       []string `yaml:"times"`
+	Weekdays    []string `yaml:"weekdays"`
+	DaysOfMonth []string `yaml:"days_of_month"`
+	Months      []string `yaml:"months"`
+	Years       []string `yaml:"years"`
 }
 
 // Config is the top-level configuration for Alertmanager's config files.

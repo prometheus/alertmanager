@@ -1,4 +1,5 @@
 /data/
+make_container.sh
 /alertmanager
 /amtool
 *.yml
