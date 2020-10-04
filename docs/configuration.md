@@ -678,6 +678,7 @@ endpoint:
   "status": "<resolved|firing>",
   "receiver": <string>,
   "groupLabels": <object>,
+  "groupFingerprint": <string>,      // fingerprint to identify the alert group
   "commonLabels": <object>,
   "commonAnnotations": <object>,
   "externalURL": <string>,           // backlink to the Alertmanager.
