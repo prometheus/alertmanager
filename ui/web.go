@@ -26,6 +26,17 @@ import (
 	"github.com/prometheus/alertmanager/asset"
 )
 
+// RegisterFavIcon Favicon are always requested at /favicon.ico
+func RegisterFavIcon(r *route.Router) {
+	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
+		disableCaching(w)
+
+		req.URL.Path = "/static/favicon.ico"
+		fs := http.FileServer(asset.Assets)
+		fs.ServeHTTP(w, req)
+	})
+}
+
 // Register registers handlers to serve files for the web interface.
 func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
@@ -42,14 +53,6 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		disableCaching(w)
 
 		req.URL.Path = "/static/script.js"
-		fs := http.FileServer(asset.Assets)
-		fs.ServeHTTP(w, req)
-	})
-
-	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
-		disableCaching(w)
-
-		req.URL.Path = "/static/favicon.ico"
 		fs := http.FileServer(asset.Assets)
 		fs.ServeHTTP(w, req)
 	})

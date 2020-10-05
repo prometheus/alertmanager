@@ -457,6 +457,9 @@ func run() int {
 		return 1
 	}
 
+	router := route.New().WithInstrumentation(instrumentHandler)
+	ui.RegisterFavIcon(router)
+
 	// Make routePrefix default to externalURL path if empty string.
 	if *routePrefix == "" {
 		*routePrefix = amURL.Path
@@ -464,7 +467,6 @@ func run() int {
 	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
 	level.Debug(logger).Log("routePrefix", *routePrefix)
 
-	router := route.New().WithInstrumentation(instrumentHandler)
 	if *routePrefix != "/" {
 		router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, *routePrefix, http.StatusFound)
