@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benridley/gotime"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/cespare/xxhash"
 	"github.com/go-kit/kit/log"
@@ -108,6 +109,7 @@ const (
 	keyFiringAlerts
 	keyResolvedAlerts
 	keyNow
+	keyMuteTimes
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -143,6 +145,11 @@ func WithNow(ctx context.Context, t time.Time) context.Context {
 // WithRepeatInterval populates a context with a repeat interval.
 func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 	return context.WithValue(ctx, keyRepeatInterval, t)
+}
+
+// WithMuteTimes populates a context with a slice of mute time names.
+func WithMuteTimes(ctx context.Context, mt []string) context.Context {
+	return context.WithValue(ctx, keyMuteTimes, mt)
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -191,6 +198,13 @@ func FiringAlerts(ctx context.Context) ([]uint64, bool) {
 // Iff none exists, the second argument is false.
 func ResolvedAlerts(ctx context.Context) ([]uint64, bool) {
 	v, ok := ctx.Value(keyResolvedAlerts).([]uint64)
+	return v, ok
+}
+
+// MuteTimeNames extracts a slice of mute time names from the context. Iff none exists, the
+// second argument is false.
+func MuteTimeNames(ctx context.Context) ([]string, bool) {
+	v, ok := ctx.Value(keyMuteTimes).([]string)
 	return v, ok
 }
 
@@ -289,6 +303,7 @@ func (pb *PipelineBuilder) New(
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
+	muteTimes map[string][]gotime.TimeInterval,
 	notificationLog NotificationLog,
 	peer *cluster.Peer,
 ) RoutingStage {
@@ -297,10 +312,11 @@ func (pb *PipelineBuilder) New(
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
 	ss := NewMuteStage(silencer)
+	mts := NewTimeMuteStage(muteTimes)
 
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
-		rs[name] = MultiStage{ms, is, ss, st}
+		rs[name] = MultiStage{ms, is, mts, ss, st}
 	}
 	return rs
 }
@@ -754,4 +770,45 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 	}
 
 	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved)
+}
+
+type TimeMuteStage struct {
+	muteTimes map[string][]gotime.TimeInterval
+}
+
+func NewTimeMuteStage(mt map[string][]gotime.TimeInterval) *TimeMuteStage {
+	return &TimeMuteStage{mt}
+}
+
+// Exec implements the stage interface for TimeMuteStage
+// TimeMuteStage is responsible for muting alerts whose route is not in an active time
+func (mts TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	muteTimeNames, ok := MuteTimeNames(ctx)
+	if !ok {
+		return ctx, alerts, nil
+	}
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("missing now timestamp")
+	}
+
+	muted := false
+	for _, mtName := range muteTimeNames {
+		mt, ok := mts.muteTimes[mtName]
+		if !ok {
+			return ctx, alerts, errors.Errorf("mute time %s doesn't exist in config", mtName)
+		}
+		for _, ti := range mt {
+			if ti.ContainsTime(now) {
+				muted = true
+			}
+		}
+	}
+	// If the current time is inside a mute time, all alerts are removed from the pipeline
+	if muted {
+		lvl := level.Warn(l)
+		lvl.Log("Mail not sent due to being outside time interval")
+		return ctx, nil, nil
+	}
+	return ctx, alerts, nil
 }

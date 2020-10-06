@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/benridley/gotime"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
@@ -413,6 +414,12 @@ func run() int {
 			integrationsNum += len(integrations)
 		}
 
+		// Build the map of time interval names to mute time definitions
+		muteTimes := make(map[string][]gotime.TimeInterval)
+		for _, ti := range conf.MuteTimeIntervals {
+			muteTimes[ti.Name] = ti.TimeIntervals
+		}
+
 		inhibitor.Stop()
 		disp.Stop()
 
@@ -423,6 +430,7 @@ func run() int {
 			waitFunc,
 			inhibitor,
 			silencer,
+			muteTimes,
 			notificationLog,
 			peer,
 		)
