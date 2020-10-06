@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/benridley/gotime"
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -221,26 +222,18 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 
 // A MuteTimeInterval represents a named set of time intervals for which a route should be muted.
 type MuteTimeInterval struct {
-	Name          string         `yaml:"name" json:"name"`
-	TimeIntervals []TimeInterval `yaml:"time_intervals"`
-}
-
-// A TimeInterval describes intervals of time.
-type TimeInterval struct {
-	Times       []string `yaml:"times"`
-	Weekdays    []string `yaml:"weekdays"`
-	DaysOfMonth []string `yaml:"days_of_month"`
-	Months      []string `yaml:"months"`
-	Years       []string `yaml:"years"`
+	Name          string                `yaml:"name" json:"name"`
+	TimeIntervals []gotime.TimeInterval `yaml:"time_intervals"`
 }
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string       `yaml:"templates" json:"templates"`
+	Global            *GlobalConfig      `yaml:"global,omitempty" json:"global,omitempty"`
+	Route             *Route             `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules      []*InhibitRule     `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers         []*Receiver        `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates         []string           `yaml:"templates" json:"templates"`
+	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -431,7 +424,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
-	return checkReceiver(c.Route, names)
+	if err := checkReceiver(c.Route, names); err != nil {
+		return err
+	}
+
+	tiNames := make(map[string]struct{})
+	for _, mt := range c.MuteTimeIntervals {
+		tiNames[mt.Name] = struct{}{}
+	}
+	return checkTimeInterval(c.Route, tiNames)
 }
 
 // checkReceiver returns an error if a node in the routing tree
@@ -451,18 +452,34 @@ func checkReceiver(r *Route, receivers map[string]struct{}) error {
 	return nil
 }
 
+func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
+	for _, sr := range r.Routes {
+		if err := checkTimeInterval(sr, timeIntervals); err != nil {
+			return err
+		}
+	}
+	if len(r.MuteTimes) == 0 {
+		return nil
+	}
+	for _, mt := range r.MuteTimes {
+		if _, ok := timeIntervals[mt]; !ok {
+			return fmt.Errorf("undefined time interval %s used in route", mt)
+		}
+	}
+	return nil
+}
+
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
 	return GlobalConfig{
-		ResolveTimeout:    model.Duration(5 * time.Minute),
-		HTTPConfig:        &commoncfg.HTTPClientConfig{},
-		MuteTimeIntervals: []MuteTimeInterval{},
-		SMTPHello:         "localhost",
-		SMTPRequireTLS:    true,
-		PagerdutyURL:      mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-		OpsGenieAPIURL:    mustParseURL("https://api.opsgenie.com/"),
-		WeChatAPIURL:      mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-		VictorOpsAPIURL:   mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+		ResolveTimeout:  model.Duration(5 * time.Minute),
+		HTTPConfig:      &commoncfg.HTTPClientConfig{},
+		SMTPHello:       "localhost",
+		SMTPRequireTLS:  true,
+		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
+		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 	}
 }
 
@@ -564,24 +581,23 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	SMTPFrom          string             `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello         string             `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost     HostPort           `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername  string             `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword  Secret             `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthSecret    Secret             `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity  string             `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS    bool               `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL       *SecretURL         `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
-	PagerdutyURL      *URL               `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	OpsGenieAPIURL    *URL               `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey    Secret             `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	WeChatAPIURL      *URL               `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret   Secret             `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID   string             `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL   *URL               `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey   Secret             `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	SMTPFrom         string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello        string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost    HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername string     `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret   Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS   bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
+	SlackAPIURL      *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	PagerdutyURL     *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	OpsGenieAPIURL   *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey   Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	WeChatAPIURL     *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret  Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	VictorOpsAPIURL  *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey  Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
