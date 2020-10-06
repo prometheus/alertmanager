@@ -12,44 +12,44 @@ import (
 // TimeInterval describes intervals of time. ContainsTime will tell you if a golang time is contained
 // within the interval.
 type TimeInterval struct {
-	Times       []timeRange       `yaml:"times"`
-	Weekdays    []weekdayRange    `yaml:"weekdays"`
-	DaysOfMonth []dayOfMonthRange `yaml:"days_of_month"`
-	Months      []monthRange      `yaml:"months"`
-	Years       []yearRange       `yaml:"years"`
+	Times       []TimeRange       `yaml:"times,omitempty"`
+	Weekdays    []WeekdayRange    `yaml:"weekdays,flow,omitempty"`
+	DaysOfMonth []DayOfMonthRange `yaml:"days_of_month,flow,omitempty"`
+	Months      []MonthRange      `yaml:"months,flow,omitempty"`
+	Years       []YearRange       `yaml:"years,flow,omitempty"`
 }
 
-/* TimeRange represents a range of minutes within a 1440 minute day, exclusive of the end minute. A day consists of 1440 minutes.
-   For example, 5:00PM to end of the day would begin at 1020 and end at 1440. */
-type timeRange struct {
-	startMinute int
-	endMinute   int
+/* TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
+   For example, 5:00PM to End of the day would Begin at 1020 and End at 1440. */
+type TimeRange struct {
+	StartMinute int
+	EndMinute   int
 }
 
-// inclusiveRange is used to hold the beginning and end values of many time interval components
-type inclusiveRange struct {
-	begin int
-	end   int
+// InclusiveRange is used to hold the Beginning and End values of many time interval components
+type InclusiveRange struct {
+	Begin int
+	End   int
 }
 
-// A weekdayRange is an inclusive range between [0, 6] where 0 = Sunday
-type weekdayRange struct {
-	inclusiveRange
+// A WeekdayRange is an inclusive range between [0, 6] where 0 = Sunday
+type WeekdayRange struct {
+	InclusiveRange
 }
 
-// A dayOfMonthRange is an inclusive range that may have negative beginning/end values that represent distance from the end of the month beginning at -1
-type dayOfMonthRange struct {
-	inclusiveRange
+// A DayOfMonthRange is an inclusive range that may have negative Beginning/End values that represent distance from the End of the month Beginning at -1
+type DayOfMonthRange struct {
+	InclusiveRange
 }
 
-// A monthRange is an inclusive range between [1, 12] where 1 = January
-type monthRange struct {
-	inclusiveRange
+// A MonthRange is an inclusive range between [1, 12] where 1 = January
+type MonthRange struct {
+	InclusiveRange
 }
 
-// A year range is a positive inclusive range
-type yearRange struct {
-	inclusiveRange
+// A YearRange is a positive inclusive range
+type YearRange struct {
+	InclusiveRange
 }
 
 type yamlTimeRange struct {
@@ -57,7 +57,7 @@ type yamlTimeRange struct {
 	EndTime   string `yaml:"end_time"`
 }
 
-// A range with a beginning and end that can be represented as strings
+// A range with a Beginning and End that can be represented as strings
 type stringableRange interface {
 	setBegin(int)
 	setEnd(int)
@@ -65,15 +65,15 @@ type stringableRange interface {
 	memberFromString(string) (int, error)
 }
 
-func (ir *inclusiveRange) setBegin(n int) {
-	ir.begin = n
+func (ir *InclusiveRange) setBegin(n int) {
+	ir.Begin = n
 }
 
-func (ir *inclusiveRange) setEnd(n int) {
-	ir.end = n
+func (ir *InclusiveRange) setEnd(n int) {
+	ir.End = n
 }
 
-func (ir *inclusiveRange) memberFromString(in string) (out int, err error) {
+func (ir *InclusiveRange) memberFromString(in string) (out int, err error) {
 	out, err = strconv.Atoi(in)
 	if err != nil {
 		return -1, err
@@ -81,7 +81,7 @@ func (ir *inclusiveRange) memberFromString(in string) (out int, err error) {
 	return out, nil
 }
 
-func (r *weekdayRange) memberFromString(in string) (out int, err error) {
+func (r *WeekdayRange) memberFromString(in string) (out int, err error) {
 	out, ok := daysOfWeek[in]
 	if !ok {
 		return -1, fmt.Errorf("%s is not a valid weekday", in)
@@ -89,10 +89,13 @@ func (r *weekdayRange) memberFromString(in string) (out int, err error) {
 	return out, nil
 }
 
-func (r *monthRange) memberFromString(in string) (out int, err error) {
+func (r *MonthRange) memberFromString(in string) (out int, err error) {
 	out, ok := months[in]
 	if !ok {
-		return -1, fmt.Errorf("%s is not a valid weekday", in)
+		out, err = strconv.Atoi(in)
+		if err != nil {
+			return -1, fmt.Errorf("%s is not a valid month", in)
+		}
 	}
 	return out, nil
 }
@@ -105,6 +108,15 @@ var daysOfWeek = map[string]int{
 	"thursday":  4,
 	"friday":    5,
 	"saturday":  6,
+}
+var daysOfWeekInv = map[int]string{
+	0: "sunday",
+	1: "monday",
+	2: "tuesday",
+	3: "wednesday",
+	4: "thursday",
+	5: "friday",
+	6: "saturday",
 }
 
 var months = map[string]int{
@@ -122,109 +134,185 @@ var months = map[string]int{
 	"december":  12,
 }
 
-func (r *weekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+var monthsInv = map[int]string{
+	1:  "january",
+	2:  "february",
+	3:  "march",
+	4:  "april",
+	5:  "may",
+	6:  "june",
+	7:  "july",
+	8:  "august",
+	9:  "september",
+	10: "october",
+	11: "november",
+	12: "december",
+}
+
+// UnmarshalYAML implements the Unmarshaller interface for WeekdayRange.
+func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
 	err := stringableRangeFromString(str, r)
-	if r.begin > r.end {
-		return errors.New("Start day cannot be before end day")
+	if r.Begin > r.End {
+		return errors.New("Start day cannot be before End day")
 	}
-	if r.begin < 0 || r.begin > 6 {
+	if r.Begin < 0 || r.Begin > 6 {
 		return fmt.Errorf("%s is not a valid day of the week: out of range", str)
 	}
-	if r.end < 0 || r.end > 6 {
+	if r.End < 0 || r.End > 6 {
 		return fmt.Errorf("%s is not a valid day of the week: out of range", str)
 	}
 	return err
 }
 
-func (r *dayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// MarshalYAML implements the yaml.Marshaler interface for WeekdayRange
+func (r WeekdayRange) MarshalYAML() (interface{}, error) {
+	beginStr, ok := daysOfWeekInv[r.Begin]
+	if !ok {
+		return nil, fmt.Errorf("Unable to convert %d into weekday string", r.Begin)
+	}
+	if r.Begin == r.End {
+		return interface{}(beginStr), nil
+	}
+	endStr, ok := daysOfWeekInv[r.End]
+	if !ok {
+		return nil, fmt.Errorf("Unable to convert %d into weekday string", r.End)
+	}
+	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
+	return interface{}(rangeStr), nil
+}
+
+// UnmarshalYAML implements the Unmarshaller interface for DayOfMonthRange.
+func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
 	err := stringableRangeFromString(str, r)
-	if r.begin == 0 || r.begin < -31 || r.begin > 31 {
-		return fmt.Errorf("%d is not a valid day of the month: out of range", r.begin)
+	if r.Begin == 0 || r.Begin < -31 || r.Begin > 31 {
+		return fmt.Errorf("%d is not a valid day of the month: out of range", r.Begin)
 	}
-	if r.end == 0 || r.end < -31 || r.end > 31 {
-		return fmt.Errorf("%d is not a valid day of the month: out of range", r.end)
+	if r.End == 0 || r.End < -31 || r.End > 31 {
+		return fmt.Errorf("%d is not a valid day of the month: out of range", r.End)
 	}
-	// Check beginning <= end accounting for negatives day of month indices
-	trueBegin := r.begin
-	trueEnd := r.end
-	if r.begin < 0 {
-		trueBegin = 30 + r.begin
+	// Check Beginning <= End accounting for negatives day of month indices
+	trueBegin := r.Begin
+	trueEnd := r.End
+	if r.Begin < 0 {
+		trueBegin = 30 + r.Begin
 	}
-	if r.end < 0 {
-		trueEnd = 30 + r.end
+	if r.End < 0 {
+		trueEnd = 30 + r.End
 	}
 	if trueBegin > trueEnd {
-		return errors.New("Start day cannot be before end day")
+		return errors.New("Start day cannot be before End day")
 	}
 	return err
 }
 
-func (r *monthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML implements the Unmarshaller interface for MonthRange.
+func (r *MonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
 	err := stringableRangeFromString(str, r)
-	if r.begin > r.end {
-		return errors.New("Start month cannot be before end month")
+	if r.Begin > r.End {
+		return errors.New("Start month cannot be before End month")
 	}
-	if r.begin < 1 || r.begin > 12 {
+	if r.Begin < 1 || r.Begin > 12 {
 		return fmt.Errorf("%s is not a valid month: out of range", str)
 	}
-	if r.end < 1 || r.end > 12 {
+	if r.End < 1 || r.End > 12 {
 		return fmt.Errorf("%s is not a valid month: out of range", str)
 	}
 	return err
 }
 
-func (r *yearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// MarshalYAML implements the yaml.Marshaler interface for DayOfMonthRange
+func (r MonthRange) MarshalYAML() (interface{}, error) {
+	beginStr, ok := monthsInv[r.Begin]
+	if !ok {
+		return nil, fmt.Errorf("Unable to convert %d into month", r.Begin)
+	}
+	if r.Begin == r.End {
+		return interface{}(beginStr), nil
+	}
+	endStr, ok := monthsInv[r.End]
+	if !ok {
+		return nil, fmt.Errorf("Unable to convert %d into month", r.End)
+	}
+	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
+	return interface{}(rangeStr), nil
+}
+
+// UnmarshalYAML implements the Unmarshaller interface for YearRange.
+func (r *YearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
 	err := stringableRangeFromString(str, r)
-	if r.begin > r.end {
-		return errors.New("Start day cannot be before end day")
+	if r.Begin > r.End {
+		return errors.New("Start day cannot be before End day")
 	}
 	return err
 }
 
-// UnmarshalYAML implements the Unmarshaller interface for timeRanges.
-func (tr *timeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML implements the Unmarshaller interface for TimeRanges.
+func (tr *TimeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var y yamlTimeRange
 	if err := unmarshal(&y); err != nil {
 		return err
 	}
 	if y.EndTime == "" || y.StartTime == "" {
-		return errors.New("Both start and end times must be provided")
+		return errors.New("Both start and End times must be provided")
 	}
 	start, err := parseTime(y.StartTime)
 	if err != nil {
 		return nil
 	}
-	end, err := parseTime(y.EndTime)
+	End, err := parseTime(y.EndTime)
 	if err != nil {
 		return err
 	}
 	if start < 0 {
 		return errors.New("Start time out of range")
 	}
-	if end > 1440 {
+	if End > 1440 {
 		return errors.New("End time out of range")
 	}
-	if start >= end {
-		return errors.New("Start time cannot be equal or greater than end time")
+	if start >= End {
+		return errors.New("Start time cannot be equal or greater than End time")
 	}
-	tr.startMinute, tr.endMinute = start, end
+	tr.StartMinute, tr.EndMinute = start, End
 	return nil
+}
+
+//MarshalYAML implements the yaml.Marshaler interface for TimeRange
+func (tr TimeRange) MarshalYAML() (out interface{}, err error) {
+	startHr := tr.StartMinute / 60
+	endHr := tr.EndMinute / 60
+	startMin := tr.StartMinute % 60
+	endMin := tr.EndMinute % 60
+
+	startStr := fmt.Sprintf("%02d:%02d", startHr, startMin)
+	endStr := fmt.Sprintf("%02d:%02d", endHr, endMin)
+
+	yTr := yamlTimeRange{startStr, endStr}
+	return interface{}(yTr), err
+}
+
+//MarshalYAML implements the yaml.Marshaler interface for InclusiveRange
+func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
+	if ir.Begin == ir.End {
+		return strconv.Itoa(ir.Begin), nil
+	}
+	out := fmt.Sprintf("%d:%d", ir.Begin, ir.End)
+	return interface{}(out), nil
 }
 
 // TimeLayout specifies the layout to be used in time.Parse() calls for time intervals
@@ -256,7 +344,7 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Times != nil {
 		in := false
 		for _, validMinutes := range tp.Times {
-			if (t.Hour()*60+t.Minute()) >= validMinutes.startMinute && (t.Hour()*60+t.Minute()) < validMinutes.endMinute {
+			if (t.Hour()*60+t.Minute()) >= validMinutes.StartMinute && (t.Hour()*60+t.Minute()) < validMinutes.EndMinute {
 				in = true
 				break
 			}
@@ -268,22 +356,22 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.DaysOfMonth != nil {
 		in := false
 		for _, validDates := range tp.DaysOfMonth {
-			var begin, end int
+			var Begin, End int
 			daysInMonth := daysInMonth(t)
-			if validDates.begin < 0 {
-				begin = daysInMonth + validDates.begin + 1
+			if validDates.Begin < 0 {
+				Begin = daysInMonth + validDates.Begin + 1
 			} else {
-				begin = validDates.begin
+				Begin = validDates.Begin
 			}
-			if validDates.end < 0 {
-				end = daysInMonth + validDates.end + 1
+			if validDates.End < 0 {
+				End = daysInMonth + validDates.End + 1
 			} else {
-				end = validDates.end
+				End = validDates.End
 			}
 			// Clamp to the boundaries of the month to prevent crossing into other months
-			begin = clamp(begin, -1*daysInMonth, daysInMonth)
-			end = clamp(end, -1*daysInMonth, daysInMonth)
-			if t.Day() >= begin && t.Day() <= end {
+			Begin = clamp(Begin, -1*daysInMonth, daysInMonth)
+			End = clamp(End, -1*daysInMonth, daysInMonth)
+			if t.Day() >= Begin && t.Day() <= End {
 				in = true
 				break
 			}
@@ -295,7 +383,7 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Months != nil {
 		in := false
 		for _, validMonths := range tp.Months {
-			if t.Month() >= time.Month(validMonths.begin) && t.Month() <= time.Month(validMonths.end) {
+			if t.Month() >= time.Month(validMonths.Begin) && t.Month() <= time.Month(validMonths.End) {
 				in = true
 				break
 			}
@@ -307,7 +395,7 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Weekdays != nil {
 		in := false
 		for _, validDays := range tp.Weekdays {
-			if t.Weekday() >= time.Weekday(validDays.begin) && t.Weekday() <= time.Weekday(validDays.end) {
+			if t.Weekday() >= time.Weekday(validDays.Begin) && t.Weekday() <= time.Weekday(validDays.End) {
 				in = true
 				break
 			}
@@ -319,7 +407,7 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Years != nil {
 		in := false
 		for _, validYears := range tp.Years {
-			if t.Year() >= validYears.begin && t.Year() <= validYears.end {
+			if t.Year() >= validYears.Begin && t.Year() <= validYears.End {
 				in = true
 				break
 			}
@@ -331,6 +419,7 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	return true
 }
 
+// Converts a string of the form "HH:MM" into a TimeRange
 func parseTime(in string) (mins int, err error) {
 	if !validTimeRE.MatchString(in) {
 		return 0, fmt.Errorf("Couldn't parse timestamp %s, invalid format", in)
@@ -355,6 +444,7 @@ func parseTime(in string) (mins int, err error) {
 	return mins, nil
 }
 
+// Converts a range that can be represented as strings (e.g. monday:wednesday) into an equivalent integer-represented range
 func stringableRangeFromString(in string, r stringableRange) (err error) {
 	in = strings.ToLower(in)
 	if strings.ContainsRune(in, ':') {
@@ -366,12 +456,12 @@ func stringableRangeFromString(in string, r stringableRange) (err error) {
 		if err != nil {
 			return err
 		}
-		end, err := r.memberFromString(components[1])
+		End, err := r.memberFromString(components[1])
 		if err != nil {
 			return err
 		}
 		r.setBegin(start)
-		r.setEnd(end)
+		r.setEnd(End)
 		return nil
 	}
 	val, err := r.memberFromString(in)
