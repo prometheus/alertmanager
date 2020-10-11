@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -28,11 +29,16 @@ import (
 	"github.com/prometheus/alertmanager/cli/format"
 
 	clientruntime "github.com/go-openapi/runtime/client"
+	commoncfg "github.com/prometheus/common/config"
 )
 
 var (
 	verbose         bool
 	alertmanagerURL *url.URL
+	caFile          string
+	certFile        string
+	keyFile         string
+	serverName      string
 	output          string
 	timeout         time.Duration
 
@@ -83,6 +89,24 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
+	if certFile != "" && keyFile != "" {
+		tc := commoncfg.TLSConfig{
+			CertFile:   certFile,
+			KeyFile:    keyFile,
+			ServerName: serverName,
+		}
+		if caFile != "" {
+			tc.CAFile = caFile
+		}
+		tlsConfig, err := commoncfg.NewTLSConfig(&tc)
+		if err != nil {
+			kingpin.Fatalf("%v\n", err)
+		}
+		cr.Transport = &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+	}
+
 	return client.New(cr, strfmt.Default)
 }
 
@@ -96,6 +120,10 @@ func Execute() {
 
 	app.Flag("verbose", "Verbose running information").Short('v').BoolVar(&verbose)
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
+	app.Flag("tls_config.ca_file", "Path to CA file").ExistingFileVar(&caFile)
+	app.Flag("tls_config.cert_file", "Path to client certificate").ExistingFileVar(&certFile)
+	app.Flag("tls_config.key_file", "Path to client certificate key").ExistingFileVar(&keyFile)
+	app.Flag("tls_config.server_name", "Server name for TLS config").StringVar(&serverName)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
 
@@ -138,6 +166,18 @@ static configuration:
 
 	alertmanager.url
 		Set a default alertmanager url for each request
+
+	tls_config.ca_file
+		Path to a CA certificate for the alertmanager server
+
+	tls_config.cert_file
+		Path to a client certificate for mTLS
+
+	tls_config.key_file
+		Path to a client certificate key for mTLS
+
+	tls_config.server_name
+		ServerName extension to indicate the name of the server
 
 	author
 		Set a default author value for new silences. If this argument is not
