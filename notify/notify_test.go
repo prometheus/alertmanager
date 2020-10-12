@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benridley/gotime"
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -717,5 +719,78 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
+	}
+}
+
+func TestTimeMuteStage(t *testing.T) {
+	cases := []struct {
+		fireTime   string
+		labels     model.LabelSet
+		shouldMute bool
+	}{
+		{
+			fireTime:   "01 Jan 21 09:00 GMT",
+			labels:     model.LabelSet{"dont": "mute"},
+			shouldMute: false,
+		},
+		{
+			fireTime:   "01 Dec 20 16:59 GMT",
+			labels:     model.LabelSet{"dont": "mute"},
+			shouldMute: false,
+		},
+		{
+			fireTime:   "17 Oct 20 10:00 GMT",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+	}
+	// Route mutes alerts outside business hours
+	muteIn := `
+---
+- weekdays: ['monday:friday']
+  times:
+   - start_time: '00:00'
+     end_time: '09:00'
+   - start_time: '17:00'
+     end_time: '24:00'
+- weekdays: ['saturday', 'sunday']`
+	var intervals []gotime.TimeInterval
+	err := yaml.Unmarshal([]byte(muteIn), &intervals)
+	if err != nil {
+		t.Fatalf("Couldn't unmarshal time interval %s", err)
+	}
+	m := map[string][]gotime.TimeInterval{"test": intervals}
+	stage := NewTimeMuteStage(m)
+
+	outAlerts := []*types.Alert{}
+	nonMuteCount := 0
+	for _, tc := range cases {
+		now, err := time.Parse(time.RFC822, tc.fireTime)
+		if err != nil {
+			t.Fatalf("Couldn't parse fire time %s %s", tc.fireTime, err)
+		}
+		// Count alerts with shouldMute == false and compare to ensure none are muted incorrectly
+		if !tc.shouldMute {
+			nonMuteCount++
+		}
+		a := model.Alert{Labels: tc.labels}
+		alerts := []*types.Alert{{Alert: a}}
+		ctx := context.Background()
+		ctx = WithNow(ctx, now)
+		ctx = WithMuteTimes(ctx, []string{"test"})
+
+		_, out, err := stage.Exec(ctx, log.NewNopLogger(), alerts...)
+		if err != nil {
+			t.Fatalf("Unexpected error in time mute stage %s", err)
+		}
+		outAlerts = append(outAlerts, out...)
+	}
+	for _, alert := range outAlerts {
+		if _, ok := alert.Alert.Labels["mute"]; ok {
+			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
+		}
+	}
+	if len(outAlerts) != nonMuteCount {
+		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
 	}
 }
