@@ -261,12 +261,15 @@ of the form <start_day>:<end_day> and are inclusive on both ends. For example:
 Negative values are also accepted which begin at the end of the month,
 e.g. -1 during January would represent January 31. For example: `['1:5', '-3:-1']`.
 Extending past the start or end of the month will cause it to be clamped. E.g. specifying
-`['1:31']` during February will clamp the actual end date to 28 or 29 depending on leap years. 
+`['1:31']` during February will clamp the actual end date to 28 or 29 depending on leap years.
+Inclusive on both ends.
 
 `months`: A list of calendar months identified by a case-insentive name (e.g. ‘January’) or by number,
-where January = 1. Ranges are also accepted. For example, `['1:3', 'may:august', 'december']`
+where January = 1. Ranges are also accepted. For example, `['1:3', 'may:august', 'december']`.
+Inclusive on both ends.
 
-`years`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`
+`years`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`.
+Inclusive on both ends.
 
 ## `<inhibit_rule>`
 
