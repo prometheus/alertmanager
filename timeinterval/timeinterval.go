@@ -356,22 +356,22 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.DaysOfMonth != nil {
 		in := false
 		for _, validDates := range tp.DaysOfMonth {
-			var Begin, End int
+			var begin, end int
 			daysInMonth := daysInMonth(t)
 			if validDates.Begin < 0 {
-				Begin = daysInMonth + validDates.Begin + 1
+				begin = daysInMonth + validDates.Begin + 1
 			} else {
-				Begin = validDates.Begin
+				begin = validDates.Begin
 			}
 			if validDates.End < 0 {
-				End = daysInMonth + validDates.End + 1
+				end = daysInMonth + validDates.End + 1
 			} else {
-				End = validDates.End
+				end = validDates.End
 			}
 			// Clamp to the boundaries of the month to prevent crossing into other months
-			Begin = clamp(Begin, -1*daysInMonth, daysInMonth)
-			End = clamp(End, -1*daysInMonth, daysInMonth)
-			if t.Day() >= Begin && t.Day() <= End {
+			begin = clamp(begin, -1*daysInMonth, daysInMonth)
+			end = clamp(end, -1*daysInMonth, daysInMonth)
+			if t.Day() >= begin && t.Day() <= end {
 				in = true
 				break
 			}
