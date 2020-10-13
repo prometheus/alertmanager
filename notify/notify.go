@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benridley/gotime"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/cespare/xxhash"
 	"github.com/go-kit/kit/log"
@@ -34,6 +33,7 @@ import (
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -303,7 +303,7 @@ func (pb *PipelineBuilder) New(
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
-	muteTimes map[string][]gotime.TimeInterval,
+	muteTimes map[string][]timeinterval.TimeInterval,
 	notificationLog NotificationLog,
 	peer *cluster.Peer,
 ) RoutingStage {
@@ -773,10 +773,10 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 }
 
 type TimeMuteStage struct {
-	muteTimes map[string][]gotime.TimeInterval
+	muteTimes map[string][]timeinterval.TimeInterval
 }
 
-func NewTimeMuteStage(mt map[string][]gotime.TimeInterval) *TimeMuteStage {
+func NewTimeMuteStage(mt map[string][]timeinterval.TimeInterval) *TimeMuteStage {
 	return &TimeMuteStage{mt}
 }
 

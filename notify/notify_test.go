@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benridley/gotime"
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -33,6 +32,7 @@ import (
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -723,27 +723,6 @@ func TestMuteStageWithSilences(t *testing.T) {
 }
 
 func TestTimeMuteStage(t *testing.T) {
-	cases := []struct {
-		fireTime   string
-		labels     model.LabelSet
-		shouldMute bool
-	}{
-		{
-			fireTime:   "01 Jan 21 09:00 GMT",
-			labels:     model.LabelSet{"dont": "mute"},
-			shouldMute: false,
-		},
-		{
-			fireTime:   "01 Dec 20 16:59 GMT",
-			labels:     model.LabelSet{"dont": "mute"},
-			shouldMute: false,
-		},
-		{
-			fireTime:   "17 Oct 20 10:00 GMT",
-			labels:     model.LabelSet{"mute": "me"},
-			shouldMute: true,
-		},
-	}
 	// Route mutes alerts outside business hours
 	muteIn := `
 ---
@@ -754,12 +733,43 @@ func TestTimeMuteStage(t *testing.T) {
    - start_time: '17:00'
      end_time: '24:00'
 - weekdays: ['saturday', 'sunday']`
-	var intervals []gotime.TimeInterval
+
+	cases := []struct {
+		fireTime   string
+		labels     model.LabelSet
+		shouldMute bool
+	}{
+		{
+			// Friday during business hours
+			fireTime:   "01 Jan 21 09:00 GMT",
+			labels:     model.LabelSet{"foo": "bar"},
+			shouldMute: false,
+		},
+		{
+			// Tuesday before 5pm
+			fireTime:   "01 Dec 20 16:59 GMT",
+			labels:     model.LabelSet{"dont": "mute"},
+			shouldMute: false,
+		},
+		{
+			// Saturday
+			fireTime:   "17 Oct 20 10:00 GMT",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			// Wednesday before 9am
+			fireTime:   "14 Oct 20 05:00 GMT",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+	}
+	var intervals []timeinterval.TimeInterval
 	err := yaml.Unmarshal([]byte(muteIn), &intervals)
 	if err != nil {
 		t.Fatalf("Couldn't unmarshal time interval %s", err)
 	}
-	m := map[string][]gotime.TimeInterval{"test": intervals}
+	m := map[string][]timeinterval.TimeInterval{"test": intervals}
 	stage := NewTimeMuteStage(m)
 
 	outAlerts := []*types.Alert{}

@@ -1,4 +1,4 @@
-package gotime
+package timeinterval
 
 import (
 	"errors"

@@ -28,7 +28,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/benridley/gotime"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
@@ -61,6 +60,7 @@ import (
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 )
@@ -415,7 +415,7 @@ func run() int {
 		}
 
 		// Build the map of time interval names to mute time definitions
-		muteTimes := make(map[string][]gotime.TimeInterval)
+		muteTimes := make(map[string][]timeinterval.TimeInterval)
 		for _, ti := range conf.MuteTimeIntervals {
 			muteTimes[ti.Name] = ti.TimeIntervals
 		}
