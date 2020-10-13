@@ -431,13 +431,3 @@ func TestYamlMarshal(t *testing.T) {
 		}
 	}
 }
-
-func emptyInterval() TimeInterval {
-	return TimeInterval{
-		Times:       []TimeRange{},
-		Weekdays:    []WeekdayRange{},
-		DaysOfMonth: []DayOfMonthRange{},
-		Months:      []MonthRange{},
-		Years:       []YearRange{},
-	}
-}
