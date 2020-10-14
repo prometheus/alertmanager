@@ -170,7 +170,7 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	err := stringableRangeFromString(str, r)
 	if r.Begin > r.End {
-		return errors.New("Start day cannot be before End day")
+		return errors.New("start day cannot be before end day")
 	}
 	if r.Begin < 0 || r.Begin > 6 {
 		return fmt.Errorf("%s is not a valid day of the week: out of range", str)
@@ -185,14 +185,14 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (r WeekdayRange) MarshalYAML() (interface{}, error) {
 	beginStr, ok := daysOfWeekInv[r.Begin]
 	if !ok {
-		return nil, fmt.Errorf("Unable to convert %d into weekday string", r.Begin)
+		return nil, fmt.Errorf("unable to convert %d into weekday string", r.Begin)
 	}
 	if r.Begin == r.End {
 		return interface{}(beginStr), nil
 	}
 	endStr, ok := daysOfWeekInv[r.End]
 	if !ok {
-		return nil, fmt.Errorf("Unable to convert %d into weekday string", r.End)
+		return nil, fmt.Errorf("unable to convert %d into weekday string", r.End)
 	}
 	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
 	return interface{}(rangeStr), nil
@@ -221,7 +221,7 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error
 		trueEnd = 30 + r.End
 	}
 	if trueBegin > trueEnd {
-		return errors.New("Start day cannot be before End day")
+		return errors.New("start day cannot be before end day")
 	}
 	return err
 }
@@ -234,7 +234,7 @@ func (r *MonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	err := stringableRangeFromString(str, r)
 	if r.Begin > r.End {
-		return errors.New("Start month cannot be before End month")
+		return errors.New("start month cannot be before end month")
 	}
 	if r.Begin < 1 || r.Begin > 12 {
 		return fmt.Errorf("%s is not a valid month: out of range", str)
@@ -249,14 +249,14 @@ func (r *MonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (r MonthRange) MarshalYAML() (interface{}, error) {
 	beginStr, ok := monthsInv[r.Begin]
 	if !ok {
-		return nil, fmt.Errorf("Unable to convert %d into month", r.Begin)
+		return nil, fmt.Errorf("unable to convert %d into month", r.Begin)
 	}
 	if r.Begin == r.End {
 		return interface{}(beginStr), nil
 	}
 	endStr, ok := monthsInv[r.End]
 	if !ok {
-		return nil, fmt.Errorf("Unable to convert %d into month", r.End)
+		return nil, fmt.Errorf("unable to convert %d into month", r.End)
 	}
 	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
 	return interface{}(rangeStr), nil
@@ -270,7 +270,7 @@ func (r *YearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	err := stringableRangeFromString(str, r)
 	if r.Begin > r.End {
-		return errors.New("Start day cannot be before End day")
+		return errors.New("start day cannot be before end day")
 	}
 	return err
 }
@@ -282,7 +282,7 @@ func (tr *TimeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if y.EndTime == "" || y.StartTime == "" {
-		return errors.New("Both start and End times must be provided")
+		return errors.New("both start and end times must be provided")
 	}
 	start, err := parseTime(y.StartTime)
 	if err != nil {
@@ -293,13 +293,13 @@ func (tr *TimeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if start < 0 {
-		return errors.New("Start time out of range")
+		return errors.New("start time out of range")
 	}
 	if End > 1440 {
 		return errors.New("End time out of range")
 	}
 	if start >= End {
-		return errors.New("Start time cannot be equal or greater than End time")
+		return errors.New("start time cannot be equal or greater than end time")
 	}
 	tr.StartMinute, tr.EndMinute = start, End
 	return nil
@@ -435,11 +435,11 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 // Converts a string of the form "HH:MM" into a TimeRange
 func parseTime(in string) (mins int, err error) {
 	if !validTimeRE.MatchString(in) {
-		return 0, fmt.Errorf("Couldn't parse timestamp %s, invalid format", in)
+		return 0, fmt.Errorf("couldn't parse timestamp %s, invalid format", in)
 	}
 	timestampComponents := strings.Split(in, ":")
 	if len(timestampComponents) != 2 {
-		return 0, fmt.Errorf("Invalid timestamp format: %s", in)
+		return 0, fmt.Errorf("invalid timestamp format: %s", in)
 	}
 	timeStampHours, err := strconv.Atoi(timestampComponents[0])
 	if err != nil {
@@ -450,7 +450,7 @@ func parseTime(in string) (mins int, err error) {
 		return 0, err
 	}
 	if timeStampHours < 0 || timeStampHours > 24 || timeStampMinutes < 0 || timeStampMinutes > 60 {
-		return 0, fmt.Errorf("Timestamp %s out of range", in)
+		return 0, fmt.Errorf("timestamp %s out of range", in)
 	}
 	// Timestamps are stored as minutes elapsed in the day, so multiply hours by 60
 	mins = timeStampHours*60 + timeStampMinutes
@@ -463,7 +463,7 @@ func stringableRangeFromString(in string, r stringableRange) (err error) {
 	if strings.ContainsRune(in, ':') {
 		components := strings.Split(in, ":")
 		if len(components) != 2 {
-			return fmt.Errorf("Coudn't parse range %s, invalid format", in)
+			return fmt.Errorf("couldn't parse range %s, invalid format", in)
 		}
 		start, err := r.memberFromString(components[0])
 		if err != nil {
