@@ -151,6 +151,65 @@ receivers:
 
 }
 
+func TestMuteTimeExists(t *testing.T) {
+	in := `
+route:
+    receiver: team-Y
+    routes:
+    -  match:
+        severity: critical
+       mute_times:
+       - business_hours
+
+receivers:
+- name: 'team-Y'
+`
+	_, err := Load(in)
+
+	expected := "undefined time interval \"business_hours\" used in route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestMuteTimeHasName(t *testing.T) {
+	in := `
+mute_time_intervals:
+- name: 
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
+
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  routes:
+  -  match:
+      severity: critical
+     mute_times:
+     - business_hours
+`
+	_, err := Load(in)
+
+	expected := "missing name in mute time interval"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
 func TestGroupByHasNoDuplicatedLabels(t *testing.T) {
 	in := `
 route:
@@ -221,6 +280,36 @@ receivers:
 	_, err := Load(in)
 
 	expected := "no routes provided"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestRootRouteNoMuteTimes(t *testing.T) {
+	in := `
+mute_time_intervals:
+- name: my_mute_time
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
+
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  mute_times:
+  - my_mute_time
+`
+	_, err := Load(in)
+
+	expected := "root route cannot have any mute times"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
