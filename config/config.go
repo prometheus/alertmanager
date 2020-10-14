@@ -226,6 +226,18 @@ type MuteTimeInterval struct {
 	TimeIntervals []timeinterval.TimeInterval `yaml:"time_intervals"`
 }
 
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MuteTimeInterval
+func (mt *MuteTimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MuteTimeInterval
+	if err := unmarshal((*plain)(mt)); err != nil {
+		return err
+	}
+	if mt.Name == "" {
+		return fmt.Errorf("missing name in mute time interval")
+	}
+	return nil
+}
+
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
 	Global            *GlobalConfig      `yaml:"global,omitempty" json:"global,omitempty"`
