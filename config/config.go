@@ -463,7 +463,7 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 	}
 	for _, mt := range r.MuteTimes {
 		if _, ok := timeIntervals[mt]; !ok {
-			return fmt.Errorf("undefined time interval %s used in route", mt)
+			return fmt.Errorf("undefined time interval %q used in route", mt)
 		}
 	}
 	return nil
