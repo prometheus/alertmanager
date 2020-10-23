@@ -43,21 +43,17 @@ type Notifier struct {
 
 	accessToken   string
 	accessTokenAt time.Time
-}
-
-// token is the AccessToken with corpid and corpsecret.
-type token struct {
-	AccessToken string `json:"access_token"`
+	expireIn      time.Duration
 }
 
 type weChatMessage struct {
-	Text     weChatMessageContent `yaml:"text,omitempty" json:"text,omitempty"`
 	ToUser   string               `yaml:"touser,omitempty" json:"touser,omitempty"`
 	ToParty  string               `yaml:"toparty,omitempty" json:"toparty,omitempty"`
 	Totag    string               `yaml:"totag,omitempty" json:"totag,omitempty"`
 	AgentID  string               `yaml:"agentid,omitempty" json:"agentid,omitempty"`
 	Safe     string               `yaml:"safe,omitempty" json:"safe,omitempty"`
 	Type     string               `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+	Text     weChatMessageContent `yaml:"text,omitempty" json:"text,omitempty"`
 	Markdown weChatMessageContent `yaml:"markdown,omitempty" json:"markdown,omitempty"`
 }
 
@@ -66,8 +62,15 @@ type weChatMessageContent struct {
 }
 
 type weChatResponse struct {
-	Code  int    `json:"code"`
-	Error string `json:"error"`
+	Code  int    `json:"errcode"`
+	Error string `json:"errmsg"`
+}
+
+// tokenResponse is the AccessToken and ExpiresIn with corpid and corpsecret.
+type tokenResponse struct {
+	weChatResponse
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
 }
 
 // New returns a new Wechat notifier.
@@ -94,9 +97,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
-
-	// Refresh AccessToken over 2 hours
-	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
+	// Refresh AccessToken over `expireIn`
+	if n.accessToken == "" || time.Since(n.accessTokenAt) > n.expireIn {
 		parameters := url.Values{}
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
@@ -108,6 +110,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u.Path += "gettoken"
 		u.RawQuery = parameters.Encode()
 
+		// Record the time before we send request
+		startTime := time.Now()
 		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
 			return true, err
@@ -121,7 +125,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 		defer notify.Drain(resp)
 
-		var wechatToken token
+		var wechatToken tokenResponse
 		if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
 			return false, err
 		}
@@ -132,7 +136,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		// Cache accessToken
 		n.accessToken = wechatToken.AccessToken
-		n.accessTokenAt = time.Now()
+		n.accessTokenAt = startTime
+		n.expireIn = time.Duration(wechatToken.ExpiresIn) * time.Second
 	}
 
 	msg := &weChatMessage{
@@ -162,18 +167,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	postMessageURL := n.conf.APIURL.Copy()
-	postMessageURL.Path += "message/send"
-	q := postMessageURL.Query()
-	q.Set("access_token", n.accessToken)
-	postMessageURL.RawQuery = q.Encode()
+	parameters := url.Values{}
+	parameters.Add("access_token", n.accessToken)
+	u := n.conf.APIURL.Copy()
+	u.Path += "message/send"
+	u.RawQuery = parameters.Encode()
 
-	req, err := http.NewRequest(http.MethodPost, postMessageURL.String(), &buf)
-	if err != nil {
-		return true, err
-	}
-
-	resp, err := n.client.Do(req.WithContext(ctx))
+	resp, err := notify.PostJSON(ctx, n.client, u.String(), &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
