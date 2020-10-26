@@ -13,7 +13,7 @@
             ||| % $._config,
             'for': '10m',
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               summary: 'Reloading an Alertmanager configuration has failed.',
@@ -23,13 +23,13 @@
           {
             alert: 'AlertmanagerMembersInconsistent',
             expr: |||
-              (
-                alertmanager_cluster_members{%(alertmanagerSelector)s}
+              # Without max_over_time, failed scrapes could create false negatives, see
+              # https://www.robustperception.io/alerting-on-gauges-in-prometheus-2-0 for details.
+                max_over_time(alertmanager_cluster_members{%(alertmanagerSelector)s}[5m])
               < on (job) group_left
-                count by (job) (alertmanager_cluster_members{%(alertmanagerSelector)s})
-              )
+                count by (job) (max_over_time(alertmanager_cluster_members{%(alertmanagerSelector)s}[5m]))
             ||| % $._config,
-            'for': '5m',
+            'for': '10m',
             labels: {
               severity: 'critical',
             },
