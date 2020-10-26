@@ -3,6 +3,14 @@
 The Alertmanager Mixin is a set of configurable, reusable and extensible alerts
 (and eventually dashboards) for Alertmanager.
 
+The alerts are designed to monitor a cluster of Alertmanager instances. To make
+them work as expected, the Prometheus server the alerts are evaluated on has to
+scrape all Alertmanager instances of the cluster, even if those instances are
+distributed over different locations. All Alertmanager instances in the same
+Alertmanager cluster must have the same `job` label. In turn, if monitoring
+multiple different Alertmanager clusters, instances from different clusters
+must have a different `job` label.
+
 To use them, you need to have `jsonnet` (v0.13+) and `jb` installed. If you
 have a working Go development environment, it's easiest to run the following:
 
