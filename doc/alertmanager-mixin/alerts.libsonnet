@@ -22,9 +22,11 @@
           {
             alert: 'AlertmanagerMembersInconsistent',
             expr: |||
-              alertmanager_cluster_members{%(alertmanagerSelector)s}
-                < on (job) group_left
-              count by (job) (alertmanager_cluster_members{%(alertmanagerSelector)s})
+              (
+                alertmanager_cluster_members{%(alertmanagerSelector)s}
+              < on (job) group_left
+                count by (job) (alertmanager_cluster_members{%(alertmanagerSelector)s})
+              )
             ||| % $._config,
             'for': '5m',
             labels: {
@@ -37,9 +39,12 @@
           {
             alert: 'AlertmanagerFailedToSendAlerts',
             expr: |||
-              rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s}[5m])
+              (
+                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s}[5m])
               /
-              rate(alertmanager_notifications_total{%(alertmanagerSelector)s}[5m]) > 0.01
+                rate(alertmanager_notifications_total{%(alertmanagerSelector)s}[5m])
+              )
+              > 0.01
             ||| % $._config,
             'for': '5m',
             labels: {
