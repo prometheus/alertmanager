@@ -16,7 +16,8 @@
               severity: 'warning',
             },
             annotations: {
-              message: "Reloading Alertmanager's configuration has failed for %(alertmanagerName)s" % $._config,
+              summary: 'Reloading an Alertmanager configuration has failed.',
+              description: 'Configuration has failed to load for %(alertmanagerName)s.' % $._config,
             },
           },
           {
@@ -33,7 +34,8 @@
               severity: 'critical',
             },
             annotations: {
-              message: 'Alertmanager %(alertmanagerName)s has not found all other members of the cluster.' % $._config,
+              summary: 'A member of an Alertmanager cluster has not found all other cluster members.',
+              description: 'Alertmanager %(alertmanagerName)s has only found {{ $value }} members of the {{ $labels.job }} cluster.' % $._config,
             },
           },
           {
@@ -51,7 +53,8 @@
               severity: 'critical',
             },
             annotations: {
-              message: 'Alertmanager %(alertmanagerName)s failed to send {{ $value | humanizePercentage }} notifications to {{ $labels.integration }}.' % $._config,
+              summary: 'An Alertmanager instance fails to send notifications.',
+              description: 'Alertmanager %(alertmanagerName)s failed to send {{ $value | humanizePercentage }}%% notifications to {{ $labels.integration }}.' % $._config,
             },
           },
         ],
