@@ -54,7 +54,7 @@
             },
             annotations: {
               summary: 'An Alertmanager instance failed to send notifications.',
-              description: 'Alertmanager %(alertmanagerName)s failed to send {{ $value | humanizePercentage }}%% of notifications to {{ $labels.integration }}.' % $._config,
+              description: 'Alertmanager %(alertmanagerName)s failed to send {{ $value | humanizePercentage }} of notifications to {{ $labels.integration }}.' % $._config,
             },
           },
           {
@@ -73,7 +73,7 @@
             },
             annotations: {
               summary: 'All Alertmanager instances in a cluster failed to send notifications.',
-              description: 'The minimum notification failure rate to {{ $labels.integration }} sent from any instance in the %(alertmanagerClusterName)s cluster is {{ $value | humanizePercentage }}%%.' % $._config,
+              description: 'The minimum notification failure rate to {{ $labels.integration }} sent from any instance in the %(alertmanagerClusterName)s cluster is {{ $value | humanizePercentage }}.' % $._config,
             },
           },
           {
@@ -90,6 +90,42 @@
             annotations: {
               summary: 'Alertmanager instances within the same cluster have different configurations.',
               description: 'Alertmanager instances within the %(alertmanagerClusterName)s cluster have different configurations.' % $._config,
+            },
+          },
+          // Both the following critical alerts, AlertmanagerClusterDown and
+          // AlertmanagerClusterCrashlooping, fire if a whole cluster is
+          // unhealthy. It is implied that a generic warning alert is in place
+          // for individual instances being down or crashlooping.
+          {
+            alert: 'AlertmanagerClusterDown',
+            expr: |||
+              max by (%(alertmanagerClusterLabels)s) (
+                avg_over_time(up{%(alertmanagerSelector)s}[5m])
+              ) < 0.5
+            ||| % $._config,
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              summary: 'All Alertmanager instances within the same cluster are down.',
+              description: 'Each Alertmanager instances within the %(alertmanagerClusterName)s cluster has been up for less than {{ $value | humanizePercentage }} of the last 5m.' % $._config,
+            },
+          },
+          {
+            alert: 'AlertmanagerClusterCrashlooping',
+            expr: |||
+              min by (%(alertmanagerClusterLabels)s) (
+                changes(process_start_time_seconds{%(alertmanagerSelector)s}[10m]
+              ) > 4
+            ||| % $._config,
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              summary: 'All Alertmanager instances within the same cluster are crashlooping.',
+              description: 'Each Alertmanager instances within the %(alertmanagerClusterName)s cluster has restarted at least {{ $value | humanize }} times in the last 10m.' % $._config,
             },
           },
         ],
