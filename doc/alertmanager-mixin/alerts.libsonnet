@@ -81,7 +81,8 @@
             expr: |||
               count by (%(alertmanagerClusterLabels)s) (
                 count_values by (%(alertmanagerClusterLabels)s) ("config_hash", alertmanager_config_hash{%(alertmanagerSelector)s})
-              ) != 1
+              )
+              != 1
             ||| % $._config,
             'for': '5m',
             labels: {
@@ -99,33 +100,47 @@
           {
             alert: 'AlertmanagerClusterDown',
             expr: |||
-              max by (%(alertmanagerClusterLabels)s) (
-                avg_over_time(up{%(alertmanagerSelector)s}[5m])
-              ) < 0.5
+              (
+                count by (%(alertmanagerClusterLabels)s) (
+                  avg_over_time(up{%(alertmanagerSelector)s}[5m]) < 0.5
+                )
+              /
+                count by (%(alertmanagerClusterLabels)s) (
+                  up{%(alertmanagerSelector)s}
+                )
+              )
+              >= 0.5
             ||| % $._config,
             'for': '5m',
             labels: {
               severity: 'critical',
             },
             annotations: {
-              summary: 'All Alertmanager instances within the same cluster are down.',
-              description: 'Each Alertmanager instances within the %(alertmanagerClusterName)s cluster has been up for less than {{ $value | humanizePercentage }} of the last 5m.' % $._config,
+              summary: 'Half or more of the Alertmanager instances within the same cluster are down.',
+              description: '{{ $value | humanizePercentage }} of Alertmanager instances within the %(alertmanagerClusterName)s cluster have been up for less than half of the last 5m.' % $._config,
             },
           },
           {
             alert: 'AlertmanagerClusterCrashlooping',
             expr: |||
-              min by (%(alertmanagerClusterLabels)s) (
-                changes(process_start_time_seconds{%(alertmanagerSelector)s}[10m]
-              ) > 4
+              (
+                count by (%(alertmanagerClusterLabels)s) (
+                  changes(process_start_time_seconds{%(alertmanagerSelector)s}[10m]) > 4
+                )
+              /
+                count by (%(alertmanagerClusterLabels)s) (
+                  up{%(alertmanagerSelector)s}
+                )
+              )
+              >= 0.5
             ||| % $._config,
             'for': '5m',
             labels: {
               severity: 'critical',
             },
             annotations: {
-              summary: 'All Alertmanager instances within the same cluster are crashlooping.',
-              description: 'Each Alertmanager instances within the %(alertmanagerClusterName)s cluster has restarted at least {{ $value | humanize }} times in the last 10m.' % $._config,
+              summary: 'Half or more of the Alertmanager instances within the same cluster are crashlooping.',
+              description: '{{ $value | humanizePercentage }} of Alertmanager instances within the %(alertmanagerClusterName)s cluster have restarted at least 5 times in the last 10m.' % $._config,
             },
           },
         ],
