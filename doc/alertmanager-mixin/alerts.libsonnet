@@ -76,6 +76,22 @@
               description: 'The minimum notification failure rate to {{ $labels.integration }} sent from any instance in the %(alertmanagerClusterName)s cluster is {{ $value | humanizePercentage }}%%.' % $._config,
             },
           },
+          {
+            alert: 'AlertmanagerConfigInconsistent',
+            expr: |||
+              count by (%(alertmanagerClusterLabels)s) (
+                count_values by (%(alertmanagerClusterLabels)s) ("config_hash", alertmanager_config_hash{%(alertmanagerSelector)s})
+              ) != 1
+            ||| % $._config,
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              summary: 'Alertmanager instances within the same cluster have different configurations.',
+              description: 'Alertmanager instances within the %(alertmanagerClusterName)s cluster have different configurations.' % $._config,
+            },
+          },
         ],
       },
     ],
