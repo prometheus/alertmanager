@@ -34,6 +34,13 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// To renew the token before it expires, we reduced the token validity time to 90%
+const tokenValidityCoefficient int = 90
+
+func calcValidityTime(expireIn int) time.Duration {
+	return time.Duration(expireIn*tokenValidityCoefficient/100) * time.Second
+}
+
 // Notifier implements a Notifier for wechat notifications.
 type Notifier struct {
 	conf   *config.WechatConfig
@@ -41,9 +48,8 @@ type Notifier struct {
 	logger log.Logger
 	client *http.Client
 
-	accessToken   string
-	accessTokenAt time.Time
-	expireIn      time.Duration
+	accessToken string
+	expireAt    time.Time
 }
 
 type weChatMessage struct {
@@ -97,8 +103,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	// Refresh AccessToken over `expireIn`
-	if n.accessToken == "" || time.Since(n.accessTokenAt) > n.expireIn {
+	// Refresh AccessToken
+	if n.accessToken == "" || time.Now().After(n.expireAt) {
 		parameters := url.Values{}
 		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
@@ -136,8 +142,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 		// Cache accessToken
 		n.accessToken = wechatToken.AccessToken
-		n.accessTokenAt = startTime
-		n.expireIn = time.Duration(wechatToken.ExpiresIn) * time.Second
+		n.expireAt = startTime.Add(calcValidityTime(wechatToken.ExpiresIn))
 	}
 
 	msg := &weChatMessage{
