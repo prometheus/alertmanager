@@ -162,6 +162,28 @@ func AssertNotifyLeaksNoSecret(t *testing.T, ctx context.Context, n notify.Notif
 	require.True(t, ok)
 }
 
+// NotifyWithSecret calls the Notify() method of the notifier with the secret that set in
+// the `notify/wechat/wechat_test.go` file.
+// ATTENTION: Only when you have set WechatConfig correctly can it be executed successfully.
+func NotifyWithSecret(t *testing.T, n notify.Notifier) {
+	t.Helper()
+
+	ctx := notify.WithGroupKey(context.Background(), "1")
+	ok, err := n.Notify(ctx, []*types.Alert{
+		&types.Alert{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}...)
+	// Just print the return value, you can modify it to verify the execution result.
+	t.Log(ok, err)
+}
+
 // GetContextWithCancelingURL returns a context that gets canceled when a
 // client does a GET request to the returned URL.
 // Handlers passed to the function will be invoked in order before the context gets canceled.

@@ -16,7 +16,9 @@ package wechat
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	commoncfg "github.com/prometheus/common/config"
@@ -25,6 +27,35 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
+
+// TestNotify can test the entire notification process as long as you fill in
+// the correct configuration: secret and WechatConfig.
+// You can get a full description of the WechatConfig's fields on
+// https://work.weixin.qq.com/api/doc/90001/90143/91199
+func TestNotify(t *testing.T) {
+	secret := "secret"
+	u, err := url.Parse("https://qyapi.weixin.qq.com/cgi-bin/")
+	require.NoError(t, err)
+	notifier, err := New(
+		&config.WechatConfig{
+			APIURL:      &config.URL{URL: u},
+			HTTPConfig:  &commoncfg.HTTPClientConfig{},
+			ToUser:      "binacs|user1|user2",
+			ToParty:     "patry1|party2|party3",
+			ToTag:       "tag1|tag2|tag3",
+			AgentID:     "agentID",
+			CorpID:      "corpID",
+			MessageType: "text",
+			Message:     "binacs: send from prometheus/alertmanager unit test at " + time.Now().Format("2006-1-2 15:4:5"),
+			APISecret:   config.Secret(secret),
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.NotifyWithSecret(t, notifier)
+}
 
 func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
