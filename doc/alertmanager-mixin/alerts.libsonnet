@@ -84,7 +84,7 @@
               )
               != 1
             ||| % $._config,
-            'for': '5m',
+            'for': '20m', // A config change across an Alertmanager cluster can take its time. But it's really bad if it persists for too long.
             labels: {
               severity: 'critical',
             },
