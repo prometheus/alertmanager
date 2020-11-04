@@ -95,14 +95,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
+	renderedConfig := n.conf.Render(tmpl)
+
 	// Refresh AccessToken over 2 hours
 	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
-		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
-		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
-		if err != nil {
-			return false, fmt.Errorf("templating error: %s", err)
-		}
+		parameters.Add("corpsecret", string(renderedConfig.APISecret))
+		parameters.Add("corpid", renderedConfig.CorpID)
 
 		u := n.conf.APIURL.Copy()
 		u.Path += "gettoken"
@@ -127,7 +126,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 
 		if wechatToken.AccessToken == "" {
-			return false, fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID)
+			return false, fmt.Errorf("invalid APISecret for CorpID: %s", renderedConfig.CorpID)
 		}
 
 		// Cache accessToken
@@ -136,21 +135,21 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	msg := &weChatMessage{
-		ToUser:  tmpl(n.conf.ToUser),
-		ToParty: tmpl(n.conf.ToParty),
-		Totag:   tmpl(n.conf.ToTag),
-		AgentID: tmpl(n.conf.AgentID),
-		Type:    n.conf.MessageType,
+		ToUser:  renderedConfig.ToUser,
+		ToParty: renderedConfig.ToParty,
+		Totag:   renderedConfig.ToTag,
+		AgentID: renderedConfig.AgentID,
+		Type:    renderedConfig.MessageType,
 		Safe:    "0",
 	}
 
 	if msg.Type == "markdown" {
 		msg.Markdown = weChatMessageContent{
-			Content: tmpl(n.conf.Message),
+			Content: renderedConfig.Message,
 		}
 	} else {
 		msg.Text = weChatMessageContent{
-			Content: tmpl(n.conf.Message),
+			Content: renderedConfig.Message,
 		}
 	}
 	if err != nil {
@@ -206,4 +205,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	return false, errors.New(weResp.Error)
+}
+
+func (n *Notifier) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	return "", nil
 }

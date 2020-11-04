@@ -69,16 +69,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var (
 		err     error
-		message string
 	)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	tmplHTML := notify.TmplHTML(n.tmpl, data, &err)
 
-	parameters := url.Values{}
-	parameters.Add("token", tmpl(string(n.conf.Token)))
-	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+	renderedConfig := n.conf.Render(tmpl, tmplHTML)
 
-	title, truncated := notify.Truncate(tmpl(n.conf.Title), 250)
+	parameters := url.Values{}
+	parameters.Add("token", string(renderedConfig.Token))
+	parameters.Add("user", string(renderedConfig.UserKey))
+
+	title, truncated := notify.Truncate(renderedConfig.Title, 250)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated title", "truncated_title", title, "incident", key)
 	}
@@ -86,12 +87,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	if n.conf.HTML {
 		parameters.Add("html", "1")
-		message = tmplHTML(n.conf.Message)
-	} else {
-		message = tmpl(n.conf.Message)
 	}
 
-	message, truncated = notify.Truncate(message, 1024)
+	message, truncated := notify.Truncate(renderedConfig.Message, 1024)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated message", "truncated_message", message, "incident", key)
 	}
@@ -102,17 +100,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	parameters.Add("message", message)
 
-	supplementaryURL, truncated := notify.Truncate(tmpl(n.conf.URL), 512)
+	supplementaryURL, truncated := notify.Truncate(renderedConfig.URL, 512)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated URL", "truncated_url", supplementaryURL, "incident", key)
 	}
 	parameters.Add("url", supplementaryURL)
-	parameters.Add("url_title", tmpl(n.conf.URLTitle))
+	parameters.Add("url_title", renderedConfig.URLTitle)
 
-	parameters.Add("priority", tmpl(n.conf.Priority))
-	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
-	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
-	parameters.Add("sound", tmpl(n.conf.Sound))
+	parameters.Add("priority", renderedConfig.Priority)
+	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(renderedConfig.Retry).Seconds())))
+	parameters.Add("expire", fmt.Sprintf( "%d", int64(time.Duration(renderedConfig.Expire).Seconds())))
+	parameters.Add("sound", renderedConfig.Sound)
 	if err != nil {
 		return false, err
 	}
@@ -131,4 +129,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	defer notify.Drain(resp)
 
 	return n.retrier.Check(resp.StatusCode, nil)
+}
+
+func (n *Notifier) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	return "", nil
 }

@@ -50,6 +50,7 @@ const MinTimeout = 10 * time.Second
 // recoverable. This information is useful for a retry logic.
 type Notifier interface {
 	Notify(context.Context, ...*types.Alert) (bool, error)
+	RenderConfiguration(context.Context, ...*types.Alert) (interface{}, error)
 }
 
 // Integration wraps a notifier and its configuration to be uniquely identified
@@ -74,6 +75,11 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 	return i.notifier.Notify(ctx, alerts...)
+}
+
+// RenderNotification implements the Notifier interface.
+func (i *Integration) RenderConfiguration(ctx context.Context, alerts ...*types.Alert) (interface{}, error) {
+	return i.notifier.RenderConfiguration(ctx, alerts...)
 }
 
 // SendResolved implements the ResolvedSender interface.

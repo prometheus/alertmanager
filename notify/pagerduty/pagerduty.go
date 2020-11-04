@@ -307,6 +307,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return n.notifyV2(ctx, eventType, key, data, details, as...)
 }
 
+func (n *Notifier) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	return "", nil
+}
+
 func errDetails(status int, body io.Reader) string {
 	// See https://v2.developer.pagerduty.com/docs/trigger-events for the v1 events API.
 	// See https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2 for the v2 events API.

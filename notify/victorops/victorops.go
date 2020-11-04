@@ -104,12 +104,11 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		alerts = types.Alerts(as...)
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
-
-		messageType  = tmpl(n.conf.MessageType)
-		stateMessage = tmpl(n.conf.StateMessage)
 	)
+	renderedConfig := n.conf.Render(tmpl)
+	messageType := renderedConfig.MessageType
 
-	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
+	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[renderedConfig.MessageType] {
 		messageType = victorOpsEventTrigger
 	}
 
@@ -117,7 +116,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		messageType = victorOpsEventResolve
 	}
 
-	stateMessage, truncated := notify.Truncate(stateMessage, 20480)
+	stateMessage, truncated := notify.Truncate(renderedConfig.StateMessage, 20480)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "truncated stateMessage", "truncated_state_message", stateMessage, "incident", key)
 	}
@@ -125,9 +124,9 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	msg := map[string]string{
 		"message_type":        messageType,
 		"entity_id":           key.Hash(),
-		"entity_display_name": tmpl(n.conf.EntityDisplayName),
+		"entity_display_name": renderedConfig.EntityDisplayName,
 		"state_message":       stateMessage,
-		"monitoring_tool":     tmpl(n.conf.MonitoringTool),
+		"monitoring_tool":     renderedConfig.MonitoringTool,
 	}
 
 	if err != nil {
@@ -135,11 +134,8 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	}
 
 	// Add custom fields to the payload.
-	for k, v := range n.conf.CustomFields {
-		msg[k] = tmpl(v)
-		if err != nil {
-			return nil, fmt.Errorf("templating error: %s", err)
-		}
+	for k, v := range renderedConfig.CustomFields {
+		msg[k] = v
 	}
 
 	var buf bytes.Buffer
@@ -147,4 +143,8 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		return nil, err
 	}
 	return &buf, nil
+}
+
+func (n *Notifier) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	return "", nil
 }

@@ -119,3 +119,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	return n.retrier.Check(resp.StatusCode, nil)
 }
+
+func (n *Notifier) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	return "", nil
+}

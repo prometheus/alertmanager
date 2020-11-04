@@ -73,7 +73,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 	} {
 		tc := tc
 		t.Run("", func(t *testing.T) {
-			integrations, err := buildReceiverIntegrations(tc.receiver, nil, nil)
+			integrations, err := BuildReceiverIntegrations(tc.receiver, nil, nil)
 			if tc.err {
 				require.Error(t, err)
 				return

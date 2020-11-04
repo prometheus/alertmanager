@@ -96,6 +96,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return n.retrier.Check(resp.StatusCode, resp.Body)
 }
 
+func (n *Notifier) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	var err error
+	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	tmpl := notify.TmplText(n.tmpl, data, &err)
+	renderedConfig := n.conf.Render(tmpl)
+	return renderedConfig, err
+}
+
 // Like Split but filter out empty strings.
 func safeSplit(s string, sep string) []string {
 	a := strings.Split(strings.TrimSpace(s), sep)
@@ -107,6 +115,7 @@ func safeSplit(s string, sep string) []string {
 	}
 	return b
 }
+
 
 // Create requests for a list of alerts.
 func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http.Request, bool, error) {
@@ -120,14 +129,10 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
-	details := make(map[string]string)
+	renderedConfig := n.conf.Render(tmpl)
 
 	for k, v := range data.CommonLabels {
-		details[k] = v
-	}
-
-	for k, v := range n.conf.Details {
-		details[k] = tmpl(v)
+		renderedConfig.Details[k] = v
 	}
 
 	var (
@@ -142,9 +147,9 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		q := apiURL.Query()
 		q.Set("identifierType", "alias")
 		apiURL.RawQuery = q.Encode()
-		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
+		msg = &opsGenieCloseMessage{Source: renderedConfig.Source}
 	default:
-		message, truncated := notify.Truncate(tmpl(n.conf.Message), 130)
+		message, truncated := notify.Truncate(renderedConfig.Message, 130)
 		if truncated {
 			level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", message, "incident", key)
 		}
@@ -152,12 +157,12 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		apiURL.Path += "v2/alerts"
 
 		var responders []opsGenieCreateMessageResponder
-		for _, r := range n.conf.Responders {
+		for _, r := range renderedConfig.Responders {
 			responder := opsGenieCreateMessageResponder{
-				ID:       tmpl(r.ID),
-				Name:     tmpl(r.Name),
-				Username: tmpl(r.Username),
-				Type:     tmpl(r.Type),
+				ID:       r.ID,
+				Name:     r.Name,
+				Username: r.Username,
+				Type:     r.Type,
 			}
 
 			if responder == (opsGenieCreateMessageResponder{}) {
@@ -172,13 +177,13 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		msg = &opsGenieCreateMessage{
 			Alias:       alias,
 			Message:     message,
-			Description: tmpl(n.conf.Description),
-			Details:     details,
-			Source:      tmpl(n.conf.Source),
+			Description: renderedConfig.Description,
+			Details:     renderedConfig.Details,
+			Source:      renderedConfig.Source,
 			Responders:  responders,
-			Tags:        safeSplit(string(tmpl(n.conf.Tags)), ","),
-			Note:        tmpl(n.conf.Note),
-			Priority:    tmpl(n.conf.Priority),
+			Tags:        safeSplit(string(renderedConfig.Tags), ","),
+			Note:        renderedConfig.Note,
+			Priority:    renderedConfig.Priority,
 		}
 	}
 

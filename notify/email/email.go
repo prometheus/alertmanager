@@ -327,6 +327,10 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	return false, nil
 }
 
+func (n *Email) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	return "", nil
+}
+
 type loginAuth struct {
 	username, password string
 }

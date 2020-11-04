@@ -182,6 +182,38 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (c *EmailConfig) Render(tmpl func(string) string) *EmailConfig {
+	renderedConfig := EmailConfig{
+		NotifierConfig: c.NotifierConfig,
+		To:             tmpl(c.To),
+		From:           tmpl(c.From),
+		Hello:          tmpl(c.Hello),
+		Smarthost: HostPort{
+			Host: tmpl(c.Smarthost.Host),
+			Port: tmpl(c.Smarthost.Port),
+		},
+		AuthUsername: tmpl(c.AuthUsername),
+		AuthPassword: Secret(tmpl(string(c.AuthPassword))),
+		AuthSecret:   Secret(tmpl(string(c.AuthSecret))),
+		AuthIdentity: tmpl(c.AuthIdentity),
+		Headers:      make(map[string]string, len(c.Headers)),
+		HTML:         tmpl(c.HTML),
+		Text:         tmpl(c.Text),
+		RequireTLS:   c.RequireTLS,
+		TLSConfig: commoncfg.TLSConfig{
+			CAFile:             tmpl(c.TLSConfig.CAFile),
+			CertFile:           tmpl(c.TLSConfig.CertFile),
+			KeyFile:            tmpl(c.TLSConfig.KeyFile),
+			ServerName:         tmpl(c.TLSConfig.ServerName),
+			InsecureSkipVerify: c.TLSConfig.InsecureSkipVerify,
+		},
+	}
+	for k, v := range c.Headers {
+		renderedConfig.Headers[k] = tmpl(v)
+	}
+	return &renderedConfig
+}
+
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
@@ -235,6 +267,43 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		}
 	}
 	return nil
+}
+
+func (c *PagerdutyConfig) Render(tmpl func(string) string) *PagerdutyConfig {
+	renderedConfig := PagerdutyConfig{
+		NotifierConfig: c.NotifierConfig,
+		HTTPConfig:     c.HTTPConfig,
+		ServiceKey:     Secret(tmpl(string(c.ServiceKey))),
+		RoutingKey:     Secret(tmpl(string(c.RoutingKey))),
+		URL:            c.URL,
+		Client:         tmpl(c.Client),
+		ClientURL:      tmpl(c.ClientURL),
+		Description:    tmpl(c.Description),
+		Details:        make(map[string]string, len(c.Details)),
+		Images:         make([]PagerdutyImage, len(c.Images)),
+		Links:          make([]PagerdutyLink, len(c.Links)),
+		Severity:       tmpl(c.Severity),
+		Class:          tmpl(c.Class),
+		Component:      tmpl(c.Component),
+		Group:          tmpl(c.Group),
+	}
+	for k, v := range c.Details {
+		renderedConfig.Details[k] = tmpl(v)
+	}
+	for i, img := range c.Images {
+		renderedConfig.Images[i] = PagerdutyImage{
+			Src:  tmpl(img.Src),
+			Alt:  tmpl(img.Alt),
+			Href: tmpl(img.Href),
+		}
+	}
+	for i, l := range c.Links {
+		renderedConfig.Links[i] = PagerdutyLink{
+			Href: tmpl(l.Href),
+			Text: tmpl(l.Text),
+		}
+	}
+	return &renderedConfig
 }
 
 // SlackAction configures a single Slack action that is sent with each notification.
@@ -360,6 +429,60 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return unmarshal((*plain)(c))
 }
 
+func (c *SlackConfig) Render(tmpl func(string) string) *SlackConfig {
+	renderedConfig := SlackConfig{
+		NotifierConfig: c.NotifierConfig,
+		HTTPConfig:     c.HTTPConfig,
+		APIURL:         c.APIURL,
+		Channel:        tmpl(c.Channel),
+		Username:       tmpl(c.Username),
+		Color:          tmpl(c.Color),
+		Title:          tmpl(c.Title),
+		TitleLink:      tmpl(c.TitleLink),
+		Pretext:        tmpl(c.Pretext),
+		Text:           tmpl(c.Text),
+		Fields:         make([]*SlackField, len(c.Fields)),
+		ShortFields:    c.ShortFields,
+		Footer:         tmpl(c.Footer),
+		Fallback:       tmpl(c.Fallback),
+		CallbackID:     tmpl(c.CallbackID),
+		IconEmoji:      tmpl(c.IconEmoji),
+		IconURL:        tmpl(c.IconURL),
+		ImageURL:       tmpl(c.ImageURL),
+		ThumbURL:       tmpl(c.ThumbURL),
+		LinkNames:      c.LinkNames,
+		MrkdwnIn:       make([]string, len(c.MrkdwnIn)),
+		Actions:        make([]*SlackAction, len(c.Actions)),
+	}
+	for i, f := range c.Fields {
+		renderedConfig.Fields[i] = &SlackField{
+			Title: f.Title,
+			Value: tmpl(f.Value),
+			Short: f.Short,
+		}
+	}
+	for i, m := range c.MrkdwnIn {
+		renderedConfig.MrkdwnIn[i] = tmpl(m)
+	}
+	for i, a := range c.Actions {
+		renderedConfig.Actions[i] = &SlackAction{
+			Type:  tmpl(a.Type),
+			Text:  tmpl(a.Text),
+			URL:   tmpl(a.URL),
+			Style: tmpl(a.Style),
+			Name:  tmpl(a.Name),
+			Value: tmpl(a.Value),
+			ConfirmField: &SlackConfirmationField{
+				Text:        tmpl(a.ConfirmField.Text),
+				Title:       tmpl(a.ConfirmField.Title),
+				OkText:      tmpl(a.ConfirmField.OkText),
+				DismissText: tmpl(a.ConfirmField.DismissText),
+			},
+		}
+	}
+	return &renderedConfig
+}
+
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
@@ -389,6 +512,7 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	return nil
 }
+
 
 // WechatConfig configures notifications via Wechat.
 type WechatConfig struct {
@@ -428,6 +552,22 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+func (c *WechatConfig) Render(tmpl func(string) string) *WechatConfig {
+	return &WechatConfig{
+		NotifierConfig: c.NotifierConfig,
+		HTTPConfig:     c.HTTPConfig,
+		APISecret:      Secret(tmpl(string(c.APISecret))),
+		CorpID:         tmpl(c.CorpID),
+		Message:        tmpl(c.Message),
+		APIURL:         c.APIURL,
+		ToUser:         tmpl(c.ToUser),
+		ToParty:        tmpl(c.ToParty),
+		ToTag:          tmpl(c.ToTag),
+		AgentID:        tmpl(c.ToUser),
+		MessageType:    tmpl(c.MessageType),
+	}
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
@@ -472,6 +612,35 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 
 	return nil
+}
+
+func (c *OpsGenieConfig) Render(tmpl func(string) string) *OpsGenieConfig {
+	renderedConfig := OpsGenieConfig{
+		NotifierConfig: c.NotifierConfig,
+		HTTPConfig:     c.HTTPConfig,
+		APIKey:         Secret(tmpl(string(c.APIKey))),
+		APIURL:         c.APIURL,
+		Message:        tmpl(c.Message),
+		Description:    tmpl(c.Description),
+		Source:         tmpl(c.Source),
+		Details:        make(map[string]string, len(c.Details)),
+		Responders:     make([]OpsGenieConfigResponder, len(c.Responders)),
+		Tags:           tmpl(c.Tags),
+		Note:           tmpl(c.Note),
+		Priority:       tmpl(c.Priority),
+	}
+	for _, r := range c.Responders {
+		renderedConfig.Responders = append(renderedConfig.Responders, OpsGenieConfigResponder{
+			ID:       tmpl(r.ID),
+			Name:     tmpl(r.Name),
+			Username: tmpl(r.Username),
+			Type:     tmpl(r.Type),
+		})
+	}
+	for k, v := range c.Details {
+		renderedConfig.Details[k] = tmpl(v)
+	}
+	return &renderedConfig
 }
 
 type OpsGenieConfigResponder struct {
@@ -522,6 +691,25 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return nil
 }
 
+func (c *VictorOpsConfig) Render(tmpl func(string) string) *VictorOpsConfig {
+	renderedConfig := VictorOpsConfig{
+		NotifierConfig:    NotifierConfig{},
+		HTTPConfig:        c.HTTPConfig,
+		APIKey:            Secret(tmpl(string(c.APIKey))),
+		APIURL:            c.APIURL,
+		RoutingKey:        tmpl(c.RoutingKey),
+		MessageType:       tmpl(c.MessageType),
+		StateMessage:      tmpl(c.StateMessage),
+		EntityDisplayName: tmpl(c.EntityDisplayName),
+		MonitoringTool:    tmpl(c.MonitoringTool),
+		CustomFields:      make(map[string]string, len(c.CustomFields)),
+	}
+	for k, v := range c.CustomFields {
+		renderedConfig.CustomFields[k] = tmpl(v)
+	}
+	return &renderedConfig
+}
+
 type duration time.Duration
 
 func (d *duration) UnmarshalText(text []byte) error {
@@ -568,4 +756,27 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return nil
+}
+
+func (c *PushoverConfig) Render(tmpl func(string) string, tmplHTML func(string) string) *PushoverConfig {
+	renderedConfig := PushoverConfig{
+		NotifierConfig: c.NotifierConfig,
+		HTTPConfig:     c.HTTPConfig,
+		UserKey:        Secret(tmpl(string(c.UserKey))),
+		Token:          Secret(tmpl(string(c.Token))),
+		Title:          tmpl(c.Title),
+		URL:            tmpl(c.URL),
+		URLTitle:       tmpl(c.URLTitle),
+		Sound:          tmpl(c.Sound),
+		Priority:       tmpl(c.Priority),
+		Retry:          c.Retry,
+		Expire:         c.Expire,
+		HTML:           c.HTML,
+	}
+	if c.HTML {
+		renderedConfig.Message = tmplHTML(c.Message)
+	} else {
+		renderedConfig.Message = tmpl(c.Message)
+	}
+	return &renderedConfig
 }

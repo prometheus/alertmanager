@@ -89,42 +89,48 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
+
+	renderedConfig := n.conf.Render(tmplText)
+	if err != nil {
+		return false, err
+	}
+
 	var markdownIn []string
 	if len(n.conf.MrkdwnIn) == 0 {
 		markdownIn = []string{"fallback", "pretext", "text"}
 	} else {
-		markdownIn = n.conf.MrkdwnIn
+		markdownIn = renderedConfig.MrkdwnIn
 	}
 	att := &attachment{
-		Title:      tmplText(n.conf.Title),
-		TitleLink:  tmplText(n.conf.TitleLink),
-		Pretext:    tmplText(n.conf.Pretext),
-		Text:       tmplText(n.conf.Text),
-		Fallback:   tmplText(n.conf.Fallback),
-		CallbackID: tmplText(n.conf.CallbackID),
-		ImageURL:   tmplText(n.conf.ImageURL),
-		ThumbURL:   tmplText(n.conf.ThumbURL),
-		Footer:     tmplText(n.conf.Footer),
-		Color:      tmplText(n.conf.Color),
+		Title:      renderedConfig.Title,
+		TitleLink:  renderedConfig.TitleLink,
+		Pretext:    renderedConfig.Pretext,
+		Text:       renderedConfig.Text,
+		Fallback:   renderedConfig.Fallback,
+		CallbackID: renderedConfig.CallbackID,
+		ImageURL:   renderedConfig.ImageURL,
+		ThumbURL:   renderedConfig.ThumbURL,
+		Footer:     renderedConfig.Footer,
+		Color:      renderedConfig.Color,
 		MrkdwnIn:   markdownIn,
 	}
 
-	var numFields = len(n.conf.Fields)
+	var numFields = len(renderedConfig.Fields)
 	if numFields > 0 {
 		var fields = make([]config.SlackField, numFields)
-		for index, field := range n.conf.Fields {
+		for index, field := range renderedConfig.Fields {
 			// Check if short was defined for the field otherwise fallback to the global setting
 			var short bool
 			if field.Short != nil {
 				short = *field.Short
 			} else {
-				short = n.conf.ShortFields
+				short = renderedConfig.ShortFields
 			}
 
 			// Rebuild the field by executing any templates and setting the new value for short
 			fields[index] = config.SlackField{
-				Title: tmplText(field.Title),
-				Value: tmplText(field.Value),
+				Title: field.Title,
+				Value: field.Value,
 				Short: &short,
 			}
 		}
@@ -134,22 +140,22 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	var numActions = len(n.conf.Actions)
 	if numActions > 0 {
 		var actions = make([]config.SlackAction, numActions)
-		for index, action := range n.conf.Actions {
+		for index, action := range renderedConfig.Actions {
 			slackAction := config.SlackAction{
-				Type:  tmplText(action.Type),
-				Text:  tmplText(action.Text),
-				URL:   tmplText(action.URL),
-				Style: tmplText(action.Style),
-				Name:  tmplText(action.Name),
-				Value: tmplText(action.Value),
+				Type:  action.Type,
+				Text:  action.Text,
+				URL:   action.URL,
+				Style: action.Style,
+				Name:  action.Name,
+				Value: action.Value,
 			}
 
 			if action.ConfirmField != nil {
 				slackAction.ConfirmField = &config.SlackConfirmationField{
-					Title:       tmplText(action.ConfirmField.Title),
-					Text:        tmplText(action.ConfirmField.Text),
-					OkText:      tmplText(action.ConfirmField.OkText),
-					DismissText: tmplText(action.ConfirmField.DismissText),
+					Title:       action.ConfirmField.Title,
+					Text:        action.ConfirmField.Text,
+					OkText:      action.ConfirmField.OkText,
+					DismissText: action.ConfirmField.DismissText,
 				}
 			}
 
@@ -159,10 +165,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	req := &request{
-		Channel:     tmplText(n.conf.Channel),
-		Username:    tmplText(n.conf.Username),
-		IconEmoji:   tmplText(n.conf.IconEmoji),
-		IconURL:     tmplText(n.conf.IconURL),
+		Channel:     renderedConfig.Channel,
+		Username:    renderedConfig.Username,
+		IconEmoji:   renderedConfig.IconEmoji,
+		IconURL:     renderedConfig.IconURL,
 		LinkNames:   n.conf.LinkNames,
 		Attachments: []attachment{*att},
 	}
@@ -188,4 +194,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
 	return retry, err
+}
+
+func (n *Notifier) RenderConfiguration(ctx context.Context, as ...*types.Alert) (interface{}, error) {
+	return "", nil
 }
