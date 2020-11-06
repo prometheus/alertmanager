@@ -25,6 +25,7 @@ import (
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -170,4 +171,42 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 			&open_api_models.Receiver{Name: &receivers[1]},
 		},
 	}, openAPIAlert)
+}
+
+func TestMatchFilterLabels(t *testing.T) {
+	sms := map[string]string{
+		"foo": "bar",
+	}
+
+	testCases := []struct {
+		matcher  labels.MatchType
+		name     string
+		val      string
+		expected bool
+	}{
+		{labels.MatchEqual, "foo", "bar", true},
+		{labels.MatchEqual, "baz", "", true},
+		{labels.MatchEqual, "baz", "qux", false},
+		{labels.MatchEqual, "baz", "qux|", false},
+		{labels.MatchRegexp, "foo", "bar", true},
+		{labels.MatchRegexp, "baz", "", true},
+		{labels.MatchRegexp, "baz", "qux", false},
+		{labels.MatchRegexp, "baz", "qux|", true},
+		{labels.MatchNotEqual, "foo", "bar", false},
+		{labels.MatchNotEqual, "baz", "", false},
+		{labels.MatchNotEqual, "baz", "qux", true},
+		{labels.MatchNotEqual, "baz", "qux|", true},
+		{labels.MatchNotRegexp, "foo", "bar", false},
+		{labels.MatchNotRegexp, "baz", "", false},
+		{labels.MatchNotRegexp, "baz", "qux", true},
+		{labels.MatchNotRegexp, "baz", "qux|", false},
+	}
+
+	for _, tc := range testCases {
+		m, err := labels.NewMatcher(tc.matcher, tc.name, tc.val)
+		require.NoError(t, err)
+
+		ms := []*labels.Matcher{m}
+		require.Equal(t, tc.expected, matchFilterLabels(ms, sms))
+	}
 }
