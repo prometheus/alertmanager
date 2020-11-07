@@ -32,15 +32,15 @@ import (
 )
 
 var (
-	verbose              bool
-	alertmanagerURL      *url.URL
-	caFile               string
-	certFile             string
-	keyFile              string
-	serverName           string
-	output               string
-	timeout              time.Duration
-	insecureSkipVerify   bool
+	verbose            bool
+	alertmanagerURL    *url.URL
+	caFile             string
+	certFile           string
+	keyFile            string
+	serverName         string
+	output             string
+	timeout            time.Duration
+	insecureSkipVerify bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
