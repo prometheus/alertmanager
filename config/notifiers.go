@@ -127,6 +127,14 @@ var (
 		Expire:   duration(1 * time.Hour),
 		HTML:     false,
 	}
+
+	// DefaultDingTalkConfig defines default values for dingtalk configurations.
+	DefaultDingTalkConfig = DingTalkConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Message: `{{ template "wechat.default.message" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -567,5 +575,31 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if c.Token == "" {
 		return fmt.Errorf("missing token in Pushover config")
 	}
+	return nil
+}
+
+// DingTalkConfig configures notifications via DingTalk.
+type DingTalkConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// The webhook of Chatbot which the message will send to.
+	Webhook *SecretURL `yaml:"webhook,omitempty" json:"webhook,omitempty"`
+	// Custom keywords for Chatbot security authenticate.
+	Keywords []string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
+	// Secret for Chatbot security authenticate, you can get it after enabled Additional Signature of ChatBot.
+	Secret  Secret `yaml:"secret,omitempty" json:"secret,omitempty"`
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *DingTalkConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultDingTalkConfig
+	type plain DingTalkConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
 	return nil
 }
