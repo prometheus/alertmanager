@@ -201,7 +201,7 @@ func TestSilencesSetSilence(t *testing.T) {
 	// setSilence() is always called with s.mtx locked()
 	go func() {
 		s.mtx.Lock()
-		require.NoError(t, s.setSilence(sil, now))
+		require.NoError(t, s.setSilence(sil, now, true))
 		s.mtx.Unlock()
 	}()
 

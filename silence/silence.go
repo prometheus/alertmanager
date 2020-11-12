@@ -492,11 +492,13 @@ func (s *Silences) getSilence(id string) (*pb.Silence, bool) {
 	return msil.Silence, true
 }
 
-func (s *Silences) setSilence(sil *pb.Silence, now time.Time) error {
+func (s *Silences) setSilence(sil *pb.Silence, now time.Time, validate bool) error {
 	sil.UpdatedAt = now
 
-	if err := validateSilence(sil); err != nil {
-		return errors.Wrap(err, "silence invalid")
+	if validate {
+		if err := validateSilence(sil); err != nil {
+			return errors.Wrap(err, "silence invalid")
+		}
 	}
 
 	msil := &pb.MeshSilence{
@@ -530,7 +532,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	}
 	if ok {
 		if canUpdate(prev, sil, now) {
-			return sil.Id, s.setSilence(sil, now)
+			return sil.Id, s.setSilence(sil, now, true)
 		}
 		if getState(prev, s.now()) != types.SilenceStateExpired {
 			// We cannot update the silence, expire the old one.
@@ -546,7 +548,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		sil.StartsAt = now
 	}
 
-	return sil.Id, s.setSilence(sil, now)
+	return sil.Id, s.setSilence(sil, now, true)
 }
 
 // canUpdate returns true if silence a can be updated to b without
@@ -603,7 +605,7 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = now
 	}
 
-	return s.setSilence(sil, now)
+	return s.setSilence(sil, now, false)
 }
 
 // QueryParam expresses parameters along which silences are queried.
