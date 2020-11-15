@@ -181,23 +181,6 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return err
 }
 
-// MarshalYAML implements the yaml.Marshaler interface for WeekdayRange
-func (r WeekdayRange) MarshalYAML() (interface{}, error) {
-	beginStr, ok := daysOfWeekInv[r.Begin]
-	if !ok {
-		return nil, fmt.Errorf("unable to convert %d into weekday string", r.Begin)
-	}
-	if r.Begin == r.End {
-		return interface{}(beginStr), nil
-	}
-	endStr, ok := daysOfWeekInv[r.End]
-	if !ok {
-		return nil, fmt.Errorf("unable to convert %d into weekday string", r.End)
-	}
-	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
-	return interface{}(rangeStr), nil
-}
-
 // UnmarshalYAML implements the Unmarshaller interface for DayOfMonthRange.
 func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -205,23 +188,30 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return err
 	}
 	err := stringableRangeFromString(str, r)
+	// Check beginning <= end accounting for negatives day of month indices as well.
+	// Months != 31 days can't be addressed here and are clamped, but at least we can catch blatant errors.
 	if r.Begin == 0 || r.Begin < -31 || r.Begin > 31 {
 		return fmt.Errorf("%d is not a valid day of the month: out of range", r.Begin)
 	}
 	if r.End == 0 || r.End < -31 || r.End > 31 {
 		return fmt.Errorf("%d is not a valid day of the month: out of range", r.End)
 	}
-	// Check Beginning <= End accounting for negatives day of month indices
-	trueBegin := r.Begin
-	trueEnd := r.End
+	// Restricting here prevents errors where begin > end in longer months but not shorter months.
+	if r.Begin < 0 && r.End > 0 {
+		return fmt.Errorf("end day must be negative if start day is negative")
+	}
+	// Check begin <= end. We can't know this for sure when using negative indices
+	// but we can prevent cases where its always invalid (using 28 day minimum length)
+	checkBegin := r.Begin
+	checkEnd := r.End
 	if r.Begin < 0 {
-		trueBegin = 30 + r.Begin
+		checkBegin = 28 + r.Begin
 	}
 	if r.End < 0 {
-		trueEnd = 30 + r.End
+		checkEnd = 28 + r.End
 	}
-	if trueBegin > trueEnd {
-		return errors.New("start day cannot be before end day")
+	if checkBegin > checkEnd {
+		return fmt.Errorf("end day %d is always before start day %d", r.End, r.Begin)
 	}
 	return err
 }
@@ -232,34 +222,15 @@ func (r *MonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	err := stringableRangeFromString(str, r)
+	if err := stringableRangeFromString(str, r); err != nil {
+		return err
+	}
 	if r.Begin > r.End {
-		return errors.New("start month cannot be before end month")
+		begin := monthsInv[r.Begin]
+		end := monthsInv[r.End]
+		return fmt.Errorf("end month %s is before start month %s", end, begin)
 	}
-	if r.Begin < 1 || r.Begin > 12 {
-		return fmt.Errorf("%s is not a valid month: out of range", str)
-	}
-	if r.End < 1 || r.End > 12 {
-		return fmt.Errorf("%s is not a valid month: out of range", str)
-	}
-	return err
-}
-
-// MarshalYAML implements the yaml.Marshaler interface for DayOfMonthRange
-func (r MonthRange) MarshalYAML() (interface{}, error) {
-	beginStr, ok := monthsInv[r.Begin]
-	if !ok {
-		return nil, fmt.Errorf("unable to convert %d into month", r.Begin)
-	}
-	if r.Begin == r.End {
-		return interface{}(beginStr), nil
-	}
-	endStr, ok := monthsInv[r.End]
-	if !ok {
-		return nil, fmt.Errorf("unable to convert %d into month", r.End)
-	}
-	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
-	return interface{}(rangeStr), nil
+	return nil
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for YearRange.
@@ -270,7 +241,7 @@ func (r *YearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	err := stringableRangeFromString(str, r)
 	if r.Begin > r.End {
-		return errors.New("start day cannot be before end day")
+		return fmt.Errorf("end year %d is before start year %d", r.End, r.Begin)
 	}
 	return err
 }
@@ -286,23 +257,34 @@ func (tr *TimeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	start, err := parseTime(y.StartTime)
 	if err != nil {
-		return nil
+		return err
 	}
-	End, err := parseTime(y.EndTime)
+	end, err := parseTime(y.EndTime)
 	if err != nil {
 		return err
 	}
-	if start < 0 {
-		return errors.New("start time out of range")
-	}
-	if End > 1440 {
-		return errors.New("End time out of range")
-	}
-	if start >= End {
+	if start >= end {
 		return errors.New("start time cannot be equal or greater than end time")
 	}
-	tr.StartMinute, tr.EndMinute = start, End
+	tr.StartMinute, tr.EndMinute = start, end
 	return nil
+}
+
+// MarshalYAML implements the yaml.Marshaler interface for WeekdayRange
+func (r WeekdayRange) MarshalYAML() (interface{}, error) {
+	beginStr, ok := daysOfWeekInv[r.Begin]
+	if !ok {
+		return nil, fmt.Errorf("unable to convert %d into weekday string", r.Begin)
+	}
+	if r.Begin == r.End {
+		return interface{}(beginStr), nil
+	}
+	endStr, ok := daysOfWeekInv[r.End]
+	if !ok {
+		return nil, fmt.Errorf("unable to convert %d into weekday string", r.End)
+	}
+	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
+	return interface{}(rangeStr), nil
 }
 
 //MarshalYAML implements the yaml.Marshaler interface for TimeRange
@@ -432,7 +414,7 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	return true
 }
 
-// Converts a string of the form "HH:MM" into a TimeRange
+// Converts a string of the form "HH:MM" into the number of minutes elapsed in the day
 func parseTime(in string) (mins int, err error) {
 	if !validTimeRE.MatchString(in) {
 		return 0, fmt.Errorf("couldn't parse timestamp %s, invalid format", in)

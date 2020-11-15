@@ -181,6 +181,7 @@ var yamlUnmarshalTestCases = []struct {
 	contains    []string
 	excludes    []string
 	expectError bool
+	err         string
 }{
 	{
 		// Simple business hours test
@@ -263,11 +264,32 @@ var yamlUnmarshalTestCases = []struct {
 		},
 	},
 	{
+		// Invalid start time
+		in: `
+---
+- times:
+    - start_time: '01:99'
+      end_time: '23:59'`,
+		expectError: true,
+		err:         "couldn't parse timestamp 01:99, invalid format",
+	},
+	{
+		// Invalid end time
+		in: `
+---
+- times:
+    - start_time: '00:00'
+      end_time: '99:99'`,
+		expectError: true,
+		err:         "couldn't parse timestamp 99:99, invalid format",
+	},
+	{
 		// Start day before End day
 		in: `
 ---
 - weekdays: ['friday:monday']`,
 		expectError: true,
+		err:         "start day cannot be before end day",
 	},
 	{
 		// Invalid weekdays
@@ -276,6 +298,7 @@ var yamlUnmarshalTestCases = []struct {
 - weekdays: ['blurgsday:flurgsday']
 `,
 		expectError: true,
+		err:         "blurgsday is not a valid weekday",
 	},
 	{
 		// 0 day of month
@@ -284,14 +307,25 @@ var yamlUnmarshalTestCases = []struct {
 - days_of_month: ['0']
 `,
 		expectError: true,
+		err:         "0 is not a valid day of the month: out of range",
 	},
 	{
-		// Too early day of month
+		// Start day of month < 0
 		in: `
 ---
 - days_of_month: ['-50:-20']
 `,
 		expectError: true,
+		err:         "-50 is not a valid day of the month: out of range",
+	},
+	{
+		// End day of month > 31
+		in: `
+---
+- days_of_month: ['1:50']
+`,
+		expectError: true,
+		err:         "50 is not a valid day of the month: out of range",
 	},
 	{
 		// Negative indices should work
@@ -307,20 +341,58 @@ var yamlUnmarshalTestCases = []struct {
 		expectError: false,
 	},
 	{
-		// Negative start date before positive End date
+		// End day must be negative if begin day is negative
 		in: `
 ---
 - days_of_month: ['-15:5']
 `,
 		expectError: true,
+		err:         "end day must be negative if start day is negative",
 	},
 	{
-		// Negative End date before positive postive start date
+		// Negative end date before positive postive start date
 		in: `
 ---
 - days_of_month: ['10:-25']
 `,
 		expectError: true,
+		err:         "end day -25 is always before start day 10",
+	},
+	{
+		// Invalid start month
+		in: `
+---
+- months: ['martius:june']
+`,
+		expectError: true,
+		err:         "martius is not a valid month",
+	},
+	{
+		// Invalid end month
+		in: `
+---
+- months: ['march:junius']
+`,
+		expectError: true,
+		err:         "junius is not a valid month",
+	},
+	{
+		// Start month after end month
+		in: `
+---
+- months: ['december:january']
+`,
+		expectError: true,
+		err:         "end month january is before start month december",
+	},
+	{
+		// Start year after end year
+		in: `
+---
+- years: ['2022:2020']
+`,
+		expectError: true,
+		err:         "end year 2020 is before start year 2022",
 	},
 }
 
@@ -333,6 +405,9 @@ func TestYamlUnmarshal(t *testing.T) {
 		} else if err == nil && tc.expectError {
 			t.Errorf("Expected error when unmarshalling %s but didn't receive one", tc.in)
 		} else if err != nil && tc.expectError {
+			if err.Error() != tc.err {
+				t.Errorf("Incorrect error: Want %s, got %s", tc.err, err.Error())
+			}
 			continue
 		}
 		if !reflect.DeepEqual(ti, tc.intervals) {
