@@ -363,6 +363,10 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 			} else {
 				end = validDates.End
 			}
+			// Skip clamping if the beginning date is after the end of the month
+			if begin > daysInMonth {
+				continue
+			}
 			// Clamp to the boundaries of the month to prevent crossing into other months
 			begin = clamp(begin, -1*daysInMonth, daysInMonth)
 			end = clamp(end, -1*daysInMonth, daysInMonth)
