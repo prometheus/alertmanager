@@ -506,3 +506,71 @@ func TestYamlMarshal(t *testing.T) {
 		}
 	}
 }
+
+var completeTestCases = []struct {
+	in       string
+	contains []string
+	excludes []string
+}{
+	{
+		in: `
+---
+weekdays: ['monday:wednesday', 'saturday', 'sunday']
+times:
+  - start_time: '13:00'
+    end_time: '15:00'
+days_of_month: ['1', '10', '20:-1']
+years: ['2020:2023']
+months: ['january:march']
+`,
+		contains: []string{
+			"10 Jan 21 13:00 GMT",
+			"30 Jan 21 14:24 GMT",
+		},
+		excludes: []string{
+			"09 Jan 21 13:00 GMT",
+			"20 Jan 21 12:59 GMT",
+			"02 Feb 21 13:00 GMT",
+		},
+	},
+	{
+		// Check for broken clamping (clamping begin date after end of month to the end of the month)
+		in: `
+---
+days_of_month: ['30:31']
+years: ['2020:2023']
+months: ['february']
+`,
+		excludes: []string{
+			"28 Feb 21 13:00 GMT",
+		},
+	},
+}
+
+// Tests the entire flow from unmarshalling to containing a time
+func TestTimeIntervalComplete(t *testing.T) {
+	for _, tc := range completeTestCases {
+		var ti TimeInterval
+		if err := yaml.Unmarshal([]byte(tc.in), &ti); err != nil {
+			t.Error(err)
+		}
+		for _, ts := range tc.contains {
+			tt, err := time.Parse(time.RFC822, ts)
+			if err != nil {
+				t.Error(err)
+			}
+			if !ti.ContainsTime(tt) {
+				t.Errorf("Expected %s to contain %s", tc.in, ts)
+			}
+		}
+		for _, ts := range tc.excludes {
+			tt, err := time.Parse(time.RFC822, ts)
+			if err != nil {
+				t.Error(err)
+			}
+			if ti.ContainsTime(tt) {
+				t.Errorf("Expected %s to exclude %s", tc.in, ts)
+			}
+		}
+	}
+}
