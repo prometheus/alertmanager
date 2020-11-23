@@ -32,7 +32,7 @@ type TimeInterval struct {
 	Years       []YearRange       `yaml:"years,flow,omitempty"`
 }
 
-/* TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
+// TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
    For example, 5:00PM to End of the day would Begin at 1020 and End at 1440. */
 type TimeRange struct {
 	StartMinute int
