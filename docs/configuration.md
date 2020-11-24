@@ -114,7 +114,7 @@ receivers:
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 
-# A list of mute time intervals for muting routes
+# A list of mute time intervals for muting routes.
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
 ```
@@ -172,10 +172,10 @@ match_re:
 # been sent successfully for an alert. (Usually ~3h or more).
 [ repeat_interval: <duration> | default = 4h ]
 
-# Times when the route should be muted. These must match a name of a
+# Times when the route should be muted. These must match the name of a
 # mute time interval defined in the mute_time_intervals section. 
 # Additionally, the root node cannot have any mute times.
-mute_times:
+mute_time_intervals:
   [ - <string> ...]
 
 # Zero or more child routes.
@@ -221,7 +221,7 @@ in the routing tree to mute particular routes for particular times of the day.
 name: <string>
 time_intervals:
   [ - <time_interval> ... ]
-
+```
 ## `<time_interval>`
 A `time_interval` contains the actual definition for an interval of time. The syntax
 supports the following fields:
