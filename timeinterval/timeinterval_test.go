@@ -252,7 +252,7 @@ var yamlUnmarshalTestCases = []struct {
 		},
 	},
 	{
-		// Invalid start time
+		// Invalid start time.
 		in: `
 ---
 - times:
@@ -262,7 +262,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "couldn't parse timestamp 01:99, invalid format",
 	},
 	{
-		// Invalid end time
+		// Invalid end time.
 		in: `
 ---
 - times:
@@ -272,7 +272,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "couldn't parse timestamp 99:99, invalid format",
 	},
 	{
-		// Start day before End day
+		// Start day before end day.
 		in: `
 ---
 - weekdays: ['friday:monday']`,
@@ -280,7 +280,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "start day cannot be before end day",
 	},
 	{
-		// Invalid weekdays
+		// Invalid weekdays.
 		in: `
 ---
 - weekdays: ['blurgsday:flurgsday']
@@ -289,7 +289,25 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "blurgsday is not a valid weekday",
 	},
 	{
-		// 0 day of month
+		// Numeric weekdays aren't allowed.
+		in: `
+---
+- weekdays: ['1:3']
+`,
+		expectError: true,
+		err:         "1 is not a valid weekday",
+	},
+	{
+		// Negative numeric weekdays aren't allowed.
+		in: `
+---
+- weekdays: ['-2:-1']
+`,
+		expectError: true,
+		err:         "-2 is not a valid weekday",
+	},
+	{
+		// 0 day of month.
 		in: `
 ---
 - days_of_month: ['0']
@@ -298,7 +316,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "0 is not a valid day of the month: out of range",
 	},
 	{
-		// Start day of month < 0
+		// Start day of month < 0.
 		in: `
 ---
 - days_of_month: ['-50:-20']
@@ -307,7 +325,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "-50 is not a valid day of the month: out of range",
 	},
 	{
-		// End day of month > 31
+		// End day of month > 31.
 		in: `
 ---
 - days_of_month: ['1:50']
@@ -316,7 +334,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "50 is not a valid day of the month: out of range",
 	},
 	{
-		// Negative indices should work
+		// Negative indices should work.
 		in: `
 ---
 - days_of_month: ['1:-1']
@@ -329,7 +347,7 @@ var yamlUnmarshalTestCases = []struct {
 		expectError: false,
 	},
 	{
-		// End day must be negative if begin day is negative
+		// End day must be negative if begin day is negative.
 		in: `
 ---
 - days_of_month: ['-15:5']
@@ -338,7 +356,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "end day must be negative if start day is negative",
 	},
 	{
-		// Negative end date before positive postive start date
+		// Negative end date before positive postive start date.
 		in: `
 ---
 - days_of_month: ['10:-25']
@@ -347,7 +365,20 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "end day -25 is always before start day 10",
 	},
 	{
-		// Invalid start month
+		// Months should work regardless of case
+		in: `
+---
+- months: ['January:december']
+`,
+		expectError: false,
+		intervals: []TimeInterval{
+			{
+				Months: []MonthRange{{InclusiveRange{1, 12}}},
+			},
+		},
+	},
+	{
+		// Invalid start month.
 		in: `
 ---
 - months: ['martius:june']
@@ -356,7 +387,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "martius is not a valid month",
 	},
 	{
-		// Invalid end month
+		// Invalid end month.
 		in: `
 ---
 - months: ['march:junius']
@@ -365,7 +396,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "junius is not a valid month",
 	},
 	{
-		// Start month after end month
+		// Start month after end month.
 		in: `
 ---
 - months: ['december:january']
@@ -374,7 +405,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "end month january is before start month december",
 	},
 	{
-		// Start year after end year
+		// Start year after end year.
 		in: `
 ---
 - years: ['2022:2020']
