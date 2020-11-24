@@ -414,7 +414,7 @@ func run() int {
 			integrationsNum += len(integrations)
 		}
 
-		// Build the map of time interval names to mute time definitions
+		// Build the map of time interval names to mute time definitions.
 		muteTimes := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals))
 		for _, ti := range conf.MuteTimeIntervals {
 			muteTimes[ti.Name] = ti.TimeIntervals
