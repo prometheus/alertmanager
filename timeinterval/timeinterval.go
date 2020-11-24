@@ -33,7 +33,7 @@ type TimeInterval struct {
 }
 
 // TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
-// For example, 4:00PM to End of the day would Begin at 1020 and End at 1440. */
+// For example, 4:00PM to End of the day would Begin at 1020 and End at 1440.
 type TimeRange struct {
 	StartMinute int
 	EndMinute   int
@@ -444,7 +444,7 @@ func parseTime(in string) (mins int, err error) {
 	if timeStampHours < 0 || timeStampHours > 24 || timeStampMinutes < 0 || timeStampMinutes > 60 {
 		return 0, fmt.Errorf("timestamp %s out of range", in)
 	}
-	// Timestamps are stored as minutes elapsed in the day, so multiply hours by 60
+	// Timestamps are stored as minutes elapsed in the day, so multiply hours by 60.
 	mins = timeStampHours*60 + timeStampMinutes
 	return mins, nil
 }
