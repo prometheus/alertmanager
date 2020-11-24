@@ -33,34 +33,34 @@ type TimeInterval struct {
 }
 
 // TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
-   For example, 5:00PM to End of the day would Begin at 1020 and End at 1440. */
+// For example, 4:00PM to End of the day would Begin at 1020 and End at 1440. */
 type TimeRange struct {
 	StartMinute int
 	EndMinute   int
 }
 
-// InclusiveRange is used to hold the Beginning and End values of many time interval components
+// InclusiveRange is used to hold the Beginning and End values of many time interval components.
 type InclusiveRange struct {
 	Begin int
 	End   int
 }
 
-// A WeekdayRange is an inclusive range between [0, 6] where 0 = Sunday
+// A WeekdayRange is an inclusive range between [0, 6] where 0 = Sunday.
 type WeekdayRange struct {
 	InclusiveRange
 }
 
-// A DayOfMonthRange is an inclusive range that may have negative Beginning/End values that represent distance from the End of the month Beginning at -1
+// A DayOfMonthRange is an inclusive range that may have negative Beginning/End values that represent distance from the End of the month Beginning at -1.
 type DayOfMonthRange struct {
 	InclusiveRange
 }
 
-// A MonthRange is an inclusive range between [1, 12] where 1 = January
+// A MonthRange is an inclusive range between [1, 12] where 1 = January.
 type MonthRange struct {
 	InclusiveRange
 }
 
-// A YearRange is a positive inclusive range
+// A YearRange is a positive inclusive range.
 type YearRange struct {
 	InclusiveRange
 }
@@ -70,7 +70,7 @@ type yamlTimeRange struct {
 	EndTime   string `yaml:"end_time"`
 }
 
-// A range with a Beginning and End that can be represented as strings
+// A range with a Beginning and End that can be represented as strings.
 type stringableRange interface {
 	setBegin(int)
 	setEnd(int)
@@ -201,7 +201,7 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return fmt.Errorf("end day must be negative if start day is negative")
 	}
 	// Check begin <= end. We can't know this for sure when using negative indices
-	// but we can prevent cases where its always invalid (using 28 day minimum length)
+	// but we can prevent cases where its always invalid (using 28 day minimum length).
 	checkBegin := r.Begin
 	checkEnd := r.End
 	if r.Begin < 0 {
@@ -270,7 +270,7 @@ func (tr *TimeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// MarshalYAML implements the yaml.Marshaler interface for WeekdayRange
+// MarshalYAML implements the yaml.Marshaler interface for WeekdayRange.
 func (r WeekdayRange) MarshalYAML() (interface{}, error) {
 	beginStr, ok := daysOfWeekInv[r.Begin]
 	if !ok {
@@ -287,7 +287,7 @@ func (r WeekdayRange) MarshalYAML() (interface{}, error) {
 	return interface{}(rangeStr), nil
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for TimeRange
+//MarshalYAML implements the yaml.Marshaler interface for TimeRange.
 func (tr TimeRange) MarshalYAML() (out interface{}, err error) {
 	startHr := tr.StartMinute / 60
 	endHr := tr.EndMinute / 60
@@ -301,7 +301,7 @@ func (tr TimeRange) MarshalYAML() (out interface{}, err error) {
 	return interface{}(yTr), err
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for InclusiveRange
+//MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
 func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 	if ir.Begin == ir.End {
 		return strconv.Itoa(ir.Begin), nil
@@ -310,7 +310,7 @@ func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 	return interface{}(out), nil
 }
 
-// TimeLayout specifies the layout to be used in time.Parse() calls for time intervals
+// TimeLayout specifies the layout to be used in time.Parse() calls for time intervals.
 const TimeLayout = "15:04"
 
 var validTime string = "^((([01][0-9])|(2[0-3])):[0-5][0-9])$|(^24:00$)"
@@ -334,7 +334,7 @@ func clamp(n, min, max int) int {
 	return n
 }
 
-// ContainsTime returns true if the TimeInterval contains the given time, otherwise returns false
+// ContainsTime returns true if the TimeInterval contains the given time, otherwise returns false.
 func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Times != nil {
 		in := false
@@ -363,11 +363,11 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 			} else {
 				end = validDates.End
 			}
-			// Skip clamping if the beginning date is after the end of the month
+			// Skip clamping if the beginning date is after the end of the month.
 			if begin > daysInMonth {
 				continue
 			}
-			// Clamp to the boundaries of the month to prevent crossing into other months
+			// Clamp to the boundaries of the month to prevent crossing into other months.
 			begin = clamp(begin, -1*daysInMonth, daysInMonth)
 			end = clamp(end, -1*daysInMonth, daysInMonth)
 			if t.Day() >= begin && t.Day() <= end {
@@ -418,7 +418,7 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	return true
 }
 
-// Converts a string of the form "HH:MM" into the number of minutes elapsed in the day
+// Converts a string of the form "HH:MM" into the number of minutes elapsed in the day.
 func parseTime(in string) (mins int, err error) {
 	if !validTimeRE.MatchString(in) {
 		return 0, fmt.Errorf("couldn't parse timestamp %s, invalid format", in)
@@ -443,7 +443,7 @@ func parseTime(in string) (mins int, err error) {
 	return mins, nil
 }
 
-// Converts a range that can be represented as strings (e.g. monday:wednesday) into an equivalent integer-represented range
+// Converts a range that can be represented as strings (e.g. monday:wednesday) into an equivalent integer-represented range.
 func stringableRangeFromString(in string, r stringableRange) (err error) {
 	in = strings.ToLower(in)
 	if strings.ContainsRune(in, ':') {

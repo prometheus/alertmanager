@@ -316,7 +316,7 @@ func (pb *PipelineBuilder) New(
 
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
-		rs[name] = MultiStage{ms, is, mts, ss, st}
+		rs[name] = MultiStage{ms, is, tms, ss, st}
 	}
 	return rs
 }
@@ -780,8 +780,8 @@ func NewTimeMuteStage(mt map[string][]timeinterval.TimeInterval) *TimeMuteStage 
 	return &TimeMuteStage{mt}
 }
 
-// Exec implements the stage interface for TimeMuteStage
-// TimeMuteStage is responsible for muting alerts whose route is not in an active time
+// Exec implements the stage interface for TimeMuteStage.
+// TimeMuteStage is responsible for muting alerts whose route is not in an active time.
 func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	muteTimeNames, ok := MuteTimeNames(ctx)
 	if !ok {
@@ -793,8 +793,9 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 	}
 
 	muted := false
+Loop:
 	for _, mtName := range muteTimeNames {
-		mt, ok := mts.muteTimes[mtName]
+		mt, ok := tms.muteTimes[mtName]
 		if !ok {
 			return ctx, alerts, errors.Errorf("mute time %s doesn't exist in config", mtName)
 		}
@@ -805,7 +806,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 			}
 		}
 	}
-	// If the current time is inside a mute time, all alerts are removed from the pipeline
+	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
 		lvl := level.Debug(l)
 		lvl.Log("msg", "Notifications not sent, route is within mute time")
