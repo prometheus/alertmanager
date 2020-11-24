@@ -630,11 +630,11 @@ type Route struct {
 	GroupBy    []model.LabelName `yaml:"-" json:"-"`
 	GroupByAll bool              `yaml:"-" json:"-"`
 
-	Match     map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
-	MatchRE   MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	MuteTimeIntervals []string  `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
-	Continue  bool              `yaml:"continue" json:"continue,omitempty"`
-	Routes    []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
+	Match             map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
+	MatchRE           MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	MuteTimeIntervals []string          `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	Continue          bool              `yaml:"continue" json:"continue,omitempty"`
+	Routes            []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
