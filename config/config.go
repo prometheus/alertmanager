@@ -442,6 +442,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	tiNames := make(map[string]struct{})
 	for _, mt := range c.MuteTimeIntervals {
+		if _, ok := tiNames[mt.Name]; ok {
+			return fmt.Errorf("mute time interval %q is not unique", mt.Name)
+		}
 		tiNames[mt.Name] = struct{}{}
 	}
 	return checkTimeInterval(c.Route, tiNames)

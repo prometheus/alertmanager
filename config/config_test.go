@@ -210,6 +210,44 @@ route:
 
 }
 
+func TestMuteTimeNoDuplicates(t *testing.T) {
+	in := `
+mute_time_intervals:
+- name: duplicate
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
+- name: duplicate
+  time_intervals:
+  - times:
+     - start_time: '10:00'
+       end_time: '14:00'
+
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  routes:
+  -  match:
+      severity: critical
+     mute_times:
+     - business_hours
+`
+	_, err := Load(in)
+
+	expected := "mute time interval \"duplicate\" is not unique"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
 func TestGroupByHasNoDuplicatedLabels(t *testing.T) {
 	in := `
 route:
