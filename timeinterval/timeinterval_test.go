@@ -163,18 +163,6 @@ var timeStringTestCases = []struct {
 	},
 }
 
-var dayOfWeekStringTestCases = []struct {
-	dowString   string
-	ranges      []WeekdayRange
-	expectError bool
-}{
-	{
-		dowString:   "['monday:friday', 'saturday']",
-		ranges:      []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}, {InclusiveRange{Begin: 6, End: 6}}},
-		expectError: false,
-	},
-}
-
 var yamlUnmarshalTestCases = []struct {
 	in          string
 	intervals   []TimeInterval
@@ -467,20 +455,6 @@ func TestParseTimeString(t *testing.T) {
 			t.Errorf("Expected error for invalid string %s but didn't receive one", tc.timeString)
 		} else if !reflect.DeepEqual(tr, tc.TimeRange) {
 			t.Errorf("Error parsing time string %s: Want %+v, got %+v", tc.timeString, tc.TimeRange, tr)
-		}
-	}
-}
-
-func TestParseWeek(t *testing.T) {
-	for _, tc := range dayOfWeekStringTestCases {
-		var wr []WeekdayRange
-		err := yaml.Unmarshal([]byte(tc.dowString), &wr)
-		if err != nil && !tc.expectError {
-			t.Errorf("Received unexpected error: %v when parsing %v", err, tc.dowString)
-		} else if err == nil && tc.expectError {
-			t.Errorf("Expected error for invalid string %s but didn't receive one", tc.dowString)
-		} else if !reflect.DeepEqual(wr, tc.ranges) {
-			t.Errorf("Error parsing time string %s: Want %+v, got %+v", tc.dowString, tc.ranges, wr)
 		}
 	}
 }
