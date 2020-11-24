@@ -240,7 +240,8 @@ supports the following fields:
 ```
 
 All these fields are optional and if left unspecified allow any value to match the interval.
-Some fields support ranges and negative indices, and are detailed below:
+Some fields support ranges and negative indices, and are detailed below. All definitions are
+taken to be in UTC, no other timezones are currently supported.
 
 `times`: A list of time-ranges. They are inclusive of the starting time and exclusive
 of the ending time to make it easy to represent times that start/end on hour boundaries.
