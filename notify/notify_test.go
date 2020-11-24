@@ -787,7 +787,7 @@ func TestTimeMuteStage(t *testing.T) {
 		alerts := []*types.Alert{{Alert: a}}
 		ctx := context.Background()
 		ctx = WithNow(ctx, now)
-		ctx = WithMuteTimes(ctx, []string{"test"})
+		ctx = WithMuteTimeIntervals(ctx, []string{"test"})
 
 		_, out, err := stage.Exec(ctx, log.NewNopLogger(), alerts...)
 		if err != nil {

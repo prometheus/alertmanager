@@ -109,7 +109,7 @@ const (
 	keyFiringAlerts
 	keyResolvedAlerts
 	keyNow
-	keyMuteTimes
+	keyMuteTimeIntervals
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -147,9 +147,9 @@ func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 	return context.WithValue(ctx, keyRepeatInterval, t)
 }
 
-// WithMuteTimes populates a context with a slice of mute time names.
-func WithMuteTimes(ctx context.Context, mt []string) context.Context {
-	return context.WithValue(ctx, keyMuteTimes, mt)
+// WithMuteTimeIntervals populates a context with a slice of mute time names.
+func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
+	return context.WithValue(ctx, keyMuteTimeIntervals, mt)
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -201,10 +201,10 @@ func ResolvedAlerts(ctx context.Context) ([]uint64, bool) {
 	return v, ok
 }
 
-// MuteTimeNames extracts a slice of mute time names from the context. Iff none exists, the
+// MuteTimeIntervalNames extracts a slice of mute time names from the context. Iff none exists, the
 // second argument is false.
-func MuteTimeNames(ctx context.Context) ([]string, bool) {
-	v, ok := ctx.Value(keyMuteTimes).([]string)
+func MuteTimeIntervalNames(ctx context.Context) ([]string, bool) {
+	v, ok := ctx.Value(keyMuteTimeIntervals).([]string)
 	return v, ok
 }
 
@@ -783,7 +783,7 @@ func NewTimeMuteStage(mt map[string][]timeinterval.TimeInterval) *TimeMuteStage 
 // Exec implements the stage interface for TimeMuteStage.
 // TimeMuteStage is responsible for muting alerts whose route is not in an active time.
 func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	muteTimeNames, ok := MuteTimeNames(ctx)
+	muteTimeIntervalNames, ok := MuteTimeIntervalNames(ctx)
 	if !ok {
 		return ctx, alerts, nil
 	}
@@ -794,7 +794,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 
 	muted := false
 Loop:
-	for _, mtName := range muteTimeNames {
+	for _, mtName := range muteTimeIntervalNames {
 		mt, ok := tms.muteTimes[mtName]
 		if !ok {
 			return ctx, alerts, errors.Errorf("mute time %s doesn't exist in config", mtName)

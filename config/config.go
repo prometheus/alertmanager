@@ -431,7 +431,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
 		return fmt.Errorf("root route must not have any matchers")
 	}
-	if len(c.Route.MuteTimes) > 0 {
+	if len(c.Route.MuteTimeIntervals) > 0 {
 		return fmt.Errorf("root route cannot have any mute times")
 	}
 
@@ -473,10 +473,10 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 			return err
 		}
 	}
-	if len(r.MuteTimes) == 0 {
+	if len(r.MuteTimeIntervals) == 0 {
 		return nil
 	}
-	for _, mt := range r.MuteTimes {
+	for _, mt := range r.MuteTimeIntervals {
 		if _, ok := timeIntervals[mt]; !ok {
 			return fmt.Errorf("undefined time interval %q used in route", mt)
 		}
@@ -632,7 +632,7 @@ type Route struct {
 
 	Match     map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE   MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	MuteTimes []string          `yaml:"mute_times,omitempty" json:"mute_times,omitempty"`
+	MuteTimeIntervals []string  `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	Continue  bool              `yaml:"continue" json:"continue,omitempty"`
 	Routes    []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 

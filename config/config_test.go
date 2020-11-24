@@ -158,7 +158,7 @@ route:
     routes:
     -  match:
         severity: critical
-       mute_times:
+       mute_time_intervals:
        - business_hours
 
 receivers:
@@ -194,7 +194,7 @@ route:
   routes:
   -  match:
       severity: critical
-     mute_times:
+     mute_time_intervals:
      - business_hours
 `
 	_, err := Load(in)
@@ -232,7 +232,7 @@ route:
   routes:
   -  match:
       severity: critical
-     mute_times:
+     mute_time_intervals:
      - business_hours
 `
 	_, err := Load(in)
@@ -342,7 +342,7 @@ receivers:
 
 route:
   receiver: 'team-X-mails'
-  mute_times:
+  mute_time_intervals:
   - my_mute_time
 `
 	_, err := Load(in)

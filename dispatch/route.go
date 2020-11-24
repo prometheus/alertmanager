@@ -29,12 +29,12 @@ import (
 // DefaultRouteOpts are the defaulting routing options which apply
 // to the root route of a routing tree.
 var DefaultRouteOpts = RouteOpts{
-	GroupWait:      30 * time.Second,
-	GroupInterval:  5 * time.Minute,
-	RepeatInterval: 4 * time.Hour,
-	GroupBy:        map[model.LabelName]struct{}{},
-	GroupByAll:     false,
-	MuteTimes:      []string{},
+	GroupWait:          30 * time.Second,
+	GroupInterval:      5 * time.Minute,
+	RepeatInterval:     4 * time.Hour,
+	GroupBy:            map[model.LabelName]struct{}{},
+	GroupByAll:         false,
+	MuteTimeIntervals: []string{},
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -117,7 +117,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 
 	sort.Sort(matchers)
 
-	opts.MuteTimes = cr.MuteTimes
+	opts.MuteTimeIntervals = cr.MuteTimeIntervals
 
 	route := &Route{
 		parent:    parent,
@@ -208,8 +208,8 @@ type RouteOpts struct {
 	GroupInterval  time.Duration
 	RepeatInterval time.Duration
 
-	// A list of time intervals for which the route is muted
-	MuteTimes []string
+	// A list of time intervals for which the route is muted.
+	MuteTimeIntervals []string
 }
 
 func (ro *RouteOpts) String() string {
