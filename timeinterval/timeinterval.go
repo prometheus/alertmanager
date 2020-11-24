@@ -168,7 +168,9 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	err := stringableRangeFromString(str, r)
+	if err := stringableRangeFromString(str, r); err != nil {
+		return err
+	}
 	if r.Begin > r.End {
 		return errors.New("start day cannot be before end day")
 	}
@@ -178,7 +180,7 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if r.End < 0 || r.End > 6 {
 		return fmt.Errorf("%s is not a valid day of the week: out of range", str)
 	}
-	return err
+	return nil
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for DayOfMonthRange.
@@ -187,7 +189,9 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	err := stringableRangeFromString(str, r)
+	if err := stringableRangeFromString(str, r); err != nil {
+		return err
+	}
 	// Check beginning <= end accounting for negatives day of month indices as well.
 	// Months != 31 days can't be addressed here and are clamped, but at least we can catch blatant errors.
 	if r.Begin == 0 || r.Begin < -31 || r.Begin > 31 {
@@ -213,7 +217,7 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if checkBegin > checkEnd {
 		return fmt.Errorf("end day %d is always before start day %d", r.End, r.Begin)
 	}
-	return err
+	return nil
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for MonthRange.
@@ -239,11 +243,13 @@ func (r *YearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	err := stringableRangeFromString(str, r)
+	if err := stringableRangeFromString(str, r); err != nil {
+		return err
+	}
 	if r.Begin > r.End {
 		return fmt.Errorf("end year %d is before start year %d", r.End, r.Begin)
 	}
-	return err
+	return nil
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for TimeRanges.
