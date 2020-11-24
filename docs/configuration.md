@@ -222,7 +222,6 @@ name: <string>
 time_intervals:
   [ - <time_interval> ... ]
 
-```
 ## `<time_interval>`
 A `time_interval` contains the actual definition for an interval of time. The syntax
 supports the following fields:

@@ -220,7 +220,7 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	}
 }
 
-// A MuteTimeInterval represents a named set of time intervals for which a route should be muted.
+// MuteTimeInterval represents a named set of time intervals for which a route should be muted.
 type MuteTimeInterval struct {
 	Name          string                      `yaml:"name" json:"name"`
 	TimeIntervals []timeinterval.TimeInterval `yaml:"time_intervals"`

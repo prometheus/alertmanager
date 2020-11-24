@@ -312,7 +312,7 @@ func (pb *PipelineBuilder) New(
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
 	ss := NewMuteStage(silencer)
-	mts := NewTimeMuteStage(muteTimes)
+	tms := NewTimeMuteStage(muteTimes)
 
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
@@ -782,7 +782,7 @@ func NewTimeMuteStage(mt map[string][]timeinterval.TimeInterval) *TimeMuteStage 
 
 // Exec implements the stage interface for TimeMuteStage
 // TimeMuteStage is responsible for muting alerts whose route is not in an active time
-func (mts TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	muteTimeNames, ok := MuteTimeNames(ctx)
 	if !ok {
 		return ctx, alerts, nil
@@ -801,6 +801,7 @@ func (mts TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 		for _, ti := range mt {
 			if ti.ContainsTime(now) {
 				muted = true
+				break Loop
 			}
 		}
 	}
