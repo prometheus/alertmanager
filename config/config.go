@@ -226,7 +226,7 @@ type MuteTimeInterval struct {
 	TimeIntervals []timeinterval.TimeInterval `yaml:"time_intervals"`
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface for MuteTimeInterval
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MuteTimeInterval.
 func (mt *MuteTimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain MuteTimeInterval
 	if err := unmarshal((*plain)(mt)); err != nil {
