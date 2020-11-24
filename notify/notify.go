@@ -808,8 +808,7 @@ Loop:
 	}
 	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
-		lvl := level.Debug(l)
-		lvl.Log("msg", "Notifications not sent, route is within mute time")
+		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time")
 		return ctx, nil, nil
 	}
 	return ctx, alerts, nil
