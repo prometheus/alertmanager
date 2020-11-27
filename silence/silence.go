@@ -74,14 +74,9 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 			Name:  m.Name,
 			Value: m.Pattern,
 		}
-		switch m.Type {
-		case pb.Matcher_EQUAL:
-			mt.IsRegex = false
-		case pb.Matcher_REGEXP:
-			mt.IsRegex = true
-		}
-		err := mt.Init()
-		if err != nil {
+		mt.IsEqual = (m.Type == pb.Matcher_EQUAL) || (m.Type == pb.Matcher_REGEXP)
+		mt.IsRegex = (m.Type == pb.Matcher_REGEXP) || (m.Type == pb.Matcher_NOT_REGEXP)
+		if err := mt.Init(); err != nil {
 			return nil, err
 		}
 
@@ -420,11 +415,11 @@ func validateMatcher(m *pb.Matcher) error {
 		return fmt.Errorf("invalid label name %q", m.Name)
 	}
 	switch m.Type {
-	case pb.Matcher_EQUAL:
+	case pb.Matcher_EQUAL, pb.Matcher_NOT_EQUAL:
 		if !model.LabelValue(m.Pattern).IsValid() {
 			return fmt.Errorf("invalid label value %q", m.Pattern)
 		}
-	case pb.Matcher_REGEXP:
+	case pb.Matcher_REGEXP, pb.Matcher_NOT_REGEXP:
 		if _, err := regexp.Compile(m.Pattern); err != nil {
 			return fmt.Errorf("invalid regular expression %q: %s", m.Pattern, err)
 		}
