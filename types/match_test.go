@@ -43,12 +43,25 @@ func TestMatcherValidate(t *testing.T) {
 			valid:   true,
 		},
 		{
+			matcher: Matcher{Name: validLabelName, Value: validStringValue, IsEqual: true},
+			valid:   true,
+		},
+		{
 			matcher: Matcher{Name: validLabelName, Value: validRegexValue, IsRegex: true},
+			valid:   true,
+		},
+		{
+			matcher: Matcher{Name: validLabelName, Value: validRegexValue, IsRegex: true, IsEqual: true},
 			valid:   true,
 		},
 		// invalid tests
 		{
 			matcher:  Matcher{Name: invalidLabelName, Value: validStringValue},
+			valid:    false,
+			errorMsg: fmt.Sprintf("invalid name %q", invalidLabelName),
+		},
+		{
+			matcher:  Matcher{Name: invalidLabelName, Value: validStringValue, IsEqual: true},
 			valid:    false,
 			errorMsg: fmt.Sprintf("invalid name %q", invalidLabelName),
 		},
@@ -59,6 +72,11 @@ func TestMatcherValidate(t *testing.T) {
 		},
 		{
 			matcher:  Matcher{Name: validLabelName, Value: invalidRegexValue, IsRegex: true},
+			valid:    false,
+			errorMsg: fmt.Sprintf("invalid regular expression %q", invalidRegexValue),
+		},
+		{
+			matcher:  Matcher{Name: validLabelName, Value: invalidRegexValue, IsEqual: true, IsRegex: true},
 			valid:    false,
 			errorMsg: fmt.Sprintf("invalid regular expression %q", invalidRegexValue),
 		},
@@ -90,12 +108,16 @@ func TestMatcherMatch(t *testing.T) {
 		matcher  Matcher
 		expected bool
 	}{
-		{matcher: Matcher{Name: "label", Value: "value"}, expected: true},
-		{matcher: Matcher{Name: "label", Value: "val"}, expected: false},
-		{matcher: Matcher{Name: "label", Value: "val.*", IsRegex: true}, expected: true},
-		{matcher: Matcher{Name: "label", Value: "diffval.*", IsRegex: true}, expected: false},
+		{matcher: Matcher{Name: "label", Value: "value", IsEqual: true}, expected: true},
+		{matcher: Matcher{Name: "label", Value: "value", IsEqual: false}, expected: false},
+		{matcher: Matcher{Name: "label", Value: "val", IsEqual: true}, expected: false},
+		{matcher: Matcher{Name: "label", Value: "val.*", IsRegex: true, IsEqual: true}, expected: true},
+		{matcher: Matcher{Name: "label", Value: "val.*", IsRegex: true, IsEqual: false}, expected: false},
+		{matcher: Matcher{Name: "label", Value: "diffval.*", IsRegex: true, IsEqual: true}, expected: false},
+		{matcher: Matcher{Name: "label", Value: "diffval.*", IsRegex: true, IsEqual: false}, expected: true},
 		//unset label
-		{matcher: Matcher{Name: "difflabel", Value: "value"}, expected: false},
+		{matcher: Matcher{Name: "difflabel", Value: "value", IsEqual: true}, expected: false},
+		{matcher: Matcher{Name: "difflabel", Value: "value", IsEqual: false}, expected: true},
 	}
 
 	lset := model.LabelSet{"label": "value"}
@@ -114,6 +136,11 @@ func TestMatcherString(t *testing.T) {
 		t.Errorf("unexpected matcher string %#v", m.String())
 	}
 
+	m.IsEqual = false
+	if m.String() != "foo!=\"bar\"" {
+		t.Errorf("unexpected not equal matcher string %#v", m.String())
+	}
+
 	re, err := regexp.Compile(".*")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
@@ -123,6 +150,11 @@ func TestMatcherString(t *testing.T) {
 
 	if m.String() != "foo=~\".*\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+
+	m.IsEqual = false
+	if m.String() != "foo!~\".*\"" {
+		t.Errorf("unexpected not equal matcher string %#v", m.String())
 	}
 }
 
@@ -141,6 +173,12 @@ func TestMatchersString(t *testing.T) {
 	if matchers.String() != "{bar=~\".*\",foo=\"bar\"}" {
 		t.Errorf("unexpected matcher string %#v", matchers.String())
 	}
+
+	m1.IsEqual = false
+	m2.IsEqual = false
+	if matchers.String() != "{bar!~\".*\",foo!=\"bar\"}" {
+		t.Errorf("unexpected not equal matcher string %#v", matchers.String())
+	}
 }
 
 func TestMatchersSort(t *testing.T) {
@@ -148,6 +186,7 @@ func TestMatchersSort(t *testing.T) {
 		name  string
 		value string
 		regex bool
+		equal bool
 	}
 
 	cases := []struct {
@@ -156,48 +195,75 @@ func TestMatchersSort(t *testing.T) {
 		expect Matchers
 	}{
 		{
-			name:   "name asc order",
-			i1:     input{name: "foo", value: "bar"},
-			i2:     input{name: "goo", value: "bar"},
-			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "goo", Value: "bar"}},
+			name: "name asc order",
+			i1:   input{name: "foo", value: "bar", equal: true},
+			i2:   input{name: "goo", value: "bar", equal: true},
+			expect: Matchers{
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+				&Matcher{Name: "goo", Value: "bar", IsEqual: true},
+			},
 		},
 		{
-			name:   "name desc order",
-			i1:     input{name: "foo", value: "bar"},
-			i2:     input{name: "doo", value: "bar"},
-			expect: Matchers{&Matcher{Name: "doo", Value: "bar"}, &Matcher{Name: "foo", Value: "bar"}},
+			name: "name desc order",
+			i1:   input{name: "foo", value: "bar", equal: true},
+			i2:   input{name: "doo", value: "bar", equal: true},
+			expect: Matchers{
+				&Matcher{Name: "doo", Value: "bar", IsEqual: true},
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+			},
 		},
 		{
-			name:   "name equal",
-			i1:     input{name: "foo", value: "bar"},
-			i2:     input{name: "foo", value: "bar"},
-			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "foo", Value: "bar"}},
+			name: "name equal",
+			i1:   input{name: "foo", value: "bar", equal: true},
+			i2:   input{name: "foo", value: "bar", equal: true},
+			expect: Matchers{
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+			},
 		},
 		{
-			name:   "type asc order",
-			i1:     input{name: "foo", value: "bar"},
-			i2:     input{name: "foo", value: "car"},
-			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "foo", Value: "car"}},
+			name: "type asc order",
+			i1:   input{name: "foo", value: "bar", equal: true},
+			i2:   input{name: "foo", value: "car", equal: true},
+			expect: Matchers{
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+				&Matcher{Name: "foo", Value: "car", IsEqual: true},
+			},
 		},
 		{
-			name:   "type desc order",
-			i1:     input{name: "foo", value: "bar"},
-			i2:     input{name: "foo", value: "aar"},
-			expect: Matchers{&Matcher{Name: "foo", Value: "aar"}, &Matcher{Name: "foo", Value: "bar"}},
+			name: "type desc order",
+			i1:   input{name: "foo", value: "bar", equal: true},
+			i2:   input{name: "foo", value: "aar", equal: true},
+			expect: Matchers{
+				&Matcher{Name: "foo", Value: "aar", IsEqual: true},
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+			},
 		},
 		{
-			name:   "regexp and no regexp",
-			i1:     input{name: "foo", value: "bar"},
-			i2:     input{name: "foo", value: "bar", regex: true},
-			expect: Matchers{&Matcher{Name: "foo", Value: "bar"}, &Matcher{Name: "foo", Value: "bar", IsRegex: true}},
+			name: "regexp and no regexp",
+			i1:   input{name: "foo", value: "bar", equal: true},
+			i2:   input{name: "foo", value: "bar", regex: true, equal: true},
+			expect: Matchers{
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true, IsRegex: true},
+			},
+		},
+		{
+			name: "equal and no equal",
+			i1:   input{name: "foo", value: "bar", equal: true},
+			i2:   input{name: "foo", value: "bar", equal: false},
+			expect: Matchers{
+				&Matcher{Name: "foo", Value: "bar", IsEqual: true},
+				&Matcher{Name: "foo", Value: "bar", IsEqual: false},
+			},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			m1 := &Matcher{Name: c.i1.name, Value: c.i1.value, IsRegex: c.i1.regex}
+			m1 := &Matcher{Name: c.i1.name, Value: c.i1.value, IsEqual: c.i1.equal, IsRegex: c.i1.regex}
 			m1.Init()
-			m2 := &Matcher{Name: c.i2.name, Value: c.i2.value, IsRegex: c.i2.regex}
+			m2 := &Matcher{Name: c.i2.name, Value: c.i2.value, IsEqual: c.i2.equal, IsRegex: c.i2.regex}
 			m2.Init()
 			got := NewMatchers(m1, m2)
 			require.True(t, equalMatchers(c.expect, got))
@@ -207,12 +273,16 @@ func TestMatchersSort(t *testing.T) {
 
 func TestMatchersMatch(t *testing.T) {
 
-	m1 := &Matcher{Name: "label1", Value: "value1"}
+	m1 := &Matcher{Name: "label1", Value: "value1", IsEqual: true}
 	m1.Init()
-	m2 := &Matcher{Name: "label2", Value: "val.*", IsRegex: true}
+	m2 := &Matcher{Name: "label2", Value: "val.*", IsEqual: true, IsRegex: true}
 	m2.Init()
-	m3 := &Matcher{Name: "label3", Value: "value3"}
+	m3 := &Matcher{Name: "label3", Value: "value3", IsEqual: true}
 	m3.Init()
+	m4 := &Matcher{Name: "label1", Value: "value1", IsEqual: false}
+	m4.Init()
+	m5 := &Matcher{Name: "label2", Value: "val.*", IsEqual: false, IsRegex: true}
+	m5.Init()
 
 	tests := []struct {
 		matchers Matchers
@@ -220,6 +290,8 @@ func TestMatchersMatch(t *testing.T) {
 	}{
 		{matchers: Matchers{m1, m2}, expected: true},
 		{matchers: Matchers{m1, m3}, expected: false},
+		{matchers: Matchers{m1, m4}, expected: false},
+		{matchers: Matchers{m2, m5}, expected: false},
 	}
 
 	lset := model.LabelSet{"label1": "value1", "label2": "value2"}
@@ -231,12 +303,14 @@ func TestMatchersMatch(t *testing.T) {
 
 func TestMatchersEqual(t *testing.T) {
 
-	m1 := &Matcher{Name: "label1", Value: "value1"}
+	m1 := &Matcher{Name: "label1", Value: "value1", IsEqual: true}
 	m1.Init()
-	m2 := &Matcher{Name: "label2", Value: "val.*", IsRegex: true}
+	m2 := &Matcher{Name: "label2", Value: "val.*", IsEqual: true, IsRegex: true}
 	m2.Init()
-	m3 := &Matcher{Name: "label3", Value: "value3"}
+	m3 := &Matcher{Name: "label3", Value: "value3", IsEqual: true}
 	m3.Init()
+	m4 := &Matcher{Name: "label1", Value: "value1", IsEqual: false}
+	m4.Init()
 
 	tests := []struct {
 		matchers1 Matchers
@@ -245,6 +319,7 @@ func TestMatchersEqual(t *testing.T) {
 	}{
 		{matchers1: Matchers{m1, m2}, matchers2: Matchers{m1, m2}, expected: true},
 		{matchers1: Matchers{m1, m3}, matchers2: Matchers{m1, m2}, expected: false},
+		{matchers1: Matchers{m1, m4}, matchers2: Matchers{m1, m2}, expected: false},
 	}
 
 	for _, test := range tests {
@@ -254,7 +329,7 @@ func TestMatchersEqual(t *testing.T) {
 }
 
 func equalMatcher(m, n *Matcher) bool {
-	return m.Name == n.Name && m.Value == n.Value && m.IsRegex == n.IsRegex
+	return m.String() == n.String()
 }
 
 func equalMatchers(m, n Matchers) bool {

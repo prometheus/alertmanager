@@ -27,6 +27,7 @@ type Matcher struct {
 	Name    string `json:"name"`
 	Value   string `json:"value"`
 	IsRegex bool   `json:"isRegex"`
+	IsEqual bool   `json:"isEqual"`
 
 	regex *regexp.Regexp
 }
@@ -45,10 +46,18 @@ func (m *Matcher) Init() error {
 }
 
 func (m *Matcher) String() string {
-	if m.IsRegex {
-		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
+	var op string
+	switch {
+	case !m.IsRegex && m.IsEqual:
+		op = "="
+	case !m.IsRegex && !m.IsEqual:
+		op = "!="
+	case m.IsRegex && m.IsEqual:
+		op = "=~"
+	case m.IsRegex && !m.IsEqual:
+		op = "!~"
 	}
-	return fmt.Sprintf("%s=%q", m.Name, m.Value)
+	return fmt.Sprintf("%s%s%q", m.Name, op, m.Value)
 }
 
 // Validate returns true iff all fields of the matcher have valid values.
@@ -75,18 +84,20 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 	v := lset[model.LabelName(m.Name)]
 
 	if m.IsRegex {
-		return m.regex.MatchString(string(v))
+		return m.regex.MatchString(string(v)) == m.IsEqual
 	}
-	return string(v) == m.Value
+	return (string(v) == m.Value) == m.IsEqual
 }
 
 // NewMatcher returns a new matcher that compares against equality of
 // the given value.
+// TODO(vladimiroff): add API to set IsEqual to false.
 func NewMatcher(name model.LabelName, value string) *Matcher {
 	return &Matcher{
 		Name:    string(name),
 		Value:   value,
 		IsRegex: false,
+		IsEqual: true,
 	}
 }
 
@@ -94,11 +105,13 @@ func NewMatcher(name model.LabelName, value string) *Matcher {
 // a regular expression. The matcher is already initialized.
 //
 // TODO(fabxc): refactor usage.
+// TODO(vladimiroff): add API to set IsEqual to false.
 func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 	return &Matcher{
 		Name:    string(name),
 		Value:   re.String(),
 		IsRegex: true,
+		IsEqual: true,
 		regex:   re,
 	}
 }
@@ -130,7 +143,7 @@ func (ms Matchers) Less(i, j int) bool {
 	if ms[i].Value < ms[j].Value {
 		return true
 	}
-	return !ms[i].IsRegex && ms[j].IsRegex
+	return (ms[i].IsEqual && !ms[j].IsEqual) || (!ms[i].IsRegex && ms[j].IsRegex)
 }
 
 // Match checks whether all matchers are fulfilled against the given label set.
