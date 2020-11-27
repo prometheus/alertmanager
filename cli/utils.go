@@ -144,15 +144,9 @@ func TypeMatcher(matcher labels.Matcher) (models.Matcher, error) {
 		Value: &value,
 	}
 
-	isRegex := false
-	switch matcher.Type {
-	case labels.MatchEqual:
-		isRegex = false
-	case labels.MatchRegexp:
-		isRegex = true
-	default:
-		return models.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
-	}
+	isEqual := (matcher.Type == labels.MatchEqual) || (matcher.Type == labels.MatchRegexp)
+	isRegex := (matcher.Type == labels.MatchRegexp) || (matcher.Type == labels.MatchNotRegexp)
+	typeMatcher.IsEqual = &isEqual
 	typeMatcher.IsRegex = &isRegex
 	return typeMatcher, nil
 }

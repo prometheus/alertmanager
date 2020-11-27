@@ -684,10 +684,16 @@ func silenceToProto(s *types.Silence) (*silencepb.Silence, error) {
 		matcher := &silencepb.Matcher{
 			Name:    m.Name,
 			Pattern: m.Value,
-			Type:    silencepb.Matcher_EQUAL,
 		}
-		if m.IsRegex {
+		switch {
+		case m.IsEqual && !m.IsRegex:
+			matcher.Type = silencepb.Matcher_EQUAL
+		case !m.IsEqual && !m.IsRegex:
+			matcher.Type = silencepb.Matcher_NOT_EQUAL
+		case m.IsEqual && m.IsRegex:
 			matcher.Type = silencepb.Matcher_REGEXP
+		case !m.IsEqual && m.IsRegex:
+			matcher.Type = silencepb.Matcher_NOT_REGEXP
 		}
 		sil.Matchers = append(sil.Matchers, matcher)
 	}
@@ -713,7 +719,16 @@ func silenceFromProto(s *silencepb.Silence) (*types.Silence, error) {
 		}
 		switch m.Type {
 		case silencepb.Matcher_EQUAL:
+			matcher.IsEqual = true
+			matcher.IsRegex = false
+		case silencepb.Matcher_NOT_EQUAL:
+			matcher.IsEqual = false
+			matcher.IsRegex = false
 		case silencepb.Matcher_REGEXP:
+			matcher.IsEqual = true
+			matcher.IsRegex = true
+		case silencepb.Matcher_NOT_REGEXP:
+			matcher.IsEqual = false
 			matcher.IsRegex = true
 		default:
 			return nil, fmt.Errorf("unknown matcher type")
