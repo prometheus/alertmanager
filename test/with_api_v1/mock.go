@@ -107,8 +107,9 @@ func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *types.Silence {
 
 	for i := 0; i < len(s.match); i += 2 {
 		nsil.Matchers = append(nsil.Matchers, &types.Matcher{
-			Name:  s.match[i],
-			Value: s.match[i+1],
+			Name:    s.match[i],
+			Value:   s.match[i+1],
+			IsEqual: true,
 		})
 	}
 	for i := 0; i < len(s.matchRE); i += 2 {
@@ -116,6 +117,7 @@ func (s *TestSilence) nativeSilence(opts *AcceptanceOpts) *types.Silence {
 			Name:    s.matchRE[i],
 			Value:   s.matchRE[i+1],
 			IsRegex: true,
+			IsEqual: true,
 		})
 	}
 
