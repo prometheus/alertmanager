@@ -48,8 +48,9 @@ amtool silence query alertname=foo node=bar
 
 amtool silence query foo node=bar
 
-	If alertname is omitted and the first argument does not contain a '=' or a
-	'=~' then it will be assumed to be the value of the alertname pair.
+	If alertname is omitted and the first argument does not contain a '=',
+	'!=, '=~' or a '!~' then it will be assumed to be the value of the
+	alertname pair.
 
 amtool silence query 'alertname=~foo.*'
 

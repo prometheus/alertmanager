@@ -60,8 +60,9 @@ const silenceAddHelp = `Add a new alertmanager silence
 
   amtool silence add foo node=bar
 
-	If alertname is omitted and the first argument does not contain a '=' or a
-	'=~' then it will be assumed to be the value of the alertname pair.
+	If alertname is omitted and the first argument does not contain a '=',
+	'!=, '=~' or a '!~' then it will be assumed to be the value of the
+	alertname pair.
 
   amtool silence add 'alertname=~foo.*'
 

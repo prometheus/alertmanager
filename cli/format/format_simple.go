@@ -89,11 +89,22 @@ func (formatter *SimpleFormatter) FormatClusterStatus(status *models.ClusterStat
 func simpleFormatMatchers(matchers models.Matchers) string {
 	output := []string{}
 	for _, matcher := range matchers {
-		output = append(output, simpleFormatMatcher(*matcher))
+		output = append(output, formatMatcher(matcher))
 	}
 	return strings.Join(output, " ")
 }
 
-func simpleFormatMatcher(matcher models.Matcher) string {
-	return matcher.String()
+func formatMatcher(m *models.Matcher) string {
+	var op string
+	switch {
+	case !*m.IsRegex && *m.IsEqual:
+		op = "="
+	case !*m.IsRegex && !*m.IsEqual:
+		op = "!="
+	case *m.IsRegex && *m.IsEqual:
+		op = "=~"
+	case *m.IsRegex && !*m.IsEqual:
+		op = "!~"
+	}
+	return fmt.Sprintf("%s%s%q", *m.Name, op, *m.Value)
 }
