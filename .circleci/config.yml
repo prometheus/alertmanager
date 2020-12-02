@@ -110,7 +110,7 @@ jobs:
     - run: cd doc/alertmanager-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt
     # Clash of Prometheus semver for the released software vs. semver of Go modules require this weird hardcoded version
     # (which is simply v2.23.0):
-    - run: cd doc/alertmanager-mixin; go install github.com/prometheus/prometheus/cmd/promtool@v0.0.0-20201126101154-26d89b4b0776
+    - run: cd doc/alertmanager-mixin; go get github.com/prometheus/prometheus/cmd/promtool@v0.0.0-20201126101154-26d89b4b0776
     - run: cd doc/alertmanager-mixin; make lint
 
 workflows:
