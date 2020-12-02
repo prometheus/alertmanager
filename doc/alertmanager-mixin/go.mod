@@ -1,6 +1,6 @@
 module github.com/prometheus/alertmanager/doc/alertmanager-mixin
 
-go 1.15
+go 1.14
 
 require (
 	github.com/google/go-jsonnet v0.17.0 // indirect

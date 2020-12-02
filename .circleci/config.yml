@@ -100,7 +100,9 @@ jobs:
         path: test-results
 
   mixin:
-    executor: golang
+    docker:
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
+    - image: circleci/golang:1.14
 
     steps:
     - checkout
