@@ -16,7 +16,6 @@ lint: build
 		done
 
 	mixtool lint mixin.libsonnet
-	promtool check rules $(ALERTMANAGER_ALERTS)
 
 build:
 	mixtool generate alerts mixin.libsonnet > $(ALERTMANAGER_ALERTS)

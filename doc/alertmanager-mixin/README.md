@@ -12,14 +12,12 @@ multiple different Alertmanager clusters, instances from different clusters
 must have a different `job` label.
 
 The most basic use of the Alertmanager Mixin is to create a YAML file with the
-alerts from it. To do so, you need to have `jsonnetfmt`, `mixtool`, and
-`promtool` installed. If you have a working Go development environment, it's
+alerts from it. To do so, you need to have `jsonnetfmt` and `mixtool` installed. If you have a working Go development environment, it's
 easiest to run the following:
 
 ```bash
 $ go get github.com/monitoring-mixins/mixtool/cmd/mixtool
 $ go get github.com/google/go-jsonnet/cmd/jsonnetfmt
-$ go get github.com/prometheus/prometheus/cmd/promtool@v0.0.0-20201126101154-26d89b4b0776
 ```
 
 Edit `config.libsonnet` to match your environment and then build
