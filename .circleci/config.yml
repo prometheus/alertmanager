@@ -99,6 +99,17 @@ jobs:
     - store_test_results:
         path: test-results
 
+  mixin:
+    docker:
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
+    - image: circleci/golang:1.14
+
+    steps:
+    - checkout
+    - run: cd doc/alertmanager-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool
+    - run: cd doc/alertmanager-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt
+    - run: cd doc/alertmanager-mixin; make lint
+
 workflows:
   version: 2
   alertmanager:
@@ -113,6 +124,10 @@ workflows:
             only: /.*/
     - prometheus/build:
         name: build
+        filters:
+          tags:
+            only: /.*/
+    - mixin:
         filters:
           tags:
             only: /.*/
