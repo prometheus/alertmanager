@@ -8,7 +8,6 @@ module Utils.Date exposing
     , parseDuration
     , term
     , timeDifference
-    , timeFormat
     , timeFromString
     , timeToString
     , units
@@ -105,73 +104,8 @@ durationFormat duration =
 
 
 dateTimeFormat : Posix -> String
-dateTimeFormat time =
-    timeFormat time
-        ++ ", "
-        ++ String.fromInt (toYear utc time)
-        ++ "-"
-        ++ padWithZero (monthFormat (toMonth utc time))
-        ++ "-"
-        ++ padWithZero (toDay utc time)
-        ++ " (UTC)"
-
-
-timeFormat : Posix -> String
-timeFormat time =
-    padWithZero (toHour utc time)
-        ++ ":"
-        ++ padWithZero (toMinute utc time)
-        ++ ":"
-        ++ padWithZero (toSecond utc time)
-
-
-padWithZero : Int -> String
-padWithZero n =
-    if n < 10 then
-        "0" ++ String.fromInt n
-
-    else
-        String.fromInt n
-
-
-monthFormat : Month -> Int
-monthFormat month =
-    case month of
-        Jan ->
-            1
-
-        Feb ->
-            2
-
-        Mar ->
-            3
-
-        Apr ->
-            4
-
-        May ->
-            5
-
-        Jun ->
-            6
-
-        Jul ->
-            7
-
-        Aug ->
-            8
-
-        Sep ->
-            9
-
-        Oct ->
-            10
-
-        Nov ->
-            11
-
-        Dec ->
-            12
+dateTimeFormat =
+    Iso8601.fromTime
 
 
 encode : Posix -> String
