@@ -379,6 +379,9 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 		wg sync.WaitGroup
 		me types.MultiError
 	)
+	if len(alerts) == 0 {
+		return ctx, nil, nil
+	}
 	wg.Add(len(fs))
 
 	for _, s := range fs {
