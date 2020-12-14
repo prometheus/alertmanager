@@ -108,37 +108,93 @@ func TestMatcherMatch(t *testing.T) {
 }
 
 func TestMatcherString(t *testing.T) {
-	m := NewMatcher("foo", "bar")
+	m := NewMatcher("foo", "bar", MatchEqual)
 
 	if m.String() != "foo=\"bar\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
 	}
 
+	m = NewMatcher("foo", "bar", MatchNotEqual)
+
+	if m.String() != "foo!=\"bar\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+
 	re, err := regexp.Compile(".*")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	m = NewRegexMatcher("foo", re)
-
+	m = NewRegexMatcher("foo", re, MatchRegexp)
 	if m.String() != "foo=~\".*\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+
+	m = NewRegexMatcher("foo", re, MatchNotRegexp)
+	if m.String() != "foo!~\".*\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
 	}
 }
 
 func TestMatchersString(t *testing.T) {
-	m1 := NewMatcher("foo", "bar")
+	// MatchEqual, MatchRegexp
+	m1 := NewMatcher("foo", "bar", MatchEqual)
 
 	re, err := regexp.Compile(".*")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	m2 := NewRegexMatcher("bar", re)
+	m2 := NewRegexMatcher("bar", re, MatchRegexp)
 
 	matchers := NewMatchers(m1, m2)
 
 	if matchers.String() != "{bar=~\".*\",foo=\"bar\"}" {
+		t.Errorf("unexpected matcher string %#v", matchers.String())
+	}
+
+	// MatchEqual, MatchNotRegexp
+	m1 = NewMatcher("foo", "bar", MatchEqual)
+
+	re, err = regexp.Compile(".*")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	m2 = NewRegexMatcher("bar", re, MatchNotRegexp)
+
+	matchers = NewMatchers(m1, m2)
+	if matchers.String() != "{bar!~\".*\",foo=\"bar\"}" {
+		t.Errorf("unexpected matcher string %#v", matchers.String())
+	}
+
+	// MatchNotEqual, MatchRegexp
+	m1 = NewMatcher("foo", "bar", MatchNotEqual)
+
+	re, err = regexp.Compile(".*")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	m2 = NewRegexMatcher("bar", re, MatchRegexp)
+
+	matchers = NewMatchers(m1, m2)
+	if matchers.String() != "{bar=~\".*\",foo!=\"bar\"}" {
+		t.Errorf("unexpected matcher string %#v", matchers.String())
+	}
+
+	// MatchNotEqual, MatchNotRegexp
+	m1 = NewMatcher("foo", "bar", MatchNotEqual)
+
+	re, err = regexp.Compile(".*")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	m2 = NewRegexMatcher("bar", re, MatchNotRegexp)
+
+	matchers = NewMatchers(m1, m2)
+	if matchers.String() != "{bar!~\".*\",foo!=\"bar\"}" {
 		t.Errorf("unexpected matcher string %#v", matchers.String())
 	}
 }

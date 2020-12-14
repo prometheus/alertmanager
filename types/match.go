@@ -22,8 +22,33 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+// MatchType is an enum for matching types.
+type MatchType int
+
+// Possible MatchTypes.
+const (
+	MatchEqual MatchType = iota
+	MatchNotEqual
+	MatchRegexp
+	MatchNotRegexp
+)
+
+func (m MatchType) String() string {
+	typeToStr := map[MatchType]string{
+		MatchEqual:     "=",
+		MatchNotEqual:  "!=",
+		MatchRegexp:    "=~",
+		MatchNotRegexp: "!~",
+	}
+	if str, ok := typeToStr[m]; ok {
+		return str
+	}
+	panic("unknown match type")
+}
+
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
+	Type    MatchType
 	Name    string `json:"name"`
 	Value   string `json:"value"`
 	IsRegex bool   `json:"isRegex"`
@@ -45,13 +70,10 @@ func (m *Matcher) Init() error {
 }
 
 func (m *Matcher) String() string {
-	if m.IsRegex {
-		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
-	}
-	return fmt.Sprintf("%s=%q", m.Name, m.Value)
+	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 }
 
-// Validate returns true iff all fields of the matcher have valid values.
+// Validate returns true if all fields of the matcher have valid values.
 func (m *Matcher) Validate() error {
 	if !model.LabelName(m.Name).IsValid() {
 		return fmt.Errorf("invalid name %q", m.Name)
@@ -82,8 +104,9 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 
 // NewMatcher returns a new matcher that compares against equality of
 // the given value.
-func NewMatcher(name model.LabelName, value string) *Matcher {
+func NewMatcher(name model.LabelName, value string, mType MatchType) *Matcher {
 	return &Matcher{
+		Type:    mType,
 		Name:    string(name),
 		Value:   value,
 		IsRegex: false,
@@ -94,8 +117,9 @@ func NewMatcher(name model.LabelName, value string) *Matcher {
 // a regular expression. The matcher is already initialized.
 //
 // TODO(fabxc): refactor usage.
-func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
+func NewRegexMatcher(name model.LabelName, re *regexp.Regexp, mType MatchType) *Matcher {
 	return &Matcher{
+		Type:    mType,
 		Name:    string(name),
 		Value:   re.String(),
 		IsRegex: true,
