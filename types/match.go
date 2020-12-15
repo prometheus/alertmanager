@@ -89,6 +89,7 @@ func (m *Matcher) Validate() error {
 
 // Match checks whether the label of the matcher has the specified
 // matching value.
+// Make changes here ?
 func (m *Matcher) Match(lset model.LabelSet) bool {
 	// Unset labels are treated as unset labels globally. Thus, if a
 	// label is not set we retrieve the empty label which is correct
@@ -98,6 +99,7 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 	if m.IsRegex {
 		return m.regex.MatchString(string(v))
 	}
+
 	return string(v) == m.Value
 }
 
