@@ -48,12 +48,11 @@ func (m MatchType) String() string {
 
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
-	Type    MatchType
 	Name    string `json:"name"`
 	Value   string `json:"value"`
 	IsRegex bool   `json:"isRegex"`
-
-	regex *regexp.Regexp
+	Type    MatchType
+	regex   *regexp.Regexp
 }
 
 // Init internals of the Matcher. Must be called before using Match.
@@ -106,9 +105,9 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 // the given value.
 func NewMatcher(name model.LabelName, value string, mType MatchType) *Matcher {
 	return &Matcher{
-		Type:    mType,
 		Name:    string(name),
 		Value:   value,
+		Type:    mType,
 		IsRegex: false,
 	}
 }
@@ -119,9 +118,9 @@ func NewMatcher(name model.LabelName, value string, mType MatchType) *Matcher {
 // TODO(fabxc): refactor usage.
 func NewRegexMatcher(name model.LabelName, re *regexp.Regexp, mType MatchType) *Matcher {
 	return &Matcher{
-		Type:    mType,
 		Name:    string(name),
 		Value:   re.String(),
+		Type:    mType,
 		IsRegex: true,
 		regex:   re,
 	}
