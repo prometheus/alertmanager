@@ -48,10 +48,10 @@ func (m MatchType) String() string {
 
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
-	Name    string `json:"name"`
-	Value   string `json:"value"`
-	IsRegex bool   `json:"isRegex"`
-	Type    MatchType
+	Name    string    `json:"name"`
+	Value   string    `json:"value"`
+	IsRegex bool      `json:"isRegex"`
+	Type    MatchType // or add other boolean options like isRegex, isNotRegex?
 	regex   *regexp.Regexp
 }
 
