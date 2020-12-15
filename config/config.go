@@ -655,7 +655,8 @@ type InhibitRule struct {
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
-	Type  types.MatchType
+	// TODO(asquare14) : Add comment
+	Type types.MatchType
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
