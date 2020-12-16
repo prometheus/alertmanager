@@ -347,7 +347,7 @@ route:
 `
 	_, err := Load(in)
 
-	expected := "root route cannot have any mute times"
+	expected := "root route must not have any mute time intervals"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)

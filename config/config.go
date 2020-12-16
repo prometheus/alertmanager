@@ -432,7 +432,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("root route must not have any matchers")
 	}
 	if len(c.Route.MuteTimeIntervals) > 0 {
-		return fmt.Errorf("root route cannot have any mute times")
+		return fmt.Errorf("root route must not have any mute time intervals")
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
