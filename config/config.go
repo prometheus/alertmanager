@@ -487,8 +487,9 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
 	return GlobalConfig{
-		ResolveTimeout:  model.Duration(5 * time.Minute),
-		HTTPConfig:      &commoncfg.HTTPClientConfig{},
+		ResolveTimeout: model.Duration(5 * time.Minute),
+		HTTPConfig:     &commoncfg.HTTPClientConfig{},
+
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
