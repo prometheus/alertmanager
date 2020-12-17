@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -89,12 +90,12 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 
 	// Build matchers.
 	var matchers types.Matchers
-
 	for ln, lv := range cr.Match {
-		matchers = append(matchers, types.NewMatcher(model.LabelName(ln), lv, types.MatchEqual))
+		matchers = append(matchers, types.NewMatcher(model.LabelName(ln), lv, labels.MatchEqual))
+		fmt.Println(types.NewMatcher(model.LabelName(ln), lv, labels.MatchEqual))
 	}
 	for ln, lv := range cr.MatchRE {
-		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp, types.MatchRegexp))
+		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp, labels.MatchRegexp))
 	}
 	sort.Sort(matchers)
 

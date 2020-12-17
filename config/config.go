@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/prometheus/alertmanager/types"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -656,7 +655,7 @@ type InhibitRule struct {
 	// for them to be a match.
 	Equal model.LabelNames `yaml:"equal,omitempty" json:"equal,omitempty"`
 	// TODO(asquare14) : Add comment
-	Type types.MatchType
+	// Type types.MatchType
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
