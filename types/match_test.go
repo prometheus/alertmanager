@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
@@ -75,7 +76,6 @@ func TestMatcherValidate(t *testing.T) {
 		require.EqualError(t, test.matcher.Validate(), test.errorMsg)
 	}
 }
-
 func TestMatcherInit(t *testing.T) {
 	m := Matcher{Name: "label", Value: ".*", IsRegex: true}
 	require.NoError(t, m.Init())
@@ -84,7 +84,6 @@ func TestMatcherInit(t *testing.T) {
 	m = Matcher{Name: "label", Value: "]*.[", IsRegex: true}
 	require.Error(t, m.Init())
 }
-
 func TestMatcherMatch(t *testing.T) {
 	tests := []struct {
 		matcher  Matcher
@@ -108,13 +107,13 @@ func TestMatcherMatch(t *testing.T) {
 }
 
 func TestMatcherString(t *testing.T) {
-	m := NewMatcher("foo", "bar", MatchEqual)
+	m := NewMatcher("foo", "bar", labels.MatchEqual)
 
 	if m.String() != "foo=\"bar\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
 	}
 
-	m = NewMatcher("foo", "bar", MatchNotEqual)
+	m = NewMatcher("foo", "bar", labels.MatchNotEqual)
 
 	if m.String() != "foo!=\"bar\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
@@ -125,12 +124,12 @@ func TestMatcherString(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	m = NewRegexMatcher("foo", re, MatchRegexp)
+	m = NewRegexMatcher("foo", re, labels.MatchRegexp)
 	if m.String() != "foo=~\".*\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
 	}
 
-	m = NewRegexMatcher("foo", re, MatchNotRegexp)
+	m = NewRegexMatcher("foo", re, labels.MatchNotRegexp)
 	if m.String() != "foo!~\".*\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
 	}
@@ -138,14 +137,14 @@ func TestMatcherString(t *testing.T) {
 
 func TestMatchersString(t *testing.T) {
 	// MatchEqual, MatchRegexp
-	m1 := NewMatcher("foo", "bar", MatchEqual)
+	m1 := NewMatcher("foo", "bar", labels.MatchEqual)
 
 	re, err := regexp.Compile(".*")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	m2 := NewRegexMatcher("bar", re, MatchRegexp)
+	m2 := NewRegexMatcher("bar", re, labels.MatchRegexp)
 
 	matchers := NewMatchers(m1, m2)
 
@@ -154,14 +153,14 @@ func TestMatchersString(t *testing.T) {
 	}
 
 	// MatchEqual, MatchNotRegexp
-	m1 = NewMatcher("foo", "bar", MatchEqual)
+	m1 = NewMatcher("foo", "bar", labels.MatchEqual)
 
 	re, err = regexp.Compile(".*")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	m2 = NewRegexMatcher("bar", re, MatchNotRegexp)
+	m2 = NewRegexMatcher("bar", re, labels.MatchNotRegexp)
 
 	matchers = NewMatchers(m1, m2)
 	if matchers.String() != "{bar!~\".*\",foo=\"bar\"}" {
@@ -169,14 +168,14 @@ func TestMatchersString(t *testing.T) {
 	}
 
 	// MatchNotEqual, MatchRegexp
-	m1 = NewMatcher("foo", "bar", MatchNotEqual)
+	m1 = NewMatcher("foo", "bar", labels.MatchNotEqual)
 
 	re, err = regexp.Compile(".*")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	m2 = NewRegexMatcher("bar", re, MatchRegexp)
+	m2 = NewRegexMatcher("bar", re, labels.MatchRegexp)
 
 	matchers = NewMatchers(m1, m2)
 	if matchers.String() != "{bar=~\".*\",foo!=\"bar\"}" {
@@ -184,14 +183,14 @@ func TestMatchersString(t *testing.T) {
 	}
 
 	// MatchNotEqual, MatchNotRegexp
-	m1 = NewMatcher("foo", "bar", MatchNotEqual)
+	m1 = NewMatcher("foo", "bar", labels.MatchNotEqual)
 
 	re, err = regexp.Compile(".*")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	m2 = NewRegexMatcher("bar", re, MatchNotRegexp)
+	m2 = NewRegexMatcher("bar", re, labels.MatchNotRegexp)
 
 	matchers = NewMatchers(m1, m2)
 	if matchers.String() != "{bar!~\".*\",foo!=\"bar\"}" {
@@ -260,7 +259,6 @@ func TestMatchersSort(t *testing.T) {
 		})
 	}
 }
-
 func TestMatchersMatch(t *testing.T) {
 
 	m1 := &Matcher{Name: "label1", Value: "value1"}

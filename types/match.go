@@ -19,44 +19,22 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/common/model"
 )
 
-// MatchType is an enum for matching types.
-type MatchType int
-
-// Possible MatchTypes.
-const (
-	MatchEqual MatchType = iota
-	MatchNotEqual
-	MatchRegexp
-	MatchNotRegexp
-)
-
-func (m MatchType) String() string {
-	typeToStr := map[MatchType]string{
-		MatchEqual:     "=",
-		MatchNotEqual:  "!=",
-		MatchRegexp:    "=~",
-		MatchNotRegexp: "!~",
-	}
-	if str, ok := typeToStr[m]; ok {
-		return str
-	}
-	panic("unknown match type")
-}
-
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
-	Name    string    `json:"name"`
-	Value   string    `json:"value"`
-	IsRegex bool      `json:"isRegex"`
-	Type    MatchType // or add other boolean options like isRegex, isNotRegex?
+	Type    labels.MatchType
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+	IsRegex bool
 	regex   *regexp.Regexp
 }
 
 // Init internals of the Matcher. Must be called before using Match.
 func (m *Matcher) Init() error {
+
 	if !m.IsRegex {
 		return nil
 	}
@@ -105,7 +83,7 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 
 // NewMatcher returns a new matcher that compares against equality of
 // the given value.
-func NewMatcher(name model.LabelName, value string, mType MatchType) *Matcher {
+func NewMatcher(name model.LabelName, value string, mType labels.MatchType) *Matcher {
 	return &Matcher{
 		Name:    string(name),
 		Value:   value,
@@ -118,7 +96,7 @@ func NewMatcher(name model.LabelName, value string, mType MatchType) *Matcher {
 // a regular expression. The matcher is already initialized.
 //
 // TODO(fabxc): refactor usage.
-func NewRegexMatcher(name model.LabelName, re *regexp.Regexp, mType MatchType) *Matcher {
+func NewRegexMatcher(name model.LabelName, re *regexp.Regexp, mType labels.MatchType) *Matcher {
 	return &Matcher{
 		Name:    string(name),
 		Value:   re.String(),

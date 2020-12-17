@@ -170,7 +170,8 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		sourcem types.Matchers
 		targetm types.Matchers
 	)
-	// ask about this
+	// ask about this, list of strings
+	// parsed, for loop
 	for ln, lv := range cr.SourceMatch {
 		sourcem = append(sourcem, types.NewMatcher(model.LabelName(ln), lv, types.MatchEqual))
 	}
