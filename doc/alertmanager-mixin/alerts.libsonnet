@@ -60,10 +60,10 @@
           {
             alert: 'AlertmanagerClusterFailedToSendAlerts',
             expr: |||
-              min by (%(alertmanagerClusterLabels)s) (
-                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s}[5m])
+              min by (%(alertmanagerClusterLabels)s, integration) (
+                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
               /
-                rate(alertmanager_notifications_total{%(alertmanagerSelector)s}[5m])
+                rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration=~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
               )
               > 0.01
             ||| % $._config,
@@ -72,7 +72,26 @@
               severity: 'critical',
             },
             annotations: {
-              summary: 'All Alertmanager instances in a cluster failed to send notifications.',
+              summary: 'All Alertmanager instances in a cluster failed to send notifications to a critical integration.',
+              description: 'The minimum notification failure rate to {{ $labels.integration }} sent from any instance in the %(alertmanagerClusterName)s cluster is {{ $value | humanizePercentage }}.' % $._config,
+            },
+          },
+          {
+            alert: 'AlertmanagerClusterFailedToSendAlerts',
+            expr: |||
+              min by (%(alertmanagerClusterLabels)s, integration) (
+                rate(alertmanager_notifications_failed_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
+              /
+                rate(alertmanager_notifications_total{%(alertmanagerSelector)s, integration!~`%(alertmanagerCriticalIntegrationsRegEx)s`}[5m])
+              )
+              > 0.01
+            ||| % $._config,
+            'for': '5m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              summary: 'All Alertmanager instances in a cluster failed to send notifications to a non-critical integration.',
               description: 'The minimum notification failure rate to {{ $labels.integration }} sent from any instance in the %(alertmanagerClusterName)s cluster is {{ $value | humanizePercentage }}.' % $._config,
             },
           },

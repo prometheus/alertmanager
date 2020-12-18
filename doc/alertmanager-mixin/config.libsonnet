@@ -24,5 +24,13 @@
     // Alertmanager cluster. All labels used here must also be present
     // in alertmanagerClusterLabels above.
     alertmanagerClusterName: '{{$labels.job}}',
+
+    // alertmanagerCriticalIntegrationsRegEx is matched against the
+    // value of the `integration` label to determine if the
+    // AlertmanagerClusterFailedToSendAlerts is critical or merely a
+    // warning. This can be used to avoid paging about a failed
+    // integration that is itself not used for critical alerts.
+    // Example: @'pagerduty|webhook'
+    alertmanagerCriticalIntegrationsRegEx: @'.*',
   },
 }
