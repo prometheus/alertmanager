@@ -97,10 +97,11 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	for ln, lv := range cr.MatchRE {
 		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
-
 	matcherList, _ := labels.ParseMatchers(cr.MatcherNew)
-	for _, val := range matcherList {
-		matchers = append(matchers, types.NewMatcher(model.LabelName(val.Name), val.Value))
+	for _, matcher := range matcherList {
+		m := types.NewMatcherX(matcher.Type, matcher.Name, matcher.Value)
+		m.IsNew = true
+		matchers = append(matchers, m)
 	}
 
 	sort.Sort(matchers)

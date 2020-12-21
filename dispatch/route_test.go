@@ -31,7 +31,7 @@ func TestRouteMatch(t *testing.T) {
 receiver: 'notify-def'
 
 routes:
-- match_new: '{foo="bar", baz!="quux"}'
+- match_new: '{foo!="bar", baz="quux", baz!~".*quux.*"}'
 - match:
     owner: 'team-A'
 
