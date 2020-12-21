@@ -19,22 +19,20 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/common/model"
 )
 
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
-	Type    labels.MatchType
 	Name    string `json:"name"`
 	Value   string `json:"value"`
-	IsRegex bool
-	regex   *regexp.Regexp
+	IsRegex bool   `json:"isRegex"`
+
+	regex *regexp.Regexp
 }
 
 // Init internals of the Matcher. Must be called before using Match.
 func (m *Matcher) Init() error {
-
 	if !m.IsRegex {
 		return nil
 	}
@@ -47,10 +45,13 @@ func (m *Matcher) Init() error {
 }
 
 func (m *Matcher) String() string {
-	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
+	if m.IsRegex {
+		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
+	}
+	return fmt.Sprintf("%s=%q", m.Name, m.Value)
 }
 
-// Validate returns true if all fields of the matcher have valid values.
+// Validate returns true iff all fields of the matcher have valid values.
 func (m *Matcher) Validate() error {
 	if !model.LabelName(m.Name).IsValid() {
 		return fmt.Errorf("invalid name %q", m.Name)
@@ -67,7 +68,6 @@ func (m *Matcher) Validate() error {
 
 // Match checks whether the label of the matcher has the specified
 // matching value.
-// Make changes here ?
 func (m *Matcher) Match(lset model.LabelSet) bool {
 	// Unset labels are treated as unset labels globally. Thus, if a
 	// label is not set we retrieve the empty label which is correct
@@ -77,17 +77,15 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 	if m.IsRegex {
 		return m.regex.MatchString(string(v))
 	}
-
 	return string(v) == m.Value
 }
 
 // NewMatcher returns a new matcher that compares against equality of
 // the given value.
-func NewMatcher(name model.LabelName, value string, mType labels.MatchType) *Matcher {
+func NewMatcher(name model.LabelName, value string) *Matcher {
 	return &Matcher{
 		Name:    string(name),
 		Value:   value,
-		Type:    mType,
 		IsRegex: false,
 	}
 }
@@ -96,11 +94,10 @@ func NewMatcher(name model.LabelName, value string, mType labels.MatchType) *Mat
 // a regular expression. The matcher is already initialized.
 //
 // TODO(fabxc): refactor usage.
-func NewRegexMatcher(name model.LabelName, re *regexp.Regexp, mType labels.MatchType) *Matcher {
+func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 	return &Matcher{
 		Name:    string(name),
 		Value:   re.String(),
-		Type:    mType,
 		IsRegex: true,
 		regex:   re,
 	}

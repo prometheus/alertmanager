@@ -170,21 +170,20 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 		sourcem types.Matchers
 		targetm types.Matchers
 	)
-	// ask about this, list of strings
-	// parsed, for loop
-	// for ln, lv := range cr.SourceMatch {
-	// 	sourcem = append(sourcem, types.NewMatcher(model.LabelName(ln), lv, types.MatchEqual))
-	// }
-	// for ln, lv := range cr.SourceMatchRE {
-	// 	sourcem = append(sourcem, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp, types.MatchRegexp))
-	// }
 
-	// for ln, lv := range cr.TargetMatch {
-	// 	targetm = append(targetm, types.NewMatcher(model.LabelName(ln), lv, types.MatchEqual))
-	// }
-	// for ln, lv := range cr.TargetMatchRE {
-	// 	targetm = append(targetm, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp, types.MatchRegexp))
-	// }
+	for ln, lv := range cr.SourceMatch {
+		sourcem = append(sourcem, types.NewMatcher(model.LabelName(ln), lv))
+	}
+	for ln, lv := range cr.SourceMatchRE {
+		sourcem = append(sourcem, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
+	}
+
+	for ln, lv := range cr.TargetMatch {
+		targetm = append(targetm, types.NewMatcher(model.LabelName(ln), lv))
+	}
+	for ln, lv := range cr.TargetMatchRE {
+		targetm = append(targetm, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
+	}
 
 	equal := map[model.LabelName]struct{}{}
 	for _, ln := range cr.Equal {

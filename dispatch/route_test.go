@@ -25,11 +25,17 @@ import (
 	"github.com/prometheus/alertmanager/config"
 )
 
+// [ level!='critical', team=~'.*oncall' ]
 func TestRouteMatch(t *testing.T) {
+	// config file is basicaly a map, a list is expected
+	// new key matchlist, expect that to be array
+	// specify a new key, matchlist is list of values
+	//map<key,list>
 	in := `
 receiver: 'notify-def'
 
 routes:
+- match_new: '{foo="bar", baz!="quux"}'
 - match:
     owner: 'team-A'
 
