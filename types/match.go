@@ -19,16 +19,18 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/common/model"
 )
 
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
+	Type    labels.MatchType
 	Name    string `json:"name"`
 	Value   string `json:"value"`
 	IsRegex bool   `json:"isRegex"`
-
-	regex *regexp.Regexp
+	IsNew   bool
+	regex   *regexp.Regexp
 }
 
 // Init internals of the Matcher. Must be called before using Match.
@@ -45,6 +47,9 @@ func (m *Matcher) Init() error {
 }
 
 func (m *Matcher) String() string {
+	if m.IsNew == true {
+		return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
+	}
 	if m.IsRegex {
 		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
 	}
@@ -100,6 +105,15 @@ func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 		Value:   re.String(),
 		IsRegex: true,
 		regex:   re,
+	}
+}
+
+// NewMatcherX returns a new matcher that compares values against values.
+func NewMatcherX(t labels.MatchType, n, v string) *Matcher {
+	return &Matcher{
+		Type:  t,
+		Name:  n,
+		Value: v,
 	}
 }
 
