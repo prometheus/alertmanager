@@ -110,11 +110,19 @@ func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 
 // NewMatcherX returns a new matcher that compares values against values.
 func NewMatcherX(t labels.MatchType, n, v string) *Matcher {
-	return &Matcher{
+	m := &Matcher{
 		Type:  t,
 		Name:  n,
 		Value: v,
 	}
+	if t == labels.MatchRegexp || t == labels.MatchNotRegexp {
+		re, err := regexp.Compile("^(?:" + v + ")$")
+		if err != nil {
+			return nil
+		}
+		m.regex = re
+	}
+	return m
 }
 
 // Matchers provides the Match and Fingerprint methods for a slice of Matchers.

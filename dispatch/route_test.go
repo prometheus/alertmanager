@@ -39,11 +39,13 @@ routes:
     group_by: [...]
 
   - match_new: ['{env="production"}']
+
     receiver: 'notify-productionA'
     group_wait: 1m
 
     continue: true
-  - match_new: ['{env=~"produ.*", job=~".*"}']
+
+  - match_new: ['{env=~"produ.", job=~".*"}']
 
     receiver: 'notify-productionB'
     group_wait: 30s
