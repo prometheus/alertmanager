@@ -30,33 +30,20 @@ func TestHello(t *testing.T) {
 receiver: 'notify-def'
 
 routes:
-- match_new: ['{foo="bar", dings="bums"}']
-- match_new: ['{foo="bar"}']
-- match_new: [foo="bar"]
-- match_new: [foo="bar", dings="bums"]
-- match:
-    owner: 'team-A'
-
+- match_new: ['{owner="team-A"}']
   receiver: 'notify-A'
 
   routes:
-  - match:
-      env: 'testing'
-
+  - match_new: ['{env="testing"}']
     receiver: 'notify-testing'
     group_by: [...]
 
-  - match:
-      env: "production"
-
+  - match_new: ['{env="production"}']
     receiver: 'notify-productionA'
     group_wait: 1m
 
     continue: true
-
-  - match_re:
-      env: "produ.*"
-      job: ".*"
+  - match_new: ['{env=~"produ.*", job=~".*"}']
 
     receiver: 'notify-productionB'
     group_wait: 30s
