@@ -27,10 +27,6 @@ import (
 
 // [ level!='critical', team=~'.*oncall' ]
 func TestRouteMatch(t *testing.T) {
-	// config file is basicaly a map, a list is expected
-	// new key matchlist, expect that to be array
-	// specify a new key, matchlist is list of values
-	//map<key,list>
 	in := `
 receiver: 'notify-def'
 

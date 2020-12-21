@@ -90,18 +90,16 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 
 	// Build matchers.
 	var matchers types.Matchers
+
 	for ln, lv := range cr.Match {
 		matchers = append(matchers, types.NewMatcher(model.LabelName(ln), lv))
 	}
-
 	for ln, lv := range cr.MatchRE {
-
 		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
 
-	ms, _ := labels.ParseMatchers(cr.MatcherNew)
-
-	for _, val := range ms {
+	matcherList, _ := labels.ParseMatchers(cr.MatcherNew)
+	for _, val := range matcherList {
 		matchers = append(matchers, types.NewMatcher(model.LabelName(val.Name), val.Value))
 	}
 
