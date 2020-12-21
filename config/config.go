@@ -579,7 +579,7 @@ type Route struct {
 
 	Match      map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	MatchRE    MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	MatcherNew string            `yaml:"match_new,omitempty" json:"match_new,omitempty"`
+	MatcherNew []string          `yaml:"match_new,omitempty" json:"match_new,omitempty"`
 	Continue   bool              `yaml:"continue" json:"continue,omitempty"`
 	Routes     []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
