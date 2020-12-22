@@ -171,7 +171,6 @@ func TestMatcherString(t *testing.T) {
 	}
 }
 
-// add tests from here
 func TestMatchersString(t *testing.T) {
 	m1 := NewMatcher("foo", "bar")
 
@@ -182,9 +181,15 @@ func TestMatchersString(t *testing.T) {
 
 	m2 := NewRegexMatcher("bar", re)
 
-	matchers := NewMatchers(m1, m2)
+	m3 := NewRouteMatchers(labels.MatchRegexp, "boo", "tuz")
 
-	if matchers.String() != "{bar=~\".*\",foo=\"bar\"}" {
+	m4 := NewRouteMatchers(labels.MatchNotRegexp, "bar", "goo")
+
+	m5 := NewRouteMatchers(labels.MatchNotEqual, "bar", "foo")
+
+	matchers := NewMatchers(m1, m2, m3, m4, m5)
+
+	if matchers.String() != "{bar=~\".*\",bar!=\"foo\",bar!~\"goo\",boo=~\"tuz\",foo=\"bar\"}" {
 		t.Errorf("unexpected matcher string %#v", matchers.String())
 	}
 }
