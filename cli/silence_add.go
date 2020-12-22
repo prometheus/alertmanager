@@ -149,8 +149,8 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		return err
 	}
 
-	start := strfmt.DateTime(startsAt)
-	end := strfmt.DateTime(endsAt)
+	start := strfmt.DateTime(startsAt.UTC())
+	end := strfmt.DateTime(endsAt.UTC())
 	ps := &models.PostableSilence{
 		Silence: models.Silence{
 			Matchers:  typeMatchers,
