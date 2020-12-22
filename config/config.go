@@ -405,7 +405,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.Route.Receiver) == 0 {
 		return fmt.Errorf("root route must specify a default receiver")
 	}
-	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 || len(c.Route.MatcherNew) > 0 {
+	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 || len(c.Route.RouteMatchers) > 0 {
 		return fmt.Errorf("root route must not have any matchers")
 	}
 
@@ -577,11 +577,11 @@ type Route struct {
 	GroupBy    []model.LabelName `yaml:"-" json:"-"`
 	GroupByAll bool              `yaml:"-" json:"-"`
 
-	Match      map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
-	MatchRE    MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	MatcherNew []string          `yaml:"match_new,omitempty" json:"match_new,omitempty"`
-	Continue   bool              `yaml:"continue" json:"continue,omitempty"`
-	Routes     []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
+	Match         map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
+	MatchRE       MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	RouteMatchers []string          `yaml:"route_matchers,omitempty" json:"route_matchers,omitempty"`
+	Continue      bool              `yaml:"continue" json:"continue,omitempty"`
+	Routes        []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`

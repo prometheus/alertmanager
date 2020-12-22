@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +45,22 @@ func TestMatcherValidate(t *testing.T) {
 		},
 		{
 			matcher: Matcher{Name: validLabelName, Value: validRegexValue, IsRegex: true},
+			valid:   true,
+		},
+		{
+			matcher: Matcher{Name: validLabelName, Value: validStringValue, Type: labels.MatchEqual, NewRouteMatcher: true},
+			valid:   true,
+		},
+		{
+			matcher: Matcher{Name: validLabelName, Value: validStringValue, Type: labels.MatchNotEqual, NewRouteMatcher: true},
+			valid:   true,
+		},
+		{
+			matcher: Matcher{Name: validLabelName, Value: validRegexValue, Type: labels.MatchRegexp, NewRouteMatcher: true},
+			valid:   true,
+		},
+		{
+			matcher: Matcher{Name: validLabelName, Value: validRegexValue, Type: labels.MatchNotRegexp, NewRouteMatcher: true},
 			valid:   true,
 		},
 		// invalid tests
@@ -92,8 +109,12 @@ func TestMatcherMatch(t *testing.T) {
 	}{
 		{matcher: Matcher{Name: "label", Value: "value"}, expected: true},
 		{matcher: Matcher{Name: "label", Value: "val"}, expected: false},
+		{matcher: Matcher{Name: "label", Value: "value", Type: labels.MatchEqual, NewRouteMatcher: true}, expected: true},
+		{matcher: Matcher{Name: "label", Value: "val", Type: labels.MatchNotEqual, NewRouteMatcher: true}, expected: true},
 		{matcher: Matcher{Name: "label", Value: "val.*", IsRegex: true}, expected: true},
 		{matcher: Matcher{Name: "label", Value: "diffval.*", IsRegex: true}, expected: false},
+		{matcher: Matcher{Name: "label", Value: "val.*", IsRegex: true, Type: labels.MatchRegexp, NewRouteMatcher: true}, expected: true},
+		{matcher: Matcher{Name: "label", Value: "diffval.*", IsRegex: true, Type: labels.MatchNotRegexp, NewRouteMatcher: true}, expected: true},
 		//unset label
 		{matcher: Matcher{Name: "difflabel", Value: "value"}, expected: false},
 	}
@@ -124,8 +145,33 @@ func TestMatcherString(t *testing.T) {
 	if m.String() != "foo=~\".*\"" {
 		t.Errorf("unexpected matcher string %#v", m.String())
 	}
+
+	m = NewRouteMatchers(labels.MatchEqual, "foo", "bar")
+
+	if m.String() != "foo=\"bar\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+
+	m = NewRouteMatchers(labels.MatchNotEqual, "foo", "bar")
+
+	if m.String() != "foo!=\"bar\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+
+	m = NewRouteMatchers(labels.MatchRegexp, "foo", "bar")
+
+	if m.String() != "foo=~\"bar\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
+
+	m = NewRouteMatchers(labels.MatchNotRegexp, "foo", "bar")
+
+	if m.String() != "foo!~\"bar\"" {
+		t.Errorf("unexpected matcher string %#v", m.String())
+	}
 }
 
+// add tests from here
 func TestMatchersString(t *testing.T) {
 	m1 := NewMatcher("foo", "bar")
 

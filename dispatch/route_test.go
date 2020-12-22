@@ -25,25 +25,26 @@ import (
 	"github.com/prometheus/alertmanager/config"
 )
 
-func TestHello(t *testing.T) {
+// TODO(asquare14): Add Additional Tests
+func TestRouteMatchers(t *testing.T) {
 	in := `
 receiver: 'notify-def'
 
 routes:
-- match_new: ['{owner="team-A"}']
+- route_matchers: ['{owner="team-A"}']
   receiver: 'notify-A'
 
   routes:
-  - match_new: ['{env="testing"}']
+  - route_matchers: ['{env="testing"}']
     receiver: 'notify-testing'
     group_by: [...]
 
-  - match_new: ['{env="production"}']
+  - route_matchers: ['{env="production"}']
     receiver: 'notify-productionA'
     group_wait: 1m
     continue: true
 
-  - match_new: ['env=~"produ.*",job=~".*"']
+  - route_matchers: ['env=~"produ.*",job=~".*"']
 
     receiver: 'notify-productionB'
     group_wait: 30s
@@ -51,18 +52,18 @@ routes:
     repeat_interval: 1h
     group_by: ['job']
 
-- match_new: ['owner=~"team-(B|C)"']
+- route_matchers: ['owner=~"team-(B|C)"']
     
 
   group_by: ['foo', 'bar']
   group_wait: 2m
   receiver: 'notify-BC'
 
-- match_new: ['{group_by="role"}']
+- route_matchers: ['{group_by="role"}']
   group_by: ['role']
 
   routes:
-  - match_new: ['{env="testing"}']
+  - route_matchers: ['{env="testing"}']
     receiver: 'notify-testing'
     routes:
     - match:
@@ -257,12 +258,7 @@ routes:
 	}
 }
 
-// [ level!='critical', team=~'.*oncall' ]
 func TestRouteMatch(t *testing.T) {
-	// config file is basicaly a map, a list is expected
-	// new key matchlist, expect that to be array
-	// specify a new key, matchlist is list of values
-	//map<key,list>
 	in := `
 receiver: 'notify-def'
 

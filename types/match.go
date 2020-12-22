@@ -25,12 +25,12 @@ import (
 
 // Matcher defines a matching rule for the value of a given label.
 type Matcher struct {
-	Type    labels.MatchType
-	Name    string `json:"name"`
-	Value   string `json:"value"`
-	IsRegex bool   `json:"isRegex"`
-	IsNew   bool
-	regex   *regexp.Regexp
+	Type            labels.MatchType
+	Name            string `json:"name"`
+	Value           string `json:"value"`
+	IsRegex         bool   `json:"isRegex"`
+	NewRouteMatcher bool
+	regex           *regexp.Regexp
 }
 
 // Init internals of the Matcher. Must be called before using Match.
@@ -47,11 +47,11 @@ func (m *Matcher) Init() error {
 }
 
 func (m *Matcher) String() string {
-	if m.IsNew == true {
-		return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
-	}
 	if m.IsRegex {
 		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
+	}
+	if m.NewRouteMatcher {
+		return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 	}
 	return fmt.Sprintf("%s=%q", m.Name, m.Value)
 }
@@ -77,18 +77,22 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 	// Unset labels are treated as unset labels globally. Thus, if a
 	// label is not set we retrieve the empty label which is correct
 	// for the comparison below.
-	// fmt.Println(lset, "Match")
 	v := lset[model.LabelName(m.Name)]
 
-	if m.IsRegex {
+	if !m.NewRouteMatcher && m.IsRegex {
 		return m.regex.MatchString(string(v))
 	}
-	if m.Type == labels.MatchRegexp {
-		fmt.Println("regex equal")
-		return m.regex.MatchString(string(v))
-	}
-	if m.Type == labels.MatchNotRegexp {
-		return !m.regex.MatchString(string(v))
+	if m.NewRouteMatcher {
+		switch m.Type {
+		case labels.MatchEqual:
+			return string(v) == m.Value
+		case labels.MatchNotEqual:
+			return string(v) != m.Value
+		case labels.MatchRegexp:
+			return m.regex.MatchString(string(v))
+		case labels.MatchNotRegexp:
+			return !m.regex.MatchString(string(v))
+		}
 	}
 	return string(v) == m.Value
 }
@@ -116,21 +120,19 @@ func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 	}
 }
 
-// NewMatcherX returns a new matcher that compares values against values.
-func NewMatcherX(t labels.MatchType, n, v string) *Matcher {
-	// fmt.Println("hey")
+// NewRouteMatchers returns a new matcher that compares values against values or regular expressions.
+func NewRouteMatchers(t labels.MatchType, n, v string) *Matcher {
 	m := &Matcher{
-		Type:  t,
-		Name:  string(n),
-		Value: v,
+		Type:            t,
+		Name:            string(n),
+		Value:           v,
+		NewRouteMatcher: true,
 	}
-	// fmt.Println("Atibhi")
 	if t == labels.MatchRegexp || t == labels.MatchNotRegexp {
 		re, err := regexp.Compile("^(?:" + v + ")$")
 		if err != nil {
 			return nil
 		}
-		fmt.Println(re)
 		m.regex = re
 	}
 	return m
