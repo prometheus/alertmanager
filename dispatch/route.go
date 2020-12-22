@@ -92,15 +92,20 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	var matchers types.Matchers
 
 	for ln, lv := range cr.Match {
+		// fmt.Println(types.NewMatcher(model.LabelName(ln), lv), "cr.Match")
 		matchers = append(matchers, types.NewMatcher(model.LabelName(ln), lv))
 	}
 	for ln, lv := range cr.MatchRE {
+		fmt.Println(types.NewRegexMatcher(model.LabelName(ln), lv.Regexp), "cr.MatchRe")
 		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
 	}
 	for _, ln := range cr.MatcherNew {
 		labelMatchers, _ := labels.ParseMatchers(ln)
+		// fmt.Println(labelMatchers, "labelMatchers")
 		for index := range labelMatchers {
+			fmt.Println(labelMatchers[index].Type, "Type")
 			matcher := types.NewMatcherX(labelMatchers[index].Type, labelMatchers[index].Name, labelMatchers[index].Value)
+			// fmt.Println(matcher, "matcher")
 			matcher.IsNew = true
 			matchers = append(matchers, matcher)
 		}
@@ -108,7 +113,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 
 	sort.Sort(matchers)
 
-	fmt.Println(matchers)
+	// fmt.Println(matchers)
 
 	route := &Route{
 		parent:    parent,

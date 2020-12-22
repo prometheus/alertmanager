@@ -39,13 +39,11 @@ routes:
     group_by: [...]
 
   - match_new: ['{env="production"}']
-
     receiver: 'notify-productionA'
     group_wait: 1m
-
     continue: true
 
-  - match_new: ['{env=~"produ.", job=~".*"}']
+  - match_new: ['env=~"produ.*",job=~".*"']
 
     receiver: 'notify-productionB'
     group_wait: 30s
@@ -53,21 +51,18 @@ routes:
     repeat_interval: 1h
     group_by: ['job']
 
-
-- match_re:
-    owner: 'team-(B|C)'
+- match_new: ['owner=~"team-(B|C)"']
+    
 
   group_by: ['foo', 'bar']
   group_wait: 2m
   receiver: 'notify-BC'
 
-- match:
-    group_by: 'role'
+- match_new: ['{group_by="role"}']
   group_by: ['role']
 
   routes:
-  - match:
-      env: 'testing'
+  - match_new: ['{env="testing"}']
     receiver: 'notify-testing'
     routes:
     - match:
@@ -143,7 +138,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=~\"^(?:team-(B|C))$\"}"},
+			keys: []string{"{}/{owner=~\"team-(B|C)\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -187,7 +182,7 @@ routes:
 			},
 			keys: []string{
 				"{}/{owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{owner=\"team-A\"}/{env=~\"^(?:produ.*)$\",job=~\"^(?:.*)$\"}",
+				"{}/{owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}",
 			},
 		},
 		{
