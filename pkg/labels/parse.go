@@ -16,12 +16,17 @@ package labels
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/pkg/errors"
 )
 
 var (
-	re      = regexp.MustCompile(`(?:\s?)(\w+)(=|=~|!=|!~)(?:\"([^"=~!]+)\"|([^"=~!]+)|\"\")`)
+	re = regexp.MustCompile(
+		// '=~' has to come before '=' because otherwise only the '='
+		// will be consumed, and the '~' will be part of the 3rd token.
+		`^\s*([a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`,
+	)
 	typeMap = map[string]MatchType{
 		"=":  MatchEqual,
 		"!=": MatchNotEqual,
@@ -98,31 +103,55 @@ func ParseMatchers(s string) ([]*Matcher, error) {
 // single '\' characters not followed by '\', 'n', or '"'. They act as a literal
 // backslash in that case.
 func ParseMatcher(s string) (*Matcher, error) {
-	var (
-		name, value string
-		matchType   MatchType
-	)
-
 	ms := re.FindStringSubmatch(s)
-	if len(ms) < 4 {
+	if len(ms) == 0 {
 		return nil, errors.Errorf("bad matcher format: %s", s)
 	}
 
-	name = ms[1]
-	if name == "" {
-		return nil, errors.New("failed to parse label name")
+	var (
+		rawValue = strings.TrimPrefix(ms[3], "\"")
+		value    strings.Builder
+		escaped  bool
+	)
+
+	if !utf8.ValidString(rawValue) {
+		return nil, errors.Errorf("matcher value not valid UTF-8: %s", rawValue)
 	}
 
-	matchType, found := typeMap[ms[2]]
-	if !found {
-		return nil, errors.New("failed to find match operator")
+	// Unescape the rawValue:
+	for i, r := range rawValue {
+		if escaped {
+			escaped = false
+			switch r {
+			case 'n':
+				value.WriteByte('\n')
+			case '"', '\\':
+				value.WriteRune(r)
+			default:
+				// This was a spurious escape, so treat the '\' as literal.
+				value.WriteByte('\\')
+				value.WriteRune(r)
+			}
+			continue
+		}
+		switch r {
+		case '\\':
+			if i < len(rawValue)-1 {
+				escaped = true
+				continue
+			}
+			// '\' encountered as last byte. Treat it as literal.
+			value.WriteByte('\\')
+		case '"':
+			if i < len(rawValue)-1 { // Otherwise this is a trailing quote.
+				return nil, errors.Errorf(
+					"matcher value contains unescaped double quote: %s", rawValue,
+				)
+			}
+		default:
+			value.WriteRune(r)
+		}
 	}
 
-	if ms[3] != "" {
-		value = ms[3]
-	} else {
-		value = ms[4]
-	}
-
-	return NewMatcher(matchType, name, value)
+	return NewMatcher(typeMap[ms[2]], ms[1], value.String())
 }
