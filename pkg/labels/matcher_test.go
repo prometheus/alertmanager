@@ -79,6 +79,41 @@ func TestMatcher(t *testing.T) {
 			value:   "foo-bar",
 			match:   false,
 		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, `foo.bar`),
+			value:   "foo-bar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, `foo\.bar`),
+			value:   "foo-bar",
+			match:   false,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, `foo\.bar`),
+			value:   "foo.bar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchEqual, "foo\nbar"),
+			value:   "foo\nbar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, "foo.bar"),
+			value:   "foo\nbar",
+			match:   false,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, "(?s)foo.bar"),
+			value:   "foo\nbar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchEqual, "~!=\""),
+			value:   "~!=\"",
+			match:   true,
+		},
 	}
 
 	for _, test := range tests {
