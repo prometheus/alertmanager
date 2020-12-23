@@ -30,6 +30,24 @@ var (
 	}
 )
 
+// ParseMatchers parses a comma-separated list of Matchers. A leading '{' and/or
+// a trailing '}' is optional and will be trimmed before further
+// parsing. Individual Matchers are separated by commas outside of quoted parts
+// of the input string. Those commas may be followed by whitespace. Parts of the
+// string inside unescaped double quotes ('"…"') are considered quoted (and
+// commas don't act as separators there). If double quotes are escaped with a
+// single backslash ('\"'), they are ignored for the purpose of identifying
+// quoted parts of the input string. If the input string, after trimming the
+// optional trailing '}', ends with a comma, followed by optional whitespace,
+// this comma and whitespace will be trimmed.
+//
+// Examples for valid input strings:
+//   {foo = "bar", dings != "bums", }
+//   foo=bar,dings!=bums
+//   {quote="She said: \"Hi, ladies! That's gender-neutral…\""}
+//   statuscode=~"5.."
+//
+// See ParseMatcher for details how an individual Matcher is parsed.
 func ParseMatchers(s string) ([]*Matcher, error) {
 	matchers := []*Matcher{}
 	s = strings.TrimPrefix(s, "{")
@@ -63,6 +81,22 @@ func ParseMatchers(s string) ([]*Matcher, error) {
 	return matchers, nil
 }
 
+// ParseMatcher parses a matcher with a syntax inspired by PromQL and
+// OpenMetrics. This syntax is convenient to describe filters and selectors in
+// UIs and config files. To support the interactive nature of the use cases, the
+// parser is in various aspects fairly tolerant.
+//
+// The syntax of a matcher consists of three tokens: (1) A valid Prometheus
+// label name. (2) One of '=', '!=', '=~', or '!~', with the same meaning as
+// known from PromQL selectors. (3) A UTF-8 string, which may be enclosed in
+// double quotes. Before or after each token, there may be any amount of
+// whitespace, which will be discarded. The 3rd token may be the empty
+// string. Within the 3rd token, OpenMetrics escaping rules apply: '\"' for a
+// double-quote, '\n' for a line feed, '\\' for a literal backslash. Unescaped
+// '"' must not occur inside the 3rd token (only as the 1st or last
+// character). However, literal line feed characters are tolerated, as are
+// single '\' characters not followed by '\', 'n', or '"'. They act as a literal
+// backslash in that case.
 func ParseMatcher(s string) (*Matcher, error) {
 	var (
 		name, value string
