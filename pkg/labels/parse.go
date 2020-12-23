@@ -38,7 +38,7 @@ var (
 // ParseMatchers parses a comma-separated list of Matchers. A leading '{' and/or
 // a trailing '}' is optional and will be trimmed before further
 // parsing. Individual Matchers are separated by commas outside of quoted parts
-// of the input string. Those commas may be followed by whitespace. Parts of the
+// of the input string. Those commas may be sorrounded by whitespace. Parts of the
 // string inside unescaped double quotes ('"…"') are considered quoted (and
 // commas don't act as separators there). If double quotes are escaped with a
 // single backslash ('\"'), they are ignored for the purpose of identifying
@@ -58,22 +58,35 @@ func ParseMatchers(s string) ([]*Matcher, error) {
 	s = strings.TrimPrefix(s, "{")
 	s = strings.TrimSuffix(s, "}")
 
-	var insideQuotes bool
-	var token string
-	var tokens []string
+	var (
+		insideQuotes bool
+		escaped      bool
+		token        strings.Builder
+		tokens       []string
+	)
 	for _, r := range s {
-		if !insideQuotes && r == ',' {
-			tokens = append(tokens, token)
-			token = ""
-			continue
+		switch r {
+		case ',':
+			if !insideQuotes {
+				tokens = append(tokens, token.String())
+				token.Reset()
+				continue
+			}
+		case '"':
+			if !escaped {
+				insideQuotes = !insideQuotes
+			} else {
+				escaped = false
+			}
+		case '\\':
+			escaped = !escaped
+		default:
+			escaped = false
 		}
-		token += string(r)
-		if r == '"' {
-			insideQuotes = !insideQuotes
-		}
+		token.WriteRune(r)
 	}
-	if token != "" {
-		tokens = append(tokens, token)
+	if s := strings.TrimSpace(token.String()); s != "" {
+		tokens = append(tokens, s)
 	}
 	for _, token := range tokens {
 		m, err := ParseMatcher(token)
