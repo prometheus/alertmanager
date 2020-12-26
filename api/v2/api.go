@@ -638,13 +638,28 @@ func sortSilences(sils open_api_models.GettableSilences) {
 	})
 }
 
+// gettableSilenceMatchesFilterLabels returns true if
+// a given silence matches a list of matchers.
+// A silence matches a filter (list of matchers) if
+// for all matchers in the filter, there exists a matcher in the silence
+// such that their names, types, and values are equivalent.
 func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, matchers []*labels.Matcher) bool {
-	sms := make(map[string]string)
-	for _, m := range s.Matchers {
-		sms[*m.Name] = *m.Value
+	for _, matcher := range matchers {
+		found := false
+		for _, m := range s.Matchers {
+			if matcher.Name == *m.Name &&
+				(matcher.Type == labels.MatchEqual && !*m.IsRegex || matcher.Type == labels.MatchRegexp && *m.IsRegex) &&
+				matcher.Value == *m.Value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
 	}
 
-	return matchFilterLabels(matchers, sms)
+	return true
 }
 
 func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middleware.Responder {
