@@ -130,6 +130,82 @@ func TestGetSilencesHandler(t *testing.T) {
 	}
 }
 
+func createModelMatcher(name string, value string, isRegex bool) *open_api_models.Matcher {
+	return &open_api_models.Matcher{
+		Name:    &name,
+		Value:   &value,
+		IsRegex: &isRegex,
+	}
+}
+
+func createLabelMatcher(name string, value string, matchType labels.MatchType) *labels.Matcher {
+	matcher, _ := labels.NewMatcher(matchType, name, value)
+	return matcher
+}
+
+func TestGettableSilenceMatchesFilterLabels(t *testing.T) {
+	type test struct {
+		silenceMatchers []*open_api_models.Matcher
+		filterMatchers  []*labels.Matcher
+		expected        bool
+	}
+
+	tests := []test{
+		{
+			[]*open_api_models.Matcher{createModelMatcher("label", "value", false)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
+			true,
+		},
+		{
+			[]*open_api_models.Matcher{createModelMatcher("label", "value", false)},
+			[]*labels.Matcher{createLabelMatcher("label", "novalue", labels.MatchEqual)},
+			false,
+		},
+		{
+			[]*open_api_models.Matcher{createModelMatcher("label", "(foo|bar)", true)},
+			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			true,
+		},
+		{
+			[]*open_api_models.Matcher{createModelMatcher("label", "foo", true)},
+			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			false,
+		},
+
+		{
+			[]*open_api_models.Matcher{createModelMatcher("label", "value", false)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchRegexp)},
+			false,
+		},
+		{
+			[]*open_api_models.Matcher{createModelMatcher("label", "value", true)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
+			false,
+		},
+
+		{
+			[]*open_api_models.Matcher{
+				createModelMatcher("label", "(foo|bar)", true),
+				createModelMatcher("label", "value", false),
+			},
+			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		silence := open_api_models.GettableSilence{
+			Silence: open_api_models.Silence{
+				Matchers: test.silenceMatchers,
+			},
+		}
+		actual := gettableSilenceMatchesFilterLabels(silence, test.filterMatchers)
+		if test.expected != actual {
+			t.Fatal("unexpected match result between silence and filter. expected:", test.expected, ", actual:", actual)
+		}
+	}
+}
+
 func convertDateTime(ts time.Time) *strfmt.DateTime {
 	dt := strfmt.DateTime(ts)
 	return &dt
