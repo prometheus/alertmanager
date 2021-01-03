@@ -139,7 +139,7 @@ func extendedFormatMatchers(matchers models.Matchers) string {
 
 func extendedFormatMatcher(matcher models.Matcher) string {
 	if *matcher.IsRegex {
-		return fmt.Sprintf("%s~=%s", *matcher.Name, *matcher.Value)
+		return fmt.Sprintf("%s=~%s", *matcher.Name, *matcher.Value)
 	}
 	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
 }
