@@ -24,7 +24,6 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // DefaultRouteOpts are the defaulting routing options which apply
@@ -46,7 +45,7 @@ type Route struct {
 
 	// Equality or regex matchers an alert has to fulfill to match
 	// this route.
-	Matchers types.Matchers
+	Matchers labels.Matchers
 
 	// If true, an alert matches further routes on the same level.
 	Continue bool
@@ -89,20 +88,35 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	}
 
 	// Build matchers.
-	var matchers types.Matchers
+	var matchers labels.Matchers
 
 	for ln, lv := range cr.Match {
-		matchers = append(matchers, types.NewMatcher(model.LabelName(ln), lv))
-	}
-	for ln, lv := range cr.MatchRE {
-		matchers = append(matchers, types.NewRegexMatcher(model.LabelName(ln), lv.Regexp))
-	}
-	for _, ln := range cr.RouteMatchers {
-		labelMatchers, _ := labels.ParseMatchers(ln)
-		for i := range labelMatchers {
-			matchers = append(matchers, types.NewRouteMatchers(labelMatchers[i].Type, labelMatchers[i].Name, labelMatchers[i].Value))
+		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
 		}
+		matchers = append(matchers, matcher)
 	}
+
+	for ln, lv := range cr.MatchRE {
+		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	// for ln, lv := range cr.RouteMatchers {
+	// 	fmt.Println(ln, lv)
+	// }
+	// for _, ln := range cr.RouteMatchers {
+	// 	labelMatchers, _ := labels.ParseMatchers(ln)
+	// 	for i := range labelMatchers {
+	// 		matchers = append(matchers, types.NewRouteMatchers(labelMatchers[i].Type, labelMatchers[i].Name, labelMatchers[i].Value))
+	// 	}
+	// }
 
 	sort.Sort(matchers)
 
@@ -130,7 +144,8 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 // Match does a depth-first left-to-right search through the route tree
 // and returns the matching routing nodes.
 func (r *Route) Match(lset model.LabelSet) []*Route {
-	if !r.Matchers.Match(lset) {
+
+	if !r.Matchers.Matches(lset) {
 		return nil
 	}
 

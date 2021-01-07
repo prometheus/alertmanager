@@ -16,6 +16,8 @@ package labels
 import (
 	"fmt"
 	"regexp"
+
+	"github.com/prometheus/common/model"
 )
 
 // MatchType is an enum for label matching types.
@@ -85,4 +87,32 @@ func (m *Matcher) Matches(s string) bool {
 		return !m.re.MatchString(s)
 	}
 	panic("labels.Matcher.Matches: invalid match type")
+}
+
+type Matchers []*Matcher
+
+func (ms Matchers) Len() int      { return len(ms) }
+func (ms Matchers) Swap(i, j int) { ms[i], ms[j] = ms[j], ms[i] }
+
+func (ms Matchers) Less(i, j int) bool {
+	if ms[i].Name > ms[j].Name {
+		return false
+	}
+	if ms[i].Name < ms[j].Name {
+		return true
+	}
+	if ms[i].Value > ms[j].Value {
+		return false
+	}
+	return ms[i].Value < ms[j].Value
+}
+
+// Matches checks whether all matchers are fulfilled against the given label set.
+func (ms Matchers) Matches(lset model.LabelSet) bool {
+	for _, m := range ms {
+		if !m.Matches(string(lset[model.LabelName(m.Name)])) {
+			return false
+		}
+	}
+	return true
 }

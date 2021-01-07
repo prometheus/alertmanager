@@ -19,18 +19,18 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/common/model"
 )
 
 // Matcher defines a matching rule for the value of a given label.
+//
+// TODO(asquare14): This is now only used for silences and might be replaced by labels.Matchers.
 type Matcher struct {
-	Type            labels.MatchType
-	Name            string `json:"name"`
-	Value           string `json:"value"`
-	IsRegex         bool   `json:"isRegex"`
-	NewRouteMatcher bool
-	regex           *regexp.Regexp
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+	IsRegex bool   `json:"isRegex"`
+
+	regex *regexp.Regexp
 }
 
 // Init internals of the Matcher. Must be called before using Match.
@@ -49,9 +49,6 @@ func (m *Matcher) Init() error {
 func (m *Matcher) String() string {
 	if m.IsRegex {
 		return fmt.Sprintf("%s=~%q", m.Name, m.Value)
-	}
-	if m.NewRouteMatcher {
-		return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 	}
 	return fmt.Sprintf("%s=%q", m.Name, m.Value)
 }
@@ -79,20 +76,8 @@ func (m *Matcher) Match(lset model.LabelSet) bool {
 	// for the comparison below.
 	v := lset[model.LabelName(m.Name)]
 
-	if !m.NewRouteMatcher && m.IsRegex {
+	if m.IsRegex {
 		return m.regex.MatchString(string(v))
-	}
-	if m.NewRouteMatcher {
-		switch m.Type {
-		case labels.MatchEqual:
-			return string(v) == m.Value
-		case labels.MatchNotEqual:
-			return string(v) != m.Value
-		case labels.MatchRegexp:
-			return m.regex.MatchString(string(v))
-		case labels.MatchNotRegexp:
-			return !m.regex.MatchString(string(v))
-		}
 	}
 	return string(v) == m.Value
 }
@@ -118,24 +103,6 @@ func NewRegexMatcher(name model.LabelName, re *regexp.Regexp) *Matcher {
 		IsRegex: true,
 		regex:   re,
 	}
-}
-
-// NewRouteMatchers returns a new matcher that compares values against values or regular expressions.
-func NewRouteMatchers(t labels.MatchType, n, v string) *Matcher {
-	m := &Matcher{
-		Type:            t,
-		Name:            string(n),
-		Value:           v,
-		NewRouteMatcher: true,
-	}
-	if t == labels.MatchRegexp || t == labels.MatchNotRegexp {
-		re, err := regexp.Compile("^(?:" + v + ")$")
-		if err != nil {
-			return nil
-		}
-		m.regex = re
-	}
-	return m
 }
 
 // Matchers provides the Match and Fingerprint methods for a slice of Matchers.
