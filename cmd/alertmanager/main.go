@@ -38,6 +38,8 @@ import (
 	promlogflag "github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/prometheus/exporter-toolkit/web"
+	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api"
@@ -184,6 +186,7 @@ func run() int {
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
+		webConfig      = webflag.AddFlags(kingpin.CommandLine)
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
 		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
 		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
@@ -478,12 +481,12 @@ func run() int {
 
 	mux := api.Register(router, *routePrefix)
 
-	srv := http.Server{Addr: *listenAddress, Handler: mux}
+	srv := &http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
 
 	go func() {
 		level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		if err := web.ListenAndServe(srv, *webConfig, logger); err != http.ErrServerClosed {
 			level.Error(logger).Log("msg", "Listen error", "err", err)
 			close(srvc)
 		}

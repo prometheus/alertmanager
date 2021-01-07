@@ -44,6 +44,14 @@ type BasicAuth struct {
 	PasswordFile string `yaml:"password_file,omitempty"`
 }
 
+// SetDirectory joins any relative file paths with dir.
+func (a *BasicAuth) SetDirectory(dir string) {
+	if a == nil {
+		return
+	}
+	a.PasswordFile = JoinDir(dir, a.PasswordFile)
+}
+
 // URL is a custom URL type that allows validation at configuration load time.
 type URL struct {
 	*url.URL
@@ -84,6 +92,16 @@ type HTTPClientConfig struct {
 	ProxyURL URL `yaml:"proxy_url,omitempty"`
 	// TLSConfig to use to connect to the targets.
 	TLSConfig TLSConfig `yaml:"tls_config,omitempty"`
+}
+
+// SetDirectory joins any relative file paths with dir.
+func (c *HTTPClientConfig) SetDirectory(dir string) {
+	if c == nil {
+		return
+	}
+	c.TLSConfig.SetDirectory(dir)
+	c.BasicAuth.SetDirectory(dir)
+	c.BearerTokenFile = JoinDir(dir, c.BearerTokenFile)
 }
 
 // Validate validates the HTTPClientConfig to check only one of BearerToken,
@@ -350,6 +368,16 @@ type TLSConfig struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// Disable target certificate validation.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+}
+
+// SetDirectory joins any relative file paths with dir.
+func (c *TLSConfig) SetDirectory(dir string) {
+	if c == nil {
+		return
+	}
+	c.CAFile = JoinDir(dir, c.CAFile)
+	c.CertFile = JoinDir(dir, c.CertFile)
+	c.KeyFile = JoinDir(dir, c.KeyFile)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
