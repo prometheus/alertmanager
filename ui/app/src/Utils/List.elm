@@ -52,12 +52,26 @@ replaceIndex index replacement list =
 mstring : Matcher -> String
 mstring m =
     let
+        isEqual =
+            case m.isEqual of
+                Nothing ->
+                    True
+
+                Just value ->
+                    value
+
         sep =
-            if m.isRegex then
+            if not m.isRegex && isEqual then
+                "="
+
+            else if not m.isRegex && not isEqual then
+                "!="
+
+            else if m.isRegex && isEqual then
                 "=~"
 
             else
-                "="
+                "!~"
     in
     String.join sep [ m.name, m.value ]
 

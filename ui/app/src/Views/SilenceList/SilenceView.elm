@@ -78,12 +78,26 @@ dateView string time =
 matcherButton : Matcher -> Html Msg
 matcherButton matcher =
     let
+        isEqual =
+            case matcher.isEqual of
+                Nothing ->
+                    True
+
+                Just value ->
+                    value
+
         op =
-            if matcher.isRegex then
+            if not matcher.isRegex && isEqual then
+                Utils.Filter.Eq
+
+            else if not matcher.isRegex && not isEqual then
+                Utils.Filter.NotEq
+
+            else if matcher.isRegex && isEqual then
                 Utils.Filter.RegexMatch
 
             else
-                Utils.Filter.Eq
+                Utils.Filter.NotRegexMatch
 
         msg =
             FilterBarTypes.AddFilterMatcher False

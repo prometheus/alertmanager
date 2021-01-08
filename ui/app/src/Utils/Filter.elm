@@ -142,15 +142,32 @@ type alias Matcher =
 
 
 convertAPIMatcher : Data.Matcher.Matcher -> Matcher
-convertAPIMatcher { name, value, isRegex } =
+convertAPIMatcher { name, value, isRegex, isEqual } =
+    let
+        isEqualValue =
+            case isEqual of
+                Nothing ->
+                    True
+
+                Just justIsEqual ->
+                    justIsEqual
+
+        op =
+            if not isRegex && isEqualValue then
+                Eq
+
+            else if not isRegex && not isEqualValue then
+                NotEq
+
+            else if isRegex && isEqualValue then
+                RegexMatch
+
+            else
+                NotRegexMatch
+    in
     { key = name
     , value = value
-    , op =
-        if isRegex then
-            RegexMatch
-
-        else
-            Eq
+    , op = op
     }
 
 
@@ -238,7 +255,8 @@ convertFilterMatcher : Matcher -> Data.Matcher.Matcher
 convertFilterMatcher { key, op, value } =
     { name = key
     , value = value
-    , isRegex = op == RegexMatch
+    , isRegex = (op == RegexMatch) || (op == NotRegexMatch)
+    , isEqual = Just ((op == Eq) || (op == RegexMatch))
     }
 
 

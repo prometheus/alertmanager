@@ -62,6 +62,7 @@ type alias MatcherForm =
     { name : ValidatedField
     , value : ValidatedField
     , isRegex : Bool
+    , isEqual : Maybe Bool
     }
 
 
@@ -183,10 +184,11 @@ parseEndsAt startsAt endsAt =
 
 
 validateMatcherForm : MatcherForm -> MatcherForm
-validateMatcherForm { name, value, isRegex } =
+validateMatcherForm { name, value, isRegex, isEqual } =
     { name = validate stringNotEmpty name
     , value = value
     , isRegex = isRegex
+    , isEqual = isEqual
     }
 
 
@@ -207,6 +209,7 @@ empty =
 emptyMatcher : MatcherForm
 emptyMatcher =
     { isRegex = False
+    , isEqual = Just True
     , name = initialField ""
     , value = initialField ""
     }
@@ -239,31 +242,33 @@ fromMatchersAndCommentAndTime defaultCreator matchers comment now =
 
 
 appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (List Matcher)
-appendMatcher { isRegex, name, value } =
+appendMatcher { isRegex, isEqual, name, value } =
     Result.map2 (::)
-        (Result.map2 (\k v -> Matcher k v isRegex) (stringNotEmpty name.value) (Ok value.value))
+        (Result.map2 (\k v -> Matcher k v isRegex isEqual) (stringNotEmpty name.value) (Ok value.value))
 
 
 filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher
 filterMatcherToMatcher { key, op, value } =
-    Maybe.map (\operator -> Matcher key value operator) <|
-        case op of
-            Utils.Filter.Eq ->
-                Just False
+    case op of
+        Utils.Filter.Eq ->
+            Maybe.map2 (\isRegex isEqual -> Matcher key value isRegex isEqual) (Just False) (Just (Just True))
 
-            Utils.Filter.RegexMatch ->
-                Just True
+        Utils.Filter.RegexMatch ->
+            Maybe.map2 (\isRegex isEqual -> Matcher key value isRegex isEqual) (Just True) (Just (Just True))
 
-            -- we don't support negative matchers
-            _ ->
-                Nothing
+        Utils.Filter.NotRegexMatch ->
+            Maybe.map2 (\isRegex isEqual -> Matcher key value isRegex isEqual) (Just True) (Just (Just False))
+
+        Utils.Filter.NotEq ->
+            Maybe.map2 (\isRegex isEqual -> Matcher key value isRegex isEqual) (Just False) (Just (Just False))
 
 
 fromMatcher : Matcher -> MatcherForm
-fromMatcher { name, value, isRegex } =
+fromMatcher { name, value, isRegex, isEqual } =
     { name = initialField name
     , value = initialField value
     , isRegex = isRegex
+    , isEqual = isEqual
     }
 
 

@@ -39,14 +39,28 @@ newSilenceFromMatchers : List Data.Matcher.Matcher -> String
 newSilenceFromMatchers matchers =
     matchers
         |> List.map
-            (\{ name, value, isRegex } ->
+            (\{ name, value, isRegex, isEqual } ->
                 let
+                    isEqualValue =
+                        case isEqual of
+                            Nothing ->
+                                True
+
+                            Just justIsEqual ->
+                                justIsEqual
+
                     op =
-                        if isRegex then
+                        if not isRegex && isEqualValue then
+                            Utils.Filter.Eq
+
+                        else if not isRegex && not isEqualValue then
+                            Utils.Filter.NotEq
+
+                        else if isRegex && isEqualValue then
                             Utils.Filter.RegexMatch
 
                         else
-                            Utils.Filter.Eq
+                            Utils.Filter.NotRegexMatch
                 in
                 Utils.Filter.Matcher name op value
             )
