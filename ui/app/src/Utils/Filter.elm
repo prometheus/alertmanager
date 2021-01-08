@@ -238,7 +238,8 @@ convertFilterMatcher : Matcher -> Data.Matcher.Matcher
 convertFilterMatcher { key, op, value } =
     { name = key
     , value = value
-    , isRegex = op == RegexMatch
+    , isRegex = (op == RegexMatch) || (op == NotRegexMatch)
+    , isEqual = Just ((op == Eq) || (op == RegexMatch))
     }
 
 
