@@ -28,6 +28,8 @@ func TestClusterDeduplication(t *testing.T) {
 	t.Parallel()
 
 	conf := `
+global:
+  resolve_timeout: 2s
 route:
   receiver: "default"
   group_by: []
@@ -51,7 +53,15 @@ receivers:
 
 	amc.Push(a.At(1), a.Alert("alertname", "test1"))
 
+	// expect alert
 	co.Want(a.Between(2, 3), a.Alert("alertname", "test1").Active(1))
+
+	// expect resolve
+	co.Want(a.Between(3, 4), a.Alert("alertname", "test1").Active(1, 3))
+
+	// create an alert at 40, to wait for eventually delayed notifications
+	amc.Push(a.At(40), a.Alert("alertname", "test2"))
+	co.Want(a.Between(41, 42), a.Alert("alertname", "test2").Active(40))
 
 	at.Run()
 
