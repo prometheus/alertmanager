@@ -117,6 +117,9 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 
-	_, err = amclient.Alert.PostAlerts(alertParams)
-	return err
+	if _, err = amclient.Alert.PostAlerts(alertParams); err != nil {
+		return err
+	}
+
+	return nil
 }

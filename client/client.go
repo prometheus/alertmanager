@@ -238,8 +238,11 @@ func (h *httpAlertAPI) Push(ctx context.Context, alerts ...Alert) error {
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, _, err = h.client.Do(ctx, req)
-	return err
+	if _, _, err = h.client.Do(ctx, req); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SilenceAPI provides bindings for the Alertmanager's silence API.
@@ -294,8 +297,11 @@ func (h *httpSilenceAPI) Expire(ctx context.Context, id string) error {
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	_, _, err = h.client.Do(ctx, req)
-	return err
+	if _, _, err = h.client.Do(ctx, req); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (h *httpSilenceAPI) Set(ctx context.Context, sil types.Silence) (string, error) {
@@ -319,9 +325,12 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil types.Silence) (string, er
 	var res struct {
 		SilenceID string `json:"silenceId"`
 	}
-	err = json.Unmarshal(body, &res)
 
-	return res.SilenceID, err
+	if err = json.Unmarshal(body, &res); err != nil {
+		return "", err
+	}
+
+	return res.SilenceID, nil
 }
 
 func (h *httpSilenceAPI) List(ctx context.Context, filter string) ([]*types.Silence, error) {
@@ -343,7 +352,9 @@ func (h *httpSilenceAPI) List(ctx context.Context, filter string) ([]*types.Sile
 	}
 
 	var sils []*types.Silence
-	err = json.Unmarshal(body, &sils)
+	if err = json.Unmarshal(body, &sils); err != nil {
+		return nil, err
+	}
 
-	return sils, err
+	return sils, nil
 }

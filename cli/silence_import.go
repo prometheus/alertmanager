@@ -90,8 +90,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 
 	dec := json.NewDecoder(input)
 	// read open square bracket
-	_, err = dec.Token()
-	if err != nil {
+	if _, err = dec.Token(); err != nil {
 		return errors.Wrap(err, "couldn't unmarshal input data, is it JSON?")
 	}
 
@@ -103,7 +102,7 @@ func (c *silenceImportCmd) bulkImport(ctx context.Context, _ *kingpin.ParseConte
 		wg.Add(1)
 		go func() {
 			addSilenceWorker(ctx, amclient.Silence, silencec, errc)
-			wg.Done()
+			defer wg.Done()
 		}()
 	}
 

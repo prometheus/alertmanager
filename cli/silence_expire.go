@@ -45,8 +45,7 @@ func (c *silenceExpireCmd) expire(ctx context.Context, _ *kingpin.ParseContext) 
 	for _, id := range c.ids {
 		params := silence.NewDeleteSilenceParams().WithContext(ctx)
 		params.SilenceID = strfmt.UUID(id)
-		_, err := amclient.Silence.DeleteSilence(params)
-		if err != nil {
+		if _, err := amclient.Silence.DeleteSilence(params); err != nil {
 			return err
 		}
 	}

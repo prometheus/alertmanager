@@ -29,11 +29,11 @@ import (
 )
 
 func username() string {
-	user, err := user.Current()
-	if err != nil {
-		return ""
+	if user, err := user.Current(); err == nil {
+		return user.Username
 	}
-	return user.Username
+
+	return ""
 }
 
 type silenceAddCmd struct {
@@ -169,6 +169,9 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Println(postOk.Payload.SilenceID)
-	return err
+	if _, err = fmt.Println(postOk.Payload.SilenceID); err != nil {
+		return err
+	}
+
+	return nil
 }
