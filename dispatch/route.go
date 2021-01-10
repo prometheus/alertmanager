@@ -108,15 +108,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		matchers = append(matchers, matcher)
 	}
 
-	// for ln, lv := range cr.RouteMatchers {
-	// 	fmt.Println(ln, lv)
-	// }
-	// for _, ln := range cr.RouteMatchers {
-	// 	labelMatchers, _ := labels.ParseMatchers(ln)
-	// 	for i := range labelMatchers {
-	// 		matchers = append(matchers, types.NewRouteMatchers(labelMatchers[i].Type, labelMatchers[i].Name, labelMatchers[i].Value))
-	// 	}
-	// }
+	matchers = append(matchers, cr.Matchers...)
 
 	sort.Sort(matchers)
 

@@ -713,7 +713,6 @@ type MatchRegexps map[string]Regexp
 // UnmarshalYAML implements the yaml.Unmarshaler interface for MatchRegexps.
 func (m *MatchRegexps) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain MatchRegexps
-
 	if err := unmarshal((*plain)(m)); err != nil {
 		return err
 	}
@@ -725,7 +724,6 @@ func (m *MatchRegexps) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return fmt.Errorf("invalid regexp value for %q", k)
 		}
 	}
-	fmt.Println(m, "hey")
 	return nil
 }
 
@@ -750,7 +748,7 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-type Matchers []labels.Matchers
+type Matchers labels.Matchers
 
 func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
@@ -758,28 +756,19 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&lines); err != nil {
 		return err
 	}
-
 	for _, line := range lines {
 		labelMatchers, err := labels.ParseMatchers(line)
 		if err != nil {
 			return err
 		}
 		for i := range labelMatchers {
-			if labelMatchers[i].Type == labels.MatchRegexp || labelMatchers[i].Type == labels.MatchNotRegexp {
-				re, err := regexp.Compile("^(?:" + labelMatchers[i].Value + ")$")
-				if err != nil {
-					return err
-				}
-				fmt.Println(re)
+			matchers, err := labels.NewMatcher(labelMatchers[i].Type, labelMatchers[i].Name, labelMatchers[i].Value)
+			if err != nil {
+				return err
 			}
+			*m = append(*m, matchers)
 		}
 	}
-	// regex, err := regexp.Compile("^(?:" + s + ")$")
-	// if err != nil {
-	// 	return err
-	// }
-	// *mt = s
-	fmt.Println(m, "hello")
 	return nil
 }
 
