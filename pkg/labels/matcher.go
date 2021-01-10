@@ -14,6 +14,7 @@
 package labels
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 
@@ -115,4 +116,19 @@ func (ms Matchers) Matches(lset model.LabelSet) bool {
 		}
 	}
 	return true
+}
+
+func (ms Matchers) String() string {
+	var buf bytes.Buffer
+
+	buf.WriteByte('{')
+	for i, m := range ms {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		buf.WriteString(m.String())
+	}
+	buf.WriteByte('}')
+
+	return buf.String()
 }
