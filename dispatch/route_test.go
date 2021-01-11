@@ -384,18 +384,17 @@ routes:
 	require.Equal(t, child2.RouteOpts.GroupByAll, false)
 }
 
-// TODO(asquare14) : Add test for negative matchers
 func TestRouteMatchers(t *testing.T) {
 	in := `
 receiver: 'notify-def'
 
 routes:
-- matchers: ['{owner="team-A"}']
+- matchers: ['{owner="team-A"}', '{level!="critical"}']
 
   receiver: 'notify-A'
 
   routes:
-  - matchers: ['{env="testing"}']
+  - matchers: ['{env="testing"}', '{baz!~".*quux"}']
 
     receiver: 'notify-testing'
     group_by: [...]
@@ -468,7 +467,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -485,7 +484,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -518,7 +517,7 @@ routes:
 					RepeatInterval: def.RepeatInterval,
 				},
 			},
-			keys: []string{"{}/{owner=\"team-A\"}/{env=\"testing\"}"},
+			keys: []string{"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}"},
 		},
 		{
 			input: model.LabelSet{
@@ -544,8 +543,8 @@ routes:
 				},
 			},
 			keys: []string{
-				"{}/{owner=\"team-A\"}/{env=\"production\"}",
-				"{}/{owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}",
+				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}",
+				"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}",
 			},
 		},
 		{
