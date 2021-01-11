@@ -132,3 +132,27 @@ func (ms Matchers) String() string {
 
 	return buf.String()
 }
+
+// Match checks whether the label of the matcher has the specified
+// matching value.
+func (m *Matcher) Match(lset model.LabelSet) bool {
+	// Unset labels are treated as unset labels globally. Thus, if a
+	// label is not set we retrieve the empty label which is correct
+	// for the comparison below.
+	v := lset[model.LabelName(m.Name)]
+
+	if m.Type == MatchNotRegexp || m.Type == MatchRegexp {
+		return m.re.MatchString(string(v))
+	}
+	return string(v) == m.Value
+}
+
+// Match checks whether all matchers are fulfilled against the given label set.
+func (ms Matchers) Match(lset model.LabelSet) bool {
+	for _, m := range ms {
+		if !m.Match(lset) {
+			return false
+		}
+	}
+	return true
+}
