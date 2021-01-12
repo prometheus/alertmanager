@@ -24,7 +24,7 @@ import (
 
 // Matcher defines a matching rule for the value of a given label.
 //
-// TODO(asquare14): This is now only used for silences and might be replaced by labels.Matchers.
+// TODO(asquare14): This is now only used for silences and inhibitions and will be replaced by labels.Matchers.
 type Matcher struct {
 	Name    string `json:"name"`
 	Value   string `json:"value"`

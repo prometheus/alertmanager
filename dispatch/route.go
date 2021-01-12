@@ -43,7 +43,7 @@ type Route struct {
 	// The configuration parameters for matches of this route.
 	RouteOpts RouteOpts
 
-	// Equality or regex matchers an alert has to fulfill to match
+	// Matchers an alert has to fulfill to match
 	// this route.
 	Matchers labels.Matchers
 
@@ -90,6 +90,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	// Build matchers.
 	var matchers labels.Matchers
 
+	// cr.Match will be deprecated. This for loop appends matchers.
 	for ln, lv := range cr.Match {
 		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
 		if err != nil {
@@ -99,6 +100,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		matchers = append(matchers, matcher)
 	}
 
+	// cr.MatchRE will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.MatchRE {
 		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
 		if err != nil {
@@ -108,6 +110,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 		matchers = append(matchers, matcher)
 	}
 
+	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	matchers = append(matchers, cr.Matchers...)
 
 	sort.Sort(matchers)
@@ -136,7 +139,6 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 // Match does a depth-first left-to-right search through the route tree
 // and returns the matching routing nodes.
 func (r *Route) Match(lset model.LabelSet) []*Route {
-
 	if !r.Matchers.Matches(lset) {
 		return nil
 	}

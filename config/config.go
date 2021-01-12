@@ -25,10 +25,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/prometheus/alertmanager/pkg/labels"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
+
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 const secretToken = "<secret>"
@@ -577,12 +578,13 @@ type Route struct {
 	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
 	GroupBy    []model.LabelName `yaml:"-" json:"-"`
 	GroupByAll bool              `yaml:"-" json:"-"`
-
-	Match    map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
-	MatchRE  MatchRegexps      `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	Matchers Matchers          `yaml:"matchers,omitempty" json:"matchers,omitempty"`
-	Continue bool              `yaml:"continue" json:"continue,omitempty"`
-	Routes   []*Route          `yaml:"routes,omitempty" json:"routes,omitempty"`
+	// Deprecated. Remove before v1.0 release.
+	Match map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
+	// Deprecated. Remove before v1.0 release.
+	MatchRE  MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Matchers Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	Continue bool         `yaml:"continue" json:"continue,omitempty"`
+	Routes   []*Route     `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
@@ -748,28 +750,21 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// Matchers encapsulates labels.Matchers and makes it YAML marshalable.
+// Matchers is label.Matchers with an added UnmarshalYAML method to implement the yaml.Unmarshaler interface.
 type Matchers labels.Matchers
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
 func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
-
 	var lines []string
 	if err := unmarshal(&lines); err != nil {
 		return err
 	}
 	for _, line := range lines {
-		labelMatchers, err := labels.ParseMatchers(line)
+		pm, err := labels.ParseMatchers(line)
 		if err != nil {
 			return err
 		}
-		for _, matcher := range labelMatchers {
-			matchers, err := labels.NewMatcher(matcher.Type, matcher.Name, matcher.Value)
-			if err != nil {
-				return err
-			}
-			*m = append(*m, matchers)
-		}
+		*m = append(*m, pm...)
 	}
 	return nil
 }
