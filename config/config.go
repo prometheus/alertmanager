@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -766,6 +767,7 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 		*m = append(*m, pm...)
 	}
+	sort.Sort(labels.Matchers(*m))
 	return nil
 }
 
