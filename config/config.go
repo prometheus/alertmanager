@@ -14,6 +14,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -751,26 +752,6 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// Matchers is label.Matchers with an added UnmarshalYAML method to implement the yaml.Unmarshaler interface.
-type Matchers labels.Matchers
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
-func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var lines []string
-	if err := unmarshal(&lines); err != nil {
-		return err
-	}
-	for _, line := range lines {
-		pm, err := labels.ParseMatchers(line)
-		if err != nil {
-			return err
-		}
-		*m = append(*m, pm...)
-	}
-	sort.Sort(labels.Matchers(*m))
-	return nil
-}
-
 // MarshalYAML implements the yaml.Marshaler interface for Regexp.
 func (re Regexp) MarshalYAML() (interface{}, error) {
 	if re.original != "" {
@@ -800,4 +781,40 @@ func (re Regexp) MarshalJSON() ([]byte, error) {
 		return json.Marshal(re.original)
 	}
 	return nil, nil
+}
+
+// Matchers is label.Matchers with an added UnmarshalYAML method to implement the yaml.Unmarshaler interface.
+type Matchers labels.Matchers
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
+func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var lines []string
+	if err := unmarshal(&lines); err != nil {
+		return err
+	}
+	for _, line := range lines {
+		pm, err := labels.ParseMatchers(line)
+		if err != nil {
+			return err
+		}
+		*m = append(*m, pm...)
+	}
+	sort.Sort(labels.Matchers(*m))
+	return nil
+}
+
+// MarshalYAML implements the yaml.Marshaler interface for Matchers.
+func (m *Matchers) MarshalYAML() (interface{}, error) {
+	var buf bytes.Buffer
+
+	buf.WriteByte('{')
+	for i, ms := range *m {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		buf.WriteString(ms.String())
+	}
+	buf.WriteByte('}')
+
+	return buf.String(), nil
 }
