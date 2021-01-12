@@ -748,8 +748,10 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// Matchers encapsulates labels.Matchers and makes it YAML marshalable.
 type Matchers labels.Matchers
 
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
 func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	var lines []string
@@ -761,8 +763,8 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if err != nil {
 			return err
 		}
-		for i := range labelMatchers {
-			matchers, err := labels.NewMatcher(labelMatchers[i].Type, labelMatchers[i].Name, labelMatchers[i].Value)
+		for _, matcher := range labelMatchers {
+			matchers, err := labels.NewMatcher(matcher.Type, matcher.Name, matcher.Value)
 			if err != nil {
 				return err
 			}
