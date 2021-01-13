@@ -618,7 +618,7 @@ routes:
 	}
 }
 
-func TestRouteMatchersAndMacth(t *testing.T) {
+func TestRouteMatchersAndMatch(t *testing.T) {
 	in := `
 receiver: 'notify-def'
 

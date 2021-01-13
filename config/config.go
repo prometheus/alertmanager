@@ -14,7 +14,6 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -783,7 +782,8 @@ func (re Regexp) MarshalJSON() ([]byte, error) {
 	return nil, nil
 }
 
-// Matchers is label.Matchers with an added UnmarshalYAML method to implement the yaml.Unmarshaler interface.
+// Matchers is label.Matchers with an added UnmarshalYAML method to implement the yaml.Unmarshaler interface
+// and MarshalYAML to implement the yaml.Marshaler interface.
 type Matchers labels.Matchers
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
@@ -804,17 +804,10 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface for Matchers.
-func (m *Matchers) MarshalYAML() (interface{}, error) {
-	var buf bytes.Buffer
-
-	buf.WriteByte('{')
-	for i, ms := range *m {
-		if i > 0 {
-			buf.WriteByte(',')
-		}
-		buf.WriteString(ms.String())
+func (m Matchers) MarshalYAML() (interface{}, error) {
+	result := make([]string, len(m))
+	for i, matcher := range m {
+		result[i] = matcher.String()
 	}
-	buf.WriteByte('}')
-
-	return buf.String(), nil
+	return result, nil
 }
