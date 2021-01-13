@@ -90,7 +90,7 @@ func (m *Matcher) Matches(s string) bool {
 
 // openMetricsEscape is similar to the usual string escaping, but more
 // restricted. It merely replaces a new-line character with '\n', a double-quote
-// character with '\"', and a backslack with '\\', which is the escaping used by
+// character with '\"', and a backslash with '\\', which is the escaping used by
 // OpenMetrics.
 func openMetricsEscape(s string) string {
 	r := strings.NewReplacer(

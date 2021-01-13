@@ -38,7 +38,7 @@ var (
 // ParseMatchers parses a comma-separated list of Matchers. A leading '{' and/or
 // a trailing '}' is optional and will be trimmed before further
 // parsing. Individual Matchers are separated by commas outside of quoted parts
-// of the input string. Those commas may be sorrounded by whitespace. Parts of the
+// of the input string. Those commas may be surrounded by whitespace. Parts of the
 // string inside unescaped double quotes ('"…"') are considered quoted (and
 // commas don't act as separators there). If double quotes are escaped with a
 // single backslash ('\"'), they are ignored for the purpose of identifying
@@ -49,10 +49,11 @@ var (
 // Examples for valid input strings:
 //   {foo = "bar", dings != "bums", }
 //   foo=bar,dings!=bums
+//   foo=bar, dings!=bums
 //   {quote="She said: \"Hi, ladies! That's gender-neutral…\""}
 //   statuscode=~"5.."
 //
-// See ParseMatcher for details how an individual Matcher is parsed.
+// See ParseMatcher for details on how an individual Matcher is parsed.
 func ParseMatchers(s string) ([]*Matcher, error) {
 	matchers := []*Matcher{}
 	s = strings.TrimPrefix(s, "{")
