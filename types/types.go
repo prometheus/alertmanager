@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 )
@@ -409,7 +410,7 @@ type Silence struct {
 	ID string `json:"id"`
 	// A set of matchers determining if a label set is affect
 	// by the silence.
-	Matchers Matchers `json:"matchers"`
+	Matchers labels.Matchers `json:"matchers"`
 
 	// Time range of the silence.
 	//

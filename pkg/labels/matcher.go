@@ -152,3 +152,11 @@ func (ms Matchers) String() string {
 
 	return buf.String()
 }
+
+// NewRegexpMatcher returns a matcher with already compiled regexp.Regexp.
+//
+// TODO(vladimiroff): Get rid of this function once migration from
+// types.Matcher is complete.
+func NewRegexpMatcher(n string, re *regexp.Regexp) *Matcher {
+	return &Matcher{Type: MatchRegexp, Name: n, Value: re.String(), re: re}
+}
