@@ -122,3 +122,72 @@ func TestMatcher(t *testing.T) {
 		}
 	}
 }
+
+func TestMatcherString(t *testing.T) {
+	tests := []struct {
+		name  string
+		op    MatchType
+		value string
+		want  string
+	}{
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `bar`,
+			want:  `foo="bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotEqual,
+			value: `bar`,
+			want:  `foo!="bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchRegexp,
+			value: `bar`,
+			want:  `foo=~"bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotRegexp,
+			value: `bar`,
+			want:  `foo!~"bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `back\slash`,
+			want:  `foo="back\\slash"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `double"quote`,
+			want:  `foo="double\"quote"`,
+		},
+		{
+			name: `foo`,
+			op:   MatchEqual,
+			value: `new
+line`,
+			want: `foo="new\nline"`,
+		},
+		{
+			name: `foo`,
+			op:   MatchEqual,
+			value: `tab	stop`,
+			want: `foo="tab	stop"`,
+		},
+	}
+
+	for _, test := range tests {
+		m, err := NewMatcher(test.op, test.name, test.value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := m.String(); got != test.want {
+			t.Errorf("Unexpected string representation of matcher; want %v, got %v", test.want, got)
+		}
+	}
+}
