@@ -105,7 +105,13 @@ func (ms Matchers) Less(i, j int) bool {
 	if ms[i].Value > ms[j].Value {
 		return false
 	}
-	return ms[i].Value < ms[j].Value
+	if ms[i].Value < ms[j].Value {
+		return true
+	}
+	if ms[i].Type > ms[j].Type {
+		return false
+	}
+	return ms[i].Type < ms[j].Type
 }
 
 // Matches checks whether all matchers are fulfilled against the given label set.
