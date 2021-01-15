@@ -108,9 +108,6 @@ func (ms Matchers) Less(i, j int) bool {
 	if ms[i].Value < ms[j].Value {
 		return true
 	}
-	if ms[i].Type > ms[j].Type {
-		return false
-	}
 	return ms[i].Type < ms[j].Type
 }
 
