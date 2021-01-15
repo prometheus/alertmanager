@@ -14,9 +14,12 @@
 package labels
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/prometheus/common/model"
 )
 
 // MatchType is an enum for label matching types.
@@ -99,4 +102,50 @@ func openMetricsEscape(s string) string {
 		`"`, `\"`,
 	)
 	return r.Replace(s)
+}
+
+type Matchers []*Matcher
+
+func (ms Matchers) Len() int      { return len(ms) }
+func (ms Matchers) Swap(i, j int) { ms[i], ms[j] = ms[j], ms[i] }
+
+func (ms Matchers) Less(i, j int) bool {
+	if ms[i].Name > ms[j].Name {
+		return false
+	}
+	if ms[i].Name < ms[j].Name {
+		return true
+	}
+	if ms[i].Value > ms[j].Value {
+		return false
+	}
+	if ms[i].Value < ms[j].Value {
+		return true
+	}
+	return ms[i].Type < ms[j].Type
+}
+
+// Matches checks whether all matchers are fulfilled against the given label set.
+func (ms Matchers) Matches(lset model.LabelSet) bool {
+	for _, m := range ms {
+		if !m.Matches(string(lset[model.LabelName(m.Name)])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (ms Matchers) String() string {
+	var buf bytes.Buffer
+
+	buf.WriteByte('{')
+	for i, m := range ms {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		buf.WriteString(m.String())
+	}
+	buf.WriteByte('}')
+
+	return buf.String()
 }
