@@ -16,6 +16,7 @@ package labels
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // MatchType is an enum for label matching types.
@@ -69,7 +70,7 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 }
 
 func (m *Matcher) String() string {
-	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
+	return fmt.Sprintf(`%s%s"%s"`, m.Name, m.Type, openMetricsEscape(m.Value))
 }
 
 // Matches returns whether the matcher matches the given string value.
@@ -85,4 +86,17 @@ func (m *Matcher) Matches(s string) bool {
 		return !m.re.MatchString(s)
 	}
 	panic("labels.Matcher.Matches: invalid match type")
+}
+
+// openMetricsEscape is similar to the usual string escaping, but more
+// restricted. It merely replaces a new-line character with '\n', a double-quote
+// character with '\"', and a backslash with '\\', which is the escaping used by
+// OpenMetrics.
+func openMetricsEscape(s string) string {
+	r := strings.NewReplacer(
+		`\`, `\\`,
+		"\n", `\n`,
+		`"`, `\"`,
+	)
+	return r.Replace(s)
 }
