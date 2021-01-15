@@ -104,6 +104,9 @@ func openMetricsEscape(s string) string {
 	return r.Replace(s)
 }
 
+// Matchers is a slice of Matchers that is sortable, implements Stringer, and
+// provides a Matches method to match a LabelSet against all Matchers in the
+// slice. Note that some users of Matchers might require it to be sorted.
 type Matchers []*Matcher
 
 func (ms Matchers) Len() int      { return len(ms) }
