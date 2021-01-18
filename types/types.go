@@ -408,7 +408,7 @@ func (f MuteFunc) Mutes(lset model.LabelSet) bool { return f(lset) }
 type Silence struct {
 	// A unique identifier across all connected instances.
 	ID string `json:"id"`
-	// A set of matchers determining if a label set is affect
+	// A set of matchers determining if a label set is affected
 	// by the silence.
 	Matchers labels.Matchers `json:"matchers"`
 
