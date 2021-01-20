@@ -238,7 +238,7 @@ func TestInhibitRuleMatchers(t *testing.T) {
 
 	rule1 := config.InhibitRule{
 		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
-		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t1", Value: "1"}},
+		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
 		Equal:          model.LabelNames{"e"},
 	}
 	rule2 := config.InhibitRule{
@@ -279,7 +279,7 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		{
 			// Matches target filter of rule1, inhibited.
 			target:   model.LabelSet{"t1": "1", "e": "1"},
-			expected: true,
+			expected: false,
 		},
 		{
 			// Matches target filter of rule2, inhibited.
@@ -289,7 +289,7 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		{
 			// Matches target filter of rule1 (plus noise), inhibited.
 			target:   model.LabelSet{"t1": "1", "t3": "1", "e": "1"},
-			expected: true,
+			expected: false,
 		},
 		{
 			// Matches target filter of rule1 plus rule2, inhibited.
@@ -299,21 +299,21 @@ func TestInhibitRuleMatchers(t *testing.T) {
 		{
 			// Doesn't match target filter, not inhibited.
 			target:   model.LabelSet{"t1": "0", "e": "1"},
-			expected: false,
+			expected: true,
 		},
 		{
 			// Matches both source and target filters of rule1,
 			// inhibited because sourceAlert1 matches only the
 			// source filter of rule1.
 			target:   model.LabelSet{"s1": "1", "t1": "1", "e": "1"},
-			expected: true,
+			expected: false,
 		},
 		{
 			// Matches both source and target filters of rule2,
 			// not inhibited because sourceAlert2 matches also both the
 			// source and target filter of rule2.
 			target:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
-			expected: false,
+			expected: true,
 		},
 		{
 			// Matches target filter, equal label doesn't match, not inhibited
