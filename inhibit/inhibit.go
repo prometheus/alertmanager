@@ -173,30 +173,42 @@ func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
 	)
 	// cr.SourceMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.SourceMatch {
-		sourcem = append(sourcem, &labels.Matcher{
-			Type:  labels.MatchEqual,
-			Name:  ln,
-			Value: lv,
-		})
+		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		sourcem = append(sourcem, matcher)
 	}
 	// cr.SourceMatchRE will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.SourceMatchRE {
-		sourcem = append(sourcem, labels.NewRegexpMatcher(ln, lv.Regexp))
+		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		sourcem = append(sourcem, matcher)
 	}
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	sourcem = append(sourcem, cr.SourceMatchers...)
 
 	// cr.TargetMatch will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatch {
-		targetm = append(targetm, &labels.Matcher{
-			Type:  labels.MatchEqual,
-			Name:  ln,
-			Value: lv,
-		})
+		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		targetm = append(targetm, matcher)
 	}
 	// cr.TargetMatchRE will be deprecated. This for loop appends regex matchers.
 	for ln, lv := range cr.TargetMatchRE {
-		targetm = append(targetm, labels.NewRegexpMatcher(ln, lv.Regexp))
+		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		targetm = append(targetm, matcher)
 	}
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	targetm = append(targetm, cr.TargetMatchers...)
