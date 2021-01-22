@@ -15,6 +15,7 @@ package labels
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -89,6 +90,49 @@ func (m *Matcher) Matches(s string) bool {
 		return !m.re.MatchString(s)
 	}
 	panic("labels.Matcher.Matches: invalid match type")
+}
+
+type apiV1Matcher struct {
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+	IsRegex bool   `json:"isRegex"`
+	IsEqual bool   `json:"isEqual"`
+}
+
+// MarshalJSON retains backwards compatibility with types.Matcher for the v1 API.
+func (m Matcher) MarshalJSON() ([]byte, error) {
+	return json.Marshal(apiV1Matcher{
+		Name:    m.Name,
+		Value:   m.Value,
+		IsRegex: m.Type == MatchRegexp || m.Type == MatchNotRegexp,
+		IsEqual: m.Type == MatchRegexp || m.Type == MatchEqual,
+	})
+}
+
+func (m *Matcher) UnmarshalJSON(data []byte) error {
+	var v1m apiV1Matcher
+	if err := json.Unmarshal(data, &v1m); err != nil {
+		return err
+	}
+
+	var t MatchType
+	switch {
+	case v1m.IsEqual && !v1m.IsRegex:
+		t = MatchEqual
+	case !v1m.IsEqual && !v1m.IsRegex:
+		t = MatchNotEqual
+	case v1m.IsEqual && v1m.IsRegex:
+		t = MatchRegexp
+	case !v1m.IsEqual && v1m.IsRegex:
+		t = MatchNotRegexp
+	}
+
+	matcher, err := NewMatcher(t, v1m.Name, v1m.Value)
+	if err != nil {
+		return err
+	}
+	*m = *matcher
+	return nil
 }
 
 // openMetricsEscape is similar to the usual string escaping, but more
