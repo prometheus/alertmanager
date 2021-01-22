@@ -650,17 +650,15 @@ type InhibitRule struct {
 	// SourceMatchRE defines pairs like SourceMatch but does regular expression
 	// matching. Deprecated. Remove before v1.0 release.
 	SourceMatchRE MatchRegexps `yaml:"source_match_re,omitempty" json:"source_match_re,omitempty"`
-	// SourceMatchers defines a set of labels that have to be equal or not equal to the given
-	// value for source alerts. It also does regular expression matching.
+	// SourceMatchers defines a set of label matchers that have to be fulfilled for source alerts.
 	SourceMatchers Matchers `yaml:"source_matchers,omitempty" json:"source_matchers,omitempty"`
 	// TargetMatch defines a set of labels that have to equal the given
-	// value for target alerts.
+	// value for target alerts. Deprecated. Remove before v1.0 release.
 	TargetMatch map[string]string `yaml:"target_match,omitempty" json:"target_match,omitempty"`
 	// TargetMatchRE defines pairs like TargetMatch but does regular expression
-	// matching.
+	// matching. Deprecated. Remove before v1.0 release.
 	TargetMatchRE MatchRegexps `yaml:"target_match_re,omitempty" json:"target_match_re,omitempty"`
-	// TargetMatchers defines a set of labels that have to be equal or not equal to the given
-	// value for target alerts. It also does regular expression matching.
+	// TargetMatchers defines a set of label matchers that have to be fulfilled for target alerts.
 	TargetMatchers Matchers `yaml:"target_matchers,omitempty" json:"target_matchers,omitempty"`
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
