@@ -763,7 +763,7 @@ func (re Regexp) MarshalYAML() (interface{}, error) {
 	return nil, nil
 }
 
-// UnmarshalJSON implements the json.Marshaler interface for Regexp
+// UnmarshalJSON implements the json.Unmarshaler interface for Regexp
 func (re *Regexp) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -814,4 +814,33 @@ func (m Matchers) MarshalYAML() (interface{}, error) {
 		result[i] = matcher.String()
 	}
 	return result, nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for Matchers.
+func (m *Matchers) UnmarshalJSON(data []byte) error {
+	var lines []string
+	if err := json.Unmarshal(data, &lines); err != nil {
+		return err
+	}
+	for _, line := range lines {
+		pm, err := labels.ParseMatchers(line)
+		if err != nil {
+			return err
+		}
+		*m = append(*m, pm...)
+	}
+	sort.Sort(labels.Matchers(*m))
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaler interface for Matchers.
+func (m Matchers) MarshalJSON() ([]byte, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	result := make([]string, len(m))
+	for i, matcher := range m {
+		result[i] = matcher.String()
+	}
+	return json.Marshal(result)
 }
