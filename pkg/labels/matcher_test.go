@@ -13,7 +13,10 @@
 
 package labels
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func mustNewMatcher(t *testing.T, mType MatchType, value string) *Matcher {
 	m, err := NewMatcher(mType, "", value)
@@ -188,6 +191,67 @@ line`,
 		}
 		if got := m.String(); got != test.want {
 			t.Errorf("Unexpected string representation of matcher; want %v, got %v", test.want, got)
+		}
+	}
+}
+
+func TestMatcherJSON(t *testing.T) {
+	tests := []struct {
+		name  string
+		op    MatchType
+		value string
+		want  string
+	}{
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":false}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":false}`,
+		},
+	}
+
+	cmp := func(m1, m2 Matcher) bool {
+		return m1.Name == m2.Name && m1.Value == m2.Value && m1.Type == m2.Type
+	}
+
+	for _, test := range tests {
+		m, err := NewMatcher(test.op, test.name, test.value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(b); got != test.want {
+			t.Errorf("Unexpected JSON representation of matcher:\nwant:\t%v\ngot:\t%v", test.want, got)
+		}
+
+		var m2 Matcher
+		if err := json.Unmarshal(b, &m2); err != nil {
+			t.Fatal(err)
+		}
+		if !cmp(*m, m2) {
+			t.Errorf("Doing Marshal and Unmarshal seems to be losing data; before %#v, after %#v", m, m2)
 		}
 	}
 }

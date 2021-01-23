@@ -123,6 +123,19 @@ func TestSilencesSnapshot(t *testing.T) {
 				},
 				{
 					Silence: &pb.Silence{
+						Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
+						Matchers: []*pb.Matcher{
+							{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
+							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
+						},
+						StartsAt:  now,
+						EndsAt:    now,
+						UpdatedAt: now,
+					},
+					ExpiresAt: now,
+				},
+				{
+					Silence: &pb.Silence{
 						Id: "4b1e760d-182c-4980-b873-c1a6827c9817",
 						Matchers: []*pb.Matcher{
 							{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
@@ -464,6 +477,14 @@ func TestQMatches(t *testing.T) {
 		{
 			sil: &pb.Silence{
 				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_NOT_EQUAL},
+				},
+			},
+			drop: false,
+		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
 					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
 					{Name: "method", Pattern: "POST", Type: pb.Matcher_EQUAL},
 				},
@@ -473,10 +494,27 @@ func TestQMatches(t *testing.T) {
 		{
 			sil: &pb.Silence{
 				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+					{Name: "method", Pattern: "POST", Type: pb.Matcher_NOT_EQUAL},
+				},
+			},
+			drop: true,
+		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
 					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_REGEXP},
 				},
 			},
 			drop: true,
+		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
+					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_NOT_REGEXP},
+				},
+			},
+			drop: false,
 		},
 		{
 			sil: &pb.Silence{
@@ -880,6 +918,27 @@ func TestValidateMatcher(t *testing.T) {
 			err: "",
 		}, {
 			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
 				Name:    "00",
 				Pattern: "a",
 				Type:    pb.Matcher_EQUAL,
@@ -890,6 +949,13 @@ func TestValidateMatcher(t *testing.T) {
 				Name:    "a",
 				Pattern: "((",
 				Type:    pb.Matcher_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "))",
+				Type:    pb.Matcher_NOT_REGEXP,
 			},
 			err: "invalid regular expression",
 		}, {
@@ -1119,6 +1185,19 @@ func TestStateCoding(t *testing.T) {
 						UpdatedAt: now,
 					},
 					ExpiresAt: now.Add(24 * time.Hour),
+				},
+				{
+					Silence: &pb.Silence{
+						Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
+						Matchers: []*pb.Matcher{
+							{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
+							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
+						},
+						StartsAt:  now,
+						EndsAt:    now,
+						UpdatedAt: now,
+					},
+					ExpiresAt: now,
 				},
 			},
 		},
