@@ -14,22 +14,25 @@
 package timeinterval
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v2"
 )
 
 // TimeInterval describes intervals of time. ContainsTime will tell you if a golang time is contained
 // within the interval.
 type TimeInterval struct {
-	Times       []TimeRange       `yaml:"times,omitempty"`
-	Weekdays    []WeekdayRange    `yaml:"weekdays,flow,omitempty"`
-	DaysOfMonth []DayOfMonthRange `yaml:"days_of_month,flow,omitempty"`
-	Months      []MonthRange      `yaml:"months,flow,omitempty"`
-	Years       []YearRange       `yaml:"years,flow,omitempty"`
+	Times       []TimeRange       `yaml:"times,omitempty" json:"times,omitempty"`
+	Weekdays    []WeekdayRange    `yaml:"weekdays,flow,omitempty" json:"weekdays,omitempty"`
+	DaysOfMonth []DayOfMonthRange `yaml:"days_of_month,flow,omitempty" json:"days_of_month,omitempty"`
+	Months      []MonthRange      `yaml:"months,flow,omitempty" json:"months,omitempty"`
+	Years       []YearRange       `yaml:"years,flow,omitempty" json:"years,omitempty"`
 }
 
 // TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
@@ -66,8 +69,8 @@ type YearRange struct {
 }
 
 type yamlTimeRange struct {
-	StartTime string `yaml:"start_time"`
-	EndTime   string `yaml:"end_time"`
+	StartTime string `yaml:"start_time" json:"start_time"`
+	EndTime   string `yaml:"end_time" json:"end_time"`
 }
 
 // A range with a Beginning and End that can be represented as strings.
@@ -183,6 +186,12 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface for WeekdayRange.
+// It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
+func (r *WeekdayRange) UnmarshalJSON(in []byte) error {
+	return yaml.Unmarshal(in, r)
+}
+
 // UnmarshalYAML implements the Unmarshaller interface for DayOfMonthRange.
 func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -220,6 +229,12 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return nil
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface for DayOfMonthRange.
+// It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
+func (r *DayOfMonthRange) UnmarshalJSON(in []byte) error {
+	return yaml.Unmarshal(in, r)
+}
+
 // UnmarshalYAML implements the Unmarshaller interface for MonthRange.
 func (r *MonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -237,6 +252,12 @@ func (r *MonthRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface for MonthRange.
+// It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
+func (r *MonthRange) UnmarshalJSON(in []byte) error {
+	return yaml.Unmarshal(in, r)
+}
+
 // UnmarshalYAML implements the Unmarshaller interface for YearRange.
 func (r *YearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -250,6 +271,12 @@ func (r *YearRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("end year %d is before start year %d", r.End, r.Begin)
 	}
 	return nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for YearRange.
+// It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
+func (r *YearRange) UnmarshalJSON(in []byte) error {
+	return yaml.Unmarshal(in, r)
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for TimeRanges.
@@ -276,24 +303,38 @@ func (tr *TimeRange) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface for Timerange.
+// It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
+func (tr *TimeRange) UnmarshalJSON(in []byte) error {
+	return yaml.Unmarshal(in, tr)
+}
+
 // MarshalYAML implements the yaml.Marshaler interface for WeekdayRange.
 func (r WeekdayRange) MarshalYAML() (interface{}, error) {
+	bytes, err := r.MarshalText()
+	return string(bytes), err
+}
+
+// MarshalText implements the econding.TextMarshaler interface for WeekdayRange.
+// It converts the range into a colon-seperated string, or a single weekday if possible.
+// e.g. "monday:friday" or "saturday".
+func (r WeekdayRange) MarshalText() ([]byte, error) {
 	beginStr, ok := daysOfWeekInv[r.Begin]
 	if !ok {
 		return nil, fmt.Errorf("unable to convert %d into weekday string", r.Begin)
 	}
 	if r.Begin == r.End {
-		return interface{}(beginStr), nil
+		return []byte(beginStr), nil
 	}
 	endStr, ok := daysOfWeekInv[r.End]
 	if !ok {
 		return nil, fmt.Errorf("unable to convert %d into weekday string", r.End)
 	}
 	rangeStr := fmt.Sprintf("%s:%s", beginStr, endStr)
-	return interface{}(rangeStr), nil
+	return []byte(rangeStr), nil
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for TimeRange.
+// MarshalYAML implements the yaml.Marshaler interface for TimeRange.
 func (tr TimeRange) MarshalYAML() (out interface{}, err error) {
 	startHr := tr.StartMinute / 60
 	endHr := tr.EndMinute / 60
@@ -307,13 +348,35 @@ func (tr TimeRange) MarshalYAML() (out interface{}, err error) {
 	return interface{}(yTr), err
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
-func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
+// MarshalJSON implements the json.Marshaler interface for TimeRange.
+func (tr TimeRange) MarshalJSON() (out []byte, err error) {
+	startHr := tr.StartMinute / 60
+	endHr := tr.EndMinute / 60
+	startMin := tr.StartMinute % 60
+	endMin := tr.EndMinute % 60
+
+	startStr := fmt.Sprintf("%02d:%02d", startHr, startMin)
+	endStr := fmt.Sprintf("%02d:%02d", endHr, endMin)
+
+	yTr := yamlTimeRange{startStr, endStr}
+	return json.Marshal(yTr)
+}
+
+// MarshalText implements the encoding.TextMarshaler interface for InclusiveRange.
+// It converts the struct into a colon-separated string, or a single element if
+// appropriate. e.g. "monday:friday" or "monday"
+func (ir InclusiveRange) MarshalText() ([]byte, error) {
 	if ir.Begin == ir.End {
-		return strconv.Itoa(ir.Begin), nil
+		return []byte(strconv.Itoa(ir.Begin)), nil
 	}
 	out := fmt.Sprintf("%d:%d", ir.Begin, ir.End)
-	return interface{}(out), nil
+	return []byte(out), nil
+}
+
+//MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
+func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
+	bytes, err := ir.MarshalText()
+	return string(bytes), err
 }
 
 // TimeLayout specifies the layout to be used in time.Parse() calls for time intervals.

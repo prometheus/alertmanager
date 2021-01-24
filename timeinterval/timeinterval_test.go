@@ -14,6 +14,7 @@
 package timeinterval
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -507,7 +508,31 @@ func TestYamlMarshal(t *testing.T) {
 		var ti2 []TimeInterval
 		yaml.Unmarshal(out, &ti2)
 		if !reflect.DeepEqual(ti, ti2) {
-			t.Errorf("Re-marshalling %s produced a different TimeInterval", tc.in)
+			t.Errorf("Re-marshalling %s produced a different TimeInterval.", tc.in)
+		}
+	}
+}
+
+// Test JSON marshalling by marshalling a time interval
+// and then unmarshalling to ensure they're identical
+func TestJsonMarshal(t *testing.T) {
+	for _, tc := range yamlUnmarshalTestCases {
+		if tc.expectError {
+			continue
+		}
+		var ti []TimeInterval
+		err := yaml.Unmarshal([]byte(tc.in), &ti)
+		if err != nil {
+			t.Error(err)
+		}
+		out, err := json.Marshal(&ti)
+		if err != nil {
+			t.Error(err)
+		}
+		var ti2 []TimeInterval
+		json.Unmarshal(out, &ti2)
+		if !reflect.DeepEqual(ti, ti2) {
+			t.Errorf("Re-marshalling %s produced a different TimeInterval. Used:\n%s and got:\n%v", tc.in, out, ti2)
 		}
 	}
 }
