@@ -6,6 +6,8 @@ global:
   smtp_auth_password: 'password'
 
 # The directory from which notification templates are read.
+#   See: https://prometheus.io/docs/alerting/notification_examples/#defining-reusable-templates
+#        https://github.com/prometheus/alertmanager/blob/master/template/default.tmpl
 templates: 
 - '/etc/alertmanager/template/*.tmpl'
 
