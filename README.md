@@ -20,7 +20,13 @@ is the recommended way of installing Alertmanager.
 
 ### Docker images
 
-Docker images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager).
+Docker images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager) or [Docker Hub](https://hub.docker.com/r/prom/alertmanager/).
+
+You can launch an Alertmanager container for trying it out with
+
+    $ docker run --name alertmanager -d -p 127.0.0.1:9093:9093 quay.io/prometheus/alertmanager
+
+Alertmanager will now be reachable at http://localhost:9093/.
 
 ### Compiling the binary
 
