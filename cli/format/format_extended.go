@@ -132,14 +132,7 @@ func extendedFormatAnnotations(labels models.LabelSet) string {
 func extendedFormatMatchers(matchers models.Matchers) string {
 	output := []string{}
 	for _, matcher := range matchers {
-		output = append(output, extendedFormatMatcher(*matcher))
+		output = append(output, simpleFormatMatcher(*matcher))
 	}
 	return strings.Join(output, " ")
-}
-
-func extendedFormatMatcher(matcher models.Matcher) string {
-	if *matcher.IsRegex {
-		return fmt.Sprintf("%s=~%s", *matcher.Name, *matcher.Value)
-	}
-	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
 }

@@ -94,9 +94,17 @@ func simpleFormatMatchers(matchers models.Matchers) string {
 	return strings.Join(output, " ")
 }
 
-func simpleFormatMatcher(matcher models.Matcher) string {
-	if *matcher.IsRegex {
-		return fmt.Sprintf("%s=~%s", *matcher.Name, *matcher.Value)
+func simpleFormatMatcher(m models.Matcher) string {
+	var op string
+	switch {
+	case !*m.IsRegex && *m.IsEqual:
+		op = "="
+	case !*m.IsRegex && !*m.IsEqual:
+		op = "!="
+	case *m.IsRegex && *m.IsEqual:
+		op = "=~"
+	case *m.IsRegex && !*m.IsEqual:
+		op = "!~"
 	}
-	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
+	return fmt.Sprintf("%s%s%q", *m.Name, op, *m.Value)
 }
