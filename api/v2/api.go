@@ -723,12 +723,20 @@ func gettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 			Name:  &m.Name,
 			Value: &m.Pattern,
 		}
+		f := false
+		t := true
 		switch m.Type {
 		case silencepb.Matcher_EQUAL:
-			f := false
+			matcher.IsEqual = &t
+			matcher.IsRegex = &f
+		case silencepb.Matcher_NOT_EQUAL:
+			matcher.IsEqual = &f
 			matcher.IsRegex = &f
 		case silencepb.Matcher_REGEXP:
-			t := true
+			matcher.IsEqual = &t
+			matcher.IsRegex = &t
+		case silencepb.Matcher_NOT_REGEXP:
+			matcher.IsEqual = &f
 			matcher.IsRegex = &t
 		default:
 			return sil, fmt.Errorf(
@@ -792,10 +800,25 @@ func postableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Sile
 		matcher := &silencepb.Matcher{
 			Name:    *m.Name,
 			Pattern: *m.Value,
-			Type:    silencepb.Matcher_EQUAL,
 		}
-		if *m.IsRegex {
+		isEqual := true
+		if m.IsEqual != nil {
+			isEqual = *m.IsEqual
+		}
+		isRegex := false
+		if m.IsRegex != nil {
+			isRegex = *m.IsRegex
+		}
+
+		switch {
+		case isEqual && !isRegex:
+			matcher.Type = silencepb.Matcher_EQUAL
+		case !isEqual && !isRegex:
+			matcher.Type = silencepb.Matcher_NOT_EQUAL
+		case isEqual && isRegex:
 			matcher.Type = silencepb.Matcher_REGEXP
+		case !isEqual && isRegex:
+			matcher.Type = silencepb.Matcher_NOT_REGEXP
 		}
 		sil.Matchers = append(sil.Matchers, matcher)
 	}
