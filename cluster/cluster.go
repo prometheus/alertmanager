@@ -103,7 +103,7 @@ const (
 	DefaultReconnectInterval = 10 * time.Second
 	DefaultReconnectTimeout  = 6 * time.Hour
 	DefaultRefreshInterval   = 15 * time.Second
-	maxGossipPacketSize      = 1400
+	MaxGossipPacketSize      = 1400
 )
 
 func Create(
@@ -202,7 +202,7 @@ func Create(
 	cfg.ProbeInterval = probeInterval
 	cfg.LogOutput = &logWriter{l: l}
 	cfg.GossipNodes = retransmit
-	cfg.UDPBufferSize = maxGossipPacketSize
+	cfg.UDPBufferSize = MaxGossipPacketSize
 
 	if advertiseHost != "" {
 		cfg.AdvertiseAddr = advertiseHost
