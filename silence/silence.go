@@ -79,6 +79,8 @@ func (c matcherCache) add(s *pb.Silence) (types.Matchers, error) {
 			mt.IsRegex = false
 		case pb.Matcher_REGEXP:
 			mt.IsRegex = true
+		default:
+			return nil, errors.Errorf("unknown matcher type %q", m.Type)
 		}
 		err := mt.Init()
 		if err != nil {
