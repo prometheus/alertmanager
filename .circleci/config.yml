@@ -89,7 +89,7 @@ jobs:
           # likely to get OOMed and killed.
           GOOPTS: "-p 2"
     - prometheus/check_proto:
-        version: "3.11.4"
+        version: "3.12.3"
     - prometheus/store_artifact:
         file: alertmanager
     - prometheus/store_artifact:
