@@ -68,11 +68,10 @@ func assertEqualStrings(t *testing.T, expected string, actual string) {
 
 var (
 	testComment = "comment"
-	createdBy   = "test"
 )
 
 func gettableSilence(id string, state string,
-	updatedAt string, start string, end string,
+	updatedAt string, start string, end string, createdBy string,
 ) *open_api_models.GettableSilence {
 
 	updAt, err := strfmt.ParseDateTime(updatedAt)
@@ -107,21 +106,21 @@ func TestGetSilencesHandler(t *testing.T) {
 	updateTime := "2019-01-01T12:00:00+00:00"
 	silences := []*open_api_models.GettableSilence{
 		gettableSilence("silence-6-expired", "expired", updateTime,
-			"2019-01-01T12:00:00+00:00", "2019-01-01T11:00:00+00:00"),
+			"2019-01-01T12:00:00+00:00", "2019-01-01T11:00:00+00:00", "test"),
 		gettableSilence("silence-1-active", "active", updateTime,
-			"2019-01-01T12:00:00+00:00", "2019-01-01T13:00:00+00:00"),
+			"2019-01-01T12:00:00+00:00", "2019-01-01T13:00:00+00:00", "test"),
 		gettableSilence("silence-7-expired", "expired", updateTime,
-			"2019-01-01T12:00:00+00:00", "2019-01-01T10:00:00+00:00"),
+			"2019-01-01T12:00:00+00:00", "2019-01-01T10:00:00+00:00", "test"),
 		gettableSilence("silence-5-expired", "expired", updateTime,
-			"2019-01-01T12:00:00+00:00", "2019-01-01T12:00:00+00:00"),
+			"2019-01-01T12:00:00+00:00", "2019-01-01T12:00:00+00:00", "test"),
 		gettableSilence("silence-0-active", "active", updateTime,
-			"2019-01-01T12:00:00+00:00", "2019-01-01T12:00:00+00:00"),
+			"2019-01-01T12:00:00+00:00", "2019-01-01T12:00:00+00:00", "test"),
 		gettableSilence("silence-4-pending", "pending", updateTime,
-			"2019-01-01T13:00:00+00:00", "2019-01-01T12:00:00+00:00"),
+			"2019-01-01T13:00:00+00:00", "2019-01-01T12:00:00+00:00", "test"),
 		gettableSilence("silence-3-pending", "pending", updateTime,
-			"2019-01-01T12:00:00+00:00", "2019-01-01T12:00:00+00:00"),
+			"2019-01-01T12:00:00+00:00", "2019-01-01T12:00:00+00:00", "test"),
 		gettableSilence("silence-2-active", "active", updateTime,
-			"2019-01-01T12:00:00+00:00", "2019-01-01T14:00:00+00:00"),
+			"2019-01-01T12:00:00+00:00", "2019-01-01T14:00:00+00:00", "test"),
 	}
 	sortSilences(open_api_models.GettableSilences(silences))
 
@@ -208,5 +207,48 @@ func TestMatchFilterLabels(t *testing.T) {
 
 		ms := []*labels.Matcher{m}
 		require.Equal(t, tc.expected, matchFilterLabels(ms, sms))
+	}
+}
+
+func TestFilterByCreator(t *testing.T) {
+	startTime := "2021-02-7T12:00:00+00:00"
+	endTime := "2021-02-7T11:00:00+00:00"
+	updateTime := "2021-02-7T12:00:00+00:00"
+
+	matcherMust := func(m *labels.Matcher, err error) *labels.Matcher {
+		if err != nil {
+			t.Fail()
+		}
+		return m
+	}
+
+	testCases := []struct {
+		silence  *open_api_models.GettableSilence
+		matchers []*labels.Matcher
+		expected bool
+	}{
+		{
+			silence:  gettableSilence("s-expired", "expired", updateTime, startTime, endTime, "smith"),
+			matchers: []*labels.Matcher{matcherMust(labels.NewMatcher(labels.MatchEqual, "createdBy", "smith"))},
+			expected: true,
+		},
+		{
+			silence:  gettableSilence("s-expired", "expired", updateTime, startTime, endTime, "smith"),
+			matchers: []*labels.Matcher{matcherMust(labels.NewMatcher(labels.MatchNotEqual, "createdBy", "smith"))},
+			expected: false,
+		},
+		{
+			silence:  gettableSilence("s-expired", "expired", updateTime, startTime, endTime, "smith"),
+			matchers: []*labels.Matcher{matcherMust(labels.NewMatcher(labels.MatchRegexp, "createdBy", "[sS]mit(ty|h)"))},
+			expected: true,
+		},
+		{
+			silence:  gettableSilence("s-active", "active", updateTime, startTime, endTime, "miller"),
+			matchers: []*labels.Matcher{matcherMust(labels.NewMatcher(labels.MatchNotRegexp, "createdBy", "m.*"))},
+			expected: false,
+		},
+	}
+	for _, tc := range testCases {
+		require.Equal(t, tc.expected, gettableSilenceMatchesFilterLabels(*tc.silence, tc.matchers))
 	}
 }

@@ -643,6 +643,7 @@ func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, match
 	for _, m := range s.Matchers {
 		sms[*m.Name] = *m.Value
 	}
+	sms["createdBy"] = *s.CreatedBy
 
 	return matchFilterLabels(matchers, sms)
 }
