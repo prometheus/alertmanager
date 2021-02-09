@@ -584,13 +584,13 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 
 	sils := open_api_models.GettableSilences{}
 	for _, ps := range psils {
+		if !checkSilenceMatchesFilterLabels(ps, matchers) {
+			continue
+		}
 		silence, err := gettableSilenceFromProto(ps)
 		if err != nil {
 			level.Error(logger).Log("msg", "Failed to unmarshal silence from proto", "err", err)
 			return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
-		}
-		if !gettableSilenceMatchesFilterLabels(silence, matchers) {
-			continue
 		}
 		sils = append(sils, &silence)
 	}
@@ -638,18 +638,21 @@ func sortSilences(sils open_api_models.GettableSilences) {
 	})
 }
 
-// gettableSilenceMatchesFilterLabels returns true if
+// checkSilenceMatchesFilterLabels returns true if
 // a given silence matches a list of matchers.
 // A silence matches a filter (list of matchers) if
 // for all matchers in the filter, there exists a matcher in the silence
 // such that their names, types, and values are equivalent.
-func gettableSilenceMatchesFilterLabels(s open_api_models.GettableSilence, matchers []*labels.Matcher) bool {
+func checkSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Matcher) bool {
 	for _, matcher := range matchers {
 		found := false
 		for _, m := range s.Matchers {
-			if matcher.Name == *m.Name &&
-				(matcher.Type == labels.MatchEqual && !*m.IsRegex || matcher.Type == labels.MatchRegexp && *m.IsRegex) &&
-				matcher.Value == *m.Value {
+			if matcher.Name == m.Name &&
+				(matcher.Type == labels.MatchEqual && m.Type == silencepb.Matcher_EQUAL ||
+					matcher.Type == labels.MatchRegexp && m.Type == silencepb.Matcher_REGEXP ||
+					matcher.Type == labels.MatchNotEqual && m.Type == silencepb.Matcher_NOT_EQUAL ||
+					matcher.Type == labels.MatchNotRegexp && m.Type == silencepb.Matcher_NOT_REGEXP) &&
+				matcher.Value == m.Pattern {
 				found = true
 				break
 			}

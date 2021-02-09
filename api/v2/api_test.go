@@ -26,6 +26,7 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -130,11 +131,11 @@ func TestGetSilencesHandler(t *testing.T) {
 	}
 }
 
-func createModelMatcher(name string, value string, isRegex bool) *open_api_models.Matcher {
-	return &open_api_models.Matcher{
-		Name:    &name,
-		Value:   &value,
-		IsRegex: &isRegex,
+func createSilenceMatcher(name string, pattern string, matcherType silencepb.Matcher_Type) *silencepb.Matcher {
+	return &silencepb.Matcher{
+		Name:    name,
+		Pattern: pattern,
+		Type:    matcherType,
 	}
 }
 
@@ -143,50 +144,50 @@ func createLabelMatcher(name string, value string, matchType labels.MatchType) *
 	return matcher
 }
 
-func TestGettableSilenceMatchesFilterLabels(t *testing.T) {
+func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 	type test struct {
-		silenceMatchers []*open_api_models.Matcher
+		silenceMatchers []*silencepb.Matcher
 		filterMatchers  []*labels.Matcher
 		expected        bool
 	}
 
 	tests := []test{
 		{
-			[]*open_api_models.Matcher{createModelMatcher("label", "value", false)},
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
 			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
 			true,
 		},
 		{
-			[]*open_api_models.Matcher{createModelMatcher("label", "value", false)},
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
 			[]*labels.Matcher{createLabelMatcher("label", "novalue", labels.MatchEqual)},
 			false,
 		},
 		{
-			[]*open_api_models.Matcher{createModelMatcher("label", "(foo|bar)", true)},
+			[]*silencepb.Matcher{createSilenceMatcher("label", "(foo|bar)", silencepb.Matcher_REGEXP)},
 			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
 			true,
 		},
 		{
-			[]*open_api_models.Matcher{createModelMatcher("label", "foo", true)},
+			[]*silencepb.Matcher{createSilenceMatcher("label", "foo", silencepb.Matcher_REGEXP)},
 			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
 			false,
 		},
 
 		{
-			[]*open_api_models.Matcher{createModelMatcher("label", "value", false)},
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
 			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchRegexp)},
 			false,
 		},
 		{
-			[]*open_api_models.Matcher{createModelMatcher("label", "value", true)},
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_REGEXP)},
 			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
 			false,
 		},
 
 		{
-			[]*open_api_models.Matcher{
-				createModelMatcher("label", "(foo|bar)", true),
-				createModelMatcher("label", "value", false),
+			[]*silencepb.Matcher{
+				createSilenceMatcher("label", "(foo|bar)", silencepb.Matcher_REGEXP),
+				createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL),
 			},
 			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
 			true,
@@ -194,12 +195,10 @@ func TestGettableSilenceMatchesFilterLabels(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		silence := open_api_models.GettableSilence{
-			Silence: open_api_models.Silence{
-				Matchers: test.silenceMatchers,
-			},
+		silence := silencepb.Silence{
+			Matchers: test.silenceMatchers,
 		}
-		actual := gettableSilenceMatchesFilterLabels(silence, test.filterMatchers)
+		actual := checkSilenceMatchesFilterLabels(&silence, test.filterMatchers)
 		if test.expected != actual {
 			t.Fatal("unexpected match result between silence and filter. expected:", test.expected, ", actual:", actual)
 		}
