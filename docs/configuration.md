@@ -153,6 +153,12 @@ match:
 # A set of regex-matchers an alert has to fulfill to match the node.
 match_re:
   [ <labelname>: <regex>, ... ]
+  
+# A combined set of equality and regex with support of negative matching 
+# that an alert has to fulfill to match the node.  
+matchers:
+  [ <labelname>: <labelvalue>, <labelname>: <regex>, ... ]
+
 
 # How long to initially wait to send a notification for a group
 # of alerts. Allows to wait for an inhibiting alert to arrive or collect
@@ -225,6 +231,11 @@ target_match:
   [ <labelname>: <labelvalue>, ... ]
 target_match_re:
   [ <labelname>: <regex>, ... ]
+  
+# Matchers that have to be fulfilled in the alerts to be muted 
+# with support of negative matching. 
+target_matchers:
+  [ <labelname>: <labelvalue>, <labelname>: <regex>, ... ]
 
 # Matchers for which one or more alerts have to exist for the
 # inhibition to take effect.
@@ -232,6 +243,11 @@ source_match:
   [ <labelname>: <labelvalue>, ... ]
 source_match_re:
   [ <labelname>: <regex>, ... ]
+  
+# Matchers for which one or more alerts have to exist for the
+# inhibition to take effect with support of negative matching.
+source_matchers:
+  [ <labelname>: <labelvalue>, <labelname>: <regex>, ... ]
 
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
