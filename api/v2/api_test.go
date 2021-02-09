@@ -183,7 +183,36 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
 			false,
 		},
-
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			true,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			true,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			false,
+		},
 		{
 			[]*silencepb.Matcher{
 				createSilenceMatcher("label", "(foo|bar)", silencepb.Matcher_REGEXP),
