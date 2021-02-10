@@ -78,6 +78,8 @@ func (c matcherCache) add(s *pb.Silence) (labels.Matchers, error) {
 			mt = labels.MatchRegexp
 		case pb.Matcher_NOT_REGEXP:
 			mt = labels.MatchNotRegexp
+		default:
+			return nil, errors.Errorf("unknown matcher type %q", m.Type)
 		}
 		matcher, err := labels.NewMatcher(mt, m.Name, m.Pattern)
 		if err != nil {
