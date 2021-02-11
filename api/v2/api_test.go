@@ -26,6 +26,7 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -127,6 +128,109 @@ func TestGetSilencesHandler(t *testing.T) {
 
 	for i, sil := range silences {
 		assertEqualStrings(t, "silence-"+strconv.Itoa(i)+"-"+*sil.Status.State, *sil.ID)
+	}
+}
+
+func createSilenceMatcher(name string, pattern string, matcherType silencepb.Matcher_Type) *silencepb.Matcher {
+	return &silencepb.Matcher{
+		Name:    name,
+		Pattern: pattern,
+		Type:    matcherType,
+	}
+}
+
+func createLabelMatcher(name string, value string, matchType labels.MatchType) *labels.Matcher {
+	matcher, _ := labels.NewMatcher(matchType, name, value)
+	return matcher
+}
+
+func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
+	type test struct {
+		silenceMatchers []*silencepb.Matcher
+		filterMatchers  []*labels.Matcher
+		expected        bool
+	}
+
+	tests := []test{
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
+			true,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "novalue", labels.MatchEqual)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "(foo|bar)", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			true,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "foo", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			false,
+		},
+
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchRegexp)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchEqual)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			true,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			true,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_EQUAL)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotRegexp)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher("label", "value", silencepb.Matcher_NOT_REGEXP)},
+			[]*labels.Matcher{createLabelMatcher("label", "value", labels.MatchNotEqual)},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{
+				createSilenceMatcher("label", "(foo|bar)", silencepb.Matcher_REGEXP),
+				createSilenceMatcher("label", "value", silencepb.Matcher_EQUAL),
+			},
+			[]*labels.Matcher{createLabelMatcher("label", "(foo|bar)", labels.MatchRegexp)},
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		silence := silencepb.Silence{
+			Matchers: test.silenceMatchers,
+		}
+		actual := checkSilenceMatchesFilterLabels(&silence, test.filterMatchers)
+		if test.expected != actual {
+			t.Fatal("unexpected match result between silence and filter. expected:", test.expected, ", actual:", actual)
+		}
 	}
 }
 
