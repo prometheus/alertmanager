@@ -723,7 +723,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 }
 
 func TestTimeMuteStage(t *testing.T) {
-	// Route mutes alerts outside business hours
+	// Route mutes alerts outside business hours.
 	muteIn := `
 ---
 - weekdays: ['monday:friday']

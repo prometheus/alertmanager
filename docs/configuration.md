@@ -175,6 +175,9 @@ match_re:
 # Times when the route should be muted. These must match the name of a
 # mute time interval defined in the mute_time_intervals section. 
 # Additionally, the root node cannot have any mute times.
+# When a route is muted it will not send any notifications, but
+# otherwise acts normally (including ending the route-matching process
+# if the `continue` option is not set.)
 mute_time_intervals:
   [ - <string> ...]
 
@@ -239,36 +242,38 @@ supports the following fields:
   [ - <year_range> ...]
 ```
 
-All these fields are optional and if left unspecified allow any value to match the interval.
+All fields are lists. Within each non-empty list, at least one element must be satisfied to match
+the field. If a field is left unspecified, any value will match the field. For an instant of time
+to match a complete time interval, all fields must match.
 Some fields support ranges and negative indices, and are detailed below. All definitions are
 taken to be in UTC, no other timezones are currently supported.
 
-`times`: A list of time-ranges. They are inclusive of the starting time and exclusive
-of the ending time to make it easy to represent times that start/end on hour boundaries.
+`time_range` Ranges inclusive of the starting time and exclusive of the end time to
+make it easy to represent times that start/end on hour boundaries.
 For example, start_time: '17:00' and end_time: '24:00' will begin at 17:00 and finish
-immediately after 23:59. They are specified like so:
+immediately before 24:00. They are specified like so:
 
         times:
         - start_time: HH:MM
           end_time: HH:MM
 
-`weekdays`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
+`weeekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. ‘Sunday’). For convenience, ranges are also accepted
 of the form <start_day>:<end_day> and are inclusive on both ends. For example:
 `[‘monday:wednesday','saturday', 'sunday']`
 
-`days_of_month`: A list of numerical days in the month. Days begin at 1.
+`days_of_month_ramge`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
 e.g. -1 during January would represent January 31. For example: `['1:5', '-3:-1']`.
 Extending past the start or end of the month will cause it to be clamped. E.g. specifying
 `['1:31']` during February will clamp the actual end date to 28 or 29 depending on leap years.
 Inclusive on both ends.
 
-`months`: A list of calendar months identified by a case-insentive name (e.g. ‘January’) or by number,
+`month_range`: A list of calendar months identified by a case-insentive name (e.g. ‘January’) or by number,
 where January = 1. Ranges are also accepted. For example, `['1:3', 'may:august', 'december']`.
 Inclusive on both ends.
 
-`years`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`.
+`year_range`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`.
 Inclusive on both ends.
 
 ## `<inhibit_rule>`

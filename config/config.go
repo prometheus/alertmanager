@@ -26,12 +26,12 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/prometheus/alertmanager/timeinterval"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/timeinterval"
 )
 
 const secretToken = "<secret>"
