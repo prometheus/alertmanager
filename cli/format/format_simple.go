@@ -95,16 +95,5 @@ func simpleFormatMatchers(matchers models.Matchers) string {
 }
 
 func simpleFormatMatcher(m models.Matcher) string {
-	var op string
-	switch {
-	case !*m.IsRegex && *m.IsEqual:
-		op = "="
-	case !*m.IsRegex && !*m.IsEqual:
-		op = "!="
-	case *m.IsRegex && *m.IsEqual:
-		op = "=~"
-	case *m.IsRegex && !*m.IsEqual:
-		op = "!~"
-	}
-	return fmt.Sprintf("%s%s%q", *m.Name, op, *m.Value)
+	return labelsMatcher(m).String()
 }
