@@ -122,21 +122,16 @@ func parseLabels(inputLabels []string) (models.LabelSet, error) {
 }
 
 // TypeMatchers only valid for when you are going to add a silence
-func TypeMatchers(matchers []labels.Matcher) (models.Matchers, error) {
-	typeMatchers := models.Matchers{}
-	for _, matcher := range matchers {
-		typeMatcher, err := TypeMatcher(matcher)
-		if err != nil {
-			return models.Matchers{}, err
-		}
-		typeMatchers = append(typeMatchers, &typeMatcher)
+func TypeMatchers(matchers []labels.Matcher) models.Matchers {
+	typeMatchers := make(models.Matchers, len(matchers))
+	for i, matcher := range matchers {
+		typeMatchers[i] = TypeMatcher(matcher)
 	}
-	return typeMatchers, nil
+	return typeMatchers
 }
 
 // TypeMatcher only valid for when you are going to add a silence
-// Doesn't allow negative operators
-func TypeMatcher(matcher labels.Matcher) (models.Matcher, error) {
+func TypeMatcher(matcher labels.Matcher) *models.Matcher {
 	name := matcher.Name
 	value := matcher.Value
 	typeMatcher := models.Matcher{
@@ -144,17 +139,11 @@ func TypeMatcher(matcher labels.Matcher) (models.Matcher, error) {
 		Value: &value,
 	}
 
-	isRegex := false
-	switch matcher.Type {
-	case labels.MatchEqual:
-		isRegex = false
-	case labels.MatchRegexp:
-		isRegex = true
-	default:
-		return models.Matcher{}, fmt.Errorf("invalid match type for creation operation: %s", matcher.Type)
-	}
+	isEqual := (matcher.Type == labels.MatchEqual) || (matcher.Type == labels.MatchRegexp)
+	isRegex := (matcher.Type == labels.MatchRegexp) || (matcher.Type == labels.MatchNotRegexp)
+	typeMatcher.IsEqual = &isEqual
 	typeMatcher.IsRegex = &isRegex
-	return typeMatcher, nil
+	return &typeMatcher
 }
 
 // Helper function for adding the ctx with timeout into an action.
