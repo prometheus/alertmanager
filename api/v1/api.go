@@ -72,7 +72,7 @@ type API struct {
 	config   *config.Config
 	route    *dispatch.Route
 	uptime   time.Time
-	peer     *cluster.Peer
+	peer     cluster.ClusterPeer
 	logger   log.Logger
 	m        *metrics.Alerts
 
@@ -88,7 +88,7 @@ func New(
 	alerts provider.Alerts,
 	silences *silence.Silences,
 	sf getAlertStatusFn,
-	peer *cluster.Peer,
+	peer cluster.ClusterPeer,
 	l log.Logger,
 	r prometheus.Registerer,
 ) *API {
@@ -208,7 +208,7 @@ type clusterStatus struct {
 	Peers  []peerStatus `json:"peers"`
 }
 
-func getClusterStatus(p *cluster.Peer) *clusterStatus {
+func getClusterStatus(p cluster.ClusterPeer) *clusterStatus {
 	if p == nil {
 		return nil
 	}
@@ -216,7 +216,7 @@ func getClusterStatus(p *cluster.Peer) *clusterStatus {
 
 	for _, n := range p.Peers() {
 		s.Peers = append(s.Peers, peerStatus{
-			Name:    n.Name,
+			Name:    n.String(),
 			Address: n.Address(),
 		})
 	}

@@ -33,6 +33,26 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// ClusterPeer helps consumers gather information about the peer(s) in the cluster
+type ClusterPeer interface {
+	// Name returns the unique identifier of this peer in the cluster.
+	Name() string
+	// Address returns the IP address of this peer in the cluster.
+	Address() string
+	// Status returns a status string representing the peer state.
+	Status() string
+	// Peers returns the peer nodes in the cluster.
+	Peers() []Node
+}
+
+// Node interface that represents node peers in a cluster
+type Node interface {
+	// String returns the name of the node
+	String() string
+	// Address returns the IP address of the node
+	Address() string
+}
+
 // Peer is a single peer in a gossip cluster.
 type Peer struct {
 	mlist    *memberlist.Memberlist
@@ -518,9 +538,9 @@ func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) *Channel
 		p.delegate.bcast.QueueBroadcast(simpleBroadcast(b))
 	}
 	peers := func() []*memberlist.Node {
-		nodes := p.Peers()
+		nodes := p.mlist.Members()
 		for i, n := range nodes {
-			if n.Name == p.Self().Name {
+			if n.String() == p.Self().Name {
 				nodes = append(nodes[:i], nodes[i+1:]...)
 				break
 			}
@@ -543,6 +563,10 @@ func (p *Peer) Leave(timeout time.Duration) error {
 // Name returns the unique ID of this peer in the cluster.
 func (p *Peer) Name() string {
 	return p.mlist.LocalNode().Name
+}
+
+func (p *Peer) Address() string {
+	return p.mlist.LocalNode().Addr.String()
 }
 
 // ClusterSize returns the current number of alive members in the cluster.
@@ -592,13 +616,17 @@ func (p *Peer) Self() *memberlist.Node {
 }
 
 // Peers returns the peers in the cluster.
-func (p *Peer) Peers() []*memberlist.Node {
-	return p.mlist.Members()
+func (p *Peer) Peers() []Node {
+	peers := make([]Node, 0, len(p.mlist.Members()))
+	for _, member := range p.mlist.Members() {
+		peers = append(peers, member)
+	}
+	return peers
 }
 
 // Position returns the position of the peer in the cluster.
 func (p *Peer) Position() int {
-	all := p.Peers()
+	all := p.mlist.Members()
 	sort.Slice(all, func(i, j int) bool {
 		return all[i].Name < all[j].Name
 	})

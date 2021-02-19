@@ -28,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
@@ -39,6 +38,12 @@ import (
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {
 	SendResolved() bool
+}
+
+// Peer represents the cluster node from where we are the sending the notification.
+type Peer interface {
+	// WaitReady waits until the node silences and notifications have settled before attempting to send a notification.
+	WaitReady()
 }
 
 // MinTimeout is the minimum timeout that is set for the context of a call
@@ -290,7 +295,7 @@ func (pb *PipelineBuilder) New(
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
 	notificationLog NotificationLog,
-	peer *cluster.Peer,
+	peer Peer,
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
@@ -399,11 +404,11 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 
 // GossipSettleStage waits until the Gossip has settled to forward alerts.
 type GossipSettleStage struct {
-	peer *cluster.Peer
+	peer Peer
 }
 
 // NewGossipSettleStage returns a new GossipSettleStage.
-func NewGossipSettleStage(p *cluster.Peer) *GossipSettleStage {
+func NewGossipSettleStage(p Peer) *GossipSettleStage {
 	return &GossipSettleStage{peer: p}
 }
 
