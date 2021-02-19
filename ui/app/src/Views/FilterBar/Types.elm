@@ -8,7 +8,7 @@ type alias Model =
     { matchers : List Utils.Filter.Matcher
     , backspacePressed : Bool
     , matcherText : String
-    , key : Key
+    , key : Maybe Key
     }
 
 
@@ -30,9 +30,9 @@ backspace to clear an input, they have to then lift up the key and press it agai
 proceed to deleting the next matcher.
 
 -}
-initFilterBar : Key -> Model
-initFilterBar key =
-    { matchers = []
+initFilterBar : Maybe Key -> List Utils.Filter.Matcher -> Model
+initFilterBar key matchers =
+    { matchers = matchers
     , backspacePressed = False
     , matcherText = ""
     , key = key

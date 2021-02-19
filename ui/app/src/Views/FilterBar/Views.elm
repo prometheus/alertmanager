@@ -46,7 +46,7 @@ viewMatchers matchers =
 
 
 view : Model -> Html Msg
-view { matchers, matcherText, backspacePressed } =
+view ({ matchers, matcherText, backspacePressed } as model) =
     let
         maybeMatcher =
             Utils.Filter.parseMatcher matcherText
@@ -127,13 +127,18 @@ view { matchers, matcherText, backspacePressed } =
                         , span
                             [ class "input-group-btn" ]
                             [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
-                        , a
-                            [ class "btn btn-outline-info border-0"
-                            , href (newSilenceFromMatchers dataMatchers)
-                            ]
-                            [ i [ class "fa fa-bell-slash-o mr-2" ] []
-                            , text "Silence"
-                            ]
+                        , case model.key of
+                            Just _ ->
+                                a
+                                    [ class "btn btn-outline-info border-0"
+                                    , href (newSilenceFromMatchers dataMatchers)
+                                    ]
+                                    [ i [ class "fa fa-bell-slash-o mr-2" ] []
+                                    , text "Silence"
+                                    ]
+
+                            Nothing ->
+                                text ""
                         ]
                     , small [ class "form-text text-muted" ]
                         [ text "Custom matcher, e.g."

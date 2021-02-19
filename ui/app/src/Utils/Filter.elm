@@ -5,6 +5,7 @@ module Utils.Filter exposing
     , SilenceFormGetParams
     , convertFilterMatcher
     , emptySilenceFormGetParams
+    , fromApiMatcher
     , generateAPIQueryString
     , generateQueryParam
     , generateQueryString
@@ -16,6 +17,7 @@ module Utils.Filter exposing
     , stringifyFilter
     , stringifyGroup
     , stringifyMatcher
+    , toApiMatcher
     )
 
 import Char
@@ -141,8 +143,32 @@ type alias Matcher =
     }
 
 
-convertAPIMatcher : Data.Matcher.Matcher -> Matcher
-convertAPIMatcher { name, value, isRegex, isEqual } =
+toApiMatcher : Matcher -> Data.Matcher.Matcher
+toApiMatcher { key, op, value } =
+    let
+        ( isRegex, isEqual ) =
+            case op of
+                Eq ->
+                    ( False, True )
+
+                NotEq ->
+                    ( False, False )
+
+                RegexMatch ->
+                    ( True, True )
+
+                NotRegexMatch ->
+                    ( True, False )
+    in
+    { name = key
+    , isRegex = isRegex
+    , isEqual = Just isEqual
+    , value = value
+    }
+
+
+fromApiMatcher : Data.Matcher.Matcher -> Matcher
+fromApiMatcher { name, value, isRegex, isEqual } =
     let
         isEqualValue =
             case isEqual of
@@ -337,7 +363,7 @@ silencePreviewFilter : List Data.Matcher.Matcher -> Filter
 silencePreviewFilter apiMatchers =
     { nullFilter
         | text =
-            List.map convertAPIMatcher apiMatchers
+            List.map fromApiMatcher apiMatchers
                 |> stringifyFilter
                 |> Just
         , showSilenced = Just True

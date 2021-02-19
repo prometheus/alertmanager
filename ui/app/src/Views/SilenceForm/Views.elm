@@ -9,13 +9,15 @@ import Utils.Filter exposing (SilenceFormGetParams, emptySilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
+import Views.FilterBar.Types as FilterBar
+import Views.FilterBar.Views as FilterBar
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
+import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
-view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, activeAlertId } =
+view maybeId { matchers, comment } defaultCreator { form, filterBar, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -28,7 +30,7 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
     div []
         [ h1 [] [ text title ]
         , timeInput form.startsAt form.endsAt form.duration
-        , matcherInput form.matchers
+        , matchersInput filterBar
         , validatedField input
             "Creator"
             inputSectionPadding
@@ -136,21 +138,14 @@ timeInput startsAt endsAt duration =
         ]
 
 
-matcherInput : List MatcherForm -> Html SilenceFormMsg
-matcherInput matchers =
+matchersInput : FilterBar.Model -> Html SilenceFormMsg
+matchersInput filterBar =
     div [ class inputSectionPadding ]
-        [ div []
-            [ label []
-                [ strong [] [ text "Matchers " ]
-                , span [ class "" ] [ text "Alerts affected by this silence." ]
-                ]
-            , div [ class "row" ]
-                [ label [ class "col-5" ] [ text "Name" ]
-                , label [ class "col-5" ] [ text "Value" ]
-                ]
+        [ label [ Html.Attributes.for "filter-bar-matcher" ]
+            [ strong [] [ text "Matchers " ]
+            , text "Alerts affected by this silence"
             ]
-        , div [] (List.indexedMap (matcherForm (List.length matchers > 1)) matchers)
-        , iconButtonMsg "btn btn-secondary" "fa-plus" (AddMatcher |> UpdateField)
+        , FilterBar.view filterBar |> Html.map MsgForFilterBar
         ]
 
 
@@ -207,20 +202,3 @@ previewSilenceBtn =
         , onClick PreviewSilence
         ]
         [ text "Preview Alerts" ]
-
-
-matcherForm : Bool -> Int -> MatcherForm -> Html SilenceFormMsg
-matcherForm showDeleteButton index { name, value, isRegex } =
-    div [ class "row" ]
-        [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) (ValidateMatcherName index) name ]
-        , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) (ValidateMatcherValue index) value ]
-        , div [ class "col-2 d-flex align-items-center" ]
-            [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
-            , if showDeleteButton then
-                iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)
-
-              else
-                text ""
-            ]
-        ]
-        |> Html.map UpdateField
