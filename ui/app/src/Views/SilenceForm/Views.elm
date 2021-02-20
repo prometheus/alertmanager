@@ -103,30 +103,29 @@ timeInput startsAt endsAt duration =
     div [ class <| "row " ++ inputSectionPadding ]
         [ validatedField input
             "Start"
-            "col-4"
+            "col-lg-4 col-6"
             (UpdateStartsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             startsAt
         , validatedField input
             "Duration"
-            "col-2"
+            "col-lg-3 col-6"
             (UpdateDuration >> UpdateField)
             (ValidateTime |> UpdateField)
             duration
         , validatedField input
             "End"
-            "col-4 pr-0"
+            "col-lg-4 col-6"
             (UpdateEndsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             endsAt
         , div
-            [ class "flex-column form-group"
-            ]
+            [ class "form-group col-lg-1 col-6" ]
             [ label
                 []
                 [ text "\u{00A0}" ]
             , button
-                [ class "form-control cursor-pointer"
+                [ class "form-control btn btn-outline-primary cursor-pointer"
                 , onClick (OpenDateTimePicker |> UpdateField)
                 ]
                 [ i
