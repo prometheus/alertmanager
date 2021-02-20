@@ -65,7 +65,7 @@ view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, act
             , div [ class "card-block" ]
                 [ case tab of
                     FilterTab ->
-                        Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view filterBar)
+                        Html.map (MsgForFilterBar >> MsgForAlertList) (FilterBar.view { showSilenceButton = True } filterBar)
 
                     GroupTab ->
                         Html.map (MsgForGroupBar >> MsgForAlertList) (GroupBar.view groupBar filter.customGrouping)

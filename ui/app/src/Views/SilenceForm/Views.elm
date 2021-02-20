@@ -145,7 +145,7 @@ matchersInput filterBar =
             [ strong [] [ text "Matchers " ]
             , text "Alerts affected by this silence"
             ]
-        , FilterBar.view filterBar |> Html.map MsgForFilterBar
+        , FilterBar.view { showSilenceButton = False } filterBar |> Html.map MsgForFilterBar
         ]
 
 
