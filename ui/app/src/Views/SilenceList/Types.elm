@@ -35,7 +35,7 @@ type alias Model =
 initSilenceList : Key -> Model
 initSilenceList key =
     { silences = Initial
-    , filterBar = FilterBar.initFilterBar (Just key) []
+    , filterBar = FilterBar.initFilterBar []
     , tab = Active
     , showConfirmationDialog = Nothing
     , key = key

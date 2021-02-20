@@ -89,7 +89,7 @@ type SilenceFormFieldMsg
 initSilenceForm : Key -> Model
 initSilenceForm key =
     { form = empty
-    , filterBar = FilterBar.initFilterBar Nothing []
+    , filterBar = FilterBar.initFilterBar []
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     , activeAlertId = Nothing

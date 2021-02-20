@@ -8,7 +8,6 @@ module Utils.Filter exposing
     , fromApiMatcher
     , generateAPIQueryString
     , generateQueryParam
-    , generateQueryString
     , nullFilter
     , parseFilter
     , parseGroup
@@ -18,6 +17,8 @@ module Utils.Filter exposing
     , stringifyGroup
     , stringifyMatcher
     , toApiMatcher
+    , toUrl
+    , withMatchers
     )
 
 import Char
@@ -55,8 +56,8 @@ generateQueryParam name =
     Maybe.map (percentEncode >> (++) (name ++ "="))
 
 
-generateQueryString : Filter -> String
-generateQueryString { receiver, customGrouping, showSilenced, showInhibited, showActive, text, group } =
+toUrl : String -> Filter -> String
+toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showActive, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
@@ -70,12 +71,14 @@ generateQueryString { receiver, customGrouping, showSilenced, showInhibited, sho
                 |> List.filterMap (\( a, b ) -> generateQueryParam a b)
     in
     if List.length parts > 0 then
-        parts
-            |> String.join "&"
-            |> (++) "?"
+        baseUrl
+            ++ (parts
+                    |> String.join "&"
+                    |> (++) "?"
+               )
 
     else
-        ""
+        baseUrl
 
 
 generateAPIQueryString : Filter -> String
@@ -357,6 +360,11 @@ isVarChar char =
         || Char.isUpper char
         || (char == '_')
         || Char.isDigit char
+
+
+withMatchers : List Matcher -> Filter -> Filter
+withMatchers matchers_ filter_ =
+    { filter_ | text = Just (stringifyFilter matchers_) }
 
 
 silencePreviewFilter : List Data.Matcher.Matcher -> Filter

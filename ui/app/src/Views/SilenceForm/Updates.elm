@@ -212,7 +212,7 @@ update msg model basePath apiUrl =
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
-              , filterBar = FilterBar.initFilterBar Nothing matchers
+              , filterBar = FilterBar.initFilterBar matchers
               , key = model.key
               }
             , Cmd.none
@@ -279,8 +279,8 @@ update msg model basePath apiUrl =
 
         MsgForFilterBar subMsg ->
             let
-                ( newFilterBar, subCmd ) =
-                    FilterBar.update "" Utils.Filter.nullFilter subMsg model.filterBar
+                ( newFilterBar, _, subCmd ) =
+                    FilterBar.update subMsg model.filterBar
             in
             ( { model | filterBar = newFilterBar }
             , Cmd.map (MsgForFilterBar >> MsgForSilenceForm) subCmd
