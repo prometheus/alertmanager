@@ -9,7 +9,9 @@ module Views.SilenceForm.Types exposing
     , initSilenceForm
     , parseEndsAt
     , toSilence
+    , validMatchers
     , validateForm
+    , validateMatchers
     )
 
 import Browser.Navigation exposing (Key)
@@ -38,6 +40,7 @@ import Views.FilterBar.Types as FilterBar
 type alias Model =
     { form : SilenceForm
     , filterBar : FilterBar.Model
+    , filterBarValid : ValidationState
     , silenceId : ApiData String
     , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
@@ -90,6 +93,7 @@ initSilenceForm : Key -> Model
 initSilenceForm key =
     { form = empty
     , filterBar = FilterBar.initFilterBar []
+    , filterBarValid = Utils.FormValidation.Initial
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     , activeAlertId = Nothing
@@ -99,22 +103,37 @@ initSilenceForm key =
 
 toSilence : FilterBar.Model -> SilenceForm -> Maybe PostableSilence
 toSilence filterBar { id, comment, createdBy, startsAt, endsAt } =
-    Result.map4
-        (\nonEmptyComment nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
+    Result.map5
+        (\nonEmptyMatchers nonEmptyComment nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
             { nullSilence
                 | id = id
                 , comment = nonEmptyComment
-                , matchers = List.map Utils.Filter.toApiMatcher filterBar.matchers
+                , matchers = nonEmptyMatchers
                 , createdBy = nonEmptyCreatedBy
                 , startsAt = parsedStartsAt
                 , endsAt = parsedEndsAt
             }
         )
+        (validMatchers filterBar)
         (stringNotEmpty comment.value)
         (stringNotEmpty createdBy.value)
         (timeFromString startsAt.value)
         (parseEndsAt startsAt.value endsAt.value)
         |> Result.toMaybe
+
+
+validMatchers : FilterBar.Model -> Result String (List Data.Matcher.Matcher)
+validMatchers { matchers, matcherText } =
+    if matcherText /= "" then
+        Err "Please complete adding the matcher"
+
+    else
+        case matchers of
+            [] ->
+                Err "Matchers are required"
+
+            nonEmptyMatchers ->
+                Ok (List.map Utils.Filter.toApiMatcher nonEmptyMatchers)
 
 
 fromSilence : GettableSilence -> SilenceForm
@@ -150,6 +169,16 @@ validateForm { id, createdBy, comment, startsAt, endsAt, duration, dateTimePicke
     , dateTimePicker = dateTimePicker
     , viewDateTimePicker = False
     }
+
+
+validateMatchers : FilterBar.Model -> ValidationState
+validateMatchers filter =
+    case validMatchers filter of
+        Err error ->
+            Utils.FormValidation.Invalid error
+
+        Ok _ ->
+            Utils.FormValidation.Valid
 
 
 parseEndsAt : String -> String -> Result String Posix

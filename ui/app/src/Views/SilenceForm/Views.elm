@@ -13,11 +13,11 @@ import Views.FilterBar.Types as FilterBar
 import Views.FilterBar.Views as FilterBar
 import Views.Shared.SilencePreview
 import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
+import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), validMatchers)
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
-view maybeId { matchers, comment } defaultCreator { form, filterBar, silenceId, alerts, activeAlertId } =
+view maybeId { matchers, comment } defaultCreator { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -30,7 +30,7 @@ view maybeId { matchers, comment } defaultCreator { form, filterBar, silenceId, 
     div []
         [ h1 [] [ text title ]
         , timeInput form.startsAt form.endsAt form.duration
-        , matchersInput filterBar
+        , matchersInput filterBarValid filterBar
         , validatedField input
             "Creator"
             inputSectionPadding
@@ -138,14 +138,29 @@ timeInput startsAt endsAt duration =
         ]
 
 
-matchersInput : FilterBar.Model -> Html SilenceFormMsg
-matchersInput filterBar =
-    div [ class inputSectionPadding ]
+matchersInput : Utils.FormValidation.ValidationState -> FilterBar.Model -> Html SilenceFormMsg
+matchersInput filterBarValid filterBar =
+    let
+        errorClass =
+            case filterBarValid of
+                Invalid _ ->
+                    " has-danger"
+
+                _ ->
+                    ""
+    in
+    div [ class (inputSectionPadding ++ errorClass) ]
         [ label [ Html.Attributes.for "filter-bar-matcher" ]
             [ strong [] [ text "Matchers " ]
             , text "Alerts affected by this silence"
             ]
         , FilterBar.view { showSilenceButton = False } filterBar |> Html.map MsgForFilterBar
+        , case filterBarValid of
+            Invalid error ->
+                div [ class "form-control-feedback" ] [ text error ]
+
+            _ ->
+                text ""
         ]
 
 

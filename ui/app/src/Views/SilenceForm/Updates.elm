@@ -27,6 +27,7 @@ import Views.SilenceForm.Types
         , parseEndsAt
         , toSilence
         , validateForm
+        , validateMatchers
         )
 
 
@@ -188,6 +189,7 @@ update msg model basePath apiUrl =
                     ( { model
                         | silenceId = Failure "Could not submit the form, Silence is not yet valid."
                         , form = validateForm model.form
+                        , filterBarValid = validateMatchers model.filterBar
                       }
                     , Cmd.none
                     )
@@ -213,6 +215,7 @@ update msg model basePath apiUrl =
               , activeAlertId = Nothing
               , silenceId = Initial
               , filterBar = FilterBar.initFilterBar matchers
+              , filterBarValid = Utils.FormValidation.Initial
               , key = model.key
               }
             , Cmd.none
@@ -243,6 +246,7 @@ update msg model basePath apiUrl =
                     ( { model
                         | alerts = Failure "Can not display affected Alerts, Silence is not yet valid."
                         , form = validateForm model.form
+                        , filterBarValid = validateMatchers model.filterBar
                       }
                     , Cmd.none
                     )
@@ -282,7 +286,7 @@ update msg model basePath apiUrl =
                 ( newFilterBar, _, subCmd ) =
                     FilterBar.update subMsg model.filterBar
             in
-            ( { model | filterBar = newFilterBar }
+            ( { model | filterBar = newFilterBar, filterBarValid = Utils.FormValidation.Initial }
             , Cmd.map (MsgForFilterBar >> MsgForSilenceForm) subCmd
             )
 
