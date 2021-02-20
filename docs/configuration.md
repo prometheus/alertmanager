@@ -146,19 +146,19 @@ current node.
 # Whether an alert should continue matching subsequent sibling nodes.
 [ continue: <boolean> | default = false ]
 
+# DEPRECATED: Use matchers below.
 # A set of equality matchers an alert has to fulfill to match the node.
 match:
   [ <labelname>: <labelvalue>, ... ]
 
+# DEPRECATED: Use matchers below.
 # A set of regex-matchers an alert has to fulfill to match the node.
 match_re:
   [ <labelname>: <regex>, ... ]
   
-# A combined set of equality and regex with support of negative matching 
-# that an alert has to fulfill to match the node.  
+# A list of matchers that an alert has to fulfill to match the node. 
 matchers:
-  [ <labelname>: <labelvalue>, <labelname>: <regex>, ... ]
-
+  [ - <matcher> ... ]
 
 # How long to initially wait to send a notification for a group
 # of alerts. Allows to wait for an inhibiting alert to arrive or collect
@@ -226,28 +226,32 @@ source matchers in a way that alerts never match both sides. It is much easier
 to reason about and does not trigger this special case.
 
 ```yaml
+# DEPRECATED: Use matchers below.
 # Matchers that have to be fulfilled in the alerts to be muted.
 target_match:
   [ <labelname>: <labelvalue>, ... ]
+# DEPRECATED: Use matchers below.
 target_match_re:
   [ <labelname>: <regex>, ... ]
   
-# Matchers that have to be fulfilled in the alerts to be muted 
-# with support of negative matching. 
+# A list of matchers that have to be fulfilled by the target 
+# alerts to be muted.
 target_matchers:
-  [ <labelname>: <labelvalue>, <labelname>: <regex>, ... ]
+  [ - <matcher> ... ]
 
+# DEPRECATED: Use matchers below.
 # Matchers for which one or more alerts have to exist for the
 # inhibition to take effect.
 source_match:
   [ <labelname>: <labelvalue>, ... ]
+# DEPRECATED: Use matchers below.
 source_match_re:
   [ <labelname>: <regex>, ... ]
   
-# Matchers for which one or more alerts have to exist for the
-# inhibition to take effect with support of negative matching.
+# A list of matchers for which one or more alerts have 
+# to exist for the inhibition to take effect.
 source_matchers:
-  [ <labelname>: <labelvalue>, <labelname>: <regex>, ... ]
+   [ - <matcher> ... ]
 
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
