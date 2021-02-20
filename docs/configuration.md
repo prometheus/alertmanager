@@ -576,6 +576,10 @@ value: <tmpl_string>
 [ short: <boolean> | default = slack_config.short_fields ]
 ```
 
+## `<matcher>`
+
+A matcher is a string with a syntax inspired by PromQL label matchers.
+
 ## `<opsgenie_config>`
 
 OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
