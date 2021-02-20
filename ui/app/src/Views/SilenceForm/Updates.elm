@@ -225,7 +225,14 @@ update msg model basePath apiUrl =
             ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetch >> MsgForSilenceForm) )
 
         SilenceFetch (Success silence) ->
-            ( { model | form = fromSilence silence }
+            ( { form = fromSilence silence
+              , filterBar = FilterBar.initFilterBar (List.map Utils.Filter.fromApiMatcher silence.matchers)
+              , filterBarValid = Utils.FormValidation.Initial
+              , silenceId = model.silenceId
+              , alerts = Initial
+              , activeAlertId = Nothing
+              , key = model.key
+              }
             , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
             )
 
