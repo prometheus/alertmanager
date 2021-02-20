@@ -5,7 +5,7 @@ import Html exposing (Html, a, button, div, fieldset, h1, h5, i, input, label, l
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
 import Utils.DateTimePicker.Views exposing (viewDateTimePicker)
-import Utils.Filter exposing (SilenceFormGetParams, emptySilenceFormGetParams)
+import Utils.Filter exposing (SilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
 import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
@@ -17,7 +17,7 @@ import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
-view maybeId { matchers, comment } defaultCreator { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
+view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -25,7 +25,7 @@ view maybeId { matchers, comment } defaultCreator { form, filterBar, filterBarVa
                     ( "Edit Silence", FetchSilence silenceId_ )
 
                 Nothing ->
-                    ( "New Silence", NewSilenceFromMatchersAndComment defaultCreator emptySilenceFormGetParams )
+                    ( "New Silence", NewSilenceFromMatchersAndComment defaultCreator silenceFormGetParams )
     in
     div []
         [ h1 [] [ text title ]
