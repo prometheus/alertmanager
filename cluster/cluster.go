@@ -613,8 +613,10 @@ func (p *Peer) Self() *memberlist.Node {
 type Member struct {
 	*memberlist.Node
 }
+
 // Name implements cluster.ClusterMember
 func (m Member) Name() string { return m.Node.Name }
+
 // Address implements cluster.ClusterMember
 func (m Member) Address() string { return m.Node.Address() }
 
