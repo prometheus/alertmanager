@@ -216,7 +216,7 @@ func getClusterStatus(p cluster.ClusterPeer) *clusterStatus {
 
 	for _, n := range p.Peers() {
 		s.Peers = append(s.Peers, peerStatus{
-			Name:    n.String(),
+			Name:    n.Name(),
 			Address: n.Address(),
 		})
 	}

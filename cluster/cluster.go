@@ -33,22 +33,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// ClusterPeer helps consumers gather information about the peer(s) in the cluster
+// Peer is a single peer in a gossip cluster.
 type ClusterPeer interface {
 	// Name returns the unique identifier of this peer in the cluster.
 	Name() string
-	// Address returns the IP address of this peer in the cluster.
-	Address() string
 	// Status returns a status string representing the peer state.
 	Status() string
 	// Peers returns the peer nodes in the cluster.
-	Peers() []Node
+	Peers() []ClusterMember
 }
 
-// Node interface that represents node peers in a cluster
-type Node interface {
-	// String returns the name of the node
-	String() string
+// ClusterMember interface that represents node peers in a cluster
+type ClusterMember interface {
+	// Name returns the name of the node
+	Name() string
 	// Address returns the IP address of the node
 	Address() string
 }
@@ -565,10 +563,6 @@ func (p *Peer) Name() string {
 	return p.mlist.LocalNode().Name
 }
 
-func (p *Peer) Address() string {
-	return p.mlist.LocalNode().Addr.String()
-}
-
 // ClusterSize returns the current number of alive members in the cluster.
 func (p *Peer) ClusterSize() int {
 	return p.mlist.NumMembers()
@@ -615,11 +609,22 @@ func (p *Peer) Self() *memberlist.Node {
 	return p.mlist.LocalNode()
 }
 
+// Member represents a member in the cluster.
+type Member struct {
+	*memberlist.Node
+}
+// Name implements cluster.ClusterMember
+func (m Member) Name() string { return m.Node.Name }
+// Address implements cluster.ClusterMember
+func (m Member) Address() string { return m.Node.Address() }
+
 // Peers returns the peers in the cluster.
-func (p *Peer) Peers() []Node {
-	peers := make([]Node, 0, len(p.mlist.Members()))
+func (p *Peer) Peers() []ClusterMember {
+	peers := make([]ClusterMember, 0, len(p.mlist.Members()))
 	for _, member := range p.mlist.Members() {
-		peers = append(peers, member)
+		peers = append(peers, Member{
+			Node: member,
+		})
 	}
 	return peers
 }
