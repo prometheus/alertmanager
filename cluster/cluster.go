@@ -51,6 +51,11 @@ type ClusterMember interface {
 	Address() string
 }
 
+// ClusterChannel supports state broadcasting across peers.
+type ClusterChannel interface {
+	Broadcast([]byte)
+}
+
 // Peer is a single peer in a gossip cluster.
 type Peer struct {
 	mlist    *memberlist.Memberlist
@@ -530,7 +535,7 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 
 // AddState adds a new state that will be gossiped. It returns a channel to which
 // broadcast messages for the state can be sent.
-func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) *Channel {
+func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) ClusterChannel {
 	p.states[key] = s
 	send := func(b []byte) {
 		p.delegate.bcast.QueueBroadcast(simpleBroadcast(b))
