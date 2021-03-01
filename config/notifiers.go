@@ -228,9 +228,7 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	}
 	if c.Details == nil {
 		c.Details = make(map[string]string)
-	}
-	for k, v := range DefaultPagerdutyDetails {
-		if _, ok := c.Details[k]; !ok {
+		for k, v := range DefaultPagerdutyDetails {
 			c.Details[k] = v
 		}
 	}

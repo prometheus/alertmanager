@@ -114,8 +114,8 @@ details:
   key1: val1
 `,
 			checkFn: func(d map[string]string) {
-				if len(d) != 5 {
-					t.Errorf("expected 5 items, got: %d", len(d))
+				if len(d) != 1 {
+					t.Errorf("expected 1 items, got: %d", len(d))
 				}
 			},
 		},
@@ -128,8 +128,8 @@ details:
   firing: firing
 `,
 			checkFn: func(d map[string]string) {
-				if len(d) != 6 {
-					t.Errorf("expected 6 items, got: %d", len(d))
+				if len(d) != 3 {
+					t.Errorf("expected 3 items, got: %d", len(d))
 				}
 			},
 		},
