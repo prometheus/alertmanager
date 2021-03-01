@@ -5,7 +5,7 @@ import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus exposing (State(..))
 import Silences.Api as Api
 import Utils.Api as ApiData
-import Utils.Filter exposing (Filter, generateQueryString)
+import Utils.Filter exposing (Filter)
 import Utils.Types as Types exposing (ApiData(..), Matchers, Time)
 import Views.FilterBar.Updates as FilterBar
 import Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab)
@@ -54,10 +54,27 @@ update msg model filter basePath apiUrl =
 
         MsgForFilterBar subMsg ->
             let
-                ( filterBar, cmd ) =
-                    FilterBar.update (basePath ++ "#/silences") filter subMsg model.filterBar
+                ( newFilterBar, shouldFilter, cmd ) =
+                    FilterBar.update subMsg model.filterBar
+
+                filterBarCmd =
+                    Cmd.map MsgForFilterBar cmd
+
+                newUrl =
+                    Utils.Filter.toUrl (basePath ++ "#/silences")
+                        (Utils.Filter.withMatchers newFilterBar.matchers filter)
+
+                silencesCmd =
+                    if shouldFilter then
+                        Cmd.batch
+                            [ Navigation.pushUrl model.key newUrl
+                            , filterBarCmd
+                            ]
+
+                    else
+                        filterBarCmd
             in
-            ( { model | filterBar = filterBar }, Cmd.map MsgForFilterBar cmd )
+            ( { model | filterBar = newFilterBar }, silencesCmd )
 
         SetTab tab ->
             ( { model | tab = tab }, Cmd.none )

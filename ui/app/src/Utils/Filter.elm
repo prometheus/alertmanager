@@ -5,9 +5,9 @@ module Utils.Filter exposing
     , SilenceFormGetParams
     , convertFilterMatcher
     , emptySilenceFormGetParams
+    , fromApiMatcher
     , generateAPIQueryString
     , generateQueryParam
-    , generateQueryString
     , nullFilter
     , parseFilter
     , parseGroup
@@ -16,6 +16,9 @@ module Utils.Filter exposing
     , stringifyFilter
     , stringifyGroup
     , stringifyMatcher
+    , toApiMatcher
+    , toUrl
+    , withMatchers
     )
 
 import Char
@@ -53,8 +56,8 @@ generateQueryParam name =
     Maybe.map (percentEncode >> (++) (name ++ "="))
 
 
-generateQueryString : Filter -> String
-generateQueryString { receiver, customGrouping, showSilenced, showInhibited, showActive, text, group } =
+toUrl : String -> Filter -> String
+toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showActive, text, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
@@ -68,12 +71,14 @@ generateQueryString { receiver, customGrouping, showSilenced, showInhibited, sho
                 |> List.filterMap (\( a, b ) -> generateQueryParam a b)
     in
     if List.length parts > 0 then
-        parts
-            |> String.join "&"
-            |> (++) "?"
+        baseUrl
+            ++ (parts
+                    |> String.join "&"
+                    |> (++) "?"
+               )
 
     else
-        ""
+        baseUrl
 
 
 generateAPIQueryString : Filter -> String
@@ -141,8 +146,32 @@ type alias Matcher =
     }
 
 
-convertAPIMatcher : Data.Matcher.Matcher -> Matcher
-convertAPIMatcher { name, value, isRegex, isEqual } =
+toApiMatcher : Matcher -> Data.Matcher.Matcher
+toApiMatcher { key, op, value } =
+    let
+        ( isRegex, isEqual ) =
+            case op of
+                Eq ->
+                    ( False, True )
+
+                NotEq ->
+                    ( False, False )
+
+                RegexMatch ->
+                    ( True, True )
+
+                NotRegexMatch ->
+                    ( True, False )
+    in
+    { name = key
+    , isRegex = isRegex
+    , isEqual = Just isEqual
+    , value = value
+    }
+
+
+fromApiMatcher : Data.Matcher.Matcher -> Matcher
+fromApiMatcher { name, value, isRegex, isEqual } =
     let
         isEqualValue =
             case isEqual of
@@ -333,11 +362,16 @@ isVarChar char =
         || Char.isDigit char
 
 
+withMatchers : List Matcher -> Filter -> Filter
+withMatchers matchers_ filter_ =
+    { filter_ | text = Just (stringifyFilter matchers_) }
+
+
 silencePreviewFilter : List Data.Matcher.Matcher -> Filter
 silencePreviewFilter apiMatchers =
     { nullFilter
         | text =
-            List.map convertAPIMatcher apiMatchers
+            List.map fromApiMatcher apiMatchers
                 |> stringifyFilter
                 |> Just
         , showSilenced = Just True

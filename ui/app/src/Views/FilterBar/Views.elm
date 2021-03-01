@@ -45,8 +45,8 @@ viewMatchers matchers =
         |> List.map viewMatcher
 
 
-view : Model -> Html Msg
-view { matchers, matcherText, backspacePressed } =
+view : { showSilenceButton : Bool } -> Model -> Html Msg
+view { showSilenceButton } { matchers, matcherText, backspacePressed } =
     let
         maybeMatcher =
             Utils.Filter.parseMatcher matcherText
@@ -112,28 +112,44 @@ view { matchers, matcherText, backspacePressed } =
         (viewMatchers matchers
             ++ [ div
                     [ class ("col " ++ className)
-                    , style "min-width" "200px"
+                    , style "min-width"
+                        (if showSilenceButton then
+                            "300px"
+
+                         else
+                            "200px"
+                        )
                     ]
-                    [ div [ class "input-group" ]
-                        [ input
-                            [ id "filter-bar-matcher"
-                            , class "form-control"
-                            , value matcherText
-                            , onKeyDown keyDown
-                            , onKeyUp keyUp
-                            , onInput UpdateMatcherText
+                    [ div [ class "row no-gutters align-content-stretch" ]
+                        [ div [ class "col input-group" ]
+                            [ input
+                                [ id "filter-bar-matcher"
+                                , class "form-control"
+                                , value matcherText
+                                , onKeyDown keyDown
+                                , onKeyUp keyUp
+                                , onInput UpdateMatcherText
+                                ]
+                                []
+                            , span
+                                [ class "input-group-btn" ]
+                                [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
                             ]
-                            []
-                        , span
-                            [ class "input-group-btn" ]
-                            [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
-                        , a
-                            [ class "btn btn-outline-info border-0"
-                            , href (newSilenceFromMatchers dataMatchers)
-                            ]
-                            [ i [ class "fa fa-bell-slash-o mr-2" ] []
-                            , text "Silence"
-                            ]
+                        , if showSilenceButton then
+                            div [ class "col col-auto input-group-btn ml-2" ]
+                                [ div [ class "input-group" ]
+                                    [ a
+                                        [ class "btn btn-outline-info"
+                                        , href (newSilenceFromMatchers dataMatchers)
+                                        ]
+                                        [ i [ class "fa fa-bell-slash-o mr-2" ] []
+                                        , text "Silence"
+                                        ]
+                                    ]
+                                ]
+
+                          else
+                            text ""
                         ]
                     , small [ class "form-text text-muted" ]
                         [ text "Custom matcher, e.g."
