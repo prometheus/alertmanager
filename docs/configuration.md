@@ -262,7 +262,7 @@ Days should be specified by name (e.g. ‘Sunday’). For convenience, ranges ar
 of the form <start_day>:<end_day> and are inclusive on both ends. For example:
 `[‘monday:wednesday','saturday', 'sunday']`
 
-`days_of_month_ramge`: A list of numerical days in the month. Days begin at 1.
+`days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
 e.g. -1 during January would represent January 31. For example: `['1:5', '-3:-1']`.
 Extending past the start or end of the month will cause it to be clamped. E.g. specifying
