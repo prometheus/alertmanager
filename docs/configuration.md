@@ -319,8 +319,7 @@ A `http_config` allows configuring the HTTP client that the receiver uses to
 communicate with HTTP-based API services.
 
 ```yaml
-# Note that `basic_auth`, `bearer_token` and `bearer_token_file` options are
-# mutually exclusive.
+# Note that `basic_auth` and `authorization` options are mutually exclusive.
 
 # Sets the `Authorization` header with the configured username and password.
 # password and password_file are mutually exclusive.
@@ -329,18 +328,26 @@ basic_auth:
   [ password: <secret> ]
   [ password_file: <string> ]
 
-# Sets the `Authorization` header with the configured bearer token.
-[ bearer_token: <secret> ]
+# Optional the `Authorization` header configuration.
+authorization:
+  # Sets the authentication type.
+  [ type: <string> | default: Bearer ]
+  # Sets the credentials. It is mutually exclusive with
+  # `credentials_file`.
+  [ credentials: <secret> ]
+  # Sets the credentials with the credentials read from the configured file.
+  # It is mutually exclusive with `credentials`.
+  [ credentials_file: <filename> ]
 
-# Sets the `Authorization` header with the bearer token read from the configured file.
-[ bearer_token_file: <filepath> ]
+# Optional proxy URL.
+[ proxy_url: <string> ]
+
+# Configure whether HTTP requests follow HTTP 3xx redirects.
+[ follow_redirects: <bool> | default = true ]
 
 # Configures the TLS settings.
 tls_config:
   [ <tls_config> ]
-
-# Optional proxy URL.
-[ proxy_url: <string> ]
 ```
 
 ## `<tls_config>`
