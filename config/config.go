@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/timeinterval"
 )
 
 const secretToken = "<secret>"
@@ -219,13 +220,32 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	}
 }
 
+// MuteTimeInterval represents a named set of time intervals for which a route should be muted.
+type MuteTimeInterval struct {
+	Name          string                      `yaml:"name"`
+	TimeIntervals []timeinterval.TimeInterval `yaml:"time_intervals"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MuteTimeInterval.
+func (mt *MuteTimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MuteTimeInterval
+	if err := unmarshal((*plain)(mt)); err != nil {
+		return err
+	}
+	if mt.Name == "" {
+		return fmt.Errorf("missing name in mute time interval")
+	}
+	return nil
+}
+
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string       `yaml:"templates" json:"templates"`
+	Global            *GlobalConfig      `yaml:"global,omitempty" json:"global,omitempty"`
+	Route             *Route             `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules      []*InhibitRule     `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers         []*Receiver        `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates         []string           `yaml:"templates" json:"templates"`
+	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -411,9 +431,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
 		return fmt.Errorf("root route must not have any matchers")
 	}
+	if len(c.Route.MuteTimeIntervals) > 0 {
+		return fmt.Errorf("root route must not have any mute time intervals")
+	}
 
 	// Validate that all receivers used in the routing tree are defined.
-	return checkReceiver(c.Route, names)
+	if err := checkReceiver(c.Route, names); err != nil {
+		return err
+	}
+
+	tiNames := make(map[string]struct{})
+	for _, mt := range c.MuteTimeIntervals {
+		if _, ok := tiNames[mt.Name]; ok {
+			return fmt.Errorf("mute time interval %q is not unique", mt.Name)
+		}
+		tiNames[mt.Name] = struct{}{}
+	}
+	return checkTimeInterval(c.Route, tiNames)
 }
 
 // checkReceiver returns an error if a node in the routing tree
@@ -429,6 +463,23 @@ func checkReceiver(r *Route, receivers map[string]struct{}) error {
 	}
 	if _, ok := receivers[r.Receiver]; !ok {
 		return fmt.Errorf("undefined receiver %q used in route", r.Receiver)
+	}
+	return nil
+}
+
+func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
+	for _, sr := range r.Routes {
+		if err := checkTimeInterval(sr, timeIntervals); err != nil {
+			return err
+		}
+	}
+	if len(r.MuteTimeIntervals) == 0 {
+		return nil
+	}
+	for _, mt := range r.MuteTimeIntervals {
+		if _, ok := timeIntervals[mt]; !ok {
+			return fmt.Errorf("undefined time interval %q used in route", mt)
+		}
 	}
 	return nil
 }
@@ -582,10 +633,11 @@ type Route struct {
 	// Deprecated. Remove before v1.0 release.
 	Match map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	// Deprecated. Remove before v1.0 release.
-	MatchRE  MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	Matchers Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
-	Continue bool         `yaml:"continue" json:"continue,omitempty"`
-	Routes   []*Route     `yaml:"routes,omitempty" json:"routes,omitempty"`
+	MatchRE           MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Matchers          Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	MuteTimeIntervals []string     `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	Continue          bool         `yaml:"continue" json:"continue,omitempty"`
+	Routes            []*Route     `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
