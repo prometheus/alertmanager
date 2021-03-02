@@ -50,7 +50,7 @@ Generic placeholders are defined as follows:
 
 The other placeholders are specified separately.
 
-A provided [valid example file](https://github.com/prometheus/alertmanager/blob/master/doc/examples/simple.yml)
+A provided [valid example file](https://github.com/prometheus/alertmanager/blob/main/doc/examples/simple.yml)
 shows usage in context.
 
 The global configuration specifies parameters that are valid in all other

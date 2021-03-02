@@ -1,4 +1,4 @@
-# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
+# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
 
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
@@ -192,7 +192,7 @@ The current Alertmanager API is version 2. This API is fully generated via the
 and [Go Swagger](https://github.com/go-swagger/go-swagger/) with the exception
 of the HTTP handlers themselves. The API specification can be found in
 [api/v2/openapi.yaml](api/v2/openapi.yaml). A HTML rendered version can be
-accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml).
+accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml).
 Clients can be easily generated via any OpenAPI generator for all major languages.
 
 With the default config, endpoints are accessed under a `/api/v1` or `/api/v2` prefix.
@@ -395,7 +395,7 @@ If running Alertmanager in high availability mode is not desired, setting `--clu
 
 ## Contributing
 
-Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
+Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/main/CONTRIBUTING.md).
 
 To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
@@ -405,7 +405,7 @@ To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CO
 
 ## License
 
-Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/master/LICENSE).
+Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/main/LICENSE).
 
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager
