@@ -616,21 +616,21 @@ func (p *Peer) Self() *memberlist.Node {
 
 // Member represents a member in the cluster.
 type Member struct {
-	*memberlist.Node
+	node *memberlist.Node
 }
 
 // Name implements cluster.ClusterMember
-func (m Member) Name() string { return m.Node.Name }
+func (m Member) Name() string { return m.node.Name }
 
 // Address implements cluster.ClusterMember
-func (m Member) Address() string { return m.Node.Address() }
+func (m Member) Address() string { return m.node.Address() }
 
 // Peers returns the peers in the cluster.
 func (p *Peer) Peers() []ClusterMember {
 	peers := make([]ClusterMember, 0, len(p.mlist.Members()))
 	for _, member := range p.mlist.Members() {
 		peers = append(peers, Member{
-			Node: member,
+			node: member,
 		})
 	}
 	return peers
