@@ -675,7 +675,9 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	var expectedConf = Config{
 
 		Global: &GlobalConfig{
-			HTTPConfig:      &commoncfg.HTTPClientConfig{},
+			HTTPConfig: &commoncfg.HTTPClientConfig{
+				FollowRedirects: true,
+			},
 			ResolveTimeout:  model.Duration(5 * time.Minute),
 			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
 			SMTPFrom:        "alertmanager@example.org",
@@ -752,6 +754,21 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 
 	if !reflect.DeepEqual(configGot, configExp) {
 		t.Fatalf("%s: unexpected config result: \n\n%s\n expected\n\n%s", "testdata/conf.empty-fields.yml", configGot, configExp)
+	}
+}
+
+func TestGlobalAndLocalHTTPConfig(t *testing.T) {
+	config, err := LoadFile("testdata/conf.http-config.good.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf-http-config.good.yml", err)
+	}
+
+	if config.Global.HTTPConfig.FollowRedirects {
+		t.Fatalf("global HTTP config should not follow redirects")
+	}
+
+	if !config.Receivers[0].SlackConfigs[0].HTTPConfig.FollowRedirects {
+		t.Fatalf("global HTTP config should follow redirects")
 	}
 }
 
