@@ -52,7 +52,7 @@ import (
 
 // API represents an Alertmanager API v2
 type API struct {
-	peer           *cluster.Peer
+	peer           cluster.ClusterPeer
 	silences       *silence.Silences
 	alerts         provider.Alerts
 	alertGroups    groupsFn
@@ -83,7 +83,7 @@ func NewAPI(
 	gf groupsFn,
 	sf getAlertStatusFn,
 	silences *silence.Silences,
-	peer *cluster.Peer,
+	peer cluster.ClusterPeer,
 	l log.Logger,
 	r prometheus.Registerer,
 ) (*API, error) {
@@ -179,8 +179,9 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 		peers := []*open_api_models.PeerStatus{}
 		for _, n := range api.peer.Peers() {
 			address := n.Address()
+			name := n.Name()
 			peers = append(peers, &open_api_models.PeerStatus{
-				Name:    &n.Name,
+				Name:    &name,
 				Address: &address,
 			})
 		}

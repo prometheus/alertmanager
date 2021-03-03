@@ -33,6 +33,29 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// ClusterPeer represents a single Peer in a gossip cluster.
+type ClusterPeer interface {
+	// Name returns the unique identifier of this peer in the cluster.
+	Name() string
+	// Status returns a status string representing the peer state.
+	Status() string
+	// Peers returns the peer nodes in the cluster.
+	Peers() []ClusterMember
+}
+
+// ClusterMember interface that represents node peers in a cluster
+type ClusterMember interface {
+	// Name returns the name of the node
+	Name() string
+	// Address returns the IP address of the node
+	Address() string
+}
+
+// ClusterChannel supports state broadcasting across peers.
+type ClusterChannel interface {
+	Broadcast([]byte)
+}
+
 // Peer is a single peer in a gossip cluster.
 type Peer struct {
 	mlist    *memberlist.Memberlist
@@ -512,15 +535,15 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 
 // AddState adds a new state that will be gossiped. It returns a channel to which
 // broadcast messages for the state can be sent.
-func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) *Channel {
+func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) ClusterChannel {
 	p.states[key] = s
 	send := func(b []byte) {
 		p.delegate.bcast.QueueBroadcast(simpleBroadcast(b))
 	}
 	peers := func() []*memberlist.Node {
-		nodes := p.Peers()
+		nodes := p.mlist.Members()
 		for i, n := range nodes {
-			if n.Name == p.Self().Name {
+			if n.String() == p.Self().Name {
 				nodes = append(nodes[:i], nodes[i+1:]...)
 				break
 			}
@@ -591,14 +614,31 @@ func (p *Peer) Self() *memberlist.Node {
 	return p.mlist.LocalNode()
 }
 
+// Member represents a member in the cluster.
+type Member struct {
+	node *memberlist.Node
+}
+
+// Name implements cluster.ClusterMember
+func (m Member) Name() string { return m.node.Name }
+
+// Address implements cluster.ClusterMember
+func (m Member) Address() string { return m.node.Address() }
+
 // Peers returns the peers in the cluster.
-func (p *Peer) Peers() []*memberlist.Node {
-	return p.mlist.Members()
+func (p *Peer) Peers() []ClusterMember {
+	peers := make([]ClusterMember, 0, len(p.mlist.Members()))
+	for _, member := range p.mlist.Members() {
+		peers = append(peers, Member{
+			node: member,
+		})
+	}
+	return peers
 }
 
 // Position returns the position of the peer in the cluster.
 func (p *Peer) Position() int {
-	all := p.Peers()
+	all := p.mlist.Members()
 	sort.Slice(all, func(i, j int) bool {
 		return all[i].Name < all[j].Name
 	})
