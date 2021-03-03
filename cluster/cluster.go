@@ -33,7 +33,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Peer is a single peer in a gossip cluster.
+// ClusterPeer represents a single Peer in a gossip cluster.
 type ClusterPeer interface {
 	// Name returns the unique identifier of this peer in the cluster.
 	Name() string
