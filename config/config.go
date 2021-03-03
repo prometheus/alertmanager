@@ -218,6 +218,31 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 	for i, tf := range cfg.Templates {
 		cfg.Templates[i] = join(tf)
 	}
+
+	cfg.Global.HTTPConfig.SetDirectory(baseDir)
+	for _, receiver := range cfg.Receivers {
+		for _, cfg := range receiver.OpsGenieConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.PagerdutyConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.PushoverConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.SlackConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.VictorOpsConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.WebhookConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.WechatConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+	}
 }
 
 // MuteTimeInterval represents a named set of time intervals for which a route should be muted.
