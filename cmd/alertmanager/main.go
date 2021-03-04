@@ -210,6 +210,7 @@ func run() int {
 	)
 
 	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
+	kingpin.CommandLine.UsageWriter(os.Stdout)
 
 	kingpin.Version(version.Print("alertmanager"))
 	kingpin.CommandLine.GetFlag("help").Short('h')
