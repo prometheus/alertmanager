@@ -138,7 +138,7 @@ func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*typ
 	if !ok {
 		level.Error(l).Log("msg", "Missing group labels")
 	}
-	return tmpl.Data(recv, groupLabels, alerts...)
+	return template.AssembleData(recv, groupLabels, tmpl.ExternalURL.String(), alerts...)
 }
 
 func readAll(r io.Reader) string {

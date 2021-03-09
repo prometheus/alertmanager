@@ -270,7 +270,7 @@ func TestData(t *testing.T) {
 	} {
 		tc := tc
 		t.Run("", func(t *testing.T) {
-			got := tmpl.Data(tc.receiver, tc.groupLabels, tc.alerts...)
+			got := AssembleData(tc.receiver, tc.groupLabels, tmpl.ExternalURL.String(), tc.alerts...)
 			require.Equal(t, tc.exp, got)
 		})
 	}

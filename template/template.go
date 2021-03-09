@@ -276,8 +276,8 @@ func (as Alerts) Resolved() []Alert {
 	return res
 }
 
-// Data assembles data for template expansion.
-func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*types.Alert) *Data {
+// AssembleData assembles data for template expansion.
+func AssembleData(recv string, groupLabels model.LabelSet, externalUrl string, alerts ...*types.Alert) *Data {
 	data := &Data{
 		Receiver:          regexp.QuoteMeta(recv),
 		Status:            string(types.Alerts(alerts...).Status()),
@@ -285,7 +285,7 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		GroupLabels:       KV{},
 		CommonLabels:      KV{},
 		CommonAnnotations: KV{},
-		ExternalURL:       t.ExternalURL.String(),
+		ExternalURL:       externalUrl,
 	}
 
 	// The call to types.Alert is necessary to correctly resolve the internal
