@@ -25,7 +25,7 @@ require (
 	github.com/prometheus/common v0.18.0
 	github.com/prometheus/exporter-toolkit v0.5.0
 	github.com/rs/cors v1.7.0
-	github.com/satori/go.uuid v1.2.0
+	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 	github.com/shurcooL/vfsgen v0.0.0-20181202132449-6a9ea43bcacd
 	github.com/stretchr/testify v1.5.1
