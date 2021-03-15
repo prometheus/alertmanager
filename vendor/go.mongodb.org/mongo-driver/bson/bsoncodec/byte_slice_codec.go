@@ -15,17 +15,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson/bsontype"
 )
 
+var defaultByteSliceCodec = NewByteSliceCodec()
+
 // ByteSliceCodec is the Codec used for []byte values.
 type ByteSliceCodec struct {
 	EncodeNilAsEmpty bool
 }
 
-var (
-	defaultByteSliceCodec = NewByteSliceCodec()
-
-	_ ValueCodec  = defaultByteSliceCodec
-	_ typeDecoder = defaultByteSliceCodec
-)
+var _ ValueCodec = &ByteSliceCodec{}
 
 // NewByteSliceCodec returns a StringCodec with options opts.
 func NewByteSliceCodec(opts ...*bsonoptions.ByteSliceCodecOptions) *ByteSliceCodec {
@@ -48,13 +45,10 @@ func (bsc *ByteSliceCodec) EncodeValue(ec EncodeContext, vw bsonrw.ValueWriter, 
 	return vw.WriteBinary(val.Interface().([]byte))
 }
 
-func (bsc *ByteSliceCodec) decodeType(dc DecodeContext, vr bsonrw.ValueReader, t reflect.Type) (reflect.Value, error) {
-	if t != tByteSlice {
-		return emptyValue, ValueDecoderError{
-			Name:     "ByteSliceDecodeValue",
-			Types:    []reflect.Type{tByteSlice},
-			Received: reflect.Zero(t),
-		}
+// DecodeValue is the ValueDecoder for []byte.
+func (bsc *ByteSliceCodec) DecodeValue(dc DecodeContext, vr bsonrw.ValueReader, val reflect.Value) error {
+	if !val.CanSet() || val.Type() != tByteSlice {
+		return ValueDecoderError{Name: "ByteSliceDecodeValue", Types: []reflect.Type{tByteSlice}, Received: val}
 	}
 
 	var data []byte
@@ -63,49 +57,34 @@ func (bsc *ByteSliceCodec) decodeType(dc DecodeContext, vr bsonrw.ValueReader, t
 	case bsontype.String:
 		str, err := vr.ReadString()
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 		data = []byte(str)
 	case bsontype.Symbol:
 		sym, err := vr.ReadSymbol()
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 		data = []byte(sym)
 	case bsontype.Binary:
 		var subtype byte
 		data, subtype, err = vr.ReadBinary()
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 		if subtype != bsontype.BinaryGeneric && subtype != bsontype.BinaryBinaryOld {
-			return emptyValue, decodeBinaryError{subtype: subtype, typeName: "[]byte"}
+			return fmt.Errorf("ByteSliceDecodeValue can only be used to decode subtype 0x00 or 0x02 for %s, got %v", bsontype.Binary, subtype)
 		}
 	case bsontype.Null:
-		err = vr.ReadNull()
+		val.Set(reflect.Zero(val.Type()))
+		return vr.ReadNull()
 	case bsontype.Undefined:
-		err = vr.ReadUndefined()
+		val.Set(reflect.Zero(val.Type()))
+		return vr.ReadUndefined()
 	default:
-		return emptyValue, fmt.Errorf("cannot decode %v into a []byte", vrType)
-	}
-	if err != nil {
-		return emptyValue, err
+		return fmt.Errorf("cannot decode %v into a []byte", vrType)
 	}
 
-	return reflect.ValueOf(data), nil
-}
-
-// DecodeValue is the ValueDecoder for []byte.
-func (bsc *ByteSliceCodec) DecodeValue(dc DecodeContext, vr bsonrw.ValueReader, val reflect.Value) error {
-	if !val.CanSet() || val.Type() != tByteSlice {
-		return ValueDecoderError{Name: "ByteSliceDecodeValue", Types: []reflect.Type{tByteSlice}, Received: val}
-	}
-
-	elem, err := bsc.decodeType(dc, vr, tByteSlice)
-	if err != nil {
-		return err
-	}
-
-	val.Set(elem)
+	val.Set(reflect.ValueOf(data))
 	return nil
 }

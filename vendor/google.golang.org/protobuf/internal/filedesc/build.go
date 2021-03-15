@@ -7,7 +7,7 @@ package filedesc
 
 import (
 	"google.golang.org/protobuf/encoding/protowire"
-	"google.golang.org/protobuf/internal/genid"
+	"google.golang.org/protobuf/internal/fieldnum"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	pref "google.golang.org/protobuf/reflect/protoreflect"
 	preg "google.golang.org/protobuf/reflect/protoregistry"
@@ -126,24 +126,24 @@ func (db *Builder) unmarshalCounts(b []byte, isFile bool) {
 			b = b[m:]
 			if isFile {
 				switch num {
-				case genid.FileDescriptorProto_EnumType_field_number:
+				case fieldnum.FileDescriptorProto_EnumType:
 					db.NumEnums++
-				case genid.FileDescriptorProto_MessageType_field_number:
+				case fieldnum.FileDescriptorProto_MessageType:
 					db.unmarshalCounts(v, false)
 					db.NumMessages++
-				case genid.FileDescriptorProto_Extension_field_number:
+				case fieldnum.FileDescriptorProto_Extension:
 					db.NumExtensions++
-				case genid.FileDescriptorProto_Service_field_number:
+				case fieldnum.FileDescriptorProto_Service:
 					db.NumServices++
 				}
 			} else {
 				switch num {
-				case genid.DescriptorProto_EnumType_field_number:
+				case fieldnum.DescriptorProto_EnumType:
 					db.NumEnums++
-				case genid.DescriptorProto_NestedType_field_number:
+				case fieldnum.DescriptorProto_NestedType:
 					db.unmarshalCounts(v, false)
 					db.NumMessages++
-				case genid.DescriptorProto_Extension_field_number:
+				case fieldnum.DescriptorProto_Extension:
 					db.NumExtensions++
 				}
 			}

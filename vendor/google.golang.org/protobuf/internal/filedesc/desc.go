@@ -13,7 +13,6 @@ import (
 	"google.golang.org/protobuf/internal/descfmt"
 	"google.golang.org/protobuf/internal/descopts"
 	"google.golang.org/protobuf/internal/encoding/defval"
-	"google.golang.org/protobuf/internal/genid"
 	"google.golang.org/protobuf/internal/pragma"
 	"google.golang.org/protobuf/internal/strs"
 	pref "google.golang.org/protobuf/reflect/protoreflect"
@@ -303,13 +302,13 @@ func (fd *Field) MapKey() pref.FieldDescriptor {
 	if !fd.IsMap() {
 		return nil
 	}
-	return fd.Message().Fields().ByNumber(genid.MapEntry_Key_field_number)
+	return fd.Message().Fields().ByNumber(1)
 }
 func (fd *Field) MapValue() pref.FieldDescriptor {
 	if !fd.IsMap() {
 		return nil
 	}
-	return fd.Message().Fields().ByNumber(genid.MapEntry_Value_field_number)
+	return fd.Message().Fields().ByNumber(2)
 }
 func (fd *Field) HasDefault() bool                           { return fd.L1.Default.has }
 func (fd *Field) Default() pref.Value                        { return fd.L1.Default.get(fd) }

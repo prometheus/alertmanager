@@ -79,4 +79,3 @@ var tA = reflect.TypeOf(primitive.A{})
 var tE = reflect.TypeOf(primitive.E{})
 
 var tCoreDocument = reflect.TypeOf(bsoncore.Document{})
-var tCoreArray = reflect.TypeOf(bsoncore.Array{})

@@ -85,8 +85,6 @@ func ValueOf(v interface{}) Value {
 		return ValueOfEnum(v)
 	case Message, List, Map:
 		return valueOfIface(v)
-	case ProtoMessage:
-		panic(fmt.Sprintf("invalid proto.Message(%T) type, expected a protoreflect.Message type", v))
 	default:
 		panic(fmt.Sprintf("invalid type: %T", v))
 	}

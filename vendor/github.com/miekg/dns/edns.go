@@ -88,8 +88,8 @@ func (rr *OPT) len(off int, compression map[string]struct{}) int {
 	return l
 }
 
-func (*OPT) parse(c *zlexer, origin string) *ParseError {
-	return &ParseError{err: "OPT records do not have a presentation format"}
+func (rr *OPT) parse(c *zlexer, origin string) *ParseError {
+	panic("dns: internal error: parse should never be called on OPT")
 }
 
 func (r1 *OPT) isDuplicate(r2 RR) bool { return false }
@@ -543,10 +543,6 @@ func (e *EDNS0_EXPIRE) pack() ([]byte, error) {
 }
 
 func (e *EDNS0_EXPIRE) unpack(b []byte) error {
-	if len(b) == 0 {
-		// zero-length EXPIRE query, see RFC 7314 Section 2
-		return nil
-	}
 	if len(b) < 4 {
 		return ErrBuf
 	}

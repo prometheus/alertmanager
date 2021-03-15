@@ -21,17 +21,14 @@ const (
 	timeFormatString = "2006-01-02T15:04:05.999Z07:00"
 )
 
+var defaultTimeCodec = NewTimeCodec()
+
 // TimeCodec is the Codec used for time.Time values.
 type TimeCodec struct {
 	UseLocalTimeZone bool
 }
 
-var (
-	defaultTimeCodec = NewTimeCodec()
-
-	_ ValueCodec  = defaultTimeCodec
-	_ typeDecoder = defaultTimeCodec
-)
+var _ ValueCodec = &TimeCodec{}
 
 // NewTimeCodec returns a TimeCodec with options opts.
 func NewTimeCodec(opts ...*bsonoptions.TimeCodecOptions) *TimeCodec {
@@ -44,13 +41,10 @@ func NewTimeCodec(opts ...*bsonoptions.TimeCodecOptions) *TimeCodec {
 	return &codec
 }
 
-func (tc *TimeCodec) decodeType(dc DecodeContext, vr bsonrw.ValueReader, t reflect.Type) (reflect.Value, error) {
-	if t != tTime {
-		return emptyValue, ValueDecoderError{
-			Name:     "TimeDecodeValue",
-			Types:    []reflect.Type{tTime},
-			Received: reflect.Zero(t),
-		}
+// DecodeValue is the ValueDecoderFunc for time.Time.
+func (tc *TimeCodec) DecodeValue(dc DecodeContext, vr bsonrw.ValueReader, val reflect.Value) error {
+	if !val.CanSet() || val.Type() != tTime {
+		return ValueDecoderError{Name: "TimeDecodeValue", Types: []reflect.Type{tTime}, Received: val}
 	}
 
 	var timeVal time.Time
@@ -58,61 +52,47 @@ func (tc *TimeCodec) decodeType(dc DecodeContext, vr bsonrw.ValueReader, t refle
 	case bsontype.DateTime:
 		dt, err := vr.ReadDateTime()
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 		timeVal = time.Unix(dt/1000, dt%1000*1000000)
 	case bsontype.String:
 		// assume strings are in the isoTimeFormat
 		timeStr, err := vr.ReadString()
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 		timeVal, err = time.Parse(timeFormatString, timeStr)
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 	case bsontype.Int64:
 		i64, err := vr.ReadInt64()
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 		timeVal = time.Unix(i64/1000, i64%1000*1000000)
 	case bsontype.Timestamp:
 		t, _, err := vr.ReadTimestamp()
 		if err != nil {
-			return emptyValue, err
+			return err
 		}
 		timeVal = time.Unix(int64(t), 0)
 	case bsontype.Null:
 		if err := vr.ReadNull(); err != nil {
-			return emptyValue, err
+			return err
 		}
 	case bsontype.Undefined:
 		if err := vr.ReadUndefined(); err != nil {
-			return emptyValue, err
+			return err
 		}
 	default:
-		return emptyValue, fmt.Errorf("cannot decode %v into a time.Time", vrType)
+		return fmt.Errorf("cannot decode %v into a time.Time", vrType)
 	}
 
 	if !tc.UseLocalTimeZone {
 		timeVal = timeVal.UTC()
 	}
-	return reflect.ValueOf(timeVal), nil
-}
-
-// DecodeValue is the ValueDecoderFunc for time.Time.
-func (tc *TimeCodec) DecodeValue(dc DecodeContext, vr bsonrw.ValueReader, val reflect.Value) error {
-	if !val.CanSet() || val.Type() != tTime {
-		return ValueDecoderError{Name: "TimeDecodeValue", Types: []reflect.Type{tTime}, Received: val}
-	}
-
-	elem, err := tc.decodeType(dc, vr, tTime)
-	if err != nil {
-		return err
-	}
-
-	val.Set(elem)
+	val.Set(reflect.ValueOf(timeVal))
 	return nil
 }
 

@@ -23,13 +23,10 @@ func (o MarshalOptions) Size(m Message) int {
 		return 0
 	}
 
-	return o.size(m.ProtoReflect())
+	return sizeMessage(m.ProtoReflect())
 }
 
-// size is a centralized function that all size operations go through.
-// For profiling purposes, avoid changing the name of this function or
-// introducing other code paths for size that do not go through this.
-func (o MarshalOptions) size(m protoreflect.Message) (size int) {
+func sizeMessage(m protoreflect.Message) (size int) {
 	methods := protoMethods(m)
 	if methods != nil && methods.Size != nil {
 		out := methods.Size(protoiface.SizeInput{
@@ -45,52 +42,52 @@ func (o MarshalOptions) size(m protoreflect.Message) (size int) {
 		})
 		return len(out.Buf)
 	}
-	return o.sizeMessageSlow(m)
+	return sizeMessageSlow(m)
 }
 
-func (o MarshalOptions) sizeMessageSlow(m protoreflect.Message) (size int) {
+func sizeMessageSlow(m protoreflect.Message) (size int) {
 	if messageset.IsMessageSet(m.Descriptor()) {
-		return o.sizeMessageSet(m)
+		return sizeMessageSet(m)
 	}
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		size += o.sizeField(fd, v)
+		size += sizeField(fd, v)
 		return true
 	})
 	size += len(m.GetUnknown())
 	return size
 }
 
-func (o MarshalOptions) sizeField(fd protoreflect.FieldDescriptor, value protoreflect.Value) (size int) {
+func sizeField(fd protoreflect.FieldDescriptor, value protoreflect.Value) (size int) {
 	num := fd.Number()
 	switch {
 	case fd.IsList():
-		return o.sizeList(num, fd, value.List())
+		return sizeList(num, fd, value.List())
 	case fd.IsMap():
-		return o.sizeMap(num, fd, value.Map())
+		return sizeMap(num, fd, value.Map())
 	default:
-		return protowire.SizeTag(num) + o.sizeSingular(num, fd.Kind(), value)
+		return protowire.SizeTag(num) + sizeSingular(num, fd.Kind(), value)
 	}
 }
 
-func (o MarshalOptions) sizeList(num protowire.Number, fd protoreflect.FieldDescriptor, list protoreflect.List) (size int) {
+func sizeList(num protowire.Number, fd protoreflect.FieldDescriptor, list protoreflect.List) (size int) {
 	if fd.IsPacked() && list.Len() > 0 {
 		content := 0
 		for i, llen := 0, list.Len(); i < llen; i++ {
-			content += o.sizeSingular(num, fd.Kind(), list.Get(i))
+			content += sizeSingular(num, fd.Kind(), list.Get(i))
 		}
 		return protowire.SizeTag(num) + protowire.SizeBytes(content)
 	}
 
 	for i, llen := 0, list.Len(); i < llen; i++ {
-		size += protowire.SizeTag(num) + o.sizeSingular(num, fd.Kind(), list.Get(i))
+		size += protowire.SizeTag(num) + sizeSingular(num, fd.Kind(), list.Get(i))
 	}
 	return size
 }
 
-func (o MarshalOptions) sizeMap(num protowire.Number, fd protoreflect.FieldDescriptor, mapv protoreflect.Map) (size int) {
+func sizeMap(num protowire.Number, fd protoreflect.FieldDescriptor, mapv protoreflect.Map) (size int) {
 	mapv.Range(func(key protoreflect.MapKey, value protoreflect.Value) bool {
 		size += protowire.SizeTag(num)
-		size += protowire.SizeBytes(o.sizeField(fd.MapKey(), key.Value()) + o.sizeField(fd.MapValue(), value))
+		size += protowire.SizeBytes(sizeField(fd.MapKey(), key.Value()) + sizeField(fd.MapValue(), value))
 		return true
 	})
 	return size
