@@ -309,6 +309,7 @@ func TestMultiStage(t *testing.T) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of MultiStage")
 			}
+			//nolint:staticcheck // Ignore SA1029
 			ctx = context.WithValue(ctx, "key", "value")
 			return ctx, alerts2, nil
 		}),
