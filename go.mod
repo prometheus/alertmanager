@@ -12,6 +12,7 @@ require (
 	github.com/go-openapi/strfmt v0.20.0
 	github.com/go-openapi/swag v0.19.14
 	github.com/go-openapi/validate v0.20.2
+	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/memberlist v0.2.2
@@ -25,7 +26,6 @@ require (
 	github.com/prometheus/common v0.18.0
 	github.com/prometheus/exporter-toolkit v0.5.0
 	github.com/rs/cors v1.7.0
-	github.com/satori/go.uuid v1.2.0
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/stretchr/testify v1.7.0
