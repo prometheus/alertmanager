@@ -226,11 +226,11 @@ source matchers in a way that alerts never match both sides. It is much easier
 to reason about and does not trigger this special case.
 
 ```yaml
-# DEPRECATED: Use matchers below.
+# DEPRECATED: Use target matchers below.
 # Matchers that have to be fulfilled in the alerts to be muted.
 target_match:
   [ <labelname>: <labelvalue>, ... ]
-# DEPRECATED: Use matchers below.
+# DEPRECATED: Use target matchers below.
 target_match_re:
   [ <labelname>: <regex>, ... ]
   
@@ -239,12 +239,12 @@ target_match_re:
 target_matchers:
   [ - <matcher> ... ]
 
-# DEPRECATED: Use matchers below.
+# DEPRECATED: Use source matchers below.
 # Matchers for which one or more alerts have to exist for the
 # inhibition to take effect.
 source_match:
   [ <labelname>: <labelvalue>, ... ]
-# DEPRECATED: Use matchers below.
+# DEPRECATED: Use source matchers below.
 source_match_re:
   [ <labelname>: <regex>, ... ]
   
@@ -578,17 +578,19 @@ value: <tmpl_string>
 
 ## `<matcher>`
 
-A matcher is a string with a syntax inspired by PromQL and Openmetrics. The syntax of a matcher consists of three tokens: 
+A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens: 
+
 - A valid Prometheus label name. 
-- One of '=', '!=', '=~', or '!~', with the same meaning as known from PromQL selectors. 
+
+- One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
+
 - A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace. 
 
-The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: '\"' for a double-quote, '\n' for a line feed, '\\' for a literal backslash. Unescaped '"' must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single '\' characters not followed by '\', 'n', or '"'. They act as a literal backslash in that case.
+The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
 
-A comma separated list of matcher forms matchers. 
-For matchers, a leading '{' and/or a trailing '}' is optional and will be trimmed before further parsing. Individual Matchers are separated by commas outside of quoted parts of the input string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes ('"…"') are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash ('\"'), they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing '}', ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
+In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading { and/or a trailing } is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing }, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
 
-Examples for valid input strings:
+All of the following is therefore valid:
 
 ``` yaml
 matchers: [ '{foo = "bar", dings != "bums", }' ]
