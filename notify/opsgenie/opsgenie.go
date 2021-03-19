@@ -97,14 +97,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	for _, req := range requests {
 		resp, err := n.client.Do(req)
+		notify.Drain(resp)
 		if err != nil {
 			return true, err
 		}
-		defer notify.Drain(resp)
-
-		success, err := n.retrier.Check(resp.StatusCode, resp.Body)
-		if !success {
-			return false, err
+		shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+		if err != nil {
+			return shouldRetry, err
 		}
 	}
 	return true, nil
