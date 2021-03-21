@@ -2,7 +2,7 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.8.0
+  prometheus: prometheus/prometheus@0.11.0
   go: circleci/go@0.2.0
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
         command: sudo rm -rf /usr/local/go
     # Whenever the Go version is updated here, .promu.yml should also be updated.
     - go/install:
-        version: "1.14"
+        version: "1.16"
     - run:
         name: Remove generated code
         command: make clean
@@ -124,6 +124,7 @@ workflows:
             only: /.*/
     - prometheus/build:
         name: build
+        parallelism: 8
         filters:
           tags:
             only: /.*/
