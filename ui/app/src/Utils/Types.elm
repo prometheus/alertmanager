@@ -1,6 +1,4 @@
-module Utils.Types exposing (ApiData(..), Duration, Label, Labels, Matcher, Matchers, Time)
-
-import Time exposing (Posix)
+module Utils.Types exposing (ApiData(..), Label, Labels, Matcher)
 
 
 type ApiData a
@@ -28,15 +26,3 @@ type alias Labels =
 
 type alias Label =
     ( String, String )
-
-
-type alias Time =
-    { t : Maybe Posix
-    , s : String
-    }
-
-
-type alias Duration =
-    { d : Maybe Float
-    , s : String
-    }
