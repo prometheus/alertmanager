@@ -508,7 +508,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 
 	sils := open_api_models.GettableSilences{}
 	for _, ps := range psils {
-		if !checkSilenceMatchesFilterLabels(ps, matchers) {
+		if !CheckSilenceMatchesFilterLabels(ps, matchers) {
 			continue
 		}
 		silence, err := GettableSilenceFromProto(ps)
@@ -519,7 +519,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		sils = append(sils, &silence)
 	}
 
-	sortSilences(sils)
+	SortSilences(sils)
 
 	return silence_ops.NewGetSilencesOK().WithPayload(sils)
 }
@@ -532,12 +532,12 @@ var (
 	}
 )
 
-// sortSilences sorts first according to the state "active, pending, expired"
+// SortSilences sorts first according to the state "active, pending, expired"
 // then by end time or start time depending on the state.
 // active silences should show the next to expire first
 // pending silences are ordered based on which one starts next
 // expired are ordered based on which one expired most recently
-func sortSilences(sils open_api_models.GettableSilences) {
+func SortSilences(sils open_api_models.GettableSilences) {
 	sort.Slice(sils, func(i, j int) bool {
 		state1 := types.SilenceState(*sils[i].Status.State)
 		state2 := types.SilenceState(*sils[j].Status.State)
@@ -562,12 +562,12 @@ func sortSilences(sils open_api_models.GettableSilences) {
 	})
 }
 
-// checkSilenceMatchesFilterLabels returns true if
+// CheckSilenceMatchesFilterLabels returns true if
 // a given silence matches a list of matchers.
 // A silence matches a filter (list of matchers) if
 // for all matchers in the filter, there exists a matcher in the silence
 // such that their names, types, and values are equivalent.
-func checkSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Matcher) bool {
+func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Matcher) bool {
 	for _, matcher := range matchers {
 		found := false
 		for _, m := range s.Matchers {

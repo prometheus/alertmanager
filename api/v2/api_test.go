@@ -124,7 +124,7 @@ func TestGetSilencesHandler(t *testing.T) {
 		gettableSilence("silence-2-active", "active", updateTime,
 			"2019-01-01T12:00:00+00:00", "2019-01-01T14:00:00+00:00"),
 	}
-	sortSilences(open_api_models.GettableSilences(silences))
+	SortSilences(open_api_models.GettableSilences(silences))
 
 	for i, sil := range silences {
 		assertEqualStrings(t, "silence-"+strconv.Itoa(i)+"-"+*sil.Status.State, *sil.ID)
@@ -227,7 +227,7 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 		silence := silencepb.Silence{
 			Matchers: test.silenceMatchers,
 		}
-		actual := checkSilenceMatchesFilterLabels(&silence, test.filterMatchers)
+		actual := CheckSilenceMatchesFilterLabels(&silence, test.filterMatchers)
 		if test.expected != actual {
 			t.Fatal("unexpected match result between silence and filter. expected:", test.expected, ", actual:", actual)
 		}
