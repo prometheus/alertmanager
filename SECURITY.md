@@ -1,6 +1,4 @@
-# Reporting a security issue
+# Security Response
 
-The Prometheus security policy, including how to report vulnerabilities, can be
-found here:
-
-https://prometheus.io/docs/operating/security/
+If you've found a security issue that you'd like to disclose confidentially please contact Red Hat's Product Security team.
+Details at https://access.redhat.com/security/team/contact
