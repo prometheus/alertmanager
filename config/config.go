@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -196,7 +197,18 @@ func LoadFile(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := Load(string(content))
+
+	configString := string(content)
+
+	// If enabled, alermanager will parse environment variable in its config
+	// Based on the container command/args $(ENV_VARIABLE) syntax
+	// https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/pkg/kubelet/container/helpers.go#L163
+	if os.Getenv("RESOLVE_ENV_IN_CONFIG") == "true" {
+		mapping := MappingFuncFor(envVarsToMap())
+		configString = Expand(configString, mapping)
+	}
+
+	cfg, err := Load(configString)
 	if err != nil {
 		return nil, err
 	}
