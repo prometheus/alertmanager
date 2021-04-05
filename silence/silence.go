@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -324,6 +325,7 @@ type Silences struct {
 	metrics   *metrics
 	retention time.Duration
 	limits    Limits
+	logging   bool
 
 	mtx       sync.RWMutex
 	st        state
@@ -487,6 +489,8 @@ type Options struct {
 	Retention time.Duration
 	Limits    Limits
 
+	Logging bool
+
 	// A logger used by background processing.
 	Logger  *slog.Logger
 	Metrics prometheus.Registerer
@@ -512,6 +516,7 @@ func New(o Options) (*Silences, error) {
 		logger:    promslog.NewNopLogger(),
 		retention: o.Retention,
 		limits:    o.Limits,
+		logging:   o.Logging,
 		broadcast: func([]byte) {},
 		st:        state{},
 	}
@@ -845,6 +850,9 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		if err := s.checkSizeLimits(msil); err != nil {
 			return err
 		}
+		if s.logging {
+			s.logSilence("update silence", sil)
+		}
 		return s.setSilence(msil, now)
 	}
 
@@ -881,6 +889,9 @@ func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 		}
 	}
 
+	if s.logging {
+		s.logSilence("create silence", sil)
+	}
 	return s.setSilence(msil, now)
 }
 
@@ -948,6 +959,9 @@ func (s *Silences) expire(id string) error {
 		sil.EndsAt = timestamppb.New(now)
 	}
 	sil.UpdatedAt = timestamppb.New(now)
+	if s.logging {
+		s.logSilence("expire silence", sil)
+	}
 	return s.setSilence(s.toMeshSilence(sil), now)
 }
 
@@ -1401,4 +1415,37 @@ func openReplace(filename string) (*replaceFile, error) {
 		filename: filename,
 	}
 	return rf, nil
+}
+
+// logging silence status changes.
+//
+// XXX: This rewrites some code present in cli/format/format.go,
+// labelsMatcher() and cli/format/format_extended.go,
+// FormatSilences(). Refactoring this seems a little out of scope for
+// now.
+func (s *Silences) logSilence(msg string, sil *pb.Silence) {
+	var listMatchers []string
+	matcherTypeOperator := map[string]string{
+		"EQUAL":      "=",
+		"REGEXP":     "=~",
+		"NOT_EQUAL":  "!=",
+		"NOT_REGEXP": "!~",
+	}
+	for _, ms := range sil.MatcherSets {
+		for _, matcher := range ms.Matchers {
+			m := matcher.Name + matcherTypeOperator[matcher.Type.String()] + matcher.Pattern
+			listMatchers = append(listMatchers, m)
+		}
+	}
+	strMatchers := strings.Join(listMatchers, `,`)
+
+	s.logger.Info(
+		msg,
+		"Id", sil.Id,
+		"CreatedBy", sil.CreatedBy,
+		"Comment", sil.Comment,
+		"StartsAt", sil.StartsAt.AsTime().Format(time.RFC3339),
+		"EndsAt", sil.EndsAt.AsTime().Format(time.RFC3339),
+		"Matchers", strMatchers,
+	)
 }
