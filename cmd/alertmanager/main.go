@@ -186,6 +186,7 @@ func run() int {
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
+		silenceLogging  = kingpin.Flag("silences.logging", "Enable logging silences. If it is enabled, the status change of silence will be logged").Bool()
 
 		webConfig      = webflag.AddFlags(kingpin.CommandLine)
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
@@ -278,6 +279,7 @@ func run() int {
 		Retention:    *retention,
 		Logger:       log.With(logger, "component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
+		Logging:      *silenceLogging,
 	}
 
 	silences, err := silence.New(silenceOpts)
