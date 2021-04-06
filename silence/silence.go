@@ -23,8 +23,8 @@ import (
 	"os"
 	"reflect"
 	"regexp"
-	"strings"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -536,7 +536,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	if ok {
 		if canUpdate(prev, sil, now) {
 			if s.logging {
-			    s.logginSilences("update silence", sil)
+				s.logginSilences("update silence", sil)
 			}
 			return sil.Id, s.setSilence(sil, now)
 		}
@@ -559,7 +559,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 	}
 
 	if s.logging {
-	    s.logginSilences("create silence", sil)
+		s.logginSilences("create silence", sil)
 	}
 
 	return sil.Id, s.setSilence(sil, now)
@@ -620,7 +620,7 @@ func (s *Silences) expire(id string) error {
 	}
 
 	if s.logging {
-	    s.logginSilences("expire silence", sil)
+		s.logginSilences("expire silence", sil)
 	}
 
 	return s.setSilence(sil, now)
@@ -962,27 +962,27 @@ func openReplace(filename string) (*replaceFile, error) {
 
 // logging silence status changes.
 func (s *Silences) logginSilences(msg string, sil *pb.Silence) {
-    var listMatchers []string
-    var matcher_type_operator = map[string]string{
-        "EQUAL": "=",
-        "REGEXP": "=~",
-        "NOT_EQUAL": "!=",
-        "NOT_REGEXP": "!~",
-    }
-    for _, matcher := range sil.Matchers {
-		ms := []string{matcher.Name, matcher_type_operator[matcher.Type.String()], matcher.Pattern}
-        m := strings.Join(ms, ``)
-        listMatchers = append(listMatchers, m)
+	var listMatchers []string
+	var matcher_type_operator = map[string]string{
+		"EQUAL":      "=",
+		"REGEXP":     "=~",
+		"NOT_EQUAL":  "!=",
+		"NOT_REGEXP": "!~",
 	}
-    strMatchers := strings.Join(listMatchers, `,`)
+	for _, matcher := range sil.Matchers {
+		ms := []string{matcher.Name, matcher_type_operator[matcher.Type.String()], matcher.Pattern}
+		m := strings.Join(ms, ``)
+		listMatchers = append(listMatchers, m)
+	}
+	strMatchers := strings.Join(listMatchers, `,`)
 
-    level.Info(s.logger).Log(
-        "msg", msg,
-        "Id", sil.Id,
-        "CreatedBy", sil.CreatedBy,
-        "Comment", sil.Comment,
-        "StartsAt", sil.StartsAt,
-        "EndsAt", sil.EndsAt,
-        "Matchers", strMatchers,
-    )
+	level.Info(s.logger).Log(
+		"msg", msg,
+		"Id", sil.Id,
+		"CreatedBy", sil.CreatedBy,
+		"Comment", sil.Comment,
+		"StartsAt", sil.StartsAt,
+		"EndsAt", sil.EndsAt,
+		"Matchers", strMatchers,
+	)
 }
