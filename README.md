@@ -294,6 +294,18 @@ Expire all silences:
 $ amtool silence expire $(amtool silence query -q)
 ```
 
+Try out how a template works. Let's say you have this in your configuration file:
+
+```
+templates:
+  - '/foo/bar/*.tmpl'
+```
+
+Then you can test out how a template would look like with example by using this command:
+```
+amtool template render --templateglob='/foo/bar/*.tmpl' --templatetext='{{ template "slack.default.markdown.v1" . }}'
+```
+
 ### Configuration
 
 `amtool` allows a configuration file to specify some options for convenience. The default configuration file paths are `$HOME/.config/amtool/config.yml` or `/etc/amtool/config.yml`
