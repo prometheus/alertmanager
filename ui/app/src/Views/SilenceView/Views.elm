@@ -3,8 +3,8 @@ module Views.SilenceView.Views exposing (view)
 import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus
-import Html exposing (Html, b, button, div, h1, h2, h3, label, p, span, text)
-import Html.Attributes exposing (class, href)
+import Html exposing (Html, b, button, div, h1, label, span, text)
+import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
 import Silences.Types exposing (stateToString)
 import Types exposing (Msg(..))
@@ -14,7 +14,6 @@ import Utils.Types exposing (ApiData(..))
 import Utils.Views exposing (error, loading)
 import Views.Shared.Dialog as Dialog
 import Views.Shared.SilencePreview
-import Views.Shared.Types as SharedTypes
 import Views.SilenceList.SilenceView exposing (editButton)
 import Views.SilenceList.Types exposing (SilenceListMsg(..))
 import Views.SilenceView.Types as SilenceViewTypes exposing (Model)
@@ -53,7 +52,7 @@ viewSilence activeAlertId alerts silence showPromptDialog =
             , span
                 [ class "ml-3" ]
                 [ editButton silence
-                , expireButton silence False
+                , expireButton silence
                 ]
             ]
         , formGroup "ID" <| text silence.id
@@ -101,8 +100,8 @@ formGroup key content =
         ]
 
 
-expireButton : GettableSilence -> Bool -> Html Msg
-expireButton silence refresh =
+expireButton : GettableSilence -> Html Msg
+expireButton silence =
     case silence.status.state of
         Data.SilenceStatus.Expired ->
             text ""
@@ -110,7 +109,7 @@ expireButton silence refresh =
         Data.SilenceStatus.Active ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceView (SilenceViewTypes.ConfirmDestroySilence silence refresh))
+                , onClick (MsgForSilenceView SilenceViewTypes.ConfirmDestroySilence)
                 ]
                 [ text "Expire"
                 ]
@@ -118,7 +117,7 @@ expireButton silence refresh =
         Data.SilenceStatus.Pending ->
             button
                 [ class "btn btn-outline-danger border-0"
-                , onClick (MsgForSilenceView (SilenceViewTypes.ConfirmDestroySilence silence refresh))
+                , onClick (MsgForSilenceView SilenceViewTypes.ConfirmDestroySilence)
                 ]
                 [ text "Delete"
                 ]

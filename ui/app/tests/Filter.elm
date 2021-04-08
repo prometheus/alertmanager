@@ -1,7 +1,7 @@
 module Filter exposing (parseMatcher, stringifyFilter, toUrl)
 
 import Expect
-import Fuzz exposing (int, list, string, tuple)
+import Fuzz exposing (string, tuple)
 import Helpers exposing (isNotEmptyTrimmedAlphabetWord)
 import Test exposing (..)
 import Utils.Filter exposing (MatchOperator(..), Matcher)

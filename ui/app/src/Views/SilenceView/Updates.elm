@@ -4,7 +4,6 @@ import Alerts.Api
 import Browser.Navigation as Navigation
 import Silences.Api exposing (getSilence)
 import Utils.Filter exposing (silencePreviewFilter)
-import Utils.List
 import Utils.Types exposing (ApiData(..))
 import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
 
@@ -12,9 +11,6 @@ import Views.SilenceView.Types exposing (Model, SilenceViewMsg(..))
 update : SilenceViewMsg -> Model -> String -> ( Model, Cmd SilenceViewMsg )
 update msg model apiUrl =
     case msg of
-        FetchSilence id ->
-            ( model, getSilence apiUrl id SilenceFetched )
-
         AlertGroupsPreview alerts ->
             ( { model | alerts = alerts }
             , Cmd.none
@@ -36,7 +32,7 @@ update msg model apiUrl =
                 |> Cmd.map AlertGroupsPreview
             )
 
-        ConfirmDestroySilence silence refresh ->
+        ConfirmDestroySilence ->
             ( { model | showConfirmationDialog = True }
             , Cmd.none
             )

@@ -1,7 +1,7 @@
 module Types exposing (Model, Msg(..), Route(..))
 
 import Browser.Navigation exposing (Key)
-import Utils.Filter exposing (Filter, Matcher, SilenceFormGetParams)
+import Utils.Filter exposing (Filter, SilenceFormGetParams)
 import Utils.Types exposing (ApiData)
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
@@ -45,9 +45,7 @@ type Msg
     | NavigateToStatus
     | NavigateToInternalUrl String
     | NavigateToExternalUrl String
-    | Noop
     | RedirectAlerts
-    | UpdateFilter String
     | BootstrapCSSLoaded (ApiData String)
     | FontAwesomeCSSLoaded (ApiData String)
     | ElmDatepickerCSSLoaded (ApiData String)

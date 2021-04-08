@@ -3,11 +3,10 @@ module Views.AlertList.AlertView exposing (addLabelMsg, view)
 import Data.GettableAlert exposing (GettableAlert)
 import Dict
 import Html exposing (..)
-import Html.Attributes exposing (class, href, readonly, style, title, value)
+import Html.Attributes exposing (class, href, style, title, value)
 import Html.Events exposing (onClick)
 import Types exposing (Msg(..))
 import Utils.Filter
-import Utils.Views
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
@@ -123,7 +122,7 @@ silenceButton alert =
 inhibitedIcon : GettableAlert -> Html Msg
 inhibitedIcon alert =
     case List.head alert.status.inhibitedBy of
-        Just sId ->
+        Just _ ->
             a
                 [ class "btn btn-outline-info border-0 text-info"
                 ]

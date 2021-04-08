@@ -1,8 +1,7 @@
 module Silences.Decoders exposing (create, destroy)
 
-import Json.Decode as Json exposing (fail, field, succeed)
-import Utils.Api exposing (andMap, iso8601Time)
-import Utils.Types exposing (ApiData(..), Matcher, Time)
+import Json.Decode as Json
+import Utils.Types exposing (ApiData(..))
 
 
 create : Json.Decoder String
