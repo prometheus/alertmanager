@@ -29,7 +29,8 @@ import (
 
 // GetSilencesURL generates an URL for the get silences operation
 type GetSilencesURL struct {
-	Filter []string
+	Creator []string
+	Filter  []string
 
 	_basePath string
 	// avoid unkeyed usage
@@ -61,6 +62,20 @@ func (o *GetSilencesURL) Build() (*url.URL, error) {
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
 
 	qs := make(url.Values)
+
+	var creatorIR []string
+	for _, creatorI := range o.Creator {
+		creatorIS := creatorI
+		if creatorIS != "" {
+			creatorIR = append(creatorIR, creatorIS)
+		}
+	}
+
+	creator := swag.JoinByFormat(creatorIR, "multi")
+
+	for _, qsv := range creator {
+		qs.Add("creator", qsv)
+	}
 
 	var filterIR []string
 	for _, filterI := range o.Filter {

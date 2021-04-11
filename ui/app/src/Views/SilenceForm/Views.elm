@@ -153,7 +153,7 @@ matchersInput filterBarValid filterBar =
             [ strong [] [ text "Matchers " ]
             , text "Alerts affected by this silence"
             ]
-        , FilterBar.view { showSilenceButton = False } filterBar |> Html.map MsgForFilterBar
+        , FilterBar.viewMatchersBar { showSilenceButton = False } False filterBar |> Html.map MsgForFilterBar
         , case filterBarValid of
             Invalid error ->
                 div [ class "form-control-feedback" ] [ text error ]

@@ -20,6 +20,7 @@ alertsParser : Parser (Filter -> a) a
 alertsParser =
     s "alerts"
         <?> Query.string "filter"
+        <?> Query.string "creator"
         <?> Query.string "group"
         <?> boolParam "customGrouping"
         <?> Query.string "receiver"

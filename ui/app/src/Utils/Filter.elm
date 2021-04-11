@@ -9,6 +9,8 @@ module Utils.Filter exposing
     , generateAPIQueryString
     , generateQueryParam
     , nullFilter
+    , parseCreatedBy
+    , parseCreatedByList
     , parseFilter
     , parseGroup
     , parseMatcher
@@ -18,7 +20,7 @@ module Utils.Filter exposing
     , stringifyMatcher
     , toApiMatcher
     , toUrl
-    , withMatchers
+    , withMatchersAndCreatedBy
     )
 
 import Char
@@ -30,6 +32,7 @@ import Url exposing (percentEncode)
 
 type alias Filter =
     { text : Maybe String
+    , createdByList : Maybe String
     , group : Maybe String
     , customGrouping : Bool
     , receiver : Maybe String
@@ -42,6 +45,7 @@ type alias Filter =
 nullFilter : Filter
 nullFilter =
     { text = Nothing
+    , createdByList = Nothing
     , group = Nothing
     , customGrouping = False
     , receiver = Nothing
@@ -57,13 +61,14 @@ generateQueryParam name =
 
 
 toUrl : String -> Filter -> String
-toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showActive, text, group } =
+toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showActive, text, createdByList, group } =
     let
         parts =
             [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
             , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
             , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
             , ( "filter", emptyToNothing text )
+            , ( "creator", emptyToNothing createdByList )
             , ( "receiver", emptyToNothing receiver )
             , ( "group", group )
             , ( "customGrouping", boolToMaybeString customGrouping )
@@ -82,7 +87,7 @@ toUrl baseUrl { receiver, customGrouping, showSilenced, showInhibited, showActiv
 
 
 generateAPIQueryString : Filter -> String
-generateAPIQueryString { receiver, showSilenced, showInhibited, showActive, text, group } =
+generateAPIQueryString { receiver, showSilenced, showInhibited, showActive, text, createdByList, group } =
     let
         filter_ =
             case parseFilter (Maybe.withDefault "" text) of
@@ -92,8 +97,17 @@ generateAPIQueryString { receiver, showSilenced, showInhibited, showActive, text
                 Nothing ->
                     []
 
+        createdByList_ =
+            case parseCreatedByList (Maybe.withDefault "" createdByList) of
+                Just createdByList__ ->
+                    List.map (Just >> Tuple.pair "creator") createdByList__
+
+                Nothing ->
+                    []
+
         parts =
             filter_
+                ++ createdByList_
                 ++ [ ( "silenced", Maybe.withDefault False showSilenced |> boolToString |> Just )
                    , ( "inhibited", Maybe.withDefault False showInhibited |> boolToString |> Just )
                    , ( "active", Maybe.withDefault True showActive |> boolToString |> Just )
@@ -228,6 +242,18 @@ parseMatcher =
         >> Result.toMaybe
 
 
+parseCreatedByList : String -> Maybe (List String)
+parseCreatedByList =
+    Parser.run creators
+        >> Result.toMaybe
+
+
+parseCreatedBy : String -> Maybe String
+parseCreatedBy =
+    Parser.run creator
+        >> Result.toMaybe
+
+
 stringifyGroup : List String -> Maybe String
 stringifyGroup list =
     if List.isEmpty list then
@@ -260,6 +286,20 @@ stringifyFilter matchers_ =
         list ->
             (list
                 |> List.map stringifyMatcher
+                |> String.join ", "
+                |> (++) "{"
+            )
+                ++ "}"
+
+
+stringifyCreatedByList : List String -> String
+stringifyCreatedByList createdByList_ =
+    case createdByList_ of
+        [] ->
+            ""
+
+        list ->
+            (list
                 |> String.join ", "
                 |> (++) "{"
             )
@@ -312,6 +352,29 @@ matcher =
         |. Parser.end
 
 
+creators : Parser (List String)
+creators =
+    Parser.succeed identity
+        |= Parser.sequence
+            { start = "{"
+            , separator = ","
+            , end = "}"
+            , spaces = Parser.spaces
+            , item = itemCreator
+            , trailing = Forbidden
+            }
+        |. Parser.end
+
+
+creator : Parser String
+creator =
+    Parser.succeed identity
+        |. Parser.spaces
+        |= itemCreator
+        |. Parser.spaces
+        |. Parser.end
+
+
 item : Parser Matcher
 item =
     Parser.succeed Matcher
@@ -329,6 +392,15 @@ item =
                 |> Parser.oneOf
            )
         |= string '"'
+
+
+itemCreator : Parser String
+itemCreator =
+    Parser.variable
+        { start = isVarCharAndSymbol
+        , inner = isVarCharAndSymbol
+        , reserved = Set.empty
+        }
 
 
 string : Char -> Parser String
@@ -362,9 +434,17 @@ isVarChar char =
         || Char.isDigit char
 
 
-withMatchers : List Matcher -> Filter -> Filter
-withMatchers matchers_ filter_ =
-    { filter_ | text = Just (stringifyFilter matchers_) }
+isVarCharAndSymbol : Char -> Bool
+isVarCharAndSymbol char =
+    Char.isLower char
+        || Char.isUpper char
+        || String.contains (String.fromChar char) "_ .&-^[]:;*+?!#$%&()"
+        || Char.isDigit char
+
+
+withMatchersAndCreatedBy : List Matcher -> List String -> Filter -> Filter
+withMatchersAndCreatedBy matchers_ createdByList_ filter_ =
+    { filter_ | text = Just (stringifyFilter matchers_), createdByList = Just (stringifyCreatedByList createdByList_) }
 
 
 silencePreviewFilter : List Data.Matcher.Matcher -> Filter

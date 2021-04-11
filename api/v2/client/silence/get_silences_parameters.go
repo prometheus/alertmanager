@@ -75,6 +75,11 @@ for the get silences operation typically these are written to a http.Request
 */
 type GetSilencesParams struct {
 
+	/*Creator
+	  A list of creators to filter silences by
+
+	*/
+	Creator []string
 	/*Filter
 	  A list of matchers to filter silences by
 
@@ -119,6 +124,17 @@ func (o *GetSilencesParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
+// WithCreator adds the creator to the get silences params
+func (o *GetSilencesParams) WithCreator(creator []string) *GetSilencesParams {
+	o.SetCreator(creator)
+	return o
+}
+
+// SetCreator adds the creator to the get silences params
+func (o *GetSilencesParams) SetCreator(creator []string) {
+	o.Creator = creator
+}
+
 // WithFilter adds the filter to the get silences params
 func (o *GetSilencesParams) WithFilter(filter []string) *GetSilencesParams {
 	o.SetFilter(filter)
@@ -137,6 +153,14 @@ func (o *GetSilencesParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.R
 		return err
 	}
 	var res []error
+
+	valuesCreator := o.Creator
+
+	joinedCreator := swag.JoinByFormat(valuesCreator, "multi")
+	// query array param creator
+	if err := r.SetQueryParam("creator", joinedCreator...); err != nil {
+		return err
+	}
 
 	valuesFilter := o.Filter
 

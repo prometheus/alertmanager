@@ -62,7 +62,7 @@ update msg model filter basePath apiUrl =
 
                 newUrl =
                     Utils.Filter.toUrl (basePath ++ "#/silences")
-                        (Utils.Filter.withMatchers newFilterBar.matchers filter)
+                        (Utils.Filter.withMatchersAndCreatedBy newFilterBar.matchers newFilterBar.createdByList filter)
 
                 silencesCmd =
                     if shouldFilter then
@@ -121,4 +121,5 @@ updateFilter maybeFilter =
     , group = Nothing
     , customGrouping = False
     , text = maybeFilter
+    , createdByList = Nothing
     }
