@@ -2,22 +2,16 @@ module Utils.Date exposing
     ( addDuration
     , dateTimeFormat
     , durationFormat
-    , durationParser
-    , encode
-    , fromTime
     , parseDuration
-    , term
     , timeDifference
     , timeFromString
     , timeToString
-    , units
     )
 
 import Iso8601
 import Parser exposing ((|.), (|=), Parser)
-import Time exposing (Month(..), Posix, toDay, toHour, toMinute, toMonth, toSecond, toYear, utc)
+import Time exposing (Posix)
 import Tuple
-import Utils.Types as Types
 
 
 parseDuration : String -> Result String Float
@@ -108,11 +102,6 @@ dateTimeFormat =
     Iso8601.fromTime
 
 
-encode : Posix -> String
-encode =
-    Iso8601.fromTime
-
-
 timeFromString : String -> Result String Posix
 timeFromString string =
     if string == "" then
@@ -121,10 +110,3 @@ timeFromString string =
     else
         Iso8601.toTime string
             |> Result.mapError (always "Wrong ISO8601 format")
-
-
-fromTime : Posix -> Types.Time
-fromTime time =
-    { s = Iso8601.fromTime time
-    , t = Just time
-    }

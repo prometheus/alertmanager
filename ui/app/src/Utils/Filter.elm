@@ -7,7 +7,6 @@ module Utils.Filter exposing
     , emptySilenceFormGetParams
     , fromApiMatcher
     , generateAPIQueryString
-    , generateQueryParam
     , nullFilter
     , parseCreatedBy
     , parseCreatedByList

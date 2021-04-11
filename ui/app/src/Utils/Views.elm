@@ -1,16 +1,11 @@
 module Utils.Views exposing
     ( apiData
-    , buttonLink
     , checkbox
     , error
-    , formField
-    , formInput
-    , iconButtonMsg
     , labelButton
     , linkifyText
     , loading
     , tab
-    , textField
     , validatedField
     , validatedTextareaField
     )
@@ -74,13 +69,6 @@ linkifyText str =
                     text txt
         )
         (Utils.String.linkify str)
-
-
-iconButtonMsg : String -> String -> msg -> Html msg
-iconButtonMsg classString icon msg =
-    button [ class classString, onClick msg ]
-        [ i [ class <| "fa fa-3 " ++ icon ] []
-        ]
 
 
 checkbox : String -> Bool -> (Bool -> msg) -> Html msg
@@ -183,34 +171,6 @@ validatedTextareaField labelText classes inputMsg blurMsg field =
                     []
                 , div [ class "form-control-feedback" ] [ text error_ ]
                 ]
-
-
-formField : String -> String -> String -> (String -> msg) -> Html msg
-formField labelText content classes msg =
-    div [ class <| "d-flex flex-column " ++ classes ]
-        [ label [] [ strong [] [ text labelText ] ]
-        , input [ value content, onInput msg ] []
-        ]
-
-
-textField : String -> String -> String -> (String -> msg) -> Html msg
-textField labelText content classes msg =
-    div [ class <| "d-flex flex-column " ++ classes ]
-        [ label [] [ strong [] [ text labelText ] ]
-        , textarea [ value content, onInput msg, disableGrammarly ] []
-        ]
-
-
-buttonLink : String -> String -> String -> msg -> Html msg
-buttonLink icon link color msg =
-    a [ class <| "" ++ color, href link, onClick msg ]
-        [ i [ class <| "" ++ icon ] []
-        ]
-
-
-formInput : String -> String -> (String -> msg) -> Html msg
-formInput inputValue classes msg =
-    Html.input [ class <| "w-100 " ++ classes, value inputValue, onInput msg ] []
 
 
 apiData : (a -> Html msg) -> Types.ApiData a -> Html msg

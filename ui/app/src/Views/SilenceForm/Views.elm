@@ -1,19 +1,18 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, a, button, div, fieldset, h1, h5, i, input, label, legend, span, strong, text, textarea)
-import Html.Attributes exposing (class, href, style)
+import Html exposing (Html, button, div, h1, i, input, label, strong, text)
+import Html.Attributes exposing (class, style)
 import Html.Events exposing (onClick)
 import Utils.DateTimePicker.Views exposing (viewDateTimePicker)
 import Utils.Filter exposing (SilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
-import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
+import Utils.Views exposing (loading, validatedField, validatedTextareaField)
 import Views.FilterBar.Types as FilterBar
 import Views.FilterBar.Views as FilterBar
 import Views.Shared.SilencePreview
-import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), validMatchers)
+import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
@@ -45,7 +44,7 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
             form.comment
         , div [ class inputSectionPadding ]
             [ informationBlock activeAlertId silenceId alerts
-            , silenceActionButtons maybeId form resetClick
+            , silenceActionButtons maybeId resetClick
             ]
         , dateTimePickerDialog form
         ]
@@ -180,8 +179,8 @@ informationBlock activeAlertId silence alerts =
             loading
 
 
-silenceActionButtons : Maybe String -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
-silenceActionButtons maybeId form resetClick =
+silenceActionButtons : Maybe String -> SilenceFormMsg -> Html SilenceFormMsg
+silenceActionButtons maybeId resetClick =
     div [ class ("mb-4 " ++ inputSectionPadding) ]
         [ previewSilenceBtn
         , createSilenceBtn maybeId
