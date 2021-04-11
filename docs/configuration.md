@@ -226,11 +226,11 @@ source matchers in a way that alerts never match both sides. It is much easier
 to reason about and does not trigger this special case.
 
 ```yaml
-# DEPRECATED: Use target matchers below.
+# DEPRECATED: Use target_matchers below.
 # Matchers that have to be fulfilled in the alerts to be muted.
 target_match:
   [ <labelname>: <labelvalue>, ... ]
-# DEPRECATED: Use target matchers below.
+# DEPRECATED: Use target_matchers below.
 target_match_re:
   [ <labelname>: <regex>, ... ]
   
@@ -239,12 +239,12 @@ target_match_re:
 target_matchers:
   [ - <matcher> ... ]
 
-# DEPRECATED: Use source matchers below.
+# DEPRECATED: Use source_matchers below.
 # Matchers for which one or more alerts have to exist for the
 # inhibition to take effect.
 source_match:
   [ <labelname>: <labelvalue>, ... ]
-# DEPRECATED: Use source matchers below.
+# DEPRECATED: Use source_matchers below.
 source_match_re:
   [ <labelname>: <regex>, ... ]
   
@@ -588,17 +588,44 @@ A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The synt
 
 The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
 
-In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading { and/or a trailing } is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing }, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
+In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading `{` and/or a trailing `}` is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing `}`, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
 
-All of the following is therefore valid:
+Here are some examples of valid string matchers :
 
-``` yaml
-matchers: [ '{foo = "bar", dings != "bums", }' ]
-matchers: [ foo=bar,dings!=bums ]
-matchers: [ foo=bar, dings!=bums ]
-matchers: [ '{quote="She said: \"Hi, ladies! That's gender-neutral…\""}' ]
-matchers: [ statuscode=~"5.." ]
+1. Shown below are two equality matchers combined in a long form YAML list.
+
 ```
+  matchers :
+   - foo = bar
+   - dings !=bums
+```
+
+2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
+
+```
+matchers: [ "foo = bar", "dings != bums" ]
+```
+
+As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
+
+```
+matchers: [ '{foo="bar",dings!="bums"}' ]
+```
+
+3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
+
+```
+matchers: ['{env=~"produ.*"}', '{baz!~".*quux"}']
+```
+
+4. To avoid any confusion about YAML string quoting and escaping, you can use YAML block quoting and then only worry about the OpenMetrics escaping inside the block. A complex example with a regular expression and different quotes inside the label value is shown below:
+
+```
+matchers:
+  - |
+      {quote=~"She said: \"Hi, all!( How're you…)?\""}
+```
+
 
 ## `<opsgenie_config>`
 
