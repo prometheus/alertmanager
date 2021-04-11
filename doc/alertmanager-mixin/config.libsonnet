@@ -32,5 +32,13 @@
     // integration that is itself not used for critical alerts.
     // Example: @'pagerduty|webhook'
     alertmanagerCriticalIntegrationsRegEx: @'.*',
+
+
+    // Opt-in for multi-cluster support.
+    showMultiCluster: false,
+    clusterLabel: 'cluster',
+
+    dashboardNamePrefix: 'Alertmanager / ',
+    dashboardTags: ['alertmanager-mixin'],
   },
 }
