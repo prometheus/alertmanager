@@ -19,4 +19,3 @@ receivers:
   - channel: '#alerts3'
     text: 'test'
     api_url: 'http://mysecret.example.com/'
-    

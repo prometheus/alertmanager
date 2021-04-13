@@ -11,4 +11,3 @@ receivers:
   slack_configs:
   - channel: '#alerts1'
     text: 'test'
-    
