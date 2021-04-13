@@ -17,7 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -120,7 +120,7 @@ func (c *templateRenderCmd) render(ctx context.Context, _ *kingpin.ParseContext)
 	if c.templateFile == nil {
 		data = defaultData
 	} else {
-		content, err := io.ReadAll(c.templateFile)
+		content, err := ioutil.ReadAll(c.templateFile)
 		if err != nil {
 			return err
 		}
