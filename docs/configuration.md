@@ -81,6 +81,7 @@ global:
 
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
+  [ slack_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
@@ -567,8 +568,10 @@ an [attachment](https://api.slack.com/docs/message-attachments).
 # Whether or not to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The Slack webhook URL.
+# The Slack webhook URL. Either api_url or api_url_file should be set.
+# Defaults to global settings if none are set here.
 [ api_url: <secret> | default = global.slack_api_url ]
+[ api_url_file: <filepath> | default = global.slack_api_url_file ]
 
 # The channel or user to send notifications to.
 channel: <tmpl_string>
