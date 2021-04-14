@@ -88,7 +88,7 @@ type templateRenderCmd struct {
 	templateFilesGlobs []string
 	templateType       string
 	templateText       string
-	templateFile       *os.File
+	templateData       *os.File
 }
 
 func configureTemplateRenderCmd(cc *kingpin.CmdClause) {
@@ -100,7 +100,7 @@ func configureTemplateRenderCmd(cc *kingpin.CmdClause) {
 	renderCmd.Flag("templateglob", "Glob of paths that will be expanded and used for rendering").Required().StringsVar(&c.templateFilesGlobs)
 	renderCmd.Flag("templatetext", "The template that will be rendered").Required().StringVar(&c.templateText)
 	renderCmd.Flag("templatetype", "The type of the template. Can be either text (default) or html").EnumVar(&c.templateType, "html", "text")
-	renderCmd.Flag("templatefile", `Full path to a file which contains the data of the alert(-s) with which the --templatetext will be rendered. Must be in JSON. File must be formatted according to the following layout: https://pkg.go.dev/github.com/prometheus/alertmanager/template#Data. If none has been specified then a predefined, simple alert will be used for rendering`).FileVar(&c.templateFile)
+	renderCmd.Flag("templatedata", `Full path to a file which contains the data of the alert(-s) with which the --templatetext will be rendered. Must be in JSON. File must be formatted according to the following layout: https://pkg.go.dev/github.com/prometheus/alertmanager/template#Data. If none has been specified then a predefined, simple alert will be used for rendering`).FileVar(&c.templateData)
 
 	renderCmd.Action(execWithTimeout(c.render))
 }
@@ -117,10 +117,10 @@ func (c *templateRenderCmd) render(ctx context.Context, _ *kingpin.ParseContext)
 	}
 
 	var data template.Data
-	if c.templateFile == nil {
+	if c.templateData == nil {
 		data = defaultData
 	} else {
-		content, err := ioutil.ReadAll(c.templateFile)
+		content, err := ioutil.ReadAll(c.templateData)
 		if err != nil {
 			return err
 		}
