@@ -17,11 +17,13 @@ package config
 
 import (
 	"bytes"
-	"crypto/md5"
+	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -194,6 +196,24 @@ func (a *BasicAuth) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return unmarshal((*plain)(a))
 }
 
+// DialContextFunc defines the signature of the DialContext() function implemented
+// by net.Dialer.
+type DialContextFunc func(context.Context, string, string) (net.Conn, error)
+
+type httpClientOptions struct {
+	dialContextFunc DialContextFunc
+}
+
+// HTTPClientOption defines an option that can be applied to the HTTP client.
+type HTTPClientOption func(options *httpClientOptions)
+
+// WithDialContextFunc allows you to override func gets used for the actual dialing. The default is `net.Dialer.DialContext`.
+func WithDialContextFunc(fn DialContextFunc) HTTPClientOption {
+	return func(opts *httpClientOptions) {
+		opts.dialContextFunc = fn
+	}
+}
+
 // NewClient returns a http.Client using the specified http.RoundTripper.
 func newClient(rt http.RoundTripper) *http.Client {
 	return &http.Client{Transport: rt}
@@ -201,8 +221,8 @@ func newClient(rt http.RoundTripper) *http.Client {
 
 // NewClientFromConfig returns a new HTTP client configured for the
 // given config.HTTPClientConfig. The name is used as go-conntrack metric label.
-func NewClientFromConfig(cfg HTTPClientConfig, name string, disableKeepAlives, enableHTTP2 bool) (*http.Client, error) {
-	rt, err := NewRoundTripperFromConfig(cfg, name, disableKeepAlives, enableHTTP2)
+func NewClientFromConfig(cfg HTTPClientConfig, name string, disableKeepAlives, enableHTTP2 bool, optFuncs ...HTTPClientOption) (*http.Client, error) {
+	rt, err := NewRoundTripperFromConfig(cfg, name, disableKeepAlives, enableHTTP2, optFuncs...)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +237,25 @@ func NewClientFromConfig(cfg HTTPClientConfig, name string, disableKeepAlives, e
 
 // NewRoundTripperFromConfig returns a new HTTP RoundTripper configured for the
 // given config.HTTPClientConfig. The name is used as go-conntrack metric label.
-func NewRoundTripperFromConfig(cfg HTTPClientConfig, name string, disableKeepAlives, enableHTTP2 bool) (http.RoundTripper, error) {
+func NewRoundTripperFromConfig(cfg HTTPClientConfig, name string, disableKeepAlives, enableHTTP2 bool, optFuncs ...HTTPClientOption) (http.RoundTripper, error) {
+	opts := &httpClientOptions{}
+	for _, f := range optFuncs {
+		f(opts)
+	}
+
+	var dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+
+	if opts.dialContextFunc != nil {
+		dialContext = conntrack.NewDialContextFunc(
+			conntrack.DialWithDialContextFunc((func(context.Context, string, string) (net.Conn, error))(opts.dialContextFunc)),
+			conntrack.DialWithTracing(),
+			conntrack.DialWithName(name))
+	} else {
+		dialContext = conntrack.NewDialContextFunc(
+			conntrack.DialWithTracing(),
+			conntrack.DialWithName(name))
+	}
+
 	newRT := func(tlsConfig *tls.Config) (http.RoundTripper, error) {
 		// The only timeout we care about is the configured scrape timeout.
 		// It is applied on request. So we leave out any timings here.
@@ -233,10 +271,7 @@ func NewRoundTripperFromConfig(cfg HTTPClientConfig, name string, disableKeepAli
 			IdleConnTimeout:       5 * time.Minute,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
-			DialContext: conntrack.NewDialContextFunc(
-				conntrack.DialWithTracing(),
-				conntrack.DialWithName(name),
-			),
+			DialContext:           dialContext,
 		}
 		if enableHTTP2 {
 			// HTTP/2 support is golang has many problematic cornercases where
@@ -533,7 +568,7 @@ func (t *tlsRoundTripper) getCAWithHash() ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	h := md5.Sum(b)
+	h := sha256.Sum256(b)
 	return b, h[:], nil
 
 }

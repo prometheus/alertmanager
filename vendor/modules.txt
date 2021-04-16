@@ -3,6 +3,7 @@ github.com/PuerkitoBio/purell
 # github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578
 github.com/PuerkitoBio/urlesc
 # github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+## explicit
 github.com/alecthomas/template
 github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d
@@ -177,7 +178,7 @@ github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.2.0
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.18.0
+# github.com/prometheus/common v0.18.0 => github.com/pracucci/prometheus-common v0.20.1-0.20210416092051-50bd6ae1675f
 ## explicit
 github.com/prometheus/common/config
 github.com/prometheus/common/expfmt
@@ -309,3 +310,4 @@ gopkg.in/alecthomas/kingpin.v2
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 gopkg.in/yaml.v3
+# github.com/prometheus/common => github.com/pracucci/prometheus-common v0.20.1-0.20210416092051-50bd6ae1675f
