@@ -72,7 +72,7 @@ type weChatResponse struct {
 
 // New returns a new Wechat notifier.
 func New(c *config.WechatConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "wechat", false, false, httpOpts...)
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "wechat", append(httpOpts, commoncfg.WithHTTP2Disabled())...)
 	if err != nil {
 		return nil, err
 	}
