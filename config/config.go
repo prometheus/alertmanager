@@ -301,8 +301,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*c.Global = DefaultGlobalConfig()
 	}
 
-	if c.Global.SlackAPIURL != nil && len(c.Global.SlackAPIURLFile) > 0 {
-		return fmt.Errorf("at most one of slack_api_url & slack_api_url_file must be configured")
+	if c.Global.SlackAPIURL != nil {
+		return fmt.Errorf("at most one of slack_api_url must be configured")
 	}
 
 	if c.Global.VictorOpsAPIKey != nil && len(c.Global.VictorOpsAPIKeyFile) > 0 {
@@ -648,7 +648,7 @@ type GlobalConfig struct {
 	WeChatAPICorpID     string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL     *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey     Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
-	VictorOpsAPIKeyFile Secret     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
+	VictorOpsAPIKeyFile string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.

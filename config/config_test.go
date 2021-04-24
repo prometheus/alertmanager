@@ -838,13 +838,13 @@ func TestVictorOpsGlobalAPIKEYFile(t *testing.T) {
 
 	// no override
 	firstConfig := conf.Receivers[0].VictorOpsConfigs[0]
-	if firstConfig.APIKeyFile != "/global_file" || firstConfig.APIKey != nil {
+	if firstConfig.APIKeyFile != "/global_file" || firstConfig.APIKey != "" {
 		t.Fatalf("Invalid VictorOps APIKEY file: %s\nExpected: %s", firstConfig.APIKeyFile, "/global_file")
 	}
 
 	// override the file
 	secondConfig := conf.Receivers[0].VictorOpsConfigs[1]
-	if secondConfig.APIKeyFile != "/override_file" || secondConfig.APIKey != nil {
+	if secondConfig.APIKeyFile != "/override_file" || secondConfig.APIKey != "" {
 		t.Fatalf("Invalid VictorOps APIKEY file: %s\nExpected: %s", secondConfig.APIKeyFile, "/override_file")
 	}
 
