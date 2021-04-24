@@ -81,6 +81,7 @@ global:
 
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
+  [ slack_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
@@ -150,13 +151,19 @@ current node.
 # Whether an alert should continue matching subsequent sibling nodes.
 [ continue: <boolean> | default = false ]
 
+# DEPRECATED: Use matchers below.
 # A set of equality matchers an alert has to fulfill to match the node.
 match:
   [ <labelname>: <labelvalue>, ... ]
 
+# DEPRECATED: Use matchers below.
 # A set of regex-matchers an alert has to fulfill to match the node.
 match_re:
   [ <labelname>: <regex>, ... ]
+  
+# A list of matchers that an alert has to fulfill to match the node. 
+matchers:
+  [ - <matcher> ... ]
 
 # How long to initially wait to send a notification for a group
 # of alerts. Allows to wait for an inhibiting alert to arrive or collect
@@ -294,18 +301,32 @@ source matchers in a way that alerts never match both sides. It is much easier
 to reason about and does not trigger this special case.
 
 ```yaml
+# DEPRECATED: Use target_matchers below.
 # Matchers that have to be fulfilled in the alerts to be muted.
 target_match:
   [ <labelname>: <labelvalue>, ... ]
+# DEPRECATED: Use target_matchers below.
 target_match_re:
   [ <labelname>: <regex>, ... ]
+  
+# A list of matchers that have to be fulfilled by the target 
+# alerts to be muted.
+target_matchers:
+  [ - <matcher> ... ]
 
+# DEPRECATED: Use source_matchers below.
 # Matchers for which one or more alerts have to exist for the
 # inhibition to take effect.
 source_match:
   [ <labelname>: <labelvalue>, ... ]
+# DEPRECATED: Use source_matchers below.
 source_match_re:
   [ <labelname>: <regex>, ... ]
+  
+# A list of matchers for which one or more alerts have 
+# to exist for the inhibition to take effect.
+source_matchers:
+   [ - <matcher> ... ]
 
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
@@ -567,8 +588,10 @@ an [attachment](https://api.slack.com/docs/message-attachments).
 # Whether or not to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The Slack webhook URL.
+# The Slack webhook URL. Either api_url or api_url_file should be set.
+# Defaults to global settings if none are set here.
 [ api_url: <secret> | default = global.slack_api_url ]
+[ api_url_file: <filepath> | default = global.slack_api_url_file ]
 
 # The channel or user to send notifications to.
 channel: <tmpl_string>
@@ -636,6 +659,57 @@ title: <tmpl_string>
 value: <tmpl_string>
 [ short: <boolean> | default = slack_config.short_fields ]
 ```
+
+## `<matcher>`
+
+A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens: 
+
+- A valid Prometheus label name. 
+
+- One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
+
+- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace. 
+
+The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
+
+In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading `{` and/or a trailing `}` is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing `}`, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
+
+Here are some examples of valid string matchers :
+
+1. Shown below are two equality matchers combined in a long form YAML list.
+
+```yaml
+  matchers :
+   - foo = bar
+   - dings !=bums 
+```
+
+2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
+
+```yaml
+matchers: [ foo = bar, dings != bums ]
+```
+
+As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
+
+```yaml
+matchers: [ "foo = bar,baz", "dings != bums" ]
+```
+
+3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
+
+```yaml
+matchers: [ '{foo="bar",dings!="bums"}' ]
+```
+
+4. To avoid any confusion about YAML string quoting and escaping, you can use YAML block quoting and then only worry about the OpenMetrics escaping inside the block. A complex example with a regular expression and different quotes inside the label value is shown below:
+
+```yaml
+matchers:
+  - |
+      {quote=~"She said: \"Hi, all!( How're you…)?\""}
+```
+
 
 ## `<opsgenie_config>`
 

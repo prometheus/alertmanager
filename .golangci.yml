@@ -1,5 +1,5 @@
+---
 run:
-  modules-download-mode: vendor
   deadline: 5m
 
 issues:

@@ -9,7 +9,6 @@ module Views.SilenceForm.Types exposing
     , initSilenceForm
     , parseEndsAt
     , toSilence
-    , validMatchers
     , validateForm
     , validateMatchers
     )
@@ -17,7 +16,7 @@ module Views.SilenceForm.Types exposing
 import Browser.Navigation exposing (Key)
 import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
-import Data.Matcher exposing (Matcher)
+import Data.Matcher
 import Data.PostableSilence exposing (PostableSilence)
 import DateTime
 import Silences.Types exposing (nullSilence)
@@ -33,7 +32,7 @@ import Utils.FormValidation
         , stringNotEmpty
         , validate
         )
-import Utils.Types exposing (ApiData(..), Duration)
+import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 
 

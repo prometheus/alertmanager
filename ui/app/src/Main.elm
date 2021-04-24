@@ -15,7 +15,7 @@ import Views.AlertList.Types exposing (initAlertList)
 import Views.SilenceForm.Types exposing (initSilenceForm)
 import Views.SilenceList.Types exposing (initSilenceList)
 import Views.SilenceView.Types exposing (initSilenceView)
-import Views.Status.Types exposing (StatusModel, initStatusModel)
+import Views.Status.Types exposing (initStatusModel)
 
 
 main : Program Json.Value Model Msg

@@ -1,10 +1,10 @@
 module Views.FilterBar.Views exposing (view)
 
-import Html exposing (Attribute, Html, a, button, div, i, input, small, span, text)
+import Html exposing (Html, a, button, div, i, input, small, span, text)
 import Html.Attributes exposing (class, disabled, href, id, style, value)
-import Html.Events exposing (keyCode, on, onClick, onInput)
+import Html.Events exposing (onClick, onInput)
 import Utils.Filter exposing (Matcher, convertFilterMatcher)
-import Utils.Keyboard exposing (keys, onKeyDown, onKeyUp)
+import Utils.Keyboard exposing (onKeyDown, onKeyUp)
 import Utils.List
 import Views.FilterBar.Types exposing (Model, Msg(..))
 import Views.SilenceForm.Parsing exposing (newSilenceFromMatchers)

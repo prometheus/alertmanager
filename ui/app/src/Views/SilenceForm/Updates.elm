@@ -10,8 +10,7 @@ import Utils.Date exposing (timeFromString)
 import Utils.DateTimePicker.Types exposing (initFromStartAndEndTime)
 import Utils.DateTimePicker.Updates as DateTimePickerUpdates
 import Utils.Filter exposing (silencePreviewFilter)
-import Utils.FormValidation exposing (fromResult, initialField, stringNotEmpty, updateValue, validate)
-import Utils.List
+import Utils.FormValidation exposing (initialField, stringNotEmpty, updateValue, validate)
 import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 import Views.FilterBar.Updates as FilterBar

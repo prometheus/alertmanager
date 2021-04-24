@@ -308,6 +308,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Global.VictorOpsAPIKey != "" && len(c.Global.VictorOpsAPIKeyFile) > 0 {
 		return fmt.Errorf("at most one of victorops_api_key & victorops_api_key_file must be configured")
 	}
+
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
@@ -356,11 +357,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if sc.HTTPConfig == nil {
 				sc.HTTPConfig = c.Global.HTTPConfig
 			}
-			if sc.APIURL == nil {
-				if c.Global.SlackAPIURL == nil {
-					return fmt.Errorf("no global Slack API URL set")
+			if sc.APIURL == nil && len(sc.APIURLFile) == 0 {
+				if c.Global.SlackAPIURL == nil && len(c.Global.SlackAPIURLFile) == 0 {
+					return fmt.Errorf("no global Slack API URL set either inline or in a file")
 				}
 				sc.APIURL = c.Global.SlackAPIURL
+				sc.APIURLFile = c.Global.SlackAPIURLFile
 			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
@@ -649,6 +651,7 @@ type GlobalConfig struct {
 	VictorOpsAPIURL     *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey     Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
+
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.

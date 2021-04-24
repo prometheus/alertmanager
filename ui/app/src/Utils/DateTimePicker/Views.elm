@@ -4,10 +4,9 @@ import Html exposing (Html, br, button, div, i, input, p, strong, text)
 import Html.Attributes exposing (class, maxlength, value)
 import Html.Events exposing (on, onClick, onMouseOut, onMouseOver)
 import Iso8601
-import Json.Decode as Decode exposing (Decoder)
+import Json.Decode as Decode
 import Time exposing (Posix, utc)
 import Utils.DateTimePicker.Types exposing (DateTimePicker, InputHourOrMinute(..), Msg(..), StartOrEnd(..))
-import Utils.DateTimePicker.Updates exposing (update)
 import Utils.DateTimePicker.Utils
     exposing
         ( floorDate
@@ -38,13 +37,13 @@ viewCalendar dateTimePicker =
                 |> Maybe.withDefault (Time.millisToPosix 0)
     in
     div [ class "calendar_ month" ]
-        [ viewMonthHeader dateTimePicker justViewTime
+        [ viewMonthHeader justViewTime
         , viewMonth dateTimePicker justViewTime
         ]
 
 
-viewMonthHeader : DateTimePicker -> Posix -> Html Msg
-viewMonthHeader dateTimePicker justViewTime =
+viewMonthHeader : Posix -> Html Msg
+viewMonthHeader justViewTime =
     div [ class "row month-header" ]
         [ div
             [ class "prev-month d-flex-center"
@@ -148,7 +147,7 @@ viewDay dateTimePicker justViewTime day =
             setClass_ dateTimePicker.endDate " end"
 
         ( startClassBack, endClassBack ) =
-            Maybe.map2 (\sd ed -> ( startClass, endClass )) dateTimePicker.startDate dateTimePicker.endDate
+            Maybe.map2 (\_ _ -> ( startClass, endClass )) dateTimePicker.startDate dateTimePicker.endDate
                 |> Maybe.withDefault ( "", "" )
 
         betweenClass =
@@ -281,7 +280,7 @@ viewTimePicker dateTimePicker startOrEnd =
                         Maybe.map
                             (\t ->
                                 case maybeDate of
-                                    Just d ->
+                                    Just _ ->
                                         Iso8601.fromTime t
                                             |> String.dropRight 8
 

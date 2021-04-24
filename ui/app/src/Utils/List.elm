@@ -1,4 +1,4 @@
-module Utils.List exposing (groupBy, lastElem, mstring, nextElem, replaceIf, replaceIndex, zip)
+module Utils.List exposing (groupBy, lastElem, mstring, nextElem, zip)
 
 import Data.Matcher exposing (Matcher)
 import Dict exposing (Dict)
@@ -21,32 +21,6 @@ nextElem el list =
 lastElem : List a -> Maybe a
 lastElem =
     List.foldl (Just >> always) Nothing
-
-
-replaceIf : (a -> Bool) -> a -> List a -> List a
-replaceIf predicate replacement list =
-    List.map
-        (\item ->
-            if predicate item then
-                replacement
-
-            else
-                item
-        )
-        list
-
-
-replaceIndex : Int -> (a -> a) -> List a -> List a
-replaceIndex index replacement list =
-    List.indexedMap
-        (\currentIndex item ->
-            if index == currentIndex then
-                replacement item
-
-            else
-                item
-        )
-        list
 
 
 mstring : Matcher -> String
