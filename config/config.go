@@ -305,7 +305,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("at most one of slack_api_url must be configured")
 	}
 
-	if c.Global.VictorOpsAPIKey != nil && len(c.Global.VictorOpsAPIKeyFile) > 0 {
+	if c.Global.VictorOpsAPIKey != "" && len(c.Global.VictorOpsAPIKeyFile) > 0 {
 		return fmt.Errorf("at most one of victorops_api_key & victorops_api_key_file must be configured")
 	}
 	names := map[string]struct{}{}

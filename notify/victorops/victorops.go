@@ -74,8 +74,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	)
 
 	var api_key_read string
+
+	apiKey := tmpl(string(n.conf.APIKey))
+
 	if n.conf.APIKey != "" {
-		api_key_read = n.conf.APIKey.Copy()
+		api_key_read = apiKey
 	} else {
 		content, err := ioutil.ReadFile(n.conf.APIKeyFile)
 		if err != nil {
