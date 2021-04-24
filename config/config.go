@@ -651,7 +651,6 @@ type GlobalConfig struct {
 	VictorOpsAPIURL     *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey     Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
-
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
