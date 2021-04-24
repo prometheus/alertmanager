@@ -62,6 +62,14 @@ paths:
           collectionFormat: multi
           items:
             type: string
+        - name: creator
+          in: query
+          description: A list of creators to filter silences by
+          required: false
+          type: array
+          collectionFormat: multi
+          items:
+            type: string
     post:
       tags:
         - silence

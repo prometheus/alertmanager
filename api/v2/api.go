@@ -511,6 +511,9 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		if !CheckSilenceMatchesFilterLabels(ps, matchers) {
 			continue
 		}
+		if !CheckSilenceCreator(ps, params.Creator) {
+			continue
+		}
 		silence, err := GettableSilenceFromProto(ps)
 		if err != nil {
 			level.Error(logger).Log("msg", "Failed to unmarshal silence from proto", "err", err)
@@ -587,6 +590,20 @@ func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Ma
 	}
 
 	return true
+}
+
+// CheckSilenceCreator returns true if a given silence
+// matches a list of creators.
+func CheckSilenceCreator(s *silencepb.Silence, creators []string) bool {
+	if len(creators) < 1 {
+		return true
+	}
+	for _, creator := range creators {
+		if creator == s.CreatedBy {
+			return true
+		}
+	}
+	return false
 }
 
 func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middleware.Responder {

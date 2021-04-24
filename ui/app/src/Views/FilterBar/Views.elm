@@ -1,4 +1,4 @@
-module Views.FilterBar.Views exposing (view)
+module Views.FilterBar.Views exposing (view, viewCreatedByListBar, viewMatchersBar)
 
 import Html exposing (Html, a, button, div, i, input, small, span, text)
 import Html.Attributes exposing (class, disabled, href, id, style, value)
@@ -45,8 +45,45 @@ viewMatchers matchers =
         |> List.map viewMatcher
 
 
+viewCreatedBy : String -> Html Msg
+viewCreatedBy createdBy =
+    div [ class "col col-auto" ]
+        [ div [ class "btn-group mr-2 mb-2" ]
+            [ button
+                [ class "btn btn-outline-info"
+                , onClick (DeleteFilterCreatedBy True createdBy)
+                ]
+                [ text <| createdBy
+                ]
+            , button
+                [ class "btn btn-outline-danger"
+                , onClick (DeleteFilterCreatedBy False createdBy)
+                ]
+                [ text "×" ]
+            ]
+        ]
+
+
+viewCreatedByList : List String -> List (Html Msg)
+viewCreatedByList createdByList =
+    createdByList
+        |> List.map viewCreatedBy
+
+
 view : { showSilenceButton : Bool } -> Model -> Html Msg
-view { showSilenceButton } { matchers, matcherText, backspacePressed } =
+view showSilenceButton model =
+    div []
+        [ viewMatchersBar showSilenceButton True model
+        , if model.showCreatedByBar || not (List.isEmpty model.createdByList) then
+            viewCreatedByListBar model
+
+          else
+            div [] []
+        ]
+
+
+viewMatchersBar : { showSilenceButton : Bool } -> Bool -> Model -> Html Msg
+viewMatchersBar { showSilenceButton } showCreatedByButton { matchers, createdByList, matcherText, createdByText, backspacePressed } =
     let
         maybeMatcher =
             Utils.Filter.parseMatcher matcherText
@@ -107,8 +144,7 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
             matchers
                 |> List.map convertFilterMatcher
     in
-    div
-        [ class "row no-gutters align-items-start" ]
+    div [ class "row no-gutters align-items-start" ]
         (viewMatchers matchers
             ++ [ div
                     [ class ("col " ++ className)
@@ -151,14 +187,105 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
                           else
                             text ""
                         ]
-                    , small [ class "form-text text-muted" ]
-                        [ text "Custom matcher, e.g."
+                    , small [ class "btn-toolbar form-text text-muted" ]
+                        [ span [ class "d-flex align-items-center" ] [ text "Custom matcher, e.g." ]
                         , button
                             [ class "btn btn-link btn-sm align-baseline"
                             , onClick (UpdateMatcherText exampleMatcher)
                             ]
                             [ text exampleMatcher ]
+                        , if showCreatedByButton then
+                            div [ class "btn-group ml-auto" ]
+                                [ button [ class "btn btn-sm btn-outline-secondary", onClick ShowCreatedByBar, disabled <| not (List.isEmpty createdByList) ] [ text "created by" ] ]
+
+                          else
+                            div [] []
                         ]
+                    ]
+               ]
+        )
+
+
+viewCreatedByListBar : Model -> Html Msg
+viewCreatedByListBar { matchers, createdByList, matcherText, createdByText, backspacePressed } =
+    let
+        maybeCreatedBy =
+            Utils.Filter.parseCreatedBy createdByText
+
+        maybeLastCreatedBy =
+            Utils.List.lastElem createdByList
+
+        className =
+            if createdByText == "" then
+                ""
+
+            else
+                case maybeCreatedBy of
+                    Just _ ->
+                        "has-success"
+
+                    Nothing ->
+                        "has-danger"
+
+        keyDown key =
+            if key == keys.enter then
+                maybeCreatedBy
+                    |> Maybe.map (AddFilterCreatedBy True)
+                    |> Maybe.withDefault Noop
+
+            else if key == keys.backspace then
+                if createdByText == "" then
+                    case ( backspacePressed, maybeLastCreatedBy ) of
+                        ( False, Just lastCreatedBy ) ->
+                            DeleteFilterCreatedBy True lastCreatedBy
+
+                        _ ->
+                            Noop
+
+                else
+                    PressingBackspace True
+
+            else
+                Noop
+
+        keyUp key =
+            if key == keys.backspace then
+                PressingBackspace False
+
+            else
+                Noop
+
+        isDisabled =
+            maybeCreatedBy == Nothing
+
+        onClickAttr =
+            maybeCreatedBy
+                |> Maybe.map (AddFilterCreatedBy True)
+                |> Maybe.withDefault Noop
+                |> onClick
+    in
+    div [ class "row no-gutters align-items-start mt-1" ]
+        (viewCreatedByList createdByList
+            ++ [ div
+                    [ class ("col " ++ className) ]
+                    [ div [ class "row no-gutters align-content-stretch" ]
+                        [ div [ class "col input-group" ]
+                            [ input
+                                [ id "filter-bar-created-by"
+                                , class "form-control"
+                                , value createdByText
+                                , onKeyDown keyDown
+                                , onKeyUp keyUp
+                                , onInput UpdateCreatedByText
+                                ]
+                                []
+                            , span
+                                [ class "input-group-btn" ]
+                                [ button [ class "btn btn-primary", disabled isDisabled, onClickAttr ] [ text "+" ] ]
+                            ]
+                        ]
+                    , small [ class "btn-toolbar form-text text-muted" ]
+                        [ span [ class "d-flex align-items-center" ] [ text "Created By ..." ] ]
                     ]
                ]
         )

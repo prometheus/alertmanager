@@ -304,6 +304,16 @@ func init() {
             "description": "A list of matchers to filter silences by",
             "name": "filter",
             "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of creators to filter silences by",
+            "name": "creator",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1110,6 +1120,16 @@ func init() {
             "collectionFormat": "multi",
             "description": "A list of matchers to filter silences by",
             "name": "filter",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "description": "A list of creators to filter silences by",
+            "name": "creator",
             "in": "query"
           }
         ],

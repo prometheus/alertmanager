@@ -132,7 +132,7 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
                     Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd
 
                 newUrl =
-                    filteredUrl (Utils.Filter.withMatchers newFilterBar.matchers filter)
+                    filteredUrl (Utils.Filter.withMatchersAndCreatedBy newFilterBar.matchers newFilterBar.createdByList filter)
 
                 alertsCmd =
                     if shouldFilter then

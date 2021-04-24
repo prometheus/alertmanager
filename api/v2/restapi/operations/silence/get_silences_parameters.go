@@ -44,6 +44,11 @@ type GetSilencesParams struct {
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
+	/*A list of creators to filter silences by
+	  In: query
+	  Collection Format: multi
+	*/
+	Creator []string
 	/*A list of matchers to filter silences by
 	  In: query
 	  Collection Format: multi
@@ -62,6 +67,11 @@ func (o *GetSilencesParams) BindRequest(r *http.Request, route *middleware.Match
 
 	qs := runtime.Values(r.URL.Query())
 
+	qCreator, qhkCreator, _ := qs.GetOK("creator")
+	if err := o.bindCreator(qCreator, qhkCreator, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
 	qFilter, qhkFilter, _ := qs.GetOK("filter")
 	if err := o.bindFilter(qFilter, qhkFilter, route.Formats); err != nil {
 		res = append(res, err)
@@ -70,6 +80,30 @@ func (o *GetSilencesParams) BindRequest(r *http.Request, route *middleware.Match
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+// bindCreator binds and validates array parameter Creator from query.
+//
+// Arrays are parsed according to CollectionFormat: "multi" (defaults to "csv" when empty).
+func (o *GetSilencesParams) bindCreator(rawData []string, hasKey bool, formats strfmt.Registry) error {
+
+	// CollectionFormat: multi
+	creatorIC := rawData
+
+	if len(creatorIC) == 0 {
+		return nil
+	}
+
+	var creatorIR []string
+	for _, creatorIV := range creatorIC {
+		creatorI := creatorIV
+
+		creatorIR = append(creatorIR, creatorI)
+	}
+
+	o.Creator = creatorIR
+
 	return nil
 }
 

@@ -5,10 +5,26 @@ import Url.Parser.Query as Query
 import Utils.Filter exposing (Filter)
 
 
+boolParam : String -> Query.Parser Bool
+boolParam name =
+    Query.custom name (List.head >> (/=) Nothing)
+
+
+maybeBoolParam : String -> Query.Parser (Maybe Bool)
+maybeBoolParam name =
+    Query.custom name
+        (List.head >> Maybe.map (String.toLower >> (/=) "false"))
+
+
 silenceListParser : Parser (Filter -> a) a
 silenceListParser =
-    map
-        (\t ->
-            Filter t Nothing False Nothing Nothing Nothing Nothing
-        )
-        (s "silences" <?> Query.string "filter")
+    s "silences"
+        <?> Query.string "filter"
+        <?> Query.string "creator"
+        <?> Query.string "group"
+        <?> boolParam "customGrouping"
+        <?> Query.string "receiver"
+        <?> maybeBoolParam "silenced"
+        <?> maybeBoolParam "inhibited"
+        <?> maybeBoolParam "active"
+        |> map Filter

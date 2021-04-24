@@ -5,16 +5,23 @@ import Utils.Filter
 
 type alias Model =
     { matchers : List Utils.Filter.Matcher
+    , createdByList : List String
     , backspacePressed : Bool
     , matcherText : String
+    , createdByText : String
+    , showCreatedByBar : Bool
     }
 
 
 type Msg
     = AddFilterMatcher Bool Utils.Filter.Matcher
+    | AddFilterCreatedBy Bool String
     | DeleteFilterMatcher Bool Utils.Filter.Matcher
+    | DeleteFilterCreatedBy Bool String
     | PressingBackspace Bool
     | UpdateMatcherText String
+    | UpdateCreatedByText String
+    | ShowCreatedByBar
     | Noop
 
 
@@ -31,6 +38,9 @@ proceed to deleting the next matcher.
 initFilterBar : List Utils.Filter.Matcher -> Model
 initFilterBar matchers =
     { matchers = matchers
+    , createdByList = []
     , backspacePressed = False
     , matcherText = ""
+    , createdByText = ""
+    , showCreatedByBar = False
     }
