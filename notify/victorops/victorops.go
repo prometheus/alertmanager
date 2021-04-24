@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/pkg/errors"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
