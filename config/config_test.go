@@ -820,7 +820,6 @@ func TestVictorOpsBothAPIURLAndFile(t *testing.T) {
 	}
 }
 
-
 func TestVictorOpsNoAPIKey(t *testing.T) {
 	_, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
 	if err == nil {
