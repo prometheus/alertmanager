@@ -490,7 +490,8 @@ type VictorOpsConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey            Secret            `yaml:"api_key" json:"api_key"`
+	APIKey            Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKeyFile        Secret            `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
 	APIURL            *URL              `yaml:"api_url" json:"api_url"`
 	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
 	MessageType       string            `yaml:"message_type" json:"message_type"`
@@ -507,6 +508,13 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if c.APIKey != nil && len(c.APIKeyFile) > 0 {
+		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
+	}
+
+	return nil
+
 	if c.RoutingKey == "" {
 		return fmt.Errorf("missing Routing key in VictorOps config")
 	}

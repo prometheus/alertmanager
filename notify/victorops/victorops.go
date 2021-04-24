@@ -18,8 +18,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
+	"github.com/pkg/errors"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
@@ -71,7 +73,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
 		apiURL = n.conf.APIURL.Copy()
 	)
-	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
+
+	var api_key_read string
+	if n.conf.APIKey != nil {
+		api_key_read = n.conf.APIKey.String()
+	} else {
+		content, err := ioutil.ReadFile(n.conf.APIKeyFile)
+		if err != nil {
+			return false, err
+		}
+		api_key_read = string(content)
+	}
+
+	apiURL.Path += fmt.Sprintf("%s/%s", api_key_read, tmpl(n.conf.RoutingKey))
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
 	}

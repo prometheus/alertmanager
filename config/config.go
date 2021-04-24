@@ -301,6 +301,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*c.Global = DefaultGlobalConfig()
 	}
 
+	if c.Global.VictorOpsAPIKey != nil && len(c.Global.VictorOpsAPIKeyFile) > 0 {
+		return fmt.Errorf("at most one of victorops_api_key & victorops_api_key_file must be configured")
+	}
 	names := map[string]struct{}{}
 
 	for _, rcv := range c.Receivers {
@@ -435,11 +438,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if !strings.HasSuffix(voc.APIURL.Path, "/") {
 				voc.APIURL.Path += "/"
 			}
-			if voc.APIKey == "" {
-				if c.Global.VictorOpsAPIKey == "" {
-					return fmt.Errorf("no global VictorOps API Key set")
+			if voc.APIKey == "" && len(voc.APIKeyFile) == 0  {
+				if c.Global.VictorOpsAPIKey == "" && len(c.Global.VictorOpsAPIKeyFile) == 0  {
+					return fmt.Errorf("no global VictorOps API Key set either inline or in a file")
 				}
 				voc.APIKey = c.Global.VictorOpsAPIKey
+				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
 			}
 		}
 		names[rcv.Name] = struct{}{}
@@ -640,6 +644,7 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	VictorOpsAPIKeyFile  Secret     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.

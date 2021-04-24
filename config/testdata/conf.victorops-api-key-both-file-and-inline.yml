@@ -1,0 +1,13 @@
+global:
+  victorops_api_key: "<SECRET>"
+  victorops_api_key_file: '/global_file'
+
+route:
+  receiver: 'victorops-notifications'
+  group_by: [alertname, datacenter, app]
+
+receivers:
+- name: 'victorops-notifications'
+  slack_configs:
+  - channel: '#alerts1'
+    text: 'test'

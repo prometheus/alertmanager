@@ -810,14 +810,49 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, "qwe456")
 	}
 }
+func TestVictorOpsBothAPIURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.victorops-api-key-both-file-and-inline.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-api-key-both-file-and-inline.yml", err)
+	}
+	if err.Error() != "at most one of victorops_api_key & victorops_api_key_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of victorops_api_key & victorops_api_key_file must be configured", err.Error())
+	}
+}
+
 
 func TestVictorOpsNoAPIKey(t *testing.T) {
 	_, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
 	}
-	if err.Error() != "no global VictorOps API Key set" {
-		t.Errorf("Expected: %s\nGot: %s", "no global VictorOps API Key set", err.Error())
+	if err.Error() != "no global VictorOps API Key set or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global VictorOps API Key set or in a file", err.Error())
+	}
+}
+
+func TestVictorOpsGlobalAPIKEYFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.victorops-default-apikey-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey-file.yml", err)
+	}
+
+	// no override
+	firstConfig := conf.Receivers[0].VictorOpsConfigs[0]
+	if firstConfig.APIKeyFile != "/global_file" || firstConfig.APIKey != nil {
+		t.Fatalf("Invalid VictorOps APIKEY file: %s\nExpected: %s", firstConfig.APIKeyFile, "/global_file")
+	}
+
+	// override the file
+	secondConfig := conf.Receivers[0].VictorOpsConfigs[1]
+	if secondConfig.APIKeyFile != "/override_file" || secondConfig.APIKey != nil {
+		t.Fatalf("Invalid VictorOps APIKEY file: %s\nExpected: %s", secondConfig.APIKeyFile, "/override_file")
+	}
+
+	// override the global file with an inline <SECRET>
+	thirdConfig := conf.Receivers[0].VictorOpsConfigs[2]
+	if thirdConfig.APIKey.String() != "<SECRET>" || thirdConfig.APIKeyFile != "" {
+		t.Fatalf("Invalid VictorOps APIKEY: %s\nExpected: %s", thirdConfig.APIKey.String(), "<SECRET>")
 	}
 }
 
