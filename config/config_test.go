@@ -851,7 +851,7 @@ func TestVictorOpsGlobalAPIKEYFile(t *testing.T) {
 	// override the global file with an inline <SECRET>
 	thirdConfig := conf.Receivers[0].VictorOpsConfigs[2]
 	if thirdConfig.APIKeyFile != "" {
-		t.Fatalf("Invalid VictorOps APIKEY: %s\nExpected: %s", thirdConfig.APIKey.String(), "<SECRET>")
+		t.Fatalf("Invalid VictorOps APIKEY: %s\nExpected: %s", thirdConfig.APIKey, "<SECRET>")
 	}
 }
 

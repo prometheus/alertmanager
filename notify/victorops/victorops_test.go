@@ -17,7 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	. "io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
