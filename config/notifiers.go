@@ -509,7 +509,7 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 		return err
 	}
 
-	if c.APIKey != nil && len(c.APIKeyFile) > 0 {
+	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
 		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
 	}
 
