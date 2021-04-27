@@ -258,12 +258,13 @@ func (d *Dispatcher) Stop() {
 		return
 	}
 	d.mtx.Lock()
-	defer d.mtx.Unlock()
 	if d.cancel == nil {
+		d.mtx.Unlock()
 		return
 	}
 	d.cancel()
 	d.cancel = nil
+	d.mtx.Unlock()
 
 	<-d.done
 }
