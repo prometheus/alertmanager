@@ -31,7 +31,7 @@ urlParser url =
                     ( h, Nothing )
 
                 h :: rest ->
-                    ( h, Just (String.join "" rest) )
+                    ( h, Just (String.concat rest) )
     in
     case parse routeParser { url | query = query, fragment = Nothing, path = path } of
         Just route ->

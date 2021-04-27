@@ -52,44 +52,43 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
 
 dateTimePickerDialog : SilenceForm -> Html SilenceFormMsg
 dateTimePickerDialog form =
-    case form.viewDateTimePicker of
-        True ->
-            div []
-                [ div [ class "modal fade show", style "display" "block" ]
-                    [ div [ class "modal-dialog modal-dialog-centered" ]
-                        [ div [ class "modal-content" ]
-                            [ div [ class "modal-header" ]
-                                [ button
-                                    [ class "close ml-auto"
-                                    , onClick (CloseDateTimePicker |> UpdateField)
-                                    ]
-                                    [ text "x" ]
+    if form.viewDateTimePicker then
+        div []
+            [ div [ class "modal fade show", style "display" "block" ]
+                [ div [ class "modal-dialog modal-dialog-centered" ]
+                    [ div [ class "modal-content" ]
+                        [ div [ class "modal-header" ]
+                            [ button
+                                [ class "close ml-auto"
+                                , onClick (CloseDateTimePicker |> UpdateField)
                                 ]
-                            , div [ class "modal-body" ]
-                                [ viewDateTimePicker form.dateTimePicker |> Html.map UpdateDateTimePicker ]
-                            , div [ class "modal-footer" ]
-                                [ button
-                                    [ class "ml-2 btn btn-outline-success mr-auto"
-                                    , onClick (CloseDateTimePicker |> UpdateField)
-                                    ]
-                                    [ text "Cancel" ]
-                                , button
-                                    [ class "ml-2 btn btn-primary"
-                                    , onClick (UpdateTimesFromPicker |> UpdateField)
-                                    ]
-                                    [ text "Set Date/Time" ]
+                                [ text "x" ]
+                            ]
+                        , div [ class "modal-body" ]
+                            [ viewDateTimePicker form.dateTimePicker |> Html.map UpdateDateTimePicker ]
+                        , div [ class "modal-footer" ]
+                            [ button
+                                [ class "ml-2 btn btn-outline-success mr-auto"
+                                , onClick (CloseDateTimePicker |> UpdateField)
                                 ]
+                                [ text "Cancel" ]
+                            , button
+                                [ class "ml-2 btn btn-primary"
+                                , onClick (UpdateTimesFromPicker |> UpdateField)
+                                ]
+                                [ text "Set Date/Time" ]
                             ]
                         ]
                     ]
-                , div [ class "modal-backdrop fade show" ] []
                 ]
+            , div [ class "modal-backdrop fade show" ] []
+            ]
 
-        False ->
-            div [ style "clip" "rect(0,0,0,0)", style "position" "fixed" ]
-                [ div [ class "modal fade" ] []
-                , div [ class "modal-backdrop fade" ] []
-                ]
+    else
+        div [ style "clip" "rect(0,0,0,0)", style "position" "fixed" ]
+            [ div [ class "modal fade" ] []
+            , div [ class "modal-backdrop fade" ] []
+            ]
 
 
 inputSectionPadding : String

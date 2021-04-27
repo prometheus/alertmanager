@@ -17,7 +17,7 @@ view activeAlertId alert =
             alert.labels
                 |> Dict.toList
                 |> List.partition (Tuple.first >> (==) "alertname")
-                |> (\( a, b ) -> (++) a b)
+                |> (\( a, b ) -> a ++ b)
                 |> List.map (\( a, b ) -> String.join "=" [ a, b ])
     in
     div

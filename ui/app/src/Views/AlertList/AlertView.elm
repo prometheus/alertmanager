@@ -22,7 +22,7 @@ view labels maybeActiveId alert =
                 |> Dict.toList
                 |> List.filter ((\b a -> List.member a b) labels >> not)
                 |> List.partition (Tuple.first >> (==) "alertname")
-                |> (\( a, b ) -> (++) a b)
+                |> (\( a, b ) -> a ++ b)
     in
     li
         [ -- speedup rendering in Chrome, because list-group-item className
