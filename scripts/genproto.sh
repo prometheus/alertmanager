@@ -20,6 +20,11 @@ if ! [[ $(protoc --version) =~ "3.15.8" ]]; then
 fi
 
 echo "installing plugins"
+
+# Since we run go mod download, the go.sum will change.
+# Make a backup.
+cp go.sum go.sum.bak
+
 go mod download
 
 INSTALL_PKGS="golang.org/x/tools/cmd/goimports github.com/gogo/protobuf/protoc-gen-gogofast"
@@ -46,3 +51,5 @@ for dir in ${DIRS}; do
         goimports -w *.pb.go
     popd
 done
+
+mv go.sum.bak go.sum

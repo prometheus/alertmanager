@@ -42,7 +42,7 @@ jobs:
   test:
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: circleci/golang:1.15
+    - image: circleci/golang:1.16
     # maildev containers are for running the email tests against a "real" SMTP server.
     # See notify/email_test.go for details.
     - image: djfarrelly/maildev:1.1.0
