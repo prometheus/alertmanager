@@ -290,30 +290,36 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		d.aggrGroups[route] = group
 	}
 
-	// If the group does not exist, create it.
 	ag, ok := group[fp]
-	if !ok {
-		ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
-		group[fp] = ag
-		d.metrics.aggrGroups.Inc()
-
-		go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
-			_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
-			if err != nil {
-				lvl := level.Error(d.logger)
-				if ctx.Err() == context.Canceled {
-					// It is expected for the context to be canceled on
-					// configuration reload or shutdown. In this case, the
-					// message should only be logged at the debug level.
-					lvl = level.Debug(d.logger)
-				}
-				lvl.Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
-			}
-			return err == nil
-		})
+	if ok {
+		ag.insert(alert)
+		return
 	}
 
+	// If the group does not exist, create it.
+	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+	group[fp] = ag
+	d.metrics.aggrGroups.Inc()
+
+	// Insert the 1st alert in the group before starting the group's run()
+	// function, to make sure that when the run() will be executed the 1st
+	// alert is already there.
 	ag.insert(alert)
+
+	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
+		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
+		if err != nil {
+			lvl := level.Error(d.logger)
+			if ctx.Err() == context.Canceled {
+				// It is expected for the context to be canceled on
+				// configuration reload or shutdown. In this case, the
+				// message should only be logged at the debug level.
+				lvl = level.Debug(d.logger)
+			}
+			lvl.Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
+		}
+		return err == nil
+	})
 }
 
 func getGroupLabels(alert *types.Alert, route *Route) model.LabelSet {
