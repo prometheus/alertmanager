@@ -16,6 +16,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
@@ -31,7 +32,7 @@ func configureSilenceExpireCmd(cc *kingpin.CmdClause) {
 		c         = &silenceExpireCmd{}
 		expireCmd = cc.Command("expire", "expire an alertmanager silence")
 	)
-	expireCmd.Arg("silence-ids", "Ids of silences to expire").StringsVar(&c.ids)
+	expireCmd.Arg("silence-ids", "IDs of silences to expire").StringsVar(&c.ids)
 	expireCmd.Action(execWithTimeout(c.expire))
 }
 
@@ -43,6 +44,9 @@ func (c *silenceExpireCmd) expire(ctx context.Context, _ *kingpin.ParseContext) 
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 
 	for _, id := range c.ids {
+		if !strfmt.IsUUID(id) {
+			return fmt.Errorf("%s is not a valid UUID", id)
+		}
 		params := silence.NewDeleteSilenceParams().WithContext(ctx)
 		params.SilenceID = strfmt.UUID(id)
 		_, err := amclient.Silence.DeleteSilence(params)

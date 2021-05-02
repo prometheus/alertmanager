@@ -61,6 +61,9 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 
 	var updatedSilences []models.GettableSilence
 	for _, silenceID := range c.ids {
+		if !strfmt.IsUUID(silenceID) {
+			return fmt.Errorf("%s is not a valid UUID", silenceID)
+		}
 		params := silence.NewGetSilenceParams()
 		params.SilenceID = strfmt.UUID(silenceID)
 		response, err := amclient.Silence.GetSilence(params)
