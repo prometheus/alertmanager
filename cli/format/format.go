@@ -52,14 +52,20 @@ func FormatDate(input strfmt.DateTime) string {
 
 func labelsMatcher(m models.Matcher) *labels.Matcher {
 	var t labels.MatchType
+
+	isEqual := true // Per api/v2/openapi.yaml#L397
+	if m.IsEqual != nil {
+		isEqual = *m.IsEqual
+	}
+
 	switch {
-	case !*m.IsRegex && *m.IsEqual:
+	case !*m.IsRegex && isEqual:
 		t = labels.MatchEqual
-	case !*m.IsRegex && !*m.IsEqual:
+	case !*m.IsRegex && !isEqual:
 		t = labels.MatchNotEqual
-	case *m.IsRegex && *m.IsEqual:
+	case *m.IsRegex && isEqual:
 		t = labels.MatchRegexp
-	case *m.IsRegex && !*m.IsEqual:
+	case *m.IsRegex && !isEqual:
 		t = labels.MatchNotRegexp
 	}
 
