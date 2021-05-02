@@ -25,4 +25,5 @@ func configureSilenceCmd(app *kingpin.Application) {
 	configureSilenceImportCmd(silenceCmd)
 	configureSilenceQueryCmd(silenceCmd)
 	configureSilenceUpdateCmd(silenceCmd)
+	configureSilenceDisplayCmd(silenceCmd)
 }
