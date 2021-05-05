@@ -6,8 +6,6 @@ start:
 
 .PHONY: gen-certs
 gen-certs: certs/ca.pem certs/node1.pem certs/node1-key.pem certs/node2.pem certs/node2-key.pem
-	@echo "Add the following to your certs: ca.pem, node1.pem, node2.pem"
-	@echo "Trust: ca.pem. The nodex.pem certs will now be signed by massl"
 
 certs/ca.pem certs/ca-key.pem: certs/ca-csr.json
 	cd certs; cfssl gencert -initca ca-csr.json | cfssljson -bare ca
