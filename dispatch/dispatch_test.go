@@ -365,7 +365,7 @@ route:
 	logger := log.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -527,7 +527,7 @@ func newAlert(labels model.LabelSet) *types.Alert {
 func TestDispatcherRace(t *testing.T) {
 	logger := log.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +544,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	logger := log.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
