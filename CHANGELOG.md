@@ -16,6 +16,7 @@
 * [ENHANCEMENT] Add support to set the Slack URL from a file. #2534
 * [ENHANCEMENT] amtool: Add alert status to extended and simple output. #2324
 * [ENHANCEMENT] Do not omit false booleans in the configuration page. #2317
+* [ENHANCEMENT] OpsGenie: Propagate labels to Opsgenie details. #2276
 * [ENHANCEMENT] PagerDuty: Filter out empty images and links. #2379
 * [ENHANCEMENT] WeChat: add markdown support. #2309
 * [BUGFIX] Fix a possible deadlock on shutdown. #2558
