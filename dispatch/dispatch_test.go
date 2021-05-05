@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
@@ -373,7 +374,9 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
+	lim := limits{groups: 6}
+	m := NewDispatcherMetrics(prometheus.NewRegistry())
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m)
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -391,7 +394,10 @@ route:
 		// Matches the second and third sub-route.
 		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
 	}
-	alerts.Put(inputAlerts...)
+	err = alerts.Put(inputAlerts...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Let alerts get processed.
 	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
@@ -411,63 +417,87 @@ route:
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[0]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("OtherAlert"),
+				"alertname": "OtherAlert",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[1]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("TestingAlert"),
-				model.LabelName("service"):   model.LabelValue("api"),
+				"alertname": "TestingAlert",
+				"service":   "api",
 			},
 			Receiver: "testing",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighErrorRate"),
-				model.LabelName("service"):   model.LabelValue("api"),
-				model.LabelName("cluster"):   model.LabelValue("aa"),
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[4]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighErrorRate"),
-				model.LabelName("service"):   model.LabelValue("api"),
-				model.LabelName("cluster"):   model.LabelValue("bb"),
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighLatency"),
-				model.LabelName("service"):   model.LabelValue("db"),
-				model.LabelName("cluster"):   model.LabelValue("bb"),
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
 			},
 			Receiver: "kafka",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighLatency"),
-				model.LabelName("service"):   model.LabelValue("db"),
-				model.LabelName("cluster"):   model.LabelValue("bb"),
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
 			},
 			Receiver: "prod",
 		},
 	}, alertGroups)
 	require.Equal(t, map[model.Fingerprint][]string{
-		inputAlerts[0].Fingerprint(): []string{"prod"},
-		inputAlerts[1].Fingerprint(): []string{"testing"},
-		inputAlerts[2].Fingerprint(): []string{"prod"},
-		inputAlerts[3].Fingerprint(): []string{"prod"},
-		inputAlerts[4].Fingerprint(): []string{"prod"},
-		inputAlerts[5].Fingerprint(): []string{"kafka", "prod"},
+		inputAlerts[0].Fingerprint(): {"prod"},
+		inputAlerts[1].Fingerprint(): {"testing"},
+		inputAlerts[2].Fingerprint(): {"prod"},
+		inputAlerts[3].Fingerprint(): {"prod"},
+		inputAlerts[4].Fingerprint(): {"prod"},
+		inputAlerts[5].Fingerprint(): {"kafka", "prod"},
 	}, receivers)
+
+	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
+
+	// Try to store new alert. This time, we will hit limit for number of groups.
+	err = alerts.Put(newAlert(model.LabelSet{"env": "prod", "alertname": "NewAlert", "cluster": "new-cluster", "service": "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Let alert get processed.
+	for i := 0; testutil.ToFloat64(m.aggrGroupLimitReached) == 0 && i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+	}
+	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
+
+	// Verify there are still only 6 groups.
+	alertGroups, _ = dispatcher.Groups(
+		func(*Route) bool {
+			return true
+		}, func(*types.Alert, time.Time) bool {
+			return true
+		},
+	)
+	require.Len(t, alertGroups, 6)
 }
 
 type recordStage struct {
@@ -534,7 +564,7 @@ func TestDispatcherRace(t *testing.T) {
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, nil, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
 	go dispatcher.Run()
 	dispatcher.Stop()
 }
@@ -562,7 +592,7 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -584,4 +614,12 @@ func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T)
 
 	// We expect all alerts to be notified immediately, since they all belong to different groups.
 	require.Equal(t, numAlerts, len(recorder.Alerts()))
+}
+
+type limits struct {
+	groups int
+}
+
+func (l limits) MaxNumberOfAggregationGroups() int {
+	return l.groups
 }
