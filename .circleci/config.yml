@@ -108,6 +108,7 @@ jobs:
     - checkout
     - run: cd doc/alertmanager-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool
     - run: cd doc/alertmanager-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt
+    - run: cd doc/alertmanager-mixin; go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
     - run: cd doc/alertmanager-mixin; make lint
 
 workflows:
