@@ -426,6 +426,15 @@ func run() int {
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
+
+		// An interface value that holds a nil concrete value is non-nil.
+		// Therefore we explicly pass an empty interface, to detect if the
+		// cluster is not enabled in notify.
+		var pipelinePeer notify.Peer
+		if peer != nil {
+			pipelinePeer = peer
+		}
+
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
@@ -433,7 +442,7 @@ func run() int {
 			silencer,
 			muteTimes,
 			notificationLog,
-			peer,
+			pipelinePeer,
 		)
 		configuredReceivers.Set(float64(len(activeReceivers)))
 		configuredIntegrations.Set(float64(integrationsNum))
