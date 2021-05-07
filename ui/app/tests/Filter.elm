@@ -21,12 +21,12 @@ parseMatcher =
                 if List.map isNotEmptyTrimmedAlphabetWord [ key, value ] /= [ True, True ] then
                     Expect.equal
                         Nothing
-                        (Utils.Filter.parseMatcher <| String.join "" [ key, "=", value ])
+                        (Utils.Filter.parseMatcher <| String.concat [ key, "=", value ])
 
                 else
                     Expect.equal
                         (Just (Matcher key Eq value))
-                        (Utils.Filter.parseMatcher <| String.join "" [ key, "=", "\"", value, "\"" ])
+                        (Utils.Filter.parseMatcher <| String.concat [ key, "=", "\"", value, "\"" ])
         ]
 
 

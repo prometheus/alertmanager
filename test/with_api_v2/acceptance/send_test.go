@@ -176,7 +176,7 @@ route:
   receiver: "default"
   group_by: [alertname]
   group_wait:      1s
-  group_interval:  1s
+  group_interval:  2s
   repeat_interval: 3s
 
 receivers:

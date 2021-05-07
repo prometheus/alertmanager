@@ -859,6 +859,51 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 	}
 }
 
+func TestSlackBothAPIURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-both-file-and-url.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-both-file-and-url.yml", err)
+	}
+	if err.Error() != "at most one of slack_api_url & slack_api_url_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of slack_api_url & slack_api_url_file must be configured", err.Error())
+	}
+}
+
+func TestSlackNoAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-no-api-url.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-no-api-url.yml", err)
+	}
+	if err.Error() != "no global Slack API URL set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global Slack API URL set either inline or in a file", err.Error())
+	}
+}
+
+func TestSlackGlobalAPIURLFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.slack-default-api-url-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-default-api-url-file.yml", err)
+	}
+
+	// no override
+	firstConfig := conf.Receivers[0].SlackConfigs[0]
+	if firstConfig.APIURLFile != "/global_file" || firstConfig.APIURL != nil {
+		t.Fatalf("Invalid Slack URL file: %s\nExpected: %s", firstConfig.APIURLFile, "/global_file")
+	}
+
+	// override the file
+	secondConfig := conf.Receivers[0].SlackConfigs[1]
+	if secondConfig.APIURLFile != "/override_file" || secondConfig.APIURL != nil {
+		t.Fatalf("Invalid Slack URL file: %s\nExpected: %s", secondConfig.APIURLFile, "/override_file")
+	}
+
+	// override the global file with an inline URL
+	thirdConfig := conf.Receivers[0].SlackConfigs[2]
+	if thirdConfig.APIURL.String() != "http://mysecret.example.com/" || thirdConfig.APIURLFile != "" {
+		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", thirdConfig.APIURL.String(), "http://mysecret.example.com/")
+	}
+}
+
 func TestUnmarshalHostPort(t *testing.T) {
 	for _, tc := range []struct {
 		in string

@@ -9,8 +9,9 @@
             "elm/core": "1.0.5",
             "elm/json": "1.1.3",
             "elm/project-metadata-utils": "1.0.1",
-            "jfmengels/elm-review": "2.3.11",
-            "jfmengels/elm-review-unused": "1.1.6",
+            "jfmengels/elm-review": "2.4.1",
+            "jfmengels/elm-review-simplify": "1.0.1",
+            "jfmengels/elm-review-unused": "1.1.9",
             "stil4m/elm-syntax": "7.2.2"
         },
         "indirect": {

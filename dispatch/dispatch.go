@@ -259,6 +259,7 @@ func (d *Dispatcher) Stop() {
 	}
 	d.mtx.Lock()
 	if d.cancel == nil {
+		d.mtx.Unlock()
 		return
 	}
 	d.cancel()
