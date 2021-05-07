@@ -261,7 +261,8 @@ local graphPanel = grafana.graphPanel;
         tags=($._config.dashboardTags),
         timezone='utc',
         refresh='30s',
-        graphTooltip='shared_crosshair'
+        graphTooltip='shared_crosshair',
+        uid='alertmanager-overview'
       )
       .addTemplate(
         {
