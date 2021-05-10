@@ -426,7 +426,7 @@ A `tls_config` allows configuring TLS connections.
 
 Receiver is a named configuration of one or more notification integrations.
 
-__We're not actively adding new receivers, we recommend implementing custom notification integrations via the [webhook](#webhook_config) receiver.__
+Note: As part of lifting the past moratorium on new receivers it was agreed that, in addition to the existing requirements, new notification integrations will be required to have a committed maintainer with push access.
 
 ```yaml
 # The unique name of the receiver.
