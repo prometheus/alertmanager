@@ -8,7 +8,7 @@ sort_rank: 11
 Alertmanager supports basic authentication and TLS.
 This is **experimental** and might change in the future.
 
-Currentlu TLS is only supported for the HTTP traffic. Gossip traffic does not
+Currently TLS is only supported for the HTTP traffic. Gossip traffic does not
 support encryption yet.
 
 To specify which web configuration file to load, use the `--web.config.file` flag.
