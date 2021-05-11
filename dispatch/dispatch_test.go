@@ -15,6 +15,7 @@ package dispatch
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sort"
 	"sync"
@@ -536,4 +537,51 @@ func TestDispatcherRace(t *testing.T) {
 	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
 	go dispatcher.Run()
 	dispatcher.Stop()
+}
+
+func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
+	const numAlerts = 100000
+
+	logger := log.NewNopLogger()
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			Receiver:       "default",
+			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:      0,
+			GroupInterval:  1 * time.Hour, // Should never hit in this test.
+			RepeatInterval: 1 * time.Hour, // Should never hit in this test.
+		},
+	}
+
+	timeout := func(d time.Duration) time.Duration { return d }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
+	go dispatcher.Run()
+	defer dispatcher.Stop()
+
+	// Push all alerts.
+	for i := 0; i < numAlerts; i++ {
+		alert := newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert_%d", i))})
+		require.NoError(t, alerts.Put(alert))
+	}
+
+	// Wait until the alerts have been notified or the waiting timeout expires.
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+		if len(recorder.Alerts()) >= numAlerts {
+			break
+		}
+
+		// Throttle.
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// We expect all alerts to be notified immediately, since they all belong to different groups.
+	require.Equal(t, numAlerts, len(recorder.Alerts()))
 }
