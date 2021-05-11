@@ -540,7 +540,7 @@ func TestDispatcherRace(t *testing.T) {
 }
 
 func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
-	const numAlerts = 100000
+	const numAlerts = 8000
 
 	logger := log.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
