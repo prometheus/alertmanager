@@ -5,7 +5,6 @@ local prometheus = grafana.prometheus;
 local template = grafana.template;
 local graphPanel = grafana.graphPanel;
 
-
 {
   grafanaDashboards+:: {
     local clusterTemplate =
@@ -103,7 +102,6 @@ local graphPanel = grafana.graphPanel;
           ||| % $._config, legendFormat='{{integration}} - Average'
         ));
 
-
       local silences =
         graphPanel.new(
           'Silences',
@@ -128,7 +126,6 @@ local graphPanel = grafana.graphPanel;
         )
         .addTarget(prometheus.target('rate(alertmanager_silences_queries_total{%(alertmanagerSelector)s, %(clusterLabel)s="$cluster"}[5m])' % $._config, legendFormat='Queries'))
         .addTarget(prometheus.target('rate(alertmanager_silences_query_errors_total{%(alertmanagerSelector)s, %(clusterLabel)s="$cluster"}[5m])' % $._config, legendFormat='Errors'));
-
 
       local silenceQueryDuration =
         graphPanel.new(
@@ -210,7 +207,6 @@ local graphPanel = grafana.graphPanel;
           ||| % $._config, legendFormat='Duration'
         ));
 
-
       local HTTPRequestRate =
         graphPanel.new(
           'Request Rate',
@@ -253,7 +249,6 @@ local graphPanel = grafana.graphPanel;
             ) 
           ||| % $._config, legendFormat='{{handler}} - 50th Percentile'
         ));
-
 
       dashboard.new(
         '%sOverview' % $._config.dashboardNamePrefix,

@@ -33,7 +33,6 @@
     // Example: @'pagerduty|webhook'
     alertmanagerCriticalIntegrationsRegEx: @'.*',
 
-
     // Opt-in for multi-cluster support.
     showMultiCluster: false,
     clusterLabel: 'cluster',
