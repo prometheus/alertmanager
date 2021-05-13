@@ -171,8 +171,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		msg.Markdown = weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		}
-		break
-
 	case "groupText":
 		postMessageURL.Path += "appchat/send"
 		var users []string
@@ -192,7 +190,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		msg.Text = weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		}
-		break
 	case "markdown":
 		postMessageURL.Path += "message/send"
 		msg.ToUser = tmpl(n.conf.ToUser)
@@ -203,7 +200,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		msg.Markdown = weChatMessageContent{
 			Content: tmpl(n.conf.Message),
 		}
-		break
 	default:
 		postMessageURL.Path += "message/send"
 		msg.ToUser = tmpl(n.conf.ToUser)
