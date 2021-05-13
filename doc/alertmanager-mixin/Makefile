@@ -1,7 +1,7 @@
 JSONNET_FMT := jsonnetfmt -n 2 --max-blank-lines 1 --string-style s --comment-style s
 ALERTMANAGER_ALERTS := alertmanager_alerts.yaml
 
-default: vendor build
+default: vendor build dashboards_out
 
 all: fmt build
 
