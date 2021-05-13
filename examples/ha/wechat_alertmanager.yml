@@ -1,0 +1,42 @@
+global:
+  wechat_api_url: 'https://qyapi.weixin.qq.com/cgi-bin/'
+  wechat_api_secret: '#wechat_api_secret'
+  wechat_api_corp_id: '#wechat corp id '
+  resolve_timeout: 1m
+
+route:
+  group_by: ['application']
+  group_wait: 30s
+  group_interval: 1m
+  repeat_interval: 1m
+  receiver: 'groupWechat'
+
+templates:
+  - examples/ha/*.tmpl
+receivers:
+  - name: 'groupWechat'
+    wechat_configs:
+      - send_resolved: true
+        to_tag: '服务报警'
+        message_type:  'groupMarkdown'
+        message: '{{ template "wechat.default.groupMessage" . }}'
+        agent_id: '#wechat agent id'
+        group_title: '{{ template "wechat.default.groupTitle" . }}'    #create group chatId
+        group_users:
+          - haizhu
+          - FengYu
+  - name: 'wechat'
+    wechat_configs:
+      - send_resolved: true
+        to_user: "xxx"
+        to_tag: '服务报警'
+        message_type:  'groupMarkdown'
+        message: '{{ template "wechat.default.message" . }}'
+        agent_id: '#wechat agent id'
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']
