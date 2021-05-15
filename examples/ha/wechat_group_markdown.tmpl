@@ -1,0 +1,36 @@
+{{ define "wechat.default.groupMessage" }}
+{{- if gt (len .Alerts.Firing) 0 -}}
+{{- range $index, $alert := .Alerts -}}
+#  监控报警：{{ $alert.Labels.alertname }}
+- 告警状态：<font color="warning">{{   .Status }}</font>
+- 告警主题：[{{ $alert.Labels.alertname }}-点击查看]({{ $alert.GeneratorURL  }})
+- 告警级别：{{ $alert.Labels.level }}
+- 告警服务：{{ $alert.Labels.application }}
+- 故障主机: {{ $alert.Labels.instance }}
+- 告警主题: {{ $alert.Annotations.summary }}
+- 告警详情: {{ $alert.Annotations.message }}{{ $alert.Annotations.description}}
+- 故障时间: {{ ($alert.StartsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+
+{{- end }}
+{{- end }}
+
+{{- if gt (len .Alerts.Resolved) 0 -}}
+{{- range $index, $alert := .Alerts -}}
+#  异常恢复：{{ $alert.Labels.alertname }}
+- 告警类型：{{ .Labels.alertname }}
+- 告警状态：<font color="info">{{   .Status }}</font>
+- 告警主题：[{{ $alert.Labels.alertname }}-点击查看]({{ $alert.GeneratorURL  }})
+- 告警级别：{{ $alert.Labels.level }}
+- 告警服务：{{ $alert.Labels.application }}
+- 故障主机: {{ $alert.Labels.instance }}
+- 告警主题: {{ $alert.Annotations.summary }}
+- 告警详情: {{ $alert.Annotations.message }}{{ $alert.Annotations.description}}
+- 故障时间: {{ ($alert.StartsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+- 恢复时间: {{ ($alert.EndsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+- 持续时间：{{ ($alert.EndsAt.Sub .StartsAt).Truncate 1000000000}}
+{{- if gt (len $alert.Labels.instance) 0 }}
+实例信息: {{ $alert.Labels.instance }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -912,4 +912,10 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_user: <string> | default = '{{ template "wechat.default.to_user" . }}' ]
 [ to_party: <string> | default = '{{ template "wechat.default.to_party" . }}' ]
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
+# groupTitle is the unique identifier of the group，create if not exists；
+# the example config at: wechat_alertmanager.yml; the template at: examples/ha/wechat_xxx.tmpl
+[ group_title: <string> | default = '{{ template "wechat.default.groupTitle" . }}' ]
+# the example config at: wechat_alertmanager.yml; the template at: examples/ha/wechat_xxx.tmpl
+# group_users strings array ,the group member min 2 people, max 2000 （企业微信规定群成员id列表 至少2人，最多2000人）
+[ group_users: <[]string> | default = '' ]
 ```

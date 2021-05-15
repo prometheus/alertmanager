@@ -1,0 +1,7 @@
+{{ define "wechat.default.groupTitle" }}
+{{- range $index, $alert := .Alerts -}}
+{{- if eq $index 0 }}
+{{ $alert.Labels.application }}{{ $alert.Labels.groupTitle }}
+{{- end }}
+{{- end }}
+{{ end }}
