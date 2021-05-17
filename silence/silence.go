@@ -123,21 +123,33 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	if markerVersion == s.silences.Version() {
 		// No new silences added, just need to check which of the old
 		// silences are still relevant.
-		if len(ids) == 0 {
-			// Super fast path: No silences ever applied to this
-			// alert, none have been added. We are done.
-			return false
-		}
+
 		// This is still a quite fast path: No silences have been added,
 		// we only need to check which of the applicable silences are
 		// currently active. Note that newVersion is left at
 		// markerVersion because the Query call might already return a
 		// newer version, which is not the version our old list of
 		// applicable silences is based on.
-		sils, _, err = s.silences.Query(
-			QIDs(ids...),
-			QState(types.SilenceStateActive),
-		)
+		if len(ids) != 0 {
+			// Super fast path: No silences ever applied to this
+			// alert, none have been added. We are done.
+			sils, _, err = s.silences.Query(
+				QIDs(ids...),
+				QState(types.SilenceStateActive),
+			)
+		} else {
+			// Check if there is a silence rule that changes from pending to
+			// active state.
+			sils, _, err = s.silences.Query(
+				QState(types.SilenceStateActive),
+				QMatches(lset),
+			)
+
+			// If there is no active silence rule, return it directly.
+			if len(sils) == 0 {
+				return false
+			}
+		}
 	} else {
 		// New silences have been added, do a full query.
 		sils, newVersion, err = s.silences.Query(
