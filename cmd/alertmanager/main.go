@@ -335,11 +335,19 @@ func run() int {
 		return disp.Groups(routeFilter, alertFilter)
 	}
 
+	// An interface value that holds a nil concrete value is non-nil.
+	// Therefore we explicly pass an empty interface, to detect if the
+	// cluster is not enabled in notify.
+	var clusterPeer cluster.ClusterPeer
+	if peer != nil {
+		clusterPeer = peer
+	}
+
 	api, err := api.New(api.Options{
 		Alerts:      alerts,
 		Silences:    silences,
 		StatusFunc:  marker.Status,
-		Peer:        peer,
+		Peer:        clusterPeer,
 		Timeout:     *httpTimeout,
 		Concurrency: *getConcurrency,
 		Logger:      log.With(logger, "component", "api"),
