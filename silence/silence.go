@@ -139,13 +139,13 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 			)
 		} else {
 			// Check if there is a silence rule that changes from pending to
-			// active state
+			// active state.
 			sils, _, err = s.silences.Query(
 				QState(types.SilenceStateActive),
 				QMatches(lset),
 			)
-
-			// If there is no active silence rule, return it directly
+			
+			// If there is no active silence rule, return it directly.
 			if len(sils) == 0 {
 				return false
 			}
