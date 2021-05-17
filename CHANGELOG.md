@@ -1,4 +1,4 @@
-## 0.22.0-rc.1 / 2021-05-10
+## 0.22.0-rc.2 / 2021-05-17
 
 * [CHANGE] Amtool and Alertmanager binaries help now prints to stdout. #2505
 * [CHANGE] Use path relative to the configuration file for certificates and password files. #2502
