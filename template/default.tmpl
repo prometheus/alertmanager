@@ -217,3 +217,12 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 {{ define "pushover.default.url" }}{{ template "__alertmanagerURL" . }}{{ end }}
+
+
+{{ define "__text_alert_list_oneline" }}{{ range . -}}| Labels:{{ range .Labels.SortedPairs }} - {{ .Name }} = {{ .Value }}{{ end }}; Annotations:{{ range .Annotations.SortedPairs }} - {{ .Name }} = {{ .Value }}{{ end }}; Source:{{ .GeneratorURL }}{{- end }}{{- end }}
+
+
+{{ define "__subject_oneline" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }} {{ .GroupLabels.SortedPairs.Values | join " " }}{{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }} {{ .CommonAnnotations.SortedPairs.Values | join " " -}}]{{ end }}
+
+
+{{ define "syslog.default.message" }}{{ template "__subject_oneline" . }} {{ if gt (len .Alerts.Firing) 0 -}}Alerts Firing: {{ template "__text_alert_list_oneline" .Alerts.Firing }}{{- end }}{{ if gt (len .Alerts.Resolved) 0 -}}Alerts Resolved: {{ template "__text_alert_list_online" .Alerts.Resolved }}{{- end }} AlertmanagerUrl: {{ template "__alertmanagerURL" . }} |{{- end }}

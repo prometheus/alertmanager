@@ -127,6 +127,22 @@ var (
 		Expire:   duration(1 * time.Hour),
 		HTML:     false,
 	}
+
+	// DefaultSyslogConfig defines default values for Syslog configurations.
+	DefaultSyslogConfig = SyslogConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Message:  `{{ template "syslog.default.message" . }}`,
+		Tag:      "alertmanager",
+		Priority: 1,
+	}
+
+	// DefaultSyslogDaemon defines default values for Syslog daemon configurations.
+	DefaultSyslogDaemon = SyslogDaemon{
+		Network:  "tcp",
+		Hostname: "localhost",
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -576,6 +592,51 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	if c.Token == "" {
 		return fmt.Errorf("missing token in Pushover config")
+	}
+	return nil
+}
+
+type SyslogConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	Message  string       `yaml:"message,omitempty" json:"message,omitempty"`
+	Tag      string       `yaml:"tag,omitempty" json:"tag,omitempty"`
+	Priority int          `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Daemon   SyslogDaemon `yaml:"daemon,omitempty" json:"daemon,omitempty"`
+}
+
+func (c *SyslogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSyslogConfig
+	type plain SyslogConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Priority < 0 || c.Priority > 7 {
+		return errors.Errorf("invalid syslog priority %v", c.Priority)
+	}
+	return unmarshal((*plain)(c))
+}
+
+type SyslogDaemon struct {
+	Network  string
+	Hostname string
+	Port     int
+}
+
+func (d *SyslogDaemon) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*d = DefaultSyslogDaemon
+	type plain SyslogDaemon
+	if err := unmarshal((*plain)(d)); err != nil {
+		return err
+	}
+	if d.Network == "" {
+		return errors.New("syslog daemon network must not be blank")
+	}
+	if d.Hostname == "" {
+		return errors.New("syslog daemon hostname must not be blank")
+	}
+	if d.Port == 0 {
+		return errors.New("syslog daemon port must not be blank")
 	}
 	return nil
 }

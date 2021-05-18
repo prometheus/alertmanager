@@ -277,6 +277,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"opsgenie",
 		"webhook",
 		"victorops",
+		"syslog",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numTotalFailedNotifications.WithLabelValues(integration)
