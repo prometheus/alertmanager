@@ -90,6 +90,10 @@ global:
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
+  [ syslog_tag: <string> ]
+  [ syslog_daemon_network: <string> ]
+  [ syslog_daemon_hostname: <string> ]
+  [ syslog_daemon_port: <int> ]
 
   # The default HTTP client configuration
   [ http_config: <http_config> ]
@@ -449,6 +453,8 @@ victorops_configs:
   [ - <victorops_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+syslog_configs:
+  [ - <syslog_config>, ... ]
 ```
 
 ## `<email_config>`
@@ -912,4 +918,33 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_user: <string> | default = '{{ template "wechat.default.to_user" . }}' ]
 [ to_party: <string> | default = '{{ template "wechat.default.to_party" . }}' ]
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
+```
+
+## `<syslog_config>`
+
+Syslog logs notifications with the Syslog protocol. It is only supported on unix-based systems.
+
+```yaml
+[ message: <tmpl_string> | default = '' ]
+
+# The tag identifies the originator of the log.
+[ tag: <string> | default = 'alertmanager']
+
+# The priority of the log. 0: Emergency, 1: Alert, 2: Critical, 3: Error, 4: Warning, 5: Notice, 6: Info, 7: Debug.
+[ priority = <int> | default = 1 ]
+
+# Optionally configure an alternate Syslog daemon.
+daemon:
+  [ <daemon_config> ... ]
+```
+
+## `<daemon_config>`
+
+Configure an alternate Syslog daemon.
+
+```yaml
+# Formats as 'tcp://localhost:1234'
+[ network: <string> | default = 'tcp' ]
+[ hostname: <string> | default= 'localhost' ]
+port: <int>
 ```
