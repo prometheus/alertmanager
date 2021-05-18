@@ -608,3 +608,31 @@ func TestWeChatTypeMatcher(t *testing.T) {
 func newBoolPointer(b bool) *bool {
 	return &b
 }
+
+func TestSyslogPriorityValidation(t *testing.T) {
+	in := `
+priority: 2
+`
+
+	expected := DefaultSyslogConfig
+	expected.Priority = 2
+
+	var cfg SyslogConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err != nil {
+		t.Fatalf("\nerror returned when none expected, error:\n%v", err)
+	}
+
+	in = `
+priority: 10
+`
+
+	expected = DefaultSyslogConfig
+	expected.Priority = 10
+	expectedErr := "invalid syslog priority 10"
+
+	err = yaml.UnmarshalStrict([]byte(in), &cfg)
+	if err == nil || err.Error() != expectedErr {
+		t.Fatalf("\n expected error: \n%s, got: \n%v \n", expectedErr, err)
+	}
+}
