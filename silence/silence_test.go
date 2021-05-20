@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
@@ -913,7 +914,7 @@ func TestSilencer(t *testing.T) {
 	ss.now = func() time.Time { return now }
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	s := NewSilencer(ss, m, nil)
+	s := NewSilencer(ss, m, log.NewNopLogger())
 
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
 
