@@ -39,7 +39,7 @@ type DispatcherMetrics struct {
 }
 
 // NewDispatcherMetrics returns a new registered DispatchMetrics.
-func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
+func NewDispatcherMetrics(registerLimitMetrics bool, r prometheus.Registerer) *DispatcherMetrics {
 	m := DispatcherMetrics{
 		aggrGroups: prometheus.NewGauge(
 			prometheus.GaugeOpts{
@@ -62,7 +62,10 @@ func NewDispatcherMetrics(r prometheus.Registerer) *DispatcherMetrics {
 	}
 
 	if r != nil {
-		r.MustRegister(m.aggrGroups, m.processingDuration, m.aggrGroupLimitReached)
+		r.MustRegister(m.aggrGroups, m.processingDuration)
+		if registerLimitMetrics {
+			r.MustRegister(m.aggrGroupLimitReached)
+		}
 	}
 
 	return &m
