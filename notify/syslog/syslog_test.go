@@ -91,12 +91,7 @@ func TestSyslogNotifyDial(t *testing.T) {
 
 	c := config.DefaultSyslogConfig
 	c.Priority = 7
-	c.Daemon = config.SyslogDaemon{
-		Network:  "tcp",
-		Hostname: "localhost",
-		Port:     port,
-	}
-
+	c.Daemon = "tcp://localhost:" + strconv.Itoa(port)
 	notifier := getNotifier(t, c, tmpl)
 
 	go func() {

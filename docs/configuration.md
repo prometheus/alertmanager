@@ -934,17 +934,6 @@ Syslog logs notifications with the Syslog protocol. It is only supported on unix
 [ priority = <int> | default = 1 ]
 
 # Optionally configure an alternate Syslog daemon.
-daemon:
-  [ <daemon_config> ... ]
-```
-
-## `<daemon_config>`
-
-Configure an alternate Syslog daemon.
-
-```yaml
-# Formats as 'tcp://localhost:1234'
-[ network: <string> | default = 'tcp' ]
-[ hostname: <string> | default= 'localhost' ]
-port: <int>
+# Example: tcp://localhost:1234
+daemon: [ <string> ]
 ```

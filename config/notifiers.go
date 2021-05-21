@@ -15,6 +15,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -136,12 +138,6 @@ var (
 		Message:  `{{ template "syslog.default.message" . }}`,
 		Tag:      "alertmanager",
 		Priority: 1,
-	}
-
-	// DefaultSyslogDaemon defines default values for Syslog daemon configurations.
-	DefaultSyslogDaemon = SyslogDaemon{
-		Network:  "tcp",
-		Hostname: "localhost",
 	}
 )
 
@@ -599,10 +595,10 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 type SyslogConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	Message  string       `yaml:"message,omitempty" json:"message,omitempty"`
-	Tag      string       `yaml:"tag,omitempty" json:"tag,omitempty"`
-	Priority int          `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Daemon   SyslogDaemon `yaml:"daemon,omitempty" json:"daemon,omitempty"`
+	Message  string `yaml:"message,omitempty" json:"message,omitempty"`
+	Tag      string `yaml:"tag,omitempty" json:"tag,omitempty"`
+	Priority int    `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Daemon   string `yaml:"daemon,omitempty" json:"daemon,omitempty"`
 }
 
 func (c *SyslogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -614,29 +610,28 @@ func (c *SyslogConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Priority < 0 || c.Priority > 7 {
 		return errors.Errorf("invalid syslog priority %v", c.Priority)
 	}
+	if c.Daemon != "" {
+		u, err := url.Parse(c.Daemon)
+		if err != nil {
+			return errors.Errorf("error parsing daemon url: %v", err)
+		}
+		// If the host is blank that means that it's been shifted into the schema field
+		// due to no schema existing.
+		if u.Host == "" {
+			return errors.New("daemon url must have a schema")
+		}
+		if u.Hostname() == "" {
+			return errors.New("daemon url must have a hostname")
+		}
+		host, _, err := net.SplitHostPort(u.Host)
+		if err != nil {
+			return errors.Errorf("error parsing daemon url: %v", err)
+		}
+		// While the port must exist when passing to SplitHostPort,
+		// the host doesn't have to, so we check here.
+		if host == "" {
+			return errors.New("daemon url missing port")
+		}
+	}
 	return unmarshal((*plain)(c))
-}
-
-type SyslogDaemon struct {
-	Network  string
-	Hostname string
-	Port     int
-}
-
-func (d *SyslogDaemon) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*d = DefaultSyslogDaemon
-	type plain SyslogDaemon
-	if err := unmarshal((*plain)(d)); err != nil {
-		return err
-	}
-	if d.Network == "" {
-		return errors.New("syslog daemon network must not be blank")
-	}
-	if d.Hostname == "" {
-		return errors.New("syslog daemon hostname must not be blank")
-	}
-	if d.Port == 0 {
-		return errors.New("syslog daemon port must not be blank")
-	}
-	return nil
 }

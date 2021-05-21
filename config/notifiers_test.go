@@ -636,3 +636,44 @@ priority: 10
 		t.Fatalf("\n expected error: \n%s, got: \n%v \n", expectedErr, err)
 	}
 }
+
+func TestSyslogDaemonValidation(t *testing.T) {
+	var tests = []struct {
+		daemon   string
+		expected string
+	}{
+		{
+			daemon: "tcp://localhost:1234",
+		},
+		{
+			daemon:   "localhost:1234",
+			expected: "daemon url must have a schema",
+		},
+		{
+			daemon:   "tcp://localhost",
+			expected: "error parsing daemon url: address localhost: missing port in address",
+		},
+		{
+			daemon:   "tcp://:1234",
+			expected: "daemon url must have a hostname",
+		},
+	}
+	for _, rt := range tests {
+		t.Run(rt.daemon, func(t *testing.T) {
+			in := `
+daemon: ` + rt.daemon
+
+			var cfg SyslogConfig
+			err := yaml.Unmarshal([]byte(in), &cfg)
+			if err != nil {
+				if rt.expected != "" {
+					if err.Error() != rt.expected {
+						t.Fatalf("\n expected error: \n%s, got: \n%v \n", rt.expected, err)
+					}
+					return
+				}
+				t.Fatalf("\n expected no error, got \n%v", err)
+			}
+		})
+	}
+}

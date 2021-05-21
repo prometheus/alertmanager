@@ -18,8 +18,7 @@ package syslog
 import (
 	"context"
 	"log/syslog"
-	"net"
-	"strconv"
+	"net/url"
 
 	"github.com/pkg/errors"
 
@@ -46,8 +45,13 @@ func New(c *config.SyslogConfig, t *template.Template, l log.Logger) (*Notifier,
 		err error
 	)
 
-	if c.Daemon.Port != 0 {
-		w, err = syslog.Dial(c.Daemon.Network, net.JoinHostPort(c.Daemon.Hostname, strconv.Itoa(c.Daemon.Port)), syslog.Priority(c.Priority), c.Tag)
+	if c.Daemon != "" {
+		var u *url.URL
+		u, err = url.Parse(c.Daemon)
+		if err != nil {
+			return nil, errors.Errorf("error parsing url: %v", err)
+		}
+		w, err = syslog.Dial(u.Scheme, u.Host, syslog.Priority(c.Priority), c.Tag)
 	} else {
 		w, err = syslog.New(syslog.Priority(c.Priority), c.Tag)
 	}
