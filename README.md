@@ -283,7 +283,7 @@ $ amtool silence query instance=~".+0"
 ID                                    Matchers                            Ends At                  Created By  Comment
 e48cb58a-0b17-49ba-b734-3585139b1d25  alertname=Test_Alert instance=~.+0  2017-08-02 22:41:39 UTC  kellel
 
-$ amtool silence expire $(amtool silence -q query instance=~".+0")
+$ amtool silence expire $(amtool silence query -q instance=~".+0")
 
 $ amtool silence query instance=~".+0"
 
