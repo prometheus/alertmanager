@@ -31,8 +31,19 @@ local graphPanel = grafana.graphPanel;
         sort=1
       ),
 
-    local legendFormatPrefix =
-      (if $._config.showMultiCluster then '{{ %(clusterLabel)s }}/' % $._config else ''),
+    local alertmanagerClusterSelectorTemplate = 
+    [for label in std.split($.__config.alertmanagerClusterLabels, ',')
+    template.new(
+      name=label,
+      datasource='$datasource',
+        query='label_values(alertmanager_alerts, %s)' % label,
+        current='',
+        refresh=2,
+        includeAll=false,
+        sort=1
+    ]
+    ),
+    
 
     'alertmanager-overview.json':
       local alerts =
@@ -45,7 +56,7 @@ local graphPanel = grafana.graphPanel;
           fill=1,
           legend_show=false,
         )
-        .addTarget(prometheus.target('alertmanager_alerts{%(alertmanagerSelector)s, %(clusterLabel)s="$cluster"}' % $._config, legendFormat=legendFormatPrefix + '%(alertmanagerName)s - {{ state }}' % $._config));
+        .addTarget(prometheus.target('alertmanager_alerts{%(alertmanagerSelector)s, %(clusterLabel)s="$cluster"}' % $._config, legendFormat='{{ state }}'));
 
       local alertsRate =
         graphPanel.new(
