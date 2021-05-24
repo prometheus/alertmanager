@@ -7,7 +7,7 @@ local graphPanel = grafana.graphPanel;
 
 {
   grafanaDashboards+:: {
-    local alertmanagerClusterSelectorTemplate =
+    local alertmanagerClusterSelectorTemplates =
       [
         template.new(
           name=label,
@@ -64,7 +64,7 @@ local graphPanel = grafana.graphPanel;
           '$integration: Notifications Send Rate',
           datasource='$datasource',
           format='ops',
-          stack=false,
+          stack=true,
           fill=1,
           legend_show=false,
           repeat='integration'
@@ -79,7 +79,7 @@ local graphPanel = grafana.graphPanel;
           format='s',
           stack=false,
           fill=1,
-          legend_show=true,
+          legend_show=false,
           repeat='integration'
         )
         .addTarget(prometheus.target(
@@ -129,7 +129,7 @@ local graphPanel = grafana.graphPanel;
           type: 'datasource',
         },
       )
-      .addTemplates(alertmanagerClusterSelectorTemplate)
+      .addTemplates(alertmanagerClusterSelectorTemplates)
       .addTemplate(integrationTemplate)
       .addRow(
         row.new('Alerts')
