@@ -1,3 +1,32 @@
+## 0.22.0 / 2021-05-21
+
+* [CHANGE] Amtool and Alertmanager binaries help now prints to stdout. #2505
+* [CHANGE] Use path relative to the configuration file for certificates and password files. #2502
+* [CHANGE] Display Silence and Alert dates in ISO8601 format. #2363
+* [FEATURE] Add date picker to silence form views. #2262
+* [FEATURE] Add support for negative matchers. #2434 #2460 and many more.
+* [FEATURE] Add time-based muting to routing tree. #2393
+* [FEATURE] Support TLS and basic authentication on the web server. #2446
+* [FEATURE] Add OAuth 2.0 client support in HTTP client. #2560
+* [ENHANCEMENT] Add composite durations in the configuration (e.g. 2h20m). #2353
+* [ENHANCEMENT] Add follow_redirect option to disable following redirects. #2551
+* [ENHANCEMENT] Add metric for permanently failed notifications. #2383
+* [ENHANCEMENT] Add support for custom authorization scheme. #2499
+* [ENHANCEMENT] Add support for not following HTTP redirects. #2499
+* [ENHANCEMENT] Add support to set the Slack URL from a file. #2534
+* [ENHANCEMENT] amtool: Add alert status to extended and simple output. #2324
+* [ENHANCEMENT] Do not omit false booleans in the configuration page. #2317
+* [ENHANCEMENT] OpsGenie: Propagate labels to Opsgenie details. #2276
+* [ENHANCEMENT] PagerDuty: Filter out empty images and links. #2379
+* [ENHANCEMENT] WeChat: add markdown support. #2309
+* [BUGFIX] Fix a possible deadlock on shutdown. #2558
+* [BUGFIX] UI: Fix extended printing of regex sign. #2445
+* [BUGFIX] UI: Fix the favicon when using a path prefix. #2392
+* [BUGFIX] Make filter labels consistent with Prometheus. #2403
+* [BUGFIX] alertmanager_config_last_reload_successful takes templating failures into account. #2373
+* [BUGFIX] amtool: avoid nil dereference in silence update. #2427
+* [BUGFIX] VictorOps: Catch routing_key templating errors. #2467
+
 ## 0.21.0 / 2020-06-16
 
 This release removes the HipChat integration as it is discontinued by Atlassian on June 30th 2020.

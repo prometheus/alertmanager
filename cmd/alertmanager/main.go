@@ -335,11 +335,19 @@ func run() int {
 		return disp.Groups(routeFilter, alertFilter)
 	}
 
+	// An interface value that holds a nil concrete value is non-nil.
+	// Therefore we explicly pass an empty interface, to detect if the
+	// cluster is not enabled in notify.
+	var clusterPeer cluster.ClusterPeer
+	if peer != nil {
+		clusterPeer = peer
+	}
+
 	api, err := api.New(api.Options{
 		Alerts:      alerts,
 		Silences:    silences,
 		StatusFunc:  marker.Status,
-		Peer:        peer,
+		Peer:        clusterPeer,
 		Timeout:     *httpTimeout,
 		Concurrency: *getConcurrency,
 		Logger:      log.With(logger, "component", "api"),
@@ -426,6 +434,15 @@ func run() int {
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
+
+		// An interface value that holds a nil concrete value is non-nil.
+		// Therefore we explicly pass an empty interface, to detect if the
+		// cluster is not enabled in notify.
+		var pipelinePeer notify.Peer
+		if peer != nil {
+			pipelinePeer = peer
+		}
+
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
@@ -433,7 +450,7 @@ func run() int {
 			silencer,
 			muteTimes,
 			notificationLog,
-			peer,
+			pipelinePeer,
 		)
 		configuredReceivers.Set(float64(len(activeReceivers)))
 		configuredIntegrations.Set(float64(integrationsNum))
