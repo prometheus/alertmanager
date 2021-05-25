@@ -583,6 +583,8 @@ Pushover notifications are sent via the [Pushover API](https://pushover.net/api)
 user_key: <secret>
 
 # Your registered application’s API token, see https://pushover.net/apps
+# You can also register a token by cloning this Prometheus app:
+# https://pushover.net/apps/clone/prometheus
 token: <secret>
 
 # Notification title.
