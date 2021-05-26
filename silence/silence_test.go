@@ -25,6 +25,7 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
@@ -902,6 +903,73 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	count, err = s.CountState(types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 3, count)
+}
+
+func TestSilencer(t *testing.T) {
+	ss, err := New(Options{Retention: time.Hour})
+	require.NoError(t, err)
+
+	now := time.Now()
+	ss.now = func() time.Time { return now }
+
+	m := types.NewMarker(prometheus.NewRegistry())
+	s := NewSilencer(ss, m, nil)
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
+
+	_, err = ss.Set(&pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(5 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
+
+	id, err := ss.Set(&pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(5 * time.Minute),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
+
+	now = now.Add(time.Hour) // One hour passes, silence expires.
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
+
+	// Update silence to start in the future.
+	_, err = ss.Set(&pb.Silence{
+		Id:       id,
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		StartsAt: now.Add(time.Hour),
+		EndsAt:   now.Add(3 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
+
+	now = now.Add(2 * time.Hour) // Two hours pass, silence becomes active.
+
+	// Exposes issue #2426.
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
+
+	_, err = ss.Set(&pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
+		StartsAt: now.Add(time.Hour),
+		EndsAt:   now.Add(3 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	// Note that issue #2426 doesn't apply anymore because we added a new silence.
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
+
+	now = now.Add(2 * time.Hour) // Two hours pass, first silence expires, overlapping second silence becomes active.
+
+	// Another variant of issue #2426 (overlapping silences).
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
 }
 
 func TestValidateMatcher(t *testing.T) {
