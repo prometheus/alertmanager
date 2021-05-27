@@ -1,3 +1,11 @@
+## 0.22.1 / 2021-05-27
+
+This release addresses a regression in the API v1 that was introduced in 0.22.0.
+Matchers in silences created with the API v1 could be considered negative
+matchers. This affects users using amtool prior to v0.17.0.
+
+* [BUGFIX] API v1: Decode matchers without isEqual are positive matchers. #2603
+
 ## 0.22.0 / 2021-05-21
 
 * [CHANGE] Amtool and Alertmanager binaries help now prints to stdout. #2505
