@@ -84,7 +84,5 @@ type Alerts interface {
 	// Get returns the alert for a given fingerprint.
 	Get(model.Fingerprint) (*types.Alert, error)
 	// Put adds the given set of alerts to the set.
-	// This operation is not atomic -- when error is returned, some alerts may have
-	// be stored already.
 	Put(...*types.Alert) error
 }

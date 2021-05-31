@@ -351,9 +351,9 @@ func TestAlertsStoreCallback(t *testing.T) {
 	}
 
 	err = alerts.Put(&alert1Mod, alert4)
-	// Verify that we failed to put new alert into store
-	if err == nil || err.Error() != errTooManyAlerts.Error() {
-		t.Fatalf("expected %v, got %v", errTooManyAlerts, err)
+	// Verify that we failed to put new alert into store (not reported via error, only checked using Load)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
 	}
 
 	if num := cb.alerts.Load(); num != 3 {
