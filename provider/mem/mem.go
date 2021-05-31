@@ -45,7 +45,7 @@ type Alerts struct {
 
 type AlertStoreCallback interface {
 	// PreStore is called before alert is stored into the store. If this method returns error,
-	// this error is passed back to caller of Alerts.Put method.
+	// alert is not stored.
 	// Existing flag indicates whether alert has existed before (and is only updated) or not.
 	// If alert has existed before, then alert passed to PreStore is result of merging existing alert with new alert.
 	PreStore(alert *types.Alert, existing bool) error
@@ -170,8 +170,6 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
-	errs := &types.MultiError{}
-
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
 
@@ -190,12 +188,11 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		}
 
 		if err := a.callback.PreStore(alert, existing); err != nil {
-			errs.Add(err)
+			level.Error(a.logger).Log("msg", "pre-store callback returned error on set alert", "err", err)
 			continue
 		}
 
 		if err := a.alerts.Set(alert); err != nil {
-			errs.Add(err)
 			level.Error(a.logger).Log("msg", "error on set alert", "err", err)
 			continue
 		}
@@ -212,9 +209,6 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		a.mtx.Unlock()
 	}
 
-	if errs.Len() > 0 {
-		return errs
-	}
 	return nil
 }
 
