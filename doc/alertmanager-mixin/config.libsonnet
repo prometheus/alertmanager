@@ -13,25 +13,17 @@
     // to keep for resulting cluster-level alerts.
     alertmanagerClusterLabels: 'job',
 
-    // alertmanagerQuerySelector is a matcher selector built from 'alertmanagerClusterLabels'.
-    // It is used to filter queries on grafana dashboards
-    alertmanagerQuerySelector: std.join(',', ['%s="$%s"' % [label, label] for label in std.split(c.alertmanagerClusterLabels, ',')]),
-
     // alertmanagerNameLabels is a string with comma-separated
     // labels used to identify different alertmanagers within the same
     // alertmanager HA cluster.
     // If you run Alertmanager on Kubernetes with the Prometheus
     // Operator, you can make use of the configured target labels for
     // nicer naming:
-    // alertmanagerName: 'namespace,pod'
+    // alertmanagerNameLabels: 'namespace,pod'
     alertmanagerNameLabels: 'instance',
 
     // alertmanagerName is an identifier for alerts that is built from 'alertmanagerNameLabels'
     alertmanagerName: std.join('/', ['{{$labels.%s}}' % [label] for label in std.split(c.alertmanagerNameLabels, ',')]),
-
-    // alertmanagerNameDashboards is used to identify alertmanagers on panels legends,
-    // and is built from the 'alertmanagerNameLabels'
-    alertmanagerNameDashboards: std.join('/', ['{{%s}}' % [label] for label in std.split(c.alertmanagerNameLabels, ',')]),
 
     // alertmanagerClusterName is inserted into annotations to name an
     // Alertmanager cluster. All labels used here must also be present
