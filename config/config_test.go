@@ -25,6 +25,7 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -540,23 +541,75 @@ func TestUnmarshalSecretURL(t *testing.T) {
 }
 
 func TestMarshalURL(t *testing.T) {
-	urlp, err := url.Parse("http://example.com/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := &URL{urlp}
+	for name, tc := range map[string]struct {
+		input        *URL
+		expectedJSON string
+		expectedYAML string
+	}{
+		"url": {
+			input:        mustParseURL("http://example.com/"),
+			expectedJSON: "\"http://example.com/\"",
+			expectedYAML: "http://example.com/\n",
+		},
 
-	c, err := json.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshaled in JSON.")
+		"wrapped nil value": {
+			input:        &URL{},
+			expectedJSON: "null",
+			expectedYAML: "null\n",
+		},
 
-	c, err = yaml.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
+		"wrapped empty URL": {
+			input:        &URL{&url.URL{}},
+			expectedJSON: "\"\"",
+			expectedYAML: "\"\"\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			j, err := json.Marshal(tc.input)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedJSON, string(j), "URL not properly marshaled into JSON.")
+
+			y, err := yaml.Marshal(tc.input)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedYAML, string(y), "URL not properly marshaled into YAML.")
+		})
 	}
-	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshaled in YAML.")
+}
+
+func TestUnmarshalNilURL(t *testing.T) {
+	b := []byte(`null`)
+
+	{
+		var u URL
+		err := json.Unmarshal(b, &u)
+		require.Error(t, err, "unsupported scheme \"\" for URL")
+		require.Nil(t, nil, u.URL)
+	}
+
+	{
+		var u URL
+		err := yaml.Unmarshal(b, &u)
+		require.NoError(t, err)
+		require.Nil(t, nil, u.URL) // UnmarshalYAML is not even called when unmarshalling "null".
+	}
+}
+
+func TestUnmarshalEmptyURL(t *testing.T) {
+	b := []byte(`""`)
+
+	{
+		var u URL
+		err := json.Unmarshal(b, &u)
+		require.Error(t, err, "unsupported scheme \"\" for URL")
+		require.Equal(t, (*url.URL)(nil), u.URL)
+	}
+
+	{
+		var u URL
+		err := yaml.Unmarshal(b, &u)
+		require.Error(t, err, "unsupported scheme \"\" for URL")
+		require.Equal(t, (*url.URL)(nil), u.URL)
+	}
 }
 
 func TestUnmarshalURL(t *testing.T) {
@@ -610,6 +663,70 @@ func TestUnmarshalRelativeURL(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected an error parsing URL")
 	}
+}
+
+func TestMarshalRegexpWithNilValue(t *testing.T) {
+	r := &Regexp{}
+
+	out, err := json.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "null", string(out))
+
+	out, err = yaml.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "null\n", string(out))
+}
+
+func TestUnmarshalEmptyRegexp(t *testing.T) {
+	b := []byte(`""`)
+
+	{
+		var re Regexp
+		err := json.Unmarshal(b, &re)
+		require.NoError(t, err)
+		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+
+	{
+		var re Regexp
+		err := yaml.Unmarshal(b, &re)
+		require.NoError(t, err)
+		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+}
+
+func TestUnmarshalNullRegexp(t *testing.T) {
+	input := []byte(`null`)
+
+	{
+		var re Regexp
+		err := json.Unmarshal(input, &re)
+		require.NoError(t, err)
+		require.Nil(t, nil, re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+
+	{
+		var re Regexp
+		err := yaml.Unmarshal(input, &re) // Interestingly enough, unmarshalling `null` in YAML doesn't even call UnmarshalYAML.
+		require.NoError(t, err)
+		require.Nil(t, re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+}
+
+func TestMarshalEmptyMatchers(t *testing.T) {
+	r := Matchers{}
+
+	out, err := json.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "[]", string(out))
+
+	out, err = yaml.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "[]\n", string(out))
 }
 
 func TestJSONUnmarshal(t *testing.T) {
