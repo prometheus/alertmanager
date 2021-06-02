@@ -1,3 +1,7 @@
+## 0.22.2 / 2021-06-01
+
+* [BUGFIX] Include pending silences for future muting decisions. #2590
+
 ## 0.22.1 / 2021-05-27
 
 This release addresses a regression in the API v1 that was introduced in 0.22.0.
