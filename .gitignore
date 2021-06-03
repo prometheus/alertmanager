@@ -8,7 +8,6 @@
 /.tarballs
 /vendor
 
-!.gitpod.yml
 !.golangci.yml
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml

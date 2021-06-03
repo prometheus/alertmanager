@@ -15,14 +15,14 @@
 
     // alertmanagerNameLabels is a string with comma-separated
     // labels used to identify different alertmanagers within the same
-    // alertmanager HA cluster.
+    // Alertmanager HA cluster.
     // If you run Alertmanager on Kubernetes with the Prometheus
     // Operator, you can make use of the configured target labels for
     // nicer naming:
     // alertmanagerNameLabels: 'namespace,pod'
     alertmanagerNameLabels: 'instance',
 
-    // alertmanagerName is an identifier for alerts that is built from 'alertmanagerNameLabels'
+    // alertmanagerName is an identifier for alerts. By default, it is built from 'alertmanagerNameLabels'.
     alertmanagerName: std.join('/', ['{{$labels.%s}}' % [label] for label in std.split(c.alertmanagerNameLabels, ',')]),
 
     // alertmanagerClusterName is inserted into annotations to name an
