@@ -116,7 +116,7 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	}
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
-	level.Debug(n.logger).Log("incident", key)
+	level.Debug(n.logger).Log("alert", key)
 
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 
@@ -146,7 +146,7 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 	default:
 		message, truncated := notify.Truncate(tmpl(n.conf.Message), 130)
 		if truncated {
-			level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", message, "incident", key)
+			level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", message, "alert", key)
 		}
 
 		apiURL.Path += "v2/alerts"
