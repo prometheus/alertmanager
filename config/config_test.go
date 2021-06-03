@@ -25,7 +25,6 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -567,11 +566,11 @@ func TestMarshalURL(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			j, err := json.Marshal(tc.input)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedJSON, string(j), "URL not properly marshaled into JSON.")
+			require.Equal(t, tc.expectedJSON, string(j), "URL not properly marshaled into JSON.")
 
 			y, err := yaml.Marshal(tc.input)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedYAML, string(y), "URL not properly marshaled into YAML.")
+			require.Equal(t, tc.expectedYAML, string(y), "URL not properly marshaled into YAML.")
 		})
 	}
 }
