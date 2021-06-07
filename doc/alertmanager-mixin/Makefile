@@ -1,9 +1,12 @@
-JSONNET_FMT := jsonnetfmt -n 2 --max-blank-lines 2 --string-style s --comment-style s
+JSONNET_FMT := jsonnetfmt -n 2 --max-blank-lines 1 --string-style s --comment-style s
 ALERTMANAGER_ALERTS := alertmanager_alerts.yaml
 
-default: build
+default: vendor build dashboards_out
 
 all: fmt build
+
+vendor: 
+	jb install
 
 fmt:
 	find . -name 'vendor' -prune -o -name '*.libsonnet' -print -o -name '*.jsonnet' -print | \
@@ -17,7 +20,12 @@ lint: build
 
 	mixtool lint mixin.libsonnet
 
-build:
+
+dashboards_out: mixin.libsonnet config.libsonnet $(wildcard dashboards/*)
+	@mkdir -p dashboards_out
+	jsonnet -J vendor -m dashboards_out dashboards.jsonnet
+
+build: vendor
 	mixtool generate alerts mixin.libsonnet > $(ALERTMANAGER_ALERTS)
 
 clean:
