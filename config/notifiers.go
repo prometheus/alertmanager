@@ -127,6 +127,15 @@ var (
 		Expire:   duration(1 * time.Hour),
 		HTML:     false,
 	}
+
+	// DefaultSNSConfig defines default values for SNS configurations.
+	DefaultSNSConfig = SNSConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		APIVersion: "sns.default.api_version",
+		Message:    `{{ template "sns.default.message" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -576,6 +585,48 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	if c.Token == "" {
 		return fmt.Errorf("missing token in Pushover config")
+	}
+	return nil
+}
+
+// TODO: Move to common?
+
+// SigV4Config is the configuration for signing remote write requests with
+// AWS's SigV4 verification process. Empty values will be retrieved using the
+// AWS default credentials chain.
+type SigV4Config struct {
+	Region    string `yaml:"region,omitempty"`
+	AccessKey string `yaml:"access_key,omitempty"`
+	SecretKey Secret `yaml:"secret_key,omitempty"`
+	Profile   string `yaml:"profile,omitempty"`
+	RoleARN   string `yaml:"role_arn,omitempty"`
+}
+
+type SNSConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIUrl      string            `yaml:"api_url" json:"api_url"`
+	APIVersion  string            `yaml:"api_version,omitempty" json:"api_version,omitempty"`
+	Sigv4       SigV4Config       `yaml:"sigv4" json:"sigv4"`
+	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
+	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
+	Subject     string            `yaml:"subject,omitempty" json:"subject,omitempty"`
+	TargetARN   string            `yaml:"target_arn,omitempty" json:"target_arn,omitempty"`
+	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
+	Attributes  map[string]string `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSNSConfig
+	type plain SNSConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.TargetARN == "" && c.TopicARN == "" && c.PhoneNumber == "" {
+		return fmt.Errorf("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
 	return nil
 }
