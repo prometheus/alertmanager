@@ -2,6 +2,7 @@ module github.com/prometheus/alertmanager
 
 require (
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
+	github.com/aws/aws-sdk-go v1.38.35
 	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/cespare/xxhash v1.1.0
 	github.com/go-kit/kit v0.10.0
