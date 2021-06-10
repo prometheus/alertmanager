@@ -264,7 +264,7 @@ immediately before 24:00. They are specified like so:
         - start_time: HH:MM
           end_time: HH:MM
 
-`weeekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
+`weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. ‘Sunday’). For convenience, ranges are also accepted
 of the form <start_day>:<end_day> and are inclusive on both ends. For example:
 `[‘monday:wednesday','saturday', 'sunday']`
