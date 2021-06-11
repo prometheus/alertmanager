@@ -19,6 +19,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/go-kit/kit/log"
@@ -39,11 +40,15 @@ type Notifier struct {
 }
 
 func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
-	// TODO: get Credentials from env variables
+	// TODO: get Credentials from env variables if none passed in + api auth
 	creds := credentials.NewStaticCredentials(n.conf.Sigv4.AccessKey, string(n.conf.Sigv4.SecretKey), "")
+	if n.conf.Sigv4.AccessKey == "" {
+		creds = nil
+	}
 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
+			CredentialsChainVerboseErrors: aws.Bool(true),
 			Region:      aws.String(n.conf.Sigv4.Region),
 			Credentials: creds,
 			Endpoint:    aws.String(n.conf.APIUrl),
@@ -51,11 +56,15 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 		Profile: n.conf.Sigv4.Profile,
 	})
 
+	if n.conf.Sigv4.RoleARN != "" {
+		sess.Config.Credentials = stscreds.NewCredentials(sess, n.conf.Sigv4.RoleARN)
+	}
+
 	data := notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	message := tmpl(n.conf.Message)
 
-	client := sns.New(sess)
+	client := sns.New(sess, &aws.Config{Credentials: creds})
 	publishInput := &sns.PublishInput{}
 
 	if n.conf.TopicARN != "" {
