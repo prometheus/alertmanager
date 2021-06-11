@@ -133,8 +133,9 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		APIVersion: "sns.default.api_version",
-		Message:    `{{ template "sns.default.message" . }}`,
+		APIVersion:  "sns.default.api_version",
+		Message:     `{{ template "sns.default.message" . }}`,
+		IsFIFOTopic: false,
 	}
 )
 
@@ -612,8 +613,9 @@ type SNSConfig struct {
 	Sigv4       SigV4Config       `yaml:"sigv4" json:"sigv4"`
 	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
 	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
-	Subject     string            `yaml:"subject,omitempty" json:"subject,omitempty"`
 	TargetARN   string            `yaml:"target_arn,omitempty" json:"target_arn,omitempty"`
+	IsFIFOTopic bool              `yaml:"is_fifo_topic,omitempty" json:"is_fifo_topic,omitempty"`
+	Subject     string            `yaml:"subject,omitempty" json:"subject,omitempty"`
 	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
 	Attributes  map[string]string `yaml:"attributes,omitempty" json:"attributes,omitempty"`
 }

@@ -15,7 +15,9 @@ package sns
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -40,21 +42,23 @@ type Notifier struct {
 }
 
 func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
-	// TODO: get Credentials from env variables if none passed in + api auth
-	creds := credentials.NewStaticCredentials(n.conf.Sigv4.AccessKey, string(n.conf.Sigv4.SecretKey), "")
+	credentials := credentials.NewStaticCredentials(n.conf.Sigv4.AccessKey, string(n.conf.Sigv4.SecretKey), "")
 	if n.conf.Sigv4.AccessKey == "" {
-		creds = nil
+		credentials = nil
 	}
 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			CredentialsChainVerboseErrors: aws.Bool(true),
 			Region:      aws.String(n.conf.Sigv4.Region),
-			Credentials: creds,
+			Credentials: credentials,
 			Endpoint:    aws.String(n.conf.APIUrl),
 		},
 		Profile: n.conf.Sigv4.Profile,
 	})
+
+	if _, err := sess.Config.Credentials.Get(); err != nil {
+		return false, fmt.Errorf("could not get SigV4 credentials: %w", err)
+	}
 
 	if n.conf.Sigv4.RoleARN != "" {
 		sess.Config.Credentials = stscreds.NewCredentials(sess, n.conf.Sigv4.RoleARN)
@@ -64,13 +68,19 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	message := tmpl(n.conf.Message)
 
-	client := sns.New(sess, &aws.Config{Credentials: creds})
+	client := sns.New(sess, &aws.Config{Credentials: credentials})
 	publishInput := &sns.PublishInput{}
 
 	if n.conf.TopicARN != "" {
 		publishInput.SetTopicArn(n.conf.TopicARN)
-		// TODO: Truncate for SNS at 256KB
-		publishInput.SetMessage(message)
+		messageToSend, isTrunc, err := validateAndTruncateMessage(message)
+		if err != nil {
+			return false, err
+		}
+		if isTrunc {
+			n.conf.Attributes["truncated"] = "true"
+		}
+		publishInput.SetMessage(messageToSend)
 	}
 	if n.conf.PhoneNumber != "" {
 		publishInput.SetPhoneNumber(n.conf.PhoneNumber)
@@ -84,8 +94,14 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 	}
 	if n.conf.TopicARN != "" {
 		publishInput.SetTopicArn(n.conf.TopicARN)
-		// TODO: Truncate for SNS at 256KB
-		publishInput.SetMessage(message)
+		messageToSend, isTrunc, err := validateAndTruncateMessage(message)
+		if err != nil {
+			return false, err
+		}
+		if isTrunc {
+			n.conf.Attributes["truncated"] = "true"
+		}
+		publishInput.SetMessage(messageToSend)
 	}
 
 	if len(n.conf.Attributes) > 0 {
@@ -100,9 +116,18 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 		publishInput.SetSubject(n.conf.Subject)
 	}
 
+	// Deduplication key is only added if it's a FIFO SNS Topic.
+	if n.conf.IsFIFOTopic {
+		key, err := notify.ExtractGroupKey(ctx)
+		if err != nil {
+			return false, err
+		}
+		publishInput.SetMessageDeduplicationId(key.Hash())
+	}
+
 	publishOutput, err := client.Publish(publishInput)
 	if err != nil {
-		// AWS Response is bad, probably a config issue
+		// AWS Response is bad, probably a config issue.
 		return false, err
 	}
 
@@ -111,8 +136,21 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 		return false, err
 	}
 
-	// Response is good and does not need to be retried
+	// Response is good and does not need to be retried.
 	return false, nil
+}
+
+func validateAndTruncateMessage(message string) (string, bool, error) {
+	if utf8.ValidString(message) {
+		// if the message is larger than 256KB we have to truncate.
+		if len(message) > 256*1000 {
+			truncated := make([]byte, 256*1000, 256*1000)
+			copy(truncated, message)
+			return string(truncated), true, nil
+		}
+		return message, false, nil
+	}
+	return "", false, fmt.Errorf("non utf8 encoded message string")
 }
 
 // New returns a new SNS notification handler.

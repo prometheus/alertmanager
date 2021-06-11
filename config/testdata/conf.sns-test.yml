@@ -7,6 +7,7 @@ receivers:
   sns_configs:
     - api_url: https://sns.us-east-2.amazonaws.com
       topic_arn: arn:aws:sns:us-east-2:123456789012:My-Topic
+      is_fifo_topic: true
       sigv4:
         region: us-east-2
         access_key: access_key
