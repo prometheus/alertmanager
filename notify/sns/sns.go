@@ -84,16 +84,16 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 	}
 	if n.conf.PhoneNumber != "" {
 		publishInput.SetPhoneNumber(n.conf.PhoneNumber)
-		// Truncate for SMS
-		trunc, isTruncated := notify.Truncate(message, 140)
+		// If SMS message is over 1600 chars, SNS will reject the message.
+		_, isTruncated := notify.Truncate(message, 1600)
 		if isTruncated {
-			publishInput.SetMessage(trunc)
+			return false, fmt.Errorf("SMS message exeeds length of 1600 charactors")
 		} else {
 			publishInput.SetMessage(message)
 		}
 	}
-	if n.conf.TopicARN != "" {
-		publishInput.SetTopicArn(n.conf.TopicARN)
+	if n.conf.TargetARN != "" {
+		publishInput.SetTargetArn(n.conf.TargetARN)
 		messageToSend, isTrunc, err := validateAndTruncateMessage(message)
 		if err != nil {
 			return false, err
@@ -143,8 +143,8 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 func validateAndTruncateMessage(message string) (string, bool, error) {
 	if utf8.ValidString(message) {
 		// if the message is larger than 256KB we have to truncate.
-		if len(message) > 256*1000 {
-			truncated := make([]byte, 256*1000, 256*1000)
+		if len(message) > 256*1024 {
+			truncated := make([]byte, 256*1024, 256*1024)
 			copy(truncated, message)
 			return string(truncated), true, nil
 		}
