@@ -135,7 +135,6 @@ var (
 		},
 		APIVersion:  "sns.default.api_version",
 		Message:     `{{ template "sns.default.message" . }}`,
-		IsFIFOTopic: false,
 	}
 )
 
@@ -590,11 +589,11 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-// TODO: Move to common?
 
 // SigV4Config is the configuration for signing remote write requests with
 // AWS's SigV4 verification process. Empty values will be retrieved using the
 // AWS default credentials chain.
+// TODO: Move to common.
 type SigV4Config struct {
 	Region    string `yaml:"region,omitempty"`
 	AccessKey string `yaml:"access_key,omitempty"`
@@ -614,7 +613,6 @@ type SNSConfig struct {
 	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
 	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
 	TargetARN   string            `yaml:"target_arn,omitempty" json:"target_arn,omitempty"`
-	IsFIFOTopic bool              `yaml:"is_fifo_topic,omitempty" json:"is_fifo_topic,omitempty"`
 	Subject     string            `yaml:"subject,omitempty" json:"subject,omitempty"`
 	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
 	Attributes  map[string]string `yaml:"attributes,omitempty" json:"attributes,omitempty"`

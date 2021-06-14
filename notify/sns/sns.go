@@ -17,9 +17,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -41,17 +43,38 @@ type Notifier struct {
 	retrier *notify.Retrier
 }
 
+// New returns a new SNS notification handler.
+func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "sns", append(httpOpts, commoncfg.WithHTTP2Disabled())...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Notifier{
+		conf:    c,
+		tmpl:    t,
+		logger:  l,
+		client:  client,
+		retrier: &notify.Retrier{},
+	}, nil
+}
+
 func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
-	credentials := credentials.NewStaticCredentials(n.conf.Sigv4.AccessKey, string(n.conf.Sigv4.SecretKey), "")
-	if n.conf.Sigv4.AccessKey == "" {
-		credentials = nil
+	var(
+		err error
+		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
+		tmpl = notify.TmplText(n.tmpl, data, &err)
+		creds *credentials.Credentials = nil
+	)
+	if n.conf.Sigv4.AccessKey != "" && n.conf.Sigv4.SecretKey != "" {
+		creds = credentials.NewStaticCredentials(n.conf.Sigv4.AccessKey, string(n.conf.Sigv4.SecretKey), "")
 	}
 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
 			Region:      aws.String(n.conf.Sigv4.Region),
-			Credentials: credentials,
-			Endpoint:    aws.String(n.conf.APIUrl),
+			Credentials: creds,
+			Endpoint:    aws.String(tmpl(n.conf.APIUrl)),
 		},
 		Profile: n.conf.Sigv4.Profile,
 	})
@@ -64,37 +87,44 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 		sess.Config.Credentials = stscreds.NewCredentials(sess, n.conf.Sigv4.RoleARN)
 	}
 
-	data := notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
-	tmpl := notify.TmplText(n.tmpl, data, &err)
-	message := tmpl(n.conf.Message)
-
-	client := sns.New(sess, &aws.Config{Credentials: credentials})
+	client := sns.New(sess, &aws.Config{Credentials: creds})
 	publishInput := &sns.PublishInput{}
 
 	if n.conf.TopicARN != "" {
-		publishInput.SetTopicArn(n.conf.TopicARN)
-		messageToSend, isTrunc, err := validateAndTruncateMessage(message)
+		publishInput.SetTopicArn(tmpl(n.conf.TopicARN))
+		messageToSend, isTrunc, err := validateAndTruncateMessage(tmpl(n.conf.Message))
 		if err != nil {
 			return false, err
 		}
 		if isTrunc {
 			n.conf.Attributes["truncated"] = "true"
 		}
+
+		// Deduplication key and Message Group ID are only added if it's a FIFO SNS Topic.
+		if isFIFOTopic(n.conf.TopicARN) {
+			key, err := notify.ExtractGroupKey(ctx)
+			if err != nil {
+				return false, err
+			}
+			publishInput.SetMessageDeduplicationId(key.Hash())
+			publishInput.SetMessageGroupId(key.Hash())
+		}
+
 		publishInput.SetMessage(messageToSend)
 	}
 	if n.conf.PhoneNumber != "" {
-		publishInput.SetPhoneNumber(n.conf.PhoneNumber)
+		publishInput.SetPhoneNumber(tmpl(n.conf.PhoneNumber))
 		// If SMS message is over 1600 chars, SNS will reject the message.
-		_, isTruncated := notify.Truncate(message, 1600)
+		_, isTruncated := notify.Truncate(tmpl(n.conf.Message), 1600)
 		if isTruncated {
 			return false, fmt.Errorf("SMS message exeeds length of 1600 charactors")
 		} else {
-			publishInput.SetMessage(message)
+			publishInput.SetMessage(tmpl(n.conf.Message))
 		}
 	}
 	if n.conf.TargetARN != "" {
-		publishInput.SetTargetArn(n.conf.TargetARN)
-		messageToSend, isTrunc, err := validateAndTruncateMessage(message)
+		publishInput.SetTargetArn(tmpl(n.conf.TargetARN))
+		messageToSend, isTrunc, err := validateAndTruncateMessage(tmpl(n.conf.Message))
 		if err != nil {
 			return false, err
 		}
@@ -107,28 +137,18 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 	if len(n.conf.Attributes) > 0 {
 		attributes := map[string]*sns.MessageAttributeValue{}
 		for k, v := range n.conf.Attributes {
-			attributes[k] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(v)}
+			attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
 		}
 		publishInput.SetMessageAttributes(attributes)
 	}
 
 	if n.conf.Subject != "" {
-		publishInput.SetSubject(n.conf.Subject)
-	}
-
-	// Deduplication key is only added if it's a FIFO SNS Topic.
-	if n.conf.IsFIFOTopic {
-		key, err := notify.ExtractGroupKey(ctx)
-		if err != nil {
-			return false, err
-		}
-		publishInput.SetMessageDeduplicationId(key.Hash())
+		publishInput.SetSubject(tmpl(n.conf.Subject))
 	}
 
 	publishOutput, err := client.Publish(publishInput)
 	if err != nil {
-		// AWS Response is bad, probably a config issue.
-		return false, err
+		return n.retrier.Check(err.(awserr.RequestFailure).StatusCode(), strings.NewReader(err.(awserr.RequestFailure).Message()))
 	}
 
 	err = n.logger.Log(publishOutput.String())
@@ -136,8 +156,14 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 		return false, err
 	}
 
-	// Response is good and does not need to be retried.
 	return false, nil
+}
+
+func isFIFOTopic(topicARN string) bool {
+	if topicARN[len(topicARN)-5:] == ".fifo" {
+		return true
+	}
+	return false
 }
 
 func validateAndTruncateMessage(message string) (string, bool, error) {
@@ -151,21 +177,4 @@ func validateAndTruncateMessage(message string) (string, bool, error) {
 		return message, false, nil
 	}
 	return "", false, fmt.Errorf("non utf8 encoded message string")
-}
-
-// New returns a new SNS notification handler.
-func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "sns", append(httpOpts, commoncfg.WithHTTP2Disabled())...)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Notifier{
-		conf:    c,
-		tmpl:    t,
-		logger:  l,
-		client:  client,
-		retrier: &notify.Retrier{},
-	}, nil
 }
