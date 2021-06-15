@@ -100,8 +100,16 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 			n.conf.Attributes["truncated"] = "true"
 		}
 
+		isFifo, err := checkTopicFifoAttribute(client, n.conf.TopicARN)
+		if err != nil {
+			if e, ok := err.(awserr.RequestFailure); ok {
+				return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
+			} else {
+				return true, err
+			}
+		}
 		// Deduplication key and Message Group ID are only added if it's a FIFO SNS Topic.
-		if isFIFOTopic(n.conf.TopicARN) {
+		if isFifo {
 			key, err := notify.ExtractGroupKey(ctx)
 			if err != nil {
 				return false, err
@@ -163,11 +171,17 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 	return false, nil
 }
 
-func isFIFOTopic(topicARN string) bool {
-	if len(topicARN) > 5 && topicARN[len(topicARN)-5:] == ".fifo" {
-		return true
+func checkTopicFifoAttribute(client *sns.SNS, topicARN string) (bool, error) {
+	fmt.Println("Checking Attributes")
+	topicAttributes, err := client.GetTopicAttributes(&sns.GetTopicAttributesInput{TopicArn: aws.String(topicARN)})
+	if err != nil {
+		return false, err
 	}
-	return false
+	ta := topicAttributes.Attributes["FifoTopic"]
+	if ta != nil && *ta == "true" {
+		return true, nil
+	}
+	return false, nil
 }
 
 func validateAndTruncateMessage(message string) (string, bool, error) {

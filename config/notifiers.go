@@ -133,8 +133,9 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		APIVersion:  "sns.default.api_version",
-		Message:     `{{ template "sns.default.message" . }}`,
+		APIVersion: "sns.default.api_version",
+		Subject:    `{{ template "sns.default.subject" . }}`,
+		Message:    `{{ template "sns.default.message" . }}`,
 	}
 )
 
@@ -589,7 +590,6 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-
 // SigV4Config is the configuration for signing remote write requests with
 // AWS's SigV4 verification process. Empty values will be retrieved using the
 // AWS default credentials chain.
@@ -627,6 +627,9 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.TargetARN == "" && c.TopicARN == "" && c.PhoneNumber == "" {
 		return fmt.Errorf("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
+	}
+	if (c.Sigv4.AccessKey == "") != (c.Sigv4.SecretKey == "") {
+		return fmt.Errorf("must provide a AWS SigV4 Access key and Secret Key if credentials are specified in the SNS config")
 	}
 	return nil
 }
