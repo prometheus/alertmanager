@@ -218,6 +218,7 @@ Alerts Resolved:
 {{ end }}
 {{ define "pushover.default.url" }}{{ template "__alertmanagerURL" . }}{{ end }}
 
+{{ define "sns.default.subject" }}{{ template "__subject" . }}{{ end }}
 {{ define "sns.default.message" }}{{ .CommonAnnotations.SortedPairs.Values | join " " }}
 {{ if gt (len .Alerts.Firing) 0 }}
 Alerts Firing:
