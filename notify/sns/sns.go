@@ -60,10 +60,10 @@ func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...co
 }
 
 func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
-	var(
-		err error
-		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
-		tmpl = notify.TmplText(n.tmpl, data, &err)
+	var (
+		err   error
+		data                           = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
+		tmpl                           = notify.TmplText(n.tmpl, data, &err)
 		creds *credentials.Credentials = nil
 	)
 	if n.conf.Sigv4.AccessKey != "" && n.conf.Sigv4.SecretKey != "" {
@@ -148,7 +148,11 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 
 	publishOutput, err := client.Publish(publishInput)
 	if err != nil {
-		return n.retrier.Check(err.(awserr.RequestFailure).StatusCode(), strings.NewReader(err.(awserr.RequestFailure).Message()))
+		if e, ok := err.(awserr.RequestFailure); ok {
+			return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
+		} else {
+			return true, err
+		}
 	}
 
 	err = n.logger.Log(publishOutput.String())
