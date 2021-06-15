@@ -46,6 +46,43 @@ func init() {
 	secretTokenJSON = string(b)
 }
 
+// ResolveFileConfig takes two values - a config value and a file path and resolves it to an absolute value
+// if the value is set, that gets returned, otherwise if the file path is set, we return the contents of the file
+// otherwise, we error
+func ResolveFileConfigSecret(configValue Secret, filePath string) (Secret, error) {
+	if configValue != "" {
+		return configValue, nil
+	}
+
+	val, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return Secret(val), nil
+}
+
+// ResolveFileConfigSecretURL takes two values - a config URL and a file path and resolves it to an absolute value
+// if the value is set, that gets returned, otherwise if the file path is set, we return the contents of the file
+// otherwise, we error
+func ResolveFileConfigSecretURL(configValue *SecretURL, filePath string) (*SecretURL, error) {
+	if configValue != nil {
+		return configValue, nil
+	}
+
+	val, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	urlVal, err := url.Parse(string(val))
+	if err != nil {
+		return nil, err
+	}
+
+	return &SecretURL{urlVal}, nil
+}
+
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
 
@@ -301,8 +338,30 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*c.Global = DefaultGlobalConfig()
 	}
 
+	// Check that for all the secrets in the config, there is only one of `value` and `value_file` set
+	// For now this is shorter, but if we wanted to make this better we could loop over the values with a struct
+	if len(c.Global.SMTPAuthPassword) > 0 && len(c.Global.SMTPAuthPasswordFile) > 0 {
+		return fmt.Errorf("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
+	}
+
+	if len(c.Global.SMTPAuthSecret) > 0 && len(c.Global.SMTPAuthSecretFile) > 0 {
+		return fmt.Errorf("at most one of smtp_auth_secret & smtp_auth_secret_file must be configured")
+	}
+
 	if c.Global.SlackAPIURL != nil && len(c.Global.SlackAPIURLFile) > 0 {
 		return fmt.Errorf("at most one of slack_api_url & slack_api_url_file must be configured")
+	}
+
+	if len(c.Global.OpsGenieAPIKey) > 0 && len(c.Global.OpsGenieAPIKeyFile) > 0 {
+		return fmt.Errorf("at most one of opsgenie_api_key & opsgenie_api_key_file must be configured")
+	}
+
+	if len(c.Global.WeChatAPISecret) > 0 && len(c.Global.WeChatAPISecretFile) > 0 {
+		return fmt.Errorf("at most one of wechat_api_secret & wechat_api_secret_file must be configured")
+	}
+
+	if len(c.Global.VictorOpsAPIKey) > 0 && len(c.Global.VictorOpsAPIKeyFile) > 0 {
+		return fmt.Errorf("at most one of victorops_api_key & victorops_api_key_file must be configured")
 	}
 
 	names := map[string]struct{}{}
@@ -628,24 +687,40 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	SMTPFrom         string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello        string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost    HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername string     `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthSecret   Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS   bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL      *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	SlackAPIURLFile  string     `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
-	PagerdutyURL     *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	OpsGenieAPIURL   *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey   Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	WeChatAPIURL     *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret  Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL  *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey  Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	// SMTP Configuration Options
+	SMTPFrom             string   `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello            string   `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost        HostPort `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername     string   `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword     Secret   `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthPasswordFile string   `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
+	SMTPAuthSecret       Secret   `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthSecretFile   string   `yaml:"smtp_auth_secret_file,omitempty" json:"smtp_auth_secret_file,omitempty"`
+	SMTPAuthIdentity     string   `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS       bool     `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
+
+	// Slack Configuration Options
+	SlackAPIURL     *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	SlackAPIURLFile string     `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
+
+	// Pagerduty Configuration Options
+	PagerdutyURL *URL `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+
+	// OpsGenie Configuration Options
+	OpsGenieAPIURL     *URL   `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey     Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	OpsGenieAPIKeyFile string `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
+
+	// WeChat Configuration Options
+	WeChatAPIURL        *URL   `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret     Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPISecretFile string `yaml:"wechat_api_secret_file,omitempty" json:"wechat_api_secret_file,omitempty"`
+	WeChatAPICorpID     string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+
+	// VictorOps Configuration Options
+	VictorOpsAPIURL     *URL   `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey     Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	VictorOpsAPIKeyFile string `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
