@@ -22,6 +22,7 @@ import (
 func TestIsFIFO(t *testing.T) {
 	require.True(t, isFIFOTopic("arn:aws:sns:us-east-2:624413706616:snsTestTopic.fifo"))
 	require.False(t, isFIFOTopic("arn:aws:sns:us-east-2:624413706616:snsTestTopic"))
+	require.False(t, isFIFOTopic("bad"))
 }
 
 func TestValidateAndTruncateMessage(t *testing.T) {
