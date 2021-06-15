@@ -26,7 +26,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -901,6 +901,20 @@ func TestSlackGlobalAPIURLFile(t *testing.T) {
 	thirdConfig := conf.Receivers[0].SlackConfigs[2]
 	if thirdConfig.APIURL.String() != "http://mysecret.example.com/" || thirdConfig.APIURLFile != "" {
 		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", thirdConfig.APIURL.String(), "http://mysecret.example.com/")
+	}
+}
+
+func TestValidSNSConfig(t *testing.T) {
+	_, err := LoadFile("testdata/conf.sns-topic-arn.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.sns-topic-arn.yml\"", err)
+	}
+}
+
+func TestInvalidSNSConfig(t *testing.T) {
+	_, err := LoadFile("testdata/conf.sns-invalid.yml")
+	if err == nil {
+		t.Fatalf("expected error with missing fields on SNS config")
 	}
 }
 

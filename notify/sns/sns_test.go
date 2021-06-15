@@ -15,51 +15,36 @@ package sns
 
 import (
 	"testing"
-	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
-	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNotifier_Notify(t *testing.T) {
-	ctx, _, fn := test.GetContextWithCancelingURL()
-	defer fn()
-	attrTest := map[string]string{}
-	attrTest["key"] = "testVal"
-	// These are fake values
-	notifier, err := New(
-		&config.SNSConfig{
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			Message:    `{{ template "sns.default.message" . }}`,
-			TopicARN:   "arn:aws:sns:us-east-2:123456789012:My-Topic",
-			Sigv4: config.SigV4Config{
-				Region:    "us-east-2",
-				AccessKey: "access_key",
-				SecretKey: "secret_key",
-			},
-			Attributes: attrTest,
-		},
-		test.CreateTmpl(t),
-		log.NewNopLogger(),
-	)
-	require.NoError(t, err)
+func TestIsFIFO(t *testing.T) {
+	require.True(t, isFIFOTopic("arn:aws:sns:us-east-2:624413706616:snsTestTopic.fifo"))
+	require.False(t, isFIFOTopic("arn:aws:sns:us-east-2:624413706616:snsTestTopic"))
+}
 
-	ok, err := notifier.Notify(ctx, []*types.Alert{
-		&types.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"lbl1": "val1",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
-			},
-		},
-	}...)
+func TestValidateAndTruncateMessage(t *testing.T) {
+	sBuff := make([]byte, 257*1024, 257*1024)
+	for i := range sBuff {
+		sBuff[i] = byte(33)
+	}
+	truncatedMessage, isTruncated, err := validateAndTruncateMessage(string(sBuff))
+	require.True(t, isTruncated)
 	require.NoError(t, err)
-	require.False(t, ok)
+	require.NotEqual(t, sBuff, truncatedMessage)
+	require.Equal(t, len(truncatedMessage), 256*1024)
+
+	sBuff = make([]byte, 100, 100)
+	for i := range sBuff {
+		sBuff[i] = byte(33)
+	}
+	truncatedMessage, isTruncated, err = validateAndTruncateMessage(string(sBuff))
+	require.False(t, isTruncated)
+	require.NoError(t, err)
+	require.Equal(t, string(sBuff), truncatedMessage)
+
+	invalidUtf8String := "\xc3\x28"
+	_, _, err = validateAndTruncateMessage(invalidUtf8String)
+	require.Error(t, err)
 }
