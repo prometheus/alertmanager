@@ -98,7 +98,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// Refresh AccessToken over 2 hours
 	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
 		parameters := url.Values{}
-		parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
+
+		secret, fileErr := config.ResolveFileConfigSecret(n.conf.APISecret, n.conf.APISecretFile)
+		if fileErr != nil {
+			return false, err
+		}
+
+		parameters.Add("corpsecret", tmpl(string(secret)))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
 		if err != nil {
 			return false, fmt.Errorf("templating error: %s", err)

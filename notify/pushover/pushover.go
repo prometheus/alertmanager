@@ -74,9 +74,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	tmplHTML := notify.TmplHTML(n.tmpl, data, &err)
 
+	token, fileErr := config.ResolveFileConfigSecret(n.conf.Token, n.conf.TokenFile)
+	if fileErr != nil {
+		return false, fileErr
+	}
+
+	userKey, fileErr := config.ResolveFileConfigSecret(n.conf.UserKey, n.conf.UserKeyFile)
+	if fileErr != nil {
+		return false, fileErr
+	}
+
 	parameters := url.Values{}
-	parameters.Add("token", tmpl(string(n.conf.Token)))
-	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+	parameters.Add("token", tmpl(string(token)))
+	parameters.Add("user", tmpl(string(userKey)))
 
 	title, truncated := notify.Truncate(tmpl(n.conf.Title), 250)
 	if truncated {

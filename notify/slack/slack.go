@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -177,16 +176,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	var u string
-	if n.conf.APIURL != nil {
-		u = n.conf.APIURL.String()
-	} else {
-		content, err := ioutil.ReadFile(n.conf.APIURLFile)
-		if err != nil {
-			return false, err
-		}
-		u = string(content)
+	url, fileErr := config.ResolveFileConfigSecretURL(n.conf.APIURL, n.conf.APIURLFile)
+	if fileErr != nil {
+		return false, err
 	}
+
+	u := url.String()
 
 	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
 	if err != nil {

@@ -397,8 +397,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if ec.AuthPassword == "" {
 				ec.AuthPassword = c.Global.SMTPAuthPassword
 			}
+			if ec.AuthPasswordFile == "" {
+				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
+			}
 			if ec.AuthSecret == "" {
 				ec.AuthSecret = c.Global.SMTPAuthSecret
+			}
+			if ec.AuthSecretFile == "" {
+				ec.AuthSecretFile = c.Global.SMTPAuthSecretFile
 			}
 			if ec.AuthIdentity == "" {
 				ec.AuthIdentity = c.Global.SMTPAuthIdentity
@@ -450,10 +456,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIURL.Path += "/"
 			}
 			if ogc.APIKey == "" {
-				if c.Global.OpsGenieAPIKey == "" {
+				if c.Global.OpsGenieAPIKey == "" && c.Global.OpsGenieAPIKeyFile == "" {
 					return fmt.Errorf("no global OpsGenie API Key set")
 				}
 				ogc.APIKey = c.Global.OpsGenieAPIKey
+				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
 			}
 		}
 		for _, wcc := range rcv.WechatConfigs {
@@ -469,10 +476,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 
 			if wcc.APISecret == "" {
-				if c.Global.WeChatAPISecret == "" {
+				if c.Global.WeChatAPISecret == "" && c.Global.WeChatAPISecretFile == "" {
 					return fmt.Errorf("no global Wechat ApiSecret set")
 				}
 				wcc.APISecret = c.Global.WeChatAPISecret
+				wcc.APISecretFile = c.Global.WeChatAPISecretFile
 			}
 
 			if wcc.CorpID == "" {
@@ -500,10 +508,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIURL.Path += "/"
 			}
 			if voc.APIKey == "" {
-				if c.Global.VictorOpsAPIKey == "" {
+				if c.Global.VictorOpsAPIKey == "" && c.Global.VictorOpsAPIKeyFile == "" {
 					return fmt.Errorf("no global VictorOps API Key set")
 				}
 				voc.APIKey = c.Global.VictorOpsAPIKey
+				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
 			}
 		}
 		names[rcv.Name] = struct{}{}

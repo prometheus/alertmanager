@@ -182,7 +182,12 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 		}
 	}
 
-	apiKey := tmpl(string(n.conf.APIKey))
+	apiKeyVal, fileErr := config.ResolveFileConfigSecret(n.conf.APIKey, n.conf.APIKeyFile)
+	if fileErr != nil {
+		return nil, false, errors.Wrap(fileErr, "templating error")
+	}
+
+	apiKey := tmpl(string(apiKeyVal))
 
 	if err != nil {
 		return nil, false, errors.Wrap(err, "templating error")

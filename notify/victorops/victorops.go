@@ -71,7 +71,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
 		apiURL = n.conf.APIURL.Copy()
 	)
-	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
+
+	apiKey, fileErr := config.ResolveFileConfigSecret(n.conf.APIKey, n.conf.APIKeyFile)
+	if fileErr != nil {
+		return false, fmt.Errorf("templating error: %s", fileErr)
+	}
+
+	apiURL.Path += fmt.Sprintf("%s/%s", apiKey, tmpl(n.conf.RoutingKey))
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
 	}

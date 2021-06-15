@@ -83,7 +83,12 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	for _, mech := range strings.Split(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
-			secret := string(n.conf.AuthSecret)
+			secretSecret, e := config.ResolveFileConfigSecret(n.conf.AuthSecret, n.conf.AuthSecretFile)
+			if e != nil {
+				err.Add(errors.New("failed to load smtp password from file"))
+				continue
+			}
+			secret := string(secretSecret)
 			if secret == "" {
 				err.Add(errors.New("missing secret for CRAM-MD5 auth mechanism"))
 				continue
@@ -91,7 +96,13 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 			return smtp.CRAMMD5Auth(username, secret), nil
 
 		case "PLAIN":
-			password := string(n.conf.AuthPassword)
+			passwordSecret, e := config.ResolveFileConfigSecret(n.conf.AuthPassword, n.conf.AuthPasswordFile)
+			if e != nil {
+				err.Add(errors.New("failed to load smtp password from file"))
+				continue
+			}
+			password := string(passwordSecret)
+
 			if password == "" {
 				err.Add(errors.New("missing password for PLAIN auth mechanism"))
 				continue
@@ -100,7 +111,12 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 
 			return smtp.PlainAuth(identity, username, password, n.conf.Smarthost.Host), nil
 		case "LOGIN":
-			password := string(n.conf.AuthPassword)
+			passwordSecret, e := config.ResolveFileConfigSecret(n.conf.AuthPassword, n.conf.AuthPasswordFile)
+			if e != nil {
+				err.Add(errors.New("failed to load smtp password from file"))
+				continue
+			}
+			password := string(passwordSecret)
 			if password == "" {
 				err.Add(errors.New("missing password for LOGIN auth mechanism"))
 				continue
