@@ -48,8 +48,9 @@ func NewAlerts() *Alerts {
 	return a
 }
 
-// SetGCCallback sets a GC callback to be executed after each GC.
-func (a *Alerts) SetGCCallback(cb func([]*types.Alert)) {
+// SetResolvedCallback sets a GC callback to be executed after each GC.
+// The callback receives resolved alerts as an argument.
+func (a *Alerts) SetResolvedCallback(cb func([]*types.Alert)) {
 	a.Lock()
 	defer a.Unlock()
 
@@ -111,7 +112,13 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	a.Lock()
 	defer a.Unlock()
 
+	alert, ok := a.c[fp]
+	if !ok {
+		return nil
+	}
+
 	delete(a.c, fp)
+	a.cb([]*types.Alert{alert})
 	return nil
 }
 

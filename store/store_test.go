@@ -15,6 +15,7 @@ package store
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,7 +43,6 @@ func TestDelete(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 	require.NoError(t, a.Set(alert))
-
 	fp := alert.Fingerprint()
 
 	err := a.Delete(fp)
@@ -53,7 +53,8 @@ func TestDelete(t *testing.T) {
 	require.Equal(t, ErrNotFound, err)
 }
 
-func TestGC(t *testing.T) {
+func TestGCAndResolvedAlerts(t *testing.T) {
+	ac := &alertsCounter{}
 	now := time.Now()
 	newAlert := func(key string, start, end time.Duration) *types.Alert {
 		return &types.Alert{
@@ -72,21 +73,34 @@ func TestGC(t *testing.T) {
 		newAlert("a", -10, -5),
 		newAlert("d", -10, -1),
 	}
+	deleted := []*types.Alert{
+		newAlert("e", -10, 30),
+	}
 	s := NewAlerts()
 	var (
-		n           int
 		done        = make(chan struct{})
 		ctx, cancel = context.WithCancel(context.Background())
 	)
-	s.SetGCCallback(func(a []*types.Alert) {
-		n += len(a)
-		if n >= len(resolved) {
+	s.SetResolvedCallback(func(a []*types.Alert) {
+		ac.Inc(len(a))
+		if ac.Count() >= len(resolved) {
 			cancel()
 		}
 	})
-	for _, alert := range append(active, resolved...) {
+	// Merge all of alerts into a single slice.
+	all := []*types.Alert{}
+	all = append(all, active...)
+	all = append(all, resolved...)
+	all = append(all, deleted...)
+
+	for _, alert := range all {
 		require.NoError(t, s.Set(alert))
 	}
+
+	for _, alert := range deleted {
+		require.NoError(t, s.Delete(alert.Fingerprint()))
+	}
+
 	go func() {
 		s.Run(ctx, 10*time.Millisecond)
 		close(done)
@@ -108,5 +122,24 @@ func TestGC(t *testing.T) {
 			t.Errorf("alert %v should have been gc'd", alert)
 		}
 	}
-	require.Equal(t, len(resolved), n)
+	// If we manually delete an alert it should be sent back to the callback as it should be considered resolved.
+	// So in total, the callback should have received 3 alerts. 2 that were GC and 1 that was manually deleted.
+	require.Equal(t, 3, ac.Count())
+}
+
+type alertsCounter struct {
+	mtx     sync.Mutex
+	counter int
+}
+
+func (c *alertsCounter) Inc(n int) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.counter += n
+}
+
+func (c *alertsCounter) Count() int {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return c.counter
 }
