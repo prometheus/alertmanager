@@ -19,12 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsFIFO(t *testing.T) {
-	require.True(t, isFIFOTopic("arn:aws:sns:us-east-2:624413706616:snsTestTopic.fifo"))
-	require.False(t, isFIFOTopic("arn:aws:sns:us-east-2:624413706616:snsTestTopic"))
-	require.False(t, isFIFOTopic("bad"))
-}
-
 func TestValidateAndTruncateMessage(t *testing.T) {
 	sBuff := make([]byte, 257*1024, 257*1024)
 	for i := range sBuff {
