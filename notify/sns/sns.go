@@ -164,7 +164,7 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 }
 
 func isFIFOTopic(topicARN string) bool {
-	if topicARN[len(topicARN)-5:] == ".fifo" {
+	if len(topicARN) > 5 && topicARN[len(topicARN)-5:] == ".fifo" {
 		return true
 	}
 	return false
