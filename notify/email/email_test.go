@@ -606,3 +606,41 @@ func TestEmailNoUsernameStillOk(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, a)
 }
+
+func TestEmailSecretFromFile(t *testing.T) {
+	f, err := ioutil.TempFile("", "email_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString("test_password")
+
+	require.NoError(t, err, "writing to temp file failed")
+	email := &Email{
+		conf: &config.EmailConfig{
+			AuthSecretFile: f.Name(),
+		}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+	}
+
+	a, err := email.auth("CRAM-MD5")
+	require.NoError(t, err)
+	require.Nil(t, a)
+}
+
+func TestEmailPasswordFromFile(t *testing.T) {
+	f, err := ioutil.TempFile("", "email_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString("test_password")
+	require.NoError(t, err, "writing to temp file failed")
+
+	email := &Email{
+		conf: &config.EmailConfig{
+			AuthSecretFile: f.Name(),
+		}, tmpl: &template.Template{}, logger: log.NewNopLogger(),
+	}
+
+	a, err := email.auth("PLAIN")
+	require.NoError(t, err)
+	require.Nil(t, a)
+
+	a, err = email.auth("LOGIN")
+	require.NoError(t, err)
+	require.Nil(t, a)
+}

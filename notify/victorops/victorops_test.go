@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -109,6 +110,30 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 		&config.VictorOpsConfig{
 			APIURL:     &config.URL{URL: u},
 			APIKey:     config.Secret(secret),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret)
+}
+
+func TestVictorOpsAPIKeyFromFile(t *testing.T) {
+	secret := "secret"
+	f, err := ioutil.TempFile("", "victorops_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(secret)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.VictorOpsConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKeyFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),

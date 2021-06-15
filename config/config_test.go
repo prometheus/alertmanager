@@ -901,6 +901,28 @@ func TestSMTPHello(t *testing.T) {
 	}
 }
 
+func TestSMTPBothPasswords(t *testing.T) {
+	_, err := LoadFile("testdata/conf.smtp.both_passwords_set.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.smtp.both_passwords_set.yml", err)
+	}
+
+	if err.Error() != "at most one of smtp_auth_password & smtp_auth_password_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of smtp_auth_password & smtp_auth_password_file must be configured", err.Error())
+	}
+}
+
+func TestSMTPBothSecrets(t *testing.T) {
+	_, err := LoadFile("testdata/conf.smtp.both_secrets_set.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.smtp.both_secrets_set.yml", err)
+	}
+
+	if err.Error() != "at most one of smtp_auth_secret & smtp_auth_secret_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of smtp_auth_secret & smtp_auth_secret_file must be configured", err.Error())
+	}
+}
+
 func TestGroupByAll(t *testing.T) {
 	c, err := LoadFile("testdata/conf.group-by-all.yml")
 	if err != nil {
@@ -937,6 +959,16 @@ func TestVictorOpsNoAPIKey(t *testing.T) {
 	}
 }
 
+func TestVictorOpsBothAPIKeysSet(t *testing.T) {
+	_, err := LoadFile("testdata/conf.victorops.both-apikeys-set.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops.both-apikeys-set.yml", err)
+	}
+	if err.Error() != "at most one of victorops_api_key & victorops_api_key_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of victorops_api_key & victorops_api_key_file must be configured", err.Error())
+	}
+}
+
 func TestOpsGenieDefaultAPIKey(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.opsgenie-default-apikey.yml")
 	if err != nil {
@@ -959,6 +991,17 @@ func TestOpsGenieNoAPIKey(t *testing.T) {
 	}
 	if err.Error() != "no global OpsGenie API Key set" {
 		t.Errorf("Expected: %s\nGot: %s", "no global OpsGenie API Key set", err.Error())
+	}
+}
+
+func TestOpsGenieBothAPIKeys(t *testing.T) {
+	_, err := LoadFile("testdata/conf.opsgenie.both-apikeys-set.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie.both-apikeys-set.yml", err)
+	}
+
+	if err.Error() != "at most one of opsgenie_api_key & opsgenie_api_key_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of opsgenie_api_key & opsgenie_api_key_file must be configured", err.Error())
 	}
 }
 
@@ -1017,6 +1060,17 @@ func TestSlackGlobalAPIURLFile(t *testing.T) {
 	thirdConfig := conf.Receivers[0].SlackConfigs[2]
 	if thirdConfig.APIURL.String() != "http://mysecret.example.com/" || thirdConfig.APIURLFile != "" {
 		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", thirdConfig.APIURL.String(), "http://mysecret.example.com/")
+	}
+}
+
+func TestWeChatBothAPISecretsSet(t *testing.T) {
+	_, err := LoadFile("testdata/conf.wechat.both-apisecrets-set.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.wechat.both-apisecrets-set.yml", err)
+	}
+
+	if err.Error() != "at most one of wechat_api_secret & wechat_api_secret_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of wechat_api_secret & wechat_api_secret_file must be configured", err.Error())
 	}
 }
 

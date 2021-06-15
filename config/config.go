@@ -50,7 +50,7 @@ func init() {
 // if the value is set, that gets returned, otherwise if the file path is set, we return the contents of the file
 // otherwise, we error
 func ResolveFileConfigSecret(configValue Secret, filePath string) (Secret, error) {
-	if configValue != "" {
+	if configValue != "" || filePath == "" {
 		return configValue, nil
 	}
 
@@ -66,7 +66,7 @@ func ResolveFileConfigSecret(configValue Secret, filePath string) (Secret, error
 // if the value is set, that gets returned, otherwise if the file path is set, we return the contents of the file
 // otherwise, we error
 func ResolveFileConfigSecretURL(configValue *SecretURL, filePath string) (*SecretURL, error) {
-	if configValue != nil {
+	if configValue != nil || filePath == "" {
 		return configValue, nil
 	}
 

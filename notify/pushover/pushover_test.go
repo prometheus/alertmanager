@@ -15,6 +15,7 @@ package pushover
 
 import (
 	"fmt"
+	"io/ioutil"
 	"testing"
 
 	"github.com/go-kit/kit/log"
@@ -58,4 +59,29 @@ func TestPushoverRedactedURL(t *testing.T) {
 	notifier.apiURL = u.String()
 
 	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key, token)
+}
+
+func TestPushoverSecretsFromFile(t *testing.T) {
+	key := "secret"
+	f, err := ioutil.TempFile("", "pushover_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString("")
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.PushoverConfig{
+			UserKeyFile: f.Name(),
+			TokenFile:   f.Name(),
+			HTTPConfig:  &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+	notifier.apiURL = u.String()
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
 }

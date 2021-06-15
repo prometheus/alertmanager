@@ -15,6 +15,7 @@ package wechat
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"testing"
 
@@ -59,6 +60,33 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
 			APISecret:  config.Secret(secret),
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret, token)
+}
+
+func TestWechatAPISecretFromFile(t *testing.T) {
+	secret, token := "secret", "token"
+	f, err := ioutil.TempFile("", "victorops_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(secret)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"access_token":"%s"}`, token)
+	})
+	defer fn()
+
+	notifier, err := New(
+		&config.WechatConfig{
+			APIURL:        &config.URL{URL: u},
+			HTTPConfig:    &commoncfg.HTTPClientConfig{},
+			CorpID:        "corpid",
+			APISecretFile: f.Name(),
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
