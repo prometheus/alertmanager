@@ -190,7 +190,7 @@ func validateAndTruncateMessage(message string) (string, bool, error) {
 	if utf8.ValidString(message) {
 		// if the message is larger than 256KB we have to truncate.
 		if len(message) > 256*1024 {
-			truncated := make([]byte, 256*1024, 256*1024)
+			truncated := make([]byte, 256 * 1024)
 			copy(truncated, message)
 			return string(truncated), true, nil
 		}
