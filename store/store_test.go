@@ -15,7 +15,7 @@ package store
 
 import (
 	"context"
-	"sync"
+	"go.uber.org/atomic"
 	"testing"
 	"time"
 
@@ -54,7 +54,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestGCAndResolvedAlerts(t *testing.T) {
-	ac := &alertsCounter{}
+	var resolvedCount atomic.Int32
 	now := time.Now()
 	newAlert := func(key string, start, end time.Duration) *types.Alert {
 		return &types.Alert{
@@ -82,8 +82,8 @@ func TestGCAndResolvedAlerts(t *testing.T) {
 		ctx, cancel = context.WithCancel(context.Background())
 	)
 	s.SetResolvedCallback(func(a []*types.Alert) {
-		ac.Inc(len(a))
-		if ac.Count() >= len(resolved) {
+		resolvedCount.Add(int32(len(a)))
+		if resolvedCount.Load() >= int32(len(resolved)) {
 			cancel()
 		}
 	})
@@ -122,24 +122,5 @@ func TestGCAndResolvedAlerts(t *testing.T) {
 			t.Errorf("alert %v should have been gc'd", alert)
 		}
 	}
-	// If we manually delete an alert it should be sent back to the callback as it should be considered resolved.
-	// So in total, the callback should have received 3 alerts. 2 that were GC and 1 that was manually deleted.
-	require.Equal(t, 3, ac.Count())
-}
-
-type alertsCounter struct {
-	mtx     sync.Mutex
-	counter int
-}
-
-func (c *alertsCounter) Inc(n int) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	c.counter += n
-}
-
-func (c *alertsCounter) Count() int {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	return c.counter
+	require.Equal(t, int32(len(resolved)+len(deleted)), resolvedCount.Load())
 }
