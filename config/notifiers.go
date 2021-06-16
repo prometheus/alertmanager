@@ -133,8 +133,8 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Subject:    `{{ template "sns.default.subject" . }}`,
-		Message:    `{{ template "sns.default.message" . }}`,
+		Subject: `{{ template "sns.default.subject" . }}`,
+		Message: `{{ template "sns.default.message" . }}`,
 	}
 )
 
