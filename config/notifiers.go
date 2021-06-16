@@ -133,7 +133,6 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		APIVersion: "sns.default.api_version",
 		Subject:    `{{ template "sns.default.subject" . }}`,
 		Message:    `{{ template "sns.default.message" . }}`,
 	}
@@ -608,7 +607,6 @@ type SNSConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIUrl      string            `yaml:"api_url" json:"api_url"`
-	APIVersion  string            `yaml:"api_version,omitempty" json:"api_version,omitempty"`
 	Sigv4       SigV4Config       `yaml:"sigv4" json:"sigv4"`
 	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
 	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
@@ -625,7 +623,7 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.TargetARN == "" && c.TopicARN == "" && c.PhoneNumber == "" {
+	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
 		return fmt.Errorf("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
 	if (c.Sigv4.AccessKey == "") != (c.Sigv4.SecretKey == "") {

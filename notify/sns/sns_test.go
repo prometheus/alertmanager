@@ -24,7 +24,7 @@ func TestValidateAndTruncateMessage(t *testing.T) {
 	for i := range sBuff {
 		sBuff[i] = byte(33)
 	}
-	truncatedMessage, isTruncated, err := validateAndTruncateMessage(string(sBuff))
+	truncatedMessage, isTruncated, err := validateAndTruncateMessage(string(sBuff), 256*1024)
 	require.True(t, isTruncated)
 	require.NoError(t, err)
 	require.NotEqual(t, sBuff, truncatedMessage)
@@ -34,12 +34,12 @@ func TestValidateAndTruncateMessage(t *testing.T) {
 	for i := range sBuff {
 		sBuff[i] = byte(33)
 	}
-	truncatedMessage, isTruncated, err = validateAndTruncateMessage(string(sBuff))
+	truncatedMessage, isTruncated, err = validateAndTruncateMessage(string(sBuff), 100)
 	require.False(t, isTruncated)
 	require.NoError(t, err)
 	require.Equal(t, string(sBuff), truncatedMessage)
 
 	invalidUtf8String := "\xc3\x28"
-	_, _, err = validateAndTruncateMessage(invalidUtf8String)
+	_, _, err = validateAndTruncateMessage(invalidUtf8String, 100)
 	require.Error(t, err)
 }
