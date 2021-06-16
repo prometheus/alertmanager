@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -70,6 +71,14 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		creds = credentials.NewStaticCredentials(n.conf.Sigv4.AccessKey, string(n.conf.Sigv4.SecretKey), "")
 	}
 
+	attributes := make(map[string]*sns.MessageAttributeValue, len(n.conf.Attributes))
+	if len(n.conf.Attributes) > 0 {
+		for k, v := range n.conf.Attributes {
+			attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
+		}
+
+	}
+
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
 			Region:      aws.String(n.conf.Sigv4.Region),
@@ -87,18 +96,13 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		sess.Config.Credentials = stscreds.NewCredentials(sess, n.conf.Sigv4.RoleARN)
 	}
 
+	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
+	messageSize := 256 * 1024
 	client := sns.New(sess, &aws.Config{Credentials: creds})
 	publishInput := &sns.PublishInput{}
 
 	if n.conf.TopicARN != "" {
 		publishInput.SetTopicArn(tmpl(n.conf.TopicARN))
-		messageToSend, isTrunc, err := validateAndTruncateMessage(tmpl(n.conf.Message))
-		if err != nil {
-			return false, err
-		}
-		if isTrunc {
-			n.conf.Attributes["truncated"] = "true"
-		}
 
 		if n.isFifo == nil {
 			checkFifo, err := checkTopicFifoAttribute(client, n.conf.TopicARN)
@@ -120,42 +124,31 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 			publishInput.SetMessageDeduplicationId(key.Hash())
 			publishInput.SetMessageGroupId(key.Hash())
 		}
-
-		publishInput.SetMessage(messageToSend)
 	}
 	if n.conf.PhoneNumber != "" {
 		publishInput.SetPhoneNumber(tmpl(n.conf.PhoneNumber))
-		// If SMS message is over 1600 chars, SNS will reject the message.
-		_, isTruncated := notify.Truncate(tmpl(n.conf.Message), 1600)
-		if isTruncated {
-			return false, fmt.Errorf("SMS message exeeds length of 1600 charactors")
-		} else {
-			publishInput.SetMessage(tmpl(n.conf.Message))
-		}
+		// If we have an SMS message, we need to truncate to 1600 characters/runes.
+		messageSize = 1600
 	}
 	if n.conf.TargetARN != "" {
 		publishInput.SetTargetArn(tmpl(n.conf.TargetARN))
-		messageToSend, isTrunc, err := validateAndTruncateMessage(tmpl(n.conf.Message))
-		if err != nil {
-			return false, err
-		}
-		if isTrunc {
-			n.conf.Attributes["truncated"] = "true"
-		}
-		publishInput.SetMessage(messageToSend)
+
 	}
 
-	if len(n.conf.Attributes) > 0 {
-		attributes := map[string]*sns.MessageAttributeValue{}
-		for k, v := range n.conf.Attributes {
-			attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
-		}
-		publishInput.SetMessageAttributes(attributes)
+	messageToSend, isTrunc, err := validateAndTruncateMessage(tmpl(n.conf.Message), messageSize)
+	if err != nil {
+		return false, err
 	}
+	if isTrunc {
+		attributes[tmpl("truncated")] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl("true"))}
+	}
+	publishInput.SetMessage(messageToSend)
 
 	if n.conf.Subject != "" {
 		publishInput.SetSubject(tmpl(n.conf.Subject))
 	}
+
+	publishInput.SetMessageAttributes(attributes)
 
 	publishOutput, err := client.Publish(publishInput)
 	if err != nil {
@@ -166,10 +159,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		}
 	}
 
-	err = n.logger.Log(publishOutput.String())
-	if err != nil {
-		return false, err
-	}
+	level.Debug(n.logger).Log("msg", "SNS publish successfully sent", "message_id", publishOutput.MessageId, "sequence number", publishOutput.SequenceNumber)
 
 	return false, nil
 }
@@ -180,21 +170,21 @@ func checkTopicFifoAttribute(client *sns.SNS, topicARN string) (bool, error) {
 		return false, err
 	}
 	ta := topicAttributes.Attributes["FifoTopic"]
-	if ta != nil && *ta == "true" {
+	if aws.StringValue(ta) == "true" {
 		return true, nil
 	}
 	return false, nil
 }
 
-func validateAndTruncateMessage(message string) (string, bool, error) {
-	if utf8.ValidString(message) {
-		// if the message is larger than 256KB we have to truncate.
-		if len(message) > 256*1024 {
-			truncated := make([]byte, 256*1024)
-			copy(truncated, message)
-			return string(truncated), true, nil
-		}
+func validateAndTruncateMessage(message string, sizeInBytes int) (string, bool, error) {
+	if !utf8.ValidString(message) {
+		return "", false, fmt.Errorf("non utf8 encoded message string")
+	}
+	if len(message) <= sizeInBytes {
 		return message, false, nil
 	}
-	return "", false, fmt.Errorf("non utf8 encoded message string")
+	// if the message is larger than our specified size we have to truncate.
+	truncated := make([]byte, sizeInBytes)
+	copy(truncated, message)
+	return string(truncated), true, nil
 }

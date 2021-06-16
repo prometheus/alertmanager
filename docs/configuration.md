@@ -701,9 +701,6 @@ value: <tmpl_string>
 # The SNS API URL i.e. https://sns.us-east-2.amazonaws.com
 [api_url: <tmpl_string>]
 
-# The SNS API version i.e. 
-[ api_version: <tmpl_string> | default = sns.default.api_version ]
-
 # Configures AWS's Signature Verification 4 signing process to sign requests.
 sigv4:
   [ <sigv4_config> ]
