@@ -81,7 +81,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			Region:      aws.String(n.conf.Sigv4.Region),
+			Region:      aws.String(tmpl(n.conf.Sigv4.Region)),
 			Credentials: creds,
 			Endpoint:    aws.String(tmpl(n.conf.APIUrl)),
 		},
