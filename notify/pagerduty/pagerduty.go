@@ -54,7 +54,7 @@ func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger, httpOpts
 		return nil, err
 	}
 	n := &Notifier{conf: c, tmpl: t, logger: l, client: client}
-	if c.ServiceKey != "" {
+	if c.ServiceKey != "" || c.ServiceKeyFile != "" {
 		n.apiV1 = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
 		// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 		// https://v2.developer.pagerduty.com/docs/trigger-events
@@ -153,8 +153,13 @@ func (n *Notifier) notifyV1(
 		level.Debug(n.logger).Log("msg", "Truncated description", "description", description, "key", key)
 	}
 
+	serviceKey, fileErr := config.ResolveFileConfigSecret(n.conf.ServiceKey, n.conf.ServiceKeyFile)
+	if fileErr != nil {
+		return false, errors.Wrap(fileErr, "failed to read service key from file")
+	}
+
 	msg := &pagerDutyMessage{
-		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
+		ServiceKey:  tmpl(string(serviceKey)),
 		EventType:   eventType,
 		IncidentKey: key.Hash(),
 		Description: description,
@@ -209,10 +214,15 @@ func (n *Notifier) notifyV2(
 		level.Debug(n.logger).Log("msg", "Truncated summary", "summary", summary, "key", key)
 	}
 
+	routingKey, fileErr := config.ResolveFileConfigSecret(n.conf.RoutingKey, n.conf.RoutingKeyFile)
+	if fileErr != nil {
+		return false, errors.Wrap(fileErr, "failed to read routing key from file")
+	}
+
 	msg := &pagerDutyMessage{
 		Client:      tmpl(n.conf.Client),
 		ClientURL:   tmpl(n.conf.ClientURL),
-		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
+		RoutingKey:  tmpl(string(routingKey)),
 		EventAction: eventType,
 		DedupKey:    key.Hash(),
 		Images:      make([]pagerDutyImage, 0, len(n.conf.Images)),

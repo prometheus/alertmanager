@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -53,6 +54,30 @@ func TestPagerDutyRetryV1(t *testing.T) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("retryv1 - error on status %d", statusCode))
 	}
+}
+
+func TestPagerDutyV1SerciveKeyFromFile(t *testing.T) {
+	key := "01234567890123456789012345678901"
+	f, err := ioutil.TempFile("", "pagerduty_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.PagerdutyConfig{
+			ServiceKeyFile: f.Name(),
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+	notifier.apiV1 = u.String()
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
 }
 
 func TestPagerDutyRetryV2(t *testing.T) {
@@ -102,6 +127,30 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 			URL:        &config.URL{URL: u},
 			RoutingKey: config.Secret(key),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+}
+
+func TestPagerDutyRedactedURLV2RoutingKeyFromFile(t *testing.T) {
+	key := "01234567890123456789012345678901"
+	f, err := ioutil.TempFile("", "opsgenie_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.PagerdutyConfig{
+			URL:            &config.URL{URL: u},
+			RoutingKeyFile: f.Name(),
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
