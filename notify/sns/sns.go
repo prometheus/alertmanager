@@ -41,6 +41,7 @@ type Notifier struct {
 	logger  log.Logger
 	client  *http.Client
 	retrier *notify.Retrier
+	isFifo  *bool
 }
 
 // New returns a new SNS notification handler.
@@ -49,7 +50,6 @@ func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...co
 	if err != nil {
 		return nil, err
 	}
-
 	return &Notifier{
 		conf:    c,
 		tmpl:    t,
@@ -59,7 +59,7 @@ func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...co
 	}, nil
 }
 
-func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
 	var (
 		err   error
 		data                           = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
@@ -100,16 +100,19 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 			n.conf.Attributes["truncated"] = "true"
 		}
 
-		isFifo, err := checkTopicFifoAttribute(client, n.conf.TopicARN)
-		if err != nil {
-			if e, ok := err.(awserr.RequestFailure); ok {
-				return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
-			} else {
-				return true, err
+		if n.isFifo == nil {
+			checkFifo, err := checkTopicFifoAttribute(client, n.conf.TopicARN)
+			if err != nil {
+				if e, ok := err.(awserr.RequestFailure); ok {
+					return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
+				} else {
+					return true, err
+				}
 			}
+			n.isFifo = &checkFifo
 		}
-		// Deduplication key and Message Group ID are only added if it's a FIFO SNS Topic.
-		if isFifo {
+		if *n.isFifo {
+			// Deduplication key and Message Group ID are only added if it's a FIFO SNS Topic.
 			key, err := notify.ExtractGroupKey(ctx)
 			if err != nil {
 				return false, err
@@ -172,7 +175,6 @@ func (n Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, erro
 }
 
 func checkTopicFifoAttribute(client *sns.SNS, topicARN string) (bool, error) {
-	fmt.Println("Checking Attributes")
 	topicAttributes, err := client.GetTopicAttributes(&sns.GetTopicAttributesInput{TopicArn: aws.String(topicARN)})
 	if err != nil {
 		return false, err
@@ -187,8 +189,8 @@ func checkTopicFifoAttribute(client *sns.SNS, topicARN string) (bool, error) {
 func validateAndTruncateMessage(message string) (string, bool, error) {
 	if utf8.ValidString(message) {
 		// if the message is larger than 256KB we have to truncate.
-		if len(message) > 256 * 1024 {
-			truncated := make([]byte, 256 * 1024, 256 * 1024)
+		if len(message) > 256*1024 {
+			truncated := make([]byte, 256*1024, 256*1024)
 			copy(truncated, message)
 			return string(truncated), true, nil
 		}
