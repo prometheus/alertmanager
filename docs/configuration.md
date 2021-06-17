@@ -727,6 +727,7 @@ attributes:
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+
 ```
 ###`<sigv4_config>`
 ```yaml
