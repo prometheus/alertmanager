@@ -606,7 +606,7 @@ type SNSConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIUrl      string            `yaml:"api_url" json:"api_url"`
+	APIUrl      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Sigv4       SigV4Config       `yaml:"sigv4" json:"sigv4"`
 	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
 	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
