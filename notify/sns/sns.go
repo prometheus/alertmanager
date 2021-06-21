@@ -85,9 +85,27 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	})
 
 	if n.conf.Sigv4.RoleARN != "" {
-		sess.Config.Credentials = stscreds.NewCredentials(sess, n.conf.Sigv4.RoleARN)
+		var stsSess *session.Session
+		if n.conf.APIUrl == "" {
+			stsSess = sess
+		} else {
+			// If we have set the API URL we need to create a new session to get the STS Credentials.
+			stsSess, err = session.NewSessionWithOptions(session.Options{
+				Config: aws.Config{
+					Region: aws.String(n.conf.Sigv4.Region),
+				},
+				Profile: n.conf.Sigv4.Profile,
+			})
+			if err != nil {
+				if e, ok := err.(awserr.RequestFailure); ok {
+					return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
+				} else {
+					return true, err
+				}
+			}
+		}
+		creds = stscreds.NewCredentials(stsSess, n.conf.Sigv4.RoleARN)
 	}
-
 	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
 	messageSizeLimit := 256 * 1024
 	client := sns.New(sess, &aws.Config{Credentials: creds})
