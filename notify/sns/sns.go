@@ -79,15 +79,10 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
 			Region:      aws.String(n.conf.Sigv4.Region),
-			Credentials: creds,
 			Endpoint:    aws.String(tmpl(n.conf.APIUrl)),
 		},
 		Profile: n.conf.Sigv4.Profile,
 	})
-
-	if _, err := sess.Config.Credentials.Get(); err != nil {
-		return false, fmt.Errorf("could not get SigV4 credentials: %w", err)
-	}
 
 	if n.conf.Sigv4.RoleARN != "" {
 		sess.Config.Credentials = stscreds.NewCredentials(sess, n.conf.Sigv4.RoleARN)

@@ -698,7 +698,8 @@ value: <tmpl_string>
 # Whether or not to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The SNS API URL i.e. https://sns.us-east-2.amazonaws.com
+# The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
+#  If not specified, the SNS API URL from the SNS SDK will be used.
 [api_url: <tmpl_string>]
 
 # Configures AWS's Signature Verification 4 signing process to sign requests.
