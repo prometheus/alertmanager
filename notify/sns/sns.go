@@ -92,7 +92,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 			// If we have set the API URL we need to create a new session to get the STS Credentials.
 			stsSess, err = session.NewSessionWithOptions(session.Options{
 				Config: aws.Config{
-					Region: aws.String(n.conf.Sigv4.Region),
+					Region:      aws.String(n.conf.Sigv4.Region),
 					Credentials: creds,
 				},
 				Profile: n.conf.Sigv4.Profile,
