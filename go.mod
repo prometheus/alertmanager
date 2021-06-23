@@ -23,8 +23,9 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/oklog/ulid v1.3.1
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.10.0
-	github.com/prometheus/common v0.24.0
+	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/common v0.29.0
+	github.com/prometheus/common/sigv4 v0.1.0
 	github.com/prometheus/exporter-toolkit v0.5.1
 	github.com/rs/cors v1.7.0
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
@@ -32,7 +33,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.5.0
-	golang.org/x/net v0.0.0-20210421230115-4e50805a0758
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/tools v0.1.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v2 v2.4.0
