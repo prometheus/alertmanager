@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/sigv4"
 
 	commoncfg "github.com/prometheus/common/config"
 )
@@ -589,25 +590,13 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-// SigV4Config is the configuration for signing remote write requests with
-// AWS's SigV4 verification process. Empty values will be retrieved using the
-// AWS default credentials chain.
-// TODO: Move to common.
-type SigV4Config struct {
-	Region    string `yaml:"region,omitempty"`
-	AccessKey string `yaml:"access_key,omitempty"`
-	SecretKey Secret `yaml:"secret_key,omitempty"`
-	Profile   string `yaml:"profile,omitempty"`
-	RoleARN   string `yaml:"role_arn,omitempty"`
-}
-
 type SNSConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIUrl      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	Sigv4       SigV4Config       `yaml:"sigv4" json:"sigv4"`
+	Sigv4       sigv4.SigV4Config `yaml:"sigv4" json:"sigv4"`
 	TopicARN    string            `yaml:"topic_arn,omitempty" json:"topic_arn,omitempty"`
 	PhoneNumber string            `yaml:"phone_number,omitempty" json:"phone_number,omitempty"`
 	TargetARN   string            `yaml:"target_arn,omitempty" json:"target_arn,omitempty"`
