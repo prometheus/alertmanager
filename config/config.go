@@ -242,6 +242,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.WechatConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.NewRelicConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -447,6 +450,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIKey = c.Global.VictorOpsAPIKey
 			}
 		}
+		for _, ogc := range rcv.NewRelicConfigs {
+			if ogc.HTTPConfig == nil {
+				ogc.HTTPConfig = c.Global.HTTPConfig
+			}
+			if ogc.APIURL == nil {
+				if c.Global.NewRelicAPIURL == nil {
+					return fmt.Errorf("no global NewRelic URL set")
+				}
+				ogc.APIURL = c.Global.NewRelicAPIURL
+			}
+			if ogc.APIKey == "" {
+				if c.Global.NewRelicAPIKey == "" {
+					return fmt.Errorf("no global NewRelic API Key set")
+				}
+				ogc.APIKey = c.Global.NewRelicAPIKey
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -527,6 +547,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+		NewRelicAPIURL:  mustParseURL("https://log-api.newrelic.com/log/v1"),
 	}
 }
 
@@ -646,6 +667,8 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	NewRelicAPIURL   *URL       `yaml:"newrelic_api_url,omitempty" json:"newrelic_api_url,omitempty"`
+	NewRelicAPIKey   Secret     `yaml:"newrelic_api_key,omitempty" json:"newrelic_api_key,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -784,6 +807,7 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	NewRelicConfigs  []*NewRelicConfig  `yaml:"newrelic_configs,omitempty" json:"newrelic_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

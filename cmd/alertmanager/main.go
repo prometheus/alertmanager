@@ -50,6 +50,7 @@ import (
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/email"
+	"github.com/prometheus/alertmanager/notify/newrelic"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
@@ -164,6 +165,10 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	}
 	for i, c := range nc.PushoverConfigs {
 		add("pushover", i, c, func(l log.Logger) (notify.Notifier, error) { return pushover.New(c, tmpl, l) })
+	}
+	// New Relic Insight Event Receiver
+	for i, c := range nc.NewRelicConfigs {
+		add("newrelic", i, c, func(l log.Logger) (notify.Notifier, error) { return newrelic.New(c, tmpl, l) })
 	}
 	if errs.Len() > 0 {
 		return nil, &errs
