@@ -117,15 +117,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		publishInput.SetTopicArn(topicTmpl)
 
 		if n.isFifo == nil {
-			checkFifo, err := checkTopicFifoAttribute(client, topicTmpl)
-			if err != nil {
-				if e, ok := err.(awserr.RequestFailure); ok {
-					return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
-				} else {
-					return true, err
-				}
-			}
-			n.isFifo = &checkFifo
+			n.isFifo = aws.Bool(n.conf.TopicARN[len(n.conf.TopicARN)-5:] == ".fifo")
 		}
 		if *n.isFifo {
 			// Deduplication key and Message Group ID are only added if it's a FIFO SNS Topic.
