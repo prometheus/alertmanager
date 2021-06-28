@@ -303,7 +303,7 @@ templates:
 
 Then you can test out how a template would look like with example by using this command:
 ```
-amtool template render --templateglob='/foo/bar/*.tmpl' --templatetext='{{ template "slack.default.markdown.v1" . }}'
+amtool template render --template.glob='/foo/bar/*.tmpl' --template.text='{{ template "slack.default.markdown.v1" . }}'
 ```
 
 ### Configuration
