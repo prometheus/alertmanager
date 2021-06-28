@@ -168,15 +168,6 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	return false, nil
 }
 
-func checkTopicFifoAttribute(client *sns.SNS, topicARN string) (bool, error) {
-	topicAttributes, err := client.GetTopicAttributes(&sns.GetTopicAttributesInput{TopicArn: aws.String(topicARN)})
-	if err != nil {
-		return false, err
-	}
-	ta := topicAttributes.Attributes["FifoTopic"]
-	return aws.StringValue(ta) == "true", nil
-}
-
 func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (string, bool, error) {
 	if !utf8.ValidString(message) {
 		return "", false, fmt.Errorf("non utf8 encoded message string")
