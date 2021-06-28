@@ -147,6 +147,16 @@ var (
 		HTML:     false,
 	}
 
+	// DefaultNewRelicConfig defines default values for NewRelic configurations.
+	DefaultNewRelicConfig = NewRelicConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:     `{{ template "newrelic.default.message" . }}`,
+		Description: `{{ template "newrelic.default.description" . }}`,
+		Source:      `{{ template "newrelic.default.source" . }}`,
+	}
+
 	// DefaultSNSConfig defines default values for SNS configurations.
 	DefaultSNSConfig = SNSConfig{
 		NotifierConfig: NotifierConfig{
@@ -783,6 +793,32 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		c.ParseMode != "MarkdownV2" &&
 		c.ParseMode != "HTML" {
 		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
+	}
+	return nil
+}
+
+// NewRelicConfig configures notifications via NewRelic.
+type NewRelicConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	APIKey         Secret                      `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	Message        string                      `yaml:"message,omitempty" json:"message,omitempty"`
+	Description    string                      `yaml:"description,omitempty" json:"description,omitempty"`
+	Source         string                      `yaml:"source,omitempty" json:"source,omitempty"`
+	Details        map[string]string           `yaml:"details,omitempty" json:"details,omitempty"`
+	Headers        map[string]string           `yaml:"headers,omitempty" json:"headers,omitempty"`
+	Tags           string                      `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Note           string                      `yaml:"note,omitempty" json:"note,omitempty"`
+	Priority       string                      `yaml:"priority,omitempty" json:"priority,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *NewRelicConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultNewRelicConfig
+	type plain NewRelicConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
 	}
 	return nil
 }

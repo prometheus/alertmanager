@@ -242,6 +242,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.WechatConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.NewRelicConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.SNSConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -497,6 +500,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
 			}
 		}
+		for _, ogc := range rcv.NewRelicConfigs {
+			if ogc.HTTPConfig == nil {
+				ogc.HTTPConfig = c.Global.HTTPConfig
+			}
+			if ogc.APIURL == nil {
+				if c.Global.NewRelicAPIURL == nil {
+					return fmt.Errorf("no global NewRelic URL set")
+				}
+				ogc.APIURL = c.Global.NewRelicAPIURL
+			}
+			if ogc.APIKey == "" {
+				if c.Global.NewRelicAPIKey == "" {
+					return fmt.Errorf("no global NewRelic API Key set")
+				}
+				ogc.APIKey = c.Global.NewRelicAPIKey
+			}
+		}
 		for _, sns := range rcv.SNSConfigs {
 			if sns.HTTPConfig == nil {
 				sns.HTTPConfig = c.Global.HTTPConfig
@@ -638,6 +658,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+		NewRelicAPIURL:  mustParseURL("https://log-api.newrelic.com/log/v1"),
 		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
 		WebexAPIURL:     mustParseURL("https://webexapis.com/v1/messages"),
 	}
@@ -761,6 +782,8 @@ type GlobalConfig struct {
 	WeChatAPICorpID      string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL      *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey      Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	NewRelicAPIURL       *URL       `yaml:"newrelic_api_url,omitempty" json:"newrelic_api_url,omitempty"`
+	NewRelicAPIKey       Secret     `yaml:"newrelic_api_key,omitempty" json:"newrelic_api_key,omitempty"`
 	VictorOpsAPIKeyFile  string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl       *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
 	WebexAPIURL          *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
@@ -904,6 +927,7 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	NewRelicConfigs  []*NewRelicConfig  `yaml:"newrelic_configs,omitempty" json:"newrelic_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`

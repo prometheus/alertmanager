@@ -290,6 +290,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"opsgenie",
 		"webhook",
 		"victorops",
+		"newrelic",
 		"sns",
 		"telegram",
 	} {

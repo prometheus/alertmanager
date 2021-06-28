@@ -866,6 +866,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
 			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+			NewRelicAPIURL:  mustParseURL("https://log-api.newrelic.com/log/v1"),
 			TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
 			WebexAPIURL:     mustParseURL("https://webexapis.com/v1/messages"),
 		},
