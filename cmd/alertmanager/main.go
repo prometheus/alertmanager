@@ -166,7 +166,6 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	for i, c := range nc.PushoverConfigs {
 		add("pushover", i, c, func(l log.Logger) (notify.Notifier, error) { return pushover.New(c, tmpl, l) })
 	}
-	// New Relic Insight Event Receiver
 	for i, c := range nc.NewRelicConfigs {
 		add("newrelic", i, c, func(l log.Logger) (notify.Notifier, error) { return newrelic.New(c, tmpl, l) })
 	}
