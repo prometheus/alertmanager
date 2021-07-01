@@ -527,6 +527,24 @@ func TestQMatches(t *testing.T) {
 			},
 			drop: false,
 		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+					{Name: "foo", Pattern: "", Type: pb.Matcher_EQUAL},
+				},
+			},
+			drop: false,
+		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_REGEXP},
+					{Name: "foo", Pattern: "", Type: pb.Matcher_REGEXP},
+				},
+			},
+			drop: false,
+		},
 	}
 	for _, c := range cases {
 		drop, err := f(c.sil, &Silences{mc: matcherCache{}, st: state{}}, time.Time{})

@@ -178,6 +178,17 @@ func (ms Matchers) Less(i, j int) bool {
 // Matches checks whether all matchers are fulfilled against the given label set.
 func (ms Matchers) Matches(lset model.LabelSet) bool {
 	for _, m := range ms {
+		if !m.Matches(string(lset[model.LabelName(m.Name)])) {
+			return false
+		}
+	}
+	return true
+}
+
+// MatchesSilence checks matchers against the given label set used by silence situation
+// to avoid empty matcher mismatch
+func (ms Matchers) MatchesSilence(lset model.LabelSet) bool {
+	for _, m := range ms {
 		value, ok := lset[model.LabelName(m.Name)]
 		if !ok {
 			return false

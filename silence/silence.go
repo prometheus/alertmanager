@@ -648,7 +648,7 @@ func QMatches(set model.LabelSet) QueryParam {
 			if err != nil {
 				return true, err
 			}
-			return m.Matches(set), nil
+			return m.MatchesSilence(set), nil
 		}
 		q.filters = append(q.filters, f)
 		return nil
