@@ -83,6 +83,13 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		},
 		Profile: n.conf.Sigv4.Profile,
 	})
+	if err != nil {
+		if e, ok := err.(awserr.RequestFailure); ok {
+			return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
+		} else {
+			return true, err
+		}
+	}
 
 	if n.conf.Sigv4.RoleARN != "" {
 		var stsSess *session.Session
