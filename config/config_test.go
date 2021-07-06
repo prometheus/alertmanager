@@ -1032,6 +1032,10 @@ func TestInvalidSNSConfig(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error with missing fields on SNS config")
 	}
+	const expectedErr = `must provide either a Target ARN, Topic ARN, or Phone Number for SNS config`
+	if err.Error() != expectedErr {
+		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
+	}
 }
 
 func TestUnmarshalHostPort(t *testing.T) {

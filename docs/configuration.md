@@ -700,7 +700,7 @@ value: <tmpl_string>
 
 # The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
 #  If not specified, the SNS API URL from the SNS SDK will be used.
-[api_url: <tmpl_string>]
+[ api_url: <tmpl_string> ]
 
 # Configures AWS's Signature Verification 4 signing process to sign requests.
 sigv4:
@@ -710,7 +710,7 @@ sigv4:
 # If you don't specify this value, you must specify a value for the phone_number or target_arn.
 # If you are using a FIFO SNS topic you should set a message group interval longer than 5 minutes
 # to prevent messages with the same group key being deduplicated by the SNS default deduplication window
-[ topic_arn: <tmpl_string>]
+[ topic_arn: <tmpl_string> ]
 
 # Subject line when the message is delivered to email endpoints.
 [ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ] 
@@ -728,7 +728,7 @@ sigv4:
 
 # SNS message attributes.
 attributes: 
-  [key : value]
+  [ <string>: <string> ... ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
