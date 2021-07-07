@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/sigv4"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -454,6 +455,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if sns.HTTPConfig == nil {
 				sns.HTTPConfig = c.Global.HTTPConfig
 			}
+			sns.Sigv4 = mergeSigV4Configs(sns.Sigv4, c.Global.Sigv4)
 		}
 		names[rcv.Name] = struct{}{}
 	}
@@ -520,6 +522,49 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 		}
 	}
 	return nil
+}
+
+func mergeSigV4Configs(snsSigV4Config sigv4.SigV4Config, globalSigV4Config sigv4.SigV4Config) sigv4.SigV4Config {
+	var (
+		accessKey string
+		secretKey commoncfg.Secret
+		region    string
+		profile   string
+		roleARN   string
+	)
+
+	if snsSigV4Config.AccessKey == "" {
+		accessKey = globalSigV4Config.AccessKey
+	} else {
+		accessKey = snsSigV4Config.AccessKey
+	}
+	if snsSigV4Config.SecretKey == "" {
+		secretKey = globalSigV4Config.SecretKey
+	} else {
+		secretKey = snsSigV4Config.SecretKey
+	}
+	if snsSigV4Config.Region == "" {
+		region = globalSigV4Config.Region
+	} else {
+		region = snsSigV4Config.Region
+	}
+	if snsSigV4Config.Profile == "" {
+		profile = globalSigV4Config.Profile
+	} else {
+		profile = snsSigV4Config.Profile
+	}
+	if snsSigV4Config.RoleARN == "" {
+		roleARN = globalSigV4Config.RoleARN
+	} else {
+		roleARN = snsSigV4Config.RoleARN
+	}
+	return sigv4.SigV4Config{
+		Region:    region,
+		AccessKey: accessKey,
+		SecretKey: secretKey,
+		Profile:   profile,
+		RoleARN:   roleARN,
+	}
 }
 
 // DefaultGlobalConfig returns GlobalConfig with default values.
@@ -636,24 +681,25 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	SMTPFrom         string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
-	SMTPHello        string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost    HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
-	SMTPAuthUsername string     `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthSecret   Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
-	SMTPAuthIdentity string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS   bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL      *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
-	SlackAPIURLFile  string     `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
-	PagerdutyURL     *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
-	OpsGenieAPIURL   *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
-	OpsGenieAPIKey   Secret     `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
-	WeChatAPIURL     *URL       `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
-	WeChatAPISecret  Secret     `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
-	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
-	VictorOpsAPIURL  *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey  Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	SMTPFrom         string            `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello        string            `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
+	SMTPSmarthost    HostPort          `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPAuthUsername string            `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
+	SMTPAuthPassword Secret            `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthSecret   Secret            `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthIdentity string            `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
+	SMTPRequireTLS   bool              `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
+	SlackAPIURL      *SecretURL        `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	SlackAPIURLFile  string            `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
+	PagerdutyURL     *URL              `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
+	OpsGenieAPIURL   *URL              `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
+	OpsGenieAPIKey   Secret            `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
+	WeChatAPIURL     *URL              `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
+	WeChatAPISecret  Secret            `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
+	WeChatAPICorpID  string            `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
+	VictorOpsAPIURL  *URL              `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey  Secret            `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	Sigv4            sigv4.SigV4Config `yaml:"sigv4,omitempty" json:"sigv4,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.

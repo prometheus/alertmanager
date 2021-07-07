@@ -90,6 +90,9 @@ global:
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
+  # Configures AWS's Signature Verification 4 signing process to sign requests.
+  sigv4:
+    [ <sigv4_config> ]
 
   # The default HTTP client configuration
   [ http_config: <http_config> ]
@@ -737,18 +740,18 @@ attributes:
 ###`<sigv4_config>`
 ```yaml
 # The AWS region. If blank, the region from the default credentials chain is used.
-[ region: <string> ]
+[ region: <string> | default = global.sigv4.region ]
 
 # The AWS API keys. Both access_key and secret_key must be supplied or both must be blank.
 # If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used. 
-[ access_key: <string> ]
-[ secret_key: <secret> ]
+[ access_key: <string> | default = global.sigv4.access_key ]
+[ secret_key: <secret> | default = global.sigv4.secret_key ]
 
 # Named AWS profile used to authenticate.
-[ profile: <string> ]
+[ profile: <string> | default = global.sigv4.profile ]
 
 # AWS Role ARN, an alternative to using AWS API keys.
-[ role_arn: <string> ]
+[ role_arn: <string> | default = global.sigv4.role_arn ]
 ```
 
 ## `<matcher>`
