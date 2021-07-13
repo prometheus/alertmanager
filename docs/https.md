@@ -129,17 +129,17 @@ tls_server_config:
     [ - <string> ] ]
 
 tls_client_config:
-  # CA certificate to validate the server certificate with.
-    [ ca_file: <filepath> ]
+  # Path to the CA certificate with which to validate the server certificate.
+  [ ca_file: <filepath> ]
     
-    # Certificate and key files for client cert authentication to the server.
-    [ cert_file: <filepath> ]
-    [ key_file: <filepath> ]
-    
-    # ServerName extension to indicate the name of the server.
-    # http://tools.ietf.org/html/rfc4366#section-3.1
-    [ server_name: <string> ]
-    
-    # Disable validation of the server certificate.
-    [ insecure_skip_verify: <boolean> | default = false]
+  # Certificate and key files for client cert authentication to the server.
+  [ cert_file: <filepath> ]
+  [ key_file: <filepath> ]
+  
+  # Server name extension to indicate the name of the server.
+  # http://tools.ietf.org/html/rfc4366#section-3.1
+  [ server_name: <string> ]
+  
+  # Disable validation of the server certificate.
+  [ insecure_skip_verify: <boolean> | default = false]
 ```
