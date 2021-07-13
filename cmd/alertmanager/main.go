@@ -234,7 +234,7 @@ func run() int {
 
 	tlsTransportConfig, err := cluster.GetTLSTransportConfig(*tlsConfigFile)
 	if err != nil {
-		level.Error(logger).Log("msg", "bad tls transport configuration", "err", err)
+		level.Error(logger).Log("msg", "unable to initialize TLS transport configuration for gossip mesh", "err", err)
 		return 1
 	}
 	var peer *cluster.Peer
