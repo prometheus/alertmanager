@@ -808,7 +808,7 @@ Loop:
 			return ctx, alerts, errors.Errorf("mute time %s doesn't exist in config", mtName)
 		}
 		for _, ti := range mt {
-			if ti.ContainsTime(now) {
+			if ti.ContainsTime(now.UTC()) {
 				muted = true
 				break Loop
 			}
