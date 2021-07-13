@@ -36,9 +36,8 @@ const (
 
 // tlsConn wraps net.Conn with connection pooling data.
 type tlsConn struct {
+	mtx        sync.Mutex
 	connection net.Conn
-	timeout    time.Duration
-	lock       sync.Mutex
 	live       bool
 }
 
@@ -51,7 +50,6 @@ func dialTLSConn(addr string, timeout time.Duration, tlsConfig *tls.Config) (*tl
 
 	return &tlsConn{
 		connection: conn,
-		timeout:    timeout,
 		live:       true,
 	}, nil
 }
@@ -65,8 +63,8 @@ func rcvTLSConn(conn net.Conn) *tlsConn {
 
 // Write writes a byte array into the connection. It returns the number of bytes written and an error.
 func (conn *tlsConn) Write(b []byte) (int, error) {
-	conn.lock.Lock()
-	defer conn.lock.Unlock()
+	conn.mtx.Lock()
+	defer conn.mtx.Unlock()
 	n, err := conn.connection.Write(b)
 
 	if err != nil {
@@ -76,20 +74,22 @@ func (conn *tlsConn) Write(b []byte) (int, error) {
 }
 
 func (conn *tlsConn) alive() bool {
-	conn.lock.Lock()
-	defer conn.lock.Unlock()
+	conn.mtx.Lock()
+	defer conn.mtx.Unlock()
 	return conn.live
 }
 
 // writePacket writes all the bytes in one operation so no concurrent write happens in between.
 // It prefixes the message length.
 func (conn *tlsConn) writePacket(fromAddr string, b []byte) error {
-	msg, err := proto.Marshal(&clusterpb.MemberlistMessage{
-		Version:  version,
-		Kind:     clusterpb.MemberlistMessage_PACKET,
-		FromAddr: fromAddr,
-		Msg:      b,
-	})
+	msg, err := proto.Marshal(
+		&clusterpb.MemberlistMessage{
+			Version:  version,
+			Kind:     clusterpb.MemberlistMessage_PACKET,
+			FromAddr: fromAddr,
+			Msg:      b,
+		},
+	)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal memeberlist packet message")
 	}
@@ -101,10 +101,12 @@ func (conn *tlsConn) writePacket(fromAddr string, b []byte) error {
 
 // writeStream simply signals that this is a stream connection by sending the connection type.
 func (conn *tlsConn) writeStream() error {
-	msg, err := proto.Marshal(&clusterpb.MemberlistMessage{
-		Version: version,
-		Kind:    clusterpb.MemberlistMessage_STREAM,
-	})
+	msg, err := proto.Marshal(
+		&clusterpb.MemberlistMessage{
+			Version: version,
+			Kind:    clusterpb.MemberlistMessage_STREAM,
+		},
+	)
 	if err != nil {
 		return errors.Wrap(err, "unable to marshal memeberlist stream message")
 	}
@@ -160,8 +162,8 @@ func toPacket(pb clusterpb.MemberlistMessage) (*memberlist.Packet, error) {
 }
 
 func (conn *tlsConn) Close() error {
-	conn.lock.Lock()
-	defer conn.lock.Unlock()
+	conn.mtx.Lock()
+	defer conn.mtx.Unlock()
 	conn.live = false
 	if conn.connection == nil {
 		return nil
