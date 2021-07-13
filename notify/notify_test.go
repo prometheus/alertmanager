@@ -767,13 +767,13 @@ func TestTimeMuteStage(t *testing.T) {
 		{
 			// Ensure comparisons are UTC only. 12:00 KST should be muted (03:00 UTC)
 			fireTime:   "14 Oct 20 12:00 +0900",
-			labels:     model.LabelSet{"kst": "mute"},
+			labels:     model.LabelSet{"mute": "kst"},
 			shouldMute: true,
 		},
 		{
 			// Ensure comparisons are UTC only. 22:00 KST should not be muted (13:00 UTC)
 			fireTime:   "14 Oct 20 22:00 +0900",
-			labels:     model.LabelSet{"kst": "dont_mute"},
+			labels:     model.LabelSet{"kmt": "dont_mute"},
 			shouldMute: false,
 		},
 	}
