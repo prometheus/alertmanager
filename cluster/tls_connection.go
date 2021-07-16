@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	version      = "v1.0.0"
+	version      = "v0.1.0"
 	uint32length = 4
 )
 
@@ -138,6 +138,9 @@ func (conn *tlsConn) read() (*memberlist.Packet, error) {
 	err = proto.Unmarshal(msgBuf, &pb)
 	if err != nil {
 		return nil, errors.Wrap(err, "error parsing message")
+	}
+	if pb.Version != version {
+		return nil, errors.New("tls memberlist message version incompatible")
 	}
 	switch pb.Kind {
 	case clusterpb.MemberlistMessage_STREAM:
