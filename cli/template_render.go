@@ -94,13 +94,13 @@ type templateRenderCmd struct {
 func configureTemplateRenderCmd(cc *kingpin.CmdClause) {
 	var (
 		c         = &templateRenderCmd{}
-		renderCmd = cc.Command("render", "Render a given definition in a template file to standard output")
+		renderCmd = cc.Command("render", "Render a given definition in a template file to standard output.")
 	)
 
-	renderCmd.Flag("template.glob", "Glob of paths that will be expanded and used for rendering").Required().StringsVar(&c.templateFilesGlobs)
-	renderCmd.Flag("template.text", "The template that will be rendered").Required().StringVar(&c.templateText)
-	renderCmd.Flag("template.type", "The type of the template. Can be either text (default) or html").EnumVar(&c.templateType, "html", "text")
-	renderCmd.Flag("template.data", `Full path to a file which contains the data of the alert(-s) with which the --template.text will be rendered. Must be in JSON. File must be formatted according to the following layout: https://pkg.go.dev/github.com/prometheus/alertmanager/template#Data. If none has been specified then a predefined, simple alert will be used for rendering`).FileVar(&c.templateData)
+	renderCmd.Flag("template.glob", "Glob of paths that will be expanded and used for rendering.").Required().StringsVar(&c.templateFilesGlobs)
+	renderCmd.Flag("template.text", "The template that will be rendered.").Required().StringVar(&c.templateText)
+	renderCmd.Flag("template.type", "The type of the template. Can be either text (default) or html.").EnumVar(&c.templateType, "html", "text")
+	renderCmd.Flag("template.data", "Full path to a file which contains the data of the alert(-s) with which the --template.text will be rendered. Must be in JSON. File must be formatted according to the following layout: https://pkg.go.dev/github.com/prometheus/alertmanager/template#Data. If none has been specified then a predefined, simple alert will be used for rendering.").FileVar(&c.templateData)
 
 	renderCmd.Action(execWithTimeout(c.render))
 }

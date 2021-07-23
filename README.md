@@ -295,7 +295,6 @@ $ amtool silence expire $(amtool silence query -q)
 ```
 
 Try out how a template works. Let's say you have this in your configuration file:
-
 ```
 templates:
   - '/foo/bar/*.tmpl'

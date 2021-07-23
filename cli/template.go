@@ -17,8 +17,8 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-// configureTemplateCmd represents the template command
+// configureTemplateCmd represents the template command.
 func configureTemplateCmd(app *kingpin.Application) {
-	templateCmd := app.Command("template", "Render template files")
+	templateCmd := app.Command("template", "Render template files.")
 	configureTemplateRenderCmd(templateCmd)
 }
