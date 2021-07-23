@@ -25,11 +25,13 @@
 
 * Alertmanager version:
 
-	insert output of `alertmanager --version` here
+	insert output of `alertmanager --version` here (repeat for each alertmanager
+	version in your cluster, if relevant to the issue)
 
 * Prometheus version:
 
-	insert output of `prometheus --version` here (if relevant to the issue)
+	insert output of `prometheus --version` here (repeat for each prometheus
+	version in your cluster, if relevant to the issue)
 
 * Alertmanager configuration file:
 ```

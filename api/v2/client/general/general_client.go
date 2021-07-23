@@ -23,12 +23,11 @@ import (
 	"fmt"
 
 	"github.com/go-openapi/runtime"
-
-	strfmt "github.com/go-openapi/strfmt"
+	"github.com/go-openapi/strfmt"
 )
 
 // New creates a new general API client.
-func New(transport runtime.ClientTransport, formats strfmt.Registry) *Client {
+func New(transport runtime.ClientTransport, formats strfmt.Registry) ClientService {
 	return &Client{transport: transport, formats: formats}
 }
 
@@ -40,8 +39,15 @@ type Client struct {
 	formats   strfmt.Registry
 }
 
+// ClientService is the interface for Client methods
+type ClientService interface {
+	GetStatus(params *GetStatusParams) (*GetStatusOK, error)
+
+	SetTransport(transport runtime.ClientTransport)
+}
+
 /*
-GetStatus Get current status of an Alertmanager instance and its cluster
+  GetStatus Get current status of an Alertmanager instance and its cluster
 */
 func (a *Client) GetStatus(params *GetStatusParams) (*GetStatusOK, error) {
 	// TODO: Validate the params before sending

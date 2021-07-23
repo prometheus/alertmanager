@@ -1,4 +1,4 @@
-module Utils.Match exposing (consecutiveChars, jaro, jaroWinkler)
+module Utils.Match exposing (consecutiveChars, jaroWinkler)
 
 import Char
 import Utils.List exposing (zip)

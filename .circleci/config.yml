@@ -2,7 +2,7 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.8.0
+  prometheus: prometheus/prometheus@0.11.0
   go: circleci/go@0.2.0
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
         command: sudo rm -rf /usr/local/go
     # Whenever the Go version is updated here, .promu.yml should also be updated.
     - go/install:
-        version: "1.14"
+        version: "1.16"
     - run:
         name: Remove generated code
         command: make clean
@@ -42,15 +42,15 @@ jobs:
   test:
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: circleci/golang:1.14
+    - image: circleci/golang:1.16
     # maildev containers are for running the email tests against a "real" SMTP server.
     # See notify/email_test.go for details.
-    - image: djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa
+    - image: djfarrelly/maildev:1.1.0
       name: maildev-noauth
       entrypoint: bin/maildev
       command:
       - -v
-    - image: djfarrelly/maildev@sha256:624e0ec781e11c3531da83d9448f5861f258ee008c1b2da63b3248bfd680acfa
+    - image: djfarrelly/maildev:1.1.0
       name: maildev-auth
       entrypoint: bin/maildev
       command:
@@ -89,7 +89,7 @@ jobs:
           # likely to get OOMed and killed.
           GOOPTS: "-p 2"
     - prometheus/check_proto:
-        version: "3.11.4"
+        version: "3.15.8"
     - prometheus/store_artifact:
         file: alertmanager
     - prometheus/store_artifact:
@@ -98,6 +98,17 @@ jobs:
         key: v1-go-mod
     - store_test_results:
         path: test-results
+
+  mixin:
+    docker:
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
+    - image: circleci/golang:1.16
+
+    steps:
+    - checkout
+    - run: go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
+    - run: go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
+    - run: make -C doc/alertmanager-mixin lint
 
 workflows:
   version: 2
@@ -113,6 +124,11 @@ workflows:
             only: /.*/
     - prometheus/build:
         name: build
+        parallelism: 8
+        filters:
+          tags:
+            only: /.*/
+    - mixin:
         filters:
           tags:
             only: /.*/

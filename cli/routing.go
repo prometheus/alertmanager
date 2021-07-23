@@ -105,7 +105,7 @@ func getMatchingTree(route *dispatch.Route, tree treeprint.Tree, lset models.Lab
 	final := true
 	branch := tree.AddBranch(getRouteTreeSlug(route, false, false))
 	for _, r := range route.Routes {
-		if r.Matchers.Match(convertClientToCommonLabelSet(lset)) {
+		if r.Matchers.Matches(convertClientToCommonLabelSet(lset)) {
 			getMatchingTree(r, branch, lset)
 			final = false
 			if !r.Continue {

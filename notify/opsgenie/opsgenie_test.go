@@ -76,85 +76,135 @@ func TestOpsGenie(t *testing.T) {
 	}
 	logger := log.NewNopLogger()
 	tmpl := test.CreateTmpl(t)
-	conf := &config.OpsGenieConfig{
-		NotifierConfig: config.NotifierConfig{
-			VSendResolved: true,
-		},
-		Message:     `{{ .CommonLabels.Message }}`,
-		Description: `{{ .CommonLabels.Description }}`,
-		Source:      `{{ .CommonLabels.Source }}`,
-		Responders: []config.OpsGenieConfigResponder{
-			{
-				Name: `{{ .CommonLabels.ResponderName1 }}`,
-				Type: `{{ .CommonLabels.ResponderType1 }}`,
+
+	for _, tc := range []struct {
+		title string
+		cfg   *config.OpsGenieConfig
+
+		expectedEmptyAlertBody string
+		expectedBody           string
+	}{
+		{
+			title: "config without details",
+			cfg: &config.OpsGenieConfig{
+				NotifierConfig: config.NotifierConfig{
+					VSendResolved: true,
+				},
+				Message:     `{{ .CommonLabels.Message }}`,
+				Description: `{{ .CommonLabels.Description }}`,
+				Source:      `{{ .CommonLabels.Source }}`,
+				Responders: []config.OpsGenieConfigResponder{
+					{
+						Name: `{{ .CommonLabels.ResponderName1 }}`,
+						Type: `{{ .CommonLabels.ResponderType1 }}`,
+					},
+					{
+						Name: `{{ .CommonLabels.ResponderName2 }}`,
+						Type: `{{ .CommonLabels.ResponderType2 }}`,
+					},
+				},
+				Tags:       `{{ .CommonLabels.Tags }}`,
+				Note:       `{{ .CommonLabels.Note }}`,
+				Priority:   `{{ .CommonLabels.Priority }}`,
+				APIKey:     `{{ .ExternalURL }}`,
+				APIURL:     &config.URL{URL: u},
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
 			},
-			{
-				Name: `{{ .CommonLabels.ResponderName2 }}`,
-				Type: `{{ .CommonLabels.ResponderType2 }}`,
+			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{},"source":""}
+`,
+			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{"Description":"description","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderType1":"team","ResponderType2":"escalation","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"EscalationA","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
+`,
+		},
+		{
+			title: "config with details",
+			cfg: &config.OpsGenieConfig{
+				NotifierConfig: config.NotifierConfig{
+					VSendResolved: true,
+				},
+				Message:     `{{ .CommonLabels.Message }}`,
+				Description: `{{ .CommonLabels.Description }}`,
+				Source:      `{{ .CommonLabels.Source }}`,
+				Details: map[string]string{
+					"Description": `adjusted {{ .CommonLabels.Description }}`,
+				},
+				Responders: []config.OpsGenieConfigResponder{
+					{
+						Name: `{{ .CommonLabels.ResponderName1 }}`,
+						Type: `{{ .CommonLabels.ResponderType1 }}`,
+					},
+					{
+						Name: `{{ .CommonLabels.ResponderName2 }}`,
+						Type: `{{ .CommonLabels.ResponderType2 }}`,
+					},
+				},
+				Tags:       `{{ .CommonLabels.Tags }}`,
+				Note:       `{{ .CommonLabels.Note }}`,
+				Priority:   `{{ .CommonLabels.Priority }}`,
+				APIKey:     `{{ .ExternalURL }}`,
+				APIURL:     &config.URL{URL: u},
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
 			},
+			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{"Description":"adjusted "},"source":""}
+`,
+			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{"Description":"adjusted description","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderType1":"team","ResponderType2":"escalation","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"EscalationA","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
+`,
 		},
-		Tags:       `{{ .CommonLabels.Tags }}`,
-		Note:       `{{ .CommonLabels.Note }}`,
-		Priority:   `{{ .CommonLabels.Priority }}`,
-		APIKey:     `{{ .ExternalURL }}`,
-		APIURL:     &config.URL{URL: u},
-		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			notifier, err := New(tc.cfg, tmpl, logger)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
+
+			// Empty alert.
+			alert1 := &types.Alert{
+				Alert: model.Alert{
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+
+			req, retry, err := notifier.createRequest(ctx, alert1)
+			require.NoError(t, err)
+			require.Equal(t, true, retry)
+			require.Equal(t, expectedURL, req.URL)
+			require.Equal(t, "GenieKey http://am", req.Header.Get("Authorization"))
+			require.Equal(t, tc.expectedEmptyAlertBody, readBody(t, req))
+
+			// Fully defined alert.
+			alert2 := &types.Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{
+						"Message":        "message",
+						"Description":    "description",
+						"Source":         "http://prometheus",
+						"ResponderName1": "TeamA",
+						"ResponderType1": "team",
+						"ResponderName2": "EscalationA",
+						"ResponderType2": "escalation",
+						"Tags":           "tag1,tag2",
+						"Note":           "this is a note",
+						"Priority":       "P1",
+					},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+			req, retry, err = notifier.createRequest(ctx, alert2)
+			require.NoError(t, err)
+			require.Equal(t, true, retry)
+			require.Equal(t, tc.expectedBody, readBody(t, req))
+
+			// Broken API Key Template.
+			tc.cfg.APIKey = "{{ kaput "
+			_, _, err = notifier.createRequest(ctx, alert2)
+			require.Error(t, err)
+			require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
+		})
 	}
-	notifier, err := New(conf, tmpl, logger)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	ctx = notify.WithGroupKey(ctx, "1")
-
-	expectedURL, _ := url.Parse("https://opsgenie/apiv2/alerts")
-
-	// Empty alert.
-	alert1 := &types.Alert{
-		Alert: model.Alert{
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
-	expectedBody := `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{},"source":""}
-`
-	req, retry, err := notifier.createRequest(ctx, alert1)
-	require.NoError(t, err)
-	require.Equal(t, true, retry)
-	require.Equal(t, expectedURL, req.URL)
-	require.Equal(t, "GenieKey http://am", req.Header.Get("Authorization"))
-	require.Equal(t, expectedBody, readBody(t, req))
-
-	// Fully defined alert.
-	alert2 := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"Message":        "message",
-				"Description":    "description",
-				"Source":         "http://prometheus",
-				"ResponderName1": "TeamA",
-				"ResponderType1": "team",
-				"ResponderName2": "EscalationA",
-				"ResponderType2": "escalation",
-				"Tags":           "tag1,tag2",
-				"Note":           "this is a note",
-				"Priority":       "P1",
-			},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
-	expectedBody = `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"EscalationA","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
-`
-	req, retry, err = notifier.createRequest(ctx, alert2)
-	require.NoError(t, err)
-	require.Equal(t, true, retry)
-	require.Equal(t, expectedBody, readBody(t, req))
-
-	// Broken API Key Template.
-	conf.APIKey = "{{ kaput "
-	_, _, err = notifier.createRequest(ctx, alert2)
-	require.Error(t, err)
-	require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
 }
 
 func readBody(t *testing.T, r *http.Request) string {

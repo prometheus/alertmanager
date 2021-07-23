@@ -1,13 +1,13 @@
-module Views exposing (cssNode, currentView, failureView, renderCSS, view)
+module Views exposing (view)
 
 import Html exposing (Html, div, node, text)
-import Html.Attributes exposing (class, href, rel, src, style)
+import Html.Attributes exposing (class, href, rel, style)
 import Html.Events exposing (on)
 import Json.Decode exposing (succeed)
 import Types exposing (Model, Msg(..), Route(..))
 import Utils.Filter exposing (emptySilenceFormGetParams)
 import Utils.Types exposing (ApiData(..))
-import Utils.Views exposing (error, loading)
+import Utils.Views
 import Views.AlertList.Views as AlertList
 import Views.NavBar.Views exposing (navBar)
 import Views.NotFound.Views as NotFound
@@ -21,17 +21,20 @@ view : Model -> Html Msg
 view model =
     div []
         [ renderCSS model.libUrl
-        , case ( model.bootstrapCSS, model.fontAwesomeCSS ) of
-            ( Success _, Success _ ) ->
+        , case ( model.bootstrapCSS, model.fontAwesomeCSS, model.elmDatepickerCSS ) of
+            ( Success _, Success _, Success _ ) ->
                 div []
                     [ navBar model.route
                     , div [ class "container pb-4" ] [ currentView model ]
                     ]
 
-            ( Failure err, _ ) ->
+            ( Failure err, _, _ ) ->
                 failureView model err
 
-            ( _, Failure err ) ->
+            ( _, Failure err, _ ) ->
+                failureView model err
+
+            ( _, _, Failure err ) ->
                 failureView model err
 
             _ ->
@@ -53,6 +56,7 @@ renderCSS assetsUrl =
     div []
         [ cssNode (assetsUrl ++ "lib/bootstrap-4.0.0-alpha.6-dist/css/bootstrap.min.css") BootstrapCSSLoaded
         , cssNode (assetsUrl ++ "lib/font-awesome-4.7.0/css/font-awesome.min.css") FontAwesomeCSSLoaded
+        , cssNode (assetsUrl ++ "lib/elm-datepicker/css/elm-datepicker.css") ElmDatepickerCSSLoaded
         ]
 
 
@@ -73,7 +77,7 @@ currentView model =
         StatusRoute ->
             Status.view model.status
 
-        SilenceViewRoute silenceId ->
+        SilenceViewRoute _ ->
             SilenceView.view model.silenceView
 
         AlertsRoute filter ->

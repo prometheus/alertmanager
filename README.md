@@ -20,7 +20,13 @@ is the recommended way of installing Alertmanager.
 
 ### Docker images
 
-Docker images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager).
+Docker images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager) or [Docker Hub](https://hub.docker.com/r/prom/alertmanager/).
+
+You can launch an Alertmanager container for trying it out with
+
+    $ docker run --name alertmanager -d -p 127.0.0.1:9093:9093 quay.io/prometheus/alertmanager
+
+Alertmanager will now be reachable at http://localhost:9093/.
 
 ### Compiling the binary
 
@@ -360,7 +366,7 @@ The chosen port in the `cluster.listen-address` flag is the port that needs to b
 specified in the `cluster.peer` flag of the other peers.
 
 The `cluster.advertise-address` flag is required if the instance doesn't have
-an IP address that is part of [RFC 6980](https://tools.ietf.org/html/rfc6890)
+an IP address that is part of [RFC 6890](https://tools.ietf.org/html/rfc6890)
 with a default route.
 
 To start a cluster of three peers on your local machine use [`goreman`](https://github.com/mattn/goreman) and the

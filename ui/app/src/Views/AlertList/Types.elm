@@ -9,7 +9,7 @@ import Browser.Navigation exposing (Key)
 import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
 import Set exposing (Set)
-import Utils.Types exposing (ApiData(..), Labels)
+import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Types as FilterBar
 import Views.GroupBar.Types as GroupBar
 import Views.ReceiverBar.Types as ReceiverBar
@@ -55,7 +55,7 @@ initAlertList key expandAll =
     , alertGroups = Initial
     , receiverBar = ReceiverBar.initReceiverBar key
     , groupBar = GroupBar.initGroupBar key
-    , filterBar = FilterBar.initFilterBar key
+    , filterBar = FilterBar.initFilterBar []
     , tab = FilterTab
     , activeId = Nothing
     , activeGroups = Set.empty

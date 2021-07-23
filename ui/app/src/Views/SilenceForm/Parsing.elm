@@ -3,9 +3,9 @@ module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, newSilence
 import Data.Matcher
 import Dict exposing (Dict)
 import Url exposing (percentEncode)
-import Url.Parser exposing ((</>), (<?>), Parser, map, oneOf, s, string)
+import Url.Parser exposing ((</>), (<?>), Parser, s, string)
 import Url.Parser.Query as Query
-import Utils.Filter exposing (Matcher, SilenceFormGetParams, parseFilter)
+import Utils.Filter exposing (SilenceFormGetParams, parseFilter)
 
 
 newSilenceFromAlertLabels : Dict String String -> String
@@ -39,14 +39,28 @@ newSilenceFromMatchers : List Data.Matcher.Matcher -> String
 newSilenceFromMatchers matchers =
     matchers
         |> List.map
-            (\{ name, value, isRegex } ->
+            (\{ name, value, isRegex, isEqual } ->
                 let
+                    isEqualValue =
+                        case isEqual of
+                            Nothing ->
+                                True
+
+                            Just justIsEqual ->
+                                justIsEqual
+
                     op =
-                        if isRegex then
+                        if not isRegex && isEqualValue then
+                            Utils.Filter.Eq
+
+                        else if not isRegex && not isEqualValue then
+                            Utils.Filter.NotEq
+
+                        else if isRegex && isEqualValue then
                             Utils.Filter.RegexMatch
 
                         else
-                            Utils.Filter.Eq
+                            Utils.Filter.NotRegexMatch
                 in
                 Utils.Filter.Matcher name op value
             )

@@ -1,10 +1,7 @@
-global:
-  resolve_timeout: 5m
-
 route:
   group_by: ['alertname']
-  group_wait: 10s
-  group_interval: 10s
+  group_wait: 30s
+  group_interval: 5m
   repeat_interval: 1h
   receiver: 'web.hook'
 receivers:

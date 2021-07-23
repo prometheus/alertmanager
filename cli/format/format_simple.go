@@ -57,14 +57,15 @@ func (formatter *SimpleFormatter) FormatSilences(silences []models.GettableSilen
 func (formatter *SimpleFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
-	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\t")
+	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\tState\t")
 	for _, alert := range alerts {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t\n",
+			"%s\t%s\t%s\t%s\t\n",
 			alert.Labels["alertname"],
 			FormatDate(*alert.StartsAt),
 			alert.Annotations["summary"],
+			*alert.Status.State,
 		)
 	}
 	return w.Flush()
@@ -93,9 +94,6 @@ func simpleFormatMatchers(matchers models.Matchers) string {
 	return strings.Join(output, " ")
 }
 
-func simpleFormatMatcher(matcher models.Matcher) string {
-	if *matcher.IsRegex {
-		return fmt.Sprintf("%s=~%s", *matcher.Name, *matcher.Value)
-	}
-	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
+func simpleFormatMatcher(m models.Matcher) string {
+	return labelsMatcher(m).String()
 }

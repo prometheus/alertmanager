@@ -1,20 +1,22 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, a, button, div, fieldset, h1, input, label, legend, span, strong, text, textarea)
-import Html.Attributes exposing (class, href)
+import Html exposing (Html, button, div, h1, i, input, label, strong, text)
+import Html.Attributes exposing (class, style)
 import Html.Events exposing (onClick)
-import Utils.Filter exposing (SilenceFormGetParams, emptySilenceFormGetParams)
+import Utils.DateTimePicker.Views exposing (viewDateTimePicker)
+import Utils.Filter exposing (SilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
-import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
+import Utils.Views exposing (loading, validatedField, validatedTextareaField)
+import Views.FilterBar.Types as FilterBar
+import Views.FilterBar.Views as FilterBar
 import Views.Shared.SilencePreview
-import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (MatcherForm, Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
+import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
-view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, activeAlertId } =
+view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -22,12 +24,12 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
                     ( "Edit Silence", FetchSilence silenceId_ )
 
                 Nothing ->
-                    ( "New Silence", NewSilenceFromMatchersAndComment defaultCreator emptySilenceFormGetParams )
+                    ( "New Silence", NewSilenceFromMatchersAndComment defaultCreator silenceFormGetParams )
     in
     div []
         [ h1 [] [ text title ]
         , timeInput form.startsAt form.endsAt form.duration
-        , matcherInput form.matchers
+        , matchersInput filterBarValid filterBar
         , validatedField input
             "Creator"
             inputSectionPadding
@@ -42,9 +44,51 @@ view maybeId { matchers, comment } defaultCreator { form, silenceId, alerts, act
             form.comment
         , div [ class inputSectionPadding ]
             [ informationBlock activeAlertId silenceId alerts
-            , silenceActionButtons maybeId form resetClick
+            , silenceActionButtons maybeId resetClick
             ]
+        , dateTimePickerDialog form
         ]
+
+
+dateTimePickerDialog : SilenceForm -> Html SilenceFormMsg
+dateTimePickerDialog form =
+    if form.viewDateTimePicker then
+        div []
+            [ div [ class "modal fade show", style "display" "block" ]
+                [ div [ class "modal-dialog modal-dialog-centered" ]
+                    [ div [ class "modal-content" ]
+                        [ div [ class "modal-header" ]
+                            [ button
+                                [ class "close ml-auto"
+                                , onClick (CloseDateTimePicker |> UpdateField)
+                                ]
+                                [ text "x" ]
+                            ]
+                        , div [ class "modal-body" ]
+                            [ viewDateTimePicker form.dateTimePicker |> Html.map UpdateDateTimePicker ]
+                        , div [ class "modal-footer" ]
+                            [ button
+                                [ class "ml-2 btn btn-outline-success mr-auto"
+                                , onClick (CloseDateTimePicker |> UpdateField)
+                                ]
+                                [ text "Cancel" ]
+                            , button
+                                [ class "ml-2 btn btn-primary"
+                                , onClick (UpdateTimesFromPicker |> UpdateField)
+                                ]
+                                [ text "Set Date/Time" ]
+                            ]
+                        ]
+                    ]
+                ]
+            , div [ class "modal-backdrop fade show" ] []
+            ]
+
+    else
+        div [ style "clip" "rect(0,0,0,0)", style "position" "fixed" ]
+            [ div [ class "modal fade" ] []
+            , div [ class "modal-backdrop fade" ] []
+            ]
 
 
 inputSectionPadding : String
@@ -57,40 +101,63 @@ timeInput startsAt endsAt duration =
     div [ class <| "row " ++ inputSectionPadding ]
         [ validatedField input
             "Start"
-            "col-5"
+            "col-lg-4 col-6"
             (UpdateStartsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             startsAt
         , validatedField input
             "Duration"
-            "col-2"
+            "col-lg-3 col-6"
             (UpdateDuration >> UpdateField)
             (ValidateTime |> UpdateField)
             duration
         , validatedField input
             "End"
-            "col-5"
+            "col-lg-4 col-6"
             (UpdateEndsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             endsAt
+        , div
+            [ class "form-group col-lg-1 col-6" ]
+            [ label
+                []
+                [ text "\u{00A0}" ]
+            , button
+                [ class "form-control btn btn-outline-primary cursor-pointer"
+                , onClick (OpenDateTimePicker |> UpdateField)
+                ]
+                [ i
+                    [ class "fa fa-calendar"
+                    ]
+                    []
+                ]
+            ]
         ]
 
 
-matcherInput : List MatcherForm -> Html SilenceFormMsg
-matcherInput matchers =
-    div [ class inputSectionPadding ]
-        [ div []
-            [ label []
-                [ strong [] [ text "Matchers " ]
-                , span [ class "" ] [ text "Alerts affected by this silence." ]
-                ]
-            , div [ class "row" ]
-                [ label [ class "col-5" ] [ text "Name" ]
-                , label [ class "col-5" ] [ text "Value" ]
-                ]
+matchersInput : Utils.FormValidation.ValidationState -> FilterBar.Model -> Html SilenceFormMsg
+matchersInput filterBarValid filterBar =
+    let
+        errorClass =
+            case filterBarValid of
+                Invalid _ ->
+                    " has-danger"
+
+                _ ->
+                    ""
+    in
+    div [ class (inputSectionPadding ++ errorClass) ]
+        [ label [ Html.Attributes.for "filter-bar-matcher" ]
+            [ strong [] [ text "Matchers " ]
+            , text "Alerts affected by this silence"
             ]
-        , div [] (List.indexedMap (matcherForm (List.length matchers > 1)) matchers)
-        , iconButtonMsg "btn btn-secondary" "fa-plus" (AddMatcher |> UpdateField)
+        , FilterBar.view { showSilenceButton = False } filterBar |> Html.map MsgForFilterBar
+        , case filterBarValid of
+            Invalid error ->
+                div [ class "form-control-feedback" ] [ text error ]
+
+            _ ->
+                text ""
         ]
 
 
@@ -111,8 +178,8 @@ informationBlock activeAlertId silence alerts =
             loading
 
 
-silenceActionButtons : Maybe String -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
-silenceActionButtons maybeId form resetClick =
+silenceActionButtons : Maybe String -> SilenceFormMsg -> Html SilenceFormMsg
+silenceActionButtons maybeId resetClick =
     div [ class ("mb-4 " ++ inputSectionPadding) ]
         [ previewSilenceBtn
         , createSilenceBtn maybeId
@@ -147,20 +214,3 @@ previewSilenceBtn =
         , onClick PreviewSilence
         ]
         [ text "Preview Alerts" ]
-
-
-matcherForm : Bool -> Int -> MatcherForm -> Html SilenceFormMsg
-matcherForm showDeleteButton index { name, value, isRegex } =
-    div [ class "row" ]
-        [ div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherName index) (ValidateMatcherName index) name ]
-        , div [ class "col-5" ] [ validatedField input "" "" (UpdateMatcherValue index) (ValidateMatcherValue index) value ]
-        , div [ class "col-2 d-flex align-items-center" ]
-            [ checkbox "Regex" isRegex (UpdateMatcherRegex index)
-            , if showDeleteButton then
-                iconButtonMsg "btn btn-secondary ml-auto" "fa-trash-o" (DeleteMatcher index)
-
-              else
-                text ""
-            ]
-        ]
-        |> Html.map UpdateField

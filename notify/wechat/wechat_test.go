@@ -67,3 +67,26 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 
 	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret, token)
 }
+
+func TestWechatMessageTypeSelector(t *testing.T) {
+	secret, token := "secret", "token"
+	ctx, u, fn := test.GetContextWithCancelingURL(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"access_token":"%s"}`, token)
+	})
+	defer fn()
+
+	notifier, err := New(
+		&config.WechatConfig{
+			APIURL:      &config.URL{URL: u},
+			HTTPConfig:  &commoncfg.HTTPClientConfig{},
+			CorpID:      "corpid",
+			APISecret:   config.Secret(secret),
+			MessageType: "markdown",
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret, token)
+}

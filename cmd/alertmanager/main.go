@@ -38,6 +38,8 @@ import (
 	promlogflag "github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/prometheus/exporter-toolkit/web"
+	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api"
@@ -58,6 +60,7 @@ import (
 	"github.com/prometheus/alertmanager/provider/mem"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
 )
@@ -184,6 +187,7 @@ func run() int {
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
+		webConfig      = webflag.AddFlags(kingpin.CommandLine)
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
 		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
 		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
@@ -206,6 +210,7 @@ func run() int {
 	)
 
 	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
+	kingpin.CommandLine.UsageWriter(os.Stdout)
 
 	kingpin.Version(version.Print("alertmanager"))
 	kingpin.CommandLine.GetFlag("help").Short('h')
@@ -330,11 +335,19 @@ func run() int {
 		return disp.Groups(routeFilter, alertFilter)
 	}
 
+	// An interface value that holds a nil concrete value is non-nil.
+	// Therefore we explicly pass an empty interface, to detect if the
+	// cluster is not enabled in notify.
+	var clusterPeer cluster.ClusterPeer
+	if peer != nil {
+		clusterPeer = peer
+	}
+
 	api, err := api.New(api.Options{
 		Alerts:      alerts,
 		Silences:    silences,
 		StatusFunc:  marker.Status,
-		Peer:        peer,
+		Peer:        clusterPeer,
 		Timeout:     *httpTimeout,
 		Concurrency: *getConcurrency,
 		Logger:      log.With(logger, "component", "api"),
@@ -410,18 +423,34 @@ func run() int {
 			integrationsNum += len(integrations)
 		}
 
+		// Build the map of time interval names to mute time definitions.
+		muteTimes := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals))
+		for _, ti := range conf.MuteTimeIntervals {
+			muteTimes[ti.Name] = ti.TimeIntervals
+		}
+
 		inhibitor.Stop()
 		disp.Stop()
 
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
+
+		// An interface value that holds a nil concrete value is non-nil.
+		// Therefore we explicly pass an empty interface, to detect if the
+		// cluster is not enabled in notify.
+		var pipelinePeer notify.Peer
+		if peer != nil {
+			pipelinePeer = peer
+		}
+
 		pipeline := pipelineBuilder.New(
 			receivers,
 			waitFunc,
 			inhibitor,
 			silencer,
+			muteTimes,
 			notificationLog,
-			peer,
+			pipelinePeer,
 		)
 		configuredReceivers.Set(float64(len(activeReceivers)))
 		configuredIntegrations.Set(float64(integrationsNum))
@@ -478,12 +507,12 @@ func run() int {
 
 	mux := api.Register(router, *routePrefix)
 
-	srv := http.Server{Addr: *listenAddress, Handler: mux}
+	srv := &http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
 
 	go func() {
 		level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		if err := web.ListenAndServe(srv, *webConfig, logger); err != http.ErrServerClosed {
 			level.Error(logger).Log("msg", "Listen error", "err", err)
 			close(srvc)
 		}

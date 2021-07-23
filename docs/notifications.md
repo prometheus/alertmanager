@@ -31,6 +31,7 @@ Note that some fields are evaluated as text, and others as HTML which will affec
 | ExternalURL | string | Backlink to the Alertmanager that sent the notification. |
 
 The `Alerts` type exposes functions for filtering alerts:
+
  - `Alerts.Firing` returns a list of currently firing alert objects in this group
  - `Alerts.Resolved` returns a list of resolved alert objects in this group
 
@@ -46,6 +47,7 @@ The `Alerts` type exposes functions for filtering alerts:
 | StartsAt | time.Time | The time the alert started firing. If omitted, the current time is assigned by the Alertmanager. |
 | EndsAt | time.Time | Only set if the end time of an alert is known. Otherwise set to a configurable timeout period from the time since the last alert was received. |
 | GeneratorURL | string | A backlink which identifies the causing entity of this alert. |
+| Fingerprint | string | Fingerprint that can be used to identify the alert. |
 
 ## KV
 

@@ -113,7 +113,7 @@ func (c *Collector) check() string {
 		for _, exp := range expected {
 			found := len(exp) == 0 && len(alerts) == 0
 
-			report += fmt.Sprintf("---\n")
+			report += "---\n"
 
 			for _, e := range exp {
 				report += fmt.Sprintf("- %v\n", c.opts.alertString(e))
@@ -127,10 +127,10 @@ func (c *Collector) check() string {
 			}
 
 			if found {
-				report += fmt.Sprintf("  [ ✓ ]\n")
+				report += "  [ ✓ ]\n"
 			} else {
 				c.t.Fail()
-				report += fmt.Sprintf("  [ ✗ ]\n")
+				report += "  [ ✗ ]\n"
 			}
 		}
 	}

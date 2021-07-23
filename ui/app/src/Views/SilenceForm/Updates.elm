@@ -7,31 +7,32 @@ import Task
 import Time
 import Types exposing (Msg(..))
 import Utils.Date exposing (timeFromString)
+import Utils.DateTimePicker.Types exposing (initFromStartAndEndTime)
+import Utils.DateTimePicker.Updates as DateTimePickerUpdates
 import Utils.Filter exposing (silencePreviewFilter)
-import Utils.FormValidation exposing (fromResult, stringNotEmpty, updateValue, validate)
-import Utils.List
+import Utils.FormValidation exposing (initialField, stringNotEmpty, updateValue, validate)
 import Utils.Types exposing (ApiData(..))
+import Views.FilterBar.Types as FilterBar
+import Views.FilterBar.Updates as FilterBar
 import Views.SilenceForm.Types
     exposing
         ( Model
         , SilenceForm
         , SilenceFormFieldMsg(..)
         , SilenceFormMsg(..)
-        , emptyMatcher
+        , fromDateTimePicker
         , fromMatchersAndCommentAndTime
         , fromSilence
         , parseEndsAt
         , toSilence
         , validateForm
+        , validateMatchers
         )
 
 
 updateForm : SilenceFormFieldMsg -> SilenceForm -> SilenceForm
 updateForm msg form =
     case msg of
-        AddMatcher ->
-            { form | matchers = form.matchers ++ [ emptyMatcher ] }
-
         UpdateStartsAt time ->
             let
                 startsAt =
@@ -124,60 +125,56 @@ updateForm msg form =
         ValidateComment ->
             { form | comment = validate stringNotEmpty form.comment }
 
-        DeleteMatcher index ->
-            { form | matchers = List.take index form.matchers ++ List.drop (index + 1) form.matchers }
-
-        UpdateMatcherName index name ->
+        UpdateTimesFromPicker ->
             let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | name = updateValue name matcher.name })
-                        form.matchers
-            in
-            { form | matchers = matchers }
+                ( startsAt, endsAt, duration ) =
+                    case ( form.dateTimePicker.startTime, form.dateTimePicker.endTime ) of
+                        ( Just start, Just end ) ->
+                            ( validate timeFromString (initialField (Utils.Date.timeToString start))
+                            , validate (parseEndsAt (Utils.Date.timeToString start)) (initialField (Utils.Date.timeToString end))
+                            , initialField (Utils.Date.durationFormat (Utils.Date.timeDifference start end) |> Maybe.withDefault "")
+                                |> validate Utils.Date.parseDuration
+                            )
 
-        ValidateMatcherName index ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | name = validate stringNotEmpty matcher.name })
-                        form.matchers
+                        _ ->
+                            ( form.startsAt, form.endsAt, form.duration )
             in
-            { form | matchers = matchers }
+            { form
+                | startsAt = startsAt
+                , endsAt = endsAt
+                , duration = duration
+                , viewDateTimePicker = False
+            }
 
-        UpdateMatcherValue index value ->
+        OpenDateTimePicker ->
             let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = updateValue value matcher.value })
-                        form.matchers
-            in
-            { form | matchers = matchers }
+                startsAtTime =
+                    case timeFromString form.startsAt.value of
+                        Ok time ->
+                            Just time
 
-        ValidateMatcherValue index ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = matcher.value })
-                        form.matchers
-            in
-            { form | matchers = matchers }
+                        _ ->
+                            form.dateTimePicker.startTime
 
-        UpdateMatcherRegex index isRegex ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | isRegex = isRegex })
-                        form.matchers
+                endsAtTime =
+                    timeFromString form.endsAt.value |> Result.toMaybe
             in
-            { form | matchers = matchers }
+            { form
+                | viewDateTimePicker = True
+                , dateTimePicker = initFromStartAndEndTime startsAtTime endsAtTime
+            }
+
+        CloseDateTimePicker ->
+            { form
+                | viewDateTimePicker = False
+            }
 
 
 update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
 update msg model basePath apiUrl =
     case msg of
         CreateSilence ->
-            case toSilence model.form of
+            case toSilence model.filterBar model.form of
                 Just silence ->
                     ( { model | silenceId = Loading }
                     , Cmd.batch
@@ -191,6 +188,7 @@ update msg model basePath apiUrl =
                     ( { model
                         | silenceId = Failure "Could not submit the form, Silence is not yet valid."
                         , form = validateForm model.form
+                        , filterBarValid = validateMatchers model.filterBar
                       }
                     , Cmd.none
                     )
@@ -211,10 +209,12 @@ update msg model basePath apiUrl =
             ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment >> MsgForSilenceForm) Time.now )
 
         NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment time ->
-            ( { form = fromMatchersAndCommentAndTime defaultCreator matchers comment time
+            ( { form = fromMatchersAndCommentAndTime defaultCreator comment time
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
+              , filterBar = FilterBar.initFilterBar matchers
+              , filterBarValid = Utils.FormValidation.Initial
               , key = model.key
               }
             , Cmd.none
@@ -224,7 +224,14 @@ update msg model basePath apiUrl =
             ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetch >> MsgForSilenceForm) )
 
         SilenceFetch (Success silence) ->
-            ( { model | form = fromSilence silence }
+            ( { form = fromSilence silence
+              , filterBar = FilterBar.initFilterBar (List.map Utils.Filter.fromApiMatcher silence.matchers)
+              , filterBarValid = Utils.FormValidation.Initial
+              , silenceId = model.silenceId
+              , alerts = Initial
+              , activeAlertId = Nothing
+              , key = model.key
+              }
             , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
             )
 
@@ -232,7 +239,7 @@ update msg model basePath apiUrl =
             ( model, Cmd.none )
 
         PreviewSilence ->
-            case toSilence model.form of
+            case toSilence model.filterBar model.form of
                 Just silence ->
                     ( { model | alerts = Loading }
                     , Alerts.Api.fetchAlerts
@@ -245,6 +252,7 @@ update msg model basePath apiUrl =
                     ( { model
                         | alerts = Failure "Can not display affected Alerts, Silence is not yet valid."
                         , form = validateForm model.form
+                        , filterBarValid = validateMatchers model.filterBar
                       }
                     , Cmd.none
                     )
@@ -260,13 +268,32 @@ update msg model basePath apiUrl =
             )
 
         UpdateField fieldMsg ->
-            ( { form = updateForm fieldMsg model.form
-              , alerts = Initial
-              , silenceId = Initial
-              , key = model.key
-              , activeAlertId = model.activeAlertId
+            ( { model
+                | form = updateForm fieldMsg model.form
+                , alerts = Initial
+                , silenceId = Initial
               }
             , Cmd.none
+            )
+
+        UpdateDateTimePicker subMsg ->
+            let
+                newPicker =
+                    DateTimePickerUpdates.update subMsg model.form.dateTimePicker
+            in
+            ( { model
+                | form = fromDateTimePicker model.form newPicker
+              }
+            , Cmd.none
+            )
+
+        MsgForFilterBar subMsg ->
+            let
+                ( newFilterBar, _, subCmd ) =
+                    FilterBar.update subMsg model.filterBar
+            in
+            ( { model | filterBar = newFilterBar, filterBarValid = Utils.FormValidation.Initial }
+            , Cmd.map (MsgForFilterBar >> MsgForSilenceForm) subCmd
             )
 
 

@@ -22,6 +22,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 type ExtendedFormatter struct {
@@ -61,16 +62,17 @@ func (formatter *ExtendedFormatter) FormatSilences(silences []models.GettableSil
 func (formatter *ExtendedFormatter) FormatAlerts(alerts []*models.GettableAlert) error {
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
-	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\t")
+	fmt.Fprintln(w, "Labels\tAnnotations\tStarts At\tEnds At\tGenerator URL\tState\t")
 	for _, alert := range alerts {
 		fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t\n",
 			extendedFormatLabels(alert.Labels),
 			extendedFormatAnnotations(alert.Annotations),
 			FormatDate(*alert.StartsAt),
 			FormatDate(*alert.EndsAt),
 			alert.GeneratorURL,
+			*alert.Status.State,
 		)
 	}
 	return w.Flush()
@@ -129,16 +131,9 @@ func extendedFormatAnnotations(labels models.LabelSet) string {
 }
 
 func extendedFormatMatchers(matchers models.Matchers) string {
-	output := []string{}
+	lms := labels.Matchers{}
 	for _, matcher := range matchers {
-		output = append(output, extendedFormatMatcher(*matcher))
+		lms = append(lms, labelsMatcher(*matcher))
 	}
-	return strings.Join(output, " ")
-}
-
-func extendedFormatMatcher(matcher models.Matcher) string {
-	if *matcher.IsRegex {
-		return fmt.Sprintf("%s~=%s", *matcher.Name, *matcher.Value)
-	}
-	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
+	return lms.String()
 }
