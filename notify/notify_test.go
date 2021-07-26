@@ -742,27 +742,39 @@ func TestTimeMuteStage(t *testing.T) {
 	}{
 		{
 			// Friday during business hours
-			fireTime:   "01 Jan 21 09:00 GMT",
+			fireTime:   "01 Jan 21 09:00 +0000",
 			labels:     model.LabelSet{"foo": "bar"},
 			shouldMute: false,
 		},
 		{
 			// Tuesday before 5pm
-			fireTime:   "01 Dec 20 16:59 GMT",
+			fireTime:   "01 Dec 20 16:59 +0000",
 			labels:     model.LabelSet{"dont": "mute"},
 			shouldMute: false,
 		},
 		{
 			// Saturday
-			fireTime:   "17 Oct 20 10:00 GMT",
+			fireTime:   "17 Oct 20 10:00 +0000",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
 		{
 			// Wednesday before 9am
-			fireTime:   "14 Oct 20 05:00 GMT",
+			fireTime:   "14 Oct 20 05:00 +0000",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
+		},
+		{
+			// Ensure comparisons are UTC only. 12:00 KST should be muted (03:00 UTC)
+			fireTime:   "14 Oct 20 12:00 +0900",
+			labels:     model.LabelSet{"mute": "kst"},
+			shouldMute: true,
+		},
+		{
+			// Ensure comparisons are UTC only. 22:00 KST should not be muted (13:00 UTC)
+			fireTime:   "14 Oct 20 22:00 +0900",
+			labels:     model.LabelSet{"kst": "dont_mute"},
+			shouldMute: false,
 		},
 	}
 	var intervals []timeinterval.TimeInterval
@@ -776,7 +788,7 @@ func TestTimeMuteStage(t *testing.T) {
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
 	for _, tc := range cases {
-		now, err := time.Parse(time.RFC822, tc.fireTime)
+		now, err := time.Parse(time.RFC822Z, tc.fireTime)
 		if err != nil {
 			t.Fatalf("Couldn't parse fire time %s %s", tc.fireTime, err)
 		}
