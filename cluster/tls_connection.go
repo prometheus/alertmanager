@@ -122,6 +122,8 @@ func (conn *tlsConn) read() (*memberlist.Packet, error) {
 	if conn.connection == nil {
 		return nil, errors.New("nil connection")
 	}
+
+	conn.mtx.Lock()
 	reader := bufio.NewReader(conn.connection)
 	lenBuf := make([]byte, uint32length)
 	_, err := io.ReadFull(reader, lenBuf)
@@ -131,6 +133,8 @@ func (conn *tlsConn) read() (*memberlist.Packet, error) {
 	msgLen := binary.LittleEndian.Uint32(lenBuf)
 	msgBuf := make([]byte, msgLen)
 	_, err = io.ReadFull(reader, msgBuf)
+	conn.mtx.Unlock()
+
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading message")
 	}
