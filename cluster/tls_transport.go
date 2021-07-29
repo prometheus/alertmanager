@@ -97,6 +97,10 @@ func NewTLSTransport(
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to start TLS listener on %q port %d", bindAddr, bindPort))
 	}
+	connPool, err := newConnectionPool(tlsClientCfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialize tls transport connection pool")
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	t := &TLSTransport{
 		ctx:          ctx,
@@ -108,7 +112,7 @@ func NewTLSTransport(
 		listener:     listener,
 		packetCh:     make(chan *memberlist.Packet),
 		streamCh:     make(chan net.Conn),
-		connPool:     newConnectionPool(tlsClientCfg),
+		connPool:     connPool,
 		tlsServerCfg: tlsServerCfg,
 		tlsClientCfg: tlsClientCfg,
 	}

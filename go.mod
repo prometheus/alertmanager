@@ -5,6 +5,7 @@ require (
 	github.com/aws/aws-sdk-go v1.40.11
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/cespare/xxhash v1.1.0
+	github.com/go-kit/kit v0.9.0
 	github.com/go-kit/log v0.1.0
 	github.com/go-openapi/errors v0.20.0
 	github.com/go-openapi/loads v0.20.2
@@ -17,6 +18,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/go-uuid v1.0.1 // indirect
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/memberlist v0.2.4
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/kylelemons/godebug v1.1.0
