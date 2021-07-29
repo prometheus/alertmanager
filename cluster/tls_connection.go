@@ -79,6 +79,15 @@ func (conn *tlsConn) alive() bool {
 	return conn.live
 }
 
+func (conn *tlsConn) getRawConn() net.Conn {
+	conn.mtx.Lock()
+	defer conn.mtx.Unlock()
+	raw := conn.connection
+	conn.live = false
+	conn.connection = nil
+	return raw
+}
+
 // writePacket writes all the bytes in one operation so no concurrent write happens in between.
 // It prefixes the message length.
 func (conn *tlsConn) writePacket(fromAddr string, b []byte) error {

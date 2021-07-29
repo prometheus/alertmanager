@@ -218,12 +218,13 @@ func (t *TLSTransport) DialTimeout(addr string, timeout time.Duration) (net.Conn
 		return nil, errors.Wrap(err, "failed to dial")
 	}
 	err = conn.writeStream()
+	netConn := conn.getRawConn()
 	if err != nil {
 		t.writeErrs.WithLabelValues("stream").Inc()
-		return conn.connection, errors.Wrap(err, "failed to create stream connection")
+		return netConn, errors.Wrap(err, "failed to create stream connection")
 	}
 	t.streamsSent.Inc()
-	return conn.connection, nil
+	return netConn, nil
 }
 
 // GetAutoBindPort returns the bind port that was automatically given by the system
