@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/prometheus/common/sigv4"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/sigv4"
 )
 
 var (
