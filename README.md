@@ -315,6 +315,9 @@ output: extended
 
 # Set a default receiver
 receiver: team-X-pager
+
+# Skip TLS certificate verification
+skip.verify: true
 ```
 
 ### Routes
