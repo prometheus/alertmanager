@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
 
