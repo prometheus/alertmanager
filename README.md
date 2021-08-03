@@ -149,7 +149,7 @@ route:
 # We use this to mute any warning-level notifications if the same alert is
 # already critical.
 inhibit_rules:
-- source_matchers: 
+- source_matchers:
     - severity="critical"
   target_matchers:
     - severity="warning"
