@@ -149,10 +149,10 @@ route:
 # We use this to mute any warning-level notifications if the same alert is
 # already critical.
 inhibit_rules:
-- source_matchers:
-    severity: 'critical'
+- source_matchers: 
+    - severity="critical"
   target_matchers:
-    severity: 'warning'
+    - severity="warning"
   # Apply inhibition if the alertname is the same.
   # CAUTION: 
   #   If all label names listed in `equal` are missing 
