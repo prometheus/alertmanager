@@ -33,11 +33,11 @@ import (
 )
 
 var (
-	verbose         bool
-	alertmanagerURL *url.URL
-	output          string
-	timeout         time.Duration
-	skipVerify      bool
+	verbose               bool
+	alertmanagerURL       *url.URL
+	output                string
+	timeout               time.Duration
+	tlsInsecureSkipVerify bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -81,7 +81,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
-	if skipVerify {
+	if tlsInsecureSkipVerify {
 		transport := http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
@@ -108,7 +108,7 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
-	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").BoolVar(&skipVerify)
+	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").BoolVar(&tlsInsecureSkipVerify)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
@@ -163,7 +163,7 @@ static configuration:
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
 
-	skip.verify
+	tls.insecure.skip.verify
 		Skips TLS certificate verification for all HTTPS requests.
 		Defaults to false.
 `
