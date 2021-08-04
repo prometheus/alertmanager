@@ -180,7 +180,7 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		printIncompatibleVersionWarning()
 
 		for _, matcher := range ps.Matchers {
-			if matcher.IsEqual != nil && *matcher.IsEqual == false {
+			if matcher.IsEqual != nil && !*matcher.IsEqual {
 				// If we reach this, we know that the silence is not correct, because the
 				// targetted alertmanager does not support negative matchers,
 				// but at least one was requested.
