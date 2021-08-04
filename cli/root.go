@@ -108,7 +108,7 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
-	app.Flag("skip.verify", "Skip TLS certificate verification").BoolVar(&skipVerify)
+	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").BoolVar(&skipVerify)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')

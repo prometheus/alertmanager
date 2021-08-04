@@ -317,7 +317,7 @@ output: extended
 receiver: team-X-pager
 
 # Skip TLS certificate verification
-skip.verify: true
+tls.insecure.skip.verify: true
 ```
 
 ### Routes
