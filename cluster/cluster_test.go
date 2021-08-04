@@ -92,6 +92,7 @@ func testJoinLeave(t *testing.T) {
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
+	p2.WaitReady()
 
 	require.Equal(t, 2, p.ClusterSize())
 	p2.Leave(0 * time.Second)
