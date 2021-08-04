@@ -113,6 +113,7 @@ func Execute() {
 	configureCheckConfigCmd(app)
 	configureClusterCmd(app)
 	configureConfigCmd(app)
+	configureTemplateCmd(app)
 
 	err = resolver.Bind(app, os.Args[1:])
 	if err != nil {
