@@ -81,7 +81,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
-	if amURL.Scheme == "https" && skipVerify {
+	if skipVerify {
 		transport := http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
