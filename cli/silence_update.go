@@ -134,5 +134,32 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 			return fmt.Errorf("error formatting silences: %v", err)
 		}
 	}
+
+	if len(updatedSilences) > 0 {
+		// For a better user experience, fetch the silence and check if the
+		// targetted alertmanager instance supports negative matchers.
+		params := silence.NewGetSilenceParams()
+		params.SilenceID = strfmt.UUID(*updatedSilences[0].ID)
+		response, err := amclient.Silence.GetSilence(params)
+		if err != nil {
+			return fmt.Errorf("error while fetching silence %s: %w", *updatedSilences[0].ID, err)
+		}
+
+		if len(response.Payload.Matchers) > 0 && response.Payload.Matchers[0].IsEqual == nil {
+			printIncompatibleVersionWarning()
+
+			for _, ps := range updatedSilences {
+				for _, matcher := range ps.Matchers {
+					if matcher.IsEqual != nil && *matcher.IsEqual == false {
+						// If we reach this, we know that the silence is not correct, because the
+						// targetted alertmanager does not support negative matchers,
+						// but at least one was requested.
+						return errors.New("Silences with negative matcher were requested but this alertmanager instance does not support negative matchers. You need to delete the updated silences and re-create them with an updated alertmanager release or positive matchers.")
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }

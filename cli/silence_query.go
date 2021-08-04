@@ -144,5 +144,13 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 			return fmt.Errorf("error formatting silences: %v", err)
 		}
 	}
+
+	if len(getOk.Payload) > 0 {
+		// For a better user experience, check if the targetted alertmanager
+		// instance supports negative matchers.
+		if len((*getOk.Payload[0]).Matchers) > 0 && (*getOk.Payload[0]).Matchers[0].IsEqual == nil {
+			printIncompatibleVersionWarning()
+		}
+	}
 	return nil
 }

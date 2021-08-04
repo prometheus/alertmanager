@@ -14,8 +14,18 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+
+	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
+
+// This is used when we detect that the alertmanager does not support negative
+// matchers.
+func printIncompatibleVersionWarning() {
+	fmt.Fprintf(os.Stderr, "This alertmanager is incompatible with this version of amtool. Please use alertmanager %s.\n", version.Version)
+}
 
 // silenceCmd represents the silence command
 func configureSilenceCmd(app *kingpin.Application) {
