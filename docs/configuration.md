@@ -819,14 +819,14 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 # Alert text limited to 130 characters.
 [ message: <tmpl_string> ]
 
-# A description of the incident.
+# A description of the alert.
 [ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
 
 # A backlink to the sender of the notification.
 [ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
 
 # A set of arbitrary key/value pairs that provide further detail
-# about the incident.
+# about the alert.
 # All common labels are included as details by default.
 [ details: { <string>: <tmpl_string>, ... } ]
 
