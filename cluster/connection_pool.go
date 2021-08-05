@@ -16,6 +16,7 @@ package cluster
 import (
 	"crypto/tls"
 	"fmt"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -25,6 +26,7 @@ import (
 const capacity = 1024
 
 type connectionPool struct {
+	mtx       sync.Mutex
 	cache     *lru.Cache
 	tlsConfig *tls.Config
 }
@@ -50,6 +52,8 @@ func newConnectionPool(tlsClientCfg *tls.Config) (*connectionPool, error) {
 // borrowConnection returns a *tlsConn from the pool. The connection does not
 // need to be returned to the pool because each connection has its own locking.
 func (pool *connectionPool) borrowConnection(addr string, timeout time.Duration) (*tlsConn, error) {
+	pool.mtx.Lock()
+	defer pool.mtx.Unlock()
 	if pool.cache == nil {
 		return nil, errors.New("connection pool closed")
 	}
@@ -70,6 +74,8 @@ func (pool *connectionPool) borrowConnection(addr string, timeout time.Duration)
 }
 
 func (pool *connectionPool) shutdown() {
+	pool.mtx.Lock()
+	defer pool.mtx.Unlock()
 	if pool.cache == nil {
 		return
 	}
