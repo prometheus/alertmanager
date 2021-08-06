@@ -15,6 +15,7 @@ package cli
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/version"
+	"golang.org/x/mod/semver"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client"
@@ -93,7 +95,19 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
-	return client.New(cr, strfmt.Default)
+	c := client.New(cr, strfmt.Default)
+
+	status, err := c.General.GetStatus(nil)
+	if err != nil || status.Payload.VersionInfo == nil || version.Version == "" {
+		// We can not get version info, or we do not know our own version. Let amtool continue.
+		return c
+	}
+
+	if semver.MajorMinor("v"+*status.Payload.VersionInfo.Version) != semver.MajorMinor("v"+version.Version) {
+		fmt.Fprintf(os.Stderr, "Warning: amtool version (%s) and alertmanager version (%s) are different.\n", version.Version, *status.Payload.VersionInfo.Version)
+	}
+
+	return c
 }
 
 // Execute is the main function for the amtool command
