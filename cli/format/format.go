@@ -52,6 +52,11 @@ func FormatDate(input strfmt.DateTime) string {
 
 func labelsMatcher(m models.Matcher) *labels.Matcher {
 	var t labels.MatchType
+	// Support for older alertmanager releases, which did not support isEqual.
+	if m.IsEqual == nil {
+		isEqual := true
+		m.IsEqual = &isEqual
+	}
 	switch {
 	case !*m.IsRegex && *m.IsEqual:
 		t = labels.MatchEqual
