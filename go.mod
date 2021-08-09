@@ -34,6 +34,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
+	golang.org/x/mod v0.4.2
 	golang.org/x/net v0.0.0-20210726213435-c6fcb2dbf985
 	golang.org/x/tools v0.1.5
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
