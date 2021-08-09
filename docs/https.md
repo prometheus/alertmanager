@@ -8,8 +8,9 @@ sort_rank: 11
 Alertmanager supports basic authentication and TLS.
 This is **experimental** and might change in the future.
 
-Currently TLS is only supported for the HTTP traffic. Gossip traffic does not
-support encryption yet.
+Currently TLS is supported for the HTTP traffic and gossip traffic.
+
+## HTTP Traffic
 
 To specify which web configuration file to load, use the `--web.config.file` flag.
 
@@ -82,3 +83,63 @@ basic_auth_users:
   [ <string>: <secret> ... ]
 ```
 
+## Gossip Traffic
+
+To specify whether to use mutual TLS for gossip, use the `--cluster.tls-config` flag.
+
+The server and client sides of the gossip are configurable.
+
+```
+tls_server_config:
+  # Certificate and key files for server to use to authenticate to client.
+  cert_file: <filename>
+  key_file: <filename>
+
+  # Server policy for client authentication. Maps to ClientAuth Policies.
+  # For more detail on clientAuth options:
+  # https://golang.org/pkg/crypto/tls/#ClientAuthType
+  [ client_auth_type: <string> | default = "NoClientCert" ]
+
+  # CA certificate for client certificate authentication to the server.
+  [ client_ca_file: <filename> ]
+
+  # Minimum TLS version that is acceptable.
+  [ min_version: <string> | default = "TLS12" ]
+
+  # Maximum TLS version that is acceptable.
+  [ max_version: <string> | default = "TLS13" ]
+
+  # List of supported cipher suites for TLS versions up to TLS 1.2. If empty,
+  # Go default cipher suites are used. Available cipher suites are documented
+  # in the go documentation:
+  # https://golang.org/pkg/crypto/tls/#pkg-constants
+  [ cipher_suites:
+    [ - <string> ] ]
+
+  # prefer_server_cipher_suites controls whether the server selects the
+  # client's most preferred ciphersuite, or the server's most preferred
+  # ciphersuite. If true then the server's preference, as expressed in
+  # the order of elements in cipher_suites, is used.
+  [ prefer_server_cipher_suites: <bool> | default = true ]
+
+  # Elliptic curves that will be used in an ECDHE handshake, in preference
+  # order. Available curves are documented in the go documentation:
+  # https://golang.org/pkg/crypto/tls/#CurveID
+  [ curve_preferences:
+    [ - <string> ] ]
+
+tls_client_config:
+  # Path to the CA certificate with which to validate the server certificate.
+  [ ca_file: <filepath> ]
+    
+  # Certificate and key files for client cert authentication to the server.
+  [ cert_file: <filepath> ]
+  [ key_file: <filepath> ]
+  
+  # Server name extension to indicate the name of the server.
+  # http://tools.ietf.org/html/rfc4366#section-3.1
+  [ server_name: <string> ]
+  
+  # Disable validation of the server certificate.
+  [ insecure_skip_verify: <boolean> | default = false]
+```
