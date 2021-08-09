@@ -1,3 +1,12 @@
+## 0.23.0-rc.0 / 2021-08-09
+
+* [FEATURE] Add AWS SNS receiver. #2615
+* [FEATURE] amtool: add new template render command. #2538
+* [ENHANCEMENT] amtool: Add ability to skip TLS verification for amtool. #2663
+* [ENHANCEMENT] amtool: Detect version drift and warn users. #2672
+* [BUGFIX] Time-based muting: Ensure time interval comparisons are in UTC. #2648
+* [BUGFIX] amtool: Fix empty isEqual when talking to incompatible alertmanager. #2668
+
 ## 0.22.2 / 2021-06-01
 
 * [BUGFIX] Include pending silences for future muting decisions. #2590
