@@ -843,13 +843,9 @@ responders:
 # Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
 [ priority: <tmpl_string> ]
 
-# Whether or not to send a request to update the alert message every time an alert is sent to OpsGenie
-# By default, the message of the alert is never updated in OpsGenie, the new message only appears in activity log.
-[ update_message: <boolean> | default = false ]
-
-# Whether or not to send a request to update alert description every time an alert is sent to OpsGenie
-# By default, the description of the alert is never updated in OpsGenie
-[ update_description: <boolean> | default = false ]
+# Whether or not to update message and description of the alert in OpsGenie if it already exists
+# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
+[ update_alerts: <boolean> | default = false ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
