@@ -214,7 +214,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		}
 		requests = append(requests, req.WithContext(ctx))
 
-		if n.conf.UpdateMessage {
+		if n.conf.UpdateAlerts {
 			updateMessageEndpointUrl := n.conf.APIURL.Copy()
 			updateMessageEndpointUrl.Path += fmt.Sprintf("v2/alerts/%s/message", alias)
 			q := updateMessageEndpointUrl.Query()
@@ -223,31 +223,30 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			updateMsgMsg := &opsGenieUpdateMessageMessage{
 				Message: msg.Message,
 			}
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(updateMsgMsg); err != nil {
+			var updateMessageBuf bytes.Buffer
+			if err := json.NewEncoder(&updateMessageBuf).Encode(updateMsgMsg); err != nil {
 				return nil, false, err
 			}
-			req, err := http.NewRequest("PUT", updateMessageEndpointUrl.String(), &buf)
+			req, err := http.NewRequest("PUT", updateMessageEndpointUrl.String(), &updateMessageBuf)
 			if err != nil {
 				return nil, true, err
 			}
 			requests = append(requests, req)
-		}
 
-		if n.conf.UpdateDescription {
 			updateDescriptionEndpointURL := n.conf.APIURL.Copy()
 			updateDescriptionEndpointURL.Path += fmt.Sprintf("v2/alerts/%s/description", alias)
-			q := updateDescriptionEndpointURL.Query()
+			q = updateDescriptionEndpointURL.Query()
 			q.Set("identifierType", "alias")
 			updateDescriptionEndpointURL.RawQuery = q.Encode()
 			updateDescMsg := &opsGenieUpdateDescriptionMessage{
 				Description: msg.Description,
 			}
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(updateDescMsg); err != nil {
+
+			var updateDescriptionBuf bytes.Buffer
+			if err := json.NewEncoder(&updateDescriptionBuf).Encode(updateDescMsg); err != nil {
 				return nil, false, err
 			}
-			req, err := http.NewRequest("PUT", updateDescriptionEndpointURL.String(), &buf)
+			req, err = http.NewRequest("PUT", updateDescriptionEndpointURL.String(), &updateDescriptionBuf)
 			if err != nil {
 				return nil, true, err
 			}

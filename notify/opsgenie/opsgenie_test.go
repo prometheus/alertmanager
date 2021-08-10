@@ -219,13 +219,12 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 	opsGenieConfigWithUpdate := config.OpsGenieConfig{
-		Message:           `{{ .CommonLabels.Message }}`,
-		Description:       `{{ .CommonLabels.Description }}`,
-		UpdateMessage:     true,
-		UpdateDescription: true,
-		APIKey:            "test-api-key",
-		APIURL:            &config.URL{URL: u},
-		HTTPConfig:        &commoncfg.HTTPClientConfig{},
+		Message:      `{{ .CommonLabels.Message }}`,
+		Description:  `{{ .CommonLabels.Description }}`,
+		UpdateAlerts: true,
+		APIKey:       "test-api-key",
+		APIURL:       &config.URL{URL: u},
+		HTTPConfig:   &commoncfg.HTTPClientConfig{},
 	}
 	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, log.NewNopLogger())
 	alert := &types.Alert{
