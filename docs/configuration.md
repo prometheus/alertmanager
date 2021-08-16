@@ -276,7 +276,7 @@ Extending past the start or end of the month will cause it to be clamped. E.g. s
 `['1:31']` during February will clamp the actual end date to 28 or 29 depending on leap years.
 Inclusive on both ends.
 
-`month_range`: A list of calendar months identified by a case-insenstive name (e.g. 'January') or by number,
+`month_range`: A list of calendar months identified by a case-insensitive name (e.g. 'January') or by number,
 where January = 1. Ranges are also accepted. For example, `['1:3', 'may:august', 'december']`.
 Inclusive on both ends.
 
