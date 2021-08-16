@@ -265,9 +265,9 @@ immediately before 24:00. They are specified like so:
           end_time: HH:MM
 
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
-Days should be specified by name (e.g. ‘Sunday’). For convenience, ranges are also accepted
+Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
 of the form <start_day>:<end_day> and are inclusive on both ends. For example:
-`[‘monday:wednesday','saturday', 'sunday']`
+`['monday:wednesday','saturday', 'sunday']`
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
@@ -276,7 +276,7 @@ Extending past the start or end of the month will cause it to be clamped. E.g. s
 `['1:31']` during February will clamp the actual end date to 28 or 29 depending on leap years.
 Inclusive on both ends.
 
-`month_range`: A list of calendar months identified by a case-insentive name (e.g. ‘January’) or by number,
+`month_range`: A list of calendar months identified by a case-insentive name (e.g. 'January') or by number,
 where January = 1. Ranges are also accepted. For example, `['1:3', 'may:august', 'december']`.
 Inclusive on both ends.
 
@@ -579,10 +579,10 @@ Pushover notifications are sent via the [Pushover API](https://pushover.net/api)
 # Whether or not to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The recipient user’s user key.
+# The recipient user's user key.
 user_key: <secret>
 
-# Your registered application’s API token, see https://pushover.net/apps
+# Your registered application's API token, see https://pushover.net/apps
 # You can also register a token by cloning this Prometheus app:
 # https://pushover.net/apps/clone/prometheus
 token: <secret>
