@@ -37,17 +37,17 @@ value is set to the specified default.
 
 Generic placeholders are defined as follows:
 
-* `<duration>`: a duration matching the regular expression `((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)`, e.g. `1d`, `1h30m`, `5m`, `10s`
-* `<labelname>`: a string matching the regular expression `[a-zA-Z_][a-zA-Z0-9_]*`
-* `<labelvalue>`: a string of unicode characters
-* `<filepath>`: a valid path in the current working directory
-* `<boolean>`: a boolean that can take the values `true` or `false`
-* `<string>`: a regular string
-* `<secret>`: a regular string that is a secret, such as a password
-* `<tmpl_string>`: a string which is template-expanded before usage
-* `<tmpl_secret>`: a string which is template-expanded before usage that is a secret
-* `<int>`: an integer value
-* `<regex>`: any valid [RE2 regular expression](https://github.com/google/re2/wiki/Syntax) (The regex is anchored on both ends. To un-anchor the regex, use `.*<regex>.*`.)
+- `<duration>`: a duration matching the regular expression `((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)`, e.g. `1d`, `1h30m`, `5m`, `10s`
+- `<labelname>`: a string matching the regular expression `[a-zA-Z_][a-zA-Z0-9_]*`
+- `<labelvalue>`: a string of unicode characters
+- `<filepath>`: a valid path in the current working directory
+- `<boolean>`: a boolean that can take the values `true` or `false`
+- `<string>`: a regular string
+- `<secret>`: a regular string that is a secret, such as a password
+- `<tmpl_string>`: a string which is template-expanded before usage
+- `<tmpl_secret>`: a string which is template-expanded before usage that is a secret
+- `<int>`: an integer value
+- `<regex>`: any valid [RE2 regular expression](https://github.com/google/re2/wiki/Syntax) (The regex is anchored on both ends. To un-anchor the regex, use `.*<regex>.*`.)
 
 The other placeholders are specified separately.
 
@@ -97,6 +97,9 @@ global:
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
+  [ newrelic_api_key: <secret> ] New Relic Insert API key
+  [ newrelic_api_url: <string> | default = "https://log-api.newrelic.com/log/v1" ]
+
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   # The default HTTP client configuration
@@ -238,39 +241,39 @@ route:
   # All alerts that do not match the following child routes
   # will remain at the root node and be dispatched to 'default-receiver'.
   routes:
-  # All alerts with service=mysql or service=cassandra
-  # are dispatched to the database pager.
-  - receiver: 'database-pager'
-    group_wait: 10s
-    matchers:
-    - service=~"mysql|cassandra"
-  # All alerts with the team=frontend label match this sub-route.
-  # They are grouped by product and environment rather than cluster
-  # and alertname.
-  - receiver: 'frontend-pager'
-    group_by: [product, environment]
-    matchers:
-    - team="frontend"
+    # All alerts with service=mysql or service=cassandra
+    # are dispatched to the database pager.
+    - receiver: 'database-pager'
+      group_wait: 10s
+      matchers:
+        - service=~"mysql|cassandra"
+    # All alerts with the team=frontend label match this sub-route.
+    # They are grouped by product and environment rather than cluster
+    # and alertname.
+    - receiver: 'frontend-pager'
+      group_by: [product, environment]
+      matchers:
+        - team="frontend"
 
-  # All alerts with the service=inhouse-service label match this sub-route.
-  # the route will be muted during offhours and holidays time intervals.
-  # even if it matches, it will continue to the next sub-route
-  - receiver: 'dev-pager'
-    matchers:
-      - service="inhouse-service"
-    mute_time_intervals:
-      - offhours
-      - holidays
-    continue: true
+    # All alerts with the service=inhouse-service label match this sub-route.
+    # the route will be muted during offhours and holidays time intervals.
+    # even if it matches, it will continue to the next sub-route
+    - receiver: 'dev-pager'
+      matchers:
+        - service="inhouse-service"
+      mute_time_intervals:
+        - offhours
+        - holidays
+      continue: true
 
-    # All alerts with the service=inhouse-service label match this sub-route
-    # the route will be active only during offhours and holidays time intervals.
-  - receiver: 'on-call-pager'
-    matchers:
-      - service="inhouse-service"
-    active_time_intervals:
-      - offhours
-      - holidays
+      # All alerts with the service=inhouse-service label match this sub-route
+      # the route will be active only during offhours and holidays time intervals.
+    - receiver: 'on-call-pager'
+      matchers:
+        - service="inhouse-service"
+      active_time_intervals:
+        - offhours
+        - holidays
 ```
 
 ### `<time_interval>`
@@ -280,9 +283,9 @@ in the routing tree to mute/activate particular routes for particular times of t
 
 ```yaml
 name: <string>
-time_intervals:
-  [ - <time_interval_spec> ... ]
+time_intervals: [- <time_interval_spec> ...]
 ```
+
 #### `<time_interval_spec>`
 
 A `time_interval_spec` contains the actual definition for an interval of time. The syntax
@@ -422,7 +425,7 @@ A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The synt
 
 - A valid Prometheus label name.
 
-- One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
+- One of `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
 
 - A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
 
@@ -431,7 +434,7 @@ The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escapin
 Matchers are ANDed together, meaning that all matchers must evaluate to "true" when tested against the labels on a given alert. For example, an alert with these labels:
 
 ```json
-{"alertname":"Watchdog","severity":"none"}
+{ "alertname": "Watchdog", "severity": "none" }
 ```
 
 would NOT match this list of matchers:
@@ -448,37 +451,37 @@ Here are some examples of valid string matchers:
 
 1. Shown below are two equality matchers combined in a long form YAML list.
 
-    ```yaml
-    matchers:
-      - foo = bar
-      - dings !=bums
-    ```
+   ```yaml
+   matchers:
+     - foo = bar
+     - dings !=bums
+   ```
 
 2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
 
-    ```yaml
-    matchers: [ foo = bar, dings != bums ]
-    ```
+   ```yaml
+   matchers: [foo = bar, dings != bums]
+   ```
 
-    As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
+   As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
 
-    ```yaml
-    matchers: [ "foo = bar,baz", "dings != bums" ]
-    ```
+   ```yaml
+   matchers: ['foo = bar,baz', 'dings != bums']
+   ```
 
 3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
 
-    ```yaml
-    matchers: [ '{foo="bar",dings!="bums"}' ]
-    ```
+   ```yaml
+   matchers: ['{foo="bar",dings!="bums"}']
+   ```
 
 4. To avoid any confusion about YAML string quoting and escaping, you can use YAML block quoting and then only worry about the OpenMetrics escaping inside the block. A complex example with a regular expression and different quotes inside the label value is shown below:
 
-    ```yaml
-    matchers:
-      - |
-          {quote=~"She said: \"Hi, all!( How're you…)?\""}
-    ```
+   ```yaml
+   matchers:
+     - |
+       {quote=~"She said: \"Hi, all!( How're you…)?\""}
+   ```
 
 ## General receiver-related settings
 
@@ -495,32 +498,19 @@ Note: As part of lifting the past moratorium on new receivers it was agreed that
 name: <string>
 
 # Configurations for several notification integrations.
-discord_configs:
-  [ - <discord_config>, ... ]
-email_configs:
-  [ - <email_config>, ... ]
-msteams_configs:
-  [ - <msteams_config>, ... ]
-opsgenie_configs:
-  [ - <opsgenie_config>, ... ]
-pagerduty_configs:
-  [ - <pagerduty_config>, ... ]
-pushover_configs:
-  [ - <pushover_config>, ... ]
-slack_configs:
-  [ - <slack_config>, ... ]
-sns_configs:
-  [ - <sns_config>, ... ]
-telegram_configs:
-  [ - <telegram_config>, ... ]
-victorops_configs:
-  [ - <victorops_config>, ... ]
-webex_configs:
-  [ - <webex_config>, ... ]
-webhook_configs:
-  [ - <webhook_config>, ... ]
-wechat_configs:
-  [ - <wechat_config>, ... ]
+discord_configs: [- <discord_config>, ...]
+email_configs: [- <email_config>, ...]
+msteams_configs: [- <msteams_config>, ...]
+opsgenie_configs: [- <opsgenie_config>, ...]
+pagerduty_configs: [- <pagerduty_config>, ...]
+pushover_configs: [- <pushover_config>, ...]
+slack_configs: [- <slack_config>, ...]
+sns_configs: [- <sns_config>, ...]
+telegram_configs: [- <telegram_config>, ...]
+victorops_configs: [- <victorops_config>, ...]
+webex_configs: [- <webex_config>, ...]
+webhook_configs: [- <webhook_config>, ...]
+wechat_configs: [- <wechat_config>, ...]
 ```
 
 ### `<http_config>`
@@ -673,6 +663,8 @@ webhook_url: <secret>
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
+newrelic_configs:
+  [- <newrelic_config>, ...]
 ```
 
 ### `<email_config>`
@@ -1245,6 +1237,67 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
 ```
 
+## `<newrelic_config>`
+
+New Relic notifications are sent via the [New Relie Log API](https://log-api.newrelic.com/log/v1) by default.
+
+```yaml
+# Whether or not to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The New Relic Insert API key .
+[ api_key: <secret> | default = global.newrelic_api_key ]
+
+# The New Relic API endpoint (default to https://log-api.newrelic.com/log/v1).
+[ api_url: <string> | default = global.newrelic_api_url ]
+
+# Notification message.
+[ message: <tmpl_string> ] default = '{{ template "newrelic.default.message" . }}'
+
+# A description of the incident.
+[ description: <tmpl_string> ] default = '{{ template "newrelic.default.description" . }}'
+
+# A backlink to the sender of the notification.
+[ source: <tmpl_string> ] default = '{{ template "newrelic.default.source" . }}' ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the incident.
+# All common labels are included as details by default.
+[ details: { <string>: <tmpl_string>, ... } ]
+
+# Comma separated list of tags attached to the notifications.
+[ tags: <tmpl_string> ]
+
+# Additional alert note.
+[ note: <tmpl_string> ]
+
+# Priority level of alert.
+[ priority: <tmpl_string> ]
+
+# Additional Headers.
+# for example, using `X-License-Key` header to provide the API license key
+[ headers: { <string>: <string>,...} ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+
+```
+
+Sample configuration
+
+```yaml
+receivers:
+  - name: 'newrelic'
+    newrelic_configs:
+      - api_key: ABCXYZMYKEYTEST123
+        priority: P2
+        message: '{{ template "newrelic.default.message" . }}'
+        description: '{{ template "newrelic.default.description" . }}'
+        headers:
+          abc: value1
+          xyz: value2
+```
+
 ### `<webex_config>`
 
 ```yaml
@@ -1261,6 +1314,6 @@ room_id: <string>
 # Message template.
 [ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
 
-# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
+# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header.
 [ http_config: <http_config> | default = global.http_config ]
 ```
