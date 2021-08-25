@@ -166,6 +166,18 @@ func (n *Notifier) createRequest(ctx context.Context, as ...*types.Alert) (*http
 				continue
 			}
 
+			if responder.Type == "teams" {
+				teams := safeSplit(responder.Name, ",")
+				for _, team := range teams {
+					newResponder := opsGenieCreateMessageResponder{
+						Name: tmpl(team),
+						Type: tmpl("team"),
+					}
+					responders = append(responders, newResponder)
+				}
+				continue
+			}
+
 			responders = append(responders, responder)
 		}
 
