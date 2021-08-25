@@ -1,4 +1,4 @@
-## 0.23.0-rc.0 / 2021-08-09
+## 0.23.0 / 2021-08-25
 
 * [FEATURE] Add AWS SNS receiver. #2615
 * [FEATURE] amtool: add new template render command. #2538
