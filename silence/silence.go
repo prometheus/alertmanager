@@ -349,34 +349,40 @@ func New(o Options) (*Silences, error) {
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
 // file is set, a snapshot is written to it afterwards.
 // Terminates on receiving from stopc.
-func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}) {
+func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, mf func() (int64, error)) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 
-	f := func() error {
-		start := s.now()
+	inner := func() (int64, error) {
 		var size int64
 
-		level.Debug(s.logger).Log("msg", "Running maintenance")
-		defer func() {
-			level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start), "size", size)
-			s.metrics.snapshotSize.Set(float64(size))
-		}()
-
 		if _, err := s.GC(); err != nil {
-			return err
+			return size, err
 		}
 		if snapf == "" {
-			return nil
+			return size, nil
 		}
 		f, err := openReplace(snapf)
 		if err != nil {
-			return err
+			return size, err
 		}
 		if size, err = s.Snapshot(f); err != nil {
-			return err
+			return size, err
 		}
-		return f.Close()
+		return size, f.Close()
+	}
+
+	if mf != nil {
+		inner = mf
+	}
+
+	f := func(cb func() (int64, error)) error {
+		start := s.now()
+		level.Debug(s.logger).Log("msg", "Running maintenance")
+		size, err := cb()
+		level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start), "size", size)
+		s.metrics.snapshotSize.Set(float64(size))
+		return err
 	}
 
 Loop:
@@ -385,7 +391,7 @@ Loop:
 		case <-stopc:
 			break Loop
 		case <-t.C:
-			if err := f(); err != nil {
+			if err := f(inner); err != nil {
 				level.Info(s.logger).Log("msg", "Running maintenance failed", "err", err)
 			}
 		}
@@ -394,7 +400,7 @@ Loop:
 	if snapf == "" {
 		return
 	}
-	if err := f(); err != nil {
+	if err := f(inner); err != nil {
 		level.Info(s.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }

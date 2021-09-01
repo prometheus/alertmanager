@@ -88,6 +88,7 @@ type Log struct {
 	mtx       sync.RWMutex
 	st        state
 	broadcast func([]byte)
+	mf        func() (int64, error)
 }
 
 type metrics struct {
@@ -190,7 +191,7 @@ func WithMetrics(r prometheus.Registerer) Option {
 //
 // The maintenance terminates on receiving from the provided channel.
 // The done function is called after the final snapshot was completed.
-func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
+func WithMaintenance(d time.Duration, stopc chan struct{}, done func(), mf func() (int64, error)) Option {
 	return func(l *Log) error {
 		if d == 0 {
 			return errors.New("maintenance interval must not be 0")
@@ -198,6 +199,7 @@ func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
 		l.runInterval = d
 		l.stopc = stopc
 		l.done = done
+		l.mf = mf
 		return nil
 	}
 }
@@ -325,34 +327,40 @@ func (l *Log) run() {
 	t := time.NewTicker(l.runInterval)
 	defer t.Stop()
 
+	inner := func() (int64, error) {
+		var size int64
+		if _, err := l.GC(); err != nil {
+			return size, err
+		}
+		if l.snapf == "" {
+			return size, nil
+		}
+		f, err := openReplace(l.snapf)
+		if err != nil {
+			return size, err
+		}
+		if size, err = l.Snapshot(f); err != nil {
+			return size, err
+		}
+		return size, f.Close()
+	}
+
+	if l.mf != nil {
+		inner = l.mf
+	}
+
 	if l.done != nil {
 		defer l.done()
 	}
 
-	f := func() error {
+	f := func(cb func() (int64, error)) error {
 		start := l.now()
-		var size int64
-
 		level.Debug(l.logger).Log("msg", "Running maintenance")
-		defer func() {
-			level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
-			l.metrics.snapshotSize.Set(float64(size))
-		}()
+		size, err := cb()
+		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+		l.metrics.snapshotSize.Set(float64(size))
+		return err
 
-		if _, err := l.GC(); err != nil {
-			return err
-		}
-		if l.snapf == "" {
-			return nil
-		}
-		f, err := openReplace(l.snapf)
-		if err != nil {
-			return err
-		}
-		if size, err = l.Snapshot(f); err != nil {
-			return err
-		}
-		return f.Close()
 	}
 
 Loop:
@@ -361,7 +369,7 @@ Loop:
 		case <-l.stopc:
 			break Loop
 		case <-t.C:
-			if err := f(); err != nil {
+			if err := f(inner); err != nil {
 				level.Error(l.logger).Log("msg", "Running maintenance failed", "err", err)
 			}
 		}
@@ -370,7 +378,7 @@ Loop:
 	if l.snapf == "" {
 		return
 	}
-	if err := f(); err != nil {
+	if err := f(inner); err != nil {
 		level.Error(l.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
