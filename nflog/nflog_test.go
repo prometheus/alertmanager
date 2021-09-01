@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,6 +122,34 @@ func TestLogSnapshot(t *testing.T) {
 
 		require.NoError(t, f.Close(), "closing snapshot file failed")
 	}
+}
+
+func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
+	f, err := ioutil.TempFile("", "snapshot")
+	require.NoError(t, err, "creating temp file failed")
+
+	stopc := make(chan struct{})
+	var mtx sync.Mutex
+	var mc int
+	l, err := New(WithSnapshot(f.Name()), WithMaintenance(100*time.Millisecond, stopc, nil, func() (int64, error) {
+		mtx.Lock()
+		mc++
+		defer mtx.Unlock()
+
+		return 0, nil
+	}))
+	require.NoError(t, err)
+	l.st = state{}
+	l.metrics = newMetrics(nil)
+
+	time.Sleep(200 * time.Millisecond)
+	close(stopc)
+
+	require.Eventually(t, func() bool {
+		mtx.Lock()
+		defer mtx.Unlock()
+		return mc >= 2
+	}, 500*time.Millisecond, 100*time.Millisecond)
 }
 
 func TestReplaceFile(t *testing.T) {
