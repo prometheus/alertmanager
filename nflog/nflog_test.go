@@ -135,7 +135,7 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 	l, err := New(WithMetrics(prometheus.NewPedanticRegistry()), WithSnapshot(f.Name()), WithMaintenance(100*time.Millisecond, stopc, nil, func() (int64, error) {
 		mtx.Lock()
 		mc++
-		defer mtx.Unlock()
+		mtx.Unlock()
 
 		return 0, nil
 	}))

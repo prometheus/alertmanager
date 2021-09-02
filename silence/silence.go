@@ -201,6 +201,11 @@ type Silences struct {
 	mc        matcherCache
 }
 
+
+// MaintenanceFunc represents the function to run as part of the periodic maintenance for silences.
+// It returns the size of the snapshot taken or an error if it failed.
+type MaintenanceFunc func()(int64, error)
+
 type metrics struct {
 	gcDuration              prometheus.Summary
 	snapshotDuration        prometheus.Summary
@@ -349,11 +354,13 @@ func New(o Options) (*Silences, error) {
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
 // file is set, a snapshot is written to it afterwards.
 // Terminates on receiving from stopc.
-func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, mf func() (int64, error)) {
+// If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
+func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, override MaintenanceFunc) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 
-	inner := func() (int64, error) {
+	var doMaintenance MaintenanceFunc
+	doMaintenance = func() (int64, error) {
 		var size int64
 
 		if _, err := s.GC(); err != nil {
@@ -372,14 +379,14 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		return size, f.Close()
 	}
 
-	if mf != nil {
-		inner = mf
+	if doMaintenance != nil {
+		doMaintenance = override
 	}
 
-	f := func(cb func() (int64, error)) error {
+	runMaintenance := func(do MaintenanceFunc) error {
 		start := s.now()
 		level.Debug(s.logger).Log("msg", "Running maintenance")
-		size, err := cb()
+		size, err := do()
 		level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start), "size", size)
 		s.metrics.snapshotSize.Set(float64(size))
 		return err
@@ -391,7 +398,7 @@ Loop:
 		case <-stopc:
 			break Loop
 		case <-t.C:
-			if err := f(inner); err != nil {
+			if err := runMaintenance(doMaintenance); err != nil {
 				level.Info(s.logger).Log("msg", "Running maintenance failed", "err", err)
 			}
 		}
@@ -400,7 +407,7 @@ Loop:
 	if snapf == "" {
 		return
 	}
-	if err := f(inner); err != nil {
+	if err := runMaintenance(doMaintenance); err != nil {
 		level.Info(s.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
