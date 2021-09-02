@@ -201,10 +201,9 @@ type Silences struct {
 	mc        matcherCache
 }
 
-
 // MaintenanceFunc represents the function to run as part of the periodic maintenance for silences.
 // It returns the size of the snapshot taken or an error if it failed.
-type MaintenanceFunc func()(int64, error)
+type MaintenanceFunc func() (int64, error)
 
 type metrics struct {
 	gcDuration              prometheus.Summary
