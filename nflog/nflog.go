@@ -360,7 +360,6 @@ func (l *Log) run() {
 		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
 		l.metrics.snapshotSize.Set(float64(size))
 		return err
-
 	}
 
 Loop:

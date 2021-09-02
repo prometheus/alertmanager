@@ -15,6 +15,7 @@ package nflog
 
 import (
 	"bytes"
+	"github.com/prometheus/client_golang/prometheus"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -131,7 +132,7 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 	stopc := make(chan struct{})
 	var mtx sync.Mutex
 	var mc int
-	l, err := New(WithSnapshot(f.Name()), WithMaintenance(100*time.Millisecond, stopc, nil, func() (int64, error) {
+	l, err := New(WithMetrics(prometheus.NewPedanticRegistry()), WithSnapshot(f.Name()), WithMaintenance(100*time.Millisecond, stopc, nil, func() (int64, error) {
 		mtx.Lock()
 		mc++
 		defer mtx.Unlock()
@@ -139,9 +140,8 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 		return 0, nil
 	}))
 	require.NoError(t, err)
-	l.st = state{}
-	l.metrics = newMetrics(nil)
 
+	go l.run()
 	time.Sleep(200 * time.Millisecond)
 	close(stopc)
 
