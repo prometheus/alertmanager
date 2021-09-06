@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -177,6 +178,32 @@ func TestSilencesSnapshot(t *testing.T) {
 
 		require.NoError(t, f.Close(), "closing snapshot file failed")
 	}
+}
+
+func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
+	f, err := ioutil.TempFile("", "snapshot")
+	require.NoError(t, err, "creating temp file failed")
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), now: utcNow, metrics: newMetrics(nil, nil)}
+	stopc := make(chan struct{})
+	var mtx sync.Mutex
+	var mc int
+
+	go s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+		mtx.Lock()
+		mc++
+		mtx.Unlock()
+
+		return 0, nil
+	})
+
+	time.Sleep(200 * time.Millisecond)
+	close(stopc)
+
+	require.Eventually(t, func() bool {
+		mtx.Lock()
+		defer mtx.Unlock()
+		return mc >= 2 // At least, one for the regular schedule and one at shutdown.
+	}, 500*time.Millisecond, 100*time.Millisecond)
 }
 
 func TestSilencesSetSilence(t *testing.T) {
