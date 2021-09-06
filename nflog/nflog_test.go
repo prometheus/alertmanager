@@ -15,7 +15,6 @@ package nflog
 
 import (
 	"bytes"
-	"github.com/prometheus/client_golang/prometheus"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -24,6 +23,8 @@ import (
 	"time"
 
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
+
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
