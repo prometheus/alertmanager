@@ -49,7 +49,7 @@ func (o *GetStatusURL) SetBasePath(bp string) {
 func (o *GetStatusURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/status"
+	var _path = "/api/v2/status"
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)

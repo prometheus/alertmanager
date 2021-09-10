@@ -75,7 +75,7 @@ type GetSilenceOK struct {
 }
 
 func (o *GetSilenceOK) Error() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
 }
 
 func (o *GetSilenceOK) GetPayload() *models.GettableSilence {
@@ -107,7 +107,7 @@ type GetSilenceNotFound struct {
 }
 
 func (o *GetSilenceNotFound) Error() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceNotFound ", 404)
+	return fmt.Sprintf("[GET /api/v2/silence/{silenceID}][%d] getSilenceNotFound ", 404)
 }
 
 func (o *GetSilenceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -129,7 +129,7 @@ type GetSilenceInternalServerError struct {
 }
 
 func (o *GetSilenceInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *GetSilenceInternalServerError) GetPayload() string {

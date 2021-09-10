@@ -49,7 +49,7 @@ func init() {
     "version": "0.0.1"
   },
   "paths": {
-    "/alerts": {
+    "/api/v2/alerts": {
       "get": {
         "description": "Get a list of alerts",
         "tags": [
@@ -147,7 +147,7 @@ func init() {
         }
       }
     },
-    "/alerts/groups": {
+    "/api/v2/alerts/groups": {
       "get": {
         "description": "Get a list of alert groups",
         "tags": [
@@ -209,7 +209,7 @@ func init() {
         }
       }
     },
-    "/receivers": {
+    "/api/v2/receivers": {
       "get": {
         "description": "Get list of all receivers (name of notification integrations)",
         "tags": [
@@ -229,7 +229,7 @@ func init() {
         }
       }
     },
-    "/silence/{silenceID}": {
+    "/api/v2/silence/{silenceID}": {
       "get": {
         "description": "Get a silence by its ID",
         "tags": [
@@ -287,7 +287,7 @@ func init() {
         }
       ]
     },
-    "/silences": {
+    "/api/v2/silences": {
       "get": {
         "description": "Get a list of silences",
         "tags": [
@@ -359,7 +359,7 @@ func init() {
         }
       }
     },
-    "/status": {
+    "/api/v2/status": {
       "get": {
         "description": "Get current status of an Alertmanager instance and its cluster",
         "tags": [
@@ -832,7 +832,7 @@ func init() {
     "version": "0.0.1"
   },
   "paths": {
-    "/alerts": {
+    "/api/v2/alerts": {
       "get": {
         "description": "Get a list of alerts",
         "tags": [
@@ -942,7 +942,7 @@ func init() {
         }
       }
     },
-    "/alerts/groups": {
+    "/api/v2/alerts/groups": {
       "get": {
         "description": "Get a list of alert groups",
         "tags": [
@@ -1010,7 +1010,7 @@ func init() {
         }
       }
     },
-    "/receivers": {
+    "/api/v2/receivers": {
       "get": {
         "description": "Get list of all receivers (name of notification integrations)",
         "tags": [
@@ -1030,7 +1030,7 @@ func init() {
         }
       }
     },
-    "/silence/{silenceID}": {
+    "/api/v2/silence/{silenceID}": {
       "get": {
         "description": "Get a silence by its ID",
         "tags": [
@@ -1094,7 +1094,7 @@ func init() {
         }
       ]
     },
-    "/silences": {
+    "/api/v2/silences": {
       "get": {
         "description": "Get a list of silences",
         "tags": [
@@ -1172,7 +1172,7 @@ func init() {
         }
       }
     },
-    "/status": {
+    "/api/v2/status": {
       "get": {
         "description": "Get current status of an Alertmanager instance and its cluster",
         "tags": [

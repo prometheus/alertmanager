@@ -63,7 +63,7 @@ type GetReceiversOK struct {
 }
 
 func (o *GetReceiversOK) Error() string {
-	return fmt.Sprintf("[GET /receivers][%d] getReceiversOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/receivers][%d] getReceiversOK  %+v", 200, o.Payload)
 }
 
 func (o *GetReceiversOK) GetPayload() []*models.Receiver {

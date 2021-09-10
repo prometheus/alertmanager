@@ -58,7 +58,7 @@ func (a *Client) GetAlertGroups(params *GetAlertGroupsParams) (*GetAlertGroupsOK
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "getAlertGroups",
 		Method:             "GET",
-		PathPattern:        "/alerts/groups",
+		PathPattern:        "/api/v2/alerts/groups",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},

@@ -58,7 +58,7 @@ func (a *Client) GetStatus(params *GetStatusParams) (*GetStatusOK, error) {
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "getStatus",
 		Method:             "GET",
-		PathPattern:        "/status",
+		PathPattern:        "/api/v2/status",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},

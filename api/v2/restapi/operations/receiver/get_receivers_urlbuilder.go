@@ -49,7 +49,7 @@ func (o *GetReceiversURL) SetBasePath(bp string) {
 func (o *GetReceiversURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/receivers"
+	var _path = "/api/v2/receivers"
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
