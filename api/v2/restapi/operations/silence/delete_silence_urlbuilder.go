@@ -56,7 +56,7 @@ func (o *DeleteSilenceURL) SetBasePath(bp string) {
 func (o *DeleteSilenceURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/api/v2/silence/{silenceID}"
+	var _path = "/silence/{silenceID}"
 
 	silenceID := o.SilenceID.String()
 	if silenceID != "" {
@@ -66,6 +66,9 @@ func (o *DeleteSilenceURL) Build() (*url.URL, error) {
 	}
 
 	_basePath := o._basePath
+	if _basePath == "" {
+		_basePath = "/api/v2/"
+	}
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
 
 	return &_result, nil

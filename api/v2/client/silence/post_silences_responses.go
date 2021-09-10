@@ -74,7 +74,7 @@ type PostSilencesOK struct {
 }
 
 func (o *PostSilencesOK) Error() string {
-	return fmt.Sprintf("[POST /api/v2/silences][%d] postSilencesOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesOK  %+v", 200, o.Payload)
 }
 
 func (o *PostSilencesOK) GetPayload() *PostSilencesOKBody {
@@ -107,7 +107,7 @@ type PostSilencesBadRequest struct {
 }
 
 func (o *PostSilencesBadRequest) Error() string {
-	return fmt.Sprintf("[POST /api/v2/silences][%d] postSilencesBadRequest  %+v", 400, o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesBadRequest  %+v", 400, o.Payload)
 }
 
 func (o *PostSilencesBadRequest) GetPayload() string {
@@ -138,7 +138,7 @@ type PostSilencesNotFound struct {
 }
 
 func (o *PostSilencesNotFound) Error() string {
-	return fmt.Sprintf("[POST /api/v2/silences][%d] postSilencesNotFound  %+v", 404, o.Payload)
+	return fmt.Sprintf("[POST /silences][%d] postSilencesNotFound  %+v", 404, o.Payload)
 }
 
 func (o *PostSilencesNotFound) GetPayload() string {

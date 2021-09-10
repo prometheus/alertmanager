@@ -323,39 +323,39 @@ func (o *AlertmanagerAPI) initHandlerCache() {
 	if o.handlers["DELETE"] == nil {
 		o.handlers["DELETE"] = make(map[string]http.Handler)
 	}
-	o.handlers["DELETE"]["/api/v2/silence/{silenceID}"] = silence.NewDeleteSilence(o.context, o.SilenceDeleteSilenceHandler)
+	o.handlers["DELETE"]["/silence/{silenceID}"] = silence.NewDeleteSilence(o.context, o.SilenceDeleteSilenceHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v2/alerts/groups"] = alertgroup.NewGetAlertGroups(o.context, o.AlertgroupGetAlertGroupsHandler)
+	o.handlers["GET"]["/alerts/groups"] = alertgroup.NewGetAlertGroups(o.context, o.AlertgroupGetAlertGroupsHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v2/alerts"] = alert.NewGetAlerts(o.context, o.AlertGetAlertsHandler)
+	o.handlers["GET"]["/alerts"] = alert.NewGetAlerts(o.context, o.AlertGetAlertsHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v2/receivers"] = receiver.NewGetReceivers(o.context, o.ReceiverGetReceiversHandler)
+	o.handlers["GET"]["/receivers"] = receiver.NewGetReceivers(o.context, o.ReceiverGetReceiversHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v2/silence/{silenceID}"] = silence.NewGetSilence(o.context, o.SilenceGetSilenceHandler)
+	o.handlers["GET"]["/silence/{silenceID}"] = silence.NewGetSilence(o.context, o.SilenceGetSilenceHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v2/silences"] = silence.NewGetSilences(o.context, o.SilenceGetSilencesHandler)
+	o.handlers["GET"]["/silences"] = silence.NewGetSilences(o.context, o.SilenceGetSilencesHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v2/status"] = general.NewGetStatus(o.context, o.GeneralGetStatusHandler)
+	o.handlers["GET"]["/status"] = general.NewGetStatus(o.context, o.GeneralGetStatusHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
-	o.handlers["POST"]["/api/v2/alerts"] = alert.NewPostAlerts(o.context, o.AlertPostAlertsHandler)
+	o.handlers["POST"]["/alerts"] = alert.NewPostAlerts(o.context, o.AlertPostAlertsHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
-	o.handlers["POST"]["/api/v2/silences"] = silence.NewPostSilences(o.context, o.SilencePostSilencesHandler)
+	o.handlers["POST"]["/silences"] = silence.NewPostSilences(o.context, o.SilencePostSilencesHandler)
 }
 
 // Serve creates a http handler to serve the API over HTTP

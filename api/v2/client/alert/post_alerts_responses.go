@@ -72,7 +72,7 @@ type PostAlertsOK struct {
 }
 
 func (o *PostAlertsOK) Error() string {
-	return fmt.Sprintf("[POST /api/v2/alerts][%d] postAlertsOK ", 200)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsOK ", 200)
 }
 
 func (o *PostAlertsOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -94,7 +94,7 @@ type PostAlertsBadRequest struct {
 }
 
 func (o *PostAlertsBadRequest) Error() string {
-	return fmt.Sprintf("[POST /api/v2/alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsBadRequest  %+v", 400, o.Payload)
 }
 
 func (o *PostAlertsBadRequest) GetPayload() string {
@@ -125,7 +125,7 @@ type PostAlertsInternalServerError struct {
 }
 
 func (o *PostAlertsInternalServerError) Error() string {
-	return fmt.Sprintf("[POST /api/v2/alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[POST /alerts][%d] postAlertsInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *PostAlertsInternalServerError) GetPayload() string {
