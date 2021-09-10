@@ -19,7 +19,7 @@
 //  Schemes:
 //    http
 //  Host: localhost
-//  BasePath: /
+//  BasePath: /api/v2/
 //  Version: 0.0.1
 //  License: Apache 2.0 http://www.apache.org/licenses/LICENSE-2.0.html
 //

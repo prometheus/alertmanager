@@ -66,7 +66,7 @@ type DeleteSilenceOK struct {
 }
 
 func (o *DeleteSilenceOK) Error() string {
-	return fmt.Sprintf("[DELETE /api/v2/silence/{silenceID}][%d] deleteSilenceOK ", 200)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceOK ", 200)
 }
 
 func (o *DeleteSilenceOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
@@ -88,7 +88,7 @@ type DeleteSilenceInternalServerError struct {
 }
 
 func (o *DeleteSilenceInternalServerError) Error() string {
-	return fmt.Sprintf("[DELETE /api/v2/silence/{silenceID}][%d] deleteSilenceInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *DeleteSilenceInternalServerError) GetPayload() string {

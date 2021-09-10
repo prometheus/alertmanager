@@ -63,7 +63,7 @@ type GetStatusOK struct {
 }
 
 func (o *GetStatusOK) Error() string {
-	return fmt.Sprintf("[GET /api/v2/status][%d] getStatusOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[GET /status][%d] getStatusOK  %+v", 200, o.Payload)
 }
 
 func (o *GetStatusOK) GetPayload() *models.AlertmanagerStatus {

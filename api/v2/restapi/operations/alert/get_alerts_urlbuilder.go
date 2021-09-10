@@ -60,9 +60,12 @@ func (o *GetAlertsURL) SetBasePath(bp string) {
 func (o *GetAlertsURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/api/v2/alerts"
+	var _path = "/alerts"
 
 	_basePath := o._basePath
+	if _basePath == "" {
+		_basePath = "/api/v2/"
+	}
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
 
 	qs := make(url.Values)
