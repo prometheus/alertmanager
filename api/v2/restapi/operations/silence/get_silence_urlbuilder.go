@@ -56,7 +56,7 @@ func (o *GetSilenceURL) SetBasePath(bp string) {
 func (o *GetSilenceURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/silence/{silenceID}"
+	var _path = "/api/v2/silence/{silenceID}"
 
 	silenceID := o.SilenceID.String()
 	if silenceID != "" {

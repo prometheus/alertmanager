@@ -43,7 +43,7 @@ func NewGetSilences(ctx *middleware.Context, handler GetSilencesHandler) *GetSil
 	return &GetSilences{Context: ctx, Handler: handler}
 }
 
-/*GetSilences swagger:route GET /silences silence getSilences
+/*GetSilences swagger:route GET /api/v2/silences silence getSilences
 
 Get a list of silences
 

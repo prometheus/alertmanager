@@ -43,7 +43,7 @@ func NewPostAlerts(ctx *middleware.Context, handler PostAlertsHandler) *PostAler
 	return &PostAlerts{Context: ctx, Handler: handler}
 }
 
-/*PostAlerts swagger:route POST /alerts alert postAlerts
+/*PostAlerts swagger:route POST /api/v2/alerts alert postAlerts
 
 Create new Alerts
 

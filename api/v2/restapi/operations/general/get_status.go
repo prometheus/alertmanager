@@ -43,7 +43,7 @@ func NewGetStatus(ctx *middleware.Context, handler GetStatusHandler) *GetStatus 
 	return &GetStatus{Context: ctx, Handler: handler}
 }
 
-/*GetStatus swagger:route GET /status general getStatus
+/*GetStatus swagger:route GET /api/v2/status general getStatus
 
 Get current status of an Alertmanager instance and its cluster
 

@@ -64,7 +64,7 @@ func (a *Client) DeleteSilence(params *DeleteSilenceParams) (*DeleteSilenceOK, e
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "deleteSilence",
 		Method:             "DELETE",
-		PathPattern:        "/silence/{silenceID}",
+		PathPattern:        "/api/v2/silence/{silenceID}",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
@@ -98,7 +98,7 @@ func (a *Client) GetSilence(params *GetSilenceParams) (*GetSilenceOK, error) {
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "getSilence",
 		Method:             "GET",
-		PathPattern:        "/silence/{silenceID}",
+		PathPattern:        "/api/v2/silence/{silenceID}",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
@@ -132,7 +132,7 @@ func (a *Client) GetSilences(params *GetSilencesParams) (*GetSilencesOK, error) 
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "getSilences",
 		Method:             "GET",
-		PathPattern:        "/silences",
+		PathPattern:        "/api/v2/silences",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
@@ -166,7 +166,7 @@ func (a *Client) PostSilences(params *PostSilencesParams) (*PostSilencesOK, erro
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "postSilences",
 		Method:             "POST",
-		PathPattern:        "/silences",
+		PathPattern:        "/api/v2/silences",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},

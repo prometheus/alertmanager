@@ -45,7 +45,7 @@ func NewPostSilences(ctx *middleware.Context, handler PostSilencesHandler) *Post
 	return &PostSilences{Context: ctx, Handler: handler}
 }
 
-/*PostSilences swagger:route POST /silences silence postSilences
+/*PostSilences swagger:route POST /api/v2/silences silence postSilences
 
 Post a new silence or update an existing one
 

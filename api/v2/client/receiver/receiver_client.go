@@ -58,7 +58,7 @@ func (a *Client) GetReceivers(params *GetReceiversParams) (*GetReceiversOK, erro
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "getReceivers",
 		Method:             "GET",
-		PathPattern:        "/receivers",
+		PathPattern:        "/api/v2/receivers",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},

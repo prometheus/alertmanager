@@ -55,7 +55,7 @@ func (o *GetSilencesURL) SetBasePath(bp string) {
 func (o *GetSilencesURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/silences"
+	var _path = "/api/v2/silences"
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)

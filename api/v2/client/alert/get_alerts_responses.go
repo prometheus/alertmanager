@@ -75,7 +75,7 @@ type GetAlertsOK struct {
 }
 
 func (o *GetAlertsOK) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/alerts][%d] getAlertsOK  %+v", 200, o.Payload)
 }
 
 func (o *GetAlertsOK) GetPayload() models.GettableAlerts {
@@ -106,7 +106,7 @@ type GetAlertsBadRequest struct {
 }
 
 func (o *GetAlertsBadRequest) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
 }
 
 func (o *GetAlertsBadRequest) GetPayload() string {
@@ -137,7 +137,7 @@ type GetAlertsInternalServerError struct {
 }
 
 func (o *GetAlertsInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *GetAlertsInternalServerError) GetPayload() string {

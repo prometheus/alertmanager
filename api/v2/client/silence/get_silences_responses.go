@@ -69,7 +69,7 @@ type GetSilencesOK struct {
 }
 
 func (o *GetSilencesOK) Error() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesOK  %+v", 200, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/silences][%d] getSilencesOK  %+v", 200, o.Payload)
 }
 
 func (o *GetSilencesOK) GetPayload() models.GettableSilences {
@@ -100,7 +100,7 @@ type GetSilencesInternalServerError struct {
 }
 
 func (o *GetSilencesInternalServerError) Error() string {
-	return fmt.Sprintf("[GET /silences][%d] getSilencesInternalServerError  %+v", 500, o.Payload)
+	return fmt.Sprintf("[GET /api/v2/silences][%d] getSilencesInternalServerError  %+v", 500, o.Payload)
 }
 
 func (o *GetSilencesInternalServerError) GetPayload() string {

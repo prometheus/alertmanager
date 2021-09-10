@@ -60,7 +60,7 @@ func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "getAlerts",
 		Method:             "GET",
-		PathPattern:        "/alerts",
+		PathPattern:        "/api/v2/alerts",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
@@ -94,7 +94,7 @@ func (a *Client) PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error) {
 	result, err := a.transport.Submit(&runtime.ClientOperation{
 		ID:                 "postAlerts",
 		Method:             "POST",
-		PathPattern:        "/alerts",
+		PathPattern:        "/api/v2/alerts",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
