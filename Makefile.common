@@ -45,7 +45,7 @@ ifeq (, $(PRE_GO_111))
 
 		ifneq (,$(wildcard vendor))
 			# Always use the local vendor/ directory to satisfy the dependencies.
-			GOOPTS := $(GOOPTS) -mod=vendor
+			GOOPTS := $(GOOPTS) -mod=mod
 		endif
 	endif
 else

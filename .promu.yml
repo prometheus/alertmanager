@@ -10,7 +10,7 @@ build:
           path: ./cmd/alertmanager
         - name: amtool
           path: ./cmd/amtool
-    flags: -mod vendor -a -tags netgo
+    flags: -mod mod -a -tags netgo
     ldflags: |
         -X github.com/prometheus/common/version.Version={{.Version}}
         -X github.com/prometheus/common/version.Revision={{.Revision}}
