@@ -665,11 +665,12 @@ type Route struct {
 	// Deprecated. Remove before v1.0 release.
 	Match map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	// Deprecated. Remove before v1.0 release.
-	MatchRE           MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	Matchers          Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
-	MuteTimeIntervals []string     `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
-	Continue          bool         `yaml:"continue" json:"continue,omitempty"`
-	Routes            []*Route     `yaml:"routes,omitempty" json:"routes,omitempty"`
+	MatchRE           MatchRegexps   `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Matchers          Matchers       `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	ObjectMatchers    ObjectMatchers `yaml:"object_matchers,omitempty" json:"object_matchers,omitempty"`
+	MuteTimeIntervals []string       `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	Continue          bool           `yaml:"continue" json:"continue,omitempty"`
+	Routes            []*Route       `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
@@ -925,6 +926,93 @@ func (m Matchers) MarshalJSON() ([]byte, error) {
 	result := make([]string, len(m))
 	for i, matcher := range m {
 		result[i] = matcher.String()
+	}
+	return json.Marshal(result)
+}
+
+// ObjectMatchers is Matchers with a different Unmarshal and Marshal methods that accept matchers as objects
+// that have already been parsed.
+type ObjectMatchers labels.Matchers
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
+func (m *ObjectMatchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var rawMatchers [][3]string
+	if err := unmarshal(&rawMatchers); err != nil {
+		return err
+	}
+	for _, rawMatcher := range rawMatchers {
+		var matchType labels.MatchType
+		switch rawMatcher[1] {
+		case "=":
+			matchType = labels.MatchEqual
+		case "!=":
+			matchType = labels.MatchNotEqual
+		case "=~":
+			matchType = labels.MatchRegexp
+		case "!~":
+			matchType = labels.MatchNotRegexp
+		default:
+			return fmt.Errorf("unsupported match type %q in matcher", rawMatcher[1])
+		}
+
+		matcher, err := labels.NewMatcher(matchType, rawMatcher[0], rawMatcher[2])
+		if err != nil {
+			return err
+		}
+		*m = append(*m, matcher)
+	}
+	sort.Sort(labels.Matchers(*m))
+	return nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for Matchers.
+func (m *ObjectMatchers) UnmarshalJSON(data []byte) error {
+	var rawMatchers [][3]string
+	if err := json.Unmarshal(data, &rawMatchers); err != nil {
+		return err
+	}
+	for _, rawMatcher := range rawMatchers {
+		var matchType labels.MatchType
+		switch rawMatcher[1] {
+		case "=":
+			matchType = labels.MatchEqual
+		case "!=":
+			matchType = labels.MatchNotEqual
+		case "=~":
+			matchType = labels.MatchRegexp
+		case "!~":
+			matchType = labels.MatchNotRegexp
+		default:
+			return fmt.Errorf("unsupported match type %q in matcher", rawMatcher[1])
+		}
+
+		matcher, err := labels.NewMatcher(matchType, rawMatcher[0], rawMatcher[2])
+		if err != nil {
+			return err
+		}
+		*m = append(*m, matcher)
+	}
+	sort.Sort(labels.Matchers(*m))
+	return nil
+}
+
+// MarshalYAML implements the yaml.Marshaler interface for Matchers.
+func (m ObjectMatchers) MarshalYAML() (interface{}, error) {
+	result := make([][3]string, len(m))
+	for i, matcher := range m {
+		result[i] = [3]string{matcher.Name, matcher.Type.String(), matcher.Value}
+	}
+	return result, nil
+}
+
+// MarshalJSON implements the json.Marshaler interface for Matchers.
+func (m ObjectMatchers) MarshalJSON() ([]byte, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	result := make([][3]string, len(m))
+	for i, matcher := range m {
+		result[i] = [3]string{matcher.Name, matcher.Type.String(), matcher.Value}
 	}
 	return json.Marshal(result)
 }

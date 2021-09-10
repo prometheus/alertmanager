@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
@@ -992,4 +994,27 @@ func TestNilRegexp(t *testing.T) {
 			require.Contains(t, err.Error(), tc.errMsg)
 		})
 	}
+}
+
+func TestObjectMatchers(t *testing.T) {
+	in := `
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  routes:
+    - object_matchers: [["a.c", "=", "z"], ["a c", "=~", ".+"]]
+`
+	cfg, err := Load(in)
+	require.NoError(t, err)
+
+	m1, err := labels.NewMatcher(labels.MatchRegexp, "a c", ".+")
+	require.NoError(t, err)
+	m2, err := labels.NewMatcher(labels.MatchEqual, "a.c", "z")
+	require.NoError(t, err)
+
+	expectedMatchers := ObjectMatchers{m1, m2}
+	spew.Dump(cfg)
+	require.Equal(t, expectedMatchers, cfg.Route.Routes[0].ObjectMatchers)
 }
