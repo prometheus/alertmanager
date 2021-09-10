@@ -16,7 +16,7 @@ produces:
   - "application/json"
 
 paths:
-  /status:
+  /api/v1/status:
     get:
       tags:
         - general
@@ -27,7 +27,7 @@ paths:
           description: Get status response
           schema:
             $ref: '#/definitions/alertmanagerStatus'
-  /receivers:
+  /api/v1/receivers:
     get:
       tags:
         - receiver
@@ -40,7 +40,7 @@ paths:
             type: array
             items:
               $ref: '#/definitions/receiver'
-  /silences:
+  /api/v1/silences:
     get:
       tags:
         - silence
@@ -88,7 +88,7 @@ paths:
           description: A silence with the specified ID was not found
           schema:
             type: string
-  /silence/{silenceID}:
+  /api/v1/silence/{silenceID}:
     parameters:
       - in: path
         name: silenceID
@@ -127,7 +127,7 @@ paths:
           description: Delete silence response
         '500':
           $ref: '#/responses/InternalServerError'
-  /alerts:
+  /api/v1/alerts:
     get:
       tags:
         - alert
@@ -195,7 +195,7 @@ paths:
           $ref: '#/responses/InternalServerError'
         '400':
           $ref: '#/responses/BadRequest'
-  /alerts/groups:
+  /api/v1/alerts/groups:
     get:
       tags:
         - alertgroup
