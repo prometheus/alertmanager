@@ -180,6 +180,25 @@ func TestSilencesSnapshot(t *testing.T) {
 	}
 }
 
+// This tests a regression introduced by https://github.com/prometheus/alertmanager/pull/2689.
+func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
+	f, err := ioutil.TempFile("", "snapshot")
+	require.NoError(t, err, "creating temp file failed")
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), now: utcNow, metrics: newMetrics(nil, nil)}
+	stopc := make(chan struct{})
+
+	done := make(chan struct{})
+	go func() {
+		s.Maintenance(100*time.Millisecond, f.Name(), stopc, nil)
+		close(done)
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+	close(stopc)
+
+	<-done
+}
+
 func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := ioutil.TempFile("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")

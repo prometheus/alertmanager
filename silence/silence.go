@@ -378,7 +378,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		return size, f.Close()
 	}
 
-	if doMaintenance != nil {
+	if override != nil {
 		doMaintenance = override
 	}
 
