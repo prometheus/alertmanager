@@ -68,7 +68,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
-	client, err := createSNSClient(n, tmpl)
+	client, err := createSNSClient(n.client, n, tmpl)
 	if err != nil {
 		if e, ok := err.(awserr.RequestFailure); ok {
 			return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
@@ -96,7 +96,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	return false, nil
 }
 
-func createSNSClient(n *Notifier, tmpl func(string) string) (*sns.SNS, error) {
+func createSNSClient(httpClient *http.Client, n *Notifier, tmpl func(string) string) (*sns.SNS, error) {
 	var creds *credentials.Credentials = nil
 	// If there are provided sigV4 credentials we want to use those to create a session.
 	if n.conf.Sigv4.AccessKey != "" && n.conf.Sigv4.SecretKey != "" {
@@ -133,7 +133,7 @@ func createSNSClient(n *Notifier, tmpl func(string) string) (*sns.SNS, error) {
 		creds = stscreds.NewCredentials(stsSess, n.conf.Sigv4.RoleARN)
 	}
 	// Use our generated session with credentials to create the SNS Client.
-	client := sns.New(sess, &aws.Config{Credentials: creds})
+	client := sns.New(sess, &aws.Config{Credentials: creds, HTTPClient: httpClient})
 	// We will always need a region to be set by either the local config or the environment.
 	if aws.StringValue(sess.Config.Region) == "" {
 		return nil, fmt.Errorf("region not configured in sns.sigv4.region or in default credentials chain")
