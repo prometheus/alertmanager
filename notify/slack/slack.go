@@ -159,7 +159,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	req := &request{
-		Channel:     tmplText(n.conf.Channel),
+		Channel:     tmplText(strings.ToLower(n.conf.Channel)),
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
