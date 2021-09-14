@@ -702,11 +702,11 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if l == "..." {
 			r.GroupByAll = true
 		} else {
-			labelName := model.LabelName(l)
-			if !labelName.IsValid() {
-				return fmt.Errorf("invalid label name %q in group_by list", l)
-			}
-			r.GroupBy = append(r.GroupBy, labelName)
+			// labelName := model.LabelName(l)
+			// if !labelName.IsValid() {
+			// 	return fmt.Errorf("invalid label name %q in group_by list", l)
+			// }
+			r.GroupBy = append(r.GroupBy, model.LabelName(l))
 		}
 	}
 
