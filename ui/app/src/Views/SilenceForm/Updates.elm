@@ -10,31 +10,29 @@ import Utils.Date exposing (timeFromString)
 import Utils.DateTimePicker.Types exposing (initFromStartAndEndTime)
 import Utils.DateTimePicker.Updates as DateTimePickerUpdates
 import Utils.Filter exposing (silencePreviewFilter)
-import Utils.FormValidation exposing (fromResult, initialField, stringNotEmpty, updateValue, validate)
-import Utils.List
+import Utils.FormValidation exposing (initialField, stringNotEmpty, updateValue, validate)
 import Utils.Types exposing (ApiData(..))
+import Views.FilterBar.Types as FilterBar
+import Views.FilterBar.Updates as FilterBar
 import Views.SilenceForm.Types
     exposing
         ( Model
         , SilenceForm
         , SilenceFormFieldMsg(..)
         , SilenceFormMsg(..)
-        , emptyMatcher
         , fromDateTimePicker
         , fromMatchersAndCommentAndTime
         , fromSilence
         , parseEndsAt
         , toSilence
         , validateForm
+        , validateMatchers
         )
 
 
 updateForm : SilenceFormFieldMsg -> SilenceForm -> SilenceForm
 updateForm msg form =
     case msg of
-        AddMatcher ->
-            { form | matchers = form.matchers ++ [ emptyMatcher ] }
-
         UpdateStartsAt time ->
             let
                 startsAt =
@@ -127,54 +125,6 @@ updateForm msg form =
         ValidateComment ->
             { form | comment = validate stringNotEmpty form.comment }
 
-        DeleteMatcher index ->
-            { form | matchers = List.take index form.matchers ++ List.drop (index + 1) form.matchers }
-
-        UpdateMatcherName index name ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | name = updateValue name matcher.name })
-                        form.matchers
-            in
-            { form | matchers = matchers }
-
-        ValidateMatcherName index ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | name = validate stringNotEmpty matcher.name })
-                        form.matchers
-            in
-            { form | matchers = matchers }
-
-        UpdateMatcherValue index value ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = updateValue value matcher.value })
-                        form.matchers
-            in
-            { form | matchers = matchers }
-
-        ValidateMatcherValue index ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | value = matcher.value })
-                        form.matchers
-            in
-            { form | matchers = matchers }
-
-        UpdateMatcherRegex index isRegex ->
-            let
-                matchers =
-                    Utils.List.replaceIndex index
-                        (\matcher -> { matcher | isRegex = isRegex })
-                        form.matchers
-            in
-            { form | matchers = matchers }
-
         UpdateTimesFromPicker ->
             let
                 ( startsAt, endsAt, duration ) =
@@ -224,7 +174,7 @@ update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
 update msg model basePath apiUrl =
     case msg of
         CreateSilence ->
-            case toSilence model.form of
+            case toSilence model.filterBar model.form of
                 Just silence ->
                     ( { model | silenceId = Loading }
                     , Cmd.batch
@@ -238,6 +188,7 @@ update msg model basePath apiUrl =
                     ( { model
                         | silenceId = Failure "Could not submit the form, Silence is not yet valid."
                         , form = validateForm model.form
+                        , filterBarValid = validateMatchers model.filterBar
                       }
                     , Cmd.none
                     )
@@ -258,10 +209,12 @@ update msg model basePath apiUrl =
             ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment >> MsgForSilenceForm) Time.now )
 
         NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment time ->
-            ( { form = fromMatchersAndCommentAndTime defaultCreator matchers comment time
+            ( { form = fromMatchersAndCommentAndTime defaultCreator comment time
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
+              , filterBar = FilterBar.initFilterBar matchers
+              , filterBarValid = Utils.FormValidation.Initial
               , key = model.key
               }
             , Cmd.none
@@ -271,7 +224,14 @@ update msg model basePath apiUrl =
             ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetch >> MsgForSilenceForm) )
 
         SilenceFetch (Success silence) ->
-            ( { model | form = fromSilence silence }
+            ( { form = fromSilence silence
+              , filterBar = FilterBar.initFilterBar (List.map Utils.Filter.fromApiMatcher silence.matchers)
+              , filterBarValid = Utils.FormValidation.Initial
+              , silenceId = model.silenceId
+              , alerts = Initial
+              , activeAlertId = Nothing
+              , key = model.key
+              }
             , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
             )
 
@@ -279,7 +239,7 @@ update msg model basePath apiUrl =
             ( model, Cmd.none )
 
         PreviewSilence ->
-            case toSilence model.form of
+            case toSilence model.filterBar model.form of
                 Just silence ->
                     ( { model | alerts = Loading }
                     , Alerts.Api.fetchAlerts
@@ -292,6 +252,7 @@ update msg model basePath apiUrl =
                     ( { model
                         | alerts = Failure "Can not display affected Alerts, Silence is not yet valid."
                         , form = validateForm model.form
+                        , filterBarValid = validateMatchers model.filterBar
                       }
                     , Cmd.none
                     )
@@ -307,11 +268,10 @@ update msg model basePath apiUrl =
             )
 
         UpdateField fieldMsg ->
-            ( { form = updateForm fieldMsg model.form
-              , alerts = Initial
-              , silenceId = Initial
-              , key = model.key
-              , activeAlertId = model.activeAlertId
+            ( { model
+                | form = updateForm fieldMsg model.form
+                , alerts = Initial
+                , silenceId = Initial
               }
             , Cmd.none
             )
@@ -325,6 +285,15 @@ update msg model basePath apiUrl =
                 | form = fromDateTimePicker model.form newPicker
               }
             , Cmd.none
+            )
+
+        MsgForFilterBar subMsg ->
+            let
+                ( newFilterBar, _, subCmd ) =
+                    FilterBar.update subMsg model.filterBar
+            in
+            ( { model | filterBar = newFilterBar, filterBarValid = Utils.FormValidation.Initial }
+            , Cmd.map (MsgForFilterBar >> MsgForSilenceForm) subCmd
             )
 
 

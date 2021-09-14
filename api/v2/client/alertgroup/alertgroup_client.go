@@ -23,12 +23,11 @@ import (
 	"fmt"
 
 	"github.com/go-openapi/runtime"
-
-	strfmt "github.com/go-openapi/strfmt"
+	"github.com/go-openapi/strfmt"
 )
 
 // New creates a new alertgroup API client.
-func New(transport runtime.ClientTransport, formats strfmt.Registry) *Client {
+func New(transport runtime.ClientTransport, formats strfmt.Registry) ClientService {
 	return &Client{transport: transport, formats: formats}
 }
 
@@ -40,8 +39,15 @@ type Client struct {
 	formats   strfmt.Registry
 }
 
+// ClientService is the interface for Client methods
+type ClientService interface {
+	GetAlertGroups(params *GetAlertGroupsParams) (*GetAlertGroupsOK, error)
+
+	SetTransport(transport runtime.ClientTransport)
+}
+
 /*
-GetAlertGroups Get a list of alert groups
+  GetAlertGroups Get a list of alert groups
 */
 func (a *Client) GetAlertGroups(params *GetAlertGroupsParams) (*GetAlertGroupsOK, error) {
 	// TODO: Validate the params before sending

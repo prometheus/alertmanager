@@ -26,7 +26,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -151,6 +151,103 @@ receivers:
 
 }
 
+func TestMuteTimeExists(t *testing.T) {
+	in := `
+route:
+    receiver: team-Y
+    routes:
+    -  match:
+        severity: critical
+       mute_time_intervals:
+       - business_hours
+
+receivers:
+- name: 'team-Y'
+`
+	_, err := Load(in)
+
+	expected := "undefined time interval \"business_hours\" used in route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestMuteTimeHasName(t *testing.T) {
+	in := `
+mute_time_intervals:
+- name: 
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
+
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  routes:
+  -  match:
+      severity: critical
+     mute_time_intervals:
+     - business_hours
+`
+	_, err := Load(in)
+
+	expected := "missing name in mute time interval"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestMuteTimeNoDuplicates(t *testing.T) {
+	in := `
+mute_time_intervals:
+- name: duplicate
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
+- name: duplicate
+  time_intervals:
+  - times:
+     - start_time: '10:00'
+       end_time: '14:00'
+
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  routes:
+  -  match:
+      severity: critical
+     mute_time_intervals:
+     - business_hours
+`
+	_, err := Load(in)
+
+	expected := "mute time interval \"duplicate\" is not unique"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
 func TestGroupByHasNoDuplicatedLabels(t *testing.T) {
 	in := `
 route:
@@ -221,6 +318,36 @@ receivers:
 	_, err := Load(in)
 
 	expected := "no routes provided"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestRootRouteNoMuteTimes(t *testing.T) {
+	in := `
+mute_time_intervals:
+- name: my_mute_time
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
+
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  mute_time_intervals:
+  - my_mute_time
+`
+	_, err := Load(in)
+
+	expected := "root route must not have any mute time intervals"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
@@ -413,23 +540,75 @@ func TestUnmarshalSecretURL(t *testing.T) {
 }
 
 func TestMarshalURL(t *testing.T) {
-	urlp, err := url.Parse("http://example.com/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := &URL{urlp}
+	for name, tc := range map[string]struct {
+		input        *URL
+		expectedJSON string
+		expectedYAML string
+	}{
+		"url": {
+			input:        mustParseURL("http://example.com/"),
+			expectedJSON: "\"http://example.com/\"",
+			expectedYAML: "http://example.com/\n",
+		},
 
-	c, err := json.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, "\"http://example.com/\"", string(c), "URL not properly marshaled in JSON.")
+		"wrapped nil value": {
+			input:        &URL{},
+			expectedJSON: "null",
+			expectedYAML: "null\n",
+		},
 
-	c, err = yaml.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
+		"wrapped empty URL": {
+			input:        &URL{&url.URL{}},
+			expectedJSON: "\"\"",
+			expectedYAML: "\"\"\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			j, err := json.Marshal(tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedJSON, string(j), "URL not properly marshaled into JSON.")
+
+			y, err := yaml.Marshal(tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedYAML, string(y), "URL not properly marshaled into YAML.")
+		})
 	}
-	require.Equal(t, "http://example.com/\n", string(c), "URL not properly marshaled in YAML.")
+}
+
+func TestUnmarshalNilURL(t *testing.T) {
+	b := []byte(`null`)
+
+	{
+		var u URL
+		err := json.Unmarshal(b, &u)
+		require.Error(t, err, "unsupported scheme \"\" for URL")
+		require.Nil(t, nil, u.URL)
+	}
+
+	{
+		var u URL
+		err := yaml.Unmarshal(b, &u)
+		require.NoError(t, err)
+		require.Nil(t, nil, u.URL) // UnmarshalYAML is not even called when unmarshalling "null".
+	}
+}
+
+func TestUnmarshalEmptyURL(t *testing.T) {
+	b := []byte(`""`)
+
+	{
+		var u URL
+		err := json.Unmarshal(b, &u)
+		require.Error(t, err, "unsupported scheme \"\" for URL")
+		require.Equal(t, (*url.URL)(nil), u.URL)
+	}
+
+	{
+		var u URL
+		err := yaml.Unmarshal(b, &u)
+		require.Error(t, err, "unsupported scheme \"\" for URL")
+		require.Equal(t, (*url.URL)(nil), u.URL)
+	}
 }
 
 func TestUnmarshalURL(t *testing.T) {
@@ -483,6 +662,70 @@ func TestUnmarshalRelativeURL(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected an error parsing URL")
 	}
+}
+
+func TestMarshalRegexpWithNilValue(t *testing.T) {
+	r := &Regexp{}
+
+	out, err := json.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "null", string(out))
+
+	out, err = yaml.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "null\n", string(out))
+}
+
+func TestUnmarshalEmptyRegexp(t *testing.T) {
+	b := []byte(`""`)
+
+	{
+		var re Regexp
+		err := json.Unmarshal(b, &re)
+		require.NoError(t, err)
+		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+
+	{
+		var re Regexp
+		err := yaml.Unmarshal(b, &re)
+		require.NoError(t, err)
+		require.Equal(t, regexp.MustCompile("^(?:)$"), re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+}
+
+func TestUnmarshalNullRegexp(t *testing.T) {
+	input := []byte(`null`)
+
+	{
+		var re Regexp
+		err := json.Unmarshal(input, &re)
+		require.NoError(t, err)
+		require.Nil(t, nil, re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+
+	{
+		var re Regexp
+		err := yaml.Unmarshal(input, &re) // Interestingly enough, unmarshalling `null` in YAML doesn't even call UnmarshalYAML.
+		require.NoError(t, err)
+		require.Nil(t, re.Regexp)
+		require.Equal(t, "", re.original)
+	}
+}
+
+func TestMarshalEmptyMatchers(t *testing.T) {
+	r := Matchers{}
+
+	out, err := json.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "[]", string(out))
+
+	out, err = yaml.Marshal(r)
+	require.NoError(t, err)
+	require.Equal(t, "[]\n", string(out))
 }
 
 func TestJSONUnmarshal(t *testing.T) {
@@ -548,7 +791,9 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 	var expectedConf = Config{
 
 		Global: &GlobalConfig{
-			HTTPConfig:      &commoncfg.HTTPClientConfig{},
+			HTTPConfig: &commoncfg.HTTPClientConfig{
+				FollowRedirects: true,
+			},
 			ResolveTimeout:  model.Duration(5 * time.Minute),
 			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
 			SMTPFrom:        "alertmanager@example.org",
@@ -625,6 +870,21 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 
 	if !reflect.DeepEqual(configGot, configExp) {
 		t.Fatalf("%s: unexpected config result: \n\n%s\n expected\n\n%s", "testdata/conf.empty-fields.yml", configGot, configExp)
+	}
+}
+
+func TestGlobalAndLocalHTTPConfig(t *testing.T) {
+	config, err := LoadFile("testdata/conf.http-config.good.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf-http-config.good.yml", err)
+	}
+
+	if config.Global.HTTPConfig.FollowRedirects {
+		t.Fatalf("global HTTP config should not follow redirects")
+	}
+
+	if !config.Receivers[0].SlackConfigs[0].HTTPConfig.FollowRedirects {
+		t.Fatalf("global HTTP config should follow redirects")
 	}
 }
 
@@ -710,6 +970,69 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 
 	const expectedErr = `yaml: unmarshal errors:
   line 18: field teams not found in type config.plain`
+	if err.Error() != expectedErr {
+		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
+	}
+}
+
+func TestSlackBothAPIURLAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-both-file-and-url.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-both-file-and-url.yml", err)
+	}
+	if err.Error() != "at most one of slack_api_url & slack_api_url_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of slack_api_url & slack_api_url_file must be configured", err.Error())
+	}
+}
+
+func TestSlackNoAPIURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-no-api-url.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-no-api-url.yml", err)
+	}
+	if err.Error() != "no global Slack API URL set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global Slack API URL set either inline or in a file", err.Error())
+	}
+}
+
+func TestSlackGlobalAPIURLFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.slack-default-api-url-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-default-api-url-file.yml", err)
+	}
+
+	// no override
+	firstConfig := conf.Receivers[0].SlackConfigs[0]
+	if firstConfig.APIURLFile != "/global_file" || firstConfig.APIURL != nil {
+		t.Fatalf("Invalid Slack URL file: %s\nExpected: %s", firstConfig.APIURLFile, "/global_file")
+	}
+
+	// override the file
+	secondConfig := conf.Receivers[0].SlackConfigs[1]
+	if secondConfig.APIURLFile != "/override_file" || secondConfig.APIURL != nil {
+		t.Fatalf("Invalid Slack URL file: %s\nExpected: %s", secondConfig.APIURLFile, "/override_file")
+	}
+
+	// override the global file with an inline URL
+	thirdConfig := conf.Receivers[0].SlackConfigs[2]
+	if thirdConfig.APIURL.String() != "http://mysecret.example.com/" || thirdConfig.APIURLFile != "" {
+		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", thirdConfig.APIURL.String(), "http://mysecret.example.com/")
+	}
+}
+
+func TestValidSNSConfig(t *testing.T) {
+	_, err := LoadFile("testdata/conf.sns-topic-arn.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.sns-topic-arn.yml\"", err)
+	}
+}
+
+func TestInvalidSNSConfig(t *testing.T) {
+	_, err := LoadFile("testdata/conf.sns-invalid.yml")
+	if err == nil {
+		t.Fatalf("expected error with missing fields on SNS config")
+	}
+	const expectedErr = `must provide either a Target ARN, Topic ARN, or Phone Number for SNS config`
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}

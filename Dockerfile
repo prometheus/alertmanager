@@ -10,7 +10,7 @@ COPY .build/${OS}-${ARCH}/alertmanager /bin/alertmanager
 COPY examples/ha/alertmanager.yml      /etc/alertmanager/alertmanager.yml
 
 RUN mkdir -p /alertmanager && \
-    chown -R nobody:nogroup etc/alertmanager /alertmanager
+    chown -R nobody:nobody etc/alertmanager /alertmanager
 
 USER       nobody
 EXPOSE     9093

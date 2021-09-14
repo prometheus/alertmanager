@@ -1,10 +1,8 @@
 module Views.SilenceForm.Types exposing
-    ( MatcherForm
-    , Model
+    ( Model
     , SilenceForm
     , SilenceFormFieldMsg(..)
     , SilenceFormMsg(..)
-    , emptyMatcher
     , fromDateTimePicker
     , fromMatchersAndCommentAndTime
     , fromSilence
@@ -12,12 +10,13 @@ module Views.SilenceForm.Types exposing
     , parseEndsAt
     , toSilence
     , validateForm
+    , validateMatchers
     )
 
 import Browser.Navigation exposing (Key)
 import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
-import Data.Matcher exposing (Matcher)
+import Data.Matcher
 import Data.PostableSilence exposing (PostableSilence)
 import DateTime
 import Silences.Types exposing (nullSilence)
@@ -33,11 +32,14 @@ import Utils.FormValidation
         , stringNotEmpty
         , validate
         )
-import Utils.Types exposing (ApiData(..), Duration)
+import Utils.Types exposing (ApiData(..))
+import Views.FilterBar.Types as FilterBar
 
 
 type alias Model =
     { form : SilenceForm
+    , filterBar : FilterBar.Model
+    , filterBarValid : ValidationState
     , silenceId : ApiData String
     , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
@@ -52,16 +54,8 @@ type alias SilenceForm =
     , startsAt : ValidatedField
     , endsAt : ValidatedField
     , duration : ValidatedField
-    , matchers : List MatcherForm
     , dateTimePicker : DateTimePicker
     , viewDateTimePicker : Bool
-    }
-
-
-type alias MatcherForm =
-    { name : ValidatedField
-    , value : ValidatedField
-    , isRegex : Bool
     }
 
 
@@ -77,12 +71,11 @@ type SilenceFormMsg
     | SilenceFetch (ApiData GettableSilence)
     | SilenceCreate (ApiData String)
     | UpdateDateTimePicker Utils.DateTimePicker.Types.Msg
+    | MsgForFilterBar FilterBar.Msg
 
 
 type SilenceFormFieldMsg
-    = AddMatcher
-    | DeleteMatcher Int
-    | UpdateStartsAt String
+    = UpdateStartsAt String
     | UpdateEndsAt String
     | UpdateDuration String
     | ValidateTime
@@ -90,11 +83,6 @@ type SilenceFormFieldMsg
     | ValidateCreatedBy
     | UpdateComment String
     | ValidateComment
-    | UpdateMatcherName Int String
-    | ValidateMatcherName Int
-    | UpdateMatcherValue Int String
-    | ValidateMatcherValue Int
-    | UpdateMatcherRegex Int Bool
     | UpdateTimesFromPicker
     | OpenDateTimePicker
     | CloseDateTimePicker
@@ -103,6 +91,8 @@ type SilenceFormFieldMsg
 initSilenceForm : Key -> Model
 initSilenceForm key =
     { form = empty
+    , filterBar = FilterBar.initFilterBar []
+    , filterBarValid = Utils.FormValidation.Initial
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     , activeAlertId = Nothing
@@ -110,29 +100,43 @@ initSilenceForm key =
     }
 
 
-toSilence : SilenceForm -> Maybe PostableSilence
-toSilence { id, comment, matchers, createdBy, startsAt, endsAt } =
+toSilence : FilterBar.Model -> SilenceForm -> Maybe PostableSilence
+toSilence filterBar { id, comment, createdBy, startsAt, endsAt } =
     Result.map5
-        (\nonEmptyComment validMatchers nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
+        (\nonEmptyMatchers nonEmptyComment nonEmptyCreatedBy parsedStartsAt parsedEndsAt ->
             { nullSilence
                 | id = id
                 , comment = nonEmptyComment
-                , matchers = validMatchers
+                , matchers = nonEmptyMatchers
                 , createdBy = nonEmptyCreatedBy
                 , startsAt = parsedStartsAt
                 , endsAt = parsedEndsAt
             }
         )
+        (validMatchers filterBar)
         (stringNotEmpty comment.value)
-        (List.foldr appendMatcher (Ok []) matchers)
         (stringNotEmpty createdBy.value)
         (timeFromString startsAt.value)
         (parseEndsAt startsAt.value endsAt.value)
         |> Result.toMaybe
 
 
+validMatchers : FilterBar.Model -> Result String (List Data.Matcher.Matcher)
+validMatchers { matchers, matcherText } =
+    if matcherText /= "" then
+        Err "Please complete adding the matcher"
+
+    else
+        case matchers of
+            [] ->
+                Err "Matchers are required"
+
+            nonEmptyMatchers ->
+                Ok (List.map Utils.Filter.toApiMatcher nonEmptyMatchers)
+
+
 fromSilence : GettableSilence -> SilenceForm
-fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
+fromSilence { id, createdBy, comment, startsAt, endsAt } =
     let
         startsPosix =
             Utils.Date.timeFromString (DateTime.toString startsAt)
@@ -148,24 +152,32 @@ fromSilence { id, createdBy, comment, startsAt, endsAt, matchers } =
     , startsAt = initialField (timeToString startsAt)
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
-    , matchers = List.map fromMatcher matchers
     , dateTimePicker = initFromStartAndEndTime startsPosix endsPosix
     , viewDateTimePicker = False
     }
 
 
 validateForm : SilenceForm -> SilenceForm
-validateForm { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } =
+validateForm { id, createdBy, comment, startsAt, endsAt, duration, dateTimePicker } =
     { id = id
     , createdBy = validate stringNotEmpty createdBy
     , comment = validate stringNotEmpty comment
     , startsAt = validate timeFromString startsAt
     , endsAt = validate (parseEndsAt startsAt.value) endsAt
     , duration = validate parseDuration duration
-    , matchers = List.map validateMatcherForm matchers
     , dateTimePicker = dateTimePicker
     , viewDateTimePicker = False
     }
+
+
+validateMatchers : FilterBar.Model -> ValidationState
+validateMatchers filter =
+    case validMatchers filter of
+        Err error ->
+            Utils.FormValidation.Invalid error
+
+        Ok _ ->
+            Utils.FormValidation.Valid
 
 
 parseEndsAt : String -> String -> Result String Posix
@@ -182,14 +194,6 @@ parseEndsAt startsAt endsAt =
             endsResult
 
 
-validateMatcherForm : MatcherForm -> MatcherForm
-validateMatcherForm { name, value, isRegex } =
-    { name = validate stringNotEmpty name
-    , value = value
-    , isRegex = isRegex
-    }
-
-
 empty : SilenceForm
 empty =
     { id = Nothing
@@ -198,17 +202,8 @@ empty =
     , startsAt = initialField ""
     , endsAt = initialField ""
     , duration = initialField ""
-    , matchers = []
     , dateTimePicker = initDateTimePicker
     , viewDateTimePicker = False
-    }
-
-
-emptyMatcher : MatcherForm
-emptyMatcher =
-    { isRegex = False
-    , name = initialField ""
-    , value = initialField ""
     }
 
 
@@ -218,64 +213,27 @@ defaultDuration =
     2 * 60 * 60 * 1000
 
 
-fromMatchersAndCommentAndTime : String -> List Utils.Filter.Matcher -> String -> Posix -> SilenceForm
-fromMatchersAndCommentAndTime defaultCreator matchers comment now =
+fromMatchersAndCommentAndTime : String -> String -> Posix -> SilenceForm
+fromMatchersAndCommentAndTime defaultCreator comment now =
     { empty
         | startsAt = initialField (timeToString now)
         , endsAt = initialField (timeToString (addDuration defaultDuration now))
         , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
         , createdBy = initialField defaultCreator
-        , matchers =
-            -- If no matchers were specified, add an empty row
-            if List.isEmpty matchers then
-                [ emptyMatcher ]
-
-            else
-                List.filterMap (filterMatcherToMatcher >> Maybe.map fromMatcher) matchers
         , comment = initialField comment
         , dateTimePicker = initFromStartAndEndTime (Just now) (Just (addDuration defaultDuration now))
         , viewDateTimePicker = False
     }
 
 
-appendMatcher : MatcherForm -> Result String (List Matcher) -> Result String (List Matcher)
-appendMatcher { isRegex, name, value } =
-    Result.map2 (::)
-        (Result.map2 (\k v -> Matcher k v isRegex) (stringNotEmpty name.value) (Ok value.value))
-
-
-filterMatcherToMatcher : Utils.Filter.Matcher -> Maybe Matcher
-filterMatcherToMatcher { key, op, value } =
-    Maybe.map (\operator -> Matcher key value operator) <|
-        case op of
-            Utils.Filter.Eq ->
-                Just False
-
-            Utils.Filter.RegexMatch ->
-                Just True
-
-            -- we don't support negative matchers
-            _ ->
-                Nothing
-
-
-fromMatcher : Matcher -> MatcherForm
-fromMatcher { name, value, isRegex } =
-    { name = initialField name
-    , value = initialField value
-    , isRegex = isRegex
-    }
-
-
 fromDateTimePicker : SilenceForm -> DateTimePicker -> SilenceForm
-fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration, matchers, dateTimePicker } newPicker =
+fromDateTimePicker { id, createdBy, comment, startsAt, endsAt, duration } newPicker =
     { id = id
     , createdBy = createdBy
     , comment = comment
     , startsAt = startsAt
     , endsAt = endsAt
     , duration = duration
-    , matchers = matchers
     , dateTimePicker = newPicker
     , viewDateTimePicker = True
     }

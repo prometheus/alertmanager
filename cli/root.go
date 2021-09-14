@@ -14,6 +14,9 @@
 package cli
 
 import (
+	"crypto/tls"
+	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -21,6 +24,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/version"
+	"golang.org/x/mod/semver"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client"
@@ -31,10 +35,12 @@ import (
 )
 
 var (
-	verbose         bool
-	alertmanagerURL *url.URL
-	output          string
-	timeout         time.Duration
+	verbose               bool
+	alertmanagerURL       *url.URL
+	output                string
+	timeout               time.Duration
+	tlsInsecureSkipVerify bool
+	versionCheck          bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -78,18 +84,41 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
+	if tlsInsecureSkipVerify {
+		transport := http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		cr.Transport = &transport
+	}
+
 	if amURL.User != nil {
 		password, _ := amURL.User.Password()
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
-	return client.New(cr, strfmt.Default)
+	c := client.New(cr, strfmt.Default)
+
+	if !versionCheck {
+		return c
+	}
+
+	status, err := c.General.GetStatus(nil)
+	if err != nil || status.Payload.VersionInfo == nil || version.Version == "" {
+		// We can not get version info, or we do not know our own version. Let amtool continue.
+		return c
+	}
+
+	if semver.MajorMinor("v"+*status.Payload.VersionInfo.Version) != semver.MajorMinor("v"+version.Version) {
+		fmt.Fprintf(os.Stderr, "Warning: amtool version (%s) and alertmanager version (%s) are different.\n", version.Version, *status.Payload.VersionInfo.Version)
+	}
+
+	return c
 }
 
 // Execute is the main function for the amtool command
 func Execute() {
 	var (
-		app = kingpin.New("amtool", helpRoot)
+		app = kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 	)
 
 	format.InitFormatFlags(app)
@@ -98,6 +127,8 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
+	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").BoolVar(&tlsInsecureSkipVerify)
+	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
@@ -113,6 +144,7 @@ func Execute() {
 	configureCheckConfigCmd(app)
 	configureClusterCmd(app)
 	configureConfigCmd(app)
+	configureTemplateCmd(app)
 
 	err = resolver.Bind(app, os.Args[1:])
 	if err != nil {
@@ -151,5 +183,9 @@ static configuration:
 
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
+
+	tls.insecure.skip.verify
+		Skips TLS certificate verification for all HTTPS requests.
+		Defaults to false.
 `
 )

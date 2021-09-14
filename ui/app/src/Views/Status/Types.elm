@@ -1,7 +1,6 @@
 module Views.Status.Types exposing (StatusModel, StatusMsg(..), initStatusModel)
 
 import Data.AlertmanagerStatus exposing (AlertmanagerStatus)
-import Status.Types exposing (StatusResponse)
 import Utils.Types exposing (ApiData(..))
 
 

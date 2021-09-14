@@ -1,9 +1,9 @@
-module Parsing exposing (routeParser, urlParser)
+module Parsing exposing (urlParser)
 
 import Regex
 import Types exposing (Route(..))
 import Url exposing (Url)
-import Url.Parser exposing ((</>), (<?>), Parser, int, map, oneOf, parse, s, string, top)
+import Url.Parser exposing (Parser, map, oneOf, parse, top)
 import Views.AlertList.Parsing exposing (alertsParser)
 import Views.SilenceForm.Parsing exposing (silenceFormEditParser, silenceFormNewParser)
 import Views.SilenceList.Parsing exposing (silenceListParser)
@@ -31,7 +31,7 @@ urlParser url =
                     ( h, Nothing )
 
                 h :: rest ->
-                    ( h, Just (String.join "" rest) )
+                    ( h, Just (String.concat rest) )
     in
     case parse routeParser { url | query = query, fragment = Nothing, path = path } of
         Just route ->

@@ -31,6 +31,7 @@ Note that some fields are evaluated as text, and others as HTML which will affec
 | ExternalURL | string | Backlink to the Alertmanager that sent the notification. |
 
 The `Alerts` type exposes functions for filtering alerts:
+
  - `Alerts.Firing` returns a list of currently firing alert objects in this group
  - `Alerts.Resolved` returns a list of resolved alert objects in this group
 

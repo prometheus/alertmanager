@@ -144,16 +144,11 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		return errors.New("silence cannot start after it ends")
 	}
 
-	typeMatchers, err := TypeMatchers(matchers)
-	if err != nil {
-		return err
-	}
-
 	start := strfmt.DateTime(startsAt)
 	end := strfmt.DateTime(endsAt)
 	ps := &models.PostableSilence{
 		Silence: models.Silence{
-			Matchers:  typeMatchers,
+			Matchers:  TypeMatchers(matchers),
 			StartsAt:  &start,
 			EndsAt:    &end,
 			CreatedBy: &c.author,

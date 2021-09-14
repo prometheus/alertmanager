@@ -19,12 +19,15 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
@@ -123,6 +126,19 @@ func TestSilencesSnapshot(t *testing.T) {
 				},
 				{
 					Silence: &pb.Silence{
+						Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
+						Matchers: []*pb.Matcher{
+							{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
+							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
+						},
+						StartsAt:  now,
+						EndsAt:    now,
+						UpdatedAt: now,
+					},
+					ExpiresAt: now,
+				},
+				{
+					Silence: &pb.Silence{
 						Id: "4b1e760d-182c-4980-b873-c1a6827c9817",
 						Matchers: []*pb.Matcher{
 							{Name: "label1", Pattern: "val1", Type: pb.Matcher_EQUAL},
@@ -162,6 +178,51 @@ func TestSilencesSnapshot(t *testing.T) {
 
 		require.NoError(t, f.Close(), "closing snapshot file failed")
 	}
+}
+
+// This tests a regression introduced by https://github.com/prometheus/alertmanager/pull/2689.
+func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
+	f, err := ioutil.TempFile("", "snapshot")
+	require.NoError(t, err, "creating temp file failed")
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), now: utcNow, metrics: newMetrics(nil, nil)}
+	stopc := make(chan struct{})
+
+	done := make(chan struct{})
+	go func() {
+		s.Maintenance(100*time.Millisecond, f.Name(), stopc, nil)
+		close(done)
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+	close(stopc)
+
+	<-done
+}
+
+func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
+	f, err := ioutil.TempFile("", "snapshot")
+	require.NoError(t, err, "creating temp file failed")
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), now: utcNow, metrics: newMetrics(nil, nil)}
+	stopc := make(chan struct{})
+	var mtx sync.Mutex
+	var mc int
+
+	go s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+		mtx.Lock()
+		mc++
+		mtx.Unlock()
+
+		return 0, nil
+	})
+
+	time.Sleep(200 * time.Millisecond)
+	close(stopc)
+
+	require.Eventually(t, func() bool {
+		mtx.Lock()
+		defer mtx.Unlock()
+		return mc >= 2 // At least, one for the regular schedule and one at shutdown.
+	}, 500*time.Millisecond, 100*time.Millisecond)
 }
 
 func TestSilencesSetSilence(t *testing.T) {
@@ -464,6 +525,14 @@ func TestQMatches(t *testing.T) {
 		{
 			sil: &pb.Silence{
 				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_NOT_EQUAL},
+				},
+			},
+			drop: false,
+		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
 					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
 					{Name: "method", Pattern: "POST", Type: pb.Matcher_EQUAL},
 				},
@@ -473,10 +542,27 @@ func TestQMatches(t *testing.T) {
 		{
 			sil: &pb.Silence{
 				Matchers: []*pb.Matcher{
+					{Name: "job", Pattern: "test", Type: pb.Matcher_EQUAL},
+					{Name: "method", Pattern: "POST", Type: pb.Matcher_NOT_EQUAL},
+				},
+			},
+			drop: true,
+		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
 					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_REGEXP},
 				},
 			},
 			drop: true,
+		},
+		{
+			sil: &pb.Silence{
+				Matchers: []*pb.Matcher{
+					{Name: "path", Pattern: "/user/.+", Type: pb.Matcher_NOT_REGEXP},
+				},
+			},
+			drop: false,
 		},
 		{
 			sil: &pb.Silence{
@@ -866,6 +952,73 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	require.Equal(t, 3, count)
 }
 
+func TestSilencer(t *testing.T) {
+	ss, err := New(Options{Retention: time.Hour})
+	require.NoError(t, err)
+
+	now := time.Now()
+	ss.now = func() time.Time { return now }
+
+	m := types.NewMarker(prometheus.NewRegistry())
+	s := NewSilencer(ss, m, log.NewNopLogger())
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced without any silences")
+
+	_, err = ss.Set(&pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "baz"}},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(5 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by non-matching silence")
+
+	id, err := ss.Set(&pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(5 * time.Minute),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
+
+	now = now.Add(time.Hour) // One hour passes, silence expires.
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
+
+	// Update silence to start in the future.
+	_, err = ss.Set(&pb.Silence{
+		Id:       id,
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "bar"}},
+		StartsAt: now.Add(time.Hour),
+		EndsAt:   now.Add(3 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
+
+	now = now.Add(2 * time.Hour) // Two hours pass, silence becomes active.
+
+	// Exposes issue #2426.
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
+
+	_, err = ss.Set(&pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "foo", Pattern: "b..", Type: pb.Matcher_REGEXP}},
+		StartsAt: now.Add(time.Hour),
+		EndsAt:   now.Add(3 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	// Note that issue #2426 doesn't apply anymore because we added a new silence.
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
+
+	now = now.Add(2 * time.Hour) // Two hours pass, first silence expires, overlapping second silence becomes active.
+
+	// Another variant of issue #2426 (overlapping silences).
+	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
+}
+
 func TestValidateMatcher(t *testing.T) {
 	cases := []struct {
 		m   *pb.Matcher
@@ -880,6 +1033,27 @@ func TestValidateMatcher(t *testing.T) {
 			err: "",
 		}, {
 			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_EQUAL,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "b",
+				Type:    pb.Matcher_NOT_REGEXP,
+			},
+			err: "",
+		}, {
+			m: &pb.Matcher{
 				Name:    "00",
 				Pattern: "a",
 				Type:    pb.Matcher_EQUAL,
@@ -890,6 +1064,13 @@ func TestValidateMatcher(t *testing.T) {
 				Name:    "a",
 				Pattern: "((",
 				Type:    pb.Matcher_REGEXP,
+			},
+			err: "invalid regular expression",
+		}, {
+			m: &pb.Matcher{
+				Name:    "a",
+				Pattern: "))",
+				Type:    pb.Matcher_NOT_REGEXP,
 			},
 			err: "invalid regular expression",
 		}, {
@@ -1119,6 +1300,19 @@ func TestStateCoding(t *testing.T) {
 						UpdatedAt: now,
 					},
 					ExpiresAt: now.Add(24 * time.Hour),
+				},
+				{
+					Silence: &pb.Silence{
+						Id: "3dfb2528-59ce-41eb-b465-f875a4e744a4",
+						Matchers: []*pb.Matcher{
+							{Name: "label1", Pattern: "val1", Type: pb.Matcher_NOT_EQUAL},
+							{Name: "label2", Pattern: "val.+", Type: pb.Matcher_NOT_REGEXP},
+						},
+						StartsAt:  now,
+						EndsAt:    now,
+						UpdatedAt: now,
+					},
+					ExpiresAt: now,
 				},
 			},
 		},

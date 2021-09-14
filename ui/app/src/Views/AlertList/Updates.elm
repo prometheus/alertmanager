@@ -7,7 +7,7 @@ import Dict
 import Set
 import Task
 import Types exposing (Msg(..))
-import Utils.Filter exposing (Filter, generateQueryString, parseFilter)
+import Utils.Filter exposing (Filter)
 import Utils.List
 import Utils.Types exposing (ApiData(..))
 import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
@@ -21,6 +21,9 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
     let
         alertsUrl =
             basePath ++ "#/alerts"
+
+        filteredUrl =
+            Utils.Filter.toUrl alertsUrl
     in
     case msg of
         AlertGroupsFetched listOfAlertGroups ->
@@ -109,12 +112,12 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
 
         ToggleSilenced showSilenced ->
             ( model
-            , Navigation.pushUrl model.key (alertsUrl ++ generateQueryString { filter | showSilenced = Just showSilenced })
+            , Navigation.pushUrl model.key (filteredUrl { filter | showSilenced = Just showSilenced })
             )
 
         ToggleInhibited showInhibited ->
             ( model
-            , Navigation.pushUrl model.key (alertsUrl ++ generateQueryString { filter | showInhibited = Just showInhibited })
+            , Navigation.pushUrl model.key (filteredUrl { filter | showInhibited = Just showInhibited })
             )
 
         SetTab tab ->
@@ -122,10 +125,26 @@ update msg ({ groupBar, alerts, filterBar, receiverBar, alertGroups } as model) 
 
         MsgForFilterBar subMsg ->
             let
-                ( newFilterBar, cmd ) =
-                    FilterBar.update alertsUrl filter subMsg filterBar
+                ( newFilterBar, shouldFilter, cmd ) =
+                    FilterBar.update subMsg filterBar
+
+                filterBarCmd =
+                    Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd
+
+                newUrl =
+                    filteredUrl (Utils.Filter.withMatchers newFilterBar.matchers filter)
+
+                alertsCmd =
+                    if shouldFilter then
+                        Cmd.batch
+                            [ Navigation.pushUrl model.key newUrl
+                            , filterBarCmd
+                            ]
+
+                    else
+                        filterBarCmd
             in
-            ( { model | filterBar = newFilterBar, tab = FilterTab }, Cmd.map (MsgForFilterBar >> MsgForAlertList) cmd )
+            ( { model | filterBar = newFilterBar, tab = FilterTab }, alertsCmd )
 
         MsgForGroupBar subMsg ->
             let

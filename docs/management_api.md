@@ -32,6 +32,6 @@ This endpoint returns 200 when Alertmanager is ready to serve traffic (i.e. resp
 POST /-/reload
 ```
 
-This endpoint triggers a reload of the Alertmanager configuration file. 
+This endpoint triggers a reload of the Alertmanager configuration file.
 
 An alternative way to trigger a configuration reload is by sending a `SIGHUP` to the Alertmanager process.

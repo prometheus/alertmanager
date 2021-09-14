@@ -572,10 +572,14 @@ func TestMatchFilterLabels(t *testing.T) {
 	}
 }
 
-func newMatcher(labelSet model.LabelSet) types.Matchers {
-	matchers := make([]*types.Matcher, 0, len(labelSet))
+func newMatcher(labelSet model.LabelSet) labels.Matchers {
+	matchers := make([]*labels.Matcher, 0, len(labelSet))
 	for key, val := range labelSet {
-		matchers = append(matchers, types.NewMatcher(key, string(val)))
+		matchers = append(matchers, &labels.Matcher{
+			Type:  labels.MatchEqual,
+			Name:  string(key),
+			Value: string(val),
+		})
 	}
 	return matchers
 }
