@@ -817,3 +817,14 @@ func TestTimeMuteStage(t *testing.T) {
 		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
 	}
 }
+
+func BenchmarkHashAlert(b *testing.B) {
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{"foo": "the_first_value", "bar": "the_second_value", "another": "value"},
+		},
+	}
+	for i := 0; i < b.N; i++ {
+		hashAlert(alert)
+	}
+}
