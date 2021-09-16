@@ -327,6 +327,9 @@ func New(o Options) (*Silences, error) {
 			}
 		} else {
 			o.SnapshotReader = r
+			defer func(fileDescriptor *os.File) {
+				_ = fileDescriptor.Close()
+			}(r)
 		}
 	}
 	s := &Silences{
