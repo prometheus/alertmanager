@@ -15,6 +15,7 @@ package slack
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"testing"
 
@@ -79,4 +80,23 @@ func TestGettingSlackURLFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, u.String())
+}
+
+func TestSlackCustomErrDetails(t *testing.T) {
+	notifier, err := NewWithErrDetails(
+		&config.SlackConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+		func(code int, body io.Reader) string {
+			return "custom error message"
+		},
+	)
+	require.NoError(t, err)
+
+	retry, err := notifier.retrier.Check(404, nil)
+	require.False(t, retry)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "custom error message")
 }

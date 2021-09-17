@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -54,6 +55,31 @@ func New(c *config.SlackConfig, t *template.Template, l log.Logger, httpOpts ...
 		logger:  l,
 		client:  client,
 		retrier: &notify.Retrier{},
+	}, nil
+}
+
+// NewWithErrDetails returns a new Slack notification handler using the provided errDetails function
+// to allow custom formatting of Slack error messages.
+func NewWithErrDetails(
+	c *config.SlackConfig,
+	t *template.Template,
+	l log.Logger,
+	errDetails func(code int, body io.Reader) string,
+	httpOpts ...commoncfg.HTTPClientOption,
+) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", append(httpOpts, commoncfg.WithHTTP2Disabled())...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Notifier{
+		conf:   c,
+		tmpl:   t,
+		logger: l,
+		client: client,
+		retrier: &notify.Retrier{
+			CustomDetailsFunc: errDetails,
+		},
 	}, nil
 }
 
