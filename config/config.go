@@ -705,7 +705,7 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if !labelName.IsValid() {
 				return fmt.Errorf("invalid label name %q in group_by list", l)
 			}
-			r.GroupBy = append(r.GroupBy, model.LabelName(l))
+			r.GroupBy = append(r.GroupBy, labelName)
 		}
 	}
 
