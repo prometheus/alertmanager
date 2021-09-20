@@ -115,8 +115,6 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
 	matchers = append(matchers, cr.Matchers...)
 
-	matchers = append(matchers, cr.ObjectMatchers...)
-
 	sort.Sort(matchers)
 
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
