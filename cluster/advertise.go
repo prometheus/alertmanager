@@ -22,7 +22,7 @@ import (
 
 type getIPFunc func() (string, error)
 
-// This is overridden in unit tests to mock the sockaddr.GetPrivateIP function.
+// These are overridden in unit tests to mock the sockaddr functions.
 var getPrivateAddress getIPFunc = sockaddr.GetPrivateIP
 var getPublicAddress getIPFunc = sockaddr.GetPublicIP
 
