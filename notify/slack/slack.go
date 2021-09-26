@@ -43,7 +43,7 @@ type Notifier struct {
 
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", append(httpOpts, commoncfg.WithHTTP2Disabled())...)
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
 	}

@@ -48,7 +48,7 @@ type Notifier struct {
 
 // New returns a new SNS notification handler.
 func New(c *config.SNSConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "sns", append(httpOpts, commoncfg.WithHTTP2Disabled())...)
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "sns", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
