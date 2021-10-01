@@ -456,7 +456,7 @@ wechat_configs:
 ## `<email_config>`
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The email address to send notifications to.
@@ -500,7 +500,7 @@ tls_config:
 OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The API key to use when talking to the OpsGenie API.
@@ -536,7 +536,7 @@ responders:
 # Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
 [ priority: <tmpl_string> ]
 
-# Whether or not to update message and description of the alert in OpsGenie if it already exists
+# Whether to update message and description of the alert in OpsGenie if it already exists
 # By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
 [ update_alerts: <boolean> | default = false ]
 
@@ -562,7 +562,7 @@ PagerDuty notifications are sent via the [PagerDuty API](https://developer.pager
 PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometheus-integration-guide/) on how to integrate. There are important differences with Alertmanager's v0.11 and greater support of PagerDuty's Events API v2.
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The following two options are mutually exclusive.
@@ -639,7 +639,7 @@ text: <tmpl_string>
 Pushover notifications are sent via the [Pushover API](https://pushover.net/api).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The recipient user's user key.
@@ -681,7 +681,7 @@ webhooks](https://api.slack.com/incoming-webhooks). The notification contains
 an [attachment](https://api.slack.com/docs/message-attachments).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The Slack webhook URL. Either api_url or api_url_file should be set.
@@ -758,7 +758,7 @@ value: <tmpl_string>
 
 ## `<sns_config>`
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
@@ -869,7 +869,7 @@ matchers:
 VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/victorops-restendpoint-integration/)
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The API key to use when talking to the VictorOps API.
@@ -902,7 +902,7 @@ routing_key: <tmpl_string>
 The webhook receiver allows configuring a generic receiver.
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The endpoint to send HTTP POST requests to.
@@ -957,7 +957,7 @@ WeChat notifications are sent via the [WeChat
 API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The API key to use when talking to the WeChat API.
