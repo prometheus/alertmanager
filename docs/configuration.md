@@ -441,6 +441,8 @@ pushover_configs:
   [ - <pushover_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
+sns_configs:
+  [ - <sns_config>, ... ]
 opsgenie_configs:
   [ - <opsgenie_config>, ... ]
 webhook_configs:
@@ -693,7 +695,7 @@ value: <tmpl_string>
 [ short: <boolean> | default = slack_config.short_fields ]
 ```
 
-## `<sns_configs>`
+## `<sns_config>`
 ```yaml
 # Whether or not to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
