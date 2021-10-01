@@ -435,6 +435,8 @@ name: <string>
 # Configurations for several notification integrations.
 email_configs:
   [ - <email_config>, ... ]
+opsgenie_configs:
+  [ - <opsgenie_config>, ... ]
 pagerduty_configs:
   [ - <pagerduty_config>, ... ]
 pushover_configs:
@@ -443,12 +445,10 @@ slack_configs:
   [ - <slack_config>, ... ]
 sns_configs:
   [ - <sns_config>, ... ]
-opsgenie_configs:
-  [ - <opsgenie_config>, ... ]
-webhook_configs:
-  [ - <webhook_config>, ... ]
 victorops_configs:
   [ - <victorops_config>, ... ]
+webhook_configs:
+  [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
 ```
@@ -493,6 +493,67 @@ tls_config:
 # Further headers email header key/value pairs. Overrides any headers
 # previously set by the notification implementation.
 [ headers: { <string>: <tmpl_string>, ... } ]
+```
+
+## `<opsgenie_config>`
+
+OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
+
+```yaml
+# Whether or not to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The API key to use when talking to the OpsGenie API.
+[ api_key: <secret> | default = global.opsgenie_api_key ]
+
+# The host to send OpsGenie API requests to.
+[ api_url: <string> | default = global.opsgenie_api_url ]
+
+# Alert text limited to 130 characters.
+[ message: <tmpl_string> ]
+
+# A description of the alert.
+[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
+
+# A backlink to the sender of the notification.
+[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the alert.
+# All common labels are included as details by default.
+[ details: { <string>: <tmpl_string>, ... } ]
+
+# List of responders responsible for notifications.
+responders:
+  [ - <responder> ... ]
+
+# Comma separated list of tags attached to the notifications.
+[ tags: <tmpl_string> ]
+
+# Additional alert note.
+[ note: <tmpl_string> ]
+
+# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
+[ priority: <tmpl_string> ]
+
+# Whether or not to update message and description of the alert in OpsGenie if it already exists
+# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
+[ update_alerts: <boolean> | default = false ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<responder>`
+
+```yaml
+# Exactly one of these fields should be defined.
+[ id: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ username: <tmpl_string> ]
+
+# "team", "user", "escalation" or "schedule".
+type: <tmpl_string>
 ```
 
 ## `<pagerduty_config>`
@@ -801,68 +862,6 @@ matchers: [ '{foo="bar",dings!="bums"}' ]
 matchers:
   - |
       {quote=~"She said: \"Hi, all!( How're you…)?\""}
-```
-
-
-## `<opsgenie_config>`
-
-OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
-
-```yaml
-# Whether or not to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
-
-# The API key to use when talking to the OpsGenie API.
-[ api_key: <secret> | default = global.opsgenie_api_key ]
-
-# The host to send OpsGenie API requests to.
-[ api_url: <string> | default = global.opsgenie_api_url ]
-
-# Alert text limited to 130 characters.
-[ message: <tmpl_string> ]
-
-# A description of the alert.
-[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
-
-# A backlink to the sender of the notification.
-[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
-
-# A set of arbitrary key/value pairs that provide further detail
-# about the alert.
-# All common labels are included as details by default.
-[ details: { <string>: <tmpl_string>, ... } ]
-
-# List of responders responsible for notifications.
-responders:
-  [ - <responder> ... ]
-
-# Comma separated list of tags attached to the notifications.
-[ tags: <tmpl_string> ]
-
-# Additional alert note.
-[ note: <tmpl_string> ]
-
-# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
-[ priority: <tmpl_string> ]
-
-# Whether or not to update message and description of the alert in OpsGenie if it already exists
-# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
-[ update_alerts: <boolean> | default = false ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-### `<responder>`
-
-```yaml
-# Exactly one of these fields should be defined.
-[ id: <tmpl_string> ]
-[ name: <tmpl_string> ]
-[ username: <tmpl_string> ]
-
-# "team", "user", "escalation" or "schedule".
-type: <tmpl_string>
 ```
 
 ## `<victorops_config>`
