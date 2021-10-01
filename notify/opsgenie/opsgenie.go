@@ -96,6 +96,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	for _, req := range requests {
+		req.Header.Set("User-Agent", notify.UserAgentHeader)
 		resp, err := n.client.Do(req)
 		if err != nil {
 			return true, err
