@@ -952,13 +952,38 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 	}
 }
 
+func TestOpsGenieDefaultAPIKeyFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.opsgenie-default-apikey-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-file.yml", err)
+	}
+
+	var defaultKey = conf.Global.OpsGenieAPIKeyFile
+	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile {
+		t.Fatalf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, defaultKey)
+	}
+	if defaultKey == conf.Receivers[1].OpsGenieConfigs[0].APIKeyFile {
+		t.Errorf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, "/override_file")
+	}
+}
+
+func TestOpsGenieBothAPIKeyAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.opsgenie-both-file-and-apikey.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-both-file-and-apikey.yml", err)
+	}
+	if err.Error() != "at most one of opsgenie_api_key & opsgenie_api_key_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of opsgenie_api_key & opsgenie_api_key_file must be configured", err.Error())
+	}
+}
+
 func TestOpsGenieNoAPIKey(t *testing.T) {
 	_, err := LoadFile("testdata/conf.opsgenie-no-apikey.yml")
 	if err == nil {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.opsgenie-no-apikey.yml", err)
 	}
-	if err.Error() != "no global OpsGenie API Key set" {
-		t.Errorf("Expected: %s\nGot: %s", "no global OpsGenie API Key set", err.Error())
+	if err.Error() != "no global OpsGenie API Key set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global OpsGenie API Key set either inline or in a file", err.Error())
 	}
 }
 

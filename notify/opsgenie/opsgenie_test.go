@@ -69,6 +69,31 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
 }
 
+func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	key := "key"
+
+	f, err := ioutil.TempFile("", "opsgenie_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	notifier, err := New(
+		&config.OpsGenieConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKeyFile: f.Name(),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+}
+
 func TestOpsGenie(t *testing.T) {
 	u, err := url.Parse("https://opsgenie/api")
 	if err != nil {

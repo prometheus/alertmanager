@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -255,7 +256,16 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		}
 	}
 
-	apiKey := tmpl(string(n.conf.APIKey))
+	var apiKey string
+	if n.conf.APIKey != "" {
+		apiKey = tmpl(string(n.conf.APIKey))
+	} else {
+		content, err := ioutil.ReadFile(n.conf.APIKeyFile)
+		if err != nil {
+			return nil, false, errors.Wrap(err, "read key_file error")
+		}
+		apiKey = tmpl(string(content))
+	}
 
 	if err != nil {
 		return nil, false, errors.Wrap(err, "templating error")
