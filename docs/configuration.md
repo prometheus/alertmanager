@@ -696,7 +696,7 @@ value: <tmpl_string>
 ## `<sns_configs>`
 ```yaml
 # Whether or not to notify about resolved alerts.
-[ send_resolved: <boolean> | default = false ]
+[ send_resolved: <boolean> | default = true ]
 
 # The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
 #  If not specified, the SNS API URL from the SNS SDK will be used.
