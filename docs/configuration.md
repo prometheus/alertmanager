@@ -736,7 +736,7 @@ attributes:
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-###`<sigv4_config>`
+### `<sigv4_config>`
 ```yaml
 # The AWS region. If blank, the region from the default credentials chain is used.
 [ region: <string> ]
