@@ -435,18 +435,20 @@ name: <string>
 # Configurations for several notification integrations.
 email_configs:
   [ - <email_config>, ... ]
+opsgenie_configs:
+  [ - <opsgenie_config>, ... ]
 pagerduty_configs:
   [ - <pagerduty_config>, ... ]
 pushover_configs:
   [ - <pushover_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
-opsgenie_configs:
-  [ - <opsgenie_config>, ... ]
-webhook_configs:
-  [ - <webhook_config>, ... ]
+sns_configs:
+  [ - <sns_config>, ... ]
 victorops_configs:
   [ - <victorops_config>, ... ]
+webhook_configs:
+  [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
 ```
@@ -454,7 +456,7 @@ wechat_configs:
 ## `<email_config>`
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The email address to send notifications to.
@@ -493,13 +495,74 @@ tls_config:
 [ headers: { <string>: <tmpl_string>, ... } ]
 ```
 
+## `<opsgenie_config>`
+
+OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The API key to use when talking to the OpsGenie API.
+[ api_key: <secret> | default = global.opsgenie_api_key ]
+
+# The host to send OpsGenie API requests to.
+[ api_url: <string> | default = global.opsgenie_api_url ]
+
+# Alert text limited to 130 characters.
+[ message: <tmpl_string> ]
+
+# A description of the alert.
+[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
+
+# A backlink to the sender of the notification.
+[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the alert.
+# All common labels are included as details by default.
+[ details: { <string>: <tmpl_string>, ... } ]
+
+# List of responders responsible for notifications.
+responders:
+  [ - <responder> ... ]
+
+# Comma separated list of tags attached to the notifications.
+[ tags: <tmpl_string> ]
+
+# Additional alert note.
+[ note: <tmpl_string> ]
+
+# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
+[ priority: <tmpl_string> ]
+
+# Whether to update message and description of the alert in OpsGenie if it already exists
+# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
+[ update_alerts: <boolean> | default = false ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<responder>`
+
+```yaml
+# Exactly one of these fields should be defined.
+[ id: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ username: <tmpl_string> ]
+
+# "team", "user", "escalation" or "schedule".
+type: <tmpl_string>
+```
+
 ## `<pagerduty_config>`
 
 PagerDuty notifications are sent via the [PagerDuty API](https://developer.pagerduty.com/documentation/integration/events).
 PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometheus-integration-guide/) on how to integrate. There are important differences with Alertmanager's v0.11 and greater support of PagerDuty's Events API v2.
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The following two options are mutually exclusive.
@@ -576,7 +639,7 @@ text: <tmpl_string>
 Pushover notifications are sent via the [Pushover API](https://pushover.net/api).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The recipient user's user key.
@@ -618,7 +681,7 @@ webhooks](https://api.slack.com/incoming-webhooks). The notification contains
 an [attachment](https://api.slack.com/docs/message-attachments).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The Slack webhook URL. Either api_url or api_url_file should be set.
@@ -693,9 +756,9 @@ value: <tmpl_string>
 [ short: <boolean> | default = slack_config.short_fields ]
 ```
 
-## `<sns_configs>`
+## `<sns_config>`
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
@@ -734,7 +797,7 @@ attributes:
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-###`<sigv4_config>`
+### `<sigv4_config>`
 ```yaml
 # The AWS region. If blank, the region from the default credentials chain is used.
 [ region: <string> ]
@@ -801,74 +864,12 @@ matchers:
       {quote=~"She said: \"Hi, all!( How're you…)?\""}
 ```
 
-
-## `<opsgenie_config>`
-
-OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
-
-```yaml
-# Whether or not to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
-
-# The API key to use when talking to the OpsGenie API.
-[ api_key: <secret> | default = global.opsgenie_api_key ]
-
-# The host to send OpsGenie API requests to.
-[ api_url: <string> | default = global.opsgenie_api_url ]
-
-# Alert text limited to 130 characters.
-[ message: <tmpl_string> ]
-
-# A description of the alert.
-[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
-
-# A backlink to the sender of the notification.
-[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
-
-# A set of arbitrary key/value pairs that provide further detail
-# about the alert.
-# All common labels are included as details by default.
-[ details: { <string>: <tmpl_string>, ... } ]
-
-# List of responders responsible for notifications.
-responders:
-  [ - <responder> ... ]
-
-# Comma separated list of tags attached to the notifications.
-[ tags: <tmpl_string> ]
-
-# Additional alert note.
-[ note: <tmpl_string> ]
-
-# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
-[ priority: <tmpl_string> ]
-
-# Whether or not to update message and description of the alert in OpsGenie if it already exists
-# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
-[ update_alerts: <boolean> | default = false ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-### `<responder>`
-
-```yaml
-# Exactly one of these fields should be defined.
-[ id: <tmpl_string> ]
-[ name: <tmpl_string> ]
-[ username: <tmpl_string> ]
-
-# "team", "user", "escalation" or "schedule".
-type: <tmpl_string>
-```
-
 ## `<victorops_config>`
 
 VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/victorops-restendpoint-integration/)
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The API key to use when talking to the VictorOps API.
@@ -901,7 +902,7 @@ routing_key: <tmpl_string>
 The webhook receiver allows configuring a generic receiver.
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The endpoint to send HTTP POST requests to.
@@ -956,7 +957,7 @@ WeChat notifications are sent via the [WeChat
 API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The API key to use when talking to the WeChat API.
