@@ -327,6 +327,7 @@ func New(o Options) (*Silences, error) {
 			}
 		} else {
 			o.SnapshotReader = r
+			defer r.Close()
 		}
 	}
 	s := &Silences{
