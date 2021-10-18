@@ -108,6 +108,17 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		return fmt.Errorf("no matchers specified")
 	}
 
+	var startsAt time.Time
+	if c.start != "" {
+		startsAt, err = time.Parse(time.RFC3339, c.start)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		startsAt = time.Now().UTC()
+	}
+
 	var endsAt time.Time
 	if c.end != "" {
 		endsAt, err = time.Parse(time.RFC3339, c.end)
@@ -122,26 +133,15 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		if d == 0 {
 			return fmt.Errorf("silence duration must be greater than 0")
 		}
-		endsAt = time.Now().UTC().Add(time.Duration(d))
-	}
-
-	if c.requireComment && c.comment == "" {
-		return errors.New("comment required by config")
-	}
-
-	var startsAt time.Time
-	if c.start != "" {
-		startsAt, err = time.Parse(time.RFC3339, c.start)
-		if err != nil {
-			return err
-		}
-
-	} else {
-		startsAt = time.Now().UTC()
+		endsAt = startsAt.UTC().Add(time.Duration(d))
 	}
 
 	if startsAt.After(endsAt) {
 		return errors.New("silence cannot start after it ends")
+	}
+
+	if c.requireComment && c.comment == "" {
+		return errors.New("comment required by config")
 	}
 
 	start := strfmt.DateTime(startsAt)
