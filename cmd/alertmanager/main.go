@@ -212,7 +212,7 @@ func run() int {
 		reconnectInterval      = kingpin.Flag("cluster.reconnect-interval", "Interval between attempting to reconnect to lost peers.").Default(cluster.DefaultReconnectInterval.String()).Duration()
 		peerReconnectTimeout   = kingpin.Flag("cluster.reconnect-timeout", "Length of time to attempt to reconnect to a lost peer.").Default(cluster.DefaultReconnectTimeout.String()).Duration()
 		tlsConfigFile          = kingpin.Flag("cluster.tls-config", "[EXPERIMENTAL] Path to config yaml file that can enable mutual TLS within the gossip protocol.").Default("").String()
-		allowInsecureAdvertise = kingpin.Flag("cluster.allow-insecure-public-advertise-address", "[EXPERIMENTAL] Allow alertmanager to discover and listen on a public address.").Bool()
+		allowInsecureAdvertise = kingpin.Flag("cluster.allow-insecure-public-advertise-address-discovery", "[EXPERIMENTAL] Allow alertmanager to discover and listen on a public IP address.").Bool()
 	)
 
 	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
