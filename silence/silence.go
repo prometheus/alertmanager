@@ -438,7 +438,8 @@ func (s *Silences) GC() (int, error) {
 	return n, nil
 }
 
-func validateMatcher(m *pb.Matcher) error {
+// ValidateMatcher runs validation on the matcher name, type, and pattern.
+var ValidateMatcher = func(m *pb.Matcher) error {
 	if !model.LabelName(m.Name).IsValid() {
 		return fmt.Errorf("invalid label name %q", m.Name)
 	}
@@ -478,7 +479,7 @@ func validateSilence(s *pb.Silence) error {
 	}
 	allMatchEmpty := true
 	for i, m := range s.Matchers {
-		if err := validateMatcher(m); err != nil {
+		if err := ValidateMatcher(m); err != nil {
 			return fmt.Errorf("invalid label matcher %d: %s", i, err)
 		}
 		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
