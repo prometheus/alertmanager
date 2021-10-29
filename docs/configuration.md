@@ -514,7 +514,7 @@ OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com
 [ api_url: <string> | default = global.opsgenie_api_url ]
 
 # Alert text limited to 130 characters.
-[ message: <tmpl_string> ]
+[ message: <tmpl_string> | default = '{{ template "opsgenie.default.message" . }}' ]
 
 # A description of the alert.
 [ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
