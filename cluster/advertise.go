@@ -56,7 +56,7 @@ func calculateAdvertiseAddress(bindAddr, advertiseAddr string, allowInsecureAdve
 }
 
 // discoverAdvertiseAddress will attempt to get a single IP address to use as
-// the advertise address when one is not explictly provided. It defualts to
+// the advertise address when one is not explicitly provided. It defaults to
 // using a private IP address, and if not found then using a public IP if
 // insecure advertising is allowed.
 func discoverAdvertiseAddress(allowInsecureAdvertise bool) (net.IP, error) {
@@ -74,7 +74,7 @@ func discoverAdvertiseAddress(allowInsecureAdvertise bool) (net.IP, error) {
 			return nil, errors.Wrap(err, "failed to get public IP")
 		}
 		if addr == "" {
-			return nil, errors.New("no public IP found, explicit advertise addr not provided")
+			return nil, errors.New("no private/public IP found, explicit advertise addr not provided")
 		}
 	}
 
