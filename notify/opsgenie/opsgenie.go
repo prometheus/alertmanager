@@ -68,6 +68,8 @@ type opsGenieCreateMessage struct {
 	Tags        []string                         `json:"tags,omitempty"`
 	Note        string                           `json:"note,omitempty"`
 	Priority    string                           `json:"priority,omitempty"`
+	Entity      string                           `json:"entity,omitempty"`
+	Actions     []string                         `json:"actions,omitempty"`
 }
 
 type opsGenieCreateMessageResponder struct {
@@ -214,9 +216,11 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			Details:     details,
 			Source:      tmpl(n.conf.Source),
 			Responders:  responders,
-			Tags:        safeSplit(string(tmpl(n.conf.Tags)), ","),
+			Tags:        safeSplit(tmpl(n.conf.Tags), ","),
 			Note:        tmpl(n.conf.Note),
 			Priority:    tmpl(n.conf.Priority),
+			Entity:      tmpl(n.conf.Entity),
+			Actions:     safeSplit(tmpl(n.conf.Actions), ","),
 		}
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(msg); err != nil {

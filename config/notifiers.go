@@ -462,7 +462,9 @@ type OpsGenieConfig struct {
 	Description  string                    `yaml:"description,omitempty" json:"description,omitempty"`
 	Source       string                    `yaml:"source,omitempty" json:"source,omitempty"`
 	Details      map[string]string         `yaml:"details,omitempty" json:"details,omitempty"`
+	Entity       string                    `yaml:"entity,omitempty" json:"entity,omitempty"`
 	Responders   []OpsGenieConfigResponder `yaml:"responders,omitempty" json:"responders,omitempty"`
+	Actions      string                    `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Tags         string                    `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Note         string                    `yaml:"note,omitempty" json:"note,omitempty"`
 	Priority     string                    `yaml:"priority,omitempty" json:"priority,omitempty"`
