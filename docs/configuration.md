@@ -681,8 +681,8 @@ token: <secret>
 ## `<slack_config>`
 
 Slack notifications are sent via [Slack
-webhooks](https://api.slack.com/incoming-webhooks). The notification contains
-an [attachment](https://api.slack.com/docs/message-attachments).
+webhooks](https://api.slack.com/messaging/webhooks). The notification contains
+an [attachment](https://api.slack.com/messaging/composing/layouts#attachments).
 
 ```yaml
 # Whether to notify about resolved alerts.
@@ -725,7 +725,7 @@ fields:
 
 ### `<action_config>`
 
-The fields are documented in the Slack API documentation for [message attachments](https://api.slack.com/docs/message-attachments#action_fields) and [interactive messages](https://api.slack.com/docs/interactive-message-field-guide#action_fields).
+The fields are documented in the Slack API documentation for [message attachments](https://api.slack.com/messaging/composing/layouts#attachments) and [interactive messages](https://api.slack.com/legacy/interactive-message-field-guide#action_fields).
 
 ```yaml
 text: <tmpl_string>
@@ -741,7 +741,7 @@ type: <tmpl_string>
 
 #### `<action_confirm_field_config>`
 
-The fields are documented in the [Slack API documentation](https://api.slack.com/docs/interactive-message-field-guide#confirmation_fields).
+The fields are documented in the [Slack API documentation](https://api.slack.com/legacy/interactive-message-field-guide#confirmation_fields).
 
 ```yaml
 text: <tmpl_string>
@@ -752,7 +752,7 @@ text: <tmpl_string>
 
 ### `<field_config>`
 
-The fields are documented in the [Slack API documentation](https://api.slack.com/docs/message-attachments#fields).
+The fields are documented in the [Slack API documentation](https://api.slack.com/messaging/composing/layouts#attachments).
 
 ```yaml
 title: <tmpl_string>
@@ -870,7 +870,7 @@ matchers:
 
 ## `<victorops_config>`
 
-VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/victorops-restendpoint-integration/)
+VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/)
 
 ```yaml
 # Whether to notify about resolved alerts.
