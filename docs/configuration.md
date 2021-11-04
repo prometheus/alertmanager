@@ -556,7 +556,7 @@ responders:
 [ name: <tmpl_string> ]
 [ username: <tmpl_string> ]
 
-# "team", "user", "escalation" or "schedule".
+# "team", "teams, "user", "escalation" or "schedule".
 type: <tmpl_string>
 ```
 

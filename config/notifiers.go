@@ -469,7 +469,7 @@ type OpsGenieConfig struct {
 	UpdateAlerts bool                      `yaml:"update_alerts,omitempty" json:"update_alerts,omitempty"`
 }
 
-const opsgenieValidTypesRe = `^(team|user|escalation|schedule)$`
+const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
 
 var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
 
