@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
@@ -511,27 +511,21 @@ func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
-var hashBuffers = sync.Pool{}
-
-func getHashBuffer() []byte {
-	b := hashBuffers.Get()
-	if b == nil {
-		return make([]byte, 0, 1024)
-	}
-	return b.([]byte)
+// Wrap a slice in a struct so we can store a pointer in sync.Pool
+type hashBuffer struct {
+	buf []byte
 }
 
-func putHashBuffer(b []byte) {
-	b = b[:0]
-	//nolint:staticcheck // Ignore SA6002 relax staticcheck verification.
-	hashBuffers.Put(b)
+var hashBuffers = sync.Pool{
+	New: func() interface{} { return &hashBuffer{buf: make([]byte, 0, 1024)} },
 }
 
 func hashAlert(a *types.Alert) uint64 {
 	const sep = '\xff'
 
-	b := getHashBuffer()
-	defer putHashBuffer(b)
+	hb := hashBuffers.Get().(*hashBuffer)
+	defer hashBuffers.Put(hb)
+	b := hb.buf[:0]
 
 	names := make(model.LabelNames, 0, len(a.Labels))
 

@@ -69,6 +69,31 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
 }
 
+func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	key := "key"
+
+	f, err := ioutil.TempFile("", "opsgenie_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	notifier, err := New(
+		&config.OpsGenieConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKeyFile: f.Name(),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+}
+
 func TestOpsGenie(t *testing.T) {
 	u, err := url.Parse("https://opsgenie/api")
 	if err != nil {
@@ -197,12 +222,13 @@ func TestOpsGenie(t *testing.T) {
 				},
 			}
 
-			req, retry, err := notifier.createRequest(ctx, alert1)
+			req, retry, err := notifier.createRequests(ctx, alert1)
 			require.NoError(t, err)
+			require.Len(t, req, 1)
 			require.Equal(t, true, retry)
-			require.Equal(t, expectedURL, req.URL)
-			require.Equal(t, "GenieKey http://am", req.Header.Get("Authorization"))
-			require.Equal(t, tc.expectedEmptyAlertBody, readBody(t, req))
+			require.Equal(t, expectedURL, req[0].URL)
+			require.Equal(t, "GenieKey http://am", req[0].Header.Get("Authorization"))
+			require.Equal(t, tc.expectedEmptyAlertBody, readBody(t, req[0]))
 
 			// Fully defined alert.
 			alert2 := &types.Alert{
@@ -225,18 +251,67 @@ func TestOpsGenie(t *testing.T) {
 					EndsAt:   time.Now().Add(time.Hour),
 				},
 			}
-			req, retry, err = notifier.createRequest(ctx, alert2)
+			req, retry, err = notifier.createRequests(ctx, alert2)
 			require.NoError(t, err)
 			require.Equal(t, true, retry)
-			require.Equal(t, tc.expectedBody, readBody(t, req))
+			require.Len(t, req, 1)
+			require.Equal(t, tc.expectedBody, readBody(t, req[0]))
 
 			// Broken API Key Template.
 			tc.cfg.APIKey = "{{ kaput "
-			_, _, err = notifier.createRequest(ctx, alert2)
+			_, _, err = notifier.createRequests(ctx, alert2)
 			require.Error(t, err)
 			require.Equal(t, err.Error(), "templating error: template: :1: function \"kaput\" not defined")
 		})
 	}
+}
+
+func TestOpsGenieWithUpdate(t *testing.T) {
+	u, err := url.Parse("https://test-opsgenie-url")
+	require.NoError(t, err)
+	tmpl := test.CreateTmpl(t)
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	opsGenieConfigWithUpdate := config.OpsGenieConfig{
+		Message:      `{{ .CommonLabels.Message }}`,
+		Description:  `{{ .CommonLabels.Description }}`,
+		UpdateAlerts: true,
+		APIKey:       "test-api-key",
+		APIURL:       &config.URL{URL: u},
+		HTTPConfig:   &commoncfg.HTTPClientConfig{},
+	}
+	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, log.NewNopLogger())
+	alert := &types.Alert{
+		Alert: model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+			Labels: model.LabelSet{
+				"Message":     "new message",
+				"Description": "new description",
+			},
+		},
+	}
+	require.NoError(t, err)
+	requests, retry, err := notifierWithUpdate.createRequests(ctx, alert)
+	require.NoError(t, err)
+	require.True(t, retry)
+	require.Len(t, requests, 3)
+
+	body0 := readBody(t, requests[0])
+	body1 := readBody(t, requests[1])
+	body2 := readBody(t, requests[2])
+	key, _ := notify.ExtractGroupKey(ctx)
+	alias := key.Hash()
+
+	require.Equal(t, requests[0].URL.String(), "https://test-opsgenie-url/v2/alerts")
+	require.NotEmpty(t, body0)
+
+	require.Equal(t, requests[1].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/message?identifierType=alias", alias))
+	require.Equal(t, body1, `{"message":"new message"}
+`)
+	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/description?identifierType=alias", alias))
+	require.Equal(t, body2, `{"description":"new description"}
+`)
 }
 
 func readBody(t *testing.T, r *http.Request) string {

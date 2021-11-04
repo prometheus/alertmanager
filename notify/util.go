@@ -28,7 +28,11 @@ import (
 
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/version"
 )
+
+// UserAgentHeader is the default User-Agent for notification requests
+var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
@@ -38,6 +42,11 @@ func RedactURL(err error) error {
 	}
 	e.URL = "<redacted>"
 	return e
+}
+
+// Get sends a GET request to the given URL
+func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
+	return request(ctx, client, http.MethodGet, url, "", nil)
 }
 
 // PostJSON sends a POST request with JSON payload to the given URL.
@@ -51,11 +60,18 @@ func PostText(ctx context.Context, client *http.Client, url string, body io.Read
 }
 
 func post(ctx context.Context, client *http.Client, url string, bodyType string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest("POST", url, body)
+	return request(ctx, client, http.MethodPost, url, bodyType, body)
+}
+
+func request(ctx context.Context, client *http.Client, method string, url string, bodyType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", bodyType)
+	req.Header.Set("User-Agent", UserAgentHeader)
+	if bodyType != "" {
+		req.Header.Set("Content-Type", bodyType)
+	}
 	return client.Do(req.WithContext(ctx))
 }
 

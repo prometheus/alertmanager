@@ -267,7 +267,7 @@ func run() int {
 	notificationLogOpts := []nflog.Option{
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
-		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
+		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done, nil),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
 		nflog.WithLogger(log.With(logger, "component", "nflog")),
 	}
@@ -304,7 +304,7 @@ func run() int {
 	// Start providers before router potentially sends updates.
 	wg.Add(1)
 	go func() {
-		silences.Maintenance(15*time.Minute, filepath.Join(*dataDir, "silences"), stopc)
+		silences.Maintenance(15*time.Minute, filepath.Join(*dataDir, "silences"), stopc, nil)
 		wg.Done()
 	}()
 

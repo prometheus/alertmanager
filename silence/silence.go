@@ -201,6 +201,10 @@ type Silences struct {
 	mc        matcherCache
 }
 
+// MaintenanceFunc represents the function to run as part of the periodic maintenance for silences.
+// It returns the size of the snapshot taken or an error if it failed.
+type MaintenanceFunc func() (int64, error)
+
 type metrics struct {
 	gcDuration              prometheus.Summary
 	snapshotDuration        prometheus.Summary
@@ -323,6 +327,7 @@ func New(o Options) (*Silences, error) {
 			}
 		} else {
 			o.SnapshotReader = r
+			defer r.Close()
 		}
 	}
 	s := &Silences{
@@ -349,34 +354,42 @@ func New(o Options) (*Silences, error) {
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
 // file is set, a snapshot is written to it afterwards.
 // Terminates on receiving from stopc.
-func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}) {
+// If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
+func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, override MaintenanceFunc) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 
-	f := func() error {
-		start := s.now()
+	var doMaintenance MaintenanceFunc
+	doMaintenance = func() (int64, error) {
 		var size int64
 
-		level.Debug(s.logger).Log("msg", "Running maintenance")
-		defer func() {
-			level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start), "size", size)
-			s.metrics.snapshotSize.Set(float64(size))
-		}()
-
 		if _, err := s.GC(); err != nil {
-			return err
+			return size, err
 		}
 		if snapf == "" {
-			return nil
+			return size, nil
 		}
 		f, err := openReplace(snapf)
 		if err != nil {
-			return err
+			return size, err
 		}
 		if size, err = s.Snapshot(f); err != nil {
-			return err
+			return size, err
 		}
-		return f.Close()
+		return size, f.Close()
+	}
+
+	if override != nil {
+		doMaintenance = override
+	}
+
+	runMaintenance := func(do MaintenanceFunc) error {
+		start := s.now()
+		level.Debug(s.logger).Log("msg", "Running maintenance")
+		size, err := do()
+		level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.now().Sub(start), "size", size)
+		s.metrics.snapshotSize.Set(float64(size))
+		return err
 	}
 
 Loop:
@@ -385,7 +398,7 @@ Loop:
 		case <-stopc:
 			break Loop
 		case <-t.C:
-			if err := f(); err != nil {
+			if err := runMaintenance(doMaintenance); err != nil {
 				level.Info(s.logger).Log("msg", "Running maintenance failed", "err", err)
 			}
 		}
@@ -394,7 +407,7 @@ Loop:
 	if snapf == "" {
 		return
 	}
-	if err := f(); err != nil {
+	if err := runMaintenance(doMaintenance); err != nil {
 		level.Info(s.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
@@ -425,7 +438,8 @@ func (s *Silences) GC() (int, error) {
 	return n, nil
 }
 
-func validateMatcher(m *pb.Matcher) error {
+// ValidateMatcher runs validation on the matcher name, type, and pattern.
+var ValidateMatcher = func(m *pb.Matcher) error {
 	if !model.LabelName(m.Name).IsValid() {
 		return fmt.Errorf("invalid label name %q", m.Name)
 	}
@@ -465,7 +479,7 @@ func validateSilence(s *pb.Silence) error {
 	}
 	allMatchEmpty := true
 	for i, m := range s.Matchers {
-		if err := validateMatcher(m); err != nil {
+		if err := ValidateMatcher(m); err != nil {
 			return fmt.Errorf("invalid label matcher %d: %s", i, err)
 		}
 		allMatchEmpty = allMatchEmpty && matchesEmpty(m)
