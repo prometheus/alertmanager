@@ -161,8 +161,8 @@ match:
 # A set of regex-matchers an alert has to fulfill to match the node.
 match_re:
   [ <labelname>: <regex>, ... ]
-  
-# A list of matchers that an alert has to fulfill to match the node. 
+
+# A list of matchers (ANDed together) that an alert has to fulfill to match the node.
 matchers:
   [ - <matcher> ... ]
 
@@ -181,7 +181,7 @@ matchers:
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
-# mute time interval defined in the mute_time_intervals section. 
+# mute time interval defined in the mute_time_intervals section.
 # Additionally, the root node cannot have any mute times.
 # When a route is muted it will not send any notifications, but
 # otherwise acts normally (including ending the route-matching process
@@ -309,8 +309,8 @@ target_match:
 # DEPRECATED: Use target_matchers below.
 target_match_re:
   [ <labelname>: <regex>, ... ]
-  
-# A list of matchers that have to be fulfilled by the target 
+
+# A list of matchers (ANDed together) that have to be fulfilled by the target
 # alerts to be muted.
 target_matchers:
   [ - <matcher> ... ]
@@ -323,8 +323,8 @@ source_match:
 # DEPRECATED: Use source_matchers below.
 source_match_re:
   [ <labelname>: <regex>, ... ]
-  
-# A list of matchers for which one or more alerts have 
+
+# A list of matchers (ANDed together) for which one or more alerts have
 # to exist for the inhibition to take effect.
 source_matchers:
   [ - <matcher> ... ]
@@ -772,7 +772,7 @@ value: <tmpl_string>
 # Configures AWS's Signature Verification 4 signing process to sign requests.
 sigv4:
   [ <sigv4_config> ]
-  
+
 # SNS topic ARN, i.e. arn:aws:sns:us-east-2:698519295917:My-Topic
 # If you don't specify this value, you must specify a value for the phone_number or target_arn.
 # If you are using a FIFO SNS topic you should set a message group interval longer than 5 minutes
@@ -780,21 +780,21 @@ sigv4:
 [ topic_arn: <tmpl_string> ]
 
 # Subject line when the message is delivered to email endpoints.
-[ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ] 
+[ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ]
 
 # Phone number if message is delivered via SMS in E.164 format.
 # If you don't specify this value, you must specify a value for the topic_arn or target_arn.
-[ phone_number: <tmpl_string> ] 
+[ phone_number: <tmpl_string> ]
 
 # The  mobile platform endpoint ARN if message is delivered via mobile notifications.
 # If you don't specify this value, you must specify a value for the topic_arn or phone_number.
-[ target_arn: <tmpl_string> ] 
+[ target_arn: <tmpl_string> ]
 
 # The message content of the SNS notification.
-[ message: <tmpl_string> | default = '{{ template "sns.default.message" .}}' ] 
+[ message: <tmpl_string> | default = '{{ template "sns.default.message" .}}' ]
 
 # SNS message attributes.
-attributes: 
+attributes:
   [ <string>: <string> ... ]
 
 # The HTTP client's configuration.
@@ -807,7 +807,7 @@ attributes:
 [ region: <string> ]
 
 # The AWS API keys. Both access_key and secret_key must be supplied or both must be blank.
-# If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used. 
+# If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used.
 [ access_key: <string> ]
 [ secret_key: <secret> ]
 
@@ -820,15 +820,29 @@ attributes:
 
 ## `<matcher>`
 
-A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens: 
+A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens:
 
-- A valid Prometheus label name. 
+- A valid Prometheus label name.
 
 - One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
 
-- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace. 
+- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
 
 The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
+
+Matchers are ANDed together, meaning that all matchers must evaluate to "true" when tested against the labels on a given alert. For example, an alert with these labels:
+
+```json
+{"alertname":"Watchdog","severity":"none"}
+```
+
+would NOT match this list of matchers:
+
+```yaml
+matchers:
+  - alertname = Watchdog
+  - severity =~ "warning|critical"
+```
 
 In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading `{` and/or a trailing `}` is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing `}`, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
 
@@ -839,7 +853,7 @@ Here are some examples of valid string matchers:
 ```yaml
   matchers:
    - foo = bar
-   - dings !=bums 
+   - dings !=bums
 ```
 
 2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
