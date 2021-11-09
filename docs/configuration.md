@@ -162,7 +162,7 @@ match:
 match_re:
   [ <labelname>: <regex>, ... ]
 
-# A list of matchers (ANDed together) that an alert has to fulfill to match the node.
+# A list of matchers that an alert has to fulfill to match the node.
 matchers:
   [ - <matcher> ... ]
 
@@ -310,7 +310,7 @@ target_match:
 target_match_re:
   [ <labelname>: <regex>, ... ]
 
-# A list of matchers (ANDed together) that have to be fulfilled by the target
+# A list of matchers that have to be fulfilled by the target
 # alerts to be muted.
 target_matchers:
   [ - <matcher> ... ]
@@ -324,7 +324,7 @@ source_match:
 source_match_re:
   [ <labelname>: <regex>, ... ]
 
-# A list of matchers (ANDed together) for which one or more alerts have
+# A list of matchers for which one or more alerts have
 # to exist for the inhibition to take effect.
 source_matchers:
   [ - <matcher> ... ]
