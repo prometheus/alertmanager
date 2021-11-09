@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package test
 
 import (
 	"bytes"
@@ -111,7 +111,7 @@ func TestAPI(t *testing.T) {
 		return api.Get(context.Background())
 	}
 
-	alertOne := Alert{
+	alertOne := APIV1Alert{
 		StartsAt:    now,
 		EndsAt:      now.Add(time.Duration(5 * time.Minute)),
 		Labels:      LabelSet{"label1": "test1"},
@@ -119,7 +119,7 @@ func TestAPI(t *testing.T) {
 	}
 	alerts := []*ExtendedAlert{
 		{
-			Alert:       alertOne,
+			APIV1Alert:  alertOne,
 			Fingerprint: "1c93eec3511dc156",
 			Status: types.AlertStatus{
 				State: types.AlertStateActive,
@@ -132,7 +132,7 @@ func TestAPI(t *testing.T) {
 	}
 	doAlertPush := func() (interface{}, error) {
 		api := httpAlertAPI{client: client}
-		return nil, api.Push(context.Background(), []Alert{alertOne}...)
+		return nil, api.Push(context.Background(), []APIV1Alert{alertOne}...)
 	}
 
 	silOne := &types.Silence{
