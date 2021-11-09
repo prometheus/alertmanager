@@ -31,8 +31,6 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
-
-	"github.com/prometheus/alertmanager/client"
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected
@@ -335,26 +333,26 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas []client.Alert
+	var cas []APIV1Alert
 	for i := range alerts {
 		a := alerts[i].nativeAlert(am.opts)
-		al := client.Alert{
-			Labels:       client.LabelSet{},
-			Annotations:  client.LabelSet{},
+		al := APIV1Alert{
+			Labels:       LabelSet{},
+			Annotations:  LabelSet{},
 			StartsAt:     a.StartsAt,
 			EndsAt:       a.EndsAt,
 			GeneratorURL: a.GeneratorURL,
 		}
 		for n, v := range a.Labels {
-			al.Labels[client.LabelName(n)] = client.LabelValue(v)
+			al.Labels[LabelName(n)] = LabelValue(v)
 		}
 		for n, v := range a.Annotations {
-			al.Annotations[client.LabelName(n)] = client.LabelValue(v)
+			al.Annotations[LabelName(n)] = LabelValue(v)
 		}
 		cas = append(cas, al)
 	}
 
-	alertAPI := client.NewAlertAPI(am.client)
+	alertAPI := NewAlertAPI(am.client)
 
 	am.t.Do(at, func() {
 		if err := alertAPI.Push(context.Background(), cas...); err != nil {
