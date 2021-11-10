@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
@@ -35,12 +36,12 @@ import (
 )
 
 var (
-	verbose               bool
-	alertmanagerURL       *url.URL
-	output                string
-	timeout               time.Duration
-	tlsInsecureSkipVerify bool
-	versionCheck          bool
+	verbose         bool
+	alertmanagerURL *url.URL
+	output          string
+	timeout         time.Duration
+	tlsConfig       *tls.Config
+	versionCheck    bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -84,11 +85,8 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
-	if tlsInsecureSkipVerify {
-		transport := http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		cr.Transport = &transport
+	cr.Transport = &http.Transport{
+		TLSClientConfig: tlsConfig,
 	}
 
 	if amURL.User != nil {
@@ -119,6 +117,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 func Execute() {
 	var (
 		app = kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
+		tls = promconfig.TLSConfig{}
 	)
 
 	format.InitFormatFlags(app)
@@ -127,12 +126,20 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
-	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").BoolVar(&tlsInsecureSkipVerify)
+	app.Flag("tls.certfile", "TLS client certificate file").PlaceHolder("<filename>").ExistingFileVar(&tls.CertFile)
+	app.Flag("tls.keyfile", "TLS client private key file").PlaceHolder("<filename>").ExistingFileVar(&tls.KeyFile)
+	app.Flag("tls.cafile", "TLS trusted certificate authorities file").PlaceHolder("<filename>").ExistingFileVar(&tls.CAFile)
+	app.Flag("tls.servername", "ServerName to verify hostname of alertmanager").PlaceHolder("<string>").StringVar(&tls.ServerName)
+	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").Default("false").BoolVar(&tls.InsecureSkipVerify)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)
+	app.PreAction(func(pc *kingpin.ParseContext) (err error) {
+		tlsConfig, err = promconfig.NewTLSConfig(&tls)
+		return err
+	})
 
 	resolver, err := config.NewResolver(configFiles, legacyFlags)
 	if err != nil {
@@ -183,6 +190,20 @@ static configuration:
 
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
+
+	tls.certfile
+		TLS client certificate file for mutual-TLS authentication.
+		Requires tls.keyfile to be useful.
+
+	tls.keyfile
+		TLS client private key file for mutual-TLS authentication.
+		Requires tls.certfile to be useful.
+
+	tls.cafile
+		TLS trusted certificate authorities file.
+
+	tls.servername
+		ServerName to verify hostname of alertmanager.
 
 	tls.insecure.skip.verify
 		Skips TLS certificate verification for all HTTPS requests.
