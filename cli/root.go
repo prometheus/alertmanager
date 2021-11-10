@@ -41,6 +41,7 @@ var (
 	output          string
 	timeout         time.Duration
 	tlsConfig       *tls.Config
+	bearerToken     string
 	versionCheck    bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
@@ -94,6 +95,10 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
+	if bearerToken != "" {
+		cr.DefaultAuthentication = clientruntime.BearerToken(bearerToken)
+	}
+
 	c := client.New(cr, strfmt.Default)
 
 	if !versionCheck {
@@ -131,6 +136,7 @@ func Execute() {
 	app.Flag("tls.cafile", "TLS trusted certificate authorities file").PlaceHolder("<filename>").ExistingFileVar(&tls.CAFile)
 	app.Flag("tls.servername", "ServerName to verify hostname of alertmanager").PlaceHolder("<string>").StringVar(&tls.ServerName)
 	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").Default("false").BoolVar(&tls.InsecureSkipVerify)
+	app.Flag("bearer-token", "A Bearer Token to access Alertmanager.").StringVar(&bearerToken)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 
 	app.Version(version.Print("amtool"))
