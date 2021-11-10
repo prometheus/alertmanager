@@ -90,6 +90,10 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		TLSClientConfig: tlsConfig,
 	}
 
+	if amURL.User != nil && bearerToken != "" {
+		kingpin.Fatalf("could not specify multiple authentication mechanisms.")
+	}
+
 	if amURL.User != nil {
 		password, _ := amURL.User.Password()
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
