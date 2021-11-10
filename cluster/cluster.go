@@ -141,6 +141,7 @@ func Create(
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
 	tlsTransportConfig *TLSTransportConfig,
+	allowInsecureAdvertise bool,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -172,7 +173,7 @@ func Create(
 	level.Debug(l).Log("msg", "resolved peers to following addresses", "peers", strings.Join(resolvedPeers, ","))
 
 	// Initial validation of user-specified advertise address.
-	addr, err := calculateAdvertiseAddress(bindHost, advertiseHost)
+	addr, err := calculateAdvertiseAddress(bindHost, advertiseHost, allowInsecureAdvertise)
 	if err != nil {
 		level.Warn(l).Log("err", "couldn't deduce an advertise address: "+err.Error())
 	} else if hasNonlocal(resolvedPeers) && isUnroutable(addr.String()) {
