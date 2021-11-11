@@ -188,7 +188,7 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 	// limitHandler below).
 	mux.Handle(
 		apiPrefix+"/api/v2/",
-		api.limitHandler(http.StripPrefix(apiPrefix+"/api/v2", api.v2.Handler)),
+		api.limitHandler(http.StripPrefix(apiPrefix, api.v2.Handler)),
 	)
 
 	return mux
