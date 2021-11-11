@@ -91,7 +91,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 	}
 
 	if amURL.User != nil && bearerToken != "" {
-		kingpin.Fatalf("could not specify multiple authentication mechanisms.")
+		kingpin.Fatalf("basic authentication and bearer token are mutually exclusive")
 	}
 
 	if amURL.User != nil {
