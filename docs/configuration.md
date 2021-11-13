@@ -544,6 +544,12 @@ responders:
 # By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
 [ update_alerts: <boolean> | default = false ]
 
+# Optional field that can be used to specify which domain alert is related to.
+[ entity: <tmpl_string> ]
+
+# Comma separated list of actions that will be available for the alert.
+[ actions: <tmpl_string> ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
