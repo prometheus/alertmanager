@@ -118,6 +118,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	sort.Sort(matchers)
 
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
+	opts.ActiveTimeIntervals = cr.ActiveTimeIntervals
 
 	route := &Route{
 		parent:    parent,
