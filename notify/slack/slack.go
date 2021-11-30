@@ -69,18 +69,21 @@ type request struct {
 
 // attachment is used to display a richly-formatted message block.
 type attachment struct {
+	Color  string                   `json:"color,omitempty"`
+	Blocks []map[string]interface{} `json:"blocks,omitempty"`
+
+	// Deprecated options
 	Title      string               `json:"title,omitempty"`
 	TitleLink  string               `json:"title_link,omitempty"`
 	Pretext    string               `json:"pretext,omitempty"`
-	Text       string               `json:"text"`
-	Fallback   string               `json:"fallback"`
-	CallbackID string               `json:"callback_id"`
+	Text       string               `json:"text,omitempty"`
+	Fallback   string               `json:"fallback,omitempty"`
+	CallbackID string               `json:"callback_id,omitempty"`
 	Fields     []config.SlackField  `json:"fields,omitempty"`
 	Actions    []config.SlackAction `json:"actions,omitempty"`
 	ImageURL   string               `json:"image_url,omitempty"`
 	ThumbURL   string               `json:"thumb_url,omitempty"`
-	Footer     string               `json:"footer"`
-	Color      string               `json:"color,omitempty"`
+	Footer     string               `json:"footer,omitempty"`
 	MrkdwnIn   []string             `json:"mrkdwn_in,omitempty"`
 }
 
@@ -90,7 +93,95 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	var (
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
+		att      = &attachment{
+			Color: tmplText(n.conf.Color),
+		}
 	)
+
+	if n.conf.HasLegacyOptions() {
+		att = n.getLegacyAttachement(tmplText)
+	} else {
+		att.Blocks = n.getBlocks(data)
+	}
+
+	req := &request{
+		Channel:     tmplText(n.conf.Channel),
+		Username:    tmplText(n.conf.Username),
+		IconEmoji:   tmplText(n.conf.IconEmoji),
+		IconURL:     tmplText(n.conf.IconURL),
+		LinkNames:   n.conf.LinkNames,
+		Attachments: []attachment{*att},
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return false, err
+	}
+
+	var u string
+	if n.conf.APIURL != nil {
+		u = n.conf.APIURL.String()
+	} else {
+		content, err := ioutil.ReadFile(n.conf.APIURLFile)
+		if err != nil {
+			return false, err
+		}
+		u = string(content)
+	}
+
+	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
+	if err != nil {
+		return true, notify.RedactURL(err)
+	}
+	defer notify.Drain(resp)
+
+	// Only 5xx response codes are recoverable and 2xx codes are successful.
+	// https://api.slack.com/incoming-webhooks#handling_errors
+	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
+	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+	return retry, err
+}
+
+func (n *Notifier) getBlocks(data *template.Data) []map[string]interface{} {
+	blocks := make([]map[string]interface{}, 0)
+
+	for _, b := range n.conf.Blocks {
+		if b.RepeatFor == "" {
+			// XXX: We need to iterate over b.Config and apply template to every string values
+			//
+			// for k, v := range b.Config {
+			// 		...
+			// }
+			// blocks = append(blocks, ...)
+		} else {
+			var alerts []template.Alert
+
+			switch b.RepeatFor {
+			case "all":
+				alerts = data.Alerts
+			case "firing":
+				alerts = data.Alerts.Firing()
+			case "resolved":
+				alerts = data.Alerts.Resolved()
+			}
+
+			for _, _ = range alerts {
+				// XXX: We need to iterate over config key/value and apply template to every string values
+				//
+				// t = notify.TmplText(n.tmpl, a, &err)
+				// for k, v := range b.Config {
+				// 		...
+				// }
+				// blocks = append(blocks, ...)
+			}
+		}
+	}
+
+	return blocks
+}
+
+func (n *Notifier) getLegacyAttachement(tmplText func(string) string) *attachment {
 	var markdownIn []string
 	if len(n.conf.MrkdwnIn) == 0 {
 		markdownIn = []string{"fallback", "pretext", "text"}
@@ -107,7 +198,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		ImageURL:   tmplText(n.conf.ImageURL),
 		ThumbURL:   tmplText(n.conf.ThumbURL),
 		Footer:     tmplText(n.conf.Footer),
-		Color:      tmplText(n.conf.Color),
 		MrkdwnIn:   markdownIn,
 	}
 
@@ -160,44 +250,5 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		att.Actions = actions
 	}
 
-	req := &request{
-		Channel:     tmplText(n.conf.Channel),
-		Username:    tmplText(n.conf.Username),
-		IconEmoji:   tmplText(n.conf.IconEmoji),
-		IconURL:     tmplText(n.conf.IconURL),
-		LinkNames:   n.conf.LinkNames,
-		Attachments: []attachment{*att},
-	}
-	if err != nil {
-		return false, err
-	}
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return false, err
-	}
-
-	var u string
-	if n.conf.APIURL != nil {
-		u = n.conf.APIURL.String()
-	} else {
-		content, err := ioutil.ReadFile(n.conf.APIURLFile)
-		if err != nil {
-			return false, err
-		}
-		u = string(content)
-	}
-
-	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
-	if err != nil {
-		return true, notify.RedactURL(err)
-	}
-	defer notify.Drain(resp)
-
-	// Only 5xx response codes are recoverable and 2xx codes are successful.
-	// https://api.slack.com/incoming-webhooks#handling_errors
-	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
-	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
-	return retry, err
+	return att
 }

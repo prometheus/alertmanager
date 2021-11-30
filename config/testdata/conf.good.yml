@@ -133,4 +133,17 @@ receivers:
 - name: slack-receiver
   slack_configs:
     - channel: '#my-channel'
-      image_url: 'http://some.img.com/img.png'
+      blocks:
+        - config:
+            type: header
+            text:
+              type: plain_text
+              text: '{{ template "slack.default.title" . }}'
+        - repeat_for: firing
+          config:
+            type: section
+            text:
+              type: mrkdwn
+              text: >-
+                *Alert:* '{{ .Annotations.summary }} - `{{ .Labels.severity }}`
+                *Description:* '{{ .Annotations.description }}'

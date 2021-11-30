@@ -68,17 +68,20 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
-		Username:   `{{ template "slack.default.username" . }}`,
-		Title:      `{{ template "slack.default.title" . }}`,
-		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
-		IconEmoji:  `{{ template "slack.default.iconemoji" . }}`,
-		IconURL:    `{{ template "slack.default.iconurl" . }}`,
-		Pretext:    `{{ template "slack.default.pretext" . }}`,
-		Text:       `{{ template "slack.default.text" . }}`,
-		Fallback:   `{{ template "slack.default.fallback" . }}`,
-		CallbackID: `{{ template "slack.default.callbackid" . }}`,
-		Footer:     `{{ template "slack.default.footer" . }}`,
+		Color:    `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username: `{{ template "slack.default.username" . }}`,
+		Blocks: []*SlackBlock{
+			&SlackBlock{
+				Config: map[string]interface{}{
+					"type": "header",
+					"text": map[string]interface{}{
+						"type":  "plain_text",
+						"text":  `{{ template "slack.default.title" . }}`,
+						"emoji": true,
+					},
+				},
+			},
+		},
 	}
 
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
@@ -342,10 +345,13 @@ type SlackConfig struct {
 	APIURLFile string     `yaml:"api_url_file,omitempty" json:"api_url_file,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
-	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Username string `yaml:"username,omitempty" json:"username,omitempty"`
-	Color    string `yaml:"color,omitempty" json:"color,omitempty"`
+	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
 
+	Username string        `yaml:"username,omitempty" json:"username,omitempty"`
+	Color    string        `yaml:"color,omitempty" json:"color,omitempty"`
+	Blocks   []*SlackBlock `yaml:"blocks,omitempty" json:"blocks,omitempty"`
+
+	// Deprecated Options
 	Title       string         `yaml:"title,omitempty" json:"title,omitempty"`
 	TitleLink   string         `yaml:"title_link,omitempty" json:"title_link,omitempty"`
 	Pretext     string         `yaml:"pretext,omitempty" json:"pretext,omitempty"`
@@ -378,6 +384,58 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	return nil
 }
+
+func (c *SlackConfig) HasLegacyOptions() bool {
+	return c.Title != "" ||
+		c.TitleLink != "" ||
+		c.Pretext != "" ||
+		c.Text != "" ||
+		c.Fields != nil ||
+		c.Footer != "" ||
+		c.Fallback != "" ||
+		c.CallbackID != "" ||
+		c.IconEmoji != "" ||
+		c.IconURL != "" ||
+		c.ImageURL != "" ||
+		c.ThumbURL != "" ||
+		c.MrkdwnIn != nil ||
+		c.Actions != nil
+}
+
+type SlackBlock struct {
+	RepeatFor SlackBlockRepeatFor    `yaml:"repeat_for,omitempty" json:"repeat_for,omitempty"`
+	Config    map[string]interface{} `yaml:"config,omitempty" json:"config,omitempty"` // FIXME: This can’t be Marshaled to JSON if it contains sub maps
+}
+
+type SlackBlockRepeatFor string
+
+func (r *SlackBlockRepeatFor) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var v string
+
+	err := unmarshal(&v)
+	if err != nil {
+		return err
+	}
+
+	switch v {
+	case "all":
+		*r = SlackBlockRepeatForAll
+	case "firing":
+		*r = SlackBlockRepeatForFiring
+	case "resolved":
+		*r = SlackBlockRepeatForResolved
+	default:
+		return fmt.Errorf("invalid value '%s'", v)
+	}
+
+	return nil
+}
+
+const (
+	SlackBlockRepeatForAll      SlackBlockRepeatFor = "all"
+	SlackBlockRepeatForFiring   SlackBlockRepeatFor = "firing"
+	SlackBlockRepeatForResolved SlackBlockRepeatFor = "resolved"
+)
 
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
