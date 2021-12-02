@@ -415,26 +415,47 @@ route:
 }
 
 func TestRootRouteHasNoMatcher(t *testing.T) {
-	in := `
+	testCases := []struct {
+		name string
+		in   string
+	}{
+		{
+			name: "Test deprecated matchers on root route not allowed",
+			in: `
 route:
   receiver: 'team-X'
   match:
     severity: critical
-
 receivers:
 - name: 'team-X'
-`
-	_, err := Load(in)
-
+`,
+		},
+		{
+			name: "Test matchers not allowed on root route",
+			in: `
+route:
+  receiver: 'team-X'
+  matchers:
+    - severity=critical
+receivers:
+- name: 'team-X'
+`,
+		},
+	}
 	expected := "root route must not have any matchers"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%q", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(tc.in)
 
+			if err == nil {
+				t.Fatalf("no error returned, expected:\n%q", expected)
+			}
+			if err.Error() != expected {
+				t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+			}
+		})
+	}
 }
 
 func TestContinueErrorInRouteRoot(t *testing.T) {

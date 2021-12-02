@@ -491,7 +491,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.Route.Receiver) == 0 {
 		return fmt.Errorf("root route must specify a default receiver")
 	}
-	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
+	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 || len(c.Route.Matchers) > 0 {
 		return fmt.Errorf("root route must not have any matchers")
 	}
 	if len(c.Route.MuteTimeIntervals) > 0 {
