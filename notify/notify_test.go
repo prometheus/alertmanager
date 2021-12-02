@@ -724,7 +724,8 @@ func TestMuteStageWithSilences(t *testing.T) {
 }
 
 func TestTimeMuteStage(t *testing.T) {
-	// Route mutes alerts outside business hours.
+	// Route mutes alerts outside business hours if it is a mute_time_interval
+	// Route mutes alerts inside business hours if it is an active time interval
 	muteIn := `
 ---
 - weekdays: ['monday:friday']
@@ -736,45 +737,80 @@ func TestTimeMuteStage(t *testing.T) {
 - weekdays: ['saturday', 'sunday']`
 
 	cases := []struct {
-		fireTime   string
-		labels     model.LabelSet
-		shouldMute bool
+		fireTime      string
+		labels        model.LabelSet
+		setupAsActive bool
+		shouldMute    bool
 	}{
+		//{
+		//	// Friday during business hours
+		//	fireTime:      "01 Jan 21 09:00 +0000",
+		//	labels:        model.LabelSet{"foo": "bar"},
+		//	setupAsActive: false,
+		//	shouldMute:    false,
+		//},
+		//{
+		//	// Tuesday before 5pm
+		//	fireTime:      "01 Dec 20 16:59 +0000",
+		//	labels:        model.LabelSet{"dont": "mute"},
+		//	setupAsActive: false,
+		//	shouldMute:    false,
+		//},
+		//{
+		//	// Saturday
+		//	fireTime:      "17 Oct 20 10:00 +0000",
+		//	labels:        model.LabelSet{"mute": "me"},
+		//	setupAsActive: false,
+		//	shouldMute:    true,
+		//},
+		//{
+		//	// Wednesday before 9am
+		//	fireTime:      "14 Oct 20 05:00 +0000",
+		//	labels:        model.LabelSet{"mute": "me"},
+		//	setupAsActive: false,
+		//	shouldMute:    true,
+		//},
+		//{
+		//	// Ensure comparisons are UTC only. 12:00 KST should be muted (03:00 UTC)
+		//	fireTime:      "14 Oct 20 12:00 +0900",
+		//	labels:        model.LabelSet{"mute": "kst"},
+		//	setupAsActive: false,
+		//	shouldMute:    true,
+		//},
+		//{
+		//	// Ensure comparisons are UTC only. 22:00 KST should not be muted (13:00 UTC)
+		//	fireTime:      "14 Oct 20 22:00 +0900",
+		//	labels:        model.LabelSet{"kst": "dont_mute"},
+		//	setupAsActive: false,
+		//	shouldMute:    false,
+		//},
 		{
 			// Friday during business hours
-			fireTime:   "01 Jan 21 09:00 +0000",
-			labels:     model.LabelSet{"foo": "bar"},
-			shouldMute: false,
+			fireTime:      "01 Jan 21 09:00 +0000",
+			labels:        model.LabelSet{"mute": "me"},
+			setupAsActive: true,
+			shouldMute:    true,
 		},
 		{
 			// Tuesday before 5pm
-			fireTime:   "01 Dec 20 16:59 +0000",
-			labels:     model.LabelSet{"dont": "mute"},
-			shouldMute: false,
+			fireTime:      "01 Dec 20 16:59 +0000",
+			labels:        model.LabelSet{"mute": "me"},
+			setupAsActive: true,
+			shouldMute:    true,
 		},
 		{
 			// Saturday
-			fireTime:   "17 Oct 20 10:00 +0000",
-			labels:     model.LabelSet{"mute": "me"},
-			shouldMute: true,
+			fireTime:      "17 Oct 20 10:00 +0000",
+			labels:        model.LabelSet{"foo": "bar"},
+			setupAsActive: true,
+			shouldMute:    false,
 		},
 		{
 			// Wednesday before 9am
-			fireTime:   "14 Oct 20 05:00 +0000",
-			labels:     model.LabelSet{"mute": "me"},
-			shouldMute: true,
-		},
-		{
-			// Ensure comparisons are UTC only. 12:00 KST should be muted (03:00 UTC)
-			fireTime:   "14 Oct 20 12:00 +0900",
-			labels:     model.LabelSet{"mute": "kst"},
-			shouldMute: true,
-		},
-		{
-			// Ensure comparisons are UTC only. 22:00 KST should not be muted (13:00 UTC)
-			fireTime:   "14 Oct 20 22:00 +0900",
-			labels:     model.LabelSet{"kst": "dont_mute"},
-			shouldMute: false,
+			fireTime:      "14 Oct 20 05:00 +0000",
+			labels:        model.LabelSet{"dont": "mute"},
+			setupAsActive: true,
+			shouldMute:    false,
 		},
 	}
 	var intervals []timeinterval.TimeInterval
@@ -800,7 +836,13 @@ func TestTimeMuteStage(t *testing.T) {
 		alerts := []*types.Alert{{Alert: a}}
 		ctx := context.Background()
 		ctx = WithNow(ctx, now)
-		ctx = WithMuteTimeIntervals(ctx, []string{"test"})
+		if tc.setupAsActive {
+			ctx = WithActiveTimeIntervals(ctx, []string{"test"})
+			ctx = WithMuteTimeIntervals(ctx, []string{})
+		} else {
+			ctx = WithActiveTimeIntervals(ctx, []string{})
+			ctx = WithMuteTimeIntervals(ctx, []string{"test"})
+		}
 
 		_, out, err := stage.Exec(ctx, log.NewNopLogger(), alerts...)
 		if err != nil {

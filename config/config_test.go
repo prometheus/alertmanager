@@ -177,6 +177,32 @@ receivers:
 
 }
 
+func TestActiveTimeExists(t *testing.T) {
+	in := `
+route:
+    receiver: team-Y
+    routes:
+    -  match:
+        severity: critical
+       active_time_intervals:
+       - business_hours
+
+receivers:
+- name: 'team-Y'
+`
+	_, err := Load(in)
+
+	expected := "undefined time interval \"business_hours\" used in route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
 func TestMuteTimeHasName(t *testing.T) {
 	in := `
 mute_time_intervals:
