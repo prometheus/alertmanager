@@ -321,9 +321,10 @@ Inclusive on both ends.
 Inclusive on both ends.
 
 `time_zone`: A string that matches an IANA time zone name. For example,
-`'Australia/Sydney'`. You may also use `'Local'` or `'UTC'`. **Note:** On Windows,
-only `Local` or `UTC` are supported unless you provide a custom time zone
-database using the `ZONEINFO` environment variable.
+`'Australia/Sydney'`. You may also use `'Local'` to use the local time of the
+server where Alertmanager is running or `'UTC'`. **Note:** On Windows, only
+`Local` or `UTC` are supported unless you provide a custom time zone database
+using the `ZONEINFO` environment variable.
 
 ## `<inhibit_rule>`
 
