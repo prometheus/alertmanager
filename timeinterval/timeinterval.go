@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ type TimeInterval struct {
 	DaysOfMonth []DayOfMonthRange `yaml:"days_of_month,flow,omitempty" json:"days_of_month,omitempty"`
 	Months      []MonthRange      `yaml:"months,flow,omitempty" json:"months,omitempty"`
 	Years       []YearRange       `yaml:"years,flow,omitempty" json:"years,omitempty"`
+	TimeZone    *TimeZone         `yaml:"time_zone,flow,omitempty" json:"time_zone,omitempty"`
 }
 
 // TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
@@ -66,6 +68,11 @@ type MonthRange struct {
 // A YearRange is a positive inclusive range.
 type YearRange struct {
 	InclusiveRange
+}
+
+// A Timezone is a container for a time.Location, used for custom unmarshalling/validation logic.
+type TimeZone struct {
+	*time.Location
 }
 
 type yamlTimeRange struct {
@@ -163,6 +170,48 @@ var monthsInv = map[int]string{
 	10: "october",
 	11: "november",
 	12: "december",
+}
+
+// UnmarshalYAML implements the Unmarshaller interface for TimeInterval
+// Most fields are handled via their own UnmarshalYAML function, however we handle
+// TimeZones here to ensure they always default to UTC if nothing is supplied.
+// func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// 	type temp TimeInterval
+// 	var timeInterval temp
+// 	err := unmarshal(&timeInterval)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if timeInterval.TimeZone == nil {
+// 		timeInterval.TimeZone = &TimeZone{time.UTC}
+// 	}
+// 	*ti = TimeInterval(timeInterval)
+// 	return nil
+// }
+
+// UnmarshalYAML implements the Unmarshaller interface for Timezone.
+func (tz *TimeZone) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	loc, err := time.LoadLocation(str)
+	if err != nil {
+		if runtime.GOOS == "windows" && str != "Local" && str != "UTC" {
+			return fmt.Errorf("unable to load time location. Timezones other than 'Local' and 'UTC' may not be supported on Windows without using a custom timezone file: %w", err)
+		}
+		return err
+	}
+
+	*tz = TimeZone{loc}
+	return nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for TimeZOne.
+// It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
+func (tz *TimeZone) UnmarshalJSON(in []byte) error {
+	return yaml.Unmarshal(in, tz)
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for WeekdayRange.
@@ -362,6 +411,26 @@ func (tr TimeRange) MarshalJSON() (out []byte, err error) {
 	return json.Marshal(yTr)
 }
 
+// MarshalText implements the econding.TextMarshaler interface for TimeZone.
+// It marshals a TimeZone back into a string that represents a time.Location.
+func (tz TimeZone) MarshalText() ([]byte, error) {
+	if tz.Location == nil {
+		return nil, fmt.Errorf("unable to convert nil time zone into string")
+	}
+	return []byte(tz.Location.String()), nil
+}
+
+//MarshalYAML implements the yaml.Marshaler interface for TimeZone.
+func (tz TimeZone) MarshalYAML() (interface{}, error) {
+	bytes, err := tz.MarshalText()
+	return string(bytes), err
+}
+
+//MarshalJSON implements the json.Marshaler interface for TimeZone.
+func (tz TimeZone) MarshalJSON() (out []byte, err error) {
+	return json.Marshal(tz.String())
+}
+
 // MarshalText implements the encoding.TextMarshaler interface for InclusiveRange.
 // It converts the struct into a colon-separated string, or a single element if
 // appropriate. e.g. "monday:friday" or "monday"
@@ -405,6 +474,13 @@ func clamp(n, min, max int) int {
 
 // ContainsTime returns true if the TimeInterval contains the given time, otherwise returns false.
 func (tp TimeInterval) ContainsTime(t time.Time) bool {
+	var location *time.Location
+	if tp.TimeZone == nil {
+		location = time.UTC
+	} else {
+		location = tp.TimeZone.Location
+	}
+	t = t.In(location)
 	if tp.Times != nil {
 		in := false
 		for _, validMinutes := range tp.Times {

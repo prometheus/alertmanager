@@ -102,12 +102,43 @@ var timeIntervalTestCases = []struct {
 			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -31, End: 31}}},
 		},
 		validTimeStrings: []string{
-			"30 Jun 20 00:00 MST",
-			"01 Jun 20 00:00 MST",
+			"30 Jun 20 00:00 UTC",
+			"01 Jun 20 00:00 UTC",
 		},
 		invalidTimeStrings: []string{
-			"31 May 20 00:00 MST",
-			"1 Jul 20 00:00 MST",
+			"31 May 20 00:00 UTC",
+			"1 Jul 20 00:00 UTC",
+		},
+	},
+	{
+		// Check alternative timezones can be used to compare times.
+		// AEST 9AM to 5PM, Monday to Friday.
+		timeInterval: TimeInterval{
+			Times:    []TimeRange{{StartMinute: 540, EndMinute: 1020}},
+			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
+			TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
+		},
+		validTimeStrings: []string{
+			"06 Apr 21 13:00 AEST",
+		},
+		invalidTimeStrings: []string{
+			"06 Apr 21 13:00 UTC",
+		},
+	},
+	{
+		// Check an alternative timezone during daylight savings time.
+		timeInterval: TimeInterval{
+			Times:    []TimeRange{{StartMinute: 540, EndMinute: 1020}},
+			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
+			Months:   []MonthRange{{InclusiveRange{Begin: 11, End: 11}}},
+			TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
+		},
+		validTimeStrings: []string{
+			"01 Nov 21 09:00 AEDT",
+			"31 Oct 21 22:00 UTC",
+		},
+		invalidTimeStrings: []string{
+			"31 Oct 21 21:00 UTC",
 		},
 	},
 }
@@ -379,6 +410,21 @@ var yamlUnmarshalTestCases = []struct {
 		},
 	},
 	{
+		// Time zones may be specified by location.
+		in: `
+---
+- years: ['2020:2022']
+  time_zone: 'Australia/Sydney'
+`,
+		expectError: false,
+		intervals: []TimeInterval{
+			{
+				Years:    []YearRange{{InclusiveRange{2020, 2022}}},
+				TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
+			},
+		},
+	},
+	{
 		// Invalid start month.
 		in: `
 ---
@@ -603,4 +649,13 @@ func TestTimeIntervalComplete(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Utility function for declaring time locations in test cases. Panic if the location can't be loaded.
+func mustLoadLocation(name string) *time.Location {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		panic(err)
+	}
+	return loc
 }
