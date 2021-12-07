@@ -289,8 +289,8 @@ supports the following fields:
 All fields are lists. Within each non-empty list, at least one element must be satisfied to match
 the field. If a field is left unspecified, any value will match the field. For an instant of time
 to match a complete time interval, all fields must match.
-Some fields support ranges and negative indices, and are detailed below. All definitions are
-taken to be in UTC, no other timezones are currently supported.
+Some fields support ranges and negative indices, and are detailed below. If a time zone is not
+specified, then the times are taken to be in UTC.
 
 `time_range` Ranges inclusive of the starting time and exclusive of the end time to
 make it easy to represent times that start/end on hour boundaries.
@@ -321,8 +321,7 @@ Inclusive on both ends.
 Inclusive on both ends.
 
 `time_zone`: A string that matches an IANA time zone name. For example,
-`'Australia/Sydney'`. You may also use `'Local'` to use the local time of the
-server where Alertmanager is running or `'UTC'`. **Note:** On Windows, only
+`'Australia/Sydney'`. The time zone will be used to You may also use `'Local'` to use the local time where Alertmanager is running or `'UTC'`. **Note:** On Windows, only
 `Local` or `UTC` are supported unless you provide a custom time zone database
 using the `ZONEINFO` environment variable.
 
