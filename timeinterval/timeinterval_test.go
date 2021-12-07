@@ -30,9 +30,9 @@ var timeIntervalTestCases = []struct {
 	{
 		timeInterval: TimeInterval{},
 		validTimeStrings: []string{
-			"02 Jan 06 15:04 MST",
-			"03 Jan 07 10:04 MST",
-			"04 Jan 06 09:04 MST",
+			"02 Jan 06 15:04 UTC",
+			"03 Jan 07 10:04 UTC",
+			"04 Jan 06 09:04 UTC",
 		},
 		invalidTimeStrings: []string{},
 	},
@@ -43,14 +43,14 @@ var timeIntervalTestCases = []struct {
 			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
 		},
 		validTimeStrings: []string{
-			"04 May 20 15:04 MST",
-			"05 May 20 10:04 MST",
-			"09 Jun 20 09:04 MST",
+			"04 May 20 15:04 UTC",
+			"05 May 20 10:04 UTC",
+			"09 Jun 20 09:04 UTC",
 		},
 		invalidTimeStrings: []string{
-			"03 May 20 15:04 MST",
-			"04 May 20 08:59 MST",
-			"05 May 20 05:00 MST",
+			"03 May 20 15:04 UTC",
+			"04 May 20 08:59 UTC",
+			"05 May 20 05:00 UTC",
 		},
 	},
 	{
@@ -61,16 +61,16 @@ var timeIntervalTestCases = []struct {
 			Years:       []YearRange{{InclusiveRange{Begin: 2020, End: 2020}}},
 		},
 		validTimeStrings: []string{
-			"04 Apr 20 15:04 MST",
-			"05 Apr 20 00:00 MST",
-			"06 Apr 20 23:05 MST",
+			"04 Apr 20 15:04 UTC",
+			"05 Apr 20 00:00 UTC",
+			"06 Apr 20 23:05 UTC",
 		},
 		invalidTimeStrings: []string{
-			"03 May 18 15:04 MST",
-			"03 Apr 20 23:59 MST",
-			"04 Jun 20 23:59 MST",
-			"06 Apr 19 23:59 MST",
-			"07 Apr 20 00:00 MST",
+			"03 May 18 15:04 UTC",
+			"03 Apr 20 23:59 UTC",
+			"04 Jun 20 23:59 UTC",
+			"06 Apr 19 23:59 UTC",
+			"07 Apr 20 00:00 UTC",
 		},
 	},
 	{
@@ -79,20 +79,20 @@ var timeIntervalTestCases = []struct {
 			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -3, End: -1}}},
 		},
 		validTimeStrings: []string{
-			"31 Jan 20 15:04 MST",
-			"30 Jan 20 15:04 MST",
-			"29 Jan 20 15:04 MST",
-			"30 Jun 20 00:00 MST",
-			"29 Feb 20 23:05 MST",
+			"31 Jan 20 15:04 UTC",
+			"30 Jan 20 15:04 UTC",
+			"29 Jan 20 15:04 UTC",
+			"30 Jun 20 00:00 UTC",
+			"29 Feb 20 23:05 UTC",
 		},
 		invalidTimeStrings: []string{
-			"03 May 18 15:04 MST",
-			"27 Jan 20 15:04 MST",
-			"03 Apr 20 23:59 MST",
-			"04 Jun 20 23:59 MST",
-			"06 Apr 19 23:59 MST",
-			"07 Apr 20 00:00 MST",
-			"01 Mar 20 00:00 MST",
+			"03 May 18 15:04 UTC",
+			"27 Jan 20 15:04 UTC",
+			"03 Apr 20 23:59 UTC",
+			"04 Jun 20 23:59 UTC",
+			"06 Apr 19 23:59 UTC",
+			"07 Apr 20 00:00 UTC",
+			"01 Mar 20 00:00 UTC",
 		},
 	},
 	{
@@ -188,12 +188,12 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"08 Jul 20 09:00 MST",
-			"08 Jul 20 16:59 MST",
+			"08 Jul 20 09:00 UTC",
+			"08 Jul 20 16:59 UTC",
 		},
 		excludes: []string{
-			"08 Jul 20 05:00 MST",
-			"08 Jul 20 08:59 MST",
+			"08 Jul 20 05:00 UTC",
+			"08 Jul 20 08:59 UTC",
 		},
 		expectError: false,
 	},
@@ -220,18 +220,18 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"27 Jan 21 09:00 MST",
-			"28 Jan 21 16:59 MST",
-			"29 Jan 21 13:00 MST",
-			"31 Mar 25 13:00 MST",
-			"31 Mar 25 13:00 MST",
-			"31 Jan 35 13:00 MST",
+			"27 Jan 21 09:00 UTC",
+			"28 Jan 21 16:59 UTC",
+			"29 Jan 21 13:00 UTC",
+			"31 Mar 25 13:00 UTC",
+			"31 Mar 25 13:00 UTC",
+			"31 Jan 35 13:00 UTC",
 		},
 		excludes: []string{
-			"30 Jan 21 13:00 MST", // Saturday
-			"01 Apr 21 13:00 MST", // 4th month
-			"30 Jan 26 13:00 MST", // 2026
-			"31 Jan 35 17:01 MST", // After 5pm
+			"30 Jan 21 13:00 UTC", // Saturday
+			"01 Apr 21 13:00 UTC", // 4th month
+			"30 Jan 26 13:00 UTC", // 2026
+			"31 Jan 35 17:01 UTC", // After 5pm
 		},
 		expectError: false,
 	},
