@@ -172,23 +172,6 @@ var monthsInv = map[int]string{
 	12: "december",
 }
 
-// UnmarshalYAML implements the Unmarshaller interface for TimeInterval
-// Most fields are handled via their own UnmarshalYAML function, however we handle
-// TimeZones here to ensure they always default to UTC if nothing is supplied.
-// func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
-// 	type temp TimeInterval
-// 	var timeInterval temp
-// 	err := unmarshal(&timeInterval)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if timeInterval.TimeZone == nil {
-// 		timeInterval.TimeZone = &TimeZone{time.UTC}
-// 	}
-// 	*ti = TimeInterval(timeInterval)
-// 	return nil
-// }
-
 // UnmarshalYAML implements the Unmarshaller interface for Timezone.
 func (tz *TimeZone) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
