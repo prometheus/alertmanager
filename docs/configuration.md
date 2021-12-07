@@ -283,6 +283,7 @@ supports the following fields:
   [ - <month_range> ...]
   years:
   [ - <year_range> ...]
+  time_zone: <string>
 ```
 
 All fields are lists. Within each non-empty list, at least one element must be satisfied to match
@@ -318,6 +319,11 @@ Inclusive on both ends.
 
 `year_range`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`.
 Inclusive on both ends.
+
+`time_zone`: A string that matches an IANA time zone name. For example,
+`'Australia/Sydney'`. You may also use `'Local'` or `'UTC'`. **Note:** On Windows,
+only `Local` or `UTC` are supported unless you provide a custom time zone
+database using the `ZONEINFO` environment variable.
 
 ## `<inhibit_rule>`
 
