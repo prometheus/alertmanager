@@ -724,7 +724,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 }
 
 func TestTimeMuteStage(t *testing.T) {
-	// Route mutes alerts outside business hours in November, using the AEDT timezone.
+	// Route mutes alerts outside business hours in November, using the +1100 timezone.
 	muteIn := `
 ---
 - weekdays: ['monday:friday']
@@ -746,37 +746,37 @@ func TestTimeMuteStage(t *testing.T) {
 	}{
 		{
 			// Friday during business hours
-			fireTime:   "19 Nov 21 13:00 AEDT",
+			fireTime:   "19 Nov 21 13:00 +1100",
 			labels:     model.LabelSet{"foo": "bar"},
 			shouldMute: false,
 		},
 		{
 			// Tuesday before 5pm
-			fireTime:   "16 Nov 21 16:59 AEDT",
+			fireTime:   "16 Nov 21 16:59 +1100",
 			labels:     model.LabelSet{"dont": "mute"},
 			shouldMute: false,
 		},
 		{
 			// Saturday
-			fireTime:   "20 Nov 21 10:00 AEDT",
+			fireTime:   "20 Nov 21 10:00 +1100",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
 		{
 			// Wednesday before 9am
-			fireTime:   "17 Nov 21 05:00 AEDT",
+			fireTime:   "17 Nov 21 05:00 +1100",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
 		{
 			// Ensure comparisons with other time zones work as expected.
-			fireTime:   "14 Nov 21 20:00 KST",
+			fireTime:   "14 Nov 21 20:00 +0900",
 			labels:     model.LabelSet{"mute": "kst"},
 			shouldMute: true,
 		},
 		{
 			// Ensure comparisons with other time zones work as expected.
-			fireTime:   "14 Nov 21 22:00 KST",
+			fireTime:   "15 Nov 22 14:30 +0900",
 			labels:     model.LabelSet{"kst": "dont_mute"},
 			shouldMute: false,
 		},
@@ -792,7 +792,7 @@ func TestTimeMuteStage(t *testing.T) {
 	outAlerts := []*types.Alert{}
 	nonMuteCount := 0
 	for _, tc := range cases {
-		now, err := time.Parse(time.RFC822, tc.fireTime)
+		now, err := time.Parse(time.RFC822Z, tc.fireTime)
 		if err != nil {
 			t.Fatalf("Couldn't parse fire time %s %s", tc.fireTime, err)
 		}

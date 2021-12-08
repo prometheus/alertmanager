@@ -30,9 +30,9 @@ var timeIntervalTestCases = []struct {
 	{
 		timeInterval: TimeInterval{},
 		validTimeStrings: []string{
-			"02 Jan 06 15:04 UTC",
-			"03 Jan 07 10:04 UTC",
-			"04 Jan 06 09:04 UTC",
+			"02 Jan 06 15:04 +0000",
+			"03 Jan 07 10:04 +0000",
+			"04 Jan 06 09:04 +0000",
 		},
 		invalidTimeStrings: []string{},
 	},
@@ -43,14 +43,14 @@ var timeIntervalTestCases = []struct {
 			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
 		},
 		validTimeStrings: []string{
-			"04 May 20 15:04 UTC",
-			"05 May 20 10:04 UTC",
-			"09 Jun 20 09:04 UTC",
+			"04 May 20 15:04 +0000",
+			"05 May 20 10:04 +0000",
+			"09 Jun 20 09:04 +0000",
 		},
 		invalidTimeStrings: []string{
-			"03 May 20 15:04 UTC",
-			"04 May 20 08:59 UTC",
-			"05 May 20 05:00 UTC",
+			"03 May 20 15:04 +0000",
+			"04 May 20 08:59 +0000",
+			"05 May 20 05:00 +0000",
 		},
 	},
 	{
@@ -61,16 +61,16 @@ var timeIntervalTestCases = []struct {
 			Years:       []YearRange{{InclusiveRange{Begin: 2020, End: 2020}}},
 		},
 		validTimeStrings: []string{
-			"04 Apr 20 15:04 UTC",
-			"05 Apr 20 00:00 UTC",
-			"06 Apr 20 23:05 UTC",
+			"04 Apr 20 15:04 +0000",
+			"05 Apr 20 00:00 +0000",
+			"06 Apr 20 23:05 +0000",
 		},
 		invalidTimeStrings: []string{
-			"03 May 18 15:04 UTC",
-			"03 Apr 20 23:59 UTC",
-			"04 Jun 20 23:59 UTC",
-			"06 Apr 19 23:59 UTC",
-			"07 Apr 20 00:00 UTC",
+			"03 May 18 15:04 +0000",
+			"03 Apr 20 23:59 +0000",
+			"04 Jun 20 23:59 +0000",
+			"06 Apr 19 23:59 +0000",
+			"07 Apr 20 00:00 +0000",
 		},
 	},
 	{
@@ -79,20 +79,20 @@ var timeIntervalTestCases = []struct {
 			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -3, End: -1}}},
 		},
 		validTimeStrings: []string{
-			"31 Jan 20 15:04 UTC",
-			"30 Jan 20 15:04 UTC",
-			"29 Jan 20 15:04 UTC",
-			"30 Jun 20 00:00 UTC",
-			"29 Feb 20 23:05 UTC",
+			"31 Jan 20 15:04 +0000",
+			"30 Jan 20 15:04 +0000",
+			"29 Jan 20 15:04 +0000",
+			"30 Jun 20 00:00 +0000",
+			"29 Feb 20 23:05 +0000",
 		},
 		invalidTimeStrings: []string{
-			"03 May 18 15:04 UTC",
-			"27 Jan 20 15:04 UTC",
-			"03 Apr 20 23:59 UTC",
-			"04 Jun 20 23:59 UTC",
-			"06 Apr 19 23:59 UTC",
-			"07 Apr 20 00:00 UTC",
-			"01 Mar 20 00:00 UTC",
+			"03 May 18 15:04 +0000",
+			"27 Jan 20 15:04 +0000",
+			"03 Apr 20 23:59 +0000",
+			"04 Jun 20 23:59 +0000",
+			"06 Apr 19 23:59 +0000",
+			"07 Apr 20 00:00 +0000",
+			"01 Mar 20 00:00 +0000",
 		},
 	},
 	{
@@ -102,12 +102,12 @@ var timeIntervalTestCases = []struct {
 			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: -31, End: 31}}},
 		},
 		validTimeStrings: []string{
-			"30 Jun 20 00:00 UTC",
-			"01 Jun 20 00:00 UTC",
+			"30 Jun 20 00:00 +0000",
+			"01 Jun 20 00:00 +0000",
 		},
 		invalidTimeStrings: []string{
-			"31 May 20 00:00 UTC",
-			"1 Jul 20 00:00 UTC",
+			"31 May 20 00:00 +0000",
+			"1 Jul 20 00:00 +0000",
 		},
 	},
 	{
@@ -119,10 +119,10 @@ var timeIntervalTestCases = []struct {
 			TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
 		},
 		validTimeStrings: []string{
-			"06 Apr 21 13:00 AEST",
+			"06 Apr 21 13:00 +1000",
 		},
 		invalidTimeStrings: []string{
-			"06 Apr 21 13:00 UTC",
+			"06 Apr 21 13:00 +0000",
 		},
 	},
 	{
@@ -134,11 +134,11 @@ var timeIntervalTestCases = []struct {
 			TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
 		},
 		validTimeStrings: []string{
-			"01 Nov 21 09:00 AEDT",
-			"31 Oct 21 22:00 UTC",
+			"01 Nov 21 09:00 +1100",
+			"31 Oct 21 22:00 +0000",
 		},
 		invalidTimeStrings: []string{
-			"31 Oct 21 21:00 UTC",
+			"31 Oct 21 21:00 +0000",
 		},
 	},
 }
@@ -219,12 +219,12 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"08 Jul 20 09:00 UTC",
-			"08 Jul 20 16:59 UTC",
+			"08 Jul 20 09:00 +0000",
+			"08 Jul 20 16:59 +0000",
 		},
 		excludes: []string{
-			"08 Jul 20 05:00 UTC",
-			"08 Jul 20 08:59 UTC",
+			"08 Jul 20 05:00 +0000",
+			"08 Jul 20 08:59 +0000",
 		},
 		expectError: false,
 	},
@@ -251,18 +251,18 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"27 Jan 21 09:00 UTC",
-			"28 Jan 21 16:59 UTC",
-			"29 Jan 21 13:00 UTC",
-			"31 Mar 25 13:00 UTC",
-			"31 Mar 25 13:00 UTC",
-			"31 Jan 35 13:00 UTC",
+			"27 Jan 21 09:00 +0000",
+			"28 Jan 21 16:59 +0000",
+			"29 Jan 21 13:00 +0000",
+			"31 Mar 25 13:00 +0000",
+			"31 Mar 25 13:00 +0000",
+			"31 Jan 35 13:00 +0000",
 		},
 		excludes: []string{
-			"30 Jan 21 13:00 UTC", // Saturday
-			"01 Apr 21 13:00 UTC", // 4th month
-			"30 Jan 26 13:00 UTC", // 2026
-			"31 Jan 35 17:01 UTC", // After 5pm
+			"30 Jan 21 13:00 +0000", // Saturday
+			"01 Apr 21 13:00 +0000", // 4th month
+			"30 Jan 26 13:00 +0000", // 2026
+			"31 Jan 35 17:01 +0000", // After 5pm
 		},
 		expectError: false,
 	},
@@ -280,7 +280,7 @@ var yamlUnmarshalTestCases = []struct {
 			},
 		},
 		contains: []string{
-			"01 Apr 21 13:00 GMT",
+			"01 Apr 21 13:00 +0000",
 		},
 	},
 	{
@@ -480,7 +480,7 @@ func TestYamlUnmarshal(t *testing.T) {
 			t.Errorf("Error unmarshalling %s: Want %+v, got %+v", tc.in, tc.intervals, ti)
 		}
 		for _, ts := range tc.contains {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			isContained := false
 			for _, interval := range ti {
 				if interval.ContainsTime(_t) {
@@ -492,7 +492,7 @@ func TestYamlUnmarshal(t *testing.T) {
 			}
 		}
 		for _, ts := range tc.excludes {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			isContained := false
 			for _, interval := range ti {
 				if interval.ContainsTime(_t) {
@@ -509,13 +509,13 @@ func TestYamlUnmarshal(t *testing.T) {
 func TestContainsTime(t *testing.T) {
 	for _, tc := range timeIntervalTestCases {
 		for _, ts := range tc.validTimeStrings {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			if !tc.timeInterval.ContainsTime(_t) {
 				t.Errorf("Expected period %+v to contain %+v", tc.timeInterval, _t)
 			}
 		}
 		for _, ts := range tc.invalidTimeStrings {
-			_t, _ := time.Parse(time.RFC822, ts)
+			_t, _ := time.Parse(time.RFC822Z, ts)
 			if tc.timeInterval.ContainsTime(_t) {
 				t.Errorf("Period %+v not expected to contain %+v", tc.timeInterval, _t)
 			}
@@ -600,13 +600,13 @@ years: ['2020:2023']
 months: ['january:march']
 `,
 		contains: []string{
-			"10 Jan 21 13:00 GMT",
-			"30 Jan 21 14:24 GMT",
+			"10 Jan 21 13:00 +0000",
+			"30 Jan 21 14:24 +0000",
 		},
 		excludes: []string{
-			"09 Jan 21 13:00 GMT",
-			"20 Jan 21 12:59 GMT",
-			"02 Feb 21 13:00 GMT",
+			"09 Jan 21 13:00 +0000",
+			"20 Jan 21 12:59 +0000",
+			"02 Feb 21 13:00 +0000",
 		},
 	},
 	{
@@ -618,7 +618,7 @@ years: ['2020:2023']
 months: ['february']
 `,
 		excludes: []string{
-			"28 Feb 21 13:00 GMT",
+			"28 Feb 21 13:00 +0000",
 		},
 	},
 }
@@ -631,7 +631,7 @@ func TestTimeIntervalComplete(t *testing.T) {
 			t.Error(err)
 		}
 		for _, ts := range tc.contains {
-			tt, err := time.Parse(time.RFC822, ts)
+			tt, err := time.Parse(time.RFC822Z, ts)
 			if err != nil {
 				t.Error(err)
 			}
@@ -640,7 +640,7 @@ func TestTimeIntervalComplete(t *testing.T) {
 			}
 		}
 		for _, ts := range tc.excludes {
-			tt, err := time.Parse(time.RFC822, ts)
+			tt, err := time.Parse(time.RFC822Z, ts)
 			if err != nil {
 				t.Error(err)
 			}
