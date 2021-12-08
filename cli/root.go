@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -40,8 +39,7 @@ var (
 	alertmanagerURL *url.URL
 	output          string
 	timeout         time.Duration
-	tlsConfig       *tls.Config
-	bearerToken     string
+	httpConfigFile  string
 	versionCheck    bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
@@ -86,12 +84,8 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
-	cr.Transport = &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
-
-	if amURL.User != nil && bearerToken != "" {
-		kingpin.Fatalf("basic authentication and bearer token are mutually exclusive")
+	if amURL.User != nil && httpConfigFile != "" {
+		kingpin.Fatalf("basic authentication and http.config.file are mutually exclusive")
 	}
 
 	if amURL.User != nil {
@@ -99,8 +93,35 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
-	if bearerToken != "" {
-		cr.DefaultAuthentication = clientruntime.BearerToken(bearerToken)
+	var httpConfig *promconfig.HTTPClientConfig
+	if httpConfigFile != "" {
+		var err error
+		httpConfig, err = config.LoadHttpConfig(httpConfigFile)
+		if err != nil {
+			kingpin.Fatalf("could not load http config file: %v\n", err)
+		}
+
+		tlsConfig, err := promconfig.NewTLSConfig(&httpConfig.TLSConfig)
+		if err != nil {
+			kingpin.Fatalf("failed to create tls config: %v\n", err)
+		}
+
+		cr.Transport = &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+
+		if httpConfig.BasicAuth != nil {
+			password, _ := config.FetchBasicAuthPassword(httpConfig.BasicAuth)
+			cr.DefaultAuthentication = clientruntime.BasicAuth(httpConfig.BasicAuth.Username, password)
+		}
+
+		if httpConfig.Authorization.Type == "Bearer" {
+			bearerToken, err := config.FetchBearerToken(httpConfig.Authorization)
+			if err != nil {
+				kingpin.Fatalf("failed to fetch bearer token: %v\n", err)
+			}
+			cr.DefaultAuthentication = clientruntime.BearerToken(bearerToken)
+		}
 	}
 
 	c := client.New(cr, strfmt.Default)
@@ -126,7 +147,6 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 func Execute() {
 	var (
 		app = kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
-		tls = promconfig.TLSConfig{}
 	)
 
 	format.InitFormatFlags(app)
@@ -135,21 +155,12 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
-	app.Flag("tls.certfile", "TLS client certificate file").PlaceHolder("<filename>").ExistingFileVar(&tls.CertFile)
-	app.Flag("tls.keyfile", "TLS client private key file").PlaceHolder("<filename>").ExistingFileVar(&tls.KeyFile)
-	app.Flag("tls.cafile", "TLS trusted certificate authorities file").PlaceHolder("<filename>").ExistingFileVar(&tls.CAFile)
-	app.Flag("tls.servername", "ServerName to verify hostname of alertmanager").PlaceHolder("<string>").StringVar(&tls.ServerName)
-	app.Flag("tls.insecure.skip.verify", "Skip TLS certificate verification").Default("false").BoolVar(&tls.InsecureSkipVerify)
-	app.Flag("bearer-token", "A Bearer Token to access Alertmanager.").StringVar(&bearerToken)
+	app.Flag("http.config.file", "The http config file for amtool is to connect with the alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
 	app.UsageTemplate(kingpin.CompactUsageTemplate)
-	app.PreAction(func(pc *kingpin.ParseContext) (err error) {
-		tlsConfig, err = promconfig.NewTLSConfig(&tls)
-		return err
-	})
 
 	resolver, err := config.NewResolver(configFiles, legacyFlags)
 	if err != nil {
@@ -201,22 +212,8 @@ static configuration:
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
 
-	tls.certfile
-		TLS client certificate file for mutual-TLS authentication.
-		Requires tls.keyfile to be useful.
-
-	tls.keyfile
-		TLS client private key file for mutual-TLS authentication.
-		Requires tls.certfile to be useful.
-
-	tls.cafile
-		TLS trusted certificate authorities file.
-
-	tls.servername
-		ServerName to verify hostname of alertmanager.
-
-	tls.insecure.skip.verify
-		Skips TLS certificate verification for all HTTPS requests.
-		Defaults to false.
+	http.config.file
+		Set a http_config file for amtool is to connect with the alertmanager. 
+		The format is https://prometheus.io/docs/alerting/latest/configuration/#http_config.
 `
 )

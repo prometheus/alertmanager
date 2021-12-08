@@ -1,0 +1,4 @@
+authorization:
+  type: Bearer
+  credentials_file: testdata/bearer.token
+proxy_url: "http://remote.host"
