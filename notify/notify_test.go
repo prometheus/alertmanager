@@ -775,10 +775,19 @@ func TestTimeMuteStage(t *testing.T) {
 			shouldMute: true,
 		},
 		{
-			// Ensure comparisons with other time zones work as expected.
+			fireTime:   "14 Nov 21 21:30 +0000",
+			labels:     model.LabelSet{"mute": "utc"},
+			shouldMute: true,
+		},
+		{
 			fireTime:   "15 Nov 22 14:30 +0900",
 			labels:     model.LabelSet{"kst": "dont_mute"},
 			shouldMute: false,
+		},
+		{
+			fireTime:   "15 Nov 21 02:00 -0500",
+			labels:     model.LabelSet{"mute": "0500"},
+			shouldMute: true,
 		},
 	}
 	var intervals []timeinterval.TimeInterval
