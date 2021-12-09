@@ -1,0 +1,7 @@
+exclusions:
+  panel-job-instance-rule:
+    reason: no need to have every query contains two matchers within every selector - `{job=~"$job", instance=~"$instance"}`
+  template-job-rule: 
+    entries:
+    - dashboard: Alertmanager / Overview 
+      reason: multi-select is not always required

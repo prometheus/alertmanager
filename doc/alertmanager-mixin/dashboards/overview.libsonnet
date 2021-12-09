@@ -8,13 +8,14 @@ local graphPanel = grafana.graphPanel;
 {
   grafanaDashboards+:: {
 
-    local amQuerySelector = std.join(',', ['%s="$%s"' % [label, label] for label in std.split($._config.alertmanagerClusterLabels, ',')]),
+    local amQuerySelector = std.join(',', ['%s=~"$%s"' % [label, label] for label in std.split($._config.alertmanagerClusterLabels, ',')]),
     local amNameDashboardLegend = std.join('/', ['{{%s}}' % [label] for label in std.split($._config.alertmanagerNameLabels, ',')]),
 
     local alertmanagerClusterSelectorTemplates =
       [
         template.new(
           name=label,
+          label=label,
           datasource='$datasource',
           query='label_values(alertmanager_alerts, %s)' % label,
           current='',
@@ -60,8 +61,8 @@ local graphPanel = grafana.graphPanel;
           fill=1,
           legend_show=false,
         )
-        .addTarget(prometheus.target('sum(rate(alertmanager_alerts_received_total{%(amQuerySelector)s}[5m])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Received' % $._config { amNameDashboardLegend: amNameDashboardLegend }))
-        .addTarget(prometheus.target('sum(rate(alertmanager_alerts_invalid_total{%(amQuerySelector)s}[5m])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Invalid' % $._config { amNameDashboardLegend: amNameDashboardLegend }));
+        .addTarget(prometheus.target('sum(rate(alertmanager_alerts_received_total{%(amQuerySelector)s}[$__rate_interval])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Received' % $._config { amNameDashboardLegend: amNameDashboardLegend }))
+        .addTarget(prometheus.target('sum(rate(alertmanager_alerts_invalid_total{%(amQuerySelector)s}[$__rate_interval])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Invalid' % $._config { amNameDashboardLegend: amNameDashboardLegend }));
 
       local notifications =
         graphPanel.new(
@@ -73,8 +74,8 @@ local graphPanel = grafana.graphPanel;
           legend_show=false,
           repeat='integration'
         )
-        .addTarget(prometheus.target('sum(rate(alertmanager_notifications_total{%(amQuerySelector)s, integration="$integration"}[5m])) by (integration,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Total' % $._config { amNameDashboardLegend: amNameDashboardLegend }))
-        .addTarget(prometheus.target('sum(rate(alertmanager_notifications_failed_total{%(amQuerySelector)s, integration="$integration"}[5m])) by (integration,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Failed' % $._config { amNameDashboardLegend: amNameDashboardLegend }));
+        .addTarget(prometheus.target('sum(rate(alertmanager_notifications_total{%(amQuerySelector)s, integration="$integration"}[$__rate_interval])) by (integration,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Total' % $._config { amNameDashboardLegend: amNameDashboardLegend }))
+        .addTarget(prometheus.target('sum(rate(alertmanager_notifications_failed_total{%(amQuerySelector)s, integration="$integration"}[$__rate_interval])) by (integration,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)' % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Failed' % $._config { amNameDashboardLegend: amNameDashboardLegend }));
 
       local notificationDuration =
         graphPanel.new(
@@ -89,22 +90,22 @@ local graphPanel = grafana.graphPanel;
         .addTarget(prometheus.target(
           |||
             histogram_quantile(0.99,
-              sum(rate(alertmanager_notification_latency_seconds_bucket{%(amQuerySelector)s, integration="$integration"}[5m])) by (le,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
+              sum(rate(alertmanager_notification_latency_seconds_bucket{%(amQuerySelector)s, integration="$integration"}[$__rate_interval])) by (le,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
             ) 
           ||| % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s 99th Percentile' % $._config { amNameDashboardLegend: amNameDashboardLegend }
         ))
         .addTarget(prometheus.target(
           |||
             histogram_quantile(0.50,
-              sum(rate(alertmanager_notification_latency_seconds_bucket{%(amQuerySelector)s, integration="$integration"}[5m])) by (le,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
+              sum(rate(alertmanager_notification_latency_seconds_bucket{%(amQuerySelector)s, integration="$integration"}[$__rate_interval])) by (le,%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
             ) 
           ||| % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Median' % $._config { amNameDashboardLegend: amNameDashboardLegend }
         ))
         .addTarget(prometheus.target(
           |||
-            sum(rate(alertmanager_notification_latency_seconds_sum{%(amQuerySelector)s, integration="$integration"}[5m])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
+            sum(rate(alertmanager_notification_latency_seconds_sum{%(amQuerySelector)s, integration="$integration"}[$__rate_interval])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
             /
-            sum(rate(alertmanager_notification_latency_seconds_count{%(amQuerySelector)s, integration="$integration"}[5m])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
+            sum(rate(alertmanager_notification_latency_seconds_count{%(amQuerySelector)s, integration="$integration"}[$__rate_interval])) by (%(alertmanagerClusterLabels)s,%(alertmanagerNameLabels)s)
           ||| % $._config { amQuerySelector: amQuerySelector }, legendFormat='%(amNameDashboardLegend)s Average' % $._config { amNameDashboardLegend: amNameDashboardLegend }
         ));
 
@@ -124,7 +125,7 @@ local graphPanel = grafana.graphPanel;
             value: 'Prometheus',
           },
           hide: 0,
-          label: null,
+          label: 'Data Source',
           name: 'datasource',
           options: [],
           query: 'prometheus',
