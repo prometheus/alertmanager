@@ -364,6 +364,33 @@ type SlackConfig struct {
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
+type SlackConfigV2 struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	Token	string	`yaml:"token,omitempty"json:"token,omitempty"`
+
+	// Slack channel override, (like #other-channel or @username).
+	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+	Color    string `yaml:"color,omitempty" json:"color,omitempty"`
+
+	Title       string         `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink   string         `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Pretext     string         `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Text        string         `yaml:"text,omitempty" json:"text,omitempty"`
+	Fields      []*SlackField  `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ShortFields bool           `yaml:"short_fields" json:"short_fields,omitempty"`
+	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Fallback    string         `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	CallbackID  string         `yaml:"callback_id,omitempty" json:"callback_id,omitempty"`
+	IconEmoji   string         `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	IconURL     string         `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	ImageURL    string         `yaml:"image_url,omitempty" json:"image_url,omitempty"`
+	ThumbURL    string         `yaml:"thumb_url,omitempty" json:"thumb_url,omitempty"`
+	LinkNames   bool           `yaml:"link_names" json:"link_names,omitempty"`
+	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
+	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultSlackConfig
