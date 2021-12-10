@@ -22,7 +22,7 @@ type Notifier struct {
 }
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfigV2, t *template.Template, l log.Logger, ) (*Notifier, error) {
+func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
 	client := slack.New(token)
 
@@ -66,7 +66,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	txt := slack.MsgOptionText("hello", false)
 	att := slack.MsgOptionAttachments(*attachmets)
 	//params.Attachments = []slack.Attachment{att}
-	channal, ts, err := n.client.PostMessage(n.conf.Channel, txt, att)
-	fmt.Printf(channal, ts)
-
+	channel, _, err := n.client.PostMessage(n.conf.Channel, txt, att)
+	fmt.Printf(channel)
+	return true, err
 }
