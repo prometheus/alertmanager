@@ -58,19 +58,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	)
 
 	attachmets := &slack.Attachment{
-		Title:     n.conf.Title,
-		TitleLink: n.conf.TitleLink,
-		Pretext:   n.conf.Pretext,
+		Title:     tmplText(n.conf.Title),
+		TitleLink: tmplText(n.conf.TitleLink),
+		Pretext:   tmplText(n.conf.Pretext),
 		Text:      tmplText(n.conf.Text),
-		ImageURL:  n.conf.ImageURL,
-		Footer:    n.conf.Footer,
-		Color:     n.conf.Color,
+		ImageURL:  tmplText(n.conf.ImageURL),
+		Footer:    tmplText(n.conf.Footer),
+		Color:     tmplText(n.conf.Color),
 	}
-
-	//params2 := &slack.PostMessageParameters{
-	//	Username:    n.conf.Username,
-	//	IconEmoji:   n.conf.IconEmoji,
-	//}
 
 	params := slack.NewPostMessageParameters()
 	params.Username = n.conf.Username
@@ -78,7 +73,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	txt := slack.MsgOptionText("hello", false)
 	att := slack.MsgOptionAttachments(*attachmets)
-	//params.Attachments = []slack.Attachment{att}
 	channel, _, err := n.client.PostMessage(n.conf.Channel, txt, att)
 	fmt.Printf(channel, err)
 	return true, err
