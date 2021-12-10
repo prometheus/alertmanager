@@ -290,7 +290,7 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 				HTML:      "HTML body",
 				Text:      "Text body",
 				Headers: map[string]string{
-					"Subject": "{{ len .Alerts }} {{ .Status }} alert(s)",
+					"Subject": "{{ len .Data }} {{ .Status }} alert(s)",
 				},
 			}
 			if tc.updateCfg != nil {
@@ -522,7 +522,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 				HTML:      "HTML body",
 				Text:      "Text body",
 				Headers: map[string]string{
-					"Subject": "{{ len .Alerts }} {{ .Status }} alert(s)",
+					"Subject": "{{ len .Data }} {{ .Status }} alert(s)",
 				},
 			}
 			if tc.updateCfg != nil {

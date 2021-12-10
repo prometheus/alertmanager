@@ -83,7 +83,7 @@ func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 }
 
 /*
-  PostAlerts Create new Alerts
+  PostAlerts Create new Data
 */
 func (a *Client) PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error) {
 	// TODO: Validate the params before sending

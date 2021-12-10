@@ -267,7 +267,7 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		panic(err)
 	}
 
-	// Transform the webhook message alerts back into model.Alerts.
+	// Transform the webhook message alerts back into model.Data.
 	var alerts models.GettableAlerts
 	for _, a := range v.Alerts {
 		var (

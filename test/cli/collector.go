@@ -180,7 +180,7 @@ func (c *Collector) Check() string {
 	return report
 }
 
-// alertsToString returns a string representation of the given Alerts. Use for
+// alertsToString returns a string representation of the given Data. Use for
 // debugging.
 func alertsToString(as []*models.GettableAlert) (string, error) {
 	b, err := json.Marshal(as)

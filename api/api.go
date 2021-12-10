@@ -78,7 +78,7 @@ type Options struct {
 
 func (o Options) validate() error {
 	if o.Alerts == nil {
-		return errors.New("mandatory field Alerts not set")
+		return errors.New("mandatory field Data not set")
 	}
 	if o.Silences == nil {
 		return errors.New("mandatory field Silences not set")
