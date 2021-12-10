@@ -81,6 +81,24 @@ var (
 		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
 
+	// DefaultSlackConfigV2 defines default values for Slack configurations.
+	DefaultSlackV2Config = SlackConfigV2{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Color:      `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
+		Username:   `{{ template "slack.default.username" . }}`,
+		Title:      `{{ template "slack.default.title" . }}`,
+		TitleLink:  `{{ template "slack.default.titlelink" . }}`,
+		IconEmoji:  `{{ template "slack.default.iconemoji" . }}`,
+		IconURL:    `{{ template "slack.default.iconurl" . }}`,
+		Pretext:    `{{ template "slack.default.pretext" . }}`,
+		Text:       `{{ template "slack.default.text" . }}`,
+		Fallback:   `{{ template "slack.default.fallback" . }}`,
+		CallbackID: `{{ template "slack.default.callbackid" . }}`,
+		Footer:     `{{ template "slack.default.footer" . }}`,
+	}
+
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		NotifierConfig: NotifierConfig{
@@ -366,7 +384,7 @@ type SlackConfig struct {
 
 type SlackConfigV2 struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
-	Token	string	`yaml:"token,omitempty"json:"token,omitempty"`
+	Token          string `yaml:"token,omitempty"json:"token,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -402,6 +420,20 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return fmt.Errorf("at most one of api_url & api_url_file must be configured")
 	}
+
+	return nil
+}
+
+func (c *SlackConfigV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSlackV2Config
+	type plain SlackConfigV2
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	//if c.APIURL != nil && len(c.APIURLFile) > 0 {
+	//	return fmt.Errorf("at most one of api_url & api_url_file must be configured")
+	//}
 
 	return nil
 }
