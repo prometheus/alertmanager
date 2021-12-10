@@ -81,7 +81,7 @@ var (
 		Footer:     `{{ template "slack.default.footer" . }}`,
 	}
 
-	// DefaultSlackConfigV2 defines default values for Slack configurations.
+	// DefaultSlackV2Config defines default values for Slack configurations.
 	DefaultSlackV2Config = SlackConfigV2{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
@@ -384,7 +384,7 @@ type SlackConfig struct {
 
 type SlackConfigV2 struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
-	Token          string `yaml:"token,omitempty"json:"token,omitempty"`
+	Token          string `yaml:"token,omitempty" json:"token,omitempty"`
 
 	// Slack channel override, (like #other-channel or @username).
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -430,10 +430,6 @@ func (c *SlackConfigV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
-	//if c.APIURL != nil && len(c.APIURLFile) > 0 {
-	//	return fmt.Errorf("at most one of api_url & api_url_file must be configured")
-	//}
 
 	return nil
 }
