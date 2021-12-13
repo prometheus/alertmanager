@@ -33,6 +33,12 @@ var (
 		},
 	}
 
+	DefaultSigmaConfig = SigmaConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -89,7 +95,6 @@ var (
 		Message:     `{{ template "opsgenie.default.message" . }}`,
 		Description: `{{ template "opsgenie.default.description" . }}`,
 		Source:      `{{ template "opsgenie.default.source" . }}`,
-		// TODO: Add a details field with all the alerts.
 	}
 
 	// DefaultWechatConfig defines default values for wechat configurations.
@@ -397,6 +402,54 @@ type WebhookConfig struct {
 func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWebhookConfig
 	type plain WebhookConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil {
+		return fmt.Errorf("missing URL in webhook config")
+	}
+	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
+		return fmt.Errorf("scheme required for webhook url")
+	}
+	return nil
+}
+
+type SigmaPayload struct {
+	Sender []string `yaml:"recipient,omitempty" json:"recipient,omitempty"`
+	Text   string   `yaml:"text,omitempty" json:"text,omitempty"`
+	Tts    string   `yaml:"tts,omitempty" json:"tts,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for SlackField.
+func (c *SigmaPayload) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain SigmaPayload
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if len(c.Sender) == 0 {
+		return fmt.Errorf("missing title in Sigmasms Payload configuration sende")
+	}
+	if c.Text == "" {
+		return fmt.Errorf("missing value in Sigmasms Payload configuration text")
+	}
+	return nil
+}
+
+type SigmaConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	// URL to send POST request to.
+	URL       *URL            `yaml:"url" json:"url"`
+	Recipient string          `yaml:"recipient,omitempty" json:"recipient,omitempty"`
+	Type      string          `yaml:"type,omitempty" json:"type,omitempty"`
+	Payload   []*SigmaPayload `yaml:"payload,omitempty" json:"payload,omitempty"`
+	MaxAlerts uint64          `yaml:"max_alerts" json:"max_alerts"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *SigmaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSigmaConfig
+	type plain SigmaConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
