@@ -45,7 +45,7 @@ func NewPostAlerts(ctx *middleware.Context, handler PostAlertsHandler) *PostAler
 
 /*PostAlerts swagger:route POST /alerts alert postAlerts
 
-Create new Data
+Create new Alerts
 
 */
 type PostAlerts struct {

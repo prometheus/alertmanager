@@ -119,7 +119,7 @@ func init() {
         }
       },
       "post": {
-        "description": "Create new Data",
+        "description": "Create new Alerts",
         "tags": [
           "alert"
         ],
@@ -909,7 +909,7 @@ func init() {
         }
       },
       "post": {
-        "description": "Create new Data",
+        "description": "Create new Alerts",
         "tags": [
           "alert"
         ],
