@@ -47,10 +47,10 @@ var (
 
 	// DefaultPagerdutyDetails defines the default values for PagerDuty details.
 	DefaultPagerdutyDetails = map[string]string{
-		"firing":       `{{ template "pagerduty.default.instances" .Data.Firing }}`,
-		"resolved":     `{{ template "pagerduty.default.instances" .Data.Resolved }}`,
-		"num_firing":   `{{ .Data.Firing | len }}`,
-		"num_resolved": `{{ .Data.Resolved | len }}`,
+		"firing":       `{{ template "pagerduty.default.instances" .Alerts.Firing }}`,
+		"resolved":     `{{ template "pagerduty.default.instances" .Alerts.Resolved }}`,
+		"num_firing":   `{{ .Alerts.Firing | len }}`,
+		"num_resolved": `{{ .Alerts.Resolved | len }}`,
 	}
 
 	// DefaultPagerdutyConfig defines default values for PagerDuty configurations.
@@ -442,7 +442,7 @@ type WebhookConfig struct {
 	// URL to send POST request to.
 	URL *URL `yaml:"url" json:"url"`
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
-	// Data exceeding this threshold will be truncated. Setting this to 0
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
 	// allows an unlimited number of alerts.
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
 }

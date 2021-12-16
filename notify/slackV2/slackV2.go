@@ -15,6 +15,7 @@ package slackV2
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-kit/log"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -58,6 +59,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	go n.clean()
 
+	fmt.Printf("%+v\n", data)
+
 	changedMessages := make([]string, 0)
 	for _, alert := range data.Alerts {
 		if ok, ts := n.getTsByFP(alert.Fingerprint); ok {
@@ -71,7 +74,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 			n.mu.Unlock()
 		} else {
-			ts, err := n.send(data, "")
+			ts, err := n.send(data, "", false)
 			if err != nil {
 				return false, err
 			}
@@ -95,7 +98,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	for _, msg := range changedMessages {
-		_, err := n.send(n.storage[msg].Data, msg)
+		_, err := n.send(n.storage[msg].Data, msg, false)
 		if err != nil {
 			return false, err
 		}
@@ -104,9 +107,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return true, nil
 }
 
-func (n *Notifier) send(data *template.Data, ts string) (string, error) {
-	var err error
+func (n *Notifier) send(data *template.Data, ts string, here bool) (string, error) {
 	var (
+		err      error
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
 
@@ -138,6 +141,10 @@ func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 	var numFiring = len(data.Alerts.Firing())
 	if numFiring == 0 {
 		attachmets.Color = "good"
+	}
+
+	if ts != "" && here == true {
+		attachmets.Pretext = "<!here>"
 	}
 
 	att := slack.MsgOptionAttachments(*attachmets)
@@ -196,3 +203,14 @@ func (n *Notifier) clean() {
 		n.storageCleaner()
 	}
 }
+
+//func (n *Notifier) repeatChecker() bool {
+//	here := false
+//
+//	for _, msg := range n.storage {
+//		if msg.Status == string(model.AlertFiring) {
+//			here = true
+//		}
+//	}
+//	return here
+//}

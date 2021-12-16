@@ -80,9 +80,9 @@ func init() {
 }
 
 // TestAlertsSubscribePutStarvation tests starvation of `iterator.Close` and
-// `alerts.Put`. Both `Subscribe` and `Put` use the Data.mtx lock. `Subscribe`
-// needs it to subscribe and more importantly unsubscribe `Data.listeners`. `Put`
-// uses the lock to add additional alerts and iterate the `Data.listeners` map.
+// `alerts.Put`. Both `Subscribe` and `Put` use the Alerts.mtx lock. `Subscribe`
+// needs it to subscribe and more importantly unsubscribe `Alerts.listeners`. `Put`
+// uses the lock to add additional alerts and iterate the `Alerts.listeners` map.
 // If the channel of a listener is at its limit, `alerts.Lock` is blocked, whereby
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
