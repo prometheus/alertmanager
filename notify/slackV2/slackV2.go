@@ -42,9 +42,10 @@ type Data struct {
 }
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
+func New(c *config.SlackConfigV2, t *template.Template, l log.Logger, n *Notifier) (*Notifier, error) {
 	token := c.Token
 	client := slack.New(token)
+	go n.storageCleaner()
 	return &Notifier{
 		conf:    c,
 		tmpl:    t,
@@ -57,19 +58,21 @@ func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
-	go n.clean()
+
 
 	fmt.Printf("%+v\n", data)
 
 	changedMessages := make([]string, 0)
 	for _, alert := range data.Alerts {
 		if ok, ts := n.getTsByFP(alert.Fingerprint); ok {
-			changedMessages = append(changedMessages, ts)
+			changedMessages = append(changedMessages, ts...)
 			n.mu.Lock()
-			for i, al := range n.storage[ts].Alerts {
-				if al.Fingerprint == alert.Fingerprint {
-					n.storage[ts].Alerts[i].Status = alert.Status
-					n.storage[ts].Alerts[i].EndsAt = alert.EndsAt
+			for ts := range changedMessages{
+				for i, al := range n.storage[changedMessages[ts]].Alerts {
+					if al.Fingerprint == alert.Fingerprint {
+						n.storage[changedMessages[ts]].Alerts[i].Status = alert.Status
+						n.storage[changedMessages[ts]].Alerts[i].EndsAt = alert.EndsAt
+					}
 				}
 			}
 			n.mu.Unlock()
@@ -165,52 +168,31 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 	}
 }
 
-func (n *Notifier) getTsByFP(fp string) (bool, string) {
+func (n *Notifier) getTsByFP(fp string) (bool, []string) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	for ts, msg := range n.storage {
+
+	ts := make([]string, 0)
+	for i, msg := range n.storage {
 		for _, alert := range msg.Alerts {
 			if fp == alert.Fingerprint {
-				return true, ts
+				ts = append(ts, i)
 			}
 		}
 	}
-	return false, ""
-}
-
-func (n *Notifier) storageChecker() {
-	for i, data := range n.storage {
-		var numFiring = len(data.Alerts.Firing())
-		if numFiring == 0 {
-			n.storage[i].Data.Status = string(model.AlertResolved)
-		}
-	}
+	return false, ts
 }
 
 func (n *Notifier) storageCleaner() {
-	for i, _ := range n.storage {
-		if n.storage[i].Data.Status == string(model.AlertResolved) {
-			delete(n.storage, i)
+	for range time.Tick(time.Minute * 10){
+		n.mu.Lock()
+		for i, data := range n.storage {
+				if len (i) != 0 && len (data.Alerts.Firing()) == 0 {
+					n.storage[i].Data.Status = string(model.AlertResolved)
+					delete(n.storage, i)
+				}
+			n.mu.Unlock()
 		}
 	}
 }
 
-func (n *Notifier) clean() {
-
-	for true {
-		time.Sleep(600 * time.Second)
-		n.storageChecker()
-		n.storageCleaner()
-	}
-}
-
-//func (n *Notifier) repeatChecker() bool {
-//	here := false
-//
-//	for _, msg := range n.storage {
-//		if msg.Status == string(model.AlertFiring) {
-//			here = true
-//		}
-//	}
-//	return here
-//}
