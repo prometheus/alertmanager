@@ -17,13 +17,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-kit/log"
-	"sync"
-
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 	"github.com/slack-go/slack"
+	"sync"
+	"time"
 )
 
 // Notifier implements a Notifier for Slack notifications.
@@ -44,7 +45,6 @@ type Data struct {
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
 	client := slack.New(token)
-
 	return &Notifier{
 		conf:    c,
 		tmpl:    t,
@@ -53,8 +53,6 @@ func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier
 		storage: make(map[string]Data),
 	}, nil
 }
-
-// attachment is used to display a richly-formatted message block.
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
@@ -71,7 +69,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 				if al.Fingerprint == alert.Fingerprint {
 					n.storage[ts].Alerts[i].Status = alert.Status
 					n.storage[ts].Alerts[i].EndsAt = alert.EndsAt
-					n.storage[ts].Data.Status = data.Status
 				}
 			}
 			n.mu.Unlock()
@@ -88,62 +85,28 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	n.mu.RLock()
 	defer n.mu.RUnlock()
+
+	for _, alert := range data.Alerts {
+		for ts, msg := range n.storage {
+			for i, al := range msg.Alerts {
+				if alert.Fingerprint == al.Fingerprint && alert.Status == string(model.AlertResolved) {
+					n.storage[ts].Alerts[i].Status = string(model.AlertResolved)
+				}
+			}
+		}
+	}
+
 	for _, msg := range changedMessages {
-		if _, err := n.send(n.storage[msg].Data, msg); err != nil {
+		_, err := n.send(n.storage[msg].Data, msg)
+		fmt.Printf("%+v\n", n.storage[msg].Data)
+		if err != nil {
 			return false, err
 		}
 	}
 
-	//	if alert.Status == string(model.AlertFiring) {
-	//		ts, err := n.send(data, "")
-	//		if err != nil {
-	//			return false, err
-	//		}
-	//		n.mu.Lock()
-	//		n.storage[ts] = Data{Data: data}
-	//		n.mu.Unlock()
-	//		fmt.Println("1-Step n.storage data")
-	//		fmt.Printf("%+v\n", ts, n.storage[ts].Data)
-	//		break
-	//	} else if alert.Status == string(model.AlertResolved) {
-	//		changedMessages := make([]string, 0)
-	//		for _, alert := range data.Alerts {
-	//			if ok, ts := n.getTsByFP(alert.Fingerprint); ok {
-	//				changedMessages = append(changedMessages, ts)
-	//				fmt.Println("ChangedMessages:")
-	//				fmt.Printf("%+v\n", changedMessages)
-	//				n.mu.Lock()
-	//				firing := false
-	//				for i, al := range n.storage[ts].Alerts {
-	//					if al.Fingerprint == alert.Fingerprint {
-	//						n.storage[ts].Alerts[i].Status = alert.Status
-	//						n.storage[ts].Alerts[i].EndsAt = alert.EndsAt
-	//					}
-	//					if al.Status == string(model.AlertFiring) {
-	//						firing = true
-	//
-	//					}
-	//				}
-	//				if !firing {
-	//					n.storage[ts].Data.Status = string(model.AlertResolved)
-	//				}
-	//				n.mu.Unlock()
-	//			}
-	//		}
-	//		n.mu.RLock()
-	//		defer n.mu.RUnlock()
-	//		for _, msg := range changedMessages {
-	//			fmt.Println("MSG:")
-	//			fmt.Printf("%+v\n", msg, n.storage[msg].Data)
-	//			if _, err := n.resolve(n.storage[msg].Data, msg); err != nil {
-	//				return false, err
-	//			}
-	//		}
-	//	}
-	//}
+	go n.clean()
 
 	return true, nil
-
 }
 
 func (n *Notifier) send(data *template.Data, ts string) (string, error) {
@@ -178,7 +141,6 @@ func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 	}
 
 	var numFiring = len(data.Alerts.Firing())
-	fmt.Println(numFiring)
 	if numFiring == 0 {
 		attachmets.Color = "good"
 	}
@@ -201,48 +163,6 @@ func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 	}
 }
 
-//func (n *Notifier) resolve(data *template.Data, ts string) (string, error) {
-//	var err error
-//	var (
-//		tmplText = notify.TmplText(n.tmpl, data, &err)
-//	)
-//
-//	attachmets := &slack.Attachment{
-//		TitleLink: tmplText(n.conf.TitleLink),
-//		Text:      tmplText(n.conf.Text),
-//		ImageURL:  tmplText(n.conf.ImageURL),
-//		Footer:    tmplText(n.conf.Footer),
-//		Color:     tmplText(n.conf.Color),
-//	}
-//
-//	var numActions = len(n.conf.Actions)
-//	if numActions > 0 {
-//		var actions = make([]slack.AttachmentAction, numActions)
-//		for index, action := range n.conf.Actions {
-//			slackAction := slack.AttachmentAction{
-//				Type:  slack.ActionType(action.Type),
-//				Text:  tmplText(action.Text),
-//				URL:   tmplText(action.URL),
-//				Style: tmplText(action.Style),
-//				Name:  action.Name,
-//				Value: tmplText(action.Value),
-//			}
-//			actions[index] = slackAction
-//		}
-//		attachmets.Actions = actions
-//	}
-//
-//	att := slack.MsgOptionAttachments(*attachmets)
-//
-//	_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att)
-//
-//	if err != nil {
-//		return "", err
-//	}
-//	return messageTs, nil
-//
-//}
-
 func (n *Notifier) getTsByFP(fp string) (bool, string) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -254,4 +174,29 @@ func (n *Notifier) getTsByFP(fp string) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+func (n *Notifier) storageChecker() {
+	for i, data := range n.storage {
+		var numFiring = len(data.Alerts.Firing())
+		if numFiring == 0 {
+			n.storage[i].Data.Status = string(model.AlertResolved)
+		}
+	}
+}
+
+func (n *Notifier) storageCleaner() {
+	for i, _ := range n.storage {
+		if n.storage[i].Data.Status == string(model.AlertResolved) {
+			delete(n.storage, i)
+		}
+	}
+}
+
+func (n *Notifier) clean() {
+
+	time.Sleep(600 * time.Second)
+	n.storageChecker()
+	n.storageCleaner()
+
 }
