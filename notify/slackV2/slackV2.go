@@ -15,7 +15,6 @@ package slackV2
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-kit/log"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
@@ -57,8 +56,7 @@ func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
-
-	fmt.Printf("%+v\n", data)
+	go n.clean()
 
 	changedMessages := make([]string, 0)
 	for _, alert := range data.Alerts {
@@ -98,13 +96,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	for _, msg := range changedMessages {
 		_, err := n.send(n.storage[msg].Data, msg)
-		fmt.Printf("%+v\n", n.storage[msg].Data)
 		if err != nil {
 			return false, err
 		}
 	}
-
-	go n.clean()
 
 	return true, nil
 }
@@ -195,8 +190,9 @@ func (n *Notifier) storageCleaner() {
 
 func (n *Notifier) clean() {
 
-	time.Sleep(600 * time.Second)
-	n.storageChecker()
-	n.storageCleaner()
-
+	for true {
+		time.Sleep(600 * time.Second)
+		n.storageChecker()
+		n.storageCleaner()
+	}
 }
