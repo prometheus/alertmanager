@@ -2,8 +2,7 @@
 FROM nexus.adsrv.wtf/click/golang:1.17.1-buster as build
 
 WORKDIR /app
-COPY ./ ./
-ARG BUILD_VERSION=""
+
 RUN make build
 
 
