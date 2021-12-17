@@ -15,13 +15,11 @@ package slackV2
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-kit/log"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 	"github.com/slack-go/slack"
 	"sync"
 	"time"
@@ -42,32 +40,31 @@ type Data struct {
 }
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfigV2, t *template.Template, l log.Logger, n *Notifier) (*Notifier, error) {
+func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
 	client := slack.New(token)
-	go n.storageCleaner()
-	return &Notifier{
+	notifier := &Notifier{
 		conf:    c,
 		tmpl:    t,
 		logger:  l,
 		client:  client,
 		storage: make(map[string]Data),
-	}, nil
+	}
+	go notifier.storageCleaner()
+	return notifier, nil
 }
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
-
-	fmt.Printf("%+v\n", data)
-
 	changedMessages := make([]string, 0)
 	for _, alert := range data.Alerts {
-		if ok, ts := n.getTsByFP(alert.Fingerprint); ok {
+		ts := n.getTsByFP(alert.Fingerprint)
+		if len(ts) != 0 {
 			changedMessages = append(changedMessages, ts...)
 			n.mu.Lock()
-			for ts := range changedMessages{
+			for ts := range changedMessages {
 				for i, al := range n.storage[changedMessages[ts]].Alerts {
 					if al.Fingerprint == alert.Fingerprint {
 						n.storage[changedMessages[ts]].Alerts[i].Status = alert.Status
@@ -89,16 +86,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-
-	for _, alert := range data.Alerts {
-		for ts, msg := range n.storage {
-			for i, al := range msg.Alerts {
-				if alert.Fingerprint == al.Fingerprint && alert.Status == string(model.AlertResolved) {
-					n.storage[ts].Alerts[i].Status = string(model.AlertResolved)
-				}
-			}
-		}
-	}
 
 	for _, msg := range changedMessages {
 		_, err := n.send(n.storage[msg].Data, msg, false)
@@ -168,7 +155,7 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 	}
 }
 
-func (n *Notifier) getTsByFP(fp string) (bool, []string) {
+func (n *Notifier) getTsByFP(fp string) []string {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
@@ -180,19 +167,17 @@ func (n *Notifier) getTsByFP(fp string) (bool, []string) {
 			}
 		}
 	}
-	return false, ts
+	return ts
 }
 
 func (n *Notifier) storageCleaner() {
-	for range time.Tick(time.Minute * 10){
+	for range time.Tick(time.Minute * 10) {
 		n.mu.Lock()
-		for i, data := range n.storage {
-				if len (i) != 0 && len (data.Alerts.Firing()) == 0 {
-					n.storage[i].Data.Status = string(model.AlertResolved)
-					delete(n.storage, i)
-				}
+		for k, data := range n.storage {
+			if len(data.Alerts.Firing()) == 0 {
+				delete(n.storage, k)
+			}
 			n.mu.Unlock()
 		}
 	}
 }
-

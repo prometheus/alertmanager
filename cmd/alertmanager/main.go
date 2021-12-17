@@ -162,7 +162,7 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		add("slack", i, c, func(l log.Logger) (notify.Notifier, error) { return slack.New(c, tmpl, l) })
 	}
 	for i, c := range nc.SlackConfigV2 {
-		add("slackV2", i, c, func(l log.Logger) (notify.Notifier, error) { return slackV2.New(c, tmpl, l, nil) })
+		add("slackV2", i, c, func(l log.Logger) (notify.Notifier, error) { return slackV2.New(c, tmpl, l) })
 	}
 	for i, c := range nc.VictorOpsConfigs {
 		add("victorops", i, c, func(l log.Logger) (notify.Notifier, error) { return victorops.New(c, tmpl, l) })
