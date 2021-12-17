@@ -59,16 +59,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
 	changedMessages := make([]string, 0)
-	for _, alert := range data.Alerts {
-		ts := n.getTsByFP(alert.Fingerprint)
-		if len(ts) != 0 {
-			changedMessages = append(changedMessages, ts...)
+	for _, newAlert := range data.Alerts {
+		messages := n.getMessagesByFingerprint(newAlert.Fingerprint)
+		changedMessages = append(changedMessages, messages...)
+		if len(messages) > 0 {
 			n.mu.Lock()
-			for ts := range changedMessages {
-				for i, al := range n.storage[changedMessages[ts]].Alerts {
-					if al.Fingerprint == alert.Fingerprint {
-						n.storage[changedMessages[ts]].Alerts[i].Status = alert.Status
-						n.storage[changedMessages[ts]].Alerts[i].EndsAt = alert.EndsAt
+			for _, ts := range messages {
+				for i := range n.storage[ts].Alerts {
+					if n.storage[ts].Alerts[i].Fingerprint == newAlert.Fingerprint {
+						n.storage[ts].Alerts[i].Status = newAlert.Status
+						n.storage[ts].Alerts[i].EndsAt = newAlert.EndsAt
 					}
 				}
 			}
@@ -111,25 +111,19 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 		Color:     n.conf.Color,
 	}
 
-	var numActions = len(n.conf.Actions)
-	if numActions > 0 {
-		var actions = make([]slack.AttachmentAction, numActions)
-		for index, action := range n.conf.Actions {
-			slackAction := slack.AttachmentAction{
-				Type:  slack.ActionType(action.Type),
-				Text:  tmplText(action.Text),
-				URL:   tmplText(action.URL),
-				Style: tmplText(action.Style),
-				Name:  action.Name,
-				Value: tmplText(action.Value),
-			}
-			actions[index] = slackAction
+	attachmets.Actions = make([]slack.AttachmentAction, len(n.conf.Actions))
+	for i, action := range n.conf.Actions {
+		attachmets.Actions[i] = slack.AttachmentAction{
+			Type:  slack.ActionType(action.Type),
+			Text:  tmplText(action.Text),
+			URL:   tmplText(action.URL),
+			Style: tmplText(action.Style),
+			Name:  action.Name,
+			Value: tmplText(action.Value),
 		}
-		attachmets.Actions = actions
 	}
 
-	var numFiring = len(data.Alerts.Firing())
-	if numFiring == 0 {
+	if len(data.Alerts.Firing()) == 0 {
 		attachmets.Color = "good"
 	}
 
@@ -141,21 +135,14 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 
 	if ts != "" {
 		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att)
-		if err != nil {
-			return "", err
-		}
-		return messageTs, nil
+		return messageTs, err
 	} else {
 		_, messageTs, err := n.client.PostMessage(n.conf.Channel, att)
-
-		if err != nil {
-			return "", err
-		}
-		return messageTs, nil
+		return messageTs, err
 	}
 }
 
-func (n *Notifier) getTsByFP(fp string) []string {
+func (n *Notifier) getMessagesByFingerprint(fp string) []string {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
@@ -177,7 +164,7 @@ func (n *Notifier) storageCleaner() {
 			if len(data.Alerts.Firing()) == 0 {
 				delete(n.storage, k)
 			}
-			n.mu.Unlock()
 		}
+		n.mu.Unlock()
 	}
 }
