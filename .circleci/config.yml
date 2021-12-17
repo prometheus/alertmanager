@@ -3,7 +3,7 @@ version: 2.1
 
 orbs:
   prometheus: prometheus/prometheus@0.11.0
-  go: circleci/go@0.2.0
+  go: circleci/go@1.7.0
 
 jobs:
   test_frontend:
@@ -19,7 +19,7 @@ jobs:
         command: sudo rm -rf /usr/local/go
     # Whenever the Go version is updated here, .promu.yml should also be updated.
     - go/install:
-        version: "1.16"
+        version: "1.17"
     - run:
         name: Remove generated code
         command: make clean
@@ -42,7 +42,7 @@ jobs:
   test:
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: circleci/golang:1.16
+    - image: quay.io/prometheus/golang-builder:1.17-base
     # maildev containers are for running the email tests against a "real" SMTP server.
     # See notify/email_test.go for details.
     - image: djfarrelly/maildev:1.1.0
@@ -102,7 +102,7 @@ jobs:
   mixin:
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: circleci/golang:1.16
+    - image: quay.io/prometheus/golang-builder:1.17-base
 
     steps:
     - checkout
