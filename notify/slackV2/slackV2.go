@@ -21,7 +21,6 @@ import (
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/model"
 	"github.com/slack-go/slack"
 	"strings"
 	"sync"
@@ -81,11 +80,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 			n.mu.Unlock()
 		} else {
-			for _, labels := range newAlert.Labels.SortedPairs() {
-				if labels.Value == "critical" && labels.Value == "prod" {
-					sendHere = true
-				}
-			}
 			ts, err := n.send(data, "", sendHere)
 			if err != nil {
 				return false, err
@@ -100,12 +94,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	defer n.mu.RUnlock()
 
 	for _, msg := range changedMessages {
-		if n.storage[msg].Status == string(model.AlertFiring) {
-			sendHere = true
-			_, err := n.send(n.storage[msg].Data, msg, sendHere)
-			if err != nil {
-				return false, err
-			}
+		_, err := n.send(n.storage[msg].Data, msg, sendHere)
+		if err != nil {
+			return false, err
 		}
 	}
 
@@ -114,9 +105,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 func (n *Notifier) send(data *template.Data, ts string, here bool) (string, error) {
 	var (
-		err            error
-		tmplText       = notify.TmplText(n.tmpl, data, &err)
-		sendThreadHere = slack.MsgOptionText("", false)
+		err      error
+		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
 
 	attachmets := &slack.Attachment{
@@ -154,14 +144,10 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 		attachmets.Color = "good"
 	}
 
-	if here {
-		sendThreadHere = slack.MsgOptionText("<!here>", false)
-	}
-
 	att := slack.MsgOptionAttachments(*attachmets)
 
 	if ts != "" {
-		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att, sendThreadHere)
+		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att)
 		return messageTs, err
 	} else {
 		_, messageTs, err := n.client.PostMessage(n.conf.Channel, att)
