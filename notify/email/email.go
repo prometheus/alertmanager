@@ -253,7 +253,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	multipartWriter := multipart.NewWriter(multipartBuffer)
 
 	fmt.Fprintf(buffer, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
-	fmt.Fprintf(buffer, "Content-NotificationType: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
+	fmt.Fprintf(buffer, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
 	fmt.Fprintf(buffer, "MIME-Version: 1.0\r\n\r\n")
 
 	// TODO: Add some useful headers here, such as URL of the alertmanager
@@ -267,7 +267,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		// Text template
 		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{
 			"Content-Transfer-Encoding": {"quoted-printable"},
-			"Content-NotificationType":  {"text/plain; charset=UTF-8"},
+			"Content-Type":              {"text/plain; charset=UTF-8"},
 		})
 		if err != nil {
 			return false, errors.Wrap(err, "create part for text template")
@@ -293,7 +293,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		// https://www.ietf.org/rfc/rfc2046.txt
 		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{
 			"Content-Transfer-Encoding": {"quoted-printable"},
-			"Content-NotificationType":  {"text/html; charset=UTF-8"},
+			"Content-Type":              {"text/html; charset=UTF-8"},
 		})
 		if err != nil {
 			return false, errors.Wrap(err, "create part for html template")

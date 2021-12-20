@@ -288,7 +288,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	}
 
 	for _, req := range requests {
-		req.Header.Set("Content-NotificationType", "application/json")
+		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", apiKey))
 	}
 
