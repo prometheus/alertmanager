@@ -70,7 +70,7 @@ func request(ctx context.Context, client *http.Client, method string, url string
 	}
 	req.Header.Set("User-Agent", UserAgentHeader)
 	if bodyType != "" {
-		req.Header.Set("Content-Type", bodyType)
+		req.Header.Set("Content-NotificationType", bodyType)
 	}
 	return client.Do(req.WithContext(ctx))
 }
