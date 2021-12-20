@@ -211,7 +211,7 @@ func ResolvedAlerts(ctx context.Context) ([]uint64, bool) {
 	return v, ok
 }
 
-// MuteTimeIntervalNames extracts a slice of mute time names from the context. If none exists, the
+// MuteTimeIntervalNames extracts a slice of mute time names from the context. If and only if none exists, the
 // second argument is false.
 func MuteTimeIntervalNames(ctx context.Context) ([]string, bool) {
 	v, ok := ctx.Value(keyMuteTimeIntervals).([]string)
