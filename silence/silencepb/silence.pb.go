@@ -28,7 +28,7 @@ var _ = time.Kitchen
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// NotificationType specifies how the given name and pattern are matched
+// Type specifies how the given name and pattern are matched
 // against a label set.
 type Matcher_Type int32
 
@@ -687,7 +687,7 @@ func (m *Matcher) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NotificationType", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
 			}
 			m.Type = 0
 			for shift := uint(0); ; shift += 7 {
