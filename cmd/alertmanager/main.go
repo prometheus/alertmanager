@@ -54,6 +54,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
+	"github.com/prometheus/alertmanager/notify/sigma"
 	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/victorops"
@@ -172,6 +173,9 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	}
 	for i, c := range nc.SNSConfigs {
 		add("sns", i, c, func(l log.Logger) (notify.Notifier, error) { return sns.New(c, tmpl, l) })
+	}
+	for i, c := range nc.SigmaConfigs {
+		add("sigma", i, c, func(l log.Logger) (notify.Notifier, error) { return sigma.New(c, tmpl, l) })
 	}
 	if errs.Len() > 0 {
 		return nil, &errs

@@ -15,6 +15,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -28,6 +29,12 @@ import (
 var (
 	// DefaultWebhookConfig defines default values for Webhook configurations.
 	DefaultWebhookConfig = WebhookConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
+	DefaultSigmaConfig = SigmaConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
@@ -107,7 +114,6 @@ var (
 		Message:     `{{ template "opsgenie.default.message" . }}`,
 		Description: `{{ template "opsgenie.default.description" . }}`,
 		Source:      `{{ template "opsgenie.default.source" . }}`,
-		// TODO: Add a details field with all the alerts.
 	}
 
 	// DefaultWechatConfig defines default values for wechat configurations.
@@ -459,6 +465,42 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
 		return fmt.Errorf("scheme required for webhook url")
+	}
+	return nil
+}
+
+type SigmaConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	// URL to send POST request to.
+	URL              *URL     `yaml:"url" json:"url"`
+	APIKey           Secret   `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	Recipients       []string `yaml:"recipients"`
+	NotificationType string   `yaml:"notification_type"`
+	SenderName       string   `yaml:"sender_name"`
+	Text             string   `yaml:"text"`
+	TTS              string   `yaml:"tts"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *SigmaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSigmaConfig
+	type plain SigmaConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == nil {
+		defaultUrl, _ := url.Parse("https://online.sigmasms.ru/api/sendings")
+		c.URL = &URL{URL: defaultUrl}
+	}
+	if c.APIKey != "" {
+		return fmt.Errorf("api_key must be configured")
+	}
+	if c.NotificationType == "" {
+		c.NotificationType = "sms"
+	}
+	if c.TTS == "" {
+		c.TTS = "yandex:alena"
 	}
 	return nil
 }
