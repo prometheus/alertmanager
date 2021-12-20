@@ -61,6 +61,8 @@ func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	sendHere := false
+	//sayHere := slack.MsgOptionText("<!here>", false)
+
 	fmt.Printf("%+v\n", data)
 
 	changedMessages := make([]string, 0)
@@ -84,6 +86,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			if err != nil {
 				return false, err
 			}
+			//for _, values := range newAlert.Labels.SortedPairs(){
+			//	if values.Value == "prod" {
+			//		fmt.Println("сценарий 1")
+			//		_, _, err := n.client.PostMessage(n.conf.Channel, slack.MsgOptionTS(ts), sayHere)
+			//		if err != nil{
+			//			fmt.Println(err)
+			//		}
+			//	}
+			//}
+
 			n.mu.Lock()
 			n.storage[ts] = Data{Data: data}
 			n.mu.Unlock()
@@ -98,6 +110,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, err
 		}
+		//for _, Alerts := range n.storage[msg].Alerts{
+		//	if Alerts.Status == string(model.AlertFiring){
+		//		for _, values := range Alerts.Labels.SortedPairs(){
+		//			if values.Value == "prod" {
+		//				fmt.Println("сценарий 2")
+		//				_, _, err := n.client.PostMessage(n.conf.Channel, slack.MsgOptionTS(msg), sayHere)
+		//				if err != nil{
+		//					fmt.Println(err)
+		//				}
+		//			}
+		//		}
+		//	}
+		//}
 	}
 
 	return true, nil
@@ -107,6 +132,7 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 	var (
 		err      error
 		tmplText = notify.TmplText(n.tmpl, data, &err)
+		//sayHere = slack.MsgOptionText("<!here>", false)
 	)
 
 	attachmets := &slack.Attachment{
@@ -148,6 +174,12 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 
 	if ts != "" {
 		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att)
+		//if here {
+		//	_, _, err := n.client.PostMessage(n.conf.Channel, slack.MsgOptionTS(messageTs), sayHere)
+		//	if err != nil{
+		//		fmt.Println(err)
+		//	}
+		//}
 		return messageTs, err
 	} else {
 		_, messageTs, err := n.client.PostMessage(n.conf.Channel, att)
