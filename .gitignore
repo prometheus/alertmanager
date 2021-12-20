@@ -9,6 +9,7 @@
 /vendor
 /.idea/workspace.xml
 *.idea
+/.idea/*
 !.golangci.yml
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml
