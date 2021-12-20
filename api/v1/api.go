@@ -42,7 +42,7 @@ import (
 )
 
 var corsHeaders = map[string]string{
-	"Access-Control-Allow-Headers":  "Accept, Authorization, Content-NotificationType, Origin",
+	"Access-Control-Allow-Headers":  "Accept, Authorization, Content-Type, Origin",
 	"Access-Control-Allow-Methods":  "GET, POST, DELETE, OPTIONS",
 	"Access-Control-Allow-Origin":   "*",
 	"Access-Control-Expose-Headers": "Date",
@@ -750,7 +750,7 @@ type response struct {
 }
 
 func (api *API) respond(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-NotificationType", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	b, err := json.Marshal(&response{
@@ -768,7 +768,7 @@ func (api *API) respond(w http.ResponseWriter, data interface{}) {
 }
 
 func (api *API) respondError(w http.ResponseWriter, apiErr apiError, data interface{}) {
-	w.Header().Set("Content-NotificationType", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 
 	switch apiErr.typ {
 	case errorBadData:
