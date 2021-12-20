@@ -15,12 +15,15 @@ package slackV2
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-kit/log"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 	"github.com/slack-go/slack"
+	"strings"
 	"sync"
 	"time"
 )
@@ -43,6 +46,7 @@ type Data struct {
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
 	client := slack.New(token)
+
 	notifier := &Notifier{
 		conf:    c,
 		tmpl:    t,
@@ -57,6 +61,8 @@ func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+	sendHere := false
+	fmt.Printf("%+v\n", data)
 
 	changedMessages := make([]string, 0)
 	for _, newAlert := range data.Alerts {
@@ -69,12 +75,18 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 					if n.storage[ts].Alerts[i].Fingerprint == newAlert.Fingerprint {
 						n.storage[ts].Alerts[i].Status = newAlert.Status
 						n.storage[ts].Alerts[i].EndsAt = newAlert.EndsAt
+						n.storage[ts].Data.CommonAnnotations = data.CommonAnnotations
 					}
 				}
 			}
 			n.mu.Unlock()
 		} else {
-			ts, err := n.send(data, "", false)
+			for _, labels := range newAlert.Labels.SortedPairs() {
+				if labels.Value == "critical" && labels.Value == "prod" {
+					sendHere = true
+				}
+			}
+			ts, err := n.send(data, "", sendHere)
 			if err != nil {
 				return false, err
 			}
@@ -88,9 +100,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	defer n.mu.RUnlock()
 
 	for _, msg := range changedMessages {
-		_, err := n.send(n.storage[msg].Data, msg, false)
-		if err != nil {
-			return false, err
+		if n.storage[msg].Status == string(model.AlertFiring) {
+			sendHere = true
+			_, err := n.send(n.storage[msg].Data, msg, sendHere)
+			if err != nil {
+				return false, err
+			}
 		}
 	}
 
@@ -99,16 +114,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 func (n *Notifier) send(data *template.Data, ts string, here bool) (string, error) {
 	var (
-		err      error
-		tmplText = notify.TmplText(n.tmpl, data, &err)
+		err            error
+		tmplText       = notify.TmplText(n.tmpl, data, &err)
+		sendThreadHere = slack.MsgOptionText("", false)
 	)
 
 	attachmets := &slack.Attachment{
-		TitleLink: tmplText(n.conf.TitleLink),
-		Text:      tmplText(n.conf.Text),
-		ImageURL:  tmplText(n.conf.ImageURL),
-		Footer:    tmplText(n.conf.Footer),
-		Color:     n.conf.Color,
+		Text:       tmplText(n.conf.Text),
+		Footer:     tmplText(n.conf.Footer),
+		Color:      n.conf.Color,
+		AuthorName: "",
 	}
 
 	attachmets.Actions = make([]slack.AttachmentAction, len(n.conf.Actions))
@@ -122,19 +137,31 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 			Value: tmplText(action.Value),
 		}
 	}
+	env := make([]string, 0)
+	for _, alerts := range data.Alerts {
+		for _, values := range alerts.Labels.SortedPairs() {
+			if values.Name == "env" {
+				env = append(env, values.Value)
+			}
+		}
+	}
+
+	if len(env) != 0 {
+		attachmets.AuthorName = strings.Join(UniqStr(env), " ")
+	}
 
 	if len(data.Alerts.Firing()) == 0 {
 		attachmets.Color = "good"
 	}
 
-	if ts != "" && here == true {
-		attachmets.Pretext = "<!here>"
+	if here {
+		sendThreadHere = slack.MsgOptionText("<!here>", false)
 	}
 
 	att := slack.MsgOptionAttachments(*attachmets)
 
 	if ts != "" {
-		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att)
+		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att, sendThreadHere)
 		return messageTs, err
 	} else {
 		_, messageTs, err := n.client.PostMessage(n.conf.Channel, att)
@@ -167,4 +194,18 @@ func (n *Notifier) storageCleaner() {
 		}
 		n.mu.Unlock()
 	}
+}
+
+func UniqStr(input []string) []string {
+	u := make([]string, 0, len(input))
+	m := make(map[string]bool)
+
+	for _, val := range input {
+		if _, ok := m[val]; !ok {
+			m[val] = true
+			u = append(u, val)
+		}
+	}
+
+	return u
 }
