@@ -493,7 +493,7 @@ func (c *SigmaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		defaultUrl, _ := url.Parse("https://online.sigmasms.ru/api/sendings")
 		c.URL = &URL{URL: defaultUrl}
 	}
-	if c.APIKey == "" {
+	if string(c.APIKey) == "" {
 		return fmt.Errorf("api_key must be configured")
 	}
 	if c.NotificationType == "" {
