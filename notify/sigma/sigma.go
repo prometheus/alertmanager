@@ -86,7 +86,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			Text:   tmplText(n.conf.Text),
 		},
 	}
-
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return false, err
