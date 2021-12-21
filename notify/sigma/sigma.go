@@ -96,7 +96,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, errors.Wrap(err, "request error")
 	}
-	req.Header.Set("Authorization", n.conf.APIKey)
+	req.Header.Set("Authorization", string(n.conf.APIKey))
 	req.Header.Set("Content-NotificationType", "application/json")
 
 	resp, err := n.client.Do(req)
