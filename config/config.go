@@ -463,6 +463,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sns.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
+		for _, sigma := range rcv.SigmaConfigs {
+			if sigma.HTTPConfig == nil {
+				sigma.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
