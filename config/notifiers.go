@@ -474,7 +474,7 @@ type SigmaConfig struct {
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	// URL to send POST request to.
 	URL              *URL     `yaml:"url" json:"url"`
-	APIKey           Secret   `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKey           string   `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	Recipients       []string `yaml:"recipients"`
 	NotificationType string   `yaml:"notification_type"`
 	SenderName       string   `yaml:"sender_name"`
@@ -493,7 +493,7 @@ func (c *SigmaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		defaultUrl, _ := url.Parse("https://online.sigmasms.ru/api/sendings")
 		c.URL = &URL{URL: defaultUrl}
 	}
-	if string(c.APIKey) == "" {
+	if c.APIKey == "" {
 		return fmt.Errorf("api_key must be configured")
 	}
 	if c.NotificationType == "" {
