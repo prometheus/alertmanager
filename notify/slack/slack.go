@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-kit/log/level"
 	"io/ioutil"
 	"net/http"
 
@@ -92,13 +93,22 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
 	var markdownIn []string
+
 	if len(n.conf.MrkdwnIn) == 0 {
 		markdownIn = []string{"fallback", "pretext", "text"}
 	} else {
 		markdownIn = n.conf.MrkdwnIn
 	}
+	title, truncated := notify.Truncate(tmplText(n.conf.Title), 1024)
+	if truncated {
+		key, err := notify.ExtractGroupKey(ctx)
+		if err != nil {
+			return false, err
+		}
+		level.Debug(n.logger).Log("msg", "Truncated title", "text", title, "key", key)
+	}
 	att := &attachment{
-		Title:      tmplText(n.conf.Title),
+		Title:      title,
 		TitleLink:  tmplText(n.conf.TitleLink),
 		Pretext:    tmplText(n.conf.Pretext),
 		Text:       tmplText(n.conf.Text),
