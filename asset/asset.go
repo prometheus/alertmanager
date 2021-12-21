@@ -38,7 +38,7 @@ var static http.FileSystem = filter.Keep(
 var templates http.FileSystem = filter.Keep(
 	http.Dir("../template"),
 	func(path string, fi os.FileInfo) bool {
-		return path == "/" || path == "/default.tmpl"
+		return path == "/" || path == "/default.tmpl" || path == "/email.tmpl"
 	},
 )
 
