@@ -51,7 +51,7 @@ func New(conf *config.SigmaConfig, t *template.Template, l log.Logger, httpOpts 
 	}, nil
 }
 
-// Message defines the JSON object send to Sigma endpoints.
+// Request Message defines the JSON object send to Sigma endpoints.
 type Request struct {
 	Recipient []string       `json:"recipient"`
 	Type      string         `json:"type"`
