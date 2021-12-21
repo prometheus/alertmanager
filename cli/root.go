@@ -96,14 +96,14 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 	var httpConfig *promconfig.HTTPClientConfig
 	if httpConfigFile != "" {
 		var err error
-		httpConfig, err = config.LoadHttpConfig(httpConfigFile)
+		httpConfig, err = config.LoadHTTPConfig(httpConfigFile)
 		if err != nil {
-			kingpin.Fatalf("could not load http config file: %v\n", err)
+			kingpin.Fatalf("could not load HTTP config file: %v\n", err)
 		}
 
 		tlsConfig, err := promconfig.NewTLSConfig(&httpConfig.TLSConfig)
 		if err != nil {
-			kingpin.Fatalf("failed to create tls config: %v\n", err)
+			kingpin.Fatalf("failed to create TLS config: %v\n", err)
 		}
 
 		cr.Transport = &http.Transport{
@@ -155,7 +155,7 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
-	app.Flag("http.config.file", "The http config file for amtool is to connect with the alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
+	app.Flag("http.config.file", "HTTP client configuration file for amtool to connect to Alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
 	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 
 	app.Version(version.Print("amtool"))
@@ -213,7 +213,7 @@ static configuration:
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
 
 	http.config.file
-		Set a http_config file for amtool is to connect with the alertmanager. 
+		HTTP client configuration file for amtool to connect to Alertmanager.
 		The format is https://prometheus.io/docs/alerting/latest/configuration/#http_config.
 `
 )

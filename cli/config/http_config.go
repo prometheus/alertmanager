@@ -21,8 +21,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// LoadHttpConfig returns HTTPClientConfig for the given http_config file
-func LoadHttpConfig(httpConfigFile string) (*promconfig.HTTPClientConfig, error) {
+// LoadHTTPConfig returns HTTPClientConfig for the given http_config file
+func LoadHTTPConfig(httpConfigFile string) (*promconfig.HTTPClientConfig, error) {
 	if _, err := os.Stat(httpConfigFile); err != nil {
 		return nil, err
 	}

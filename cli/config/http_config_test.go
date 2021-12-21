@@ -22,16 +22,16 @@ const (
 	AuthorizationCredentials = "theanswertothegreatquestionoflifetheuniverseandeverythingisfortytwo"
 )
 
-func TestInvalidHttpConfig(t *testing.T) {
-	_, err := LoadHttpConfig("testdata/http_config.bad.yml")
+func TestInvalidHTTPConfig(t *testing.T) {
+	_, err := LoadHTTPConfig("testdata/http_config.bad.yml")
 	errMsg := `authorization type cannot be set to "basic", use "basic_auth" instead`
 	if !strings.Contains(err.Error(), errMsg) {
 		t.Errorf("Expected error for invalid HTTP client configuration to contain %q but got: %s", errMsg, err)
 	}
 }
-func TestValidHttpConfig(t *testing.T) {
+func TestValidHTTPConfig(t *testing.T) {
 
-	cfg, err := LoadHttpConfig("testdata/http_config.good.yml")
+	cfg, err := LoadHTTPConfig("testdata/http_config.good.yml")
 	if err != nil {
 		t.Fatalf("Error loading HTTP client config: %v", err)
 	}
@@ -51,9 +51,9 @@ func TestValidHttpConfig(t *testing.T) {
 	}
 }
 
-func TestValidBearerTokenFileHttpConfig(t *testing.T) {
+func TestValidBearerTokenFileHTTPConfig(t *testing.T) {
 
-	cfg, err := LoadHttpConfig("testdata/http_config.bearer-token-file.good.yml")
+	cfg, err := LoadHTTPConfig("testdata/http_config.bearer-token-file.good.yml")
 	if err != nil {
 		t.Fatalf("Error loading HTTP client config: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestValidBearerTokenFileHttpConfig(t *testing.T) {
 
 func TestFetchBasicAuthPassword(t *testing.T) {
 
-	cfg, err := LoadHttpConfig("testdata/http_config.basic_auth.good.yml")
+	cfg, err := LoadHTTPConfig("testdata/http_config.basic_auth.good.yml")
 	if err != nil {
 		t.Fatalf("Error loading HTTP client config: %v", err)
 	}
