@@ -385,7 +385,7 @@ type SlackConfigV2 struct {
 	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Color   string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Mention         []string `yaml:"mention,omitempty" json:"mention,omitempty"`
+	Mentions        []string `yaml:"mentions,omitempty" json:"mentions,omitempty"`
 	AlertmanagerUrl *URL     `yaml:"alertmanagerUrl,omitempty" json:"alertmanagerUrl,omitempty"`
 }
 
