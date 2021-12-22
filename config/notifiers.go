@@ -93,10 +93,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Color:   `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
-		Pretext: `{{ template "slack.default.pretext" . }}`,
-		Text:    `{{ template "slack.default.text" . }}`,
-		Footer:  `{{ template "slack.default.footer" . }}`,
+		Color: `{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}`,
 	}
 
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
@@ -388,13 +385,8 @@ type SlackConfigV2 struct {
 	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Color   string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Here bool `yaml:"here_notify,omitempty" json:"here_notify,omitempty"`
-
-	Pretext     string         `yaml:"pretext,omitempty" json:"pretext,omitempty"`
-	Text        string         `yaml:"text,omitempty" json:"text,omitempty"`
-	ShortFields bool           `yaml:"short_fields" json:"short_fields,omitempty"`
-	Footer      string         `yaml:"footer,omitempty" json:"footer,omitempty"`
-	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
+	Mention         []string `yaml:"mention,omitempty" json:"mention,omitempty"`
+	AlertmanagerUrl *URL     `yaml:"alertmanagerUrl,omitempty" json:"alertmanagerUrl,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -417,6 +409,11 @@ func (c *SlackConfigV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain SlackConfigV2
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
+	}
+
+	if c.AlertmanagerUrl == nil {
+		defaultUrl, _ := url.Parse("http://localhost:9093")
+		c.AlertmanagerUrl = &URL{URL: defaultUrl}
 	}
 
 	return nil
