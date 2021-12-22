@@ -73,8 +73,8 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 			filters = append(filters, fmt.Sprintf("%s=\"%s\"", v.Name, v.Value))
 		}
 		args.Add("filter", fmt.Sprintf("{%s}", strings.Join(filters, ",")))
-		fmt.Printf("%s", args)
 		url.RawQuery = args.Encode()
+		url.EscapedFragment()
 
 		fields := make([]*Field, 0)
 		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Env: %s*", strings.ToUpper(strings.Join(envs, ", ")))})
@@ -84,7 +84,7 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 		} else {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf(":chart_with_upwards_trend:~Graph~")})
 		}
-		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:no_bell:Silence>*", url.String())})
+		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:no_bell:Silence>*", strings.Replace(url.String(), "%23", "#", 1))})
 		blocks = append(blocks, Block{Type: slack.MBTSection, Fields: fields})
 	}
 
