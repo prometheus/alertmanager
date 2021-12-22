@@ -5,13 +5,12 @@ route:
   repeat_interval: 3h
   receiver: team-X-opsgenie
   routes:
-  - match:
-      service: foo
-    receiver: team-X-opsgenie
-
+    - match:
+        service: foo
+      receiver: team-X-opsgenie
 receivers:
-- name: 'team-X-opsgenie'
-  opsgenie_configs:
-  - responders:
-    - name: 'team-X'
-      type: 'team'
+  - name: 'team-X-opsgenie'
+    opsgenie_configs:
+      - responders:
+          - name: 'team-X'
+            type: 'team'

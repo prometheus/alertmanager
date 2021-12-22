@@ -7,7 +7,7 @@ global:
 
 # The directory from which notification templates are read.
 templates:
-- '/etc/alertmanager/template/*.tmpl'
+  - '/etc/alertmanager/template/*.tmpl'
 
 # The root route on which each incoming alert enters.
 route:
@@ -45,42 +45,42 @@ route:
 
   # The child route trees.
   routes:
-  # This routes performs a regular expression match on alert labels to
-  # catch alerts that are related to a list of services.
-  - matchers:
-    - service=~"foo1|foo2|baz"
-    receiver: team-X-mails
-    # The service has a sub-route for critical alerts, any alerts
-    # that do not match, i.e. severity != critical, fall-back to the
-    # parent node and are sent to 'team-X-mails'
-    routes:
+    # This routes performs a regular expression match on alert labels to
+    # catch alerts that are related to a list of services.
     - matchers:
-      - severity="critical"
-      receiver: team-X-pager
-  - matchers:
-    - service="files"
-    receiver: team-Y-mails
+        - service=~"foo1|foo2|baz"
+      receiver: team-X-mails
+      # The service has a sub-route for critical alerts, any alerts
+      # that do not match, i.e. severity != critical, fall-back to the
+      # parent node and are sent to 'team-X-mails'
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: team-X-pager
+    - matchers:
+        - service="files"
+      receiver: team-Y-mails
 
-    routes:
-    - matchers:
-      - severity="critical"
-      receiver: team-Y-pager
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: team-Y-pager
 
-  # This route handles all alerts coming from a database service. If there's
-  # no team to handle it, it defaults to the DB team.
-  - matchers:
-    - service="database"
-    receiver: team-DB-pager
-    # Also group alerts by affected database.
-    group_by: [alertname, cluster, database]
-    routes:
+    # This route handles all alerts coming from a database service. If there's
+    # no team to handle it, it defaults to the DB team.
     - matchers:
-      - owner="team-X"
-      receiver: team-X-pager
-      continue: true
-    - matchers:
-      - owner="team-Y"
-      receiver: team-Y-pager
+        - service="database"
+      receiver: team-DB-pager
+      # Also group alerts by affected database.
+      group_by: [alertname, cluster, database]
+      routes:
+        - matchers:
+            - owner="team-X"
+          receiver: team-X-pager
+          continue: true
+        - matchers:
+            - owner="team-Y"
+          receiver: team-Y-pager
 
 
 # Inhibition rules allow to mute a set of alerts given that another alert is
@@ -88,35 +88,35 @@ route:
 # We use this to mute any warning-level notifications if the same alert is
 # already critical.
 inhibit_rules:
-- source_matchers: [ severity="critical" ]
-  target_matchers: [ severity="warning" ]
-  # Apply inhibition if the alertname is the same.
-  # CAUTION:
-  #   If all label names listed in `equal` are missing
-  #   from both the source and target alerts,
-  #   the inhibition rule will apply!
-  equal: [ alertname, cluster, service ]
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    # Apply inhibition if the alertname is the same.
+    # CAUTION:
+    #   If all label names listed in `equal` are missing
+    #   from both the source and target alerts,
+    #   the inhibition rule will apply!
+    equal: [alertname, cluster, service]
 
 
 receivers:
-- name: 'team-X-mails'
-  email_configs:
-  - to: 'team-X+alerts@example.org'
+  - name: 'team-X-mails'
+    email_configs:
+      - to: 'team-X+alerts@example.org'
 
-- name: 'team-X-pager'
-  email_configs:
-  - to: 'team-X+alerts-critical@example.org'
-  pagerduty_configs:
-  - service_key: <team-X-key>
+  - name: 'team-X-pager'
+    email_configs:
+      - to: 'team-X+alerts-critical@example.org'
+    pagerduty_configs:
+      - service_key: <team-X-key>
 
-- name: 'team-Y-mails'
-  email_configs:
-  - to: 'team-Y+alerts@example.org'
+  - name: 'team-Y-mails'
+    email_configs:
+      - to: 'team-Y+alerts@example.org'
 
-- name: 'team-Y-pager'
-  pagerduty_configs:
-  - service_key: <team-Y-key>
+  - name: 'team-Y-pager'
+    pagerduty_configs:
+      - service_key: <team-Y-key>
 
-- name: 'team-DB-pager'
-  pagerduty_configs:
-  - service_key: <team-DB-key>
+  - name: 'team-DB-pager'
+    pagerduty_configs:
+      - service_key: <team-DB-key>

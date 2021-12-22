@@ -1,10 +1,8 @@
 ---
 version: 2.1
-
 orbs:
   prometheus: prometheus/prometheus@0.11.0
-  go: circleci/go@0.2.0
-
+  go: circleci/go@1.7.0
 jobs:
   test_frontend:
     # We need to use a machine executor because the front-end validation runs
@@ -12,144 +10,138 @@ jobs:
     # executor (even with setup_remote_docker).
     machine: true
     steps:
-    - checkout
-    - run: sudo service docker restart
-    - run:
-        name: Remove existing Go installation
-        command: sudo rm -rf /usr/local/go
-    # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - go/install:
-        version: "1.16"
-    - run:
-        name: Remove generated code
-        command: make clean
-    - run:
-        name: Generate front-end code
-        command: make all
-        working_directory: ~/project/ui/app
-        environment:
-          JUNIT_DIR: ~/test-results
-    - run:
-        name: Generate assets
-        command: make assets
-    - run:
-        name: Generate API v2 code
-        command: make apiv2
-    - run: git diff --exit-code
-    - store_test_results:
-        path: ~/test-results
-
+      - checkout
+      - run: sudo service docker restart
+      - run:
+          name: Remove existing Go installation
+          command: sudo rm -rf /usr/local/go
+      # Whenever the Go version is updated here, .promu.yml should also be updated.
+      - go/install:
+          version: "1.17"
+      - run:
+          name: Remove generated code
+          command: make clean
+      - run:
+          name: Generate front-end code
+          command: make all
+          working_directory: ~/project/ui/app
+          environment:
+            JUNIT_DIR: ~/test-results
+      - run:
+          name: Generate assets
+          command: make assets
+      - run:
+          name: Generate API v2 code
+          command: make apiv2
+      - run: git diff --exit-code
+      - store_test_results:
+          path: ~/test-results
   test:
     docker:
-    # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: circleci/golang:1.16
-    # maildev containers are for running the email tests against a "real" SMTP server.
-    # See notify/email_test.go for details.
-    - image: djfarrelly/maildev:1.1.0
-      name: maildev-noauth
-      entrypoint: bin/maildev
-      command:
-      - -v
-    - image: djfarrelly/maildev:1.1.0
-      name: maildev-auth
-      entrypoint: bin/maildev
-      command:
-      - -v
-      - --incoming-user
-      - user
-      - --incoming-pass
-      - pass
-
+      # Whenever the Go version is updated here, .promu.yml should also be updated.
+      - image: quay.io/prometheus/golang-builder:1.17-base
+      # maildev containers are for running the email tests against a "real" SMTP server.
+      # See notify/email_test.go for details.
+      - image: djfarrelly/maildev:1.1.0
+        name: maildev-noauth
+        entrypoint: bin/maildev
+        command:
+          - -v
+      - image: djfarrelly/maildev:1.1.0
+        name: maildev-auth
+        entrypoint: bin/maildev
+        command:
+          - -v
+          - --incoming-user
+          - user
+          - --incoming-pass
+          - pass
     environment:
       EMAIL_NO_AUTH_CONFIG: /tmp/smtp_no_auth.yml
       EMAIL_AUTH_CONFIG: /tmp/smtp_auth.yml
-
     steps:
-    - prometheus/setup_environment
-    - go/load-cache:
-        key: v1-go-mod
-    - run:
-        command: |
-          cat \<<EOF > $EMAIL_NO_AUTH_CONFIG
-          smarthost: maildev-noauth:1025
-          server: http://maildev-noauth:1080/
-          EOF
-          cat \<<EOF > $EMAIL_AUTH_CONFIG
-          smarthost: maildev-auth:1025
-          server: http://maildev-auth:1080/
-          username: user
-          password: pass
-          EOF
-    - run:
-        command: make
-        environment:
-          # By default Go uses GOMAXPROCS but a Circle CI executor has many
-          # cores (> 30) while the CPU and RAM resources are throttled. If we
-          # don't limit this to the number of allocated cores, the job is
-          # likely to get OOMed and killed.
-          GOOPTS: "-p 2"
-    - prometheus/check_proto:
-        version: "3.15.8"
-    - prometheus/store_artifact:
-        file: alertmanager
-    - prometheus/store_artifact:
-        file: amtool
-    - go/save-cache:
-        key: v1-go-mod
-    - store_test_results:
-        path: test-results
-
+      - prometheus/setup_environment
+      - go/load-cache:
+          key: v1-go-mod
+      - run:
+          command: |
+            cat \<<EOF > $EMAIL_NO_AUTH_CONFIG
+            smarthost: maildev-noauth:1025
+            server: http://maildev-noauth:1080/
+            EOF
+            cat \<<EOF > $EMAIL_AUTH_CONFIG
+            smarthost: maildev-auth:1025
+            server: http://maildev-auth:1080/
+            username: user
+            password: pass
+            EOF
+      - run:
+          command: make
+          environment:
+            # By default Go uses GOMAXPROCS but a Circle CI executor has many
+            # cores (> 30) while the CPU and RAM resources are throttled. If we
+            # don't limit this to the number of allocated cores, the job is
+            # likely to get OOMed and killed.
+            GOOPTS: "-p 2"
+      - prometheus/check_proto:
+          version: "3.15.8"
+      - prometheus/store_artifact:
+          file: alertmanager
+      - prometheus/store_artifact:
+          file: amtool
+      - go/save-cache:
+          key: v1-go-mod
+      - store_test_results:
+          path: test-results
   mixin:
     docker:
-    # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: circleci/golang:1.16
-
+      # Whenever the Go version is updated here, .promu.yml should also be updated.
+      - image: quay.io/prometheus/golang-builder:1.17-base
     steps:
-    - checkout
-    - run: cd doc/alertmanager-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
-    - run: cd doc/alertmanager-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
-    - run: cd doc/alertmanager-mixin; go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
-    - run: cd doc/alertmanager-mixin; make lint
-
+      - checkout
+      - run: cd doc/alertmanager-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
+      - run: cd doc/alertmanager-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
+      - run: cd doc/alertmanager-mixin; go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
+      - run: cd doc/alertmanager-mixin; make lint
 workflows:
   version: 2
   alertmanager:
     jobs:
-    - test_frontend:
-        filters:
-          tags:
-            only: /.*/
-    - test:
-        filters:
-          tags:
-            only: /.*/
-    - prometheus/build:
-        name: build
-        parallelism: 8
-        filters:
-          tags:
-            only: /.*/
-    - mixin:
-        filters:
-          tags:
-            only: /.*/
-    - prometheus/publish_main:
-        context: org-context
-        requires:
-        - test_frontend
-        - test
-        - build
-        filters:
-          branches:
-            only: main
-    - prometheus/publish_release:
-        context: org-context
-        requires:
-        - test_frontend
-        - test
-        - build
-        filters:
-          tags:
-            only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
-          branches:
-            ignore: /.*/
+      - test_frontend:
+          filters:
+            tags:
+              only: /.*/
+      - test:
+          filters:
+            tags:
+              only: /.*/
+      - prometheus/build:
+          name: build
+          parallelism: 8
+          filters:
+            tags:
+              only: /.*/
+      - mixin:
+          filters:
+            tags:
+              only: /.*/
+      - prometheus/publish_main:
+          context: org-context
+          requires:
+            - test_frontend
+            - test
+            - build
+          filters:
+            branches:
+              only: main
+      - prometheus/publish_release:
+          context: org-context
+          requires:
+            - test_frontend
+            - test
+            - build
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
+            branches:
+              ignore: /.*/
