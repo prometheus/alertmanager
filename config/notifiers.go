@@ -460,12 +460,12 @@ type SigmaConfig struct {
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	// URL to send POST request to.
 	URL              *URL     `yaml:"url" json:"url"`
-	APIKey           Secret   `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	Recipients       []string `yaml:"recipients"`
-	NotificationType string   `yaml:"notification_type"`
-	SenderName       string   `yaml:"sender_name"`
-	Text             string   `yaml:"text"`
-	TTS              string   `yaml:"tts"`
+	APIKey           Secret   `yaml:"api_key" json:"api_key"`
+	Recipient        []string `yaml:"recipient" json:"recipient"`
+	NotificationType string   `yaml:"notification_type" json:"notification_type"`
+	SenderName       string   `yaml:"sender_name" json:"sender_name"`
+	Text             string   `yaml:"text" json:"text"`
+	TTS              string   `yaml:"tts" json:"tts"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -479,7 +479,7 @@ func (c *SigmaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		defaultUrl, _ := url.Parse("https://online.sigmasms.ru/api/sendings")
 		c.URL = &URL{URL: defaultUrl}
 	}
-	if c.APIKey != "" {
+	if c.APIKey == "" {
 		return fmt.Errorf("api_key must be configured")
 	}
 	if c.NotificationType == "" {
