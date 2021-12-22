@@ -15,12 +15,14 @@ package slackV2
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-kit/log"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/slack-go/slack"
+	"strings"
 	"sync"
 	"time"
 )
@@ -43,6 +45,8 @@ type Data struct {
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
 	client := slack.New(token)
+	//client.Debug()
+
 	notifier := &Notifier{
 		conf:    c,
 		tmpl:    t,
@@ -69,18 +73,23 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 					if n.storage[ts].Alerts[i].Fingerprint == newAlert.Fingerprint {
 						n.storage[ts].Alerts[i].Status = newAlert.Status
 						n.storage[ts].Alerts[i].EndsAt = newAlert.EndsAt
+						n.storage[ts].Data.CommonAnnotations = data.CommonAnnotations
 					}
 				}
 			}
 			n.mu.Unlock()
 		} else {
-			ts, err := n.send(data, "", false)
+			ts, err := n.send(data, "")
 			if err != nil {
 				return false, err
 			}
 			n.mu.Lock()
 			n.storage[ts] = Data{Data: data}
 			n.mu.Unlock()
+
+			if err := n.sendNotify(ts); err != nil {
+				return false, err
+			}
 		}
 	}
 
@@ -88,7 +97,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	defer n.mu.RUnlock()
 
 	for _, msg := range changedMessages {
-		_, err := n.send(n.storage[msg].Data, msg, false)
+		_, err := n.send(n.storage[msg].Data, msg)
 		if err != nil {
 			return false, err
 		}
@@ -97,41 +106,20 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	return true, nil
 }
 
-func (n *Notifier) send(data *template.Data, ts string, here bool) (string, error) {
-	var (
-		err      error
-		tmplText = notify.TmplText(n.tmpl, data, &err)
-	)
+func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 
-	attachmets := &slack.Attachment{
-		TitleLink: tmplText(n.conf.TitleLink),
-		Text:      tmplText(n.conf.Text),
-		ImageURL:  tmplText(n.conf.ImageURL),
-		Footer:    tmplText(n.conf.Footer),
-		Color:     n.conf.Color,
-	}
+	fmt.Printf("%+v\n", data)
 
-	attachmets.Actions = make([]slack.AttachmentAction, len(n.conf.Actions))
-	for i, action := range n.conf.Actions {
-		attachmets.Actions[i] = slack.AttachmentAction{
-			Type:  slack.ActionType(action.Type),
-			Text:  tmplText(action.Text),
-			URL:   tmplText(action.URL),
-			Style: tmplText(action.Style),
-			Name:  action.Name,
-			Value: tmplText(action.Value),
-		}
+	attachment := slack.Attachment{
+		Color:  n.conf.Color,
+		Blocks: n.formatMessage(data),
 	}
 
 	if len(data.Alerts.Firing()) == 0 {
-		attachmets.Color = "good"
+		attachment.Color = "#1aad21"
 	}
 
-	if ts != "" && here == true {
-		attachmets.Pretext = "<!here>"
-	}
-
-	att := slack.MsgOptionAttachments(*attachmets)
+	att := slack.MsgOptionAttachments(attachment)
 
 	if ts != "" {
 		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att)
@@ -140,6 +128,30 @@ func (n *Notifier) send(data *template.Data, ts string, here bool) (string, erro
 		_, messageTs, err := n.client.PostMessage(n.conf.Channel, att)
 		return messageTs, err
 	}
+}
+
+func (n *Notifier) sendNotify(ts string) error {
+	if len(n.conf.Mentions) == 0 {
+		return nil
+	}
+	users := make([]string, len(n.conf.Mentions))
+	for i, val := range n.conf.Mentions {
+		switch strings.ToLower(val.Type) {
+		case "group":
+			users[i] = fmt.Sprintf("<!subteam^%s|@%s>", val.ID, val.Name)
+		case "user":
+			users[i] = fmt.Sprintf("<@%s>", val.ID)
+		}
+	}
+
+	text := fmt.Sprintf("Look here %s", strings.Join(users, " "))
+	opts := make([]slack.MsgOption, 0)
+	opts = append(opts, slack.MsgOptionTS(ts))
+	opts = append(opts, slack.MsgOptionText(text, false))
+	//
+	_, _, err := n.client.PostMessage(n.conf.Channel, opts...)
+	return err
+
 }
 
 func (n *Notifier) getMessagesByFingerprint(fp string) []string {

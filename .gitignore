@@ -10,6 +10,7 @@
 /.idea/workspace.xml
 *.idea
 /.idea/*
+/template/slack.tmpl
 !.golangci.yml
 !/cli/testdata/*.yml
 !/cli/config/testdata/*.yml

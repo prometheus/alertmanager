@@ -6,8 +6,6 @@ COPY ./ ./
 RUN make build
 
 # Main image
-
-
 FROM quay.io/prometheus/busybox-linux-amd64:latest
 LABEL maintainer="The Prometheus Authors <prometheus-developers@googlegroups.com>"
 
