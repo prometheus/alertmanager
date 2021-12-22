@@ -108,6 +108,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 
+	fmt.Printf("%+v\n", data)
+
 	attachment := slack.Attachment{
 		Color:  n.conf.Color,
 		Blocks: n.formatMessage(data),
@@ -134,9 +136,15 @@ func (n *Notifier) sendNotify(ts string) error {
 	}
 	users := make([]string, len(n.conf.Mentions))
 	for i, val := range n.conf.Mentions {
-		users[i] = fmt.Sprintf("<!subteam^%s>", val)
+		switch strings.ToLower(val.Type) {
+		case "group":
+			users[i] = fmt.Sprintf("<!subteam^%s|@%s>", val.ID, val.Name)
+		case "user":
+			users[i] = fmt.Sprintf("<@%s>", val.ID)
+		}
 	}
-	text := fmt.Sprintf("Look here %s", strings.Join(users, ""))
+
+	text := fmt.Sprintf("Look here %s", strings.Join(users, " "))
 	opts := make([]slack.MsgOption, 0)
 	opts = append(opts, slack.MsgOptionTS(ts))
 	opts = append(opts, slack.MsgOptionText(text, false))

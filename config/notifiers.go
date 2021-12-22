@@ -385,8 +385,14 @@ type SlackConfigV2 struct {
 	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Color   string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Mentions        []string `yaml:"mentions,omitempty" json:"mentions,omitempty"`
-	AlertmanagerUrl *URL     `yaml:"alertmanagerUrl,omitempty" json:"alertmanagerUrl,omitempty"`
+	Mentions        []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
+	AlertmanagerUrl *URL           `yaml:"alertmanagerUrl,omitempty" json:"alertmanagerUrl,omitempty"`
+}
+
+type SlackMention struct {
+	Type string `yaml:"type" json:"type"`
+	Name string `yaml:"name" json:"name"`
+	ID   string `yaml:"id" json:"id"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
