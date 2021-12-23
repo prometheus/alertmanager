@@ -385,8 +385,7 @@ type SlackConfigV2 struct {
 	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Color   string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Mentions        []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
-	AlertmanagerUrl *URL           `yaml:"alertmanagerUrl,omitempty" json:"alertmanagerUrl,omitempty"`
+	Mentions []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
 }
 
 type SlackMention struct {
@@ -415,11 +414,6 @@ func (c *SlackConfigV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain SlackConfigV2
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
-	}
-
-	if c.AlertmanagerUrl == nil {
-		defaultUrl, _ := url.Parse("http://localhost:9093")
-		c.AlertmanagerUrl = &URL{URL: defaultUrl}
 	}
 
 	return nil
