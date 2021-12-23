@@ -5,6 +5,7 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/common/model"
 	"github.com/slack-go/slack"
+	url2 "net/url"
 	"strings"
 )
 
@@ -65,26 +66,42 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 	blocks = append(blocks, Block{Type: slack.MBTHeader, Text: &Text{Type: slack.PlainTextType, Text: getMapValue(data.CommonLabels, "alertname")}})
 
 	{
-		url := n.conf.AlertmanagerUrl.Copy()
-		url.Path = "/#/silences/new"
-		args := url.Query()
-		filters := make([]string, 0)
-		for _, v := range data.CommonLabels.SortedPairs() {
-			filters = append(filters, fmt.Sprintf("%s=\"%s\"", v.Name, v.Value))
+		url := ""
+		if urlParsed, err := url2.Parse(data.ExternalURL); err == nil {
+			urlParsed.Path = "/#/silences/new"
+			args := urlParsed.Query()
+			filters := make([]string, 0)
+			for _, v := range data.CommonLabels.SortedPairs() {
+				filters = append(filters, fmt.Sprintf("%s=\"%s\"", v.Name, v.Value))
+			}
+			args.Add("filter", fmt.Sprintf("{%s}", strings.Join(filters, ",")))
+			urlParsed.RawQuery = args.Encode()
+			url = urlParsed.String()
+			url = strings.Replace(url, "%23", "#", 1)
 		}
-		args.Add("filter", fmt.Sprintf("{%s}", strings.Join(filters, ",")))
-		url.RawQuery = args.Encode()
-		url.EscapedFragment()
+
+		graphUrl := ""
+		for _, alert := range data.Alerts {
+			if alert.GeneratorURL != "" {
+				graphUrl = alert.GeneratorURL
+				break
+			}
+		}
 
 		fields := make([]*Field, 0)
 		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Env: %s*", strings.ToUpper(strings.Join(envs, ", ")))})
 		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Severety: %s*", strings.ToUpper(strings.Join(severity, ", ")))})
-		if getMapValue(data.CommonLabels, "GeneratorURL") != "" {
+		if graphUrl != "" {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:chart_with_upwards_trend:Graph>*", getMapValue(data.CommonLabels, "GeneratorURL"))})
 		} else {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf(":chart_with_upwards_trend:~Graph~")})
 		}
-		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:no_bell:Silence>*", strings.Replace(url.String(), "%23", "#", 1))})
+		if url != "" {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:no_bell:Silence>*", url)})
+		} else {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*:no_bell:~Silence~")})
+		}
+
 		blocks = append(blocks, Block{Type: slack.MBTSection, Fields: fields})
 	}
 
@@ -106,13 +123,31 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 	{
 		block := Block{Type: slack.MBTContext, Elements: make([]*Element, 0)}
 
-		if summary := getMapValue(data.CommonAnnotations, "description"); len(summary) > 0 {
-			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", summary)})
+		if val := getMapValue(data.CommonAnnotations, "summary"); len(val) > 0 {
+			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", val)})
+		} else {
+			for _, al := range data.Alerts {
+				if val, ok := al.Annotations["summary"]; ok && len(val) > 0 {
+					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", val)})
+					break
+				}
+			}
 		}
-		if desc := getMapValue(data.CommonAnnotations, "description"); len(desc) > 0 {
-			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s", desc)})
+
+		if val := getMapValue(data.CommonAnnotations, "description"); len(val) > 0 {
+			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s", val)})
+		} else {
+			for _, al := range data.Alerts {
+				if val, ok := al.Annotations["description"]; ok && len(val) > 0 {
+					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", val)})
+					break
+				}
+			}
 		}
-		blocks = append(blocks, block)
+
+		if len(block.Elements) > 0 {
+			blocks = append(blocks, block)
+		}
 	}
 
 	result := slack.Blocks{BlockSet: blocks}
