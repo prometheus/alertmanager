@@ -140,7 +140,7 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 		} else {
 			for _, al := range data.Alerts {
 				if val, ok := al.Annotations["description"]; ok && len(val) > 0 {
-					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", val)})
+					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s", val)})
 					break
 				}
 			}
