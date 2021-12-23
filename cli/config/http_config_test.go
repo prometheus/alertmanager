@@ -40,35 +40,9 @@ func TestValidHTTPConfig(t *testing.T) {
 	if cfg.ProxyURL.String() != proxyURL {
 		t.Fatalf("Expected proxy_url is %q but got: %s", proxyURL, cfg.ProxyURL.String())
 	}
-
-	bearerToken, err := FetchBearerToken(cfg.Authorization)
-	if err != nil {
-		t.Fatalf("failed to fetch bearer token: %v", err)
-	}
-
-	if bearerToken != AuthorizationCredentials {
-		t.Fatalf("Expected bearer token is %q but got: %s", AuthorizationCredentials, bearerToken)
-	}
 }
 
-func TestValidBearerTokenFileHTTPConfig(t *testing.T) {
-
-	cfg, err := LoadHTTPConfig("testdata/http_config.bearer-token-file.good.yml")
-	if err != nil {
-		t.Fatalf("Error loading HTTP client config: %v", err)
-	}
-
-	bearerToken, err := FetchBearerToken(cfg.Authorization)
-	if err != nil {
-		t.Fatalf("failed to fetch bearer token: %v", err)
-	}
-
-	if bearerToken != AuthorizationCredentials {
-		t.Fatalf("Expected bearer token is %q but got: %s", AuthorizationCredentials, bearerToken)
-	}
-}
-
-func TestFetchBasicAuthPassword(t *testing.T) {
+func TestValidBasicAuthHTTPConfig(t *testing.T) {
 
 	cfg, err := LoadHTTPConfig("testdata/http_config.basic_auth.good.yml")
 	if err != nil {
@@ -79,7 +53,7 @@ func TestFetchBasicAuthPassword(t *testing.T) {
 		t.Fatalf("Expected username is %q but got: %s", "user", cfg.BasicAuth.Username)
 	}
 
-	password, _ := FetchBasicAuthPassword(cfg.BasicAuth)
+	password := string(cfg.BasicAuth.Password)
 	if password != "password" {
 		t.Fatalf("Expected password is %q but got: %s", "password", password)
 	}

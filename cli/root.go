@@ -15,7 +15,6 @@ package cli
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -101,27 +100,11 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 			kingpin.Fatalf("could not load HTTP config file: %v\n", err)
 		}
 
-		tlsConfig, err := promconfig.NewTLSConfig(&httpConfig.TLSConfig)
+		httpclient, err := promconfig.NewClientFromConfig(*httpConfig, "amtool")
 		if err != nil {
-			kingpin.Fatalf("failed to create TLS config: %v\n", err)
+			kingpin.Fatalf("could not create a new HTTP client: %v\n", err)
 		}
-
-		cr.Transport = &http.Transport{
-			TLSClientConfig: tlsConfig,
-		}
-
-		if httpConfig.BasicAuth != nil {
-			password, _ := config.FetchBasicAuthPassword(httpConfig.BasicAuth)
-			cr.DefaultAuthentication = clientruntime.BasicAuth(httpConfig.BasicAuth.Username, password)
-		}
-
-		if httpConfig.Authorization.Type == "Bearer" {
-			bearerToken, err := config.FetchBearerToken(httpConfig.Authorization)
-			if err != nil {
-				kingpin.Fatalf("failed to fetch bearer token: %v\n", err)
-			}
-			cr.DefaultAuthentication = clientruntime.BearerToken(bearerToken)
-		}
+		cr = clientruntime.NewWithClient(address, path.Join(amURL.Path, defaultAmApiv2path), schemes, httpclient)
 	}
 
 	c := client.New(cr, strfmt.Default)
