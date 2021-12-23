@@ -44,8 +44,8 @@ type Data struct {
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
-	client := slack.New(token)
-	//client.Debug()
+	client := slack.New(token, slack.OptionDebug(true))
+	client.Debug()
 
 	notifier := &Notifier{
 		conf:    c,
@@ -108,7 +108,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 
-	fmt.Printf("%+v\n", data)
+	//fmt.Printf("%+v\n", data)
 
 	attachment := slack.Attachment{
 		Color:  n.conf.Color,
