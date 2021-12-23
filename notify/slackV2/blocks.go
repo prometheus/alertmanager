@@ -64,6 +64,7 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 	envs = UniqStr(envs)
 
 	blocks = append(blocks, Block{Type: slack.MBTHeader, Text: &Text{Type: slack.PlainTextType, Text: getMapValue(data.CommonLabels, "alertname")}})
+	blocks = append(blocks, Block{Type: slack.MBTDivider})
 
 	{
 		url := ""
