@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/go-kit/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/notify"
@@ -117,9 +118,18 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		n.logger.Log("Sigma error. Type: %s; Code: %s; Message: %+v", n.conf.NotificationType, resp.StatusCode, r)
+		return false, &Error{NotificationType: n.conf.NotificationType, StatusCode: resp.StatusCode, Response: r}
 	}
 
 	return false, nil
+}
 
+type Error struct {
+	NotificationType string
+	StatusCode       int
+	Response
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("Sigma error. Type: %s; Code: %d; Response: %+v", e.NotificationType, e.StatusCode, e.Response)
 }

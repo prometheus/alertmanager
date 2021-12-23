@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -44,7 +45,7 @@ type Data struct {
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
-	client := slack.New(token)
+	client := slack.New(token, slack.OptionDebug(c.Debug))
 
 	notifier := &Notifier{
 		conf:    c,
@@ -61,19 +62,31 @@ func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 
+	if n.conf.Debug {
+		level.Debug(n.logger).Log("Alert Data", data)
+	}
+
 	changedMessages := make([]string, 0)
+	notifyMessages := make([]string, 0)
 	for _, newAlert := range data.Alerts {
 		messages := n.getMessagesByFingerprint(newAlert.Fingerprint)
 		changedMessages = append(changedMessages, messages...)
 		if len(messages) > 0 {
 			n.mu.Lock()
 			for _, ts := range messages {
+				changed := false
 				for i := range n.storage[ts].Alerts {
 					if n.storage[ts].Alerts[i].Fingerprint == newAlert.Fingerprint {
-						n.storage[ts].Alerts[i].Status = newAlert.Status
+						if n.storage[ts].Alerts[i].Status != newAlert.Status {
+							n.storage[ts].Alerts[i].Status = newAlert.Status
+							changed = true
+						}
 						n.storage[ts].Alerts[i].EndsAt = newAlert.EndsAt
 						n.storage[ts].Data.CommonAnnotations = data.CommonAnnotations
 					}
+				}
+				if !changed {
+					notifyMessages = append(notifyMessages, ts)
 				}
 			}
 			n.mu.Unlock()
@@ -85,7 +98,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			n.mu.Lock()
 			n.storage[ts] = Data{Data: data}
 			n.mu.Unlock()
+			notifyMessages = append(notifyMessages, ts)
+		}
 
+		for _, ts := range UniqStr(notifyMessages) {
 			if err := n.sendNotify(ts); err != nil {
 				return false, err
 			}

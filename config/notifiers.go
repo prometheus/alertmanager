@@ -378,22 +378,6 @@ type SlackConfig struct {
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 }
 
-type SlackConfigV2 struct {
-	NotifierConfig `yaml:",inline" json:",inline"`
-
-	Token   string `yaml:"token,omitempty" json:"token,omitempty"`
-	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Color   string `yaml:"color,omitempty" json:"color,omitempty"`
-
-	Mentions []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
-}
-
-type SlackMention struct {
-	Type string `yaml:"type" json:"type"`
-	Name string `yaml:"name" json:"name"`
-	ID   string `yaml:"id" json:"id"`
-}
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultSlackConfig
@@ -407,6 +391,22 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+type SlackConfigV2 struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	Token    string         `yaml:"token,omitempty" json:"token,omitempty"`
+	Channel  string         `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Color    string         `yaml:"color,omitempty" json:"color,omitempty"`
+	Debug    bool           `yaml:"debug" json:"debug"`
+	Mentions []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
+}
+
+type SlackMention struct {
+	Type string `yaml:"type" json:"type"`
+	Name string `yaml:"name" json:"name"`
+	ID   string `yaml:"id" json:"id"`
 }
 
 func (c *SlackConfigV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
