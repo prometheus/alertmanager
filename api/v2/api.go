@@ -386,6 +386,8 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
+	dedup := make(map[prometheus_model.Fingerprint]bool)
+
 	for _, alertGroup := range alertGroups {
 		ag := &open_api_models.AlertGroup{
 			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
@@ -395,12 +397,17 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 		for _, alert := range alertGroup.Alerts {
 			fp := alert.Fingerprint()
-			receivers := allReceivers[fp]
-			status := api.getAlertStatus(fp)
-			apiAlert := AlertToOpenAPIAlert(alert, status, receivers)
-			ag.Alerts = append(ag.Alerts, apiAlert)
+			if _, ok := dedup[fp]; !ok {
+				dedup[fp] = true
+				receivers := allReceivers[fp]
+				status := api.getAlertStatus(fp)
+				apiAlert := AlertToOpenAPIAlert(alert, status, receivers)
+				ag.Alerts = append(ag.Alerts, apiAlert)
+			}
 		}
-		res = append(res, ag)
+		if len(ag.Alerts) > 0 {
+			res = append(res, ag)
+		}
 	}
 
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
