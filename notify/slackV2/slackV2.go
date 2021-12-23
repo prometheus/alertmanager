@@ -108,8 +108,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 
-	//fmt.Printf("%+v\n", data)
-
 	attachment := slack.Attachment{
 		Color:  n.conf.Color,
 		Blocks: n.formatMessage(data),

@@ -51,11 +51,11 @@ func New(conf *config.SigmaConfig, t *template.Template, l log.Logger, httpOpts 
 	}, nil
 }
 
-// Message defines the JSON object send to Sigma endpoints.
+// Request Message defines the JSON object send to Sigma endpoints.
 type Request struct {
 	Recipient []string       `json:"recipient"`
 	Type      string         `json:"type"`
-	Payload   RequestPayload `json:"payload,omitempty"`
+	Payload   RequestPayload `json:"payload"`
 }
 
 type RequestPayload struct {
@@ -79,7 +79,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	)
 
 	msg := Request{
-		Recipient: n.conf.Recipients,
+		Recipient: n.conf.Recipient,
 		Type:      n.conf.NotificationType,
 		Payload: RequestPayload{
 			Sender: n.conf.SenderName,
@@ -97,7 +97,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, errors.Wrap(err, "request error")
 	}
 	req.Header.Set("Authorization", string(n.conf.APIKey))
-	req.Header.Set("Content-NotificationType", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.WithContext(ctx)
 
 	resp, err := n.client.Do(req)
 	if err != nil {
@@ -105,7 +106,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(req.Body)
+	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
 	}
@@ -120,4 +121,5 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	return false, nil
+
 }
