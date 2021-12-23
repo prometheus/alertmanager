@@ -116,15 +116,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, err
 		}
-		for _, incomeAlerts := range data.Alerts {
-			for _, storageAlerts := range n.storage[msg].Data.Alerts {
-				if len(data.Alerts.Resolved()) == 0 && incomeAlerts.Fingerprint == storageAlerts.Fingerprint {
-					if err := n.sendNotify(msg); err != nil {
-						return false, err
-					}
-				}
-			}
-		}
 	}
 
 	return true, nil
