@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -44,7 +45,7 @@ type Data struct {
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
-	client := slack.New(token)
+	client := slack.New(token, slack.OptionDebug(c.Debug))
 
 	notifier := &Notifier{
 		conf:    c,
@@ -60,6 +61,10 @@ func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+
+	if n.conf.Debug {
+		level.Debug(n.logger).Log("Alert Data", data)
+	}
 
 	changedMessages := make([]string, 0)
 	notifyMessages := make([]string, 0)
