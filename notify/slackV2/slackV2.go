@@ -44,8 +44,7 @@ type Data struct {
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
 	token := c.Token
-	client := slack.New(token, slack.OptionDebug(true))
-	client.Debug()
+	client := slack.New(token)
 
 	notifier := &Notifier{
 		conf:    c,
@@ -100,6 +99,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		_, err := n.send(n.storage[msg].Data, msg)
 		if err != nil {
 			return false, err
+		}
+		for _, incomeAlerts := range data.Alerts {
+			for _, storageAlerts := range n.storage[msg].Data.Alerts {
+				if len(data.Alerts.Resolved()) == 0 && incomeAlerts.Fingerprint == storageAlerts.Fingerprint {
+					if err := n.sendNotify(msg); err != nil {
+						return false, err
+					}
+				}
+			}
 		}
 	}
 
