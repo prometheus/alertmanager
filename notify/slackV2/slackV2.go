@@ -91,14 +91,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 			n.mu.Unlock()
 		} else {
-			ts, err := n.send(data, "")
-			if err != nil {
-				return false, err
+			// Делаем проверку, что бы не отправлять резолвы на "осиратевшие алерты", у которых 0 firing
+			if len(data.Alerts.Firing()) > 0 {
+				ts, err := n.send(data, "")
+				if err != nil {
+					return false, err
+				}
+				n.mu.Lock()
+				n.storage[ts] = Data{Data: data}
+				n.mu.Unlock()
+				notifyMessages = append(notifyMessages, ts)
 			}
-			n.mu.Lock()
-			n.storage[ts] = Data{Data: data}
-			n.mu.Unlock()
-			notifyMessages = append(notifyMessages, ts)
 		}
 
 		for _, ts := range UniqStr(notifyMessages) {
