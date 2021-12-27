@@ -396,11 +396,12 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type SlackConfigV2 struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	Token    string         `yaml:"token,omitempty" json:"token,omitempty"`
-	Channel  string         `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Color    string         `yaml:"color,omitempty" json:"color,omitempty"`
-	Debug    bool           `yaml:"debug" json:"debug"`
-	Mentions []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
+	Token        string         `yaml:"token,omitempty" json:"token,omitempty"`
+	Channel      string         `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Color        string         `yaml:"color,omitempty" json:"color,omitempty"`
+	Debug        bool           `yaml:"debug" json:"debug"`
+	Mentions     []SlackMention `yaml:"mentions,omitempty" json:"mentions,omitempty"`
+	MentionDelay duration       `yaml:"mentionDelay" json:"mentionDelay"`
 }
 
 type SlackMention struct {
