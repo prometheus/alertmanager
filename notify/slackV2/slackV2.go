@@ -40,6 +40,7 @@ type Notifier struct {
 
 type Data struct {
 	*template.Data
+	SendAt time.Time
 }
 
 // New returns a new Slack notification handler.
@@ -83,6 +84,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 						}
 						n.storage[ts].Alerts[i].EndsAt = newAlert.EndsAt
 						n.storage[ts].Data.CommonAnnotations = data.CommonAnnotations
+
 					}
 				}
 				if !changed {
@@ -105,8 +107,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 
 		for _, ts := range UniqStr(notifyMessages) {
-			if err := n.sendNotify(ts); err != nil {
-				return false, err
+			if n.storage[ts].SendAt.IsZero() || n.storage[ts].SendAt.Add(time.Duration(n.conf.MentionDelay)).Before(time.Now()) {
+				if err := n.sendNotify(ts); err != nil {
+					return false, err
+				}
+				n.mu.Lock()
+				n.storage[ts] = Data{Data: n.storage[ts].Data, SendAt: time.Now()}
+				n.mu.Unlock()
 			}
 		}
 	}
