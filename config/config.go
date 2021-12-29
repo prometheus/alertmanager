@@ -660,6 +660,7 @@ type GlobalConfig struct {
 	WeChatAPICorpID    string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL    *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey    Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	ReceiveSilenceResolved bool       `yaml:"receive_silence_resolved,omitempty" json:"receive_silence_resolved,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
