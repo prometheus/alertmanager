@@ -15,9 +15,13 @@ package sns
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"net/http"
+	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -35,6 +39,44 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+const (
+	// Message components
+	Message          = "Message"
+	Subject          = "Subject"
+	MessageAttribute = "MessageAttribute"
+
+	// Modified Message attribute value format
+	ComponentAndModifiedReason = "%s: %s"
+
+	// The errors
+	MessageNotValidUtf8                = "Error - not a valid UTF-8 encoded string"
+	MessageIsEmpty                     = "Error - the message should not be empty"
+	MessageSizeExceeded                = "Error - the message has been truncated from %dKB because it exceeds the %dKB size limit"
+	SubjectNotASCII                    = "Error - contains non printable ASCII characters"
+	SubjectSizeExceeded                = "Error - subject has been truncated from %d characters because it exceeds the 100 character size limit"
+	MessageAttributeSizeExceeded       = "Error - %d of message attributes have been removed because of %dKB size limit exceeded"
+	MessageAttributeNotValidKeyOrValue = "Error - %d of message attributes have been removed because of invalid MessageAttributeKey or MessageAttributeValue"
+
+	// Message components size limit
+	subjectSizeLimitInCharacters         = 100
+	messageAttributeKeyLimitInCharacters = 256
+	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
+	messageSizeLimitInBytes            = 256 * 1024
+	messageSizeLimitInCharactersForSMS = 1600
+)
+
+var isInvalidMessageAttributeKeyPrefix = regexp.MustCompile(`^(AWS\.)|^(Amazon\.)|^(\.)`).MatchString
+var isInvalidMessageAttributeKeySuffix = regexp.MustCompile(`\.$`).MatchString
+var isInvalidMessageAttributeKeySubstring = regexp.MustCompile(`\.{2}`).MatchString
+var isValidMessageAttributeKeyCharacters = regexp.MustCompile(`^[a-zA-Z0-9_\-.]*$`).MatchString
+
+var truncatedMessageAttributeKey = "truncated"
+var truncatedMessageAttributeValue = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
+var modifiedMessageAttributeKey = "modified"
+
+//Used for testing
+var jsonMarshal = json.Marshal
 
 // Notifier implements a Notifier for SNS notifications.
 type Notifier struct {
@@ -142,10 +184,9 @@ func createSNSClient(httpClient *http.Client, n *Notifier, tmpl func(string) str
 }
 
 func createPublishInput(ctx context.Context, n *Notifier, tmpl func(string) string) (*sns.PublishInput, error) {
+	var modifiedReasons []string
 	publishInput := &sns.PublishInput{}
-	messageAttributes := createMessageAttributes(n, tmpl)
-	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
-	messageSizeLimit := 256 * 1024
+	messageAttributes := createAndValidateMessageAttributes(n, tmpl, &modifiedReasons)
 	if n.conf.TopicARN != "" {
 		topicTmpl := tmpl(n.conf.TopicARN)
 		publishInput.SetTopicArn(topicTmpl)
@@ -165,50 +206,318 @@ func createPublishInput(ctx context.Context, n *Notifier, tmpl func(string) stri
 	}
 	if n.conf.PhoneNumber != "" {
 		publishInput.SetPhoneNumber(tmpl(n.conf.PhoneNumber))
-		// If we have an SMS message, we need to truncate to 1600 characters/runes.
-		messageSizeLimit = 1600
 	}
 	if n.conf.TargetARN != "" {
 		publishInput.SetTargetArn(tmpl(n.conf.TargetARN))
 	}
 
-	messageToSend, isTrunc, err := validateAndTruncateMessage(tmpl(n.conf.Message), messageSizeLimit)
+	messageToSend := tmpl(n.conf.Message)
+	validationErr := validateMessage(n.logger, messageToSend, &modifiedReasons)
+
+	if validationErr != nil {
+		messageToSend = validationErr.Error()
+		// If we modified the message with error message we need to add a message attribute showing that it was truncated.
+		messageAttributes[truncatedMessageAttributeKey] = truncatedMessageAttributeValue
+	}
+
+	if n.conf.Subject != "" {
+		subjectToSend := validateAndTruncateSubject(n.logger, tmpl(n.conf.Subject), &modifiedReasons)
+
+		publishInput.SetSubject(subjectToSend)
+	}
+
+	truncateAttributes, truncatedMessage, err := truncateMessageAttributesAndMessage(n.logger, n.conf.PhoneNumber, messageAttributes, messageToSend, validationErr != nil, &modifiedReasons)
 	if err != nil {
 		return nil, err
 	}
-	if isTrunc {
-		// If we truncated the message we need to add a message attribute showing that it was truncated.
-		messageAttributes["truncated"] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
+
+	err = addModifiedMessageAttributes(truncateAttributes, modifiedReasons)
+	if err != nil {
+		return nil, err
 	}
 
-	publishInput.SetMessage(messageToSend)
-	publishInput.SetMessageAttributes(messageAttributes)
-
-	if n.conf.Subject != "" {
-		publishInput.SetSubject(tmpl(n.conf.Subject))
-	}
+	publishInput.SetMessage(truncatedMessage)
+	publishInput.SetMessageAttributes(truncateAttributes)
 
 	return publishInput, nil
 }
 
-func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (string, bool, error) {
-	if !utf8.ValidString(message) {
-		return "", false, fmt.Errorf("non utf8 encoded message string")
+func addModifiedMessageAttributes(attributes map[string]*sns.MessageAttributeValue, modifiedReasons []string) error {
+	if len(modifiedReasons) > 0 {
+		valueString, err := getModifiedReasonMessageAttributeValue(modifiedReasons)
+		if err != nil {
+			return err
+		}
+		attributes[modifiedMessageAttributeKey] = &sns.MessageAttributeValue{DataType: aws.String("String.Array"), StringValue: aws.String(valueString)}
 	}
-	if len(message) <= maxMessageSizeInBytes {
-		return message, false, nil
-	}
-	// If the message is larger than our specified size we have to truncate.
-	truncated := make([]byte, maxMessageSizeInBytes)
-	copy(truncated, message)
-	return string(truncated), true, nil
+
+	return nil
 }
 
-func createMessageAttributes(n *Notifier, tmpl func(string) string) map[string]*sns.MessageAttributeValue {
+func validateMessage(logger log.Logger, message string, modifiedReasons *[]string) error {
+	if !utf8.ValidString(message) {
+		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Message, MessageNotValidUtf8))
+		level.Info(logger).Log("msg", "message has been modified because of not a valid UTF-8 encoded string", "originalMessage", message)
+		return errors.New(MessageNotValidUtf8)
+	}
+	if len(message) == 0 {
+		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Message, MessageIsEmpty))
+		level.Info(logger).Log("msg", "message has been modified because of empty")
+		return errors.New(MessageIsEmpty)
+	}
+	return nil
+}
+
+func validateAndTruncateSubject(logger log.Logger, subject string, modifiedReasons *[]string) string {
+	if !isASCII(subject) {
+		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectNotASCII))
+		level.Info(logger).Log("msg", "subject has been modified because of contains non printable ASCII characters", "originalSubject", subject)
+		return SubjectNotASCII
+	}
+
+	charactersInSubject := utf8.RuneCountInString(subject)
+	if charactersInSubject <= subjectSizeLimitInCharacters {
+		return subject
+	}
+
+	// If the message is larger than our specified size we have to truncate.
+	level.Info(logger).Log("msg", "subject has been truncated because of size limit exceeded", "originalSubject", subject)
+	*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, fmt.Sprintf(SubjectSizeExceeded, charactersInSubject)))
+	return subject[:subjectSizeLimitInCharacters]
+}
+
+func createAndValidateMessageAttributes(n *Notifier, tmpl func(string) string, modifiedReasons *[]string) map[string]*sns.MessageAttributeValue {
+	numberOfInvalidMessageAttributes := 0
 	// Convert the given attributes map into the AWS Message Attributes Format.
 	attributes := make(map[string]*sns.MessageAttributeValue, len(n.conf.Attributes))
 	for k, v := range n.conf.Attributes {
-		attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
+		attributeKey := tmpl(k)
+		attributeValue := tmpl(v)
+		if !isValidateMessageAttribute(attributeKey, attributeValue) {
+			numberOfInvalidMessageAttributes++
+			level.Debug(n.logger).Log("msg", "messageAttribute has been removed because of invalid key/value", "attributeKey", attributeKey, "attributeValue", attributeValue)
+			continue
+		}
+		attributes[attributeKey] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(attributeValue)}
+	}
+
+	if numberOfInvalidMessageAttributes > 0 {
+		level.Info(n.logger).Log("msg", "messageAttributes has been removed because of invalid key/value", "numberOfRemovedAttributes", numberOfInvalidMessageAttributes)
+		*modifiedReasons = append(
+			*modifiedReasons,
+			fmt.Sprintf(ComponentAndModifiedReason, MessageAttribute, fmt.Sprintf(MessageAttributeNotValidKeyOrValue, numberOfInvalidMessageAttributes)),
+		)
 	}
 	return attributes
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
+}
+
+/*
+	The priority to fit in the size is
+    1. The modified reasons why will become attributes["modified"]
+    2. message attributes
+    3. message
+*/
+func truncateMessageAttributesAndMessage(logger log.Logger, phoneNumber string, attributes map[string]*sns.MessageAttributeValue,
+	message string, isMessageModified bool, modifiedReasons *[]string) (map[string]*sns.MessageAttributeValue, string, error) {
+	if phoneNumber != "" {
+		charactersInSubject := utf8.RuneCountInString(message)
+		if charactersInSubject <= messageSizeLimitInCharactersForSMS {
+			return attributes, message, nil
+		}
+
+		// SMS doesn't use customized messageAttributes
+		return attributes, message[:messageSizeLimitInCharactersForSMS], nil
+	}
+
+	truncatedAttributes, attributesSize, err := truncateMessageAttributes(logger, attributes, modifiedReasons, isMessageModified, message)
+
+	if err != nil {
+		return attributes, message, err
+	}
+
+	truncatedMessage, isMessageTruncated, err := truncateMessage(logger, modifiedReasons, message, attributesSize)
+	if err != nil {
+		return attributes, message, err
+	}
+
+	if isMessageTruncated {
+		truncatedAttributes[truncatedMessageAttributeKey] = truncatedMessageAttributeValue
+	}
+
+	return truncatedAttributes, truncatedMessage, nil
+}
+
+func createMessageAttributeSizeExceededReason(numberOfAttributeToBeTruncate int) string {
+	return fmt.Sprintf(ComponentAndModifiedReason,
+		MessageAttribute,
+		fmt.Sprintf(MessageAttributeSizeExceeded, numberOfAttributeToBeTruncate, messageSizeLimitInBytes/1024))
+}
+
+func createMessageSizeExceededReason(originMessage string) string {
+	return fmt.Sprintf(
+		ComponentAndModifiedReason,
+		Message,
+		fmt.Sprintf(MessageSizeExceeded, len(originMessage)/1024, messageSizeLimitInBytes/1024))
+}
+
+func getMessageSizeExceedReservedBytes(message string) (int, error) {
+	reservedTruncateAttributeValue := truncatedMessageAttributeValue
+	reservedTruncateAttributeBytes :=
+		len(truncatedMessageAttributeKey) + len(*reservedTruncateAttributeValue.DataType) + len(*reservedTruncateAttributeValue.StringValue)
+	reservedMessageModifiedReasons := []string{
+		createMessageSizeExceededReason(message),
+	}
+	reservedMessageModifiedReasonsBytes, err := getModifiedReasonMessageAttributeSize(reservedMessageModifiedReasons)
+	if err != nil {
+		return 0, err
+	}
+
+	return reservedTruncateAttributeBytes + reservedMessageModifiedReasonsBytes, nil
+}
+
+func truncateMessage(logger log.Logger, modifiedReasons *[]string, message string, attributeSize int) (string, bool, error) {
+	modifiedReasonBytes, err := getModifiedReasonMessageAttributeSize(*modifiedReasons)
+	if err != nil {
+		return message, false, err
+	}
+
+	availableBytes := messageSizeLimitInBytes - modifiedReasonBytes - attributeSize
+
+	if len(message) <= availableBytes {
+		return message, false, nil
+	}
+
+	messageSizeExceedReservedBytes, err := getMessageSizeExceedReservedBytes(message)
+	if err != nil {
+		return message, false, err
+	}
+	availableBytes -= messageSizeExceedReservedBytes
+	// If the message is larger than our specified size we have to truncate.
+	*modifiedReasons = append(*modifiedReasons, createMessageSizeExceededReason(message))
+
+	truncated := make([]byte, availableBytes)
+	copy(truncated, message)
+	level.Info(logger).Log("msg", "message has been truncated because of size limit exceeded", "originSize", len(message), "truncatedSize", len(truncated))
+	return string(truncated), true, nil
+}
+
+func truncateMessageAttributes(logger log.Logger, attributes map[string]*sns.MessageAttributeValue,
+	modifiedReasons *[]string, isMessageModified bool, message string) (map[string]*sns.MessageAttributeValue, int, error) {
+
+	modifiedReasonBytes, err := getModifiedReasonMessageAttributeSize(*modifiedReasons)
+	if err != nil {
+		return attributes, 0, err
+	}
+
+	availableBytes := messageSizeLimitInBytes - modifiedReasonBytes
+
+	// We need to at least keep 1 byte for the message
+	availableBytes = availableBytes - 1
+	// If message already gets modified, it means we replace the original message with an error. We don't want to truncate message in this case
+	if isMessageModified {
+		availableBytes = availableBytes - len(message)
+	}
+
+	truncatedAttributes, attributeSize := fitMessageAttributeInAvailableSize(attributes, availableBytes)
+
+	reservedMessageAttributeModifiedReasons := []string{
+		// reserved for maximum number of attributes can be truncate
+		createMessageAttributeSizeExceededReason(len(attributes)),
+	}
+	reservedMessageAttributeModifiedReasonsBytes, err := getModifiedReasonMessageAttributeSize(reservedMessageAttributeModifiedReasons)
+	if err != nil {
+		return truncatedAttributes, attributeSize, err
+	}
+
+	if len(truncatedAttributes) < len(attributes) {
+		availableBytes -= reservedMessageAttributeModifiedReasonsBytes
+		// truncate message attributes again in order to fit in the message attribute modified reasons
+		truncatedAttributes, attributeSize = fitMessageAttributeInAvailableSize(attributes, availableBytes)
+	}
+
+	reservedMessageModifiedBytes, err := getMessageSizeExceedReservedBytes(message)
+	if err != nil {
+		return truncatedAttributes, attributeSize, err
+	}
+
+	if !isMessageModified && len(message) > availableBytes-attributeSize {
+		availableBytes -= reservedMessageModifiedBytes
+		// truncate message attributes again in order to fit in the message modified reasons
+		truncatedAttributes, attributeSize = fitMessageAttributeInAvailableSize(attributes, availableBytes)
+	}
+
+	if len(truncatedAttributes) < len(attributes) {
+		removedNumber := len(attributes) - len(truncatedAttributes)
+		level.Info(logger).Log("msg", "messageAttributes has been removed because of size limit exceeded", "numberOfRemovedAttributes", removedNumber)
+		*modifiedReasons = append(*modifiedReasons, createMessageAttributeSizeExceededReason(removedNumber))
+	}
+
+	return truncatedAttributes, attributeSize, nil
+}
+
+func fitMessageAttributeInAvailableSize(attributes map[string]*sns.MessageAttributeValue, availableBytes int) (map[string]*sns.MessageAttributeValue, int) {
+	attributesSize := 0
+	truncatedAttributes := make(map[string]*sns.MessageAttributeValue)
+
+	for k, v := range attributes {
+		pendingAddingAttributeSize := len(k) + len(*v.DataType) + len(*v.StringValue)
+		if attributesSize+pendingAddingAttributeSize <= availableBytes {
+			truncatedAttributes[k] = v
+			attributesSize += pendingAddingAttributeSize
+		}
+	}
+
+	return truncatedAttributes, attributesSize
+}
+
+func getModifiedReasonMessageAttributeSize(modifiedReasons []string) (int, error) {
+	if len(modifiedReasons) > 0 {
+		valueString, err := getModifiedReasonMessageAttributeValue(modifiedReasons)
+		if err != nil {
+			return 0, err
+		}
+		return len("String.Array") + len(modifiedMessageAttributeKey) + len(valueString), nil
+	}
+	return 0, nil
+}
+
+func getModifiedReasonMessageAttributeValue(modifiedReasons []string) (string, error) {
+	jsonString, err := jsonMarshal(modifiedReasons)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonString), nil
+}
+
+func isValidateMessageAttribute(messageAttributeKey string, messageAttributeValue string) bool {
+	if len(messageAttributeKey) == 0 || len(messageAttributeValue) == 0 {
+		return false
+	}
+
+	if !isValidMessageAttributeKeyCharacters(messageAttributeKey) ||
+		isInvalidMessageAttributeKeyPrefix(messageAttributeKey) ||
+		isInvalidMessageAttributeKeySuffix(messageAttributeKey) ||
+		isInvalidMessageAttributeKeySubstring(messageAttributeKey) {
+		return false
+	}
+
+	if utf8.RuneCountInString(messageAttributeKey) > messageAttributeKeyLimitInCharacters {
+		return false
+	}
+
+	if !utf8.ValidString(messageAttributeValue) {
+		return false
+	}
+
+	return true
 }
