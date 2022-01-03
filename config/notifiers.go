@@ -15,6 +15,7 @@ package config
 
 import (
 	"fmt"
+	"net/textproto"
 	"regexp"
 	"strings"
 	"time"
@@ -181,7 +182,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Header names are case-insensitive, check for collisions.
 	normalizedHeaders := map[string]string{}
 	for h, v := range c.Headers {
-		normalized := strings.Title(h)
+		normalized := textproto.CanonicalMIMEHeaderKey(h)
 		if _, ok := normalizedHeaders[normalized]; ok {
 			return fmt.Errorf("duplicate header %q in email config", normalized)
 		}
