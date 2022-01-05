@@ -145,6 +145,8 @@ func (ih *Inhibitor) Mutes(lset model.LabelSet) bool {
 	return false
 }
 
+func (ih *Inhibitor) ReceiveSilenceResolved() bool { return false }
+
 // An InhibitRule specifies that a class of (source) alerts should inhibit
 // notifications for another class of (target) alerts if all specified matching
 // labels are equal between the two alerts. This may be used to inhibit alerts
