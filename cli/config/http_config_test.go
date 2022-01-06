@@ -18,20 +18,16 @@ import (
 	"testing"
 )
 
-const (
-	AuthorizationCredentials = "theanswertothegreatquestionoflifetheuniverseandeverythingisfortytwo"
-)
-
 func TestInvalidHTTPConfig(t *testing.T) {
-	_, err := LoadHTTPConfig("testdata/http_config.bad.yml")
+	_, err := LoadHTTPConfigFile("testdata/http_config.bad.yml")
 	errMsg := `authorization type cannot be set to "basic", use "basic_auth" instead`
 	if !strings.Contains(err.Error(), errMsg) {
 		t.Errorf("Expected error for invalid HTTP client configuration to contain %q but got: %s", errMsg, err)
 	}
 }
-func TestValidHTTPConfig(t *testing.T) {
 
-	cfg, err := LoadHTTPConfig("testdata/http_config.good.yml")
+func TestValidHTTPConfig(t *testing.T) {
+	cfg, err := LoadHTTPConfigFile("testdata/http_config.good.yml")
 	if err != nil {
 		t.Fatalf("Error loading HTTP client config: %v", err)
 	}
@@ -43,8 +39,7 @@ func TestValidHTTPConfig(t *testing.T) {
 }
 
 func TestValidBasicAuthHTTPConfig(t *testing.T) {
-
-	cfg, err := LoadHTTPConfig("testdata/http_config.basic_auth.good.yml")
+	cfg, err := LoadHTTPConfigFile("testdata/http_config.basic_auth.good.yml")
 	if err != nil {
 		t.Fatalf("Error loading HTTP client config: %v", err)
 	}

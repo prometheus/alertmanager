@@ -92,17 +92,16 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
-	var httpConfig *promconfig.HTTPClientConfig
 	if httpConfigFile != "" {
 		var err error
-		httpConfig, err = config.LoadHTTPConfig(httpConfigFile)
+		httpConfig, err := config.LoadHTTPConfigFile(httpConfigFile)
 		if err != nil {
-			kingpin.Fatalf("could not load HTTP config file: %v\n", err)
+			kingpin.Fatalf("failed to load HTTP config file: %v\n", err)
 		}
 
 		httpclient, err := promconfig.NewClientFromConfig(*httpConfig, "amtool")
 		if err != nil {
-			kingpin.Fatalf("could not create a new HTTP client: %v\n", err)
+			kingpin.Fatalf("failed to create a new HTTP client: %v\n", err)
 		}
 		cr = clientruntime.NewWithClient(address, path.Join(amURL.Path, defaultAmApiv2path), schemes, httpclient)
 	}
