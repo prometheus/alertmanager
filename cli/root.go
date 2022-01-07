@@ -101,7 +101,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 		httpclient, err := promconfig.NewClientFromConfig(*httpConfig, "amtool")
 		if err != nil {
-			kingpin.Fatalf("failed to create a new HTTP client: %v\n", err)
+			kingpin.Fatalf("failed to create a new HTTP client: %v", err)
 		}
 		cr = clientruntime.NewWithClient(address, path.Join(amURL.Path, defaultAmApiv2path), schemes, httpclient)
 	}
