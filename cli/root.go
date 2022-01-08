@@ -96,7 +96,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		var err error
 		httpConfig, err := config.LoadHTTPConfigFile(httpConfigFile)
 		if err != nil {
-			kingpin.Fatalf("failed to load HTTP config file: %v\n", err)
+			kingpin.Fatalf("failed to load HTTP config file: %v", err)
 		}
 
 		httpclient, err := promconfig.NewClientFromConfig(*httpConfig, "amtool")
