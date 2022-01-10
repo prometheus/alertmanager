@@ -212,7 +212,7 @@ type RouteOpts struct {
 	// A list of time intervals for which the route is muted.
 	MuteTimeIntervals []string
 
-	// A list of time intervals for which the route is active
+	// A list of time intervals for which the route is active.
 	ActiveTimeIntervals []string
 }
 
