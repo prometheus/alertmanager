@@ -20,14 +20,13 @@ import (
 	"fmt"
 	"github.com/go-kit/log"
 	"github.com/pkg/errors"
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	commoncfg "github.com/prometheus/common/config"
 	"io/ioutil"
 	"net/http"
-
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/template"
 )
 
 // Notifier implements a Notifier for generic sigma.
@@ -52,8 +51,19 @@ func New(conf *config.SigmaConfig, t *template.Template, l log.Logger, httpOpts 
 	}, nil
 }
 
-// Request Message defines the JSON object send to Sigma endpoints.
-type Request struct {
+// RequestSms Message defines the JSON object send to Sigma endpoints.
+type RecipientVoice struct {
+	Include []string `json:"include"`
+	Exclude []string `json:"exclude"`
+}
+
+type RequestVoice struct {
+	Recipient RecipientVoice `json:"recipient"`
+	Type      string         `json:"type"`
+	Payload   RequestPayload `json:"payload"`
+}
+
+type RequestSms struct {
 	Recipient []string       `json:"recipient"`
 	Type      string         `json:"type"`
 	Payload   RequestPayload `json:"payload"`
@@ -79,24 +89,44 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		tmplText = notify.TmplText(n.tmpl, data, &err)
 	)
 
-	msg := Request{
-		Recipient: n.conf.Recipient,
-		Type:      n.conf.NotificationType,
-		Payload: RequestPayload{
-			Sender: n.conf.SenderName,
-			Text:   tmplText(n.conf.Text),
-		},
+	var body []byte
+	switch n.conf.NotificationType {
+	case "sms":
+		msg := RequestSms{
+			Recipient: n.conf.Recipient,
+			Type:      n.conf.NotificationType,
+			Payload: RequestPayload{
+				Sender: n.conf.SenderName,
+				Text:   tmplText(n.conf.Text),
+			},
+		}
+		body, err = json.Marshal(msg)
+		if err != nil {
+			return false, err
+		}
+	case "voice":
+		msg := RequestVoice{
+			Recipient: RecipientVoice{
+				Include: n.conf.Recipient,
+			},
+			Type: n.conf.NotificationType,
+			Payload: RequestPayload{
+				Sender: n.conf.SenderName,
+				Text:   tmplText(n.conf.Text),
+			},
+		}
+		body, err = json.Marshal(msg)
+		if err != nil {
+			return false, err
+		}
 	}
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return false, err
-	}
-	bodyReader := bytes.NewReader(body)
 
+	bodyReader := bytes.NewReader(body)
 	req, err := http.NewRequest("POST", n.conf.URL.String(), bodyReader)
 	if err != nil {
 		return false, errors.Wrap(err, "request error")
 	}
+
 	req.Header.Set("Authorization", string(n.conf.APIKey))
 	req.Header.Set("Content-Type", "application/json")
 	req.WithContext(ctx)
@@ -122,6 +152,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	return false, nil
+
 }
 
 type Error struct {

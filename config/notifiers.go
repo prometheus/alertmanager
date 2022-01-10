@@ -477,8 +477,13 @@ func (c *SigmaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.APIKey == "" {
 		return fmt.Errorf("api_key must be configured")
 	}
-	if c.NotificationType == "" {
+	switch strings.ToLower(c.NotificationType) {
+	case "sms", "":
 		c.NotificationType = "sms"
+	case "voice":
+		c.NotificationType = "voice"
+	default:
+		return fmt.Errorf("unknown notification type: %s", c.NotificationType)
 	}
 	if c.TTS == "" {
 		c.TTS = "yandex:alena"
