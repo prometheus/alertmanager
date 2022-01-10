@@ -266,14 +266,34 @@ func (mt *MuteTimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) err
 	return nil
 }
 
+// TimeInterval represents a named set of time intervals for which a route should be muted.
+type TimeInterval struct {
+	Name          string                      `yaml:"name" json:"name"`
+	TimeIntervals []timeinterval.TimeInterval `yaml:"time_intervals" json:"time_intervals"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MuteTimeInterval.
+func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain TimeInterval
+	if err := unmarshal((*plain)(ti)); err != nil {
+		return err
+	}
+	if ti.Name == "" {
+		return fmt.Errorf("missing name in time interval")
+	}
+	return nil
+}
+
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global            *GlobalConfig      `yaml:"global,omitempty" json:"global,omitempty"`
-	Route             *Route             `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules      []*InhibitRule     `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers         []*Receiver        `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates         []string           `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string       `yaml:"templates" json:"templates"`
+	// Deprecated.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -478,18 +498,33 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("root route must not have any mute time intervals")
 	}
 
+	if len(c.Route.ActiveTimeIntervals) > 0 {
+		return fmt.Errorf("root route must not have any active time intervals")
+	}
+
 	// Validate that all receivers used in the routing tree are defined.
 	if err := checkReceiver(c.Route, names); err != nil {
 		return err
 	}
 
 	tiNames := make(map[string]struct{})
-	for _, mt := range c.MuteTimeIntervals {
-		if _, ok := tiNames[mt.Name]; ok {
-			return fmt.Errorf("mute time interval %q is not unique", mt.Name)
+	// read mute time intervals until deprecated
+	if len(c.MuteTimeIntervals) > 0 {
+		for _, mt := range c.MuteTimeIntervals {
+			if _, ok := tiNames[mt.Name]; ok {
+				return fmt.Errorf("mute time interval %q is not unique", mt.Name)
+			}
+			tiNames[mt.Name] = struct{}{}
 		}
-		tiNames[mt.Name] = struct{}{}
+	} else {
+		for _, mt := range c.TimeIntervals {
+			if _, ok := tiNames[mt.Name]; ok {
+				return fmt.Errorf("mute time interval %q is not unique", mt.Name)
+			}
+			tiNames[mt.Name] = struct{}{}
+		}
 	}
+
 	return checkTimeInterval(c.Route, tiNames)
 }
 
@@ -517,15 +552,15 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 		}
 	}
 
-	for _, mt := range r.ActiveTimeIntervals {
-		if _, ok := timeIntervals[mt]; !ok {
-			return fmt.Errorf("undefined time interval %q used in route", mt)
+	for _, ti := range r.ActiveTimeIntervals {
+		if _, ok := timeIntervals[ti]; !ok {
+			return fmt.Errorf("undefined time interval %q used in route", ti)
 		}
 	}
 
-	for _, mt := range r.MuteTimeIntervals {
-		if _, ok := timeIntervals[mt]; !ok {
-			return fmt.Errorf("undefined time interval %q used in route", mt)
+	for _, tm := range r.MuteTimeIntervals {
+		if _, ok := timeIntervals[tm]; !ok {
+			return fmt.Errorf("undefined time interval %q used in route", tm)
 		}
 	}
 	return nil

@@ -203,9 +203,9 @@ receivers:
 
 }
 
-func TestMuteTimeHasName(t *testing.T) {
+func TestTimeIntervalHasName(t *testing.T) {
 	in := `
-mute_time_intervals:
+time_intervals:
 - name: 
   time_intervals:
   - times:
@@ -225,7 +225,7 @@ route:
 `
 	_, err := Load(in)
 
-	expected := "missing name in mute time interval"
+	expected := "missing name in time interval"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
@@ -374,6 +374,36 @@ route:
 	_, err := Load(in)
 
 	expected := "root route must not have any mute time intervals"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+
+}
+
+func TestRootRouteNoActiveTimes(t *testing.T) {
+	in := `
+time_intervals:
+- name: my_active_time
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
+
+receivers:
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  active_time_intervals:
+  - my_active_time
+`
+	_, err := Load(in)
+
+	expected := "root route must not have any active time intervals"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
