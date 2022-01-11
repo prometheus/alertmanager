@@ -15,6 +15,7 @@ package config
 
 import (
 	"io/ioutil"
+	"path/filepath"
 
 	promconfig "github.com/prometheus/common/config"
 	"gopkg.in/yaml.v2"
@@ -32,5 +33,7 @@ func LoadHTTPConfigFile(filename string) (*promconfig.HTTPClientConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	httpConfig.SetDirectory(filepath.Dir(filepath.Dir(filename)))
+
 	return httpConfig, nil
 }
