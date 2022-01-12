@@ -127,6 +127,8 @@ paths:
       responses:
         '200':
           description: Delete silence response
+        '404':
+          description: A silence with the specified ID was not found
         '500':
           $ref: '#/responses/InternalServerError'
   /alerts:

@@ -41,6 +41,12 @@ func (o *DeleteSilenceReader) ReadResponse(response runtime.ClientResponse, cons
 			return nil, err
 		}
 		return result, nil
+	case 404:
+		result := NewDeleteSilenceNotFound()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 500:
 		result := NewDeleteSilenceInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -70,6 +76,27 @@ func (o *DeleteSilenceOK) Error() string {
 }
 
 func (o *DeleteSilenceOK) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	return nil
+}
+
+// NewDeleteSilenceNotFound creates a DeleteSilenceNotFound with default headers values
+func NewDeleteSilenceNotFound() *DeleteSilenceNotFound {
+	return &DeleteSilenceNotFound{}
+}
+
+/*DeleteSilenceNotFound handles this case with default header values.
+
+A silence with the specified ID was not found
+*/
+type DeleteSilenceNotFound struct {
+}
+
+func (o *DeleteSilenceNotFound) Error() string {
+	return fmt.Sprintf("[DELETE /silence/{silenceID}][%d] deleteSilenceNotFound ", 404)
+}
+
+func (o *DeleteSilenceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	return nil
 }
