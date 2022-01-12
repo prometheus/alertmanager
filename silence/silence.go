@@ -622,7 +622,7 @@ func (s *Silences) expire(id string) error {
 
 	switch getState(sil, now) {
 	case types.SilenceStateExpired:
-		return errors.Errorf("silence %s already expired", id)
+		return nil
 	case types.SilenceStateActive:
 		sil.EndsAt = now
 	case types.SilenceStatePending:
