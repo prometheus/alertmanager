@@ -109,7 +109,7 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 	if len(firing) > 0 && len(resolved) > 0 {
 		fields := make([]*Field, 0)
 		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Firing:* `%s`", strings.Join(firing, ", "))})
-		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Resolved:* `%s`", strings.Join(firing, ", "))})
+		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Resolved:* `%s`", strings.Join(resolved, ", "))})
 		blocks = append(blocks, Block{Type: slack.MBTSection, Fields: fields})
 	} else {
 		fields := make([]*Field, 0)
