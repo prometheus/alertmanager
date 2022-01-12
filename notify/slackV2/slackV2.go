@@ -45,7 +45,7 @@ type Data struct {
 
 // New returns a new Slack notification handler.
 func New(c *config.SlackConfigV2, t *template.Template, l log.Logger) (*Notifier, error) {
-	token := c.Token
+	token := string(c.Token)
 	client := slack.New(token, slack.OptionDebug(c.Debug))
 
 	notifier := &Notifier{

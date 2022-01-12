@@ -396,7 +396,7 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type SlackConfigV2 struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	Token        string         `yaml:"token,omitempty" json:"token,omitempty"`
+	Token        Secret         `yaml:"token,omitempty" json:"token,omitempty"`
 	Channel      string         `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Color        string         `yaml:"color,omitempty" json:"color,omitempty"`
 	Debug        bool           `yaml:"debug" json:"debug"`

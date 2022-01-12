@@ -127,11 +127,15 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 		if val := getMapValue(data.CommonAnnotations, "summary"); len(val) > 0 {
 			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", val)})
 		} else {
+			summary := make([]string, 0)
 			for _, al := range data.Alerts {
 				if val, ok := al.Annotations["summary"]; ok && len(val) > 0 {
-					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", val)})
-					break
+					summary = append(summary, val)
 				}
+			}
+			summary = mergeSameMessages(summary)
+			if len(summary) > 0 {
+				block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Summary:* %s", cut(strings.Join(summary, ";\n"), 500))})
 			}
 		}
 
