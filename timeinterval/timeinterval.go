@@ -457,13 +457,9 @@ func clamp(n, min, max int) int {
 
 // ContainsTime returns true if the TimeInterval contains the given time, otherwise returns false.
 func (tp TimeInterval) ContainsTime(t time.Time) bool {
-	var location *time.Location
-	if tp.TimeZone == nil {
-		location = time.UTC
-	} else {
-		location = tp.TimeZone.Location
+	if tp.TimeZone != nil {
+		t = t.In(tp.TimeZone.Location)
 	}
-	t = t.In(location)
 	if tp.Times != nil {
 		in := false
 		for _, validMinutes := range tp.Times {
