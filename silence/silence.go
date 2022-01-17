@@ -622,6 +622,7 @@ func (s *Silences) expire(id string) error {
 
 	switch getState(sil, now) {
 	case types.SilenceStateExpired:
+		// returning nil ensures idempotent behaviour, at least in the short term before the silence is gc'd
 		return nil
 	case types.SilenceStateActive:
 		sil.EndsAt = now
