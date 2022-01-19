@@ -871,7 +871,7 @@ Loop:
 		}
 		for _, ti := range interval {
 			if ti.ContainsTime(now.UTC()) {
-				result = true
+				return true, nil
 				break Loop
 			}
 		}
