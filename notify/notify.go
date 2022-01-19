@@ -860,7 +860,8 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 	return ctx, alerts, nil
 }
 
-func InTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInterval, intervalNames []string) (bool, error) {
+// inTimeIntervals returns true if the current time is contained in one of the given time intervals.
+func inTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInterval, intervalNames []string) (bool, error) {
 	result := false
 Loop:
 	for _, name := range intervalNames {
