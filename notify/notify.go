@@ -809,7 +809,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
-	muted, err := InTimeIntervals(now, tms.Times, muteTimeIntervalNames)
+	muted, err := inTimeIntervals(now, tms.Times, muteTimeIntervalNames)
 	if err != nil {
 		return ctx, alerts, err
 	}
@@ -846,7 +846,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
-	active, err := InTimeIntervals(now, tas.Times, activeTimeIntervalNames)
+	active, err := inTimeIntervals(now, tas.Times, activeTimeIntervalNames)
 	if err != nil {
 		return ctx, alerts, err
 	}
@@ -862,8 +862,6 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 
 // inTimeIntervals returns true if the current time is contained in one of the given time intervals.
 func inTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInterval, intervalNames []string) (bool, error) {
-	result := false
-Loop:
 	for _, name := range intervalNames {
 		interval, ok := intervals[name]
 		if !ok {
@@ -872,7 +870,6 @@ Loop:
 		for _, ti := range interval {
 			if ti.ContainsTime(now.UTC()) {
 				return true, nil
-				break Loop
 			}
 		}
 	}
