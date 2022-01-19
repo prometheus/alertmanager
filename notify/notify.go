@@ -837,7 +837,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 	}
 
 	// if we don't have active time intervals at all it is always active.
-	if len(activeTimeIntervalNames) <= 0 {
+	if len(activeTimeIntervalNames) == 0 {
 		return ctx, alerts, nil
 	}
 
