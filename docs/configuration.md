@@ -116,9 +116,14 @@ receivers:
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 
+# DEPRECATED: use time_intervals below
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
+
+# A list of time intervals for muting routes.
+time_intervals:
+  [ - <time_interval> ... ]
 ```
 
 ## `<route>`
@@ -230,11 +235,31 @@ route:
     group_by: [product, environment]
     matchers:
     - team="frontend"
+
+  # All alerts with the service=inhouse-service label match this sub-route.
+  # the alert will be mute during offhours and holidays time intervals.
+  # even if it match, it will continue to the next sub-route
+  - receiver: 'dev-pager'
+    matchers:
+      - service:~"inhouse-service"
+    mute_time_interval:
+      - offhours
+      - holidays
+    continue: true
+
+    # All alerts with the service=inhouse-service label match this sub-route
+    # the alert will be active only during offhours and holidays time intervals.
+  - receiver: 'on-call-pager'
+    matchers:
+      - service:~"inhouse-service"
+    active_time_interval:
+      - offhours
+      - holidays
 ```
 
-## `<mute_time_interval>`
+## `<time_interval>`
 
-A `mute_time_interval` specifies a named interval of time that may be referenced
+A `time_interval` specifies a named interval of time that may be referenced
 in the routing tree to mute particular routes for particular times of the day.
 
 ```yaml

@@ -508,8 +508,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	tiNames := make(map[string]struct{})
-	// read mute time intervals until deprecated
 
+	// read mute time intervals until deprecated
 	for _, mt := range c.MuteTimeIntervals {
 		if _, ok := tiNames[mt.Name]; ok {
 			return fmt.Errorf("mute time interval %q is not unique", mt.Name)
