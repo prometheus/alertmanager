@@ -876,5 +876,5 @@ Loop:
 			}
 		}
 	}
-	return result, nil
+	return false, nil
 }
