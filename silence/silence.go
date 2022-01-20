@@ -612,6 +612,8 @@ func (s *Silences) Expire(id string) error {
 }
 
 // Expire the silence with the given ID immediately.
+// It is idempotent, nil is returned if the silence already expired before it is GC'd.
+// If the silence is not found an error is returned.
 func (s *Silences) expire(id string) error {
 	sil, ok := s.getSilence(id)
 	if !ok {
@@ -622,7 +624,6 @@ func (s *Silences) expire(id string) error {
 
 	switch getState(sil, now) {
 	case types.SilenceStateExpired:
-		// Returning nil ensures idempotent behaviour, at least in the short term before the silence is gc'd.
 		return nil
 	case types.SilenceStateActive:
 		sil.EndsAt = now
