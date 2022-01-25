@@ -197,9 +197,9 @@ mute_time_intervals:
 # Times when the route should be active. These must match the name of a
 # time interval defined in the time_intervals section. 
 # Additionally, the root node cannot have any active times.
-# Only when a route is active it will send any notifications, but
-# otherwise acts as muted (it ends the route-matching process
-# if the `continue` option is not set.)
+# The route will send notifications only when active, but otherwise
+# otherwise acts normally (including ending the route-matching process
+# if the `continue` option is not set).
 active_time_intervals:
   [ - <string> ...]
 
