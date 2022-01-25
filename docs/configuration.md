@@ -260,7 +260,7 @@ route:
 ## `<time_interval>`
 
 A `time_interval` specifies a named interval of time that may be referenced
-in the routing tree to mute particular routes for particular times of the day.
+in the routing tree to mute/activate particular routes for particular times of the day.
 
 ```yaml
 name: <string>
