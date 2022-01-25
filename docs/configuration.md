@@ -116,7 +116,7 @@ receivers:
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 
-# DEPRECATED: use time_intervals below
+# DEPRECATED: use time_intervals below.
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
