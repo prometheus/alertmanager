@@ -250,7 +250,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
-		}, []string{"integration"}),
+		}, []string{"integration", "receiver"}),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
@@ -280,7 +280,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"sns",
 	} {
 		m.numNotifications.WithLabelValues(integration)
-		m.numTotalFailedNotifications.WithLabelValues(integration)
+		m.numTotalFailedNotifications.WithLabelValues(integration, "")
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
@@ -649,7 +649,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
 	if err != nil {
-		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+		r.metrics.numTotalFailedNotifications.With(prometheus.Labels{"integration": r.integration.Name(), "receiver": r.groupName}).Inc()
 	}
 	return ctx, alerts, err
 }
