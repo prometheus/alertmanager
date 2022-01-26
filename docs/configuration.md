@@ -239,7 +239,7 @@ route:
 
   # All alerts with the service=inhouse-service label match this sub-route.
   # the route will be muted during offhours and holidays time intervals.
-  # even if it match, it will continue to the next sub-route
+  # even if it matches, it will continue to the next sub-route
   - receiver: 'dev-pager'
     matchers:
       - service="inhouse-service"
