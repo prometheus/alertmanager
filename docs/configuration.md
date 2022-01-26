@@ -196,7 +196,7 @@ mute_time_intervals:
 
 # Times when the route should be active. These must match the name of a
 # time interval defined in the time_intervals section. An empty value
-# means the alert is always active.
+# means that the route is always active.
 # Additionally, the root node cannot have any active times.
 # The route will send notifications only when active, but otherwise
 # otherwise acts normally (including ending the route-matching process
