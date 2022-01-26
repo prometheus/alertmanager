@@ -242,7 +242,7 @@ route:
   # even if it match, it will continue to the next sub-route
   - receiver: 'dev-pager'
     matchers:
-      - service:~"inhouse-service"
+      - service="inhouse-service"
     mute_time_interval:
       - offhours
       - holidays
