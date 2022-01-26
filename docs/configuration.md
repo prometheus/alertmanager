@@ -252,7 +252,7 @@ route:
     # the alert will be active only during offhours and holidays time intervals.
   - receiver: 'on-call-pager'
     matchers:
-      - service:~"inhouse-service"
+      - service="inhouse-service"
     active_time_interval:
       - offhours
       - holidays
