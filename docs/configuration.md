@@ -121,7 +121,7 @@ inhibit_rules:
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
 
-# A list of time intervals for muting routes.
+# A list of time intervals for muting/activating routes.
 time_intervals:
   [ - <time_interval> ... ]
 ```
