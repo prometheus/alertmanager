@@ -209,7 +209,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 		responder.WriteResponse(w, p)
 		body, _ := ioutil.ReadAll(w.Result().Body)
 
-		require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf(fmt.Sprintf("test case: %d, response: %s", i, string(body))))
+		require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
 	}
 }
 
@@ -309,7 +309,7 @@ func TestPostSilencesHandler(t *testing.T) {
 		responder.WriteResponse(w, p)
 		body, _ := ioutil.ReadAll(w.Result().Body)
 
-		require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf(fmt.Sprintf("test case: %d, response: %s", i, string(body))))
+		require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
 	}
 }
 
