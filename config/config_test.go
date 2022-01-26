@@ -405,13 +405,18 @@ route:
 
 	expected := "root route must not have any active time intervals"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%q", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(tc.in)
 
+			if err == nil {
+				t.Fatalf("no error returned, expected:\n%q", expected)
+			}
+			if err.Error() != expected {
+				t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+			}
+		})
+	}
 }
 
 func TestRootRouteHasNoMatcher(t *testing.T) {
