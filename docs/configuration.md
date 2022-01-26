@@ -199,7 +199,7 @@ mute_time_intervals:
 # means that the route is always active.
 # Additionally, the root node cannot have any active times.
 # The route will send notifications only when active, but otherwise
-# otherwise acts normally (including ending the route-matching process
+# acts normally (including ending the route-matching process
 # if the `continue` option is not set).
 active_time_intervals:
   [ - <string> ...]
