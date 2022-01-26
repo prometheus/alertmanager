@@ -249,7 +249,7 @@ route:
     continue: true
 
     # All alerts with the service=inhouse-service label match this sub-route
-    # the alert will be active only during offhours and holidays time intervals.
+    # the route will be active only during offhours and holidays time intervals.
   - receiver: 'on-call-pager'
     matchers:
       - service="inhouse-service"
