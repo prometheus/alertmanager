@@ -202,6 +202,12 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 		a.mtx.Lock()
 		for _, l := range a.listeners {
 			select {
+			case <-l.done:
+				continue
+			default:
+			}
+
+			select {
 			case l.alerts <- alert:
 			case <-l.done:
 			}
