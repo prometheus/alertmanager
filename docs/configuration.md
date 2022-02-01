@@ -856,37 +856,37 @@ Here are some examples of valid string matchers:
 
 1. Shown below are two equality matchers combined in a long form YAML list.
 
-```yaml
-  matchers:
-   - foo = bar
-   - dings !=bums
-```
+    ```yaml
+    matchers:
+      - foo = bar
+      - dings !=bums
+    ```
 
 2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
 
-```yaml
-matchers: [ foo = bar, dings != bums ]
-```
+    ```yaml
+    matchers: [ foo = bar, dings != bums ]
+    ```
 
-As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
+    As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
 
-```yaml
-matchers: [ "foo = bar,baz", "dings != bums" ]
-```
+    ```yaml
+    matchers: [ "foo = bar,baz", "dings != bums" ]
+    ```
 
 3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
 
-```yaml
-matchers: [ '{foo="bar",dings!="bums"}' ]
-```
+    ```yaml
+    matchers: [ '{foo="bar",dings!="bums"}' ]
+    ```
 
 4. To avoid any confusion about YAML string quoting and escaping, you can use YAML block quoting and then only worry about the OpenMetrics escaping inside the block. A complex example with a regular expression and different quotes inside the label value is shown below:
 
-```yaml
-matchers:
-  - |
-      {quote=~"She said: \"Hi, all!( How're you…)?\""}
-```
+    ```yaml
+    matchers:
+      - |
+          {quote=~"She said: \"Hi, all!( How're you…)?\""}
+    ```
 
 ## `<victorops_config>`
 
