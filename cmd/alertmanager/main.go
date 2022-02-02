@@ -445,6 +445,7 @@ func run() int {
 		inhibitor.Stop()
 		disp.Stop()
 
+		marker.SetIgnoreResolvedFlag(conf.Global.ReceiveSilenceResolved)
 		inhibitor = inhibit.NewInhibitor(alerts, conf.InhibitRules, marker, logger)
 		silencer := silence.NewSilencer(silences, marker, logger)
 

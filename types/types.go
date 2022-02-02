@@ -87,6 +87,9 @@ type Marker interface {
 	Active(model.Fingerprint) bool
 	Silenced(model.Fingerprint) (activeIDs []string, pendingIDs []string, version int, silenced bool)
 	Inhibited(model.Fingerprint) ([]string, bool)
+
+	SetIgnoreResolvedFlag(receiveSilenceResolved bool)
+	GetIgnoreResolvedFlag() bool
 }
 
 // NewMarker returns an instance of a Marker implementation.
@@ -104,6 +107,8 @@ type memMarker struct {
 	m map[model.Fingerprint]*AlertStatus
 
 	mtx sync.RWMutex
+
+	receiveSilenceResolved bool
 }
 
 func (m *memMarker) registerMetrics(r prometheus.Registerer) {
@@ -125,6 +130,14 @@ func (m *memMarker) registerMetrics(r prometheus.Registerer) {
 
 	r.MustRegister(alertsActive)
 	r.MustRegister(alertsSuppressed)
+}
+
+func (m *memMarker) SetIgnoreResolvedFlag(receiveSilenceResolved bool) {
+	m.receiveSilenceResolved = receiveSilenceResolved
+}
+
+func (m *memMarker) GetIgnoreResolvedFlag() bool {
+	return m.receiveSilenceResolved
 }
 
 // Count implements Marker.
@@ -376,6 +389,7 @@ func (a *Alert) Merge(o *Alert) *Alert {
 // Mutes.
 type Muter interface {
 	Mutes(model.LabelSet) bool
+	ReceiveSilenceResolved() bool
 }
 
 // A MuteFunc is a function that implements the Muter interface.
@@ -383,6 +397,8 @@ type MuteFunc func(model.LabelSet) bool
 
 // Mutes implements the Muter interface.
 func (f MuteFunc) Mutes(lset model.LabelSet) bool { return f(lset) }
+
+func (f MuteFunc) ReceiveSilenceResolved() bool { return false }
 
 // A Silence determines whether a given label set is muted.
 type Silence struct {

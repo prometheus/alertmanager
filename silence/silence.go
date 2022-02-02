@@ -110,6 +110,10 @@ func NewSilencer(s *Silences, m types.Marker, l log.Logger) *Silencer {
 	}
 }
 
+func (s *Silencer) ReceiveSilenceResolved() bool {
+	return s.marker.GetIgnoreResolvedFlag()
+}
+
 // Mutes implements the Muter interface.
 func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	fp := lset.Fingerprint()
