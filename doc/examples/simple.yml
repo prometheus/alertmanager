@@ -24,12 +24,12 @@ route:
 
   # When a new group of alerts is created by an incoming alert, wait at
   # least 'group_wait' to send the initial notification.
-  # This way ensures that you multiple alerts for the same group that start
+  # This way ensures that multiple alerts for the same group that start
   # firing shortly after another are batched together on the first
   # notification.
   group_wait: 30s
 
-  # When the first notification was sent, wait 'group_interval' to send a batch
+  # When the first notification is sent, wait 'group_interval' to send a batch
   # of new alerts that started firing for that group.
   group_interval: 5m
 
