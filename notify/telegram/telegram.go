@@ -57,14 +57,21 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	var (
 		err  error
 		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
-		// tmpl = notify.TmplText(n.tmpl, data, &err)
+		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
 	client, err := n.createTelegramClient()
 	if err != nil {
 		return true, err
 	}
-	message, err := client.Send(telebot.ChatID(n.conf.ChatID), data.Status, &telebot.SendOptions{
+
+	// Telegram supports 4096 chars, but message still would be too long
+	messageText, truncated := notify.Truncate(tmpl(n.conf.Message), 1024)
+	if truncated {
+		level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", messageText)
+	}
+
+	message, err := client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
 	})
@@ -78,8 +85,9 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 
 func (n *Notifier) createTelegramClient() (*telebot.Bot, error) {
 	bot, err := telebot.NewBot(telebot.Settings{
-		Token: n.conf.BotToken,
-		URL:   n.conf.APIUrl.String(),
+		Token:     n.conf.BotToken,
+		URL:       n.conf.APIUrl.String(),
+		ParseMode: n.conf.ParseMode,
 	})
 
 	if err != nil {

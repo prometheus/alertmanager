@@ -144,6 +144,7 @@ var (
 		},
 		DisableNotifications: false,
 		Message:              `{{ template "telegram.default.message" . }}`,
+		ParseMode:            "MarkdownV2",
 	}
 )
 
@@ -645,10 +646,11 @@ type TelegramConfig struct {
 	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
 	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
+	ParseMode            string `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *TelegramConfig) UnmarshalYaml(unmarshal func(interface{}) error) error {
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultTelegramConfig
 	type plain TelegramConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -659,6 +661,12 @@ func (c *TelegramConfig) UnmarshalYaml(unmarshal func(interface{}) error) error 
 	}
 	if c.ChatID == 0 {
 		return fmt.Errorf("missing chat_id on telegram_config")
+	}
+	if c.ParseMode != "" &&
+		c.ParseMode != "Markdown" &&
+		c.ParseMode != "MarkdownV2" &&
+		c.ParseMode != "HTML" {
+		return fmt.Errorf("unknown parse_mode on telegram_config")
 	}
 	return nil
 }
