@@ -637,6 +637,9 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type TelegramConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIUrl               *URL   `yaml:"api_url" json:"api_url,omitempty"`
 	BotToken             string `yaml:"bot_token,omitempty" json:"token,omitempty"`
 	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
 	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
