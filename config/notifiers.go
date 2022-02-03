@@ -143,6 +143,7 @@ var (
 			VSendResolved: true,
 		},
 		DisableNotifications: false,
+		Message:              `{{ template "telegram.default.message" . }}`,
 	}
 )
 
@@ -642,6 +643,7 @@ type TelegramConfig struct {
 	APIUrl               *URL   `yaml:"api_url" json:"api_url,omitempty"`
 	BotToken             string `yaml:"bot_token,omitempty" json:"token,omitempty"`
 	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
+	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
 }
 
