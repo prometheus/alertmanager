@@ -12,3 +12,31 @@
 // limitations under the License.
 
 package telegram
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/go-kit/log"
+	commoncfg "github.com/prometheus/common/config"
+	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify/test"
+)
+
+func TestTelegramRetry(t *testing.T) {
+	notifier, err := New(
+		&config.TelegramConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
+		actual, _ := notifier.retrier.Check(statusCode, nil)
+		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+	}
+}
