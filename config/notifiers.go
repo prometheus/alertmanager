@@ -666,7 +666,7 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		c.ParseMode != "Markdown" &&
 		c.ParseMode != "MarkdownV2" &&
 		c.ParseMode != "HTML" {
-		return fmt.Errorf("unknown parse_mode on telegram_config")
+		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
 	return nil
 }
