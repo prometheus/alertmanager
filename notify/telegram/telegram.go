@@ -90,6 +90,7 @@ func createTelegramClient(token, apiUrl, parseMode string, httpClient *http.Clie
 		URL:       apiUrl,
 		ParseMode: parseMode,
 		Client:    httpClient,
+		Offline:   true,
 	})
 
 	if err != nil {

@@ -15,6 +15,7 @@ package telegram
 
 import (
 	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -26,9 +27,17 @@ import (
 )
 
 func TestTelegramRetry(t *testing.T) {
+	// Fake url for testing purpouses
+	fakeUrl := config.URL{
+		URL: &url.URL{
+			Scheme: "https",
+			Host:   "FAKE_API",
+		},
+	}
 	notifier, err := New(
 		&config.TelegramConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			APIUrl:     &fakeUrl,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
