@@ -34,16 +34,22 @@ type Notifier struct {
 	conf    *config.TelegramConfig
 	tmpl    *template.Template
 	logger  log.Logger
-	client  *http.Client
+	client  *telebot.Bot
 	retrier *notify.Retrier
 }
 
 // New returns a new Telegram notification handler.
 func New(conf *config.TelegramConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "telegram", httpOpts...)
+	httpclient, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "telegram", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
+
+	client, err := createTelegramClient(conf.BotToken, conf.APIUrl.String(), conf.ParseMode, httpclient)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Notifier{
 		conf:    conf,
 		tmpl:    t,
@@ -60,18 +66,13 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
-	client, err := n.createTelegramClient()
-	if err != nil {
-		return true, err
-	}
-
-	// Telegram supports 4096 chars, but message still would be too long
-	messageText, truncated := notify.Truncate(tmpl(n.conf.Message), 1024)
+	// Telegram supports 4096 chars max
+	messageText, truncated := notify.Truncate(tmpl(n.conf.Message), 4096)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", messageText)
 	}
 
-	message, err := client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
+	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
 	})
@@ -83,11 +84,12 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	return false, nil
 }
 
-func (n *Notifier) createTelegramClient() (*telebot.Bot, error) {
+func createTelegramClient(token, apiUrl, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
 	bot, err := telebot.NewBot(telebot.Settings{
-		Token:     n.conf.BotToken,
-		URL:       n.conf.APIUrl.String(),
-		ParseMode: n.conf.ParseMode,
+		Token:     token,
+		URL:       apiUrl,
+		ParseMode: parseMode,
+		Client:    httpClient,
 	})
 
 	if err != nil {
