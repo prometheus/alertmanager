@@ -1017,6 +1017,7 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 # Telegram bot token
 [ bot_token: <string> ]
 
+# ID of the chat where to send the messages.
 [ chat_id: <int> ]
 
 # Message template
