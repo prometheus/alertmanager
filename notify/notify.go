@@ -232,8 +232,8 @@ type NotificationLog interface {
 }
 
 type Metrics struct {
-	numNotifications                   *prometheus.CounterVec
-	numTotalFailedNotifications        *prometheus.CounterVec
+	numNotificationsTotal              *prometheus.CounterVec
+	numNotificationsFailedTotal        *prometheus.CounterVec
 	numNotificationRequestsTotal       *prometheus.CounterVec
 	numNotificationRequestsFailedTotal *prometheus.CounterVec
 	notificationLatencySeconds         *prometheus.HistogramVec
@@ -241,12 +241,12 @@ type Metrics struct {
 
 func NewMetrics(r prometheus.Registerer) *Metrics {
 	m := &Metrics{
-		numNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numNotificationsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_total",
 			Help:      "The total number of attempted notifications.",
 		}, []string{"integration"}),
-		numTotalFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numNotificationsFailedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
@@ -279,14 +279,14 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"victorops",
 		"sns",
 	} {
-		m.numNotifications.WithLabelValues(integration)
-		m.numTotalFailedNotifications.WithLabelValues(integration)
+		m.numNotificationsTotal.WithLabelValues(integration)
+		m.numNotificationsFailedTotal.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
 	}
 	r.MustRegister(
-		m.numNotifications, m.numTotalFailedNotifications,
+		m.numNotificationsTotal, m.numNotificationsFailedTotal,
 		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
 		m.notificationLatencySeconds,
 	)
@@ -646,10 +646,10 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 }
 
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
+	r.metrics.numNotificationsTotal.WithLabelValues(r.integration.Name()).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
 	if err != nil {
-		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+		r.metrics.numNotificationsFailedTotal.WithLabelValues(r.integration.Name()).Inc()
 	}
 	return ctx, alerts, err
 }
