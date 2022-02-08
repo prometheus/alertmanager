@@ -623,8 +623,5 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
 		return fmt.Errorf("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
-	if (c.Sigv4.AccessKey == "") != (c.Sigv4.SecretKey == "") {
-		return fmt.Errorf("must provide a AWS SigV4 Access key and Secret Key if credentials are specified in the SNS config")
-	}
 	return nil
 }

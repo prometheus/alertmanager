@@ -18,6 +18,7 @@ import (
 	tmplhtml "html/template"
 	"io/ioutil"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -46,25 +47,29 @@ func FromGlobs(paths ...string) (*Template, error) {
 		text: tmpltext.New("").Option("missingkey=zero"),
 		html: tmplhtml.New("").Option("missingkey=zero"),
 	}
-	var err error
 
 	t.text = t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
 	t.html = t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
 
-	f, err := asset.Assets.Open("/templates/default.tmpl")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	b, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	if t.text, err = t.text.Parse(string(b)); err != nil {
-		return nil, err
-	}
-	if t.html, err = t.html.Parse(string(b)); err != nil {
-		return nil, err
+	defaultTemplates := []string{"default.tmpl", "email.tmpl"}
+
+	for _, file := range defaultTemplates {
+		f, err := asset.Assets.Open(path.Join("/templates", file))
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		b, err := ioutil.ReadAll(f)
+		if err != nil {
+			return nil, err
+		}
+		if t.text, err = t.text.Parse(string(b)); err != nil {
+			return nil, err
+		}
+		if t.html, err = t.html.Parse(string(b)); err != nil {
+			return nil, err
+		}
+
 	}
 
 	for _, tp := range paths {
