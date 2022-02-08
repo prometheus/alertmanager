@@ -14,10 +14,14 @@
 package sns
 
 import (
+	"github.com/go-kit/log"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 )
+
+var logger = log.NewNopLogger()
 
 func TestValidateAndTruncateMessage(t *testing.T) {
 	sBuff := make([]byte, 257*1024)
@@ -42,4 +46,30 @@ func TestValidateAndTruncateMessage(t *testing.T) {
 	invalidUtf8String := "\xc3\x28"
 	_, _, err = validateAndTruncateMessage(invalidUtf8String, 100)
 	require.Error(t, err)
+}
+
+func TestValidateAndTruncateSubject(t *testing.T) {
+	var modifiedReasons []string
+	notTruncate := make([]rune, 100)
+	for i := range notTruncate {
+		notTruncate[i] = 'e'
+	}
+	truncatedMessage := validateAndTruncateSubject(logger, string(notTruncate), &modifiedReasons)
+	require.NotEqual(t, notTruncate, truncatedMessage)
+	require.Equal(t, 100, utf8.RuneCountInString(string(truncatedMessage)))
+
+	willBeTruncate := make([]rune, 101)
+	for i := range willBeTruncate {
+		willBeTruncate[i] = 'e'
+	}
+	truncatedMessage = validateAndTruncateSubject(logger, string(willBeTruncate), &modifiedReasons)
+	require.Equal(t, string(notTruncate), truncatedMessage)
+	require.Equal(t, len(modifiedReasons), 1)
+	require.Equal(t, "Subject: Error - subject has been truncated from 101 characters because it exceeds the 100 character size limit", modifiedReasons[0])
+
+	invalidAsciiString := "\xc3\x28"
+	truncatedMessage = validateAndTruncateSubject(logger, invalidAsciiString, &modifiedReasons)
+	require.Equal(t, truncatedMessage, SubjectNotASCII)
+	require.Equal(t, len(modifiedReasons), 2)
+	require.Equal(t, "Subject: Error - contains non printable ASCII characters", modifiedReasons[1])
 }

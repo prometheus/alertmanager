@@ -15,9 +15,11 @@ package sns
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -35,6 +37,26 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+const (
+	// Message components
+	Subject = "Subject"
+
+	// Modified Message attribute value format
+	ComponentAndModifiedReason = "%s: %s"
+
+	// The errors
+	SubjectNotASCII     = "Error - contains non printable ASCII characters"
+	SubjectSizeExceeded = "Error - subject has been truncated from %d characters because it exceeds the 100 character size limit"
+
+	// Message components size limit
+	subjectSizeLimitInCharacters = 100
+)
+
+var modifiedMessageAttributeKey = "modified"
+
+//Used for testing
+var jsonMarshal = json.Marshal
 
 // Notifier implements a Notifier for SNS notifications.
 type Notifier struct {
@@ -142,6 +164,7 @@ func createSNSClient(httpClient *http.Client, n *Notifier, tmpl func(string) str
 }
 
 func createPublishInput(ctx context.Context, n *Notifier, tmpl func(string) string) (*sns.PublishInput, error) {
+	var modifiedReasons []string
 	publishInput := &sns.PublishInput{}
 	messageAttributes := createMessageAttributes(n, tmpl)
 	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
@@ -181,14 +204,33 @@ func createPublishInput(ctx context.Context, n *Notifier, tmpl func(string) stri
 		messageAttributes["truncated"] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
 	}
 
+	if n.conf.Subject != "" {
+		subjectToSend := validateAndTruncateSubject(n.logger, tmpl(n.conf.Subject), &modifiedReasons)
+
+		publishInput.SetSubject(subjectToSend)
+	}
+
+	err = addModifiedMessageAttributes(messageAttributes, modifiedReasons)
+	if err != nil {
+		return nil, err
+	}
+
 	publishInput.SetMessage(messageToSend)
 	publishInput.SetMessageAttributes(messageAttributes)
 
-	if n.conf.Subject != "" {
-		publishInput.SetSubject(tmpl(n.conf.Subject))
+	return publishInput, nil
+}
+
+func addModifiedMessageAttributes(attributes map[string]*sns.MessageAttributeValue, modifiedReasons []string) error {
+	if len(modifiedReasons) > 0 {
+		valueString, err := getModifiedReasonMessageAttributeValue(modifiedReasons)
+		if err != nil {
+			return err
+		}
+		attributes[modifiedMessageAttributeKey] = &sns.MessageAttributeValue{DataType: aws.String("String.Array"), StringValue: aws.String(valueString)}
 	}
 
-	return publishInput, nil
+	return nil
 }
 
 func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (string, bool, error) {
@@ -204,6 +246,33 @@ func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (stri
 	return string(truncated), true, nil
 }
 
+func validateAndTruncateSubject(logger log.Logger, subject string, modifiedReasons *[]string) string {
+	if !isASCII(subject) {
+		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectNotASCII))
+		level.Info(logger).Log("msg", "subject has been modified because of contains non printable ASCII characters", "originalSubject", subject)
+		return SubjectNotASCII
+	}
+
+	charactersInSubject := utf8.RuneCountInString(subject)
+	if charactersInSubject <= subjectSizeLimitInCharacters {
+		return subject
+	}
+
+	// If the message is larger than our specified size we have to truncate.
+	level.Info(logger).Log("msg", "subject has been truncated because of size limit exceeded", "originalSubject", subject)
+	*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, fmt.Sprintf(SubjectSizeExceeded, charactersInSubject)))
+	return subject[:subjectSizeLimitInCharacters]
+}
+
+func getModifiedReasonMessageAttributeValue(modifiedReasons []string) (string, error) {
+	jsonString, err := jsonMarshal(modifiedReasons)
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonString), nil
+}
+
 func createMessageAttributes(n *Notifier, tmpl func(string) string) map[string]*sns.MessageAttributeValue {
 	// Convert the given attributes map into the AWS Message Attributes Format.
 	attributes := make(map[string]*sns.MessageAttributeValue, len(n.conf.Attributes))
@@ -211,4 +280,13 @@ func createMessageAttributes(n *Notifier, tmpl func(string) string) map[string]*
 		attributes[tmpl(k)] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(tmpl(v))}
 	}
 	return attributes
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
 }
