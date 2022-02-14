@@ -36,6 +36,12 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+const (
+	// The errors
+	MessageNotValidUtf8 = "Error - not a valid UTF-8 encoded string"
+	MessageIsEmpty      = "Error - the message should not be empty"
+)
+
 // Notifier implements a Notifier for SNS notifications.
 type Notifier struct {
 	conf    *config.SNSConfig
@@ -189,7 +195,10 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 
 func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (string, bool, error) {
 	if !utf8.ValidString(message) {
-		return "", false, fmt.Errorf("non utf8 encoded message string")
+		return MessageNotValidUtf8, false, fmt.Errorf("non utf8 encoded message string")
+	}
+	if len(message) == 0 {
+		return MessageIsEmpty, false, fmt.Errorf("message is empty")
 	}
 	if len(message) <= maxMessageSizeInBytes {
 		return message, false, nil
