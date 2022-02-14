@@ -50,7 +50,6 @@ const (
 
 	// Message components size limit
 	messageAttributeKeyLimitInCharacters = 256
-	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
 )
 
 var isInvalidMessageAttributeKeyPrefix = regexp.MustCompile(`^(AWS\.)|^(Amazon\.)|^(\.)`).MatchString
