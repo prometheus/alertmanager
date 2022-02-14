@@ -163,7 +163,7 @@ func (n *Notifier) createSNSClient(tmpl func(string) string) (*sns.SNS, error) {
 }
 
 func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) string) (*sns.PublishInput, error) {
-		var modifiedReasons []string
+	var modifiedReasons []string
 	publishInput := &sns.PublishInput{}
 	messageAttributes := n.createMessageAttributes(tmpl)
 	// Max message size for a message in a SNS publish request is 256KB, except for SMS messages where the limit is 1600 characters/runes.
@@ -242,7 +242,6 @@ func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (stri
 	return string(truncated), true, nil
 }
 
-<<<<<<< HEAD
 func validateAndTruncateSubject(logger log.Logger, subject string, modifiedReasons *[]string) string {
 	if !isASCII(subject) {
 		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectNotASCII))
@@ -270,10 +269,7 @@ func getModifiedReasonMessageAttributeValue(modifiedReasons []string) (string, e
 	return string(jsonString), nil
 }
 
-func createMessageAttributes(n *Notifier, tmpl func(string) string) map[string]*sns.MessageAttributeValue {
-=======
 func (n *Notifier) createMessageAttributes(tmpl func(string) string) map[string]*sns.MessageAttributeValue {
->>>>>>> 4030e3670b359b8814aa8340ea1144f32b1f5ab3
 	// Convert the given attributes map into the AWS Message Attributes Format.
 	attributes := make(map[string]*sns.MessageAttributeValue, len(n.conf.Attributes))
 	for k, v := range n.conf.Attributes {
