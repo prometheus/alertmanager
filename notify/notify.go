@@ -828,7 +828,7 @@ func NewTimeActiveStage(ti map[string][]timeinterval.TimeInterval) *TimeActiveSt
 	return &TimeActiveStage{ti}
 }
 
-// Exec implements the stage interface for TimeMuteStage.
+// Exec implements the stage interface for TimeActiveStage.
 // TimeStage is responsible for muting alerts whose route is not in an active time.
 func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
