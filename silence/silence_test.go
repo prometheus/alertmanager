@@ -835,9 +835,7 @@ func TestSilenceExpire(t *testing.T) {
 	require.NoError(t, s.Expire("pending"))
 	require.NoError(t, s.Expire("active"))
 
-	err = s.Expire("expired")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "already expired")
+	require.NoError(t, s.Expire("expired"))
 
 	sil, err := s.QueryOne(QIDs("pending"))
 	require.NoError(t, err)
@@ -935,9 +933,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	require.NoError(t, s.Expire("pending"))
 	require.NoError(t, s.Expire("active"))
 
-	err = s.Expire("expired")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "already expired")
+	require.NoError(t, s.Expire("expired"))
 
 	_, err = s.QueryOne(QIDs("pending"))
 	require.NoError(t, err)
