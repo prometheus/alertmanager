@@ -253,7 +253,7 @@ route:
   - receiver: 'on-call-pager'
     matchers:
       - service="inhouse-service"
-    active_time_interval:
+    active_time_intervals:
       - offhours
       - holidays
 ```
