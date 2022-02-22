@@ -243,7 +243,7 @@ route:
   - receiver: 'dev-pager'
     matchers:
       - service="inhouse-service"
-    mute_time_interval:
+    mute_time_intervals:
       - offhours
       - holidays
     continue: true
