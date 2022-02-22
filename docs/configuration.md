@@ -91,7 +91,7 @@ global:
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
-
+  [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -452,6 +452,8 @@ webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+telegram_configs:
+  [ - <telegram_config>, ... ]
 ```
 
 ## `<email_config>`
@@ -1001,4 +1003,32 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_user: <string> | default = '{{ template "wechat.default.to_user" . }}' ]
 [ to_party: <string> | default = '{{ template "wechat.default.to_party" . }}' ]
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
+```
+
+## `<telegram_config>`
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Telegram API URL i.e. https://api.telegram.org.
+# If not specified, default API URL will be used.
+[ api_url: <string> | default = global.telegram_api_url ]
+
+# Telegram bot token
+[ bot_token: <string> ]
+
+# ID of the chat where to send the messages.
+[ chat_id: <int> ]
+
+# Message template
+[ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
+
+# Disable telegram notifications
+[ disable_notifications: <boolean> | default = false ]
+
+# Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+[ parse_mode: <string> | default = "MarkdownV2" ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
