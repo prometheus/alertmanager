@@ -448,6 +448,8 @@ sns_configs:
   [ - <sns_config>, ... ]
 victorops_configs:
   [ - <victorops_config>, ... ]
+webex_configs:
+  [ - <webex_config>, ... ]
 webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
@@ -976,6 +978,46 @@ endpoint:
 There is a list of
 [integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
+
+## `<webex_config>`
+
+Webex notifications are sent via the [Webex Messages
+API](https://webexapis.com/v1/messages).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = false ]
+
+# The API token to use when talking to the Webex API.
+[ api_token: <secret> | default = global.webex_api_token ]
+
+# The Webex API URL.
+[ api_url: <string> | default = global.webex_api_url ]
+
+# API request data as defined by the Webex API.
+# A destination should be specified by setting one of room_id, to_person_id, or to_person_email
+[ room_id: <tmpl_string> ]
+[ to_person_id: <tmpl_string> ]
+[ to_person_email: <tmpl_string> ]
+# The message in Markdown format.  The maximum length is 7439 bytes.
+[ markdown: <tmpl_string> | default = '{{ template "webex.default.markdown" . }}' ]
+# If markdown field is used, the text field may be used to provide alternate text for clients that do not support rich text.  The maximum length is 7439 bytes.
+[ text: <tmpl_string> | default = '{{ template "webex.default.text" . }}' ]
+# Array of public URLs for files to be converted and attached to the message.  Presently, only one is permitted per message.  For more information about supported file types, see https://developer.webex.com/docs/basics#message-attachments
+[ files: '[' <string>, ... ']' ]
+# Array containing Adaptive Card format attachment to attach to the message. (Presently, only one attachment per message is presently permitted by Webex.).
+[ attachments: '[' <attachment_config>, ... ']' ]
+```
+
+### `<attachment_config>`
+
+For information on Adaptive Cards in Webex, see https://developer.webex.com/docs/api/guides/cards
+
+```yaml
+[ content_type: <tmpl_string> ]
+# In order to make templating in attachments practical, the content section is a JSON string representing the Adaptive Card.
+[ content: <tmpl_string> ]
+```
 
 ## `<wechat_config>`
 

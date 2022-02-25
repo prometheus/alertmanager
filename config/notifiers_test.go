@@ -691,6 +691,60 @@ func TestWeChatTypeMatcher(t *testing.T) {
 	}
 }
 
+func TestWebexAPIKeyIsPresent(t *testing.T) {
+	in := `
+api_token: ''
+to_person_email: 'foo@bar.com'
+`
+	var cfg WebexConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "missing API token in Webex config"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+func TestWebexRecipientIsPresent(t *testing.T) {
+	in := `
+api_token: '123'
+`
+	var cfg WebexConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "one of room_id, to_person_id, or to_person_email required"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestWebexSingleRecipient(t *testing.T) {
+	in := `
+api_token: '123'
+room_id: '12345'
+to_person_email: 'foo@bar.com'
+to_person_id: '54321'
+`
+	var cfg WebexConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "only one of room_id, to_person_id, or to_person_email is allowed"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
 func newBoolPointer(b bool) *bool {
 	return &b
 }

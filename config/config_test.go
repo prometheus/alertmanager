@@ -825,6 +825,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 			TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
+			WebexAPIURL:     mustParseURL("https://webexapis.com/"),
 		},
 
 		Templates: []string{

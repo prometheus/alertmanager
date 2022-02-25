@@ -248,6 +248,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.TelegramConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.WebexConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -408,6 +411,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
 			}
 		}
+		for _, wec := range rcv.WebexConfigs {
+			if wec.HTTPConfig == nil {
+				wec.HTTPConfig = c.Global.HTTPConfig
+			}
+			if wec.APIURL == nil {
+				if c.Global.WebexAPIURL == nil {
+					return fmt.Errorf("no global Webex URL set")
+				}
+				wec.APIURL = c.Global.WebexAPIURL
+			}
+			if wec.APIToken == "" {
+				if c.Global.WebexAPIToken == "" {
+					return fmt.Errorf("no global Webex access token set")
+				}
+				wec.APIToken = c.Global.WebexAPIToken
+			}
+		}
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc.HTTPConfig == nil {
 				wcc.HTTPConfig = c.Global.HTTPConfig
@@ -554,6 +574,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
+		WebexAPIURL:     mustParseURL("https://webexapis.com/"),
 	}
 }
 
@@ -675,6 +696,8 @@ type GlobalConfig struct {
 	VictorOpsAPIURL    *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey    Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	TelegramAPIUrl     *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
+	WebexAPIURL        *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
+	WebexAPIToken      Secret     `yaml:"webex_api_token,omitempty" json:"webex_api_token,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -815,6 +838,7 @@ type Receiver struct {
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
