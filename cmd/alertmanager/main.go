@@ -440,10 +440,14 @@ func run() int {
 			integrationsNum += len(integrations)
 		}
 
-		// Build the map of time interval names to mute time definitions.
-		muteTimes := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals))
+		// Build the map of time interval names to time interval definitions.
+		timeIntervals := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals)+len(conf.TimeIntervals))
 		for _, ti := range conf.MuteTimeIntervals {
-			muteTimes[ti.Name] = ti.TimeIntervals
+			timeIntervals[ti.Name] = ti.TimeIntervals
+		}
+
+		for _, ti := range conf.TimeIntervals {
+			timeIntervals[ti.Name] = ti.TimeIntervals
 		}
 
 		inhibitor.Stop()
@@ -465,7 +469,7 @@ func run() int {
 			waitFunc,
 			inhibitor,
 			silencer,
-			muteTimes,
+			timeIntervals,
 			notificationLog,
 			pipelinePeer,
 		)

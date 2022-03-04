@@ -116,9 +116,14 @@ receivers:
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 
+# DEPRECATED: use time_intervals below.
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
+
+# A list of time intervals for muting/activating routes.
+time_intervals:
+  [ - <time_interval> ... ]
 ```
 
 ## `<route>`
@@ -189,6 +194,16 @@ matchers:
 mute_time_intervals:
   [ - <string> ...]
 
+# Times when the route should be active. These must match the name of a
+# time interval defined in the time_intervals section. An empty value
+# means that the route is always active.
+# Additionally, the root node cannot have any active times.
+# The route will send notifications only when active, but otherwise
+# acts normally (including ending the route-matching process
+# if the `continue` option is not set).
+active_time_intervals:
+  [ - <string> ...]
+
 # Zero or more child routes.
 routes:
   [ - <route> ... ]
@@ -221,12 +236,32 @@ route:
     group_by: [product, environment]
     matchers:
     - team="frontend"
+
+  # All alerts with the service=inhouse-service label match this sub-route.
+  # the route will be muted during offhours and holidays time intervals.
+  # even if it matches, it will continue to the next sub-route
+  - receiver: 'dev-pager'
+    matchers:
+      - service="inhouse-service"
+    mute_time_intervals:
+      - offhours
+      - holidays
+    continue: true
+
+    # All alerts with the service=inhouse-service label match this sub-route
+    # the route will be active only during offhours and holidays time intervals.
+  - receiver: 'on-call-pager'
+    matchers:
+      - service="inhouse-service"
+    active_time_intervals:
+      - offhours
+      - holidays
 ```
 
-## `<mute_time_interval>`
+## `<time_interval>`
 
-A `mute_time_interval` specifies a named interval of time that may be referenced
-in the routing tree to mute particular routes for particular times of the day.
+A `time_interval` specifies a named interval of time that may be referenced
+in the routing tree to mute/activate particular routes for particular times of the day.
 
 ```yaml
 name: <string>
