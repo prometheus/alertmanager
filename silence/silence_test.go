@@ -362,7 +362,6 @@ func TestSilenceSet(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
-
 	// Update silence 2 with new matcher expires it and creates a new one.
 	now = now.Add(time.Minute)
 	now4 := now
@@ -424,6 +423,55 @@ func TestSilenceSet(t *testing.T) {
 				UpdatedAt: now5,
 			},
 			ExpiresAt: now5.Add(5*time.Minute + s.retention),
+		},
+	}
+	require.Equal(t, want, s.st, "unexpected state after silence creation")
+}
+
+func TestSetActiveSilence(t *testing.T) {
+	s, err := New(Options{
+		Retention: time.Hour,
+	})
+	require.NoError(t, err)
+
+	now := utcNow()
+	s.now = func() time.Time { return now }
+
+	startsAt := now.Add(-1 * time.Minute)
+	endsAt := now.Add(5 * time.Minute)
+	// Insert silence with fixed start time.
+	sil1 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: startsAt,
+		EndsAt:   endsAt,
+	}
+	id1, _ := s.Set(sil1)
+
+	// Update silence with 2 extra nanoseconds so the "seconds" part should not change
+
+	newStartsAt := now.Add(2 * time.Nanosecond)
+	newEndsAt := endsAt.Add(2 * time.Minute)
+
+	sil2 := cloneSilence(sil1)
+	sil2.Id = id1
+	sil2.StartsAt = newStartsAt
+	sil2.EndsAt = newEndsAt
+
+	now = now.Add(time.Minute)
+	id2, err := s.Set(sil2)
+	require.NoError(t, err)
+	require.Equal(t, id1, id2)
+
+	want := state{
+		id2: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        id1,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				StartsAt:  newStartsAt,
+				EndsAt:    newEndsAt,
+				UpdatedAt: now,
+			},
+			ExpiresAt: newEndsAt.Add(s.retention),
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")

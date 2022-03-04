@@ -586,7 +586,7 @@ func canUpdate(a, b *pb.Silence, now time.Time) bool {
 	// Allowed timestamp modifications depend on the current time.
 	switch st := getState(a, now); st {
 	case types.SilenceStateActive:
-		if !b.StartsAt.Equal(a.StartsAt) {
+		if b.StartsAt.Unix() != a.StartsAt.Unix() {
 			return false
 		}
 		if b.EndsAt.Before(now) {
