@@ -49,6 +49,15 @@ type AlertStatus struct {
 	silencesVersion int
 }
 
+// ReceiverStatus is used as part of AlertStatus.
+type ReceiverStatus string
+
+// Possible values for ReceiverStatus.
+const (
+	ReceiverStatusActive ReceiverStatus = "active"
+	ReceiverStatusMuted  ReceiverStatus = "muted"
+)
+
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {

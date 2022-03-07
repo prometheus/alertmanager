@@ -479,7 +479,7 @@ func run() int {
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)
 			silencer.Mutes(labels)
-		})
+		}, notify.ReceiverStatus(timeIntervals))
 
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, nil, logger, dispMetrics)
 		routes.Walk(func(r *dispatch.Route) {

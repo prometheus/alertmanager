@@ -52,12 +52,13 @@ import (
 
 // API represents an Alertmanager API v2
 type API struct {
-	peer           cluster.ClusterPeer
-	silences       *silence.Silences
-	alerts         provider.Alerts
-	alertGroups    groupsFn
-	getAlertStatus getAlertStatusFn
-	uptime         time.Time
+	peer              cluster.ClusterPeer
+	silences          *silence.Silences
+	alerts            provider.Alerts
+	alertGroups       groupsFn
+	getAlertStatus    getAlertStatusFn
+	uptime            time.Time
+	getReceiverStatus getReceiverStatusFn
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
@@ -76,6 +77,7 @@ type API struct {
 type groupsFn func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 type setAlertStatusFn func(prometheus_model.LabelSet)
+type getReceiverStatusFn func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus
 
 // NewAPI returns a new Alertmanager API v2
 func NewAPI(
@@ -135,13 +137,14 @@ func (api *API) requestLogger(req *http.Request) log.Logger {
 }
 
 // Update sets the API struct members that may change between reloads of alertmanager.
-func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn) {
+func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn, getReceiverStatus getReceiverStatusFn) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
 	api.setAlertStatus = setAlertStatus
+	api.getReceiverStatus = getReceiverStatus
 }
 
 func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.Responder {
@@ -260,6 +263,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
 			receivers = append(receivers, r.RouteOpts.Receiver)
+			fmt.Printf("Receiver: %s is %s \n", r.RouteOpts.Receiver, api.getReceiverStatus(now, r.RouteOpts.ActiveTimeIntervals, r.RouteOpts.MuteTimeIntervals))
 		}
 
 		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {

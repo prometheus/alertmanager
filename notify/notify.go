@@ -876,3 +876,23 @@ func inTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInte
 	}
 	return false, nil
 }
+
+func ReceiverStatus(intervals map[string][]timeinterval.TimeInterval) func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus {
+	return func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus {
+		if len(activeIntervalNames) > 0 {
+			active, err := inTimeIntervals(now, intervals, activeIntervalNames)
+			if err != nil || !active {
+				return types.ReceiverStatusMuted
+			}
+		}
+
+		if len(muteIntervalNames) > 0 {
+			muted, err := inTimeIntervals(now, intervals, muteIntervalNames)
+			if err != nil || muted {
+				return types.ReceiverStatusMuted
+			}
+		}
+
+		return types.ReceiverStatusActive
+	}
+}
