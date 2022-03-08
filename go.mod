@@ -2,22 +2,22 @@ module github.com/prometheus/alertmanager
 
 require (
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/aws/aws-sdk-go v1.42.27
+	github.com/aws/aws-sdk-go v1.43.11
 	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/go-kit/log v0.2.0
-	github.com/go-openapi/errors v0.20.1
-	github.com/go-openapi/loads v0.21.0
-	github.com/go-openapi/runtime v0.21.0
+	github.com/go-openapi/errors v0.20.2
+	github.com/go-openapi/loads v0.21.1
+	github.com/go-openapi/runtime v0.23.1
 	github.com/go-openapi/spec v0.20.4
-	github.com/go-openapi/strfmt v0.21.1
-	github.com/go-openapi/swag v0.19.15
-	github.com/go-openapi/validate v0.20.3
+	github.com/go-openapi/strfmt v0.21.2
+	github.com/go-openapi/swag v0.21.1
+	github.com/go-openapi/validate v0.21.0
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/golang-lru v0.5.4
-	github.com/hashicorp/memberlist v0.3.0
+	github.com/hashicorp/memberlist v0.3.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/kylelemons/godebug v1.1.0
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
@@ -35,10 +35,10 @@ require (
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	golang.org/x/mod v0.5.1
-	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
-	golang.org/x/tools v0.1.8
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
+	golang.org/x/tools v0.1.9
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
-	gopkg.in/telebot.v3 v3.0.0-20220130115853-f0291132d3c3
+	gopkg.in/telebot.v3 v3.0.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
