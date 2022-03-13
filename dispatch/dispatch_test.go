@@ -465,12 +465,12 @@ route:
 		},
 	}, alertGroups)
 	require.Equal(t, map[model.Fingerprint][]types.Receiver{
-		inputAlerts[0].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
-		inputAlerts[1].Fingerprint(): {{"testing", types.ReceiverStatusActive}},
-		inputAlerts[2].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
-		inputAlerts[3].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
-		inputAlerts[4].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
-		inputAlerts[5].Fingerprint(): {{"kafka", types.ReceiverStatusActive}, {"prod", types.ReceiverStatusActive}},
+		inputAlerts[0].Fingerprint(): {{Name: "prod", Status: types.ReceiverStatusActive}},
+		inputAlerts[1].Fingerprint(): {{Name: "testing", Status: types.ReceiverStatusActive}},
+		inputAlerts[2].Fingerprint(): {{Name: "prod", Status: types.ReceiverStatusActive}},
+		inputAlerts[3].Fingerprint(): {{Name: "prod", Status: types.ReceiverStatusActive}},
+		inputAlerts[4].Fingerprint(): {{Name: "prod", Status: types.ReceiverStatusActive}},
+		inputAlerts[5].Fingerprint(): {{Name: "kafka", Status: types.ReceiverStatusActive}, {Name: "prod", Status: types.ReceiverStatusActive}},
 	}, receivers)
 }
 
