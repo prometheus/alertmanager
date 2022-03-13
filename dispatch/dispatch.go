@@ -216,8 +216,25 @@ func (ag AlertGroups) Less(i, j int) bool {
 }
 func (ag AlertGroups) Len() int { return len(ag) }
 
+type Receivers []types.Receiver
+
+func (r Receivers) Len() int {
+	return len(r)
+}
+
+func (r Receivers) Less(i, j int) bool {
+	return r[i].Name < r[j].Name
+}
+
+func (r Receivers) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*types.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string) {
+func (d *Dispatcher) Groups(
+	routeFilter func(*Route) bool,
+	alertFilter func(*types.Alert, time.Time) bool,
+	getReceiverStatus func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus) (AlertGroups, map[model.Fingerprint][]types.Receiver) {
 	groups := AlertGroups{}
 
 	d.mtx.RLock()
@@ -226,7 +243,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 	// Keep a list of receivers for an alert to prevent checking each alert
 	// again against all routes. The alert has already matched against this
 	// route on ingestion.
-	receivers := map[model.Fingerprint][]string{}
+	receivers := make(map[model.Fingerprint][]types.Receiver)
 
 	now := time.Now()
 	for route, ags := range d.aggrGroupsPerRoute {
@@ -235,10 +252,10 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 		}
 
 		for _, ag := range ags {
-			receiver := route.RouteOpts.Receiver
+			receiverName := route.RouteOpts.Receiver
 			alertGroup := &AlertGroup{
 				Labels:   ag.labels,
-				Receiver: receiver,
+				Receiver: receiverName,
 			}
 
 			alerts := ag.alerts.List()
@@ -252,11 +269,13 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 				if r, ok := receivers[fp]; ok {
 					// Receivers slice already exists. Add
 					// the current receiver to the slice.
-					receivers[fp] = append(r, receiver)
+					status := getReceiverStatus(now, route.RouteOpts.ActiveTimeIntervals, route.RouteOpts.MuteTimeIntervals)
+					receivers[fp] = append(r, types.Receiver{Name: receiverName, Status: status})
 				} else {
 					// First time we've seen this alert fingerprint.
 					// Initialize a new receivers slice.
-					receivers[fp] = []string{receiver}
+					status := getReceiverStatus(now, route.RouteOpts.ActiveTimeIntervals, route.RouteOpts.MuteTimeIntervals)
+					receivers[fp] = []types.Receiver{{Name: receiverName, Status: status}}
 				}
 
 				filteredAlerts = append(filteredAlerts, a)
@@ -274,7 +293,7 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 		sort.Sort(groups[i].Alerts)
 	}
 	for i := range receivers {
-		sort.Strings(receivers[i])
+		sort.Sort(Receivers(receivers[i]))
 	}
 
 	return groups, receivers

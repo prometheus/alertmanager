@@ -58,6 +58,11 @@ const (
 	ReceiverStatusMuted  ReceiverStatus = "muted"
 )
 
+type Receiver struct {
+	Name   string
+	Status ReceiverStatus
+}
+
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {

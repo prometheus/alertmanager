@@ -406,6 +406,9 @@ route:
 		}, func(*types.Alert, time.Time) bool {
 			return true
 		},
+		func(time.Time, []string, []string) types.ReceiverStatus {
+			return types.ReceiverStatusActive
+		},
 	)
 
 	require.Equal(t, AlertGroups{
@@ -461,13 +464,13 @@ route:
 			Receiver: "prod",
 		},
 	}, alertGroups)
-	require.Equal(t, map[model.Fingerprint][]string{
-		inputAlerts[0].Fingerprint(): {"prod"},
-		inputAlerts[1].Fingerprint(): {"testing"},
-		inputAlerts[2].Fingerprint(): {"prod"},
-		inputAlerts[3].Fingerprint(): {"prod"},
-		inputAlerts[4].Fingerprint(): {"prod"},
-		inputAlerts[5].Fingerprint(): {"kafka", "prod"},
+	require.Equal(t, map[model.Fingerprint][]types.Receiver{
+		inputAlerts[0].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
+		inputAlerts[1].Fingerprint(): {{"testing", types.ReceiverStatusActive}},
+		inputAlerts[2].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
+		inputAlerts[3].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
+		inputAlerts[4].Fingerprint(): {{"prod", types.ReceiverStatusActive}},
+		inputAlerts[5].Fingerprint(): {{"kafka", types.ReceiverStatusActive}, {"prod", types.ReceiverStatusActive}},
 	}, receivers)
 }
 
@@ -545,8 +548,9 @@ route:
 
 	routeFilter := func(*Route) bool { return true }
 	alertFilter := func(*types.Alert, time.Time) bool { return true }
+	getReceiverStatus := func(time.Time, []string, []string) types.ReceiverStatus { return types.ReceiverStatusActive }
 
-	alertGroups, _ := dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _ := dispatcher.Groups(routeFilter, alertFilter, getReceiverStatus)
 	require.Len(t, alertGroups, 6)
 
 	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
@@ -564,7 +568,7 @@ route:
 	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
 
 	// Verify there are still only 6 groups.
-	alertGroups, _ = dispatcher.Groups(routeFilter, alertFilter)
+	alertGroups, _ = dispatcher.Groups(routeFilter, alertFilter, getReceiverStatus)
 	require.Len(t, alertGroups, 6)
 }
 

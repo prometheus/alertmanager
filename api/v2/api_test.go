@@ -427,9 +427,8 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		updated   = time.Now()
 		active    = "active"
 		fp        = "0223b772b51c29e1"
-		receivers = []string{"receiver1", "receiver2"}
-
-		alert = &types.Alert{
+		receivers = []types.Receiver{{Name: "receiver1", Status: "active"}, {Name: "receiver2", Status: "active"}}
+		alert     = &types.Alert{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"severity": "critical", "alertname": "alert1"},
 				StartsAt: start,
@@ -438,6 +437,15 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		}
 	)
 	openAPIAlert := AlertToOpenAPIAlert(alert, types.AlertStatus{State: types.AlertStateActive}, receivers)
+	var apiReceivers []*open_api_models.Receiver
+
+	for _, r := range receivers {
+		name := r.Name
+		status := string(r.Status)
+		receiver := open_api_models.Receiver{Name: &name, Status: &status}
+		apiReceivers = append(apiReceivers, &receiver)
+	}
+
 	require.Equal(t, &open_api_models.GettableAlert{
 		Annotations: open_api_models.LabelSet{},
 		Alert: open_api_models.Alert{
@@ -452,10 +460,7 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		EndsAt:      convertDateTime(time.Time{}),
 		UpdatedAt:   convertDateTime(updated),
 		Fingerprint: &fp,
-		Receivers: []*open_api_models.Receiver{
-			&open_api_models.Receiver{Name: &receivers[0]},
-			&open_api_models.Receiver{Name: &receivers[1]},
-		},
+		Receivers:   apiReceivers,
 	}, openAPIAlert)
 }
 

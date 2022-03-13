@@ -506,8 +506,11 @@ definitions:
     properties:
       name:
         type: string
+      status:
+        type: string
     required:
       - name
+      - status
   labelSet:
     type: object
     additionalProperties:

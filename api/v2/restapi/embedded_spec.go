@@ -697,10 +697,14 @@ func init() {
     "receiver": {
       "type": "object",
       "required": [
-        "name"
+        "name",
+        "status"
       ],
       "properties": {
         "name": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         }
       }
@@ -1511,10 +1515,14 @@ func init() {
     "receiver": {
       "type": "object",
       "required": [
-        "name"
+        "name",
+        "status"
       ],
       "properties": {
         "name": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         }
       }

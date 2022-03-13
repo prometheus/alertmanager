@@ -20,6 +20,8 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"context"
+
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
@@ -34,6 +36,10 @@ type Receiver struct {
 	// name
 	// Required: true
 	Name *string `json:"name"`
+
+	// status
+	// Required: true
+	Status *string `json:"status"`
 }
 
 // Validate validates this receiver
@@ -41,6 +47,10 @@ func (m *Receiver) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateName(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateStatus(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -56,6 +66,20 @@ func (m *Receiver) validateName(formats strfmt.Registry) error {
 		return err
 	}
 
+	return nil
+}
+
+func (m *Receiver) validateStatus(formats strfmt.Registry) error {
+
+	if err := validate.Required("status", "body", m.Status); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this receiver based on context it is used
+func (m *Receiver) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	return nil
 }
 

@@ -74,7 +74,7 @@ type API struct {
 	Handler http.Handler
 }
 
-type groupsFn func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+type groupsFn func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool, func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]types.Receiver)
 type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 type setAlertStatusFn func(prometheus_model.LabelSet)
 type getReceiverStatusFn func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus
@@ -260,10 +260,11 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 		}
 
 		routes := api.route.Match(a.Labels)
-		receivers := make([]string, 0, len(routes))
+		receivers := make([]types.Receiver, 0, len(routes))
 		for _, r := range routes {
-			receivers = append(receivers, r.RouteOpts.Receiver)
-			fmt.Printf("Receiver: %s is %s \n", r.RouteOpts.Receiver, api.getReceiverStatus(now, r.RouteOpts.ActiveTimeIntervals, r.RouteOpts.MuteTimeIntervals))
+			receiverName := r.RouteOpts.Receiver
+			status := api.getReceiverStatus(now, r.RouteOpts.ActiveTimeIntervals, r.RouteOpts.MuteTimeIntervals)
+			receivers = append(receivers, types.Receiver{Name: receiverName, Status: status})
 		}
 
 		if receiverFilter != nil && !receiversMatchFilter(receivers, receiverFilter) {
@@ -386,7 +387,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}(receiverFilter)
 
 	af := api.alertFilter(matchers, *params.Silenced, *params.Inhibited, *params.Active)
-	alertGroups, allReceivers := api.alertGroups(rf, af)
+	alertGroups, allReceivers := api.alertGroups(rf, af, api.getReceiverStatus)
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
@@ -446,9 +447,9 @@ func removeEmptyLabels(ls prometheus_model.LabelSet) {
 	}
 }
 
-func receiversMatchFilter(receivers []string, filter *regexp.Regexp) bool {
+func receiversMatchFilter(receivers []types.Receiver, filter *regexp.Regexp) bool {
 	for _, r := range receivers {
-		if filter.MatchString(r) {
+		if filter.MatchString(r.Name) {
 			return true
 		}
 	}
