@@ -283,7 +283,7 @@ supports the following fields:
   [ - <month_range> ...]
   years:
   [ - <year_range> ...]
-  time_zone: <string>
+  location: <string>
 ```
 
 All fields are lists. Within each non-empty list, at least one element must be satisfied to match
@@ -320,10 +320,24 @@ Inclusive on both ends.
 `year_range`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`.
 Inclusive on both ends.
 
-`time_zone`: A string that matches an IANA time zone name. For example,
-`'Australia/Sydney'`. The time zone will be used to You may also use `'Local'` to use the local time where Alertmanager is running or `'UTC'`. **Note:** On Windows, only
-`Local` or `UTC` are supported unless you provide a custom time zone database
-using the `ZONEINFO` environment variable.
+`location`: A string that matches a location in the IANA time zone database. For
+example, `'Australia/Sydney'`. The location provides the time zone for the time
+interval. For example, a time interval with a location of `'Australia/Sydney'` that
+contained something like:
+
+        times:
+        - start_time: 09:00
+          end_time: 17:00
+        weekdays: ['monday:friday']
+
+would include any time that fell between the hours of 9:00AM and 5:00PM, between Monday
+and Friday, using the local time in Sydney, Australia.
+
+You may also use `'Local'` as a location to use the local time of the machine where
+Alertmanager is running, or `'UTC'` for UTC time. If no timezone is provided, the time
+interval is taken to be in UTC time.**Note:** On Windows, only `Local` or `UTC` are
+supported unless you provide a custom time zone database using the `ZONEINFO`
+environment variable.
 
 ## `<inhibit_rule>`
 
