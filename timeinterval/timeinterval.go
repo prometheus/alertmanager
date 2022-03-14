@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -181,8 +182,11 @@ func (tz *Location) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	loc, err := time.LoadLocation(str)
 	if err != nil {
-		if runtime.GOOS == "windows" && str != "Local" && str != "UTC" {
-			return fmt.Errorf("unable to load time location. Timezones other than 'Local' and 'UTC' may not be supported on Windows without using a custom timezone file: %w", err)
+		if runtime.GOOS == "windows" {
+			if zoneinfo := os.Getenv("ZONEINFO"); zoneinfo != "" {
+				return fmt.Errorf("%w (ZONEINFO=%q)", err, zoneinfo)
+			}
+			return fmt.Errorf("%w (on Windows platforms, you may have to pass the time zone database using the ZONEINFO environment variable, see https://pkg.go.dev/time#LoadLocation for details)", err)
 		}
 		return err
 	}
