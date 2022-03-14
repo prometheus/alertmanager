@@ -116,7 +116,7 @@ var timeIntervalTestCases = []struct {
 		timeInterval: TimeInterval{
 			Times:    []TimeRange{{StartMinute: 540, EndMinute: 1020}},
 			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
-			TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
+			Location: &Location{mustLoadLocation("Australia/Sydney")},
 		},
 		validTimeStrings: []string{
 			"06 Apr 21 13:00 +1000",
@@ -131,7 +131,7 @@ var timeIntervalTestCases = []struct {
 			Times:    []TimeRange{{StartMinute: 540, EndMinute: 1020}},
 			Weekdays: []WeekdayRange{{InclusiveRange{Begin: 1, End: 5}}},
 			Months:   []MonthRange{{InclusiveRange{Begin: 11, End: 11}}},
-			TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
+			Location: &Location{mustLoadLocation("Australia/Sydney")},
 		},
 		validTimeStrings: []string{
 			"01 Nov 21 09:00 +1100",
@@ -420,7 +420,7 @@ var yamlUnmarshalTestCases = []struct {
 		intervals: []TimeInterval{
 			{
 				Years:    []YearRange{{InclusiveRange{2020, 2022}}},
-				TimeZone: &TimeZone{mustLoadLocation("Australia/Sydney")},
+				Location: &Location{mustLoadLocation("Australia/Sydney")},
 			},
 		},
 	},

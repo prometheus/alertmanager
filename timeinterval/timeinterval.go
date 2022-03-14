@@ -34,7 +34,7 @@ type TimeInterval struct {
 	DaysOfMonth []DayOfMonthRange `yaml:"days_of_month,flow,omitempty" json:"days_of_month,omitempty"`
 	Months      []MonthRange      `yaml:"months,flow,omitempty" json:"months,omitempty"`
 	Years       []YearRange       `yaml:"years,flow,omitempty" json:"years,omitempty"`
-	TimeZone    *TimeZone         `yaml:"time_zone,flow,omitempty" json:"time_zone,omitempty"`
+	Location    *Location         `yaml:"time_zone,flow,omitempty" json:"time_zone,omitempty"`
 }
 
 // TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
@@ -70,8 +70,8 @@ type YearRange struct {
 	InclusiveRange
 }
 
-// A Timezone is a container for a time.Location, used for custom unmarshalling/validation logic.
-type TimeZone struct {
+// A Location is a container for a time.Location, used for custom unmarshalling/validation logic.
+type Location struct {
 	*time.Location
 }
 
@@ -172,8 +172,8 @@ var monthsInv = map[int]string{
 	12: "december",
 }
 
-// UnmarshalYAML implements the Unmarshaller interface for Timezone.
-func (tz *TimeZone) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML implements the Unmarshaller interface for Location.
+func (tz *Location) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -187,13 +187,13 @@ func (tz *TimeZone) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	*tz = TimeZone{loc}
+	*tz = Location{loc}
 	return nil
 }
 
-// UnmarshalJSON implements the json.Unmarshaler interface for TimeZOne.
+// UnmarshalJSON implements the json.Unmarshaler interface for Location.
 // It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
-func (tz *TimeZone) UnmarshalJSON(in []byte) error {
+func (tz *Location) UnmarshalJSON(in []byte) error {
 	return yaml.Unmarshal(in, tz)
 }
 
@@ -394,23 +394,23 @@ func (tr TimeRange) MarshalJSON() (out []byte, err error) {
 	return json.Marshal(yTr)
 }
 
-// MarshalText implements the econding.TextMarshaler interface for TimeZone.
-// It marshals a TimeZone back into a string that represents a time.Location.
-func (tz TimeZone) MarshalText() ([]byte, error) {
+// MarshalText implements the econding.TextMarshaler interface for Location.
+// It marshals a Location back into a string that represents a time.Location.
+func (tz Location) MarshalText() ([]byte, error) {
 	if tz.Location == nil {
-		return nil, fmt.Errorf("unable to convert nil time zone into string")
+		return nil, fmt.Errorf("unable to convert nil location into string")
 	}
 	return []byte(tz.Location.String()), nil
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for TimeZone.
-func (tz TimeZone) MarshalYAML() (interface{}, error) {
+//MarshalYAML implements the yaml.Marshaler interface for Location.
+func (tz Location) MarshalYAML() (interface{}, error) {
 	bytes, err := tz.MarshalText()
 	return string(bytes), err
 }
 
-//MarshalJSON implements the json.Marshaler interface for TimeZone.
-func (tz TimeZone) MarshalJSON() (out []byte, err error) {
+//MarshalJSON implements the json.Marshaler interface for Location.
+func (tz Location) MarshalJSON() (out []byte, err error) {
 	return json.Marshal(tz.String())
 }
 
@@ -457,8 +457,8 @@ func clamp(n, min, max int) int {
 
 // ContainsTime returns true if the TimeInterval contains the given time, otherwise returns false.
 func (tp TimeInterval) ContainsTime(t time.Time) bool {
-	if tp.TimeZone != nil {
-		t = t.In(tp.TimeZone.Location)
+	if tp.Location != nil {
+		t = t.In(tp.Location.Location)
 	}
 	if tp.Times != nil {
 		in := false
