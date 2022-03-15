@@ -1,3 +1,31 @@
+## 0.24.0-rc.0 / 2022-03-10
+
+* [CHANGE] Add the `/api/v2` prefix to all endpoints in the OpenAPI specification and generated client code. #2696
+* [CHANGE] Remove the `github.com/prometheus/alertmanager/client` Go package. #2763
+* [FEATURE] Add `--cluster.tls-config` experimental flag to secure cluster traffic via mutual TLS. #2237
+* [FEATURE] Add support for active time intervals. Active and mute time intervals should be defined via `time_intervals` rather than `mute_time_intervals` (the latter is deprecated but it will be supported until v1.0). #2779
+* [FEATURE] Add Telegram integration. #2827
+* [ENHANCEMENT] Add `update_alerts` field to the OpsGenie configuration to update message and description when sending alerts. #2519
+* [ENHANCEMENT] Add `--cluster.allow-insecure-public-advertise-address-discovery` feature flag to enable discovery and use of public IP addresses for clustering. #2719
+* [ENHANCEMENT] Add `entity` and `actions` fields to the OpsGenie configuration. #2753
+* [ENHANCEMENT] Add `opsgenie_api_key_file` field to the global configuration. #2728
+* [ENHANCEMENT] Add support for `teams` responders to the OpsGenie configuration. #2685
+* [ENHANCEMENT] Add the User-Agent header to all notification requests. #2730
+* [ENHANCEMENT] Re-enable HTTP/2. #2720
+* [ENHANCEMENT] web: Add support for security-related HTTP headers. #2759
+* [ENHANCEMENT] amtool: Allow filtering of silences by `createdBy` author. #2718
+* [ENHANCEMENT] amtool: add `--http.config.file` flag to configure HTTP settings. #2764
+* [BUGFIX] Fix HTTP client configuration for the SNS receiver. #2706
+* [BUGFIX] Fix unclosed file descriptor after reading the silences snapshot file. #2710
+* [BUGFIX] Fix field names for `mute_time_intervals` in JSON marshaling. #2765
+* [BUGFIX] Ensure that the root route doesn't have any matchers. #2780
+* [BUGFIX] Truncate the message's title to 1024 chars to avoid hitting Slack limits. #2774
+* [BUGFIX] Fix the default HTML email template (`email.default.html`) to match with the canonical source. #2798
+* [BUGFIX] Detect SNS FIFO topic based on the rendered value. #2819
+* [BUGFIX] Avoid deleting and recreating a silence when an update is possible. #2816
+* [BUGFIX] api/v2: Return 200 OK when deleting an expired silence. #2817
+* [BUGFIX] amtool: Fix the silence's end date when adding a silence. The end date is (start date + duration) while it used to be (current time + duration). The new behavior is consistent with the update operation. #2741
+
 ## 0.23.0 / 2021-08-25
 
 * [FEATURE] Add AWS SNS receiver. #2615
