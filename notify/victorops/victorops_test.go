@@ -116,7 +116,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
 }
 
 func TestVictorOpsTemplating(t *testing.T) {

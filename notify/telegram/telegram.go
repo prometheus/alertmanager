@@ -83,11 +83,11 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	return false, nil
 }
 
-func createTelegramClient(token config.Secret, apiUrl, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
+func createTelegramClient(token config.Secret, apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
 	secret := string(token)
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:     secret,
-		URL:       apiUrl,
+		URL:       apiURL,
 		ParseMode: parseMode,
 		Client:    httpClient,
 		Offline:   true,

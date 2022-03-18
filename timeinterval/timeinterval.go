@@ -384,8 +384,8 @@ func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 const TimeLayout = "15:04"
 
 var (
-	validTime   string         = "^((([01][0-9])|(2[0-3])):[0-5][0-9])$|(^24:00$)"
-	validTimeRE *regexp.Regexp = regexp.MustCompile(validTime)
+	validTime   = "^((([01][0-9])|(2[0-3])):[0-5][0-9])$|(^24:00$)"
+	validTimeRE = regexp.MustCompile(validTime)
 )
 
 // Given a time, determines the number of days in the month that time occurs in.

@@ -56,7 +56,7 @@ func TestSlackRedactedURL(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, u.String())
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
 }
 
 func TestGettingSlackURLFromFile(t *testing.T) {
@@ -78,5 +78,5 @@ func TestGettingSlackURLFromFile(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, u.String())
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
 }

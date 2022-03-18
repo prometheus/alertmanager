@@ -89,7 +89,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 	require.NoError(t, err)
 	notifier.apiV1 = u.String()
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestPagerDutyRedactedURLV2(t *testing.T) {
@@ -108,7 +108,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestPagerDutyTemplating(t *testing.T) {
