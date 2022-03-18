@@ -39,7 +39,7 @@ linters-settings:
   revive:
     rules:
       - name: exported
-        arguments : ["disableStutteringCheck"]
+        arguments: ["disableStutteringCheck"]
       - name: blank-imports
       - name: context-as-argument
       - name: dot-imports
