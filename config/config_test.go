@@ -18,11 +18,11 @@ import (
 	"net/url"
 	"os"
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/grafana/regexp"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"

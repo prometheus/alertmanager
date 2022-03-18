@@ -21,10 +21,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"testing"
 	"time"
 
+	"github.com/grafana/regexp"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 

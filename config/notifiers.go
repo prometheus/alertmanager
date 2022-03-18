@@ -15,12 +15,11 @@ package config
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
+	"github.com/grafana/regexp"
 	"github.com/pkg/errors"
-
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/sigv4"
 )
