@@ -316,7 +316,7 @@ func (r WeekdayRange) MarshalYAML() (interface{}, error) {
 }
 
 // MarshalText implements the econding.TextMarshaler interface for WeekdayRange.
-// It converts the range into a colon-seperated string, or a single weekday if possible.
+// It converts the range into a colon-separated string, or a single weekday if possible.
 // e.g. "monday:friday" or "saturday".
 func (r WeekdayRange) MarshalText() ([]byte, error) {
 	beginStr, ok := daysOfWeekInv[r.Begin]
