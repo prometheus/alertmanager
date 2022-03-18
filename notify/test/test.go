@@ -143,7 +143,7 @@ func AssertNotifyLeaksNoSecret(t *testing.T, ctx context.Context, n notify.Notif
 
 	ctx = notify.WithGroupKey(ctx, "1")
 	ok, err := n.Notify(ctx, []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"lbl1": "val1",

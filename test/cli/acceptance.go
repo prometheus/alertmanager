@@ -569,9 +569,7 @@ func (am *Alertmanager) QuerySilence() ([]TestSilence, error) {
 	return parseSilenceQueryResponse(out)
 }
 
-var (
-	silenceHeaderFields = []string{"ID", "Matchers", "Ends At", "Created By", "Comment"}
-)
+var silenceHeaderFields = []string{"ID", "Matchers", "Ends At", "Created By", "Comment"}
 
 func parseSilenceQueryResponse(data []byte) ([]TestSilence, error) {
 	sils := []TestSilence{}

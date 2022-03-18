@@ -59,7 +59,7 @@ type Marker interface {
 	// complete set of relevant silences. If no active silence IDs are provided and
 	// InhibitedBy is already empty, it sets the provided alert to AlertStateActive.
 	// Otherwise, it sets the provided alert to AlertStateSuppressed.
-	SetSilenced(alert model.Fingerprint, version int, activeSilenceIDs []string, pendingSilenceIDs []string)
+	SetSilenced(alert model.Fingerprint, version int, activeSilenceIDs, pendingSilenceIDs []string)
 	// SetInhibited replaces the previous InhibitedBy by the provided IDs of
 	// alerts. In contrast to SetSilenced, the set of provided IDs is not
 	// expected to represent the complete set of inhibiting alerts. (In
@@ -86,7 +86,7 @@ type Marker interface {
 	// result is based on.
 	Unprocessed(model.Fingerprint) bool
 	Active(model.Fingerprint) bool
-	Silenced(model.Fingerprint) (activeIDs []string, pendingIDs []string, version int, silenced bool)
+	Silenced(model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool)
 	Inhibited(model.Fingerprint) ([]string, bool)
 }
 
@@ -149,7 +149,7 @@ func (m *memMarker) Count(states ...AlertState) int {
 }
 
 // SetSilenced implements Marker.
-func (m *memMarker) SetSilenced(alert model.Fingerprint, version int, activeIDs []string, pendingIDs []string) {
+func (m *memMarker) SetSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -239,7 +239,7 @@ func (m *memMarker) Inhibited(alert model.Fingerprint) ([]string, bool) {
 // Silenced returns whether the alert for the given Fingerprint is in the
 // Silenced state, any associated silence IDs, and the silences state version
 // the result is based on.
-func (m *memMarker) Silenced(alert model.Fingerprint) (activeIDs []string, pendingIDs []string, version int, silenced bool) {
+func (m *memMarker) Silenced(alert model.Fingerprint) (activeIDs, pendingIDs []string, version int, silenced bool) {
 	s := m.Status(alert)
 	return s.SilencedBy, s.pendingSilences, s.silencesVersion,
 		s.State == AlertStateSuppressed && len(s.SilencedBy) > 0

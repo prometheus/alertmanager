@@ -580,7 +580,7 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
-	var defaultHTTPConfig = commoncfg.DefaultHTTPClientConfig
+	defaultHTTPConfig := commoncfg.DefaultHTTPClientConfig
 	return GlobalConfig{
 		ResolveTimeout: model.Duration(5 * time.Minute),
 		HTTPConfig:     &defaultHTTPConfig,

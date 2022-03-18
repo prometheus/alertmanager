@@ -125,6 +125,7 @@ var daysOfWeek = map[string]int{
 	"friday":    5,
 	"saturday":  6,
 }
+
 var daysOfWeekInv = map[int]string{
 	0: "sunday",
 	1: "monday",
@@ -373,7 +374,7 @@ func (ir InclusiveRange) MarshalText() ([]byte, error) {
 	return []byte(out), nil
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
+// MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
 func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 	bytes, err := ir.MarshalText()
 	return string(bytes), err
@@ -382,8 +383,10 @@ func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 // TimeLayout specifies the layout to be used in time.Parse() calls for time intervals.
 const TimeLayout = "15:04"
 
-var validTime string = "^((([01][0-9])|(2[0-3])):[0-5][0-9])$|(^24:00$)"
-var validTimeRE *regexp.Regexp = regexp.MustCompile(validTime)
+var (
+	validTime   string         = "^((([01][0-9])|(2[0-3])):[0-5][0-9])$|(^24:00$)"
+	validTimeRE *regexp.Regexp = regexp.MustCompile(validTime)
+)
 
 // Given a time, determines the number of days in the month that time occurs in.
 func daysInMonth(t time.Time) int {

@@ -212,7 +212,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
-				&types.Alert{
+				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"lbl1": "val1",

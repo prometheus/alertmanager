@@ -114,7 +114,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 }
 
 // Like Split but filter out empty strings.
-func safeSplit(s string, sep string) []string {
+func safeSplit(s, sep string) []string {
 	a := strings.Split(strings.TrimSpace(s), sep)
 	b := a[:0]
 	for _, x := range a {
@@ -160,7 +160,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		q := resolvedEndpointURL.Query()
 		q.Set("identifierType", "alias")
 		resolvedEndpointURL.RawQuery = q.Encode()
-		var msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
+		msg := &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 			return nil, false, err
@@ -209,7 +209,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			responders = append(responders, responder)
 		}
 
-		var msg = &opsGenieCreateMessage{
+		msg := &opsGenieCreateMessage{
 			Alias:       alias,
 			Message:     message,
 			Description: tmpl(n.conf.Description),

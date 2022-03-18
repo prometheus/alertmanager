@@ -150,7 +150,7 @@ func md5HashAsMetricValue(data []byte) float64 {
 	sum := md5.Sum(data)
 	// We only want 48 bits as a float64 only has a 53 bit mantissa.
 	smallSum := sum[0:6]
-	var bytes = make([]byte, 8)
+	bytes := make([]byte, 8)
 	copy(bytes, smallSum)
 	return float64(binary.LittleEndian.Uint64(bytes))
 }

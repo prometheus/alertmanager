@@ -396,7 +396,7 @@ func TestRetryStageWithError(t *testing.T) {
 	}
 
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
 			},
@@ -437,12 +437,12 @@ func TestRetryStageNoResolved(t *testing.T) {
 	}
 
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(-time.Hour),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
 			},
@@ -491,12 +491,12 @@ func TestRetryStageSendResolved(t *testing.T) {
 	}
 
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(-time.Hour),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
 			},

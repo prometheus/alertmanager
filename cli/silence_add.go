@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
@@ -83,7 +83,6 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
 	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	addCmd.Action(execWithTimeout(c.add))
-
 }
 
 func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {

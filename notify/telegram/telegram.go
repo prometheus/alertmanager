@@ -92,7 +92,6 @@ func createTelegramClient(token config.Secret, apiUrl, parseMode string, httpCli
 		Client:    httpClient,
 		Offline:   true,
 	})
-
 	if err != nil {
 		return nil, err
 	}

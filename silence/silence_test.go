@@ -931,7 +931,6 @@ func TestSilenceExpire(t *testing.T) {
 		EndsAt:    now.Add(-time.Minute),
 		UpdatedAt: now.Add(-time.Hour),
 	}, sil)
-
 }
 
 // TestSilenceExpireWithZeroRetention covers the problem that, with zero
@@ -1154,7 +1153,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1166,7 +1165,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1188,8 +1187,8 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
-					&pb.Matcher{Name: "00", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
+					{Name: "00", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1201,8 +1200,8 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: ""},
-					&pb.Matcher{Name: "b", Pattern: ".*", Type: pb.Matcher_REGEXP},
+					{Name: "a", Pattern: ""},
+					{Name: "b", Pattern: ".*", Type: pb.Matcher_REGEXP},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1214,7 +1213,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  now,
 				EndsAt:    now.Add(-time.Second),
@@ -1226,7 +1225,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  zeroTimestamp,
 				EndsAt:    validTimestamp,
@@ -1238,7 +1237,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    zeroTimestamp,
@@ -1250,7 +1249,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1413,8 +1412,8 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 		s.st[id] = &pb.MeshSilence{Silence: &pb.Silence{
 			Id: id,
 			Matchers: []*pb.Matcher{
-				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
-				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
+				{Type: pb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
+				{Type: pb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
 			},
 			StartsAt:  now.Add(-time.Minute),
 			EndsAt:    now.Add(time.Hour),

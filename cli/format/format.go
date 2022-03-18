@@ -26,9 +26,7 @@ import (
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"
 
-var (
-	dateFormat *string
-)
+var dateFormat *string
 
 func InitFormatFlags(app *kingpin.Application) {
 	dateFormat = app.Flag("date.format", "Format of date output").Default(DefaultDateFormat).String()

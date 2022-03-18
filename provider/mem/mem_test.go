@@ -18,10 +18,9 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
-
-	"sync"
 
 	"github.com/go-kit/log"
 	"github.com/kylelemons/godebug/pretty"

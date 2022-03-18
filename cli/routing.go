@@ -75,7 +75,7 @@ func (c *routingShow) routingShowAction(ctx context.Context, _ *kingpin.ParseCon
 	return nil
 }
 
-func getRouteTreeSlug(route *dispatch.Route, showContinue bool, showReceiver bool) string {
+func getRouteTreeSlug(route *dispatch.Route, showContinue, showReceiver bool) string {
 	var branchSlug bytes.Buffer
 	if route.Matchers.Len() == 0 {
 		branchSlug.WriteString("default-route")

@@ -59,11 +59,11 @@ func PostText(ctx context.Context, client *http.Client, url string, body io.Read
 	return post(ctx, client, url, "text/plain", body)
 }
 
-func post(ctx context.Context, client *http.Client, url string, bodyType string, body io.Reader) (*http.Response, error) {
+func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
 	return request(ctx, client, http.MethodPost, url, bodyType, body)
 }
 
-func request(ctx context.Context, client *http.Client, method string, url string, bodyType string, body io.Reader) (*http.Response, error) {
+func request(ctx context.Context, client *http.Client, method, url, bodyType string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err

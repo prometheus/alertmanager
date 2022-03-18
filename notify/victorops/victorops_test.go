@@ -186,15 +186,16 @@ func TestVictorOpsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			_, err = vo.Notify(ctx, []*types.Alert{{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"lbl1": "val1",
+			_, err = vo.Notify(ctx, []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"lbl1": "val1",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
 					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
 				},
-			},
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, err)
@@ -203,5 +204,4 @@ func TestVictorOpsTemplating(t *testing.T) {
 			}
 		})
 	}
-
 }

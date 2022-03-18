@@ -128,7 +128,6 @@ func New(opts Options) (*API, error) {
 		log.With(l, "version", "v2"),
 		opts.Registry,
 	)
-
 	if err != nil {
 		return nil, err
 	}

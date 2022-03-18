@@ -231,7 +231,7 @@ func run() int {
 	level.Info(logger).Log("msg", "Starting Alertmanager", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
 
-	err := os.MkdirAll(*dataDir, 0777)
+	err := os.MkdirAll(*dataDir, 0o777)
 	if err != nil {
 		level.Error(logger).Log("msg", "Unable to create data directory", "err", err)
 		return 1
@@ -371,7 +371,6 @@ func run() int {
 		Registry:    prometheus.DefaultRegisterer,
 		GroupFunc:   groupFn,
 	})
-
 	if err != nil {
 		level.Error(logger).Log("err", errors.Wrap(err, "failed to create API"))
 		return 1

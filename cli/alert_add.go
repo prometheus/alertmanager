@@ -70,7 +70,6 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 }
 
 func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) error {
-
 	if len(a.labels) > 0 {
 		// Allow the alertname label to be defined implicitly as the first argument rather
 		// than explicitly as a key=value pair.
