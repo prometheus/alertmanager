@@ -241,7 +241,7 @@ custom_fields:
 	var cfg VictorOpsConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "VictorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
+	expected := "victorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
