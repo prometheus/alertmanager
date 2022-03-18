@@ -18,9 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 // AlertState is used as part of AlertStatus.

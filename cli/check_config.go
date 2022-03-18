@@ -17,9 +17,10 @@ import (
 	"fmt"
 	"os"
 
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 // TODO: This can just be a type that is []string, doesn't have to be a struct

@@ -19,10 +19,10 @@ import (
 	"fmt"
 
 	"github.com/xlab/treeprint"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type routingShow struct {

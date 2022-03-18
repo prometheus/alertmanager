@@ -19,8 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/alertmanager/types"
 )
 
 var (

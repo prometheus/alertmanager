@@ -18,13 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-kit/log/level"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/pkg/errors"
-
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/config"

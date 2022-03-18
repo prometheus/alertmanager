@@ -15,14 +15,14 @@ package cli
 
 import (
 	"context"
-
 	"fmt"
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type alertAddCmd struct {

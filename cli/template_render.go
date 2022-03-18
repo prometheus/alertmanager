@@ -21,8 +21,9 @@ import (
 	"os"
 	"time"
 
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/template"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 var defaultData = template.Data{
