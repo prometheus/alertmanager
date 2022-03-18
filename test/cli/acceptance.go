@@ -122,7 +122,7 @@ func freeAddress() string {
 func AmtoolOk() (bool, error) {
 	stat, err := os.Stat(amtool)
 	if err != nil {
-		return false, fmt.Errorf("Error accessing amtool command, try 'make build' to generate the file. %v", err)
+		return false, fmt.Errorf("error accessing amtool command, try 'make build' to generate the file. %w", err)
 	} else if stat.IsDir() {
 		return false, fmt.Errorf("file %s is a directory, expecting a binary executable file", amtool)
 	}
