@@ -188,7 +188,7 @@ func Load(s string) (*Config, error) {
 	if cfg.Route.Continue {
 		return nil, errors.New("cannot have continue in root route")
 	}
-	cfg.original = envtest
+	cfg.original = string(envtest)
 	return cfg, nil
 }
 
