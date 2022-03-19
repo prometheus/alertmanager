@@ -13,4 +13,5 @@ jobs:
     steps:
     - name: Test
       run: |
+        ls && pwd
         go test -v -run ./config/config_test.go
