@@ -17,4 +17,4 @@ jobs:
     
     - name: Test
       run: |
-        FOO=bar go test -v -run test/*_test.go
+        FOO=bar go test -v -run ./test/*_test.go
