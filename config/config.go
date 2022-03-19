@@ -170,7 +170,8 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 // Load parses the YAML input s into a Config.
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
-	err := yaml.UnmarshalStrict([]byte(s), cfg)
+	envtest = []byte(os.ExpandEnv(string(s)))
+	err := yaml.UnmarshalStrict([]byte(envtest), cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -185,8 +186,7 @@ func Load(s string) (*Config, error) {
 	if cfg.Route.Continue {
 		return nil, errors.New("cannot have continue in root route")
 	}
-
-	cfg.original = s
+	cfg.original = envtest
 	return cfg, nil
 }
 
