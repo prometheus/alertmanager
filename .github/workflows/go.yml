@@ -17,6 +17,5 @@ jobs:
     
     - name: Test
       run: |
-        ls
-        pwd
-        go test -v -run ./config/config_test.go
+        cd ./config/
+        go test -v -run config_test.go
