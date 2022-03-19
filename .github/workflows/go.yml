@@ -1,4 +1,4 @@
-name: Go
+name: Go:1.16
 
 on:
   push:
