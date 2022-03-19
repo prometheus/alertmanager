@@ -11,6 +11,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Build
+      run: make build
+    
     - name: Test
       run: |
         ls
