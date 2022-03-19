@@ -1,0 +1,17 @@
+name: Go
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Test
+      run: |
+        ls
+        go test -v ./config/config_test.go
