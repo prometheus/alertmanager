@@ -13,5 +13,4 @@ jobs:
     steps:
     - name: Test
       run: |
-        ls
-        go test -v ./config/config_test.go
+        go test -v -run ./config/config_test.go
