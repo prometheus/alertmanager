@@ -1,4 +1,4 @@
-name: Go:1.16
+name: Go
 
 on:
   push:
@@ -17,4 +17,4 @@ jobs:
     
     - name: Test
       run: |
-        FOO=bar go test -v -run ./config/config_test.go
+        FOO=bar go test -v -run ./config/config_test.go ./config/config.go
