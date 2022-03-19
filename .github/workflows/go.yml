@@ -18,4 +18,4 @@ jobs:
     - name: Test
       run: |
         cd ./config/
-        FOO=bar go test -v -run ./*.go
+        FOO=bar go test -v -run ./*_test.go
