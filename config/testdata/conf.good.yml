@@ -40,7 +40,7 @@ route:
     # catch alerts that are related to a list of services.
     - match_re:
         service: ^(foo1|foo2|baz)$
-      receiver: team-X-mails
+      receiver: "${FOO:-team-Z}-mails"
       # The service has a sub-route for critical alerts, any alerts
       # that do not match, i.e. severity != critical, fall-back to the
       # parent node and are sent to 'team-X-mails'
@@ -83,7 +83,7 @@ inhibit_rules:
     # Apply inhibition if the alertname is the same.
     equal: ['alertname', 'cluster', 'service']
 receivers:
-  - name: '${FOO:-team-X}-mails'
+  - name: "${FOO:-team-X}-mails"
     email_configs:
       - to: 'team-X+alerts@example.org'
   - name: 'team-X-pager'
