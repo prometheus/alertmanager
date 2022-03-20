@@ -168,11 +168,10 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, (*URL)(s))
 }
 
-var envtest []byte
 // Load parses the YAML input s into a Config.
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
-	envtest = []byte(os.ExpandEnv(string(s)))
+	envtest := []byte(os.ExpandEnv(string(s)))
 	err := yaml.UnmarshalStrict(envtest, cfg)
 	if err != nil {
 		return nil, err
