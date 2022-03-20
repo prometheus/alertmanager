@@ -129,11 +129,7 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-	fmt.Printf("config: %v\n", err)
-	for i, s := range out {
-	    fmt.Println(i, s)
-	}
-
+	fmt.Printf("config: %v\n", string(err))
 }
 
 func TestReceiverExistsForDeepSubRoute(t *testing.T) {
