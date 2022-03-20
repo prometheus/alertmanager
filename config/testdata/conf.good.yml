@@ -83,7 +83,7 @@ inhibit_rules:
     # Apply inhibition if the alertname is the same.
     equal: ['alertname', 'cluster', 'service']
 receivers:
-  - name: '${FOO:-team-Z}-mails'
+  - name: '${FOO:-team-X}-mails'
     email_configs:
       - to: 'team-X+alerts@example.org'
   - name: 'team-X-pager'
