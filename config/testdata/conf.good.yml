@@ -30,7 +30,7 @@ route:
   # resend them.
   repeat_interval: 3h
   # A default receiver
-  receiver: team-X-mails
+  receiver: "${FOO:-team-Z}-mails"
   # All the above attributes are inherited by all child routes and can
   # overwritten on each.
 
