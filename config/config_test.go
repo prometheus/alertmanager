@@ -130,7 +130,7 @@ receivers:
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
 	fmt.Printf("config: %v\n", err)
-	fmt.Println(string(out.Data()))
+	fmt.Println(string(*out.Data()))
 
 }
 
