@@ -22,7 +22,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"fmt"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -129,7 +128,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-	fmt.Printf("config: %v\n", string(err))
 }
 
 func TestReceiverExistsForDeepSubRoute(t *testing.T) {
