@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"fmt"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -103,6 +104,7 @@ receivers:
 
 }
 
+var result string
 func TestReceiverExistsForDeepSubRouteAndEnv(t *testing.T) {
 	in := `
 route:
@@ -118,8 +120,8 @@ route:
 receivers:
 - name: 'team-X'
 `
-	_, err := Load(in)
-	fmt.Printf("config: %v\n", _)
+	result, err := Load(in)
+	fmt.Printf("config: %v\n", result)
 
 	expected := "undefined receiver \"nonexistent\" used in route"
 
