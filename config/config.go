@@ -24,7 +24,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"os"
 
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
