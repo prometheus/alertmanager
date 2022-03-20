@@ -189,6 +189,7 @@ func Load(s string) (*Config, error) {
 		return nil, errors.New("cannot have continue in root route")
 	}
 	cfg.original = string(envtest)
+	fmt.Printf("config: %v\n", cfg.original)
 	return cfg, nil
 }
 
