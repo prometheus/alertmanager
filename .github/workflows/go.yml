@@ -17,4 +17,4 @@ jobs:
     
     - name: Test
       run: |
-        FOO=bar go test -v -run ./config/config_test.go ./config/*.go
+        FOO=team-X go test -v -run ./config/config_test.go ./config/*.go
