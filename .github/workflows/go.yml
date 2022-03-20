@@ -11,15 +11,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-go@v2
-      with:
-        go-version: '^1.7.0'
-    
-    - name: Build
-      run: make build
-    
-    - name: Test
-      run: |
-        export FOO=team-X
-        go test -v -run ./config/config_test.go ./config/*.go
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.7.0'
+      - name: Build
+        run: make build
+      - name: Test
+        run: |
+          export FOO=team-X
+          go test -v -run ./config/config_test.go ./config/*.go
