@@ -104,7 +104,6 @@ receivers:
 
 }
 
-var result string
 func TestReceiverExistsForDeepSubRouteAndEnv(t *testing.T) {
 	in := `
 route:
@@ -120,8 +119,7 @@ route:
 receivers:
 - name: 'team-X'
 `
-	_, err := Load(in)
-	fmt.Printf("config: %v\n", Load(in).original)
+	out, err := Load(in)
 
 	expected := "undefined receiver \"nonexistent\" used in route"
 
@@ -131,6 +129,8 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
+	fmt.Printf("config: %v\n", err)
+	fmt.Println(string(out))
 
 }
 
