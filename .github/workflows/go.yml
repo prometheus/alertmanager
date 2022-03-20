@@ -17,4 +17,5 @@ jobs:
     
     - name: Test
       run: |
-        FOO=team-X go test -v -run ./config/config_test.go ./config/*.go
+        export FOO=team-X
+        go test -v -run ./config/config_test.go ./config/*.go
