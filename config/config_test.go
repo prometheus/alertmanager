@@ -120,8 +120,8 @@ route:
 receivers:
 - name: 'team-X'
 `
-	result, err := Load(in)
-	fmt.Printf("config: %v\n", result)
+	_, err := Load(in)
+	fmt.Printf("config: %v\n", Load(in))
 
 	expected := "undefined receiver \"nonexistent\" used in route"
 
