@@ -118,7 +118,7 @@ route:
 receivers:
 - name: 'team-X'
 `
-	out, err := Load(in)
+	_, err := Load(in)
 
 	expected := "undefined receiver \"nonexistent\" used in route"
 
