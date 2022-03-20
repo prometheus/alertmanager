@@ -19,12 +19,12 @@ import (
 	"io/ioutil"
 	"net"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
-	"os"
 
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
