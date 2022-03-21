@@ -17,11 +17,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/grafana/regexp"
 	"gopkg.in/yaml.v2"
 )
 

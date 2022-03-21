@@ -20,12 +20,12 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	tmpltext "text/template"
 	"time"
 
-	"github.com/grafana/regexp"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/asset"

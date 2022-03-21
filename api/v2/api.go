@@ -16,6 +16,7 @@ package v2
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -25,7 +26,6 @@ import (
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
-	"github.com/grafana/regexp"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"

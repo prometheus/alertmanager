@@ -17,9 +17,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
-	"github.com/grafana/regexp"
 	"github.com/prometheus/common/model"
 )
 

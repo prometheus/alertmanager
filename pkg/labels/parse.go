@@ -14,10 +14,10 @@
 package labels
 
 import (
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/grafana/regexp"
 	"github.com/pkg/errors"
 )
 
