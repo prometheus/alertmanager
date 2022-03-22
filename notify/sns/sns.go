@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -46,8 +45,9 @@ const (
 	ComponentAndModifiedReason = "%s: %s"
 
 	// The errors
-	SubjectNotASCII     = "Error - contains non printable ASCII characters"
-	SubjectSizeExceeded = "Error - subject has been truncated from %d characters because it exceeds the 100 character size limit"
+	SubjectContainsIllegalChars = "Error - contains control- or non-ASCII characters"
+	SubjectSizeExceeded         = "Error - subject has been truncated from %d characters because it exceeds the 100 character size limit"
+	SubjectEmpty                = "Error - subject, if provided, must be non-empty"
 
 	// Message components size limit
 	subjectSizeLimitInCharacters = 100
@@ -200,8 +200,9 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 		messageAttributes["truncated"] = &sns.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String("true")}
 	}
 
-	if n.conf.Subject != "" {
-		subjectToSend := validateAndTruncateSubject(n.logger, tmpl(n.conf.Subject), &modifiedReasons)
+	templatedSubject := tmpl(n.conf.Subject)
+	if n.conf.Subject != "" || templatedSubject != "" {
+		subjectToSend := validateAndTruncateSubject(n.logger, templatedSubject, &modifiedReasons)
 
 		publishInput.SetSubject(subjectToSend)
 	}
@@ -243,10 +244,16 @@ func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (stri
 }
 
 func validateAndTruncateSubject(logger log.Logger, subject string, modifiedReasons *[]string) string {
-	if !isASCII(subject) {
-		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectNotASCII))
-		level.Info(logger).Log("msg", "subject has been modified because of contains non printable ASCII characters", "originalSubject", subject)
-		return SubjectNotASCII
+	if subject == "" {
+		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectEmpty))
+		level.Info(logger).Log("msg", "subject has been modified because it is empty", "originalSubject", subject)
+		return SubjectEmpty
+	}
+
+	if !isASCIINonControl(subject) {
+		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectContainsIllegalChars))
+		level.Info(logger).Log("msg", "subject has been modified because it contains control- or non-ASCII characters", "originalSubject", subject)
+		return SubjectContainsIllegalChars
 	}
 
 	charactersInSubject := utf8.RuneCountInString(subject)
@@ -278,9 +285,9 @@ func (n *Notifier) createMessageAttributes(tmpl func(string) string) map[string]
 	return attributes
 }
 
-func isASCII(s string) bool {
+func isASCIINonControl(s string) bool {
 	for i := 0; i < len(s); i++ {
-		if s[i] > unicode.MaxASCII {
+		if s[i] < 32 || s[i] >= 127 {
 			return false
 		}
 	}
