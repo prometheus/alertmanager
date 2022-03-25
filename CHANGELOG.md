@@ -1,4 +1,4 @@
-## 0.24.0-rc.0 / 2022-03-10
+## 0.24.0 / 2022-03-24
 
 * [CHANGE] Add the `/api/v2` prefix to all endpoints in the OpenAPI specification and generated client code. #2696
 * [CHANGE] Remove the `github.com/prometheus/alertmanager/client` Go package. #2763
