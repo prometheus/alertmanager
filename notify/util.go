@@ -25,10 +25,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
-	"github.com/prometheus/common/version"
 )
 
 // UserAgentHeader is the default User-Agent for notification requests
@@ -59,11 +59,11 @@ func PostText(ctx context.Context, client *http.Client, url string, body io.Read
 	return post(ctx, client, url, "text/plain", body)
 }
 
-func post(ctx context.Context, client *http.Client, url string, bodyType string, body io.Reader) (*http.Response, error) {
+func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
 	return request(ctx, client, http.MethodPost, url, bodyType, body)
 }
 
-func request(ctx context.Context, client *http.Client, method string, url string, bodyType string, body io.Reader) (*http.Response, error) {
+func request(ctx context.Context, client *http.Client, method, url, bodyType string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err

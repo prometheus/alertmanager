@@ -119,7 +119,7 @@ func (s PeerStatus) String() string {
 const (
 	DefaultPushPullInterval  = 60 * time.Second
 	DefaultGossipInterval    = 200 * time.Millisecond
-	DefaultTcpTimeout        = 10 * time.Second
+	DefaultTCPTimeout        = 10 * time.Second
 	DefaultProbeTimeout      = 500 * time.Millisecond
 	DefaultProbeInterval     = 1 * time.Second
 	DefaultReconnectInterval = 10 * time.Second
@@ -254,7 +254,8 @@ func Create(
 
 func (p *Peer) Join(
 	reconnectInterval time.Duration,
-	reconnectTimeout time.Duration) error {
+	reconnectTimeout time.Duration,
+) error {
 	n, err := p.mlist.Join(p.resolvedPeers)
 	if err != nil {
 		level.Warn(p.logger).Log("msg", "failed to join cluster", "err", err)
@@ -784,7 +785,7 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res *ne
 	return resolvedPeers, nil
 }
 
-func removeMyAddr(ips []net.IPAddr, targetPort string, myAddr string) []net.IPAddr {
+func removeMyAddr(ips []net.IPAddr, targetPort, myAddr string) []net.IPAddr {
 	var result []net.IPAddr
 
 	for _, ip := range ips {

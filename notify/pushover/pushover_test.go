@@ -57,5 +57,5 @@ func TestPushoverRedactedURL(t *testing.T) {
 	require.NoError(t, err)
 	notifier.apiURL = u.String()
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key, token)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key, token)
 }

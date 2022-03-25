@@ -66,7 +66,7 @@ func TestOpsGenieRedactedURL(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
@@ -91,7 +91,7 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestOpsGenie(t *testing.T) {

@@ -79,7 +79,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestReceiverExists(t *testing.T) {
@@ -100,7 +99,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestReceiverExistsForDeepSubRoute(t *testing.T) {
@@ -128,7 +126,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestReceiverHasName(t *testing.T) {
@@ -148,7 +145,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestMuteTimeExists(t *testing.T) {
@@ -174,7 +170,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestActiveTimeExists(t *testing.T) {
@@ -200,7 +195,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestTimeIntervalHasName(t *testing.T) {
@@ -233,7 +227,6 @@ route:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestMuteTimeNoDuplicates(t *testing.T) {
@@ -271,7 +264,6 @@ route:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestGroupByHasNoDuplicatedLabels(t *testing.T) {
@@ -292,7 +284,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestWildcardGroupByWithOtherGroupByLabels(t *testing.T) {
@@ -333,7 +324,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestRootRouteExists(t *testing.T) {
@@ -351,7 +341,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestRootRouteNoMuteTimes(t *testing.T) {
@@ -381,7 +370,6 @@ route:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestRootRouteNoActiveTimes(t *testing.T) {
@@ -476,7 +464,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestGroupIntervalIsGreaterThanZero(t *testing.T) {
@@ -859,13 +846,12 @@ receivers:
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
-	var regexpFoo = Regexp{
+	regexpFoo := Regexp{
 		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
 		original: "^(foo1|foo2|baz)$",
 	}
 
-	var expectedConf = Config{
-
+	expectedConf := Config{
 		Global: &GlobalConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{
 				FollowRedirects: true,
@@ -972,7 +958,7 @@ func TestSMTPHello(t *testing.T) {
 	}
 
 	const refValue = "host.example.org"
-	var hostName = c.Global.SMTPHello
+	hostName := c.Global.SMTPHello
 	if hostName != refValue {
 		t.Errorf("Invalid SMTP Hello hostname: %s\nExpected: %s", hostName, refValue)
 	}
@@ -995,7 +981,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
 	}
 
-	var defaultKey = conf.Global.VictorOpsAPIKey
+	defaultKey := conf.Global.VictorOpsAPIKey
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
 		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
@@ -1020,7 +1006,7 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
 	}
 
-	var defaultKey = conf.Global.OpsGenieAPIKey
+	defaultKey := conf.Global.OpsGenieAPIKey
 	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKey {
 		t.Fatalf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
 	}
@@ -1035,7 +1021,7 @@ func TestOpsGenieDefaultAPIKeyFile(t *testing.T) {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-file.yml", err)
 	}
 
-	var defaultKey = conf.Global.OpsGenieAPIKeyFile
+	defaultKey := conf.Global.OpsGenieAPIKeyFile
 	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile {
 		t.Fatalf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, defaultKey)
 	}

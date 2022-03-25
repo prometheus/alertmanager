@@ -28,7 +28,7 @@ import (
 
 func TestTelegramRetry(t *testing.T) {
 	// Fake url for testing purpouses
-	fakeUrl := config.URL{
+	fakeURL := config.URL{
 		URL: &url.URL{
 			Scheme: "https",
 			Host:   "FAKE_API",
@@ -37,7 +37,7 @@ func TestTelegramRetry(t *testing.T) {
 	notifier, err := New(
 		&config.TelegramConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			APIUrl:     &fakeUrl,
+			APIUrl:     &fakeURL,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),

@@ -72,7 +72,7 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 	}
 }
 
-func assertEqualStrings(t *testing.T, expected string, actual string) {
+func assertEqualStrings(t *testing.T, expected, actual string) {
 	if expected != actual {
 		t.Fatal("expected: ", expected, ", actual: ", actual)
 	}
@@ -90,10 +90,9 @@ func newSilences(t *testing.T) *silence.Silences {
 	return silences
 }
 
-func gettableSilence(id string, state string,
-	updatedAt string, start string, end string,
+func gettableSilence(id, state string,
+	updatedAt, start, end string,
 ) *open_api_models.GettableSilence {
-
 	updAt, err := strfmt.ParseDateTime(updatedAt)
 	if err != nil {
 		panic(err)
@@ -122,7 +121,6 @@ func gettableSilence(id string, state string,
 }
 
 func TestGetSilencesHandler(t *testing.T) {
-
 	updateTime := "2019-01-01T12:00:00+00:00"
 	silences := []*open_api_models.GettableSilence{
 		gettableSilence("silence-6-expired", "expired", updateTime,
@@ -313,7 +311,7 @@ func TestPostSilencesHandler(t *testing.T) {
 	}
 }
 
-func createSilenceMatcher(name string, pattern string, matcherType silencepb.Matcher_Type) *silencepb.Matcher {
+func createSilenceMatcher(name, pattern string, matcherType silencepb.Matcher_Type) *silencepb.Matcher {
 	return &silencepb.Matcher{
 		Name:    name,
 		Pattern: pattern,
@@ -321,7 +319,7 @@ func createSilenceMatcher(name string, pattern string, matcherType silencepb.Mat
 	}
 }
 
-func createLabelMatcher(name string, value string, matchType labels.MatchType) *labels.Matcher {
+func createLabelMatcher(name, value string, matchType labels.MatchType) *labels.Matcher {
 	matcher, _ := labels.NewMatcher(matchType, name, value)
 	return matcher
 }
@@ -453,8 +451,8 @@ func TestAlertToOpenAPIAlert(t *testing.T) {
 		UpdatedAt:   convertDateTime(updated),
 		Fingerprint: &fp,
 		Receivers: []*open_api_models.Receiver{
-			&open_api_models.Receiver{Name: &receivers[0]},
-			&open_api_models.Receiver{Name: &receivers[1]},
+			{Name: &receivers[0]},
+			{Name: &receivers[1]},
 		},
 	}, openAPIAlert)
 }

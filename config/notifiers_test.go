@@ -92,8 +92,7 @@ service_key: ''
 }
 
 func TestPagerdutyDetails(t *testing.T) {
-
-	var tests = []struct {
+	tests := []struct {
 		in      string
 		checkFn func(map[string]string)
 	}{
@@ -137,7 +136,6 @@ details:
 	for _, tc := range tests {
 		var cfg PagerdutyConfig
 		err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
-
 		if err != nil {
 			t.Errorf("expected no error, got:%v", err)
 		}
@@ -189,7 +187,6 @@ url: 'http://example.com'
 `
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
 	}
@@ -205,7 +202,6 @@ http_config:
 `
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
 	}
@@ -245,7 +241,7 @@ custom_fields:
 	var cfg VictorOpsConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "VictorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
+	expected := "victorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -276,7 +272,6 @@ custom_fields:
 	if val != expected {
 		t.Errorf("\nexpected custom field my_special_field value:\n%v\ngot:\n%v", expected, val)
 	}
-
 }
 
 func TestPushoverUserKeyIsPresent(t *testing.T) {
@@ -315,7 +310,7 @@ token: ''
 }
 
 func TestLoadSlackConfiguration(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		in       string
 		expected SlackConfig
 	}{
@@ -327,9 +322,11 @@ channel: engineering
 title_link: http://example.com/
 image_url: https://example.com/logo.png
 `,
-			expected: SlackConfig{Color: "green", Username: "mark", Channel: "engineering",
+			expected: SlackConfig{
+				Color: "green", Username: "mark", Channel: "engineering",
 				TitleLink: "http://example.com/",
-				ImageURL:  "https://example.com/logo.png"},
+				ImageURL:  "https://example.com/logo.png",
+			},
 		},
 		{
 			in: `
@@ -341,9 +338,12 @@ mrkdwn_in:
 - pretext
 - text
 `,
-			expected: SlackConfig{Color: "green", Username: "mark", Channel: "alerts",
-				MrkdwnIn: []string{"pretext", "text"}, TitleLink: "http://example.com/alert1"},
-		}}
+			expected: SlackConfig{
+				Color: "green", Username: "mark", Channel: "alerts",
+				MrkdwnIn: []string{"pretext", "text"}, TitleLink: "http://example.com/alert1",
+			},
+		},
+	}
 	for _, rt := range tests {
 		var cfg SlackConfig
 		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
@@ -380,7 +380,7 @@ mrkdwn_in:
 }
 
 func TestSlackFieldConfigValidation(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		in       string
 		expected string
 	}{
@@ -449,17 +449,17 @@ fields:
   short: false
 `
 	expected := []*SlackField{
-		&SlackField{
+		{
 			Title: "first",
 			Value: "hello",
 			Short: newBoolPointer(true),
 		},
-		&SlackField{
+		{
 			Title: "second",
 			Value: "world",
 			Short: nil,
 		},
-		&SlackField{
+		{
 			Title: "third",
 			Value: "slack field test",
 			Short: newBoolPointer(false),

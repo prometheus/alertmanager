@@ -210,7 +210,6 @@ func (a *TestAlert) Annotate(keyval ...interface{}) *TestAlert {
 // must be a single starting value or two values where the second value
 // declares the resolved time.
 func (a *TestAlert) Active(tss ...float64) *TestAlert {
-
 	if len(tss) > 2 || len(tss) == 0 {
 		panic("only one or two timestamps allowed")
 	}

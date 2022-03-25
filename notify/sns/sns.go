@@ -71,9 +71,8 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	if err != nil {
 		if e, ok := err.(awserr.RequestFailure); ok {
 			return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
-		} else {
-			return true, err
 		}
+		return true, err
 	}
 
 	publishInput, err := n.createPublishInput(ctx, tmpl)
@@ -85,9 +84,8 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	if err != nil {
 		if e, ok := err.(awserr.RequestFailure); ok {
 			return n.retrier.Check(e.StatusCode(), strings.NewReader(e.Message()))
-		} else {
-			return true, err
 		}
+		return true, err
 	}
 
 	level.Debug(n.logger).Log("msg", "SNS message successfully published", "message_id", publishOutput.MessageId, "sequence number", publishOutput.SequenceNumber)
@@ -96,7 +94,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 }
 
 func (n *Notifier) createSNSClient(tmpl func(string) string) (*sns.SNS, error) {
-	var creds *credentials.Credentials = nil
+	var creds *credentials.Credentials
 	// If there are provided sigV4 credentials we want to use those to create a session.
 	if n.conf.Sigv4.AccessKey != "" && n.conf.Sigv4.SecretKey != "" {
 		creds = credentials.NewStaticCredentials(n.conf.Sigv4.AccessKey, string(n.conf.Sigv4.SecretKey), "")

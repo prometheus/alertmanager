@@ -18,7 +18,7 @@ import (
 	"errors"
 	"fmt"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/cli/format"
@@ -102,7 +102,6 @@ func (a *alertQueryCmd) queryAlerts(ctx context.Context, _ *kingpin.ParseContext
 	amclient := NewAlertmanagerClient(alertmanagerURL)
 
 	getOk, err := amclient.Alert.GetAlerts(alertParams)
-
 	if err != nil {
 		return err
 	}

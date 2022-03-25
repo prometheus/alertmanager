@@ -73,9 +73,11 @@ type API struct {
 	Handler http.Handler
 }
 
-type groupsFn func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
-type getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
-type setAlertStatusFn func(prometheus_model.LabelSet)
+type (
+	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
+	setAlertStatusFn func(prometheus_model.LabelSet)
+)
 
 // NewAPI returns a new Alertmanager API v2
 func NewAPI(
@@ -524,13 +526,11 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	return silence_ops.NewGetSilencesOK().WithPayload(sils)
 }
 
-var (
-	silenceStateOrder = map[types.SilenceState]int{
-		types.SilenceStateActive:  1,
-		types.SilenceStatePending: 2,
-		types.SilenceStateExpired: 3,
-	}
-)
+var silenceStateOrder = map[types.SilenceState]int{
+	types.SilenceStateActive:  1,
+	types.SilenceStatePending: 2,
+	types.SilenceStateExpired: 3,
+}
 
 // SortSilences sorts first according to the state "active, pending, expired"
 // then by end time or start time depending on the state.

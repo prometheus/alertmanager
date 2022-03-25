@@ -42,8 +42,8 @@ func TestAggrGroup(t *testing.T) {
 	opts := &RouteOpts{
 		Receiver: "n1",
 		GroupBy: map[model.LabelName]struct{}{
-			"a": struct{}{},
-			"b": struct{}{},
+			"a": {},
+			"b": {},
 		},
 		GroupWait:      1 * time.Second,
 		GroupInterval:  300 * time.Millisecond,
@@ -270,7 +270,7 @@ func TestAggrGroup(t *testing.T) {
 }
 
 func TestGroupLabels(t *testing.T) {
-	var a = &types.Alert{
+	a := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"a": "v1",
@@ -283,8 +283,8 @@ func TestGroupLabels(t *testing.T) {
 	route := &Route{
 		RouteOpts: RouteOpts{
 			GroupBy: map[model.LabelName]struct{}{
-				"a": struct{}{},
-				"b": struct{}{},
+				"a": {},
+				"b": {},
 			},
 			GroupByAll: false,
 		},
@@ -303,7 +303,7 @@ func TestGroupLabels(t *testing.T) {
 }
 
 func TestGroupByAllLabels(t *testing.T) {
-	var a = &types.Alert{
+	a := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"a": "v1",

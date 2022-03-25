@@ -24,7 +24,7 @@ import (
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
@@ -127,9 +127,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 // Execute is the main function for the amtool command
 func Execute() {
-	var (
-		app = kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
-	)
+	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 
 	format.InitFormatFlags(app)
 
