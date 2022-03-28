@@ -401,7 +401,7 @@ type WebhookConfig struct {
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
 
 	// Webhook content format
-	Json string `yaml:"json,omitempty" json:"json,omitempty"`
+	JSON string `yaml:"json,omitempty" json:"json,omitempty"`
 	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 

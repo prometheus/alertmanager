@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -96,24 +97,21 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 
 	var buf bytes.Buffer
-	if n.conf.Json != "" {
-		body, err := n.tmpl.ExecuteTextString(n.conf.Json, data)
+	if n.conf.JSON != "" {
+		body, err := n.tmpl.ExecuteTextString(n.conf.JSON, data)
 		if err != nil {
 			return false, err
 		}
 		if !json.Valid([]byte(body)) {
-			return false, fmt.Errorf("Json格式异常: %s ", body)
+			return false, fmt.Errorf("json format error: %s ", body)
 		}
 		if err := json.Indent(&buf, []byte(body), "", "  "); err != nil {
-			return false, fmt.Errorf("Json格式异常: %s ", body)
+			return false, fmt.Errorf("json format error: %s ", body)
 		}
 	} else if n.conf.Text != "" {
-		body, err := n.tmpl.ExecuteTextString(n.conf.Json, data)
-		if err != nil {
+		if body, err := n.tmpl.ExecuteTextString(n.conf.Text, data); err != nil {
 			return false, err
-		}
-		err = json.NewEncoder(&buf).Encode(body)
-		if err != nil {
+		} else if _, err = buf.WriteString(body); err != nil {
 			return false, err
 		}
 	} else {
