@@ -4,7 +4,7 @@ import Alerts.Api as Api
 import Browser.Dom as Dom
 import Browser.Navigation as Navigation
 import Task
-import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
+import Utils.Filter exposing (Filter)
 import Utils.Match exposing (jaroWinkler)
 import Utils.Types exposing (ApiData(..))
 import Views.ReceiverBar.Types exposing (Model, Msg(..), apiReceiverToReceiver)
@@ -60,16 +60,15 @@ update url filter msg model =
         FilterByReceiver regex ->
             ( { model | showReceivers = False, resultsHovered = False }
             , Navigation.pushUrl model.key
-                (url
-                    ++ generateQueryString
-                        { filter
-                            | receiver =
-                                if regex == "" then
-                                    Nothing
+                (Utils.Filter.toUrl url
+                    { filter
+                        | receiver =
+                            if regex == "" then
+                                Nothing
 
-                                else
-                                    Just regex
-                        }
+                            else
+                                Just regex
+                    }
                 )
             )
 

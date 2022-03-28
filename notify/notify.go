@@ -21,24 +21,30 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/cespare/xxhash"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/cespare/xxhash/v2"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 )
 
 // ResolvedSender returns true if resolved notifications should be sent.
 type ResolvedSender interface {
 	SendResolved() bool
+}
+
+// Peer represents the cluster node from where we are the sending the notification.
+type Peer interface {
+	// WaitReady waits until the node silences and notifications have settled before attempting to send a notification.
+	WaitReady(context.Context) error
 }
 
 // MinTimeout is the minimum timeout that is set for the context of a call
@@ -108,6 +114,8 @@ const (
 	keyFiringAlerts
 	keyResolvedAlerts
 	keyNow
+	keyMuteTimeIntervals
+	keyActiveTimeIntervals
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -143,6 +151,15 @@ func WithNow(ctx context.Context, t time.Time) context.Context {
 // WithRepeatInterval populates a context with a repeat interval.
 func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 	return context.WithValue(ctx, keyRepeatInterval, t)
+}
+
+// WithMuteTimeIntervals populates a context with a slice of mute time names.
+func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
+	return context.WithValue(ctx, keyMuteTimeIntervals, mt)
+}
+
+func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
+	return context.WithValue(ctx, keyActiveTimeIntervals, at)
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -194,6 +211,20 @@ func ResolvedAlerts(ctx context.Context) ([]uint64, bool) {
 	return v, ok
 }
 
+// MuteTimeIntervalNames extracts a slice of mute time names from the context. If and only if none exists, the
+// second argument is false.
+func MuteTimeIntervalNames(ctx context.Context) ([]string, bool) {
+	v, ok := ctx.Value(keyMuteTimeIntervals).([]string)
+	return v, ok
+}
+
+// ActiveTimeIntervalNames extracts a slice of active time names from the context. If none exists, the
+// second argument is false.
+func ActiveTimeIntervalNames(ctx context.Context) ([]string, bool) {
+	v, ok := ctx.Value(keyActiveTimeIntervals).([]string)
+	return v, ok
+}
+
 // A Stage processes alerts under the constraints of the given context.
 type Stage interface {
 	Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
@@ -212,23 +243,35 @@ type NotificationLog interface {
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
-type metrics struct {
-	numNotifications           *prometheus.CounterVec
-	numFailedNotifications     *prometheus.CounterVec
-	notificationLatencySeconds *prometheus.HistogramVec
+type Metrics struct {
+	numNotifications                   *prometheus.CounterVec
+	numTotalFailedNotifications        *prometheus.CounterVec
+	numNotificationRequestsTotal       *prometheus.CounterVec
+	numNotificationRequestsFailedTotal *prometheus.CounterVec
+	notificationLatencySeconds         *prometheus.HistogramVec
 }
 
-func newMetrics(r prometheus.Registerer) *metrics {
-	m := &metrics{
+func NewMetrics(r prometheus.Registerer) *Metrics {
+	m := &Metrics{
 		numNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_total",
 			Help:      "The total number of attempted notifications.",
 		}, []string{"integration"}),
-		numFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+		numTotalFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
+		}, []string{"integration"}),
+		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notification_requests_total",
+			Help:      "The total number of attempted notification requests.",
+		}, []string{"integration"}),
+		numNotificationRequestsFailedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notification_requests_failed_total",
+			Help:      "The total number of failed notification requests.",
 		}, []string{"integration"}),
 		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "alertmanager",
@@ -246,22 +289,30 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		"opsgenie",
 		"webhook",
 		"victorops",
+		"sns",
+		"telegram",
 	} {
 		m.numNotifications.WithLabelValues(integration)
-		m.numFailedNotifications.WithLabelValues(integration)
+		m.numTotalFailedNotifications.WithLabelValues(integration)
+		m.numNotificationRequestsTotal.WithLabelValues(integration)
+		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
 	}
-	r.MustRegister(m.numNotifications, m.numFailedNotifications, m.notificationLatencySeconds)
+	r.MustRegister(
+		m.numNotifications, m.numTotalFailedNotifications,
+		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
+		m.notificationLatencySeconds,
+	)
 	return m
 }
 
 type PipelineBuilder struct {
-	metrics *metrics
+	metrics *Metrics
 }
 
 func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
 	return &PipelineBuilder{
-		metrics: newMetrics(r),
+		metrics: NewMetrics(r),
 	}
 }
 
@@ -271,18 +322,21 @@ func (pb *PipelineBuilder) New(
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
+	times map[string][]timeinterval.TimeInterval,
 	notificationLog NotificationLog,
-	peer *cluster.Peer,
+	peer Peer,
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
 	ss := NewMuteStage(silencer)
+	tms := NewTimeMuteStage(times)
+	tas := NewTimeActiveStage(times)
 
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
-		rs[name] = MultiStage{ms, is, ss, st}
+		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 	return rs
 }
@@ -293,7 +347,7 @@ func createReceiverStage(
 	integrations []Integration,
 	wait func() time.Duration,
 	notificationLog NotificationLog,
-	metrics *metrics,
+	metrics *Metrics,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -381,17 +435,19 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 
 // GossipSettleStage waits until the Gossip has settled to forward alerts.
 type GossipSettleStage struct {
-	peer *cluster.Peer
+	peer Peer
 }
 
 // NewGossipSettleStage returns a new GossipSettleStage.
-func NewGossipSettleStage(p *cluster.Peer) *GossipSettleStage {
+func NewGossipSettleStage(p Peer) *GossipSettleStage {
 	return &GossipSettleStage{peer: p}
 }
 
-func (n *GossipSettleStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *GossipSettleStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	if n.peer != nil {
-		n.peer.WaitReady()
+		if err := n.peer.WaitReady(ctx); err != nil {
+			return ctx, nil, err
+		}
 	}
 	return ctx, alerts, nil
 }
@@ -407,7 +463,7 @@ func NewMuteStage(m types.Muter) *MuteStage {
 }
 
 // Exec implements the Stage interface.
-func (n *MuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *MuteStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var filtered []*types.Alert
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
@@ -434,7 +490,7 @@ func NewWaitStage(wait func() time.Duration) *WaitStage {
 }
 
 // Exec implements the Stage interface.
-func (ws *WaitStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (ws *WaitStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	select {
 	case <-time.After(ws.wait()):
 	case <-ctx.Done():
@@ -469,27 +525,21 @@ func utcNow() time.Time {
 	return time.Now().UTC()
 }
 
-var hashBuffers = sync.Pool{}
-
-func getHashBuffer() []byte {
-	b := hashBuffers.Get()
-	if b == nil {
-		return make([]byte, 0, 1024)
-	}
-	return b.([]byte)
+// Wrap a slice in a struct so we can store a pointer in sync.Pool
+type hashBuffer struct {
+	buf []byte
 }
 
-func putHashBuffer(b []byte) {
-	b = b[:0]
-	//lint:ignore SA6002 relax staticcheck verification.
-	hashBuffers.Put(b)
+var hashBuffers = sync.Pool{
+	New: func() interface{} { return &hashBuffer{buf: make([]byte, 0, 1024)} },
 }
 
 func hashAlert(a *types.Alert) uint64 {
 	const sep = '\xff'
 
-	b := getHashBuffer()
-	defer putHashBuffer(b)
+	hb := hashBuffers.Get().(*hashBuffer)
+	defer hashBuffers.Put(hb)
+	b := hb.buf[:0]
 
 	names := make(model.LabelNames, 0, len(a.Labels))
 
@@ -541,7 +591,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 }
 
 // Exec implements the Stage interface.
-func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
@@ -597,11 +647,11 @@ func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 type RetryStage struct {
 	integration Integration
 	groupName   string
-	metrics     *metrics
+	metrics     *Metrics
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *metrics) *RetryStage {
+func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
 	return &RetryStage{
 		integration: i,
 		groupName:   groupName,
@@ -609,8 +659,16 @@ func NewRetryStage(i Integration, groupName string, metrics *metrics) *RetryStag
 	}
 }
 
-// Exec implements the Stage interface.
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
+	ctx, alerts, err := r.exec(ctx, l, alerts...)
+	if err != nil {
+		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+	}
+	return ctx, alerts, err
+}
+
+func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	var sent []*types.Alert
 
 	// If we shouldn't send notifications for resolved alerts, but there are only
@@ -663,9 +721,9 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
 			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
-			r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
+			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.integration.Name()).Inc()
 			if err != nil {
-				r.metrics.numFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.integration.Name()).Inc()
 				if !retry {
 					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
 				}
@@ -728,4 +786,93 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 	}
 
 	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved)
+}
+
+type timeStage struct {
+	Times map[string][]timeinterval.TimeInterval
+}
+
+type TimeMuteStage timeStage
+
+func NewTimeMuteStage(ti map[string][]timeinterval.TimeInterval) *TimeMuteStage {
+	return &TimeMuteStage{ti}
+}
+
+// Exec implements the stage interface for TimeMuteStage.
+// TimeMuteStage is responsible for muting alerts whose route is not in an active time.
+func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	muteTimeIntervalNames, ok := MuteTimeIntervalNames(ctx)
+	if !ok {
+		return ctx, alerts, nil
+	}
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("missing now timestamp")
+	}
+
+	muted, err := inTimeIntervals(now, tms.Times, muteTimeIntervalNames)
+	if err != nil {
+		return ctx, alerts, err
+	}
+
+	// If the current time is inside a mute time, all alerts are removed from the pipeline.
+	if muted {
+		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time")
+		return ctx, nil, nil
+	}
+	return ctx, alerts, nil
+}
+
+type TimeActiveStage timeStage
+
+func NewTimeActiveStage(ti map[string][]timeinterval.TimeInterval) *TimeActiveStage {
+	return &TimeActiveStage{ti}
+}
+
+// Exec implements the stage interface for TimeActiveStage.
+// TimeActiveStage is responsible for muting alerts whose route is not in an active time.
+func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
+	if !ok {
+		return ctx, alerts, nil
+	}
+
+	// if we don't have active time intervals at all it is always active.
+	if len(activeTimeIntervalNames) == 0 {
+		return ctx, alerts, nil
+	}
+
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("missing now timestamp")
+	}
+
+	active, err := inTimeIntervals(now, tas.Times, activeTimeIntervalNames)
+	if err != nil {
+		return ctx, alerts, err
+	}
+
+	// If the current time is not inside an active time, all alerts are removed from the pipeline
+	if !active {
+		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time")
+		return ctx, nil, nil
+	}
+
+	return ctx, alerts, nil
+}
+
+// inTimeIntervals returns true if the current time is contained in one of the given time intervals.
+func inTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInterval, intervalNames []string) (bool, error) {
+	for _, name := range intervalNames {
+		interval, ok := intervals[name]
+		if !ok {
+			return false, errors.Errorf("time interval %s doesn't exist in config", name)
+		}
+		for _, ti := range interval {
+			if ti.ContainsTime(now.UTC()) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }

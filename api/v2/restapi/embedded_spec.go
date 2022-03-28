@@ -48,6 +48,7 @@ func init() {
     },
     "version": "0.0.1"
   },
+  "basePath": "/api/v2/",
   "paths": {
     "/alerts": {
       "get": {
@@ -612,6 +613,10 @@ func init() {
         "isRegex"
       ],
       "properties": {
+        "isEqual": {
+          "type": "boolean",
+          "default": true
+        },
         "isRegex": {
           "type": "boolean"
         },
@@ -827,6 +832,7 @@ func init() {
     },
     "version": "0.0.1"
   },
+  "basePath": "/api/v2/",
   "paths": {
     "/alerts": {
       "get": {
@@ -1421,6 +1427,10 @@ func init() {
         "isRegex"
       ],
       "properties": {
+        "isEqual": {
+          "type": "boolean",
+          "default": true
+        },
         "isRegex": {
           "type": "boolean"
         },

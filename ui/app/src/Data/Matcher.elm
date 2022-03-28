@@ -22,6 +22,7 @@ type alias Matcher =
     { name : String
     , value : String
     , isRegex : Bool
+    , isEqual : Maybe Bool
     }
 
 
@@ -31,6 +32,7 @@ decoder =
         |> required "name" Decode.string
         |> required "value" Decode.string
         |> required "isRegex" Decode.bool
+        |> optional "isEqual" (Decode.nullable Decode.bool) (Just True)
 
 
 encoder : Matcher -> Encode.Value
@@ -39,4 +41,5 @@ encoder model =
         [ ( "name", Encode.string model.name )
         , ( "value", Encode.string model.value )
         , ( "isRegex", Encode.bool model.isRegex )
+        , ( "isEqual", Maybe.withDefault Encode.null (Maybe.map Encode.bool model.isEqual) )
         ]

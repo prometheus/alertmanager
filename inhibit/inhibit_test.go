@@ -17,11 +17,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
@@ -47,21 +48,21 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		},
 		{
 			// No equal labels, any source alerts satisfies the requirement.
-			initial: map[model.Fingerprint]*types.Alert{1: &types.Alert{}},
+			initial: map[model.Fingerprint]*types.Alert{1: {}},
 			input:   model.LabelSet{"a": "b"},
 			result:  true,
 		},
 		{
 			// Matching but already resolved.
 			initial: map[model.Fingerprint]*types.Alert{
-				1: &types.Alert{
+				1: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "b": "f"},
 						StartsAt: now.Add(-time.Minute),
 						EndsAt:   now.Add(-time.Second),
 					},
 				},
-				2: &types.Alert{
+				2: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "b": "c"},
 						StartsAt: now.Add(-time.Minute),
@@ -76,14 +77,14 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		{
 			// Matching and unresolved.
 			initial: map[model.Fingerprint]*types.Alert{
-				1: &types.Alert{
+				1: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "c": "d"},
 						StartsAt: now.Add(-time.Minute),
 						EndsAt:   now.Add(-time.Second),
 					},
 				},
-				2: &types.Alert{
+				2: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "c": "f"},
 						StartsAt: now.Add(-time.Minute),
@@ -98,14 +99,14 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		{
 			// Equal label does not match.
 			initial: map[model.Fingerprint]*types.Alert{
-				1: &types.Alert{
+				1: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "c", "c": "d"},
 						StartsAt: now.Add(-time.Minute),
 						EndsAt:   now.Add(-time.Second),
 					},
 				},
-				2: &types.Alert{
+				2: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "c", "c": "f"},
 						StartsAt: now.Add(-time.Minute),
@@ -150,6 +151,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		TargetMatch: map[string]string{"t2": "1"},
 		Equal:       model.LabelNames{"e"},
 	}
+
 	m := types.NewMarker(prometheus.NewRegistry())
 	ih := NewInhibitor(nil, []*config.InhibitRule{&rule1, &rule2}, m, nopLogger)
 	now := time.Now()
@@ -217,6 +219,102 @@ func TestInhibitRuleMatches(t *testing.T) {
 			// source and target filter of rule2.
 			target:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
 			expected: false,
+		},
+		{
+			// Matches target filter, equal label doesn't match, not inhibited
+			target:   model.LabelSet{"t1": "1", "e": "0"},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		if actual := ih.Mutes(c.target); actual != c.expected {
+			t.Errorf("Expected (*Inhibitor).Mutes(%v) to return %t but got %t", c.target, c.expected, actual)
+		}
+	}
+}
+
+func TestInhibitRuleMatchers(t *testing.T) {
+	t.Parallel()
+
+	rule1 := config.InhibitRule{
+		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s1", Value: "1"}},
+		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchNotEqual, Name: "t1", Value: "1"}},
+		Equal:          model.LabelNames{"e"},
+	}
+	rule2 := config.InhibitRule{
+		SourceMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "s2", Value: "1"}},
+		TargetMatchers: config.Matchers{&labels.Matcher{Type: labels.MatchEqual, Name: "t2", Value: "1"}},
+		Equal:          model.LabelNames{"e"},
+	}
+
+	m := types.NewMarker(prometheus.NewRegistry())
+	ih := NewInhibitor(nil, []*config.InhibitRule{&rule1, &rule2}, m, nopLogger)
+	now := time.Now()
+	// Active alert that matches the source filter of rule1.
+	sourceAlert1 := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s1": "1", "t1": "2", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+	// Active alert that matches the source filter _and_ the target filter of rule2.
+	sourceAlert2 := &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		},
+	}
+
+	ih.rules[0].scache = store.NewAlerts()
+	ih.rules[0].scache.Set(sourceAlert1)
+	ih.rules[1].scache = store.NewAlerts()
+	ih.rules[1].scache.Set(sourceAlert2)
+
+	cases := []struct {
+		target   model.LabelSet
+		expected bool
+	}{
+		{
+			// Matches target filter of rule1, inhibited.
+			target:   model.LabelSet{"t1": "1", "e": "1"},
+			expected: false,
+		},
+		{
+			// Matches target filter of rule2, inhibited.
+			target:   model.LabelSet{"t2": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Matches target filter of rule1 (plus noise), inhibited.
+			target:   model.LabelSet{"t1": "1", "t3": "1", "e": "1"},
+			expected: false,
+		},
+		{
+			// Matches target filter of rule1 plus rule2, inhibited.
+			target:   model.LabelSet{"t1": "1", "t2": "1", "e": "1"},
+			expected: true,
+		},
+		{
+			// Doesn't match target filter, not inhibited.
+			target:   model.LabelSet{"t1": "0", "e": "1"},
+			expected: true,
+		},
+		{
+			// Matches both source and target filters of rule1,
+			// inhibited because sourceAlert1 matches only the
+			// source filter of rule1.
+			target:   model.LabelSet{"s1": "1", "t1": "1", "e": "1"},
+			expected: false,
+		},
+		{
+			// Matches both source and target filters of rule2,
+			// not inhibited because sourceAlert2 matches also both the
+			// source and target filter of rule2.
+			target:   model.LabelSet{"s2": "1", "t2": "1", "e": "1"},
+			expected: true,
 		},
 		{
 			// Matches target filter, equal label doesn't match, not inhibited

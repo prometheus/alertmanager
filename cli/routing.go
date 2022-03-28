@@ -19,10 +19,10 @@ import (
 	"fmt"
 
 	"github.com/xlab/treeprint"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type routingShow struct {
@@ -75,7 +75,7 @@ func (c *routingShow) routingShowAction(ctx context.Context, _ *kingpin.ParseCon
 	return nil
 }
 
-func getRouteTreeSlug(route *dispatch.Route, showContinue bool, showReceiver bool) string {
+func getRouteTreeSlug(route *dispatch.Route, showContinue, showReceiver bool) string {
 	var branchSlug bytes.Buffer
 	if route.Matchers.Len() == 0 {
 		branchSlug.WriteString("default-route")
@@ -105,7 +105,7 @@ func getMatchingTree(route *dispatch.Route, tree treeprint.Tree, lset models.Lab
 	final := true
 	branch := tree.AddBranch(getRouteTreeSlug(route, false, false))
 	for _, r := range route.Routes {
-		if r.Matchers.Match(convertClientToCommonLabelSet(lset)) {
+		if r.Matchers.Matches(convertClientToCommonLabelSet(lset)) {
 			getMatchingTree(r, branch, lset)
 			final = false
 			if !r.Continue {

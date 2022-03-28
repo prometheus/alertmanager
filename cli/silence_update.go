@@ -19,13 +19,13 @@ import (
 	"fmt"
 	"time"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
-
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/common/model"
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/common/model"
 )
 
 type silenceUpdateCmd struct {
@@ -64,10 +64,10 @@ func (c *silenceUpdateCmd) update(ctx context.Context, _ *kingpin.ParseContext) 
 		params := silence.NewGetSilenceParams()
 		params.SilenceID = strfmt.UUID(silenceID)
 		response, err := amclient.Silence.GetSilence(params)
-		sil := response.Payload
 		if err != nil {
 			return err
 		}
+		sil := response.Payload
 		if c.start != "" {
 			startsAtTime, err := time.Parse(time.RFC3339, c.start)
 			if err != nil {

@@ -13,7 +13,10 @@
 
 package labels
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func mustNewMatcher(t *testing.T, mType MatchType, value string) *Matcher {
 	m, err := NewMatcher(mType, "", value)
@@ -79,11 +82,236 @@ func TestMatcher(t *testing.T) {
 			value:   "foo-bar",
 			match:   false,
 		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, `foo.bar`),
+			value:   "foo-bar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, `foo\.bar`),
+			value:   "foo-bar",
+			match:   false,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, `foo\.bar`),
+			value:   "foo.bar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchEqual, "foo\nbar"),
+			value:   "foo\nbar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, "foo.bar"),
+			value:   "foo\nbar",
+			match:   false,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchRegexp, "(?s)foo.bar"),
+			value:   "foo\nbar",
+			match:   true,
+		},
+		{
+			matcher: mustNewMatcher(t, MatchEqual, "~!=\""),
+			value:   "~!=\"",
+			match:   true,
+		},
 	}
 
 	for _, test := range tests {
 		if test.matcher.Matches(test.value) != test.match {
 			t.Fatalf("Unexpected match result for matcher %v and value %q; want %v, got %v", test.matcher, test.value, test.match, !test.match)
+		}
+	}
+}
+
+func TestMatcherString(t *testing.T) {
+	tests := []struct {
+		name  string
+		op    MatchType
+		value string
+		want  string
+	}{
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `bar`,
+			want:  `foo="bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotEqual,
+			value: `bar`,
+			want:  `foo!="bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchRegexp,
+			value: `bar`,
+			want:  `foo=~"bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotRegexp,
+			value: `bar`,
+			want:  `foo!~"bar"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `back\slash`,
+			want:  `foo="back\\slash"`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `double"quote`,
+			want:  `foo="double\"quote"`,
+		},
+		{
+			name: `foo`,
+			op:   MatchEqual,
+			value: `new
+line`,
+			want: `foo="new\nline"`,
+		},
+		{
+			name: `foo`,
+			op:   MatchEqual,
+			value: `tab	stop`,
+			want: `foo="tab	stop"`,
+		},
+	}
+
+	for _, test := range tests {
+		m, err := NewMatcher(test.op, test.name, test.value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := m.String(); got != test.want {
+			t.Errorf("Unexpected string representation of matcher; want %v, got %v", test.want, got)
+		}
+	}
+}
+
+func TestMatcherJSONMarshal(t *testing.T) {
+	tests := []struct {
+		name  string
+		op    MatchType
+		value string
+		want  string
+	}{
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":false}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":false}`,
+		},
+	}
+
+	cmp := func(m1, m2 Matcher) bool {
+		return m1.Name == m2.Name && m1.Value == m2.Value && m1.Type == m2.Type
+	}
+
+	for _, test := range tests {
+		m, err := NewMatcher(test.op, test.name, test.value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(b); got != test.want {
+			t.Errorf("Unexpected JSON representation of matcher:\nwant:\t%v\ngot:\t%v", test.want, got)
+		}
+
+		var m2 Matcher
+		if err := json.Unmarshal(b, &m2); err != nil {
+			t.Fatal(err)
+		}
+		if !cmp(*m, m2) {
+			t.Errorf("Doing Marshal and Unmarshal seems to be losing data; before %#v, after %#v", m, m2)
+		}
+	}
+}
+
+func TestMatcherJSONUnmarshal(t *testing.T) {
+	tests := []struct {
+		name  string
+		op    MatchType
+		value string
+		want  string
+	}{
+		{
+			name:  "foo",
+			op:    MatchEqual,
+			value: "bar",
+			want:  `{"name":"foo","value":"bar","isRegex":false}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":false}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":false}`,
+		},
+	}
+
+	cmp := func(m1, m2 Matcher) bool {
+		return m1.Name == m2.Name && m1.Value == m2.Value && m1.Type == m2.Type
+	}
+
+	for _, test := range tests {
+		var m Matcher
+		if err := json.Unmarshal([]byte(test.want), &m); err != nil {
+			t.Fatal(err)
+		}
+
+		m2, err := NewMatcher(test.op, test.name, test.value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !cmp(m, *m2) {
+			t.Errorf("Unmarshaling seems to be producing unexpected matchers; got %#v, expected %#v", m, m2)
 		}
 	}
 }

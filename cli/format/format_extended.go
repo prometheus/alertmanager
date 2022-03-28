@@ -22,6 +22,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 type ExtendedFormatter struct {
@@ -130,16 +131,9 @@ func extendedFormatAnnotations(labels models.LabelSet) string {
 }
 
 func extendedFormatMatchers(matchers models.Matchers) string {
-	output := []string{}
+	lms := labels.Matchers{}
 	for _, matcher := range matchers {
-		output = append(output, extendedFormatMatcher(*matcher))
+		lms = append(lms, labelsMatcher(*matcher))
 	}
-	return strings.Join(output, " ")
-}
-
-func extendedFormatMatcher(matcher models.Matcher) string {
-	if *matcher.IsRegex {
-		return fmt.Sprintf("%s~=%s", *matcher.Name, *matcher.Value)
-	}
-	return fmt.Sprintf("%s=%s", *matcher.Name, *matcher.Value)
+	return lms.String()
 }

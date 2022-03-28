@@ -17,11 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
@@ -114,5 +116,92 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
+}
+
+func TestVictorOpsTemplating(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dec := json.NewDecoder(r.Body)
+		out := make(map[string]interface{})
+		err := dec.Decode(&out)
+		if err != nil {
+			panic(err)
+		}
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	tests := []struct {
+		name   string
+		cfg    *config.VictorOpsConfig
+		errMsg string
+	}{
+		{
+			name: "default valid templates",
+			cfg:  &config.VictorOpsConfig{},
+		},
+		{
+			name: "invalid message_type",
+			cfg: &config.VictorOpsConfig{
+				MessageType: "{{ .CommonLabels.alertname }",
+			},
+			errMsg: "templating error",
+		},
+		{
+			name: "invalid entity_display_name",
+			cfg: &config.VictorOpsConfig{
+				EntityDisplayName: "{{ .CommonLabels.alertname }",
+			},
+			errMsg: "templating error",
+		},
+		{
+			name: "invalid state_message",
+			cfg: &config.VictorOpsConfig{
+				StateMessage: "{{ .CommonLabels.alertname }",
+			},
+			errMsg: "templating error",
+		},
+		{
+			name: "invalid monitoring tool",
+			cfg: &config.VictorOpsConfig{
+				MonitoringTool: "{{ .CommonLabels.alertname }",
+			},
+			errMsg: "templating error",
+		},
+		{
+			name: "invalid routing_key",
+			cfg: &config.VictorOpsConfig{
+				RoutingKey: "{{ .CommonLabels.alertname }",
+			},
+			errMsg: "templating error",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+			tc.cfg.APIURL = &config.URL{URL: u}
+			vo, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			require.NoError(t, err)
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			_, err = vo.Notify(ctx, []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"lbl1": "val1",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			}...)
+			if tc.errMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.Contains(t, err.Error(), tc.errMsg)
+			}
+		})
+	}
 }

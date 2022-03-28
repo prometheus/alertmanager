@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/alecthomas/units"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -48,8 +48,8 @@ type Notifier struct {
 }
 
 // New returns a new PagerDuty notifier.
-func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pagerduty", false, false)
+func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pagerduty", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -215,8 +215,8 @@ func (n *Notifier) notifyV2(
 		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
 		EventAction: eventType,
 		DedupKey:    key.Hash(),
-		Images:      make([]pagerDutyImage, len(n.conf.Images)),
-		Links:       make([]pagerDutyLink, len(n.conf.Links)),
+		Images:      make([]pagerDutyImage, 0, len(n.conf.Images)),
+		Links:       make([]pagerDutyLink, 0, len(n.conf.Links)),
 		Payload: &pagerDutyPayload{
 			Summary:       summary,
 			Source:        tmpl(n.conf.Client),
@@ -228,15 +228,27 @@ func (n *Notifier) notifyV2(
 		},
 	}
 
-	for index, item := range n.conf.Images {
-		msg.Images[index].Src = tmpl(item.Src)
-		msg.Images[index].Alt = tmpl(item.Alt)
-		msg.Images[index].Href = tmpl(item.Href)
+	for _, item := range n.conf.Images {
+		image := pagerDutyImage{
+			Src:  tmpl(item.Src),
+			Alt:  tmpl(item.Alt),
+			Href: tmpl(item.Href),
+		}
+
+		if image.Src != "" {
+			msg.Images = append(msg.Images, image)
+		}
 	}
 
-	for index, item := range n.conf.Links {
-		msg.Links[index].HRef = tmpl(item.Href)
-		msg.Links[index].Text = tmpl(item.Text)
+	for _, item := range n.conf.Links {
+		link := pagerDutyLink{
+			HRef: tmpl(item.Href),
+			Text: tmpl(item.Text),
+		}
+
+		if link.HRef != "" {
+			msg.Links = append(msg.Links, link)
+		}
 	}
 
 	if tmplErr != nil {

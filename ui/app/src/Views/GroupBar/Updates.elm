@@ -4,7 +4,7 @@ import Browser.Dom as Dom
 import Browser.Navigation as Navigation
 import Set
 import Task
-import Utils.Filter exposing (Filter, generateQueryString, parseGroup, stringifyGroup)
+import Utils.Filter exposing (Filter, parseGroup, stringifyGroup)
 import Utils.Match exposing (jaroWinkler)
 import Views.GroupBar.Types exposing (Model, Msg(..))
 
@@ -15,7 +15,7 @@ update url filter msg model =
         CustomGrouping customGrouping ->
             ( model
             , Cmd.batch
-                [ Navigation.pushUrl model.key (url ++ generateQueryString { filter | customGrouping = customGrouping })
+                [ Navigation.pushUrl model.key (Utils.Filter.toUrl url { filter | customGrouping = customGrouping })
                 , Dom.focus "group-by-field" |> Task.attempt (always Noop)
                 ]
             )
@@ -87,7 +87,7 @@ immediatelyFilter url filter model =
     in
     ( model
     , Cmd.batch
-        [ Navigation.pushUrl model.key (url ++ generateQueryString newFilter)
+        [ Navigation.pushUrl model.key (Utils.Filter.toUrl url newFilter)
         , Dom.focus "group-by-field" |> Task.attempt (always Noop)
         ]
     )

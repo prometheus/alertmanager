@@ -23,12 +23,11 @@ import (
 	"fmt"
 
 	"github.com/go-openapi/runtime"
-
-	strfmt "github.com/go-openapi/strfmt"
+	"github.com/go-openapi/strfmt"
 )
 
 // New creates a new alert API client.
-func New(transport runtime.ClientTransport, formats strfmt.Registry) *Client {
+func New(transport runtime.ClientTransport, formats strfmt.Registry) ClientService {
 	return &Client{transport: transport, formats: formats}
 }
 
@@ -40,8 +39,17 @@ type Client struct {
 	formats   strfmt.Registry
 }
 
+// ClientService is the interface for Client methods
+type ClientService interface {
+	GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error)
+
+	PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error)
+
+	SetTransport(transport runtime.ClientTransport)
+}
+
 /*
-GetAlerts Get a list of alerts
+  GetAlerts Get a list of alerts
 */
 func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 	// TODO: Validate the params before sending
@@ -75,7 +83,7 @@ func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 }
 
 /*
-PostAlerts Create new Alerts
+  PostAlerts Create new Alerts
 */
 func (a *Client) PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error) {
 	// TODO: Validate the params before sending

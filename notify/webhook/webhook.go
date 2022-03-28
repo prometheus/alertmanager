@@ -17,22 +17,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
-
-var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // Notifier implements a Notifier for generic webhooks.
 type Notifier struct {
@@ -44,8 +40,8 @@ type Notifier struct {
 }
 
 // New returns a new Webhook.
-func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", false, false)
+func New(conf *config.WebhookConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,14 +122,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		}
 	}
 
-	req, err := http.NewRequest("POST", n.conf.URL.String(), &buf)
-	if err != nil {
-		return true, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", userAgentHeader)
-
-	resp, err := n.client.Do(req.WithContext(ctx))
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &buf)
 	if err != nil {
 		return true, err
 	}

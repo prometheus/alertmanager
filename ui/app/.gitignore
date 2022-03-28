@@ -1,4 +1,6 @@
 dist/
 elm-stuff/
 script.js
-0.19.0
+.elm
+/elm-*
+/openapi-*

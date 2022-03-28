@@ -1,12 +1,12 @@
-module Views.SilenceList.Updates exposing (update, urlUpdate)
+module Views.SilenceList.Updates exposing (update)
 
 import Browser.Navigation as Navigation
 import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus exposing (State(..))
 import Silences.Api as Api
 import Utils.Api as ApiData
-import Utils.Filter exposing (Filter, generateQueryString)
-import Utils.Types as Types exposing (ApiData(..), Matchers, Time)
+import Utils.Filter exposing (Filter)
+import Utils.Types exposing (ApiData(..))
 import Views.FilterBar.Updates as FilterBar
 import Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab)
 
@@ -33,7 +33,7 @@ update msg model filter basePath apiUrl =
             , Api.getSilences apiUrl filter SilencesFetch
             )
 
-        ConfirmDestroySilence silence refresh ->
+        ConfirmDestroySilence silence ->
             ( { model | showConfirmationDialog = Just silence.id }
             , Cmd.none
             )
@@ -54,10 +54,27 @@ update msg model filter basePath apiUrl =
 
         MsgForFilterBar subMsg ->
             let
-                ( filterBar, cmd ) =
-                    FilterBar.update (basePath ++ "#/silences") filter subMsg model.filterBar
+                ( newFilterBar, shouldFilter, cmd ) =
+                    FilterBar.update subMsg model.filterBar
+
+                filterBarCmd =
+                    Cmd.map MsgForFilterBar cmd
+
+                newUrl =
+                    Utils.Filter.toUrl (basePath ++ "#/silences")
+                        (Utils.Filter.withMatchers newFilterBar.matchers filter)
+
+                silencesCmd =
+                    if shouldFilter then
+                        Cmd.batch
+                            [ Navigation.pushUrl model.key newUrl
+                            , filterBarCmd
+                            ]
+
+                    else
+                        filterBarCmd
             in
-            ( { model | filterBar = filterBar }, Cmd.map MsgForFilterBar cmd )
+            ( { model | filterBar = newFilterBar }, silencesCmd )
 
         SetTab tab ->
             ( { model | tab = tab }, Cmd.none )
@@ -88,20 +105,3 @@ filterSilencesByState state =
 filterSilenceByState : State -> GettableSilence -> Bool
 filterSilenceByState state silence =
     silence.status.state == state
-
-
-urlUpdate : Maybe String -> ( SilenceListMsg, Filter )
-urlUpdate maybeString =
-    ( FetchSilences, updateFilter maybeString )
-
-
-updateFilter : Maybe String -> Filter
-updateFilter maybeFilter =
-    { receiver = Nothing
-    , showSilenced = Nothing
-    , showInhibited = Nothing
-    , showActive = Nothing
-    , group = Nothing
-    , customGrouping = False
-    , text = maybeFilter
-    }

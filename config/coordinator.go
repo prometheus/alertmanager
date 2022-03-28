@@ -17,10 +17,9 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"sync"
-	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -97,15 +96,10 @@ func (c *Coordinator) notifySubscribers() error {
 func (c *Coordinator) loadFromFile() error {
 	conf, err := LoadFile(c.configFilePath)
 	if err != nil {
-		c.configSuccessMetric.Set(0)
 		return err
 	}
 
 	c.config = conf
-	c.configSuccessMetric.Set(1)
-	c.configSuccessTimeMetric.Set(float64(time.Now().Unix()))
-	hash := md5HashAsMetricValue([]byte(c.config.original))
-	c.configHashMetric.Set(hash)
 
 	return nil
 }
@@ -126,6 +120,7 @@ func (c *Coordinator) Reload() error {
 			"file", c.configFilePath,
 			"err", err,
 		)
+		c.configSuccessMetric.Set(0)
 		return err
 	}
 	level.Info(c.logger).Log(
@@ -139,8 +134,14 @@ func (c *Coordinator) Reload() error {
 			"file", c.configFilePath,
 			"err", err,
 		)
+		c.configSuccessMetric.Set(0)
 		return err
 	}
+
+	c.configSuccessMetric.Set(1)
+	c.configSuccessTimeMetric.SetToCurrentTime()
+	hash := md5HashAsMetricValue([]byte(c.config.original))
+	c.configHashMetric.Set(hash)
 
 	return nil
 }
@@ -149,7 +150,7 @@ func md5HashAsMetricValue(data []byte) float64 {
 	sum := md5.Sum(data)
 	// We only want 48 bits as a float64 only has a 53 bit mantissa.
 	smallSum := sum[0:6]
-	var bytes = make([]byte, 8)
+	bytes := make([]byte, 8)
 	copy(bytes, smallSum)
 	return float64(binary.LittleEndian.Uint64(bytes))
 }

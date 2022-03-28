@@ -7,12 +7,11 @@ import Utils.Types exposing (ApiData(..))
 
 
 type SilenceViewMsg
-    = FetchSilence String
-    | SilenceFetched (ApiData GettableSilence)
+    = SilenceFetched (ApiData GettableSilence)
     | SetActiveAlert (Maybe String)
     | AlertGroupsPreview (ApiData (List GettableAlert))
     | InitSilenceView String
-    | ConfirmDestroySilence GettableSilence Bool
+    | ConfirmDestroySilence
     | Reload String
 
 

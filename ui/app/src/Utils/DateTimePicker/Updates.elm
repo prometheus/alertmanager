@@ -111,7 +111,7 @@ update msg dateTimePicker =
                                     , Just end
                                     )
 
-                                ( Just start, Just end ) ->
+                                ( Just _, Just _ ) ->
                                     ( Just m
                                     , Nothing
                                     )

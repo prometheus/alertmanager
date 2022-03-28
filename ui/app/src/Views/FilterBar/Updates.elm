@@ -1,68 +1,59 @@
 module Views.FilterBar.Updates exposing (setMatchers, update)
 
 import Browser.Dom as Dom
-import Browser.Navigation as Navigation
 import Task
-import Utils.Filter exposing (Filter, generateQueryString, parseFilter, stringifyFilter)
+import Utils.Filter exposing (Filter, parseFilter)
 import Views.FilterBar.Types exposing (Model, Msg(..))
 
 
-update : String -> Filter -> Msg -> Model -> ( Model, Cmd Msg )
-update url filter msg model =
+{-| Returns a triple where the Bool component notifies whether the matchers have changed.
+-}
+update : Msg -> Model -> ( Model, Bool, Cmd Msg )
+update msg model =
     case msg of
         AddFilterMatcher emptyMatcherText matcher ->
-            immediatelyFilter url
-                filter
-                { model
-                    | matchers =
-                        if List.member matcher model.matchers then
-                            model.matchers
+            ( { model
+                | matchers =
+                    if List.member matcher model.matchers then
+                        model.matchers
 
-                        else
-                            model.matchers ++ [ matcher ]
-                    , matcherText =
-                        if emptyMatcherText then
-                            ""
+                    else
+                        model.matchers ++ [ matcher ]
+                , matcherText =
+                    if emptyMatcherText then
+                        ""
 
-                        else
-                            model.matcherText
-                }
+                    else
+                        model.matcherText
+              }
+            , True
+            , Dom.focus "filter-bar-matcher"
+                |> Task.attempt (always Noop)
+            )
 
         DeleteFilterMatcher setMatcherText matcher ->
-            immediatelyFilter url
-                filter
-                { model
-                    | matchers = List.filter ((/=) matcher) model.matchers
-                    , matcherText =
-                        if setMatcherText then
-                            Utils.Filter.stringifyMatcher matcher
+            ( { model
+                | matchers = List.filter ((/=) matcher) model.matchers
+                , matcherText =
+                    if setMatcherText then
+                        Utils.Filter.stringifyMatcher matcher
 
-                        else
-                            model.matcherText
-                }
+                    else
+                        model.matcherText
+              }
+            , True
+            , Dom.focus "filter-bar-matcher"
+                |> Task.attempt (always Noop)
+            )
 
         UpdateMatcherText value ->
-            ( { model | matcherText = value }, Cmd.none )
+            ( { model | matcherText = value }, False, Cmd.none )
 
         PressingBackspace isPressed ->
-            ( { model | backspacePressed = isPressed }, Cmd.none )
+            ( { model | backspacePressed = isPressed }, False, Cmd.none )
 
         Noop ->
-            ( model, Cmd.none )
-
-
-immediatelyFilter : String -> Filter -> Model -> ( Model, Cmd Msg )
-immediatelyFilter url filter model =
-    let
-        newFilter =
-            { filter | text = Just (stringifyFilter model.matchers) }
-    in
-    ( { model | matchers = [] }
-    , Cmd.batch
-        [ Navigation.pushUrl model.key (url ++ generateQueryString newFilter)
-        , Dom.focus "filter-bar-matcher" |> Task.attempt (always Noop)
-        ]
-    )
+            ( model, False, Cmd.none )
 
 
 setMatchers : Filter -> Model -> Model

@@ -32,7 +32,7 @@ linkifyHelp words linkified =
                         -- append space to last word
                         linkifyHelp restWords (Ok word :: Err (lastWord ++ " ") :: restLinkified)
 
-                    (Ok lastWord) :: restLinkified ->
+                    (Ok _) :: _ ->
                         -- insert space between two links
                         linkifyHelp restWords (Ok word :: Err " " :: linkified)
 
@@ -45,7 +45,7 @@ linkifyHelp words linkified =
                         -- concatenate with last word
                         linkifyHelp restWords (Err (lastWord ++ " " ++ word) :: restLinkified)
 
-                    (Ok lastWord) :: restLinkified ->
+                    (Ok _) :: _ ->
                         -- insert space after the link
                         linkifyHelp restWords (Err (" " ++ word) :: linkified)
 

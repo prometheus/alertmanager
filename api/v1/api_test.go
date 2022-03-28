@@ -62,6 +62,7 @@ func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, 
 func (f *fakeAlerts) Put(alerts ...*types.Alert) error {
 	return f.err
 }
+
 func (f *fakeAlerts) GetPending() provider.AlertIterator {
 	ch := make(chan *types.Alert)
 	done := make(chan struct{})
@@ -158,31 +159,31 @@ func TestAddAlerts(t *testing.T) {
 func TestListAlerts(t *testing.T) {
 	now := time.Now()
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "suppressed", "silenced_by": "abc", "alertname": "alert3"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "suppressed", "inhibited_by": "abc", "alertname": "alert4"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"alertname": "alert5"},
 				StartsAt: now.Add(-2 * time.Minute),
@@ -572,10 +573,14 @@ func TestMatchFilterLabels(t *testing.T) {
 	}
 }
 
-func newMatcher(labelSet model.LabelSet) types.Matchers {
-	matchers := make([]*types.Matcher, 0, len(labelSet))
+func newMatcher(labelSet model.LabelSet) labels.Matchers {
+	matchers := make([]*labels.Matcher, 0, len(labelSet))
 	for key, val := range labelSet {
-		matchers = append(matchers, types.NewMatcher(key, string(val)))
+		matchers = append(matchers, &labels.Matcher{
+			Type:  labels.MatchEqual,
+			Name:  string(key),
+			Value: string(val),
+		})
 	}
 	return matchers
 }

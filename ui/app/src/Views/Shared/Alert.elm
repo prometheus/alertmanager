@@ -1,8 +1,8 @@
 module Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, a, button, div, i, li, span, table, td, text, th, tr)
-import Html.Attributes exposing (class, href, style)
+import Html exposing (Html, a, button, i, span, td, text, th, tr)
+import Html.Attributes exposing (class, href)
 import Html.Events exposing (onClick)
 import Utils.Date exposing (dateTimeFormat)
 import Utils.Views exposing (linkifyText)

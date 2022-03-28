@@ -1,0 +1,9 @@
+tls_server_config:
+  cert_file: "certs/node2.pem"
+  key_file: "certs/node2-key.pem"
+  client_ca_file: "certs/ca.pem"
+  client_auth_type: "VerifyClientCertIfGiven"
+tls_client_config:
+  cert_file: "certs/node2.pem"
+  key_file: "certs/node2-key.pem"
+  ca_file: "certs/ca.pem"

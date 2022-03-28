@@ -18,10 +18,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
+
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -121,6 +124,33 @@ func TestLogSnapshot(t *testing.T) {
 
 		require.NoError(t, f.Close(), "closing snapshot file failed")
 	}
+}
+
+func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
+	f, err := ioutil.TempFile("", "snapshot")
+	require.NoError(t, err, "creating temp file failed")
+
+	stopc := make(chan struct{})
+	var mtx sync.Mutex
+	var mc int
+	l, err := New(WithMetrics(prometheus.NewPedanticRegistry()), WithSnapshot(f.Name()), WithMaintenance(100*time.Millisecond, stopc, nil, func() (int64, error) {
+		mtx.Lock()
+		mc++
+		mtx.Unlock()
+
+		return 0, nil
+	}))
+	require.NoError(t, err)
+
+	go l.run()
+	time.Sleep(200 * time.Millisecond)
+	close(stopc)
+
+	require.Eventually(t, func() bool {
+		mtx.Lock()
+		defer mtx.Unlock()
+		return mc >= 2
+	}, 500*time.Millisecond, 100*time.Millisecond)
 }
 
 func TestReplaceFile(t *testing.T) {

@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/prometheus/common/model"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
@@ -83,7 +83,6 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 	addCmd.Flag("comment", "A comment to help describe the silence").Short('c').StringVar(&c.comment)
 	addCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	addCmd.Action(execWithTimeout(c.add))
-
 }
 
 func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {
@@ -108,6 +107,17 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		return fmt.Errorf("no matchers specified")
 	}
 
+	var startsAt time.Time
+	if c.start != "" {
+		startsAt, err = time.Parse(time.RFC3339, c.start)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		startsAt = time.Now().UTC()
+	}
+
 	var endsAt time.Time
 	if c.end != "" {
 		endsAt, err = time.Parse(time.RFC3339, c.end)
@@ -122,38 +132,22 @@ func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error 
 		if d == 0 {
 			return fmt.Errorf("silence duration must be greater than 0")
 		}
-		endsAt = time.Now().UTC().Add(time.Duration(d))
-	}
-
-	if c.requireComment && c.comment == "" {
-		return errors.New("comment required by config")
-	}
-
-	var startsAt time.Time
-	if c.start != "" {
-		startsAt, err = time.Parse(time.RFC3339, c.start)
-		if err != nil {
-			return err
-		}
-
-	} else {
-		startsAt = time.Now().UTC()
+		endsAt = startsAt.UTC().Add(time.Duration(d))
 	}
 
 	if startsAt.After(endsAt) {
 		return errors.New("silence cannot start after it ends")
 	}
 
-	typeMatchers, err := TypeMatchers(matchers)
-	if err != nil {
-		return err
+	if c.requireComment && c.comment == "" {
+		return errors.New("comment required by config")
 	}
 
 	start := strfmt.DateTime(startsAt)
 	end := strfmt.DateTime(endsAt)
 	ps := &models.PostableSilence{
 		Silence: models.Silence{
-			Matchers:  typeMatchers,
+			Matchers:  TypeMatchers(matchers),
 			StartsAt:  &start,
 			EndsAt:    &end,
 			CreatedBy: &c.author,

@@ -15,14 +15,16 @@ package dispatch
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
@@ -40,8 +42,8 @@ func TestAggrGroup(t *testing.T) {
 	opts := &RouteOpts{
 		Receiver: "n1",
 		GroupBy: map[model.LabelName]struct{}{
-			"a": struct{}{},
-			"b": struct{}{},
+			"a": {},
+			"b": {},
 		},
 		GroupWait:      1 * time.Second,
 		GroupInterval:  300 * time.Millisecond,
@@ -268,7 +270,7 @@ func TestAggrGroup(t *testing.T) {
 }
 
 func TestGroupLabels(t *testing.T) {
-	var a = &types.Alert{
+	a := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"a": "v1",
@@ -281,8 +283,8 @@ func TestGroupLabels(t *testing.T) {
 	route := &Route{
 		RouteOpts: RouteOpts{
 			GroupBy: map[model.LabelName]struct{}{
-				"a": struct{}{},
-				"b": struct{}{},
+				"a": {},
+				"b": {},
 			},
 			GroupByAll: false,
 		},
@@ -301,7 +303,7 @@ func TestGroupLabels(t *testing.T) {
 }
 
 func TestGroupByAllLabels(t *testing.T) {
-	var a = &types.Alert{
+	a := &types.Alert{
 		Alert: model.Alert{
 			Labels: model.LabelSet{
 				"a": "v1",
@@ -364,7 +366,7 @@ route:
 	logger := log.NewNopLogger()
 	route := NewRoute(conf.Route, nil)
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +374,7 @@ route:
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
-	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
 	go dispatcher.Run()
 	defer dispatcher.Stop()
 
@@ -410,63 +412,160 @@ route:
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[0]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("OtherAlert"),
+				"alertname": "OtherAlert",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[1]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("TestingAlert"),
-				model.LabelName("service"):   model.LabelValue("api"),
+				"alertname": "TestingAlert",
+				"service":   "api",
 			},
 			Receiver: "testing",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[2], inputAlerts[3]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighErrorRate"),
-				model.LabelName("service"):   model.LabelValue("api"),
-				model.LabelName("cluster"):   model.LabelValue("aa"),
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[4]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighErrorRate"),
-				model.LabelName("service"):   model.LabelValue("api"),
-				model.LabelName("cluster"):   model.LabelValue("bb"),
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
 			},
 			Receiver: "prod",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighLatency"),
-				model.LabelName("service"):   model.LabelValue("db"),
-				model.LabelName("cluster"):   model.LabelValue("bb"),
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
 			},
 			Receiver: "kafka",
 		},
 		&AlertGroup{
 			Alerts: []*types.Alert{inputAlerts[5]},
 			Labels: model.LabelSet{
-				model.LabelName("alertname"): model.LabelValue("HighLatency"),
-				model.LabelName("service"):   model.LabelValue("db"),
-				model.LabelName("cluster"):   model.LabelValue("bb"),
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
 			},
 			Receiver: "prod",
 		},
 	}, alertGroups)
 	require.Equal(t, map[model.Fingerprint][]string{
-		inputAlerts[0].Fingerprint(): []string{"prod"},
-		inputAlerts[1].Fingerprint(): []string{"testing"},
-		inputAlerts[2].Fingerprint(): []string{"prod"},
-		inputAlerts[3].Fingerprint(): []string{"prod"},
-		inputAlerts[4].Fingerprint(): []string{"prod"},
-		inputAlerts[5].Fingerprint(): []string{"kafka", "prod"},
+		inputAlerts[0].Fingerprint(): {"prod"},
+		inputAlerts[1].Fingerprint(): {"testing"},
+		inputAlerts[2].Fingerprint(): {"prod"},
+		inputAlerts[3].Fingerprint(): {"prod"},
+		inputAlerts[4].Fingerprint(): {"prod"},
+		inputAlerts[5].Fingerprint(): {"kafka", "prod"},
 	}, receivers)
+}
+
+func TestGroupsWithLimits(t *testing.T) {
+	confData := `receivers:
+- name: 'kafka'
+- name: 'prod'
+- name: 'testing'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10ms
+  group_interval: 10ms
+  receiver: 'prod'
+  routes:
+  - match:
+      env: 'testing'
+    receiver: 'testing'
+    group_by: ['alertname', 'service']
+  - match:
+      env: 'prod'
+    receiver: 'prod'
+    group_by: ['alertname', 'service', 'cluster']
+    continue: true
+  - match:
+      kafka: 'yes'
+    receiver: 'kafka'
+    group_by: ['alertname', 'service', 'cluster']`
+	conf, err := config.Load(confData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logger := log.NewNopLogger()
+	route := NewRoute(conf.Route, nil)
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	lim := limits{groups: 6}
+	m := NewDispatcherMetrics(true, prometheus.NewRegistry())
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, lim, logger, m)
+	go dispatcher.Run()
+	defer dispatcher.Stop()
+
+	// Create alerts. the dispatcher will automatically create the groups.
+	inputAlerts := []*types.Alert{
+		// Matches the parent route.
+		newAlert(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"}),
+		// Matches the first sub-route.
+		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api", "instance": "inst1"}),
+		// Matches the second sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst1"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst2"}),
+		// Matches the second sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api", "instance": "inst1"}),
+		// Matches the second and third sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
+	}
+	err = alerts.Put(inputAlerts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Let alerts get processed.
+	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+	}
+	require.Equal(t, 7, len(recorder.Alerts()))
+
+	routeFilter := func(*Route) bool { return true }
+	alertFilter := func(*types.Alert, time.Time) bool { return true }
+
+	alertGroups, _ := dispatcher.Groups(routeFilter, alertFilter)
+	require.Len(t, alertGroups, 6)
+
+	require.Equal(t, 0.0, testutil.ToFloat64(m.aggrGroupLimitReached))
+
+	// Try to store new alert. This time, we will hit limit for number of groups.
+	err = alerts.Put(newAlert(model.LabelSet{"env": "prod", "alertname": "NewAlert", "cluster": "new-cluster", "service": "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Let alert get processed.
+	for i := 0; testutil.ToFloat64(m.aggrGroupLimitReached) == 0 && i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+	}
+	require.Equal(t, 1.0, testutil.ToFloat64(m.aggrGroupLimitReached))
+
+	// Verify there are still only 6 groups.
+	alertGroups, _ = dispatcher.Groups(routeFilter, alertFilter)
+	require.Len(t, alertGroups, 6)
 }
 
 type recordStage struct {
@@ -526,14 +625,69 @@ func newAlert(labels model.LabelSet) *types.Alert {
 func TestDispatcherRace(t *testing.T) {
 	logger := log.NewNopLogger()
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, logger)
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer alerts.Close()
 
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
-	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, logger, NewDispatcherMetrics(prometheus.NewRegistry()))
+	dispatcher := NewDispatcher(alerts, nil, nil, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
 	go dispatcher.Run()
 	dispatcher.Stop()
+}
+
+func TestDispatcherRaceOnFirstAlertNotDeliveredWhenGroupWaitIsZero(t *testing.T) {
+	const numAlerts = 5000
+
+	logger := log.NewNopLogger()
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+
+	route := &Route{
+		RouteOpts: RouteOpts{
+			Receiver:       "default",
+			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:      0,
+			GroupInterval:  1 * time.Hour, // Should never hit in this test.
+			RepeatInterval: 1 * time.Hour, // Should never hit in this test.
+		},
+	}
+
+	timeout := func(d time.Duration) time.Duration { return d }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	go dispatcher.Run()
+	defer dispatcher.Stop()
+
+	// Push all alerts.
+	for i := 0; i < numAlerts; i++ {
+		alert := newAlert(model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("Alert_%d", i))})
+		require.NoError(t, alerts.Put(alert))
+	}
+
+	// Wait until the alerts have been notified or the waiting timeout expires.
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+		if len(recorder.Alerts()) >= numAlerts {
+			break
+		}
+
+		// Throttle.
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// We expect all alerts to be notified immediately, since they all belong to different groups.
+	require.Equal(t, numAlerts, len(recorder.Alerts()))
+}
+
+type limits struct {
+	groups int
+}
+
+func (l limits) MaxNumberOfAggregationGroups() int {
+	return l.groups
 }

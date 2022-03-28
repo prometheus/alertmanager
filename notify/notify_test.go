@@ -22,15 +22,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 )
 
@@ -307,6 +309,7 @@ func TestMultiStage(t *testing.T) {
 			if !reflect.DeepEqual(alerts, alerts1) {
 				t.Fatal("Input not equal to input of MultiStage")
 			}
+			//nolint:staticcheck // Ignore SA1029
 			ctx = context.WithValue(ctx, "key", "value")
 			return ctx, alerts2, nil
 		}),
@@ -389,11 +392,11 @@ func TestRetryStageWithError(t *testing.T) {
 	}
 	r := RetryStage{
 		integration: i,
-		metrics:     newMetrics(prometheus.NewRegistry()),
+		metrics:     NewMetrics(prometheus.NewRegistry()),
 	}
 
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
 			},
@@ -430,16 +433,16 @@ func TestRetryStageNoResolved(t *testing.T) {
 	}
 	r := RetryStage{
 		integration: i,
-		metrics:     newMetrics(prometheus.NewRegistry()),
+		metrics:     NewMetrics(prometheus.NewRegistry()),
 	}
 
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(-time.Hour),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
 			},
@@ -484,16 +487,16 @@ func TestRetryStageSendResolved(t *testing.T) {
 	}
 	r := RetryStage{
 		integration: i,
-		metrics:     newMetrics(prometheus.NewRegistry()),
+		metrics:     NewMetrics(prometheus.NewRegistry()),
 	}
 
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(-time.Hour),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				EndsAt: time.Now().Add(time.Hour),
 			},
@@ -670,7 +673,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	// Set the second alert as previously silenced with an old version
 	// number. This is expected to get unsilenced by the stage.
-	marker.SetSilenced(inAlerts[1].Fingerprint(), 0, "123")
+	marker.SetSilenced(inAlerts[1].Fingerprint(), 0, []string{"123"}, nil)
 
 	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), inAlerts...)
 	if err != nil {
@@ -717,5 +720,196 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("Unmuting failed, expected: %v\ngot %v", in, got)
+	}
+}
+
+func TestTimeMuteStage(t *testing.T) {
+	// Route mutes alerts outside business hours if it is a mute_time_interval
+	muteIn := `
+---
+- weekdays: ['monday:friday']
+  times:
+   - start_time: '00:00'
+     end_time: '09:00'
+   - start_time: '17:00'
+     end_time: '24:00'
+- weekdays: ['saturday', 'sunday']`
+
+	cases := []struct {
+		fireTime   string
+		labels     model.LabelSet
+		shouldMute bool
+	}{
+		{
+			// Friday during business hours
+			fireTime:   "01 Jan 21 09:00 +0000",
+			labels:     model.LabelSet{"foo": "bar"},
+			shouldMute: false,
+		},
+		{
+			// Tuesday before 5pm
+			fireTime:   "01 Dec 20 16:59 +0000",
+			labels:     model.LabelSet{"dont": "mute"},
+			shouldMute: false,
+		},
+		{
+			// Saturday
+			fireTime:   "17 Oct 20 10:00 +0000",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			// Wednesday before 9am
+			fireTime:   "14 Oct 20 05:00 +0000",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			// Ensure comparisons are UTC only. 12:00 KST should be muted (03:00 UTC)
+			fireTime:   "14 Oct 20 12:00 +0900",
+			labels:     model.LabelSet{"mute": "kst"},
+			shouldMute: true,
+		},
+		{
+			// Ensure comparisons are UTC only. 22:00 KST should not be muted (13:00 UTC)
+			fireTime:   "14 Oct 20 22:00 +0900",
+			labels:     model.LabelSet{"kst": "dont_mute"},
+			shouldMute: false,
+		},
+	}
+	var intervals []timeinterval.TimeInterval
+	err := yaml.Unmarshal([]byte(muteIn), &intervals)
+	if err != nil {
+		t.Fatalf("Couldn't unmarshal time interval %s", err)
+	}
+	m := map[string][]timeinterval.TimeInterval{"test": intervals}
+	stage := NewTimeMuteStage(m)
+
+	outAlerts := []*types.Alert{}
+	nonMuteCount := 0
+	for _, tc := range cases {
+		now, err := time.Parse(time.RFC822Z, tc.fireTime)
+		if err != nil {
+			t.Fatalf("Couldn't parse fire time %s %s", tc.fireTime, err)
+		}
+		// Count alerts with shouldMute == false and compare to ensure none are muted incorrectly
+		if !tc.shouldMute {
+			nonMuteCount++
+		}
+		a := model.Alert{Labels: tc.labels}
+		alerts := []*types.Alert{{Alert: a}}
+		ctx := context.Background()
+		ctx = WithNow(ctx, now)
+		ctx = WithActiveTimeIntervals(ctx, []string{})
+		ctx = WithMuteTimeIntervals(ctx, []string{"test"})
+
+		_, out, err := stage.Exec(ctx, log.NewNopLogger(), alerts...)
+		if err != nil {
+			t.Fatalf("Unexpected error in time mute stage %s", err)
+		}
+		outAlerts = append(outAlerts, out...)
+	}
+	for _, alert := range outAlerts {
+		if _, ok := alert.Alert.Labels["mute"]; ok {
+			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
+		}
+	}
+	if len(outAlerts) != nonMuteCount {
+		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	}
+}
+
+func TestTimeActiveStage(t *testing.T) {
+	// Route mutes alerts inside business hours if it is an active time interval
+	muteIn := `
+---
+- weekdays: ['monday:friday']
+  times:
+   - start_time: '00:00'
+     end_time: '09:00'
+   - start_time: '17:00'
+     end_time: '24:00'
+- weekdays: ['saturday', 'sunday']`
+
+	cases := []struct {
+		fireTime   string
+		labels     model.LabelSet
+		shouldMute bool
+	}{
+		{
+			// Friday during business hours
+			fireTime:   "01 Jan 21 09:00 +0000",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			// Tuesday before 5pm
+			fireTime:   "01 Dec 20 16:59 +0000",
+			labels:     model.LabelSet{"mute": "me"},
+			shouldMute: true,
+		},
+		{
+			// Saturday
+			fireTime:   "17 Oct 20 10:00 +0000",
+			labels:     model.LabelSet{"foo": "bar"},
+			shouldMute: false,
+		},
+		{
+			// Wednesday before 9am
+			fireTime:   "14 Oct 20 05:00 +0000",
+			labels:     model.LabelSet{"dont": "mute"},
+			shouldMute: false,
+		},
+	}
+	var intervals []timeinterval.TimeInterval
+	err := yaml.Unmarshal([]byte(muteIn), &intervals)
+	if err != nil {
+		t.Fatalf("Couldn't unmarshal time interval %s", err)
+	}
+	m := map[string][]timeinterval.TimeInterval{"test": intervals}
+	stage := NewTimeActiveStage(m)
+
+	outAlerts := []*types.Alert{}
+	nonMuteCount := 0
+	for _, tc := range cases {
+		now, err := time.Parse(time.RFC822Z, tc.fireTime)
+		if err != nil {
+			t.Fatalf("Couldn't parse fire time %s %s", tc.fireTime, err)
+		}
+		// Count alerts with shouldMute == false and compare to ensure none are muted incorrectly
+		if !tc.shouldMute {
+			nonMuteCount++
+		}
+		a := model.Alert{Labels: tc.labels}
+		alerts := []*types.Alert{{Alert: a}}
+		ctx := context.Background()
+		ctx = WithNow(ctx, now)
+		ctx = WithActiveTimeIntervals(ctx, []string{"test"})
+		ctx = WithMuteTimeIntervals(ctx, []string{})
+
+		_, out, err := stage.Exec(ctx, log.NewNopLogger(), alerts...)
+		if err != nil {
+			t.Fatalf("Unexpected error in time mute stage %s", err)
+		}
+		outAlerts = append(outAlerts, out...)
+	}
+	for _, alert := range outAlerts {
+		if _, ok := alert.Alert.Labels["mute"]; ok {
+			t.Fatalf("Expected alert to be muted %+v", alert.Alert)
+		}
+	}
+	if len(outAlerts) != nonMuteCount {
+		t.Fatalf("Expected %d alerts after time mute stage but got %d", nonMuteCount, len(outAlerts))
+	}
+}
+
+func BenchmarkHashAlert(b *testing.B) {
+	alert := &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{"foo": "the_first_value", "bar": "the_second_value", "another": "value"},
+		},
+	}
+	for i := 0; i < b.N; i++ {
+		hashAlert(alert)
 	}
 }

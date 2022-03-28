@@ -8,7 +8,7 @@ import Views.FilterBar.Types as FilterBar
 
 
 type SilenceListMsg
-    = ConfirmDestroySilence GettableSilence Bool
+    = ConfirmDestroySilence GettableSilence
     | DestroySilence GettableSilence Bool
     | SilencesFetch (ApiData (List GettableSilence))
     | FetchSilences
@@ -35,7 +35,7 @@ type alias Model =
 initSilenceList : Key -> Model
 initSilenceList key =
     { silences = Initial
-    , filterBar = FilterBar.initFilterBar key
+    , filterBar = FilterBar.initFilterBar []
     , tab = Active
     , showConfirmationDialog = Nothing
     , key = key

@@ -17,12 +17,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/memberlist"
-	"github.com/prometheus/alertmanager/cluster/clusterpb"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/prometheus/alertmanager/cluster/clusterpb"
 )
 
 // Channel allows clients to send messages for a specific state type that will be
@@ -145,5 +146,5 @@ func (c *Channel) Broadcast(b []byte) {
 // OversizedMessage indicates whether or not the byte payload should be sent
 // via TCP.
 func OversizedMessage(b []byte) bool {
-	return len(b) > maxGossipPacketSize/2
+	return len(b) > MaxGossipPacketSize/2
 }

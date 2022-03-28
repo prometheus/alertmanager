@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
@@ -89,7 +89,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 	require.NoError(t, err)
 	notifier.apiV1 = u.String()
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestPagerDutyRedactedURLV2(t *testing.T) {
@@ -108,7 +108,7 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestPagerDutyTemplating(t *testing.T) {
@@ -212,7 +212,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
-				&types.Alert{
+				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"lbl1": "val1",
@@ -321,4 +321,130 @@ func TestEventSizeEnforcement(t *testing.T) {
 	encodedV2, err := notifierV2.encodeMessage(msgV2)
 	require.NoError(t, err)
 	require.Contains(t, encodedV2.String(), `"custom_details":{"error":"Custom details have been removed because the original event exceeds the maximum size of 512KB"}`)
+}
+
+func TestPagerDutyEmptySrcHref(t *testing.T) {
+	type pagerDutyEvent struct {
+		RoutingKey  string           `json:"routing_key"`
+		EventAction string           `json:"event_action"`
+		DedupKey    string           `json:"dedup_key"`
+		Payload     pagerDutyPayload `json:"payload"`
+		Images      []pagerDutyImage
+		Links       []pagerDutyLink
+	}
+
+	images := []config.PagerdutyImage{
+		{
+			Src:  "",
+			Alt:  "Empty src",
+			Href: "https://example.com/",
+		},
+		{
+			Src:  "https://example.com/cat.jpg",
+			Alt:  "Empty href",
+			Href: "",
+		},
+		{
+			Src:  "https://example.com/cat.jpg",
+			Alt:  "",
+			Href: "https://example.com/",
+		},
+	}
+
+	links := []config.PagerdutyLink{
+		{
+			Href: "",
+			Text: "Empty href",
+		},
+		{
+			Href: "https://example.com/",
+			Text: "",
+		},
+	}
+
+	expectedImages := make([]pagerDutyImage, 0, len(images))
+	for _, image := range images {
+		if image.Src == "" {
+			continue
+		}
+		expectedImages = append(expectedImages, pagerDutyImage{
+			Src:  image.Src,
+			Alt:  image.Alt,
+			Href: image.Href,
+		})
+	}
+
+	expectedLinks := make([]pagerDutyLink, 0, len(links))
+	for _, link := range links {
+		if link.Href == "" {
+			continue
+		}
+		expectedLinks = append(expectedLinks, pagerDutyLink{
+			HRef: link.Href,
+			Text: link.Text,
+		})
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			decoder := json.NewDecoder(r.Body)
+			var event pagerDutyEvent
+			if err := decoder.Decode(&event); err != nil {
+				panic(err)
+			}
+
+			if event.RoutingKey == "" || event.EventAction == "" {
+				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				return
+			}
+
+			for _, image := range event.Images {
+				if image.Src == "" {
+					http.Error(w, "Event object is invalid: 'image src' is missing or blank", http.StatusBadRequest)
+					return
+				}
+			}
+
+			for _, link := range event.Links {
+				if link.HRef == "" {
+					http.Error(w, "Event object is invalid: 'link href' is missing or blank", http.StatusBadRequest)
+					return
+				}
+			}
+
+			require.Equal(t, expectedImages, event.Images)
+			require.Equal(t, expectedLinks, event.Links)
+		},
+	))
+	defer server.Close()
+
+	url, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	pagerDutyConfig := config.PagerdutyConfig{
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+		RoutingKey: config.Secret("01234567890123456789012345678901"),
+		URL:        &config.URL{URL: url},
+		Images:     images,
+		Links:      links,
+	}
+
+	pagerDuty, err := New(&pagerDutyConfig, test.CreateTmpl(t), log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	_, err = pagerDuty.Notify(ctx, []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}...)
+	require.NoError(t, err)
 }

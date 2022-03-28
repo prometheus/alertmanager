@@ -1,4 +1,4 @@
-module Utils.List exposing (groupBy, lastElem, mstring, nextElem, replaceIf, replaceIndex, zip)
+module Utils.List exposing (groupBy, lastElem, mstring, nextElem, zip)
 
 import Data.Matcher exposing (Matcher)
 import Dict exposing (Dict)
@@ -23,41 +23,29 @@ lastElem =
     List.foldl (Just >> always) Nothing
 
 
-replaceIf : (a -> Bool) -> a -> List a -> List a
-replaceIf predicate replacement list =
-    List.map
-        (\item ->
-            if predicate item then
-                replacement
-
-            else
-                item
-        )
-        list
-
-
-replaceIndex : Int -> (a -> a) -> List a -> List a
-replaceIndex index replacement list =
-    List.indexedMap
-        (\currentIndex item ->
-            if index == currentIndex then
-                replacement item
-
-            else
-                item
-        )
-        list
-
-
 mstring : Matcher -> String
 mstring m =
     let
+        isEqual =
+            case m.isEqual of
+                Nothing ->
+                    True
+
+                Just value ->
+                    value
+
         sep =
-            if m.isRegex then
+            if not m.isRegex && isEqual then
+                "="
+
+            else if not m.isRegex && not isEqual then
+                "!="
+
+            else if m.isRegex && isEqual then
                 "=~"
 
             else
-                "="
+                "!~"
     in
     String.join sep [ m.name, m.value ]
 

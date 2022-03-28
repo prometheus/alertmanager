@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/stretchr/testify/require"
 
@@ -35,6 +35,7 @@ func TestClusterJoinAndReconnect(t *testing.T) {
 	t.Run("TestReconnect", testReconnect)
 	t.Run("TestRemoveFailedPeers", testRemoveFailedPeers)
 	t.Run("TestInitiallyFailingPeers", testInitiallyFailingPeers)
+	t.Run("TestTLSConnection", testTLSConnection)
 }
 
 func testJoinLeave(t *testing.T) {
@@ -48,9 +49,11 @@ func testJoinLeave(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -60,9 +63,14 @@ func testJoinLeave(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.False(t, p.Ready())
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		require.Equal(t, context.Canceled, p.WaitReady(ctx))
+	}
 	require.Equal(t, p.Status(), "settling")
 	go p.Settle(context.Background(), 0*time.Second)
-	p.WaitReady()
+	require.NoError(t, p.WaitReady(context.Background()))
 	require.Equal(t, p.Status(), "ready")
 
 	// Create the peer who joins the first.
@@ -75,9 +83,11 @@ func testJoinLeave(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -87,6 +97,7 @@ func testJoinLeave(t *testing.T) {
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
+	require.NoError(t, p2.WaitReady(context.Background()))
 
 	require.Equal(t, 2, p.ClusterSize())
 	p2.Leave(0 * time.Second)
@@ -107,9 +118,11 @@ func testReconnect(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -119,7 +132,7 @@ func testReconnect(t *testing.T) {
 	)
 	require.NoError(t, err)
 	go p.Settle(context.Background(), 0*time.Second)
-	p.WaitReady()
+	require.NoError(t, p.WaitReady(context.Background()))
 
 	p2, err := Create(
 		logger,
@@ -130,9 +143,11 @@ func testReconnect(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -142,7 +157,7 @@ func testReconnect(t *testing.T) {
 	)
 	require.NoError(t, err)
 	go p2.Settle(context.Background(), 0*time.Second)
-	p2.WaitReady()
+	require.NoError(t, p2.WaitReady(context.Background()))
 
 	p.peerJoin(p2.Self())
 	p.peerLeave(p2.Self())
@@ -168,9 +183,11 @@ func testRemoveFailedPeers(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -217,9 +234,11 @@ func testInitiallyFailingPeers(t *testing.T) {
 		true,
 		DefaultPushPullInterval,
 		DefaultGossipInterval,
-		DefaultTcpTimeout,
+		DefaultTCPTimeout,
 		DefaultProbeTimeout,
 		DefaultProbeInterval,
+		nil,
+		false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -247,4 +266,71 @@ func testInitiallyFailingPeers(t *testing.T) {
 		p.peerJoin(pr.Node)
 		require.Equal(t, expectedLen, len(p.failedPeers))
 	}
+}
+
+func testTLSConnection(t *testing.T) {
+	logger := log.NewNopLogger()
+	tlsTransportConfig1, err := GetTLSTransportConfig("./testdata/tls_config_node1.yml")
+	require.NoError(t, err)
+	p1, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		tlsTransportConfig1,
+		false,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p1)
+	err = p1.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	require.False(t, p1.Ready())
+	require.Equal(t, p1.Status(), "settling")
+	go p1.Settle(context.Background(), 0*time.Second)
+	p1.WaitReady(context.Background())
+	require.Equal(t, p1.Status(), "ready")
+
+	// Create the peer who joins the first.
+	tlsTransportConfig2, err := GetTLSTransportConfig("./testdata/tls_config_node2.yml")
+	require.NoError(t, err)
+	p2, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{p1.Self().Address()},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		tlsTransportConfig2,
+		false,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+	err = p2.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	go p2.Settle(context.Background(), 0*time.Second)
+
+	require.Equal(t, 2, p1.ClusterSize())
+	p2.Leave(0 * time.Second)
+	require.Equal(t, 1, p1.ClusterSize())
+	require.Equal(t, 1, len(p1.failedPeers))
+	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Node.Address())
+	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
 }

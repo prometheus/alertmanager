@@ -1,13 +1,13 @@
-module Views exposing (cssNode, currentView, failureView, renderCSS, view)
+module Views exposing (view)
 
 import Html exposing (Html, div, node, text)
-import Html.Attributes exposing (class, href, rel, src, style)
+import Html.Attributes exposing (class, href, rel, style)
 import Html.Events exposing (on)
 import Json.Decode exposing (succeed)
 import Types exposing (Model, Msg(..), Route(..))
 import Utils.Filter exposing (emptySilenceFormGetParams)
 import Utils.Types exposing (ApiData(..))
-import Utils.Views exposing (error, loading)
+import Utils.Views
 import Views.AlertList.Views as AlertList
 import Views.NavBar.Views exposing (navBar)
 import Views.NotFound.Views as NotFound
@@ -77,7 +77,7 @@ currentView model =
         StatusRoute ->
             Status.view model.status
 
-        SilenceViewRoute silenceId ->
+        SilenceViewRoute _ ->
             SilenceView.view model.silenceView
 
         AlertsRoute filter ->

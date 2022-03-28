@@ -57,7 +57,7 @@ func configureSilenceImportCmd(cc *kingpin.CmdClause) {
 	importCmd.Action(execWithTimeout(c.bulkImport))
 }
 
-func addSilenceWorker(ctx context.Context, sclient *silence.Client, silencec <-chan *models.PostableSilence, errc chan<- error) {
+func addSilenceWorker(ctx context.Context, sclient silence.ClientService, silencec <-chan *models.PostableSilence, errc chan<- error) {
 	for s := range silencec {
 		sid := s.ID
 		params := silence.NewPostSilencesParams().WithContext(ctx).WithSilence(s)

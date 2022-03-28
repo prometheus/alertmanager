@@ -19,10 +19,10 @@ import (
 )
 
 func TestMatchers(t *testing.T) {
-	testCases := []struct {
+	for _, tc := range []struct {
 		input string
 		want  []*Matcher
-		err   error
+		err   string
 	}{
 		{
 			input: `{foo="bar"}`,
@@ -130,16 +130,129 @@ func TestMatchers(t *testing.T) {
 				return append(ms, m, m2)
 			}(),
 		},
+		{
+			input: `{foo = "bar", dings != "bums", }`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar")
+				m2, _ := NewMatcher(MatchNotEqual, "dings", "bums")
+				return append(ms, m, m2)
+			}(),
+		},
+		{
+			input: `foo=bar,dings!=bums`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar")
+				m2, _ := NewMatcher(MatchNotEqual, "dings", "bums")
+				return append(ms, m, m2)
+			}(),
+		},
+		{
+			input: `{quote="She said: \"Hi, ladies! That's gender-neutral…\""}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "quote", `She said: "Hi, ladies! That's gender-neutral…"`)
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `statuscode=~"5.."`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchRegexp, "statuscode", "5..")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `tricky=~~~`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchRegexp, "tricky", "~~")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `trickier==\\=\=\"`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "trickier", `=\=\="`)
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `contains_quote != "\"" , contains_comma !~ "foo,bar" , `,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchNotEqual, "contains_quote", `"`)
+				m2, _ := NewMatcher(MatchNotRegexp, "contains_comma", "foo,bar")
+				return append(ms, m, m2)
+			}(),
+		},
+		{
+			input: `job="value`,
+			err:   `matcher value contains unescaped double quote: "value`,
+		},
+		{
+			input: `job=value"`,
+			err:   `matcher value contains unescaped double quote: value"`,
+		},
+		{
+			input: `trickier==\\=\=\""`,
+			err:   `matcher value contains unescaped double quote: =\\=\=\""`,
+		},
+		{
+			input: `contains_unescaped_quote = foo"bar`,
+			err:   `matcher value contains unescaped double quote: foo"bar`,
+		},
+		{
+			input: `{invalid-name = "valid label"}`,
+			err:   `bad matcher format: invalid-name = "valid label"`,
+		},
+		{
+			input: `{foo=~"invalid[regexp"}`,
+			err:   "error parsing regexp: missing closing ]: `[regexp)$`",
+		},
+		// Double escaped strings.
+		{
+			input: `"{foo=\"bar"}`,
+			err:   `bad matcher format: "{foo=\"bar"`,
+		},
+		{
+			input: `"foo=\"bar"`,
+			err:   `bad matcher format: "foo=\"bar"`,
+		},
+		{
+			input: `"foo=\"bar\""`,
+			err:   `bad matcher format: "foo=\"bar\""`,
+		},
+		{
+			input: `"foo=\"bar\"`,
+			err:   `bad matcher format: "foo=\"bar\"`,
+		},
+		{
+			input: `"{foo=\"bar\"}"`,
+			err:   `bad matcher format: "{foo=\"bar\"}"`,
+		},
+		{
+			input: `"foo="bar""`,
+			err:   `bad matcher format: "foo="bar""`,
+		},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			got, err := ParseMatchers(tc.input)
+			if err != nil && tc.err == "" {
+				t.Fatalf("got error where none expected: %v", err)
+			}
+			if err == nil && tc.err != "" {
+				t.Fatalf("expected error but got none: %v", tc.err)
+			}
+			if err != nil && err.Error() != tc.err {
+				t.Fatalf("error not equal:\ngot  %v\nwant %v", err, tc.err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("labels not equal:\ngot  %v\nwant %v", got, tc.want)
+			}
+		})
 	}
-
-	for i, tc := range testCases {
-		got, err := ParseMatchers(tc.input)
-		if tc.err != err {
-			t.Fatalf("error not equal (i=%d):\ngot  %v\nwant %v", i, err, tc.err)
-		}
-		if !reflect.DeepEqual(got, tc.want) {
-			t.Fatalf("labels not equal (i=%d):\ngot  %v\nwant %v", i, got, tc.want)
-		}
-	}
-
 }

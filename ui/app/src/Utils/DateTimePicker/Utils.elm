@@ -17,7 +17,7 @@ module Utils.DateTimePicker.Utils exposing
 
 import Html.Events exposing (targetValue)
 import Json.Decode as Decode
-import Time exposing (Month(..), Posix, Weekday(..), Zone, utc)
+import Time exposing (Month(..), Posix, Weekday(..), utc)
 import Time.Extra as Time exposing (Interval(..))
 
 

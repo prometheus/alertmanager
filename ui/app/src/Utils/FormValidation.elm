@@ -1,7 +1,6 @@
 module Utils.FormValidation exposing
     ( ValidatedField
     , ValidationState(..)
-    , fromResult
     , initialField
     , stringNotEmpty
     , updateValue

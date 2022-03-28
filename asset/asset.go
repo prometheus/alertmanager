@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build dev
 // +build dev
 
 package asset
@@ -38,7 +39,7 @@ var static http.FileSystem = filter.Keep(
 var templates http.FileSystem = filter.Keep(
 	http.Dir("../template"),
 	func(path string, fi os.FileInfo) bool {
-		return path == "/" || path == "/default.tmpl"
+		return path == "/" || path == "/default.tmpl" || path == "/email.tmpl"
 	},
 )
 

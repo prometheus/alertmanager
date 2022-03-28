@@ -17,17 +17,16 @@ import (
 	"io"
 	"time"
 
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
-
 	"github.com/go-openapi/strfmt"
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"
 
-var (
-	dateFormat *string
-)
+var dateFormat *string
 
 func InitFormatFlags(app *kingpin.Application) {
 	dateFormat = app.Flag("date.format", "Format of date output").Default(DefaultDateFormat).String()
@@ -47,4 +46,25 @@ var Formatters = map[string]Formatter{}
 
 func FormatDate(input strfmt.DateTime) string {
 	return time.Time(input).Format(*dateFormat)
+}
+
+func labelsMatcher(m models.Matcher) *labels.Matcher {
+	var t labels.MatchType
+	// Support for older alertmanager releases, which did not support isEqual.
+	if m.IsEqual == nil {
+		isEqual := true
+		m.IsEqual = &isEqual
+	}
+	switch {
+	case !*m.IsRegex && *m.IsEqual:
+		t = labels.MatchEqual
+	case !*m.IsRegex && !*m.IsEqual:
+		t = labels.MatchNotEqual
+	case *m.IsRegex && *m.IsEqual:
+		t = labels.MatchRegexp
+	case *m.IsRegex && !*m.IsEqual:
+		t = labels.MatchNotRegexp
+	}
+
+	return &labels.Matcher{Type: t, Name: *m.Name, Value: *m.Value}
 }

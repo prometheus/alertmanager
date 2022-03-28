@@ -1,3 +1,81 @@
+## 0.24.0-rc.0 / 2022-03-10
+
+* [CHANGE] Add the `/api/v2` prefix to all endpoints in the OpenAPI specification and generated client code. #2696
+* [CHANGE] Remove the `github.com/prometheus/alertmanager/client` Go package. #2763
+* [FEATURE] Add `--cluster.tls-config` experimental flag to secure cluster traffic via mutual TLS. #2237
+* [FEATURE] Add support for active time intervals. Active and mute time intervals should be defined via `time_intervals` rather than `mute_time_intervals` (the latter is deprecated but it will be supported until v1.0). #2779
+* [FEATURE] Add Telegram integration. #2827
+* [ENHANCEMENT] Add `update_alerts` field to the OpsGenie configuration to update message and description when sending alerts. #2519
+* [ENHANCEMENT] Add `--cluster.allow-insecure-public-advertise-address-discovery` feature flag to enable discovery and use of public IP addresses for clustering. #2719
+* [ENHANCEMENT] Add `entity` and `actions` fields to the OpsGenie configuration. #2753
+* [ENHANCEMENT] Add `opsgenie_api_key_file` field to the global configuration. #2728
+* [ENHANCEMENT] Add support for `teams` responders to the OpsGenie configuration. #2685
+* [ENHANCEMENT] Add the User-Agent header to all notification requests. #2730
+* [ENHANCEMENT] Re-enable HTTP/2. #2720
+* [ENHANCEMENT] web: Add support for security-related HTTP headers. #2759
+* [ENHANCEMENT] amtool: Allow filtering of silences by `createdBy` author. #2718
+* [ENHANCEMENT] amtool: add `--http.config.file` flag to configure HTTP settings. #2764
+* [BUGFIX] Fix HTTP client configuration for the SNS receiver. #2706
+* [BUGFIX] Fix unclosed file descriptor after reading the silences snapshot file. #2710
+* [BUGFIX] Fix field names for `mute_time_intervals` in JSON marshaling. #2765
+* [BUGFIX] Ensure that the root route doesn't have any matchers. #2780
+* [BUGFIX] Truncate the message's title to 1024 chars to avoid hitting Slack limits. #2774
+* [BUGFIX] Fix the default HTML email template (`email.default.html`) to match with the canonical source. #2798
+* [BUGFIX] Detect SNS FIFO topic based on the rendered value. #2819
+* [BUGFIX] Avoid deleting and recreating a silence when an update is possible. #2816
+* [BUGFIX] api/v2: Return 200 OK when deleting an expired silence. #2817
+* [BUGFIX] amtool: Fix the silence's end date when adding a silence. The end date is (start date + duration) while it used to be (current time + duration). The new behavior is consistent with the update operation. #2741
+
+## 0.23.0 / 2021-08-25
+
+* [FEATURE] Add AWS SNS receiver. #2615
+* [FEATURE] amtool: add new template render command. #2538
+* [ENHANCEMENT] amtool: Add ability to skip TLS verification for amtool. #2663
+* [ENHANCEMENT] amtool: Detect version drift and warn users. #2672
+* [BUGFIX] Time-based muting: Ensure time interval comparisons are in UTC. #2648
+* [BUGFIX] amtool: Fix empty isEqual when talking to incompatible alertmanager. #2668
+
+## 0.22.2 / 2021-06-01
+
+* [BUGFIX] Include pending silences for future muting decisions. #2590
+
+## 0.22.1 / 2021-05-27
+
+This release addresses a regression in the API v1 that was introduced in 0.22.0.
+Matchers in silences created with the API v1 could be considered negative
+matchers. This affects users using amtool prior to v0.17.0.
+
+* [BUGFIX] API v1: Decode matchers without isEqual are positive matchers. #2603
+
+## 0.22.0 / 2021-05-21
+
+* [CHANGE] Amtool and Alertmanager binaries help now prints to stdout. #2505
+* [CHANGE] Use path relative to the configuration file for certificates and password files. #2502
+* [CHANGE] Display Silence and Alert dates in ISO8601 format. #2363
+* [FEATURE] Add date picker to silence form views. #2262
+* [FEATURE] Add support for negative matchers. #2434 #2460 and many more.
+* [FEATURE] Add time-based muting to routing tree. #2393
+* [FEATURE] Support TLS and basic authentication on the web server. #2446
+* [FEATURE] Add OAuth 2.0 client support in HTTP client. #2560
+* [ENHANCEMENT] Add composite durations in the configuration (e.g. 2h20m). #2353
+* [ENHANCEMENT] Add follow_redirect option to disable following redirects. #2551
+* [ENHANCEMENT] Add metric for permanently failed notifications. #2383
+* [ENHANCEMENT] Add support for custom authorization scheme. #2499
+* [ENHANCEMENT] Add support for not following HTTP redirects. #2499
+* [ENHANCEMENT] Add support to set the Slack URL from a file. #2534
+* [ENHANCEMENT] amtool: Add alert status to extended and simple output. #2324
+* [ENHANCEMENT] Do not omit false booleans in the configuration page. #2317
+* [ENHANCEMENT] OpsGenie: Propagate labels to Opsgenie details. #2276
+* [ENHANCEMENT] PagerDuty: Filter out empty images and links. #2379
+* [ENHANCEMENT] WeChat: add markdown support. #2309
+* [BUGFIX] Fix a possible deadlock on shutdown. #2558
+* [BUGFIX] UI: Fix extended printing of regex sign. #2445
+* [BUGFIX] UI: Fix the favicon when using a path prefix. #2392
+* [BUGFIX] Make filter labels consistent with Prometheus. #2403
+* [BUGFIX] alertmanager_config_last_reload_successful takes templating failures into account. #2373
+* [BUGFIX] amtool: avoid nil dereference in silence update. #2427
+* [BUGFIX] VictorOps: Catch routing_key templating errors. #2467
+
 ## 0.21.0 / 2020-06-16
 
 This release removes the HipChat integration as it is discontinued by Atlassian on June 30th 2020.
