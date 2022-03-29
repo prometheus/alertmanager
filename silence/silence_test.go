@@ -225,7 +225,7 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return calls.Load() == 2
-	}, 1*time.Millisecond, 50*time.Microsecond)
+	}, 100*time.Millisecond, 1*time.Millisecond)
 }
 
 func TestSilencesSetSilence(t *testing.T) {
