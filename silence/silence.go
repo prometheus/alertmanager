@@ -359,7 +359,6 @@ func (s *Silences) nowUTC() time.Time {
 // Terminates on receiving from stopc.
 // If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
 func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, override MaintenanceFunc) {
-
 	t := s.clock.Ticker(interval)
 	defer t.Stop()
 
