@@ -354,10 +354,6 @@ func (s *Silences) nowUTC() time.Time {
 	return s.clock.Now().UTC()
 }
 
-func (s *Silences) ticker(d time.Duration) *clock.Ticker {
-	return s.clock.Ticker(d)
-}
-
 // Maintenance garbage collects the silence state at the given interval. If the snapshot
 // file is set, a snapshot is written to it afterwards.
 // Terminates on receiving from stopc.

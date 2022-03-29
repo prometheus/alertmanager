@@ -20,7 +20,6 @@ import (
 	"os"
 	"runtime"
 	"sort"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
@@ -211,9 +211,9 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
 	stopc := make(chan struct{})
 
-	var calls int32 = 0
+	calls := atomic.NewInt32(0)
 	go s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-		atomic.AddInt32(&calls, 1)
+		calls.Add(1)
 		return 0, nil
 	})
 	runtime.Gosched()
@@ -224,7 +224,7 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	close(stopc)
 
 	require.Eventually(t, func() bool {
-		return atomic.LoadInt32(&calls) == 2
+		return calls.Load() == 2
 	}, 1*time.Millisecond, 50*time.Microsecond)
 }
 
