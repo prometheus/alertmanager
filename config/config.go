@@ -742,6 +742,7 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
+	ForwardAlerts  bool            `yaml:"forward_alerts,omitempty" json:"forward_alerts,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.
@@ -787,6 +788,22 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if r.RepeatInterval != nil && time.Duration(*r.RepeatInterval) == time.Duration(0) {
 		return fmt.Errorf("repeat_interval cannot be zero")
+	}
+
+	if r.ForwardAlerts {
+		r.GroupByAll = true
+		r.GroupBy = nil
+
+		zeroDur := model.Duration(0)
+		r.GroupWait = &zeroDur
+
+		// If forwarding an alert failed, this will re-try sending after one minute.
+		oneMin := model.Duration(1 * time.Minute)
+		r.GroupInterval = &oneMin
+
+		// Never repeat an alert.
+		longDur := model.Duration(100 * 365 * 24 * time.Hour)
+		r.RepeatInterval = &longDur
 	}
 
 	return nil

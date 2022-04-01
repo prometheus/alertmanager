@@ -185,6 +185,10 @@ matchers:
 # been sent successfully for an alert. (Usually ~3h or more).
 [ repeat_interval: <duration> | default = 4h ]
 
+# If true, all alerts are simply forwarded to the receivers without any wait and grouping.
+# group_wait, group_interval and repeat_interval are not honored. group_by becomes "...". 
+[ forward_alerts: <boolean> | default = false ]
+
 # Times when the route should be muted. These must match the name of a
 # mute time interval defined in the mute_time_intervals section.
 # Additionally, the root node cannot have any mute times.

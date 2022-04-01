@@ -88,6 +88,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	if cr.RepeatInterval != nil {
 		opts.RepeatInterval = time.Duration(*cr.RepeatInterval)
 	}
+	opts.ForwardAlerts = cr.ForwardAlerts
 
 	// Build matchers.
 	var matchers labels.Matchers
@@ -208,6 +209,8 @@ type RouteOpts struct {
 	GroupWait      time.Duration
 	GroupInterval  time.Duration
 	RepeatInterval time.Duration
+	// If true, all alerts are plain forwarded without honoring GroupWait, GroupInterval and RepeatInterval.
+	ForwardAlerts bool
 
 	// A list of time intervals for which the route is muted.
 	MuteTimeIntervals []string

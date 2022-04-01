@@ -47,6 +47,7 @@ routes:
 
     receiver: 'notify-productionA'
     group_wait: 1m
+    forward_alerts: true
 
     continue: true
 
@@ -177,10 +178,11 @@ routes:
 				{
 					Receiver:       "notify-productionA",
 					GroupBy:        def.GroupBy,
-					GroupByAll:     false,
-					GroupWait:      1 * time.Minute,
-					GroupInterval:  def.GroupInterval,
-					RepeatInterval: def.RepeatInterval,
+					GroupByAll:     true,
+					GroupWait:      0,
+					GroupInterval:  1 * time.Minute,
+					RepeatInterval: 100 * 365 * 24 * time.Hour,
+					ForwardAlerts:  true,
 				},
 				{
 					Receiver:       "notify-productionB",

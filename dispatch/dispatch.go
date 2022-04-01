@@ -481,10 +481,10 @@ func (ag *aggrGroup) insert(alert *types.Alert) {
 	}
 
 	// Immediately trigger a flush if the wait duration for this
-	// alert is already over.
+	// alert is already over or if this route is forwarding alerts.
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
-	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
+	if ag.opts.ForwardAlerts || (!ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now())) {
 		ag.next.Reset(0)
 	}
 }
@@ -527,7 +527,8 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
 				continue
 			}
-			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
+			// We remove the alert even if it is not resolved if we are forwarding alerts.
+			if (ag.opts.ForwardAlerts || a.Resolved()) && got.UpdatedAt == a.UpdatedAt {
 				if err := ag.alerts.Delete(fp); err != nil {
 					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())
 				}
