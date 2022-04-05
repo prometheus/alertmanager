@@ -16,6 +16,7 @@ package telegram
 import (
 	"context"
 	"net/http"
+	"net/url"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -42,6 +43,19 @@ func New(conf *config.TelegramConfig, t *template.Template, l log.Logger, httpOp
 	httpclient, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "telegram", httpOpts...)
 	if err != nil {
 		return nil, err
+	}
+
+	if conf.APIUrl == nil {
+		apiURL, err := url.Parse("https://api.telegram.org")
+		if err != nil {
+			return nil, err
+		}
+		conf.APIUrl = &config.URL{URL: apiURL}
+	}
+	if conf.ParseMode == "" {
+		// The default Telegram template is in HTML,
+		// so we need to set the parse mode to HTML for Telegram not to return a parse error.
+		conf.ParseMode = "HTML"
 	}
 
 	client, err := createTelegramClient(conf.BotToken, conf.APIUrl.String(), conf.ParseMode, httpclient)
