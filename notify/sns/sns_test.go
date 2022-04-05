@@ -125,7 +125,7 @@ func TestCreatePublishInput_noErrors(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	publishInput, err := notifier.createPublishInput(ctx, temlFunction(t))
+	publishInput, _ := notifier.createPublishInput(ctx, temlFunction(t))
 
 	require.Equal(t, "TestTopic", *publishInput.TopicArn)
 	require.Equal(t, "TestPhone", *publishInput.PhoneNumber)
@@ -160,7 +160,7 @@ func TestCreatePublishInput_subjectOmitted(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	publishInput, err := notifier.createPublishInput(ctx, temlFunction(t))
+	publishInput, _ := notifier.createPublishInput(ctx, temlFunction(t))
 
 	require.Equal(t, "TestTopic", *publishInput.TopicArn)
 	require.Equal(t, "TestPhone", *publishInput.PhoneNumber)
@@ -200,7 +200,7 @@ func TestCreatePublishInput_subjectEmpty(t *testing.T) {
 		return input
 	}
 
-	publishInput, err := notifier.createPublishInput(ctx, temlFunc)
+	publishInput, _ := notifier.createPublishInput(ctx, temlFunc)
 
 	require.Equal(t, "TestTopic", *publishInput.TopicArn)
 	require.Equal(t, "TestPhone", *publishInput.PhoneNumber)
