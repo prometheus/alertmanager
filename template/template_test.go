@@ -387,3 +387,400 @@ func TestTemplateExpansion(t *testing.T) {
 		})
 	}
 }
+
+func TestDojoTemplates(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	commonTmpl := `{{- /* */ -}}
+{{- /* dojo.subject.stable_text(Data) */ -}}
+{{- /* This provides a stable subject value that is only a function of the static */ -}}
+{{- /* values used to group the alerts being notified (GroupLabels). */ -}}
+{{- /* It does NOT make use of the number of alerts, common labels across firing */ -}}
+{{- /* alerts (CommonLabels) or annotations (CommonAnnotations). All these values */ -}}
+{{- /* can change as new alerts fire and old alerts resolve, making the subject */ -}}
+{{- /* value change as well. */ -}}
+{{- /* Having a stable subject is good for use cases where the grouped alerts state */ -}}
+{{- /* is to me synchronised with another system (eg: PagerDuty), and we */ -}}
+{{- /* want to prevent a stale subject from misleading people. */ -}}
+{{- /* Examples: */ -}}
+{{- /* "Alerts for $receiver" */ -}}
+{{- /* "[$alertname_value] ($group_label_key=$group_label_value)" */ -}}
+{{- /* "($group_label_key=$group_label_value)" */ -}}
+{{- define "dojo.subject.stable_text" -}}
+	{{- if eq .Status "resolved" -}}
+		{{- "Resolved: " -}}
+	{{- end -}}
+	{{- with .GroupLabels -}}
+		{{- $groupLabels := . -}}
+		{{- with index . "alertname" -}}
+			{{- "[" }}{{ . }}{{ "]" -}}
+		{{- end -}}
+		{{- with .Remove (stringSlice "alertname") -}}
+			{{- with index $groupLabels "alertname" -}}
+				{{- " " -}}
+			{{- end -}}
+			{{ "(" }}
+			{{- with index .SortedPairs 0 -}}
+				{{- .Name }}={{ .Value -}}
+			{{- end -}}
+			{{- with slice .SortedPairs 1 -}}
+				{{- range . -}}
+					{{- " " }}{{ .Name }}={{ .Value -}}
+				{{- end -}}
+			{{- end -}}
+			{{ ")" }}
+		{{- end -}}
+	{{- else -}}
+		{{- "Alerts for " -}}{{- .Receiver -}}
+	{{- end -}}
+{{- end -}}
+
+{{- /* dojo.alert.text(Alert) */ -}}
+{{- /* Textual representation of the Alert with: */ -}}
+{{- /* - A descriptive "alert name": */ -}}
+{{- /*   - "[$alertname_value] ($label=$value)" when "alertname" label exists. */ -}}
+{{- /*   - "($label=$value)" when "alertname" is missing. */ -}}
+{{- /* - Annotations */ -}}
+{{- define "dojo.alert.text" -}}
+	{{- $alert := . -}}
+	{{- with index .Labels.alertname -}}
+		{{- "[" -}}{{ . }}{{- "]" -}}
+		{{- with ($alert.Labels.Remove (stringSlice "alertname")).SortedPairs -}}
+			{{- " (" }}
+			{{- with index . 0 -}}
+				{{- .Name }}={{ .Value -}}
+			{{- end -}}
+			{{- range slice . 1 -}}
+				{{- " " }}{{ .Name }}={{ .Value -}}
+			{{- end -}}
+			{{- ")" }}
+		{{- end -}}
+	{{- else -}}
+		{{- "(" -}}
+			{{- with index $alert.Labels.SortedPairs 0 -}}
+				{{- .Name }}={{ .Value -}}
+			{{- end -}}
+			{{- with slice $alert.Labels.SortedPairs 1 -}}
+				{{- range . -}}
+					{{- " " }}{{ .Name }}={{ .Value -}}
+				{{- end -}}
+			{{- end -}}
+		{{- ")" -}}
+	{{- end -}}
+	{{- with .Annotations.SortedPairs -}}
+		{{- "\nAnnotations:" -}}
+		{{- range . -}}
+			{{ "\n" }}{{ .Name }}: {{ .Value }}
+		{{- end -}}
+	{{- end -}}
+	{{- with .GeneratorURL -}}
+		{{ "\n" }}{{ . }}
+	{{- end -}}
+{{- end -}}
+
+{{- /* dojo.alerts.text(Alerts) */ -}}
+{{- /* Textual representation of a list of Alerts. */ -}}
+{{- /* See also: dojo.alert.text */ -}}
+{{- /* See also: dojo.alerts.status_grouped_text */ -}}
+{{- define "dojo.alerts.text" }}
+	{{- with . -}}
+		{{- with index . 0 -}}
+			{{- template "dojo.alert.text" . -}}
+		{{- end -}}
+		{{- with slice . 1 -}}
+			{{- range . -}}
+				{{- "\n\n" }}
+				{{- template "dojo.alert.text" . -}}
+			{{- end -}}
+		{{- end -}}
+	{{- end -}}
+{{- end -}}
+
+{{- /* dojo.alerts.status_grouped_text(Alerts) */ -}}
+{{- /* Textual representation of a list of Alerts with status */ -}}
+{{- /* (firing / resolved) grouping. */ -}}
+{{- /* See also: dojo.alert.text */ -}}
+{{- /* See also: dojo.alerts.text */ -}}
+{{- define "dojo.alerts.status_grouped_text" -}}
+	{{- if and (gt (len .Firing) 0) (gt (len .Resolved) 0)  }}
+		{{- $alerts := . -}}
+		{{- with .Firing -}}
+			{{- "FIRING:\n\n" -}}
+			{{- template "dojo.alerts.text" . -}}
+		{{- end -}}
+		{{- with .Resolved -}}
+			{{- with $alerts.Firing -}}
+				{{- "\n\n" -}}
+			{{- end -}}
+			{{- "RESOLVED:\n\n" -}}
+			{{- template "dojo.alerts.text" . -}}
+		{{- end -}}
+	{{- else -}}
+		{{- template "dojo.alerts.text" .Firing -}}
+		{{- template "dojo.alerts.text" .Resolved -}}
+	{{- end -}}
+{{- end -}}
+`
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
+		{
+			title: "dojo.subject.stable_text with no group_by and firing alerts",
+			in:    `{{ template "dojo.subject.stable_text" . }}`,
+			data: Data{
+				Receiver: "Receiver",
+				Status:   "firing",
+			},
+			exp: "Alerts for Receiver",
+		},
+		{
+			title: "dojo.subject.stable_text with no group_by and resolved alerts",
+			in:    `{{ template "dojo.subject.stable_text" . }}`,
+			data: Data{
+				Receiver: "Receiver",
+				Status:   "resolved",
+			},
+			exp: "Resolved: Alerts for Receiver",
+		},
+		{
+			title: "dojo.subject.stable_text with group_by, alertname and firing alerts",
+			in:    `{{ template "dojo.subject.stable_text" . }}`,
+			data: Data{
+				Receiver: "Receiver",
+				Status:   "firing",
+				GroupLabels: KV{
+					"alertname": "AlertName",
+					"label1":    "value1",
+					"label2":    "value2",
+				},
+			},
+			exp: "[AlertName] (label1=value1 label2=value2)",
+		},
+		{
+			title: "dojo.subject.stable_text with group_by, alertname and resolved alerts",
+			in:    `{{ template "dojo.subject.stable_text" . }}`,
+			data: Data{
+				Receiver: "Receiver",
+				Status:   "resolved",
+				GroupLabels: KV{
+					"alertname": "AlertName",
+					"label1":    "value1",
+					"label2":    "value2",
+				},
+			},
+			exp: "Resolved: [AlertName] (label1=value1 label2=value2)",
+		},
+		{
+			title: "dojo.subject.stable_text with group_by and firing alerts",
+			in:    `{{ template "dojo.subject.stable_text" . }}`,
+			data: Data{
+				Receiver: "Receiver",
+				Status:   "firing",
+				GroupLabels: KV{
+					"label1": "value1",
+					"label2": "value2",
+				},
+			},
+			exp: "(label1=value1 label2=value2)",
+		},
+		{
+			title: "dojo.subject.stable_text with group_by and resolved alerts",
+			in:    `{{ template "dojo.subject.stable_text" . }}`,
+			data: Data{
+				Receiver: "Receiver",
+				Status:   "resolved",
+				GroupLabels: KV{
+					"label1": "value1",
+					"label2": "value2",
+				},
+			},
+			exp: "Resolved: (label1=value1 label2=value2)",
+		},
+		{
+			title: "dojo.alert.text with alertname and labels",
+			in:    `{{ template "dojo.alert.text" (index .Alerts 0) }}`,
+			data: Data{
+				Alerts: Alerts{
+					{
+						Status: "firing",
+						Labels: KV{
+							"alertname": "AlertName",
+							"label1":    "value1",
+							"label2":    "value2",
+						},
+						Annotations: KV{
+							"annotation1": "value1",
+							"annotation2": "value2",
+						},
+						GeneratorURL: "http://generator.url/",
+					},
+				},
+			},
+			exp: "[AlertName] (label1=value1 label2=value2)\n" +
+				"Annotations:\n" +
+				"annotation1: value1\n" +
+				"annotation2: value2\n" +
+				"http://generator.url/",
+		},
+		{
+			title: "dojo.alert.text with alertname and no extra labels",
+			in:    `{{ template "dojo.alert.text" (index .Alerts 0) }}`,
+			data: Data{
+				Alerts: Alerts{
+					{
+						Status: "firing",
+						Labels: KV{
+							"alertname": "AlertName",
+						},
+						Annotations: KV{
+							"annotation1": "value1",
+							"annotation2": "value2",
+						},
+						GeneratorURL: "http://generator.url/",
+					},
+				},
+			},
+			exp: "[AlertName]\n" +
+				"Annotations:\n" +
+				"annotation1: value1\n" +
+				"annotation2: value2\n" +
+				"http://generator.url/",
+		},
+		{
+			title: "dojo.alert.text without alertname and labels",
+			in:    `{{ template "dojo.alert.text" (index .Alerts 0) }}`,
+			data: Data{
+				Alerts: Alerts{
+					{
+						Status: "firing",
+						Labels: KV{
+							"label1": "value1",
+							"label2": "value2",
+						},
+						Annotations: KV{
+							"annotation1": "value1",
+							"annotation2": "value2",
+						},
+						GeneratorURL: "http://generator.url/",
+					},
+				},
+			},
+			exp: "(label1=value1 label2=value2)\n" +
+				"Annotations:\n" +
+				"annotation1: value1\n" +
+				"annotation2: value2\n" +
+				"http://generator.url/",
+		},
+		{
+			title: "dojo.alerts.status_grouped_text with firing & resolved",
+			in:    `{{ template "dojo.alerts.status_grouped_text" .Alerts }}`,
+			data: Data{
+				Alerts: Alerts{
+					{
+						Status: "firing",
+						Labels: KV{
+							"alertname": "AlertName1",
+							"label1":    "value1",
+							"label2":    "value2",
+						},
+						Annotations: KV{
+							"annotation1": "value1",
+							"annotation2": "value2",
+						},
+						GeneratorURL: "http://generator.url/",
+					},
+					{
+						Status: "resolved",
+						Labels: KV{
+							"label1": "value1",
+							"label2": "value2",
+						},
+						Annotations: KV{
+							"annotation1": "value1",
+							"annotation2": "value2",
+						},
+						GeneratorURL: "http://generator.url/",
+					},
+				},
+			},
+			exp: "FIRING:\n" +
+				"\n" +
+				"[AlertName1] (label1=value1 label2=value2)\n" +
+				"Annotations:\n" +
+				"annotation1: value1\n" +
+				"annotation2: value2\n" +
+				"http://generator.url/\n" +
+				"\n" +
+				"RESOLVED:\n" +
+				"\n" +
+				"(label1=value1 label2=value2)\n" +
+				"Annotations:\n" +
+				"annotation1: value1\n" +
+				"annotation2: value2\n" +
+				"http://generator.url/",
+		},
+		{
+			title: "dojo.alerts.status_grouped_text with only firing",
+			in:    `{{ template "dojo.alerts.status_grouped_text" .Alerts }}`,
+			data: Data{
+				Alerts: Alerts{
+					{
+						Status: "firing",
+						Labels: KV{
+							"alertname": "AlertName1",
+							"label1":    "value1",
+							"label2":    "value2",
+						},
+						Annotations: KV{
+							"annotation1": "value1",
+							"annotation2": "value2",
+						},
+						GeneratorURL: "http://generator.url/",
+					},
+					{
+						Status: "firing",
+						Labels: KV{
+							"label1": "value1",
+							"label2": "value2",
+						},
+						Annotations: KV{
+							"annotation1": "value1",
+							"annotation2": "value2",
+						},
+						GeneratorURL: "http://generator.url/",
+					},
+				},
+			},
+			exp: "[AlertName1] (label1=value1 label2=value2)\n" +
+				"Annotations:\n" +
+				"annotation1: value1\n" +
+				"annotation2: value2\n" +
+				"http://generator.url/\n" +
+				"\n" +
+				"(label1=value1 label2=value2)\n" +
+				"Annotations:\n" +
+				"annotation1: value1\n" +
+				"annotation2: value2\n" +
+				"http://generator.url/",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(commonTmpl+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
