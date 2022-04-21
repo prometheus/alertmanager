@@ -521,8 +521,53 @@ func TestDojoTemplates(t *testing.T) {
 		{{- template "dojo.alerts.text" .Resolved -}}
 	{{- end -}}
 {{- end -}}
-`
 
+{{- /* dojo.alerts.url.firing(Alerts) */ -}}
+{{- /* URL that points to Grafana Labs list of firing alerts. */ -}}
+{{- define "dojo.alerts.url.firing" -}}
+	{{- "https://paymentsense.grafana.net/alerting/list?" }}
+		{{- "dataSource=DataSource" -}}
+		{{- "&queryString=" -}}
+			{{- /* tenant is a mandatory field for all configured alerts, */ -}}
+			{{- /* so it is guaranteed to exist at CommonLabels */ -}}
+			{{- "tenant%3D" -}}{{- .CommonLabels.tenant | urlquery -}}{{- "," -}}
+			{{- /* urgency will become a mandatory field, for now, we protect it with "with" */ -}}
+			{{- with .CommonLabels.urgency -}}
+				{{- "urgency%3D" -}}{{- . | urlquery -}}{{- "," -}}
+			{{- end -}}
+			{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency") -}}
+				{{- range .SortedPairs -}}
+					{{- .Name | urlquery -}}{{- "%3D" -}}{{- .Value | urlquery -}}{{- "," -}}
+				{{- end -}}
+			{{- end -}}
+		{{- "&ruleType=alerting" -}}
+		{{- "&alertState=firing" -}}
+{{- end -}}
+
+{{- define "dojo.alerts.url.history" -}}
+	{{- "https://paymentsense.grafana.net/d/luyBQ9Y7z/?" -}}
+		{{- "orgId=1&" -}}
+		{{- "var-data_source=DataSource&" -}}
+		{{- /* tenant is a mandatory field for all configured alerts, */ -}}
+		{{- /* so it is guaranteed to exist at CommonLabels */ -}}
+		{{- "var-tenant=" -}}{{- .CommonLabels.tenant -}}{{- "&" -}}
+		{{- /* urgency will become a mandatory field, for now, we protect it with "with" */ -}}
+		{{- with .CommonLabels.urgency -}}
+			{{- "var-urgency=" -}}{{- . | urlquery -}}{{- "&" -}}
+		{{- end -}}
+		{{- /* alertname MAY be part of grouped labels */ -}}
+		{{- with .CommonLabels.alertname -}}
+			{{- "var-alertname=" -}}{{- . | urlquery -}}{{- "&" -}}
+		{{- end -}}
+		{{- /* FIXME */ -}}
+		{{- /* This must include GroupLabels as an Ad-Hoc filter, */ -}}
+		{{- /* but this functionality is currently broken:  */ -}}
+		{{- /* https://grafana.com/orgs/paymentsense/tickets/45419  */ -}}
+		{{- /* Grafana 8.5 is expected to fix this, once this goes live,  */ -}}
+		{{- /* the dashboard should be updated to support ad-hoc filters,  */ -}}
+		{{- /* and GroupLabels should be added here. */ -}}
+{{- end -}}
+`
 	for _, tc := range []struct {
 		title string
 		in    string
@@ -769,6 +814,54 @@ func TestDojoTemplates(t *testing.T) {
 				"annotation1: value1\n" +
 				"annotation2: value2\n" +
 				"http://generator.url/",
+		},
+		{
+			title: "dojo.url.alerts.firing with group labels",
+			in:    `{{ template "dojo.alerts.url.firing" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"label1": "value $1",
+					"label2": "value $2",
+				},
+				CommonLabels: KV{
+					"tenant":  "example",
+					"urgency": "high",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dhigh,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing",
+		},
+		{
+			title: "dojo.url.alerts.firing without group labels",
+			in:    `{{ template "dojo.alerts.url.firing" . }}`,
+			data: Data{
+				CommonLabels: KV{
+					"tenant":  "example",
+					"urgency": "high",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dhigh,&ruleType=alerting&alertState=firing",
+		},
+		{
+			title: "dojo.alerts.url.history with urgency & alertname",
+			in:    `{{ template "dojo.alerts.url.history" . }}`,
+			data: Data{
+				CommonLabels: KV{
+					"tenant":    "example",
+					"alertname": "AlertName",
+					"urgency":   "high",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=high&var-alertname=AlertName&",
+		},
+		{
+			title: "dojo.alerts.url.history without urgency & alertname",
+			in:    `{{ template "dojo.alerts.url.history" . }}`,
+			data: Data{
+				CommonLabels: KV{
+					"tenant": "example",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&",
 		},
 	} {
 		tc := tc
