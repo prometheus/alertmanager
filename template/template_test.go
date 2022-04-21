@@ -544,6 +544,8 @@ func TestDojoTemplates(t *testing.T) {
 		{{- "&alertState=firing" -}}
 {{- end -}}
 
+{{- /* dojo.alerts.url.history(Alerts) */ -}}
+{{- /* URL that points to a Grafana Labs Dashboard with the history of alerts */ -}}
 {{- define "dojo.alerts.url.history" -}}
 	{{- "https://paymentsense.grafana.net/d/luyBQ9Y7z/?" -}}
 		{{- "orgId=1&" -}}
