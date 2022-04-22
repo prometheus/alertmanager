@@ -552,22 +552,30 @@ func TestDojoTemplates(t *testing.T) {
 		{{- "var-data_source=DataSource&" -}}
 		{{- /* tenant is a mandatory field for all configured alerts, */ -}}
 		{{- /* so it is guaranteed to exist at CommonLabels */ -}}
-		{{- "var-tenant=" -}}{{- .CommonLabels.tenant -}}{{- "&" -}}
+		{{- "var-tenant=" -}}
+			{{- .CommonLabels.tenant -}}
+			{{- "&" -}}
 		{{- /* urgency will become a mandatory field, for now, we protect it with "with" */ -}}
 		{{- with .CommonLabels.urgency -}}
-			{{- "var-urgency=" -}}{{- . | urlquery -}}{{- "&" -}}
+			{{- "var-urgency=" -}}
+				{{- . | urlquery -}}
+				{{- "&" -}}
 		{{- end -}}
 		{{- /* alertname MAY be part of grouped labels */ -}}
 		{{- with .CommonLabels.alertname -}}
-			{{- "var-alertname=" -}}{{- . | urlquery -}}{{- "&" -}}
+			{{- "var-alertname=" -}}
+				{{- . | urlquery -}}
+				{{- "&" -}}
 		{{- end -}}
-		{{- /* FIXME */ -}}
-		{{- /* This must include GroupLabels as an Ad-Hoc filter, */ -}}
-		{{- /* but this functionality is currently broken:  */ -}}
-		{{- /* https://grafana.com/orgs/paymentsense/tickets/45419  */ -}}
-		{{- /* Grafana 8.5 is expected to fix this, once this goes live,  */ -}}
-		{{- /* the dashboard should be updated to support ad-hoc filters,  */ -}}
-		{{- /* and GroupLabels should be added here. */ -}}
+		{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency" "alertname") -}}
+			{{- range .SortedPairs -}}
+				{{- "var-label=" -}}
+					{{- .Name | urlquery -}}
+					{{- "%7C%3D%7C" -}}
+					{{- .Value | urlquery -}}
+					{{- "&" -}}
+			{{- end -}}
+		{{- end -}}
 {{- end -}}
 `
 	for _, tc := range []struct {
@@ -864,6 +872,22 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&",
+		},
+		{
+			title: "dojo.alerts.url.history with group_by",
+			in:    `{{ template "dojo.alerts.url.history" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"key1": "value $1",
+					"key2": "value $2",
+				},
+				CommonLabels: KV{
+					"tenant":    "example",
+					"alertname": "AlertName",
+					"urgency":   "high",
+				},
+			},
+			exp: "exp",
 		},
 	} {
 		tc := tc
