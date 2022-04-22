@@ -887,7 +887,7 @@ func TestDojoTemplates(t *testing.T) {
 					"urgency":   "high",
 				},
 			},
-			exp: "exp",
+			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=high&var-alertname=AlertName&var-label=key1%7C%3D%7Cvalue+%241&var-label=key2%7C%3D%7Cvalue+%242&",
 		},
 	} {
 		tc := tc
