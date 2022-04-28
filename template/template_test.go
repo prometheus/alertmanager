@@ -619,7 +619,7 @@ func TestDojoTemplates(t *testing.T) {
 	{{ template "dojo.alerts.url.history" . -}}{{- "\n" -}}
 	{{- "\n" -}}
 	{{- "Create new silence to all alerts from this incident:\n" -}}
-	{{ template "dojo.alerts.url.history" . -}}
+	{{ template "dojo.alerts.url.new_silence" . -}}
 {{- end -}}
 
 {{- /* dojo.documentation.high_urgency(Data) */ -}}
@@ -1121,7 +1121,7 @@ func TestDojoTemplates(t *testing.T) {
 				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
 				"\n" +
 				"Create new silence to all alerts from this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
+				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dhigh&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
 		},
 		// dojo.documentation.low_urgency
 		{
@@ -1150,7 +1150,7 @@ func TestDojoTemplates(t *testing.T) {
 				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
 				"\n" +
 				"Create new silence to all alerts from this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
+				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dlow&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
 		},
 		// dojo.documentation.unknown_urgency
 		{
@@ -1183,7 +1183,7 @@ func TestDojoTemplates(t *testing.T) {
 				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
 				"\n" +
 				"Create new silence to all alerts from this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
+				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dlow&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
 		},
 	} {
 		tc := tc
