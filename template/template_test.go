@@ -551,22 +551,20 @@ func TestDojoTemplates(t *testing.T) {
 		{{- "orgId=1&" -}}
 		{{- "var-data_source=DataSource&" -}}
 		{{- /* tenant is a mandatory field for all configured alerts, */ -}}
-		{{- /* so it is guaranteed to exist at CommonLabels */ -}}
-		{{- "var-tenant=" -}}
-			{{- .CommonLabels.tenant -}}
-			{{- "&" -}}
-		{{- /* urgency will become a mandatory field, for now, we protect it with "with" */ -}}
+		{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
+		{{- "var-tenant=" -}}{{- .CommonLabels.tenant -}}{{- "&" -}}
+		{{- /* urgency is to become mandatory via CI... */ -}}
 		{{- with .CommonLabels.urgency -}}
-			{{- "var-urgency=" -}}
-				{{- . | urlquery -}}
-				{{- "&" -}}
+			{{- "var-urgency=" -}}{{- . | urlquery -}}{{- "&" -}}
+		{{- /* ...until then, we must account for when it is missing. */ -}}
+		{{- else -}}
+			{{- "var-label=urgency%7C!~%7C%5E(high__gfp__low)$" -}}{{- "&" -}}
 		{{- end -}}
 		{{- /* alertname MAY be part of grouped labels */ -}}
-		{{- with .CommonLabels.alertname -}}
-			{{- "var-alertname=" -}}
-				{{- . | urlquery -}}
-				{{- "&" -}}
+		{{- with .GroupLabels.alertname -}}
+			{{- "var-alertname=" -}}{{- . | urlquery -}}{{- "&" -}}
 		{{- end -}}
+		{{- /* Add any other group labels other than the ones already set */ -}}
 		{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency" "alertname") -}}
 			{{- range .SortedPairs -}}
 				{{- "var-label=" -}}
@@ -883,42 +881,64 @@ func TestDojoTemplates(t *testing.T) {
 		},
 		// dojo.alerts.url.history
 		{
-			title: "dojo.alerts.url.history with urgency & alertname",
-			in:    `{{ template "dojo.alerts.url.history" . }}`,
-			data: Data{
-				CommonLabels: KV{
-					"tenant":    "example",
-					"alertname": "AlertName",
-					"urgency":   "high",
-				},
-			},
-			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=high&var-alertname=AlertName&",
-		},
-		{
-			title: "dojo.alerts.url.history without urgency & alertname",
-			in:    `{{ template "dojo.alerts.url.history" . }}`,
-			data: Data{
-				CommonLabels: KV{
-					"tenant": "example",
-				},
-			},
-			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&",
-		},
-		{
-			title: "dojo.alerts.url.history with group_by",
+			title: "dojo.alerts.url.history with group_by and with alertname and urgency",
 			in:    `{{ template "dojo.alerts.url.history" . }}`,
 			data: Data{
 				GroupLabels: KV{
-					"key1": "value $1",
-					"key2": "value $2",
+					"alertname": "AlertName",
+					"foo":       "$b a r",
 				},
 				CommonLabels: KV{
 					"tenant":    "example",
-					"alertname": "AlertName",
 					"urgency":   "high",
+					"alertname": "AlertName",
+					"must":      "not",
+					"be":        "used",
 				},
 			},
-			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=high&var-alertname=AlertName&var-label=key1%7C%3D%7Cvalue+%241&var-label=key2%7C%3D%7Cvalue+%242&",
+			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&" +
+				"var-data_source=DataSource&" +
+				"var-tenant=example&" +
+				"var-urgency=high&" +
+				"var-alertname=AlertName&" +
+				"var-label=foo%7C%3D%7C%24b+a+r&",
+		},
+		{
+			title: "dojo.alerts.url.history with group_by and without alertname and urgency",
+			in:    `{{ template "dojo.alerts.url.history" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"foo": "$b a r",
+				},
+				CommonLabels: KV{
+					"tenant":    "example",
+					"alertname": "AlertName", // NOT to be used!
+					"must":      "not",
+					"be":        "used",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&" +
+				"var-data_source=DataSource&" +
+				"var-tenant=example&" +
+				"var-label=urgency%7C!~%7C%5E(high__gfp__low)$&" +
+				"var-label=foo%7C%3D%7C%24b+a+r&",
+		},
+		{
+			title: "dojo.alerts.url.history without group_by",
+			in:    `{{ template "dojo.alerts.url.history" . }}`,
+			data: Data{
+				CommonLabels: KV{
+					"tenant":    "example",
+					"urgency":   "high",
+					"alertname": "AlertName",
+					"must":      "not",
+					"be":        "used",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&" +
+				"var-data_source=DataSource&" +
+				"var-tenant=example&" +
+				"var-urgency=high&",
 		},
 		// dojo.documentation.high_urgency
 		{
