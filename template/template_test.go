@@ -599,13 +599,26 @@ func TestDojoTemplates(t *testing.T) {
 	{{- template "dojo.documentation.links" . -}}
 {{- end -}}
 
-
 {{- /* dojo.documentation.low_urgency(Data) */ -}}
 {{- /* Docummentation to be used in notifications for low urgency alerts */ -}}
 {{- define "dojo.documentation.low_urgency" -}}
 	{{- "Alert(s) of low urgency have fired. They indicate that there's either tolerable business impact or potential business impact if no action is taken within the next business day. Evaluate the firing alerts and take necessary actions to fix / prevent any problems.\n" -}}
 	{{- "\n" -}}
 	{{- "If you identify that no action is required, it means the alert misfired, meaning the action to be taken here is to adjust the alert tirggering mechanism so that it only fires when it is actionable. If you find the alert signal useful, despite not being actionable, then the signal can be moved to a dashboard.\n" -}}
+	{{- "\n" -}}
+	{{- template "dojo.documentation.links" . -}}
+{{- end -}}
+
+{{- /* dojo.documentation.unknown_urgency(Data) */ -}}
+{{- /* Docummentation to be used in notifications for low urgency alerts */ -}}
+{{- define "dojo.documentation.unknown_urgency" -}}
+	{{- "An alert without a label urgency set to either high or low fired. The worst is assumed here: that the alert is of high urgency.\n" -}}
+	{{- "\n" -}}
+	{{- "This only happens when a misconfiguration happened on this alert, so it needs fixing. There are two actions required.\n" -}}
+	{{- "\n" -}}
+	{{- "The immediate action, is to evaluate the real urgency of the firing alert(s) and work on it accordingly.\n" -}}
+	{{- "\n" -}}
+	{{- "The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time.\n" -}}
 	{{- "\n" -}}
 	{{- template "dojo.documentation.links" . -}}
 {{- end -}}
@@ -1032,6 +1045,36 @@ func TestDojoTemplates(t *testing.T) {
 			exp: "Alert(s) of low urgency have fired. They indicate that there's either tolerable business impact or potential business impact if no action is taken within the next business day. Evaluate the firing alerts and take necessary actions to fix / prevent any problems.\n" +
 				"\n" +
 				"If you identify that no action is required, it means the alert misfired, meaning the action to be taken here is to adjust the alert tirggering mechanism so that it only fires when it is actionable. If you find the alert signal useful, despite not being actionable, then the signal can be moved to a dashboard.\n" +
+				"\n" +
+				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
+				"\n" +
+				"Currently firing alerts for this incident:\n" +
+				"https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
+				"\n" +
+				"History of alerts for this incident:\n" +
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
+		},
+		// dojo.documentation.unknown_urgency
+		{
+			title: "dojo.documentation.unknown_urgency",
+			in:    `{{ template "dojo.documentation.unknown_urgency" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"label1": "value $1",
+					"label2": "value $2",
+				},
+				CommonLabels: KV{
+					"tenant":  "example",
+					"urgency": "low",
+				},
+			},
+			exp: "An alert without a label urgency set to either high or low fired. The worst is assumed here: that the alert is of high urgency.\n" +
+				"\n" +
+				"This only happens when a misconfiguration happened on this alert, so it needs fixing. There are two actions required.\n" +
+				"\n" +
+				"The immediate action, is to evaluate the real urgency of the firing alert(s) and work on it accordingly.\n" +
+				"\n" +
+				"The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time.\n" +
 				"\n" +
 				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
 				"\n" +
