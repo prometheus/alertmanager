@@ -529,11 +529,14 @@ func TestDojoTemplates(t *testing.T) {
 		{{- "dataSource=DataSource" -}}
 		{{- "&queryString=" -}}
 			{{- /* tenant is a mandatory field for all configured alerts, */ -}}
-			{{- /* so it is guaranteed to exist at CommonLabels */ -}}
+			{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
 			{{- "tenant%3D" -}}{{- .CommonLabels.tenant | urlquery -}}{{- "," -}}
-			{{- /* urgency will become a mandatory field, for now, we protect it with "with" */ -}}
+			{{- /* urgency is to become mandatory via CI... */ -}}
 			{{- with .CommonLabels.urgency -}}
 				{{- "urgency%3D" -}}{{- . | urlquery -}}{{- "," -}}
+			{{- /* ...until then, we must account for when it is missing. */ -}}
+			{{- else -}}
+				{{- "urgency!~%5E(high%7Clow)$," -}}
 			{{- end -}}
 			{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency") -}}
 				{{- range .SortedPairs -}}
@@ -852,32 +855,75 @@ func TestDojoTemplates(t *testing.T) {
 				"annotation2: value2\n" +
 				"http://generator.url/",
 		},
-		// dojo.url.alerts.firing
+		// dojo.alerts.url.firing
 		{
-			title: "dojo.url.alerts.firing with group labels",
+			title: "dojo.alerts.url.firing with group_by and with alertname and urgency",
 			in:    `{{ template "dojo.alerts.url.firing" . }}`,
 			data: Data{
 				GroupLabels: KV{
-					"label1": "value $1",
-					"label2": "value $2",
+					"alertname": "AlertName",
+					"foo":       "$b a r",
 				},
 				CommonLabels: KV{
-					"tenant":  "example",
-					"urgency": "high",
+					"tenant":    "example",
+					"urgency":   "high",
+					"alertname": "AlertName",
+					"must":      "not",
+					"be":        "used",
 				},
 			},
-			exp: "https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dhigh,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing",
+			exp: "https://paymentsense.grafana.net/alerting/list?" +
+				"dataSource=DataSource&" +
+				"queryString=" +
+				"tenant%3Dexample," +
+				"urgency%3Dhigh," +
+				"alertname%3DAlertName," +
+				"foo%3D%24b+a+r,&" +
+				"ruleType=alerting&" +
+				"alertState=firing",
 		},
 		{
-			title: "dojo.url.alerts.firing without group labels",
+			title: "dojo.alerts.url.firing with group_by and without alertname and urgency",
+			in:    `{{ template "dojo.alerts.url.firing" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"foo": "$b a r",
+				},
+				CommonLabels: KV{
+					"tenant":    "example",
+					"alertname": "AlertName", // NOT to be used!
+					"must":      "not",
+					"be":        "used",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/alerting/list?" +
+				"dataSource=DataSource&" +
+				"queryString=" +
+				"tenant%3Dexample," +
+				"urgency!~%5E(high%7Clow)$," +
+				"foo%3D%24b+a+r,&" +
+				"ruleType=alerting&" +
+				"alertState=firing",
+		},
+		{
+			title: "dojo.alerts.url.firing without group_by",
 			in:    `{{ template "dojo.alerts.url.firing" . }}`,
 			data: Data{
 				CommonLabels: KV{
-					"tenant":  "example",
-					"urgency": "high",
+					"tenant":    "example",
+					"urgency":   "high",
+					"alertname": "AlertName",
+					"must":      "not",
+					"be":        "used",
 				},
 			},
-			exp: "https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dhigh,&ruleType=alerting&alertState=firing",
+			exp: "https://paymentsense.grafana.net/alerting/list?" +
+				"dataSource=DataSource&" +
+				"queryString=" +
+				"tenant%3Dexample," +
+				"urgency%3Dhigh,&" +
+				"ruleType=alerting&" +
+				"alertState=firing",
 		},
 		// dojo.alerts.url.history
 		{
