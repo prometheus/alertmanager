@@ -526,7 +526,7 @@ func TestDojoTemplates(t *testing.T) {
 {{- /* URL that points to Grafana Labs list of firing alerts. */ -}}
 {{- define "dojo.alerts.url.firing" -}}
 	{{- "https://paymentsense.grafana.net/alerting/list?" }}
-		{{- "dataSource=DataSource" -}}
+		{{- "dataSource=DATASOURCE_NAME" -}}
 		{{- "&queryString=" -}}
 			{{- /* tenant is a mandatory field for all configured alerts, */ -}}
 			{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
@@ -552,10 +552,10 @@ func TestDojoTemplates(t *testing.T) {
 {{- define "dojo.alerts.url.history" -}}
 	{{- "https://paymentsense.grafana.net/d/luyBQ9Y7z/?" -}}
 		{{- "orgId=1&" -}}
-		{{- "var-data_source=DataSource&" -}}
+		{{- "var-data_source=DATASOURCE_NAME&" -}}
 		{{- /* tenant is a mandatory field for all configured alerts, */ -}}
 		{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
-		{{- "var-tenant=" -}}{{- .CommonLabels.tenant -}}{{- "&" -}}
+		{{- "var-tenant=" -}}{{- .CommonLabels.tenant | urlquery -}}{{- "&" -}}
 		{{- /* urgency is to become mandatory via CI... */ -}}
 		{{- with .CommonLabels.urgency -}}
 			{{- "var-urgency=" -}}{{- . | urlquery -}}{{- "&" -}}
@@ -573,6 +573,34 @@ func TestDojoTemplates(t *testing.T) {
 				{{- "var-label=" -}}
 					{{- .Name | urlquery -}}
 					{{- "%7C%3D%7C" -}}
+					{{- .Value | urlquery -}}
+					{{- "&" -}}
+			{{- end -}}
+		{{- end -}}
+{{- end -}}
+
+{{- /* dojo.alerts.url.new_silence(Data) */ -}}
+{{- /* URL that points to a Grafana Labs page where a silence to all matching */ -}}
+{{- /* alerts can be added */ -}}
+{{- define "dojo.alerts.url.new_silence" -}}
+	{{- "https://paymentsense.grafana.net/alerting/silence/new?" -}}
+		{{- "alertmanager=ALERTMANAGER_NAME&" -}}
+		{{- /* tenant is a mandatory field for all configured alerts, */ -}}
+		{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
+		{{- "matcher=tenant%3D" -}}{{- .CommonLabels.tenant | urlquery -}}{{- "&" -}}
+		{{- /* urgency is to become mandatory via CI... */ -}}
+		{{- with .CommonLabels.urgency -}}
+			{{- "matcher=urgency%3D" -}}{{- . | urlquery -}}{{- "&" -}}
+		{{- /* ...until then, we must account for when it is missing. */ -}}
+		{{- else -}}
+			{{- "matcher=urgency!~%5E(high|low)$" -}}{{- "&" -}}
+		{{- end -}}
+		{{- /* Add any other group labels other than the ones already set */ -}}
+		{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency") -}}
+			{{- range .SortedPairs -}}
+				{{- "matcher=" -}}
+					{{- .Name | urlquery -}}
+					{{- "%3D" -}}
 					{{- .Value | urlquery -}}
 					{{- "&" -}}
 			{{- end -}}
@@ -891,7 +919,7 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/alerting/list?" +
-				"dataSource=DataSource&" +
+				"dataSource=DATASOURCE_NAME&" +
 				"queryString=" +
 				"tenant%3Dexample," +
 				"urgency%3Dhigh," +
@@ -915,7 +943,7 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/alerting/list?" +
-				"dataSource=DataSource&" +
+				"dataSource=DATASOURCE_NAME&" +
 				"queryString=" +
 				"tenant%3Dexample," +
 				"urgency!~%5E(high%7Clow)$," +
@@ -936,7 +964,7 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/alerting/list?" +
-				"dataSource=DataSource&" +
+				"dataSource=DATASOURCE_NAME&" +
 				"queryString=" +
 				"tenant%3Dexample," +
 				"urgency%3Dhigh,&" +
@@ -961,7 +989,7 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&" +
-				"var-data_source=DataSource&" +
+				"var-data_source=DATASOURCE_NAME&" +
 				"var-tenant=example&" +
 				"var-urgency=high&" +
 				"var-alertname=AlertName&" +
@@ -982,7 +1010,7 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&" +
-				"var-data_source=DataSource&" +
+				"var-data_source=DATASOURCE_NAME&" +
 				"var-tenant=example&" +
 				"var-label=urgency%7C!~%7C%5E(high__gfp__low)$&" +
 				"var-label=foo%7C%3D%7C%24b+a+r&",
@@ -1000,9 +1028,70 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&" +
-				"var-data_source=DataSource&" +
+				"var-data_source=DATASOURCE_NAME&" +
 				"var-tenant=example&" +
 				"var-urgency=high&",
+		},
+		// dojo.alerts.url.new_silence
+		{
+			title: "dojo.alerts.url.new_silence with group_by and with alertname and urgency",
+			in:    `{{ template "dojo.alerts.url.new_silence" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"alertname": "AlertName",
+					"foo":       "$b a r",
+				},
+				CommonLabels: KV{
+					"tenant":    "example",
+					"urgency":   "high",
+					"alertname": "AlertName",
+					"must":      "not",
+					"be":        "used",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/alerting/silence/new?" +
+				"alertmanager=ALERTMANAGER_NAME&" +
+				"matcher=tenant%3Dexample&" +
+				"matcher=urgency%3Dhigh&" +
+				"matcher=alertname%3DAlertName&" +
+				"matcher=foo%3D%24b+a+r&",
+		},
+		{
+			title: "dojo.alerts.url.new_silence with group_by and without alertname and urgency",
+			in:    `{{ template "dojo.alerts.url.new_silence" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"foo": "$b a r",
+				},
+				CommonLabels: KV{
+					"tenant":    "example",
+					"alertname": "AlertName", // NOT to be used!
+					"must":      "not",
+					"be":        "used",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/alerting/silence/new?" +
+				"alertmanager=ALERTMANAGER_NAME&" +
+				"matcher=tenant%3Dexample&" +
+				"matcher=urgency!~%5E(high|low)$&" +
+				"matcher=foo%3D%24b+a+r&",
+		},
+		{
+			title: "dojo.alerts.url.new_silence without group_by",
+			in:    `{{ template "dojo.alerts.url.new_silence" . }}`,
+			data: Data{
+				CommonLabels: KV{
+					"tenant":    "example",
+					"urgency":   "high",
+					"alertname": "AlertName",
+					"must":      "not",
+					"be":        "used",
+				},
+			},
+			exp: "https://paymentsense.grafana.net/alerting/silence/new?" +
+				"alertmanager=ALERTMANAGER_NAME&" +
+				"matcher=tenant%3Dexample&" +
+				"matcher=urgency%3Dhigh&",
 		},
 		// dojo.documentation.high_urgency
 		{
@@ -1023,10 +1112,10 @@ func TestDojoTemplates(t *testing.T) {
 				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
 				"\n" +
 				"Currently firing alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dhigh,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
+				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dhigh,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
 				"\n" +
 				"History of alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
 		},
 		// dojo.documentation.low_urgency
 		{
@@ -1049,10 +1138,10 @@ func TestDojoTemplates(t *testing.T) {
 				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
 				"\n" +
 				"Currently firing alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
+				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
 				"\n" +
 				"History of alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
 		},
 		// dojo.documentation.unknown_urgency
 		{
@@ -1079,10 +1168,10 @@ func TestDojoTemplates(t *testing.T) {
 				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
 				"\n" +
 				"Currently firing alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
+				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
 				"\n" +
 				"History of alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
 		},
 	} {
 		tc := tc
