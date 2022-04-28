@@ -483,7 +483,7 @@ func TestDojoTemplates(t *testing.T) {
 {{- /* Textual representation of a list of Alerts. */ -}}
 {{- /* See also: dojo.alert.text */ -}}
 {{- /* See also: dojo.alerts.status_grouped_text */ -}}
-{{- define "dojo.alerts.text" }}
+{{- define "dojo.alerts.text" -}}
 	{{- with . -}}
 		{{- with index . 0 -}}
 			{{- template "dojo.alert.text" . -}}
@@ -522,7 +522,7 @@ func TestDojoTemplates(t *testing.T) {
 	{{- end -}}
 {{- end -}}
 
-{{- /* dojo.alerts.url.firing(Alerts) */ -}}
+{{- /* dojo.alerts.url.firing(Data) */ -}}
 {{- /* URL that points to Grafana Labs list of firing alerts. */ -}}
 {{- define "dojo.alerts.url.firing" -}}
 	{{- "https://paymentsense.grafana.net/alerting/list?" }}
@@ -544,7 +544,7 @@ func TestDojoTemplates(t *testing.T) {
 		{{- "&alertState=firing" -}}
 {{- end -}}
 
-{{- /* dojo.alerts.url.history(Alerts) */ -}}
+{{- /* dojo.alerts.url.history(Data) */ -}}
 {{- /* URL that points to a Grafana Labs Dashboard with the history of alerts */ -}}
 {{- define "dojo.alerts.url.history" -}}
 	{{- "https://paymentsense.grafana.net/d/luyBQ9Y7z/?" -}}
@@ -577,6 +577,32 @@ func TestDojoTemplates(t *testing.T) {
 			{{- end -}}
 		{{- end -}}
 {{- end -}}
+
+{{- /* dojo.documentation.links(Data) */ -}}
+{{- /* Docummentation with links to references regarding the notification */ -}}
+{{- define "dojo.documentation.links" -}}
+	{{ template "dojo.alerts.url.firing" . }}{{- "\n" -}}
+	{{- "\n" -}}
+	{{- "History of alerts for this incident:\n" -}}
+	{{ template "dojo.alerts.url.history" . }}
+{{- end -}}
+
+{{- /* dojo.documentation.high_urgency(Data) */ -}}
+{{- /* Docummentation to be used in notifications for high urgency alerts */ -}}
+{{- define "dojo.documentation.high_urgency" -}}
+	{{- "One or more alerts without correct urgency defined have fired. This indicates that there was a misconfiguration on this alert that needs fixing.\n" -}}
+	{{- "\n" -}}
+	{{- "The worst is assumed here: that the alert is of high urgency.\n" -}}
+	{{- "\n" -}}
+	{{- "There are two actions required.\n" -}}
+	{{- "\n" -}}
+	{{- "The immediate action, is to evaluate the real urgency of the firing alert(s) and work on it accordingly.\n" -}}
+	{{- "\n" -}}
+	{{- "The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time.\n" -}}
+	{{- "\n" -}}
+	{{- "Currently firing alerts for this incident:\n" -}}
+	{{- template "dojo.documentation.links" . -}}
+{{- end -}}
 `
 	for _, tc := range []struct {
 		title string
@@ -586,6 +612,7 @@ func TestDojoTemplates(t *testing.T) {
 		exp  string
 		fail bool
 	}{
+		// dojo.subject.stable_text
 		{
 			title: "dojo.subject.stable_text with no group_by and firing alerts",
 			in:    `{{ template "dojo.subject.stable_text" . }}`,
@@ -658,6 +685,7 @@ func TestDojoTemplates(t *testing.T) {
 			},
 			exp: "Resolved: (label1=value1 label2=value2)",
 		},
+		// dojo.alert.text
 		{
 			title: "dojo.alert.text with alertname and labels",
 			in:    `{{ template "dojo.alert.text" (index .Alerts 0) }}`,
@@ -733,6 +761,7 @@ func TestDojoTemplates(t *testing.T) {
 				"annotation2: value2\n" +
 				"http://generator.url/",
 		},
+		// dojo.alerts.status_grouped_text
 		{
 			title: "dojo.alerts.status_grouped_text with firing & resolved",
 			in:    `{{ template "dojo.alerts.status_grouped_text" .Alerts }}`,
@@ -825,6 +854,7 @@ func TestDojoTemplates(t *testing.T) {
 				"annotation2: value2\n" +
 				"http://generator.url/",
 		},
+		// dojo.url.alerts.firing
 		{
 			title: "dojo.url.alerts.firing with group labels",
 			in:    `{{ template "dojo.alerts.url.firing" . }}`,
@@ -851,6 +881,7 @@ func TestDojoTemplates(t *testing.T) {
 			},
 			exp: "https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dhigh,&ruleType=alerting&alertState=firing",
 		},
+		// dojo.alerts.url.history
 		{
 			title: "dojo.alerts.url.history with urgency & alertname",
 			in:    `{{ template "dojo.alerts.url.history" . }}`,
@@ -888,6 +919,36 @@ func TestDojoTemplates(t *testing.T) {
 				},
 			},
 			exp: "https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=high&var-alertname=AlertName&var-label=key1%7C%3D%7Cvalue+%241&var-label=key2%7C%3D%7Cvalue+%242&",
+		},
+		// dojo.documentation.high_urgency
+		{
+			title: "dojo.documentation.high_urgency",
+			in:    `{{ template "dojo.documentation.high_urgency" . }}`,
+			data: Data{
+				GroupLabels: KV{
+					"label1": "value $1",
+					"label2": "value $2",
+				},
+				CommonLabels: KV{
+					"tenant":  "example",
+					"urgency": "high",
+				},
+			},
+			exp: "One or more alerts without correct urgency defined have fired. This indicates that there was a misconfiguration on this alert that needs fixing.\n" +
+				"\n" +
+				"The worst is assumed here: that the alert is of high urgency.\n" +
+				"\n" +
+				"There are two actions required.\n" +
+				"\n" +
+				"The immediate action, is to evaluate the real urgency of the firing alert(s) and work on it accordingly.\n" +
+				"\n" +
+				"The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time.\n" +
+				"\n" +
+				"Currently firing alerts for this incident:\n" +
+				"https://paymentsense.grafana.net/alerting/list?dataSource=DataSource&queryString=tenant%3Dexample,urgency%3Dhigh,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
+				"\n" +
+				"History of alerts for this incident:\n" +
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DataSource&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
 		},
 	} {
 		tc := tc
