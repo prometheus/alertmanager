@@ -14,6 +14,7 @@
 package template
 
 import (
+	_ "embed"
 	"net/url"
 	"testing"
 	"time"
@@ -23,6 +24,9 @@ import (
 
 	"github.com/prometheus/alertmanager/types"
 )
+
+//go:embed global-dojo.tmpl
+var globalDojoTemplate string
 
 func TestPairNames(t *testing.T) {
 	pairs := Pairs{
@@ -388,272 +392,10 @@ func TestTemplateExpansion(t *testing.T) {
 	}
 }
 
-func TestDojoTemplates(t *testing.T) {
+func TestDojoSubjectStableText(t *testing.T) {
 	tmpl, err := FromGlobs()
 	require.NoError(t, err)
 
-	commonTmpl := `{{- /* */ -}}
-{{- /* dojo.subject.stable_text(Data) */ -}}
-{{- /* This provides a stable subject value that is only a function of the static */ -}}
-{{- /* values used to group the alerts being notified (GroupLabels). */ -}}
-{{- /* It does NOT make use of the number of alerts, common labels across firing */ -}}
-{{- /* alerts (CommonLabels) or annotations (CommonAnnotations). All these values */ -}}
-{{- /* can change as new alerts fire and old alerts resolve, making the subject */ -}}
-{{- /* value change as well. */ -}}
-{{- /* Having a stable subject is good for use cases where the grouped alerts state */ -}}
-{{- /* is to me synchronised with another system (eg: PagerDuty), and we */ -}}
-{{- /* want to prevent a stale subject from misleading people. */ -}}
-{{- /* Examples: */ -}}
-{{- /* "Alerts for $receiver" */ -}}
-{{- /* "[$alertname_value] ($group_label_key=$group_label_value)" */ -}}
-{{- /* "($group_label_key=$group_label_value)" */ -}}
-{{- define "dojo.subject.stable_text" -}}
-	{{- if eq .Status "resolved" -}}
-		{{- "Resolved: " -}}
-	{{- end -}}
-	{{- with .GroupLabels -}}
-		{{- $groupLabels := . -}}
-		{{- with index . "alertname" -}}
-			{{- "[" }}{{ . }}{{ "]" -}}
-		{{- end -}}
-		{{- with .Remove (stringSlice "alertname") -}}
-			{{- with index $groupLabels "alertname" -}}
-				{{- " " -}}
-			{{- end -}}
-			{{ "(" }}
-			{{- with index .SortedPairs 0 -}}
-				{{- .Name }}={{ .Value -}}
-			{{- end -}}
-			{{- with slice .SortedPairs 1 -}}
-				{{- range . -}}
-					{{- " " }}{{ .Name }}={{ .Value -}}
-				{{- end -}}
-			{{- end -}}
-			{{ ")" }}
-		{{- end -}}
-	{{- else -}}
-		{{- "Alerts for " -}}{{- .Receiver -}}
-	{{- end -}}
-{{- end -}}
-
-{{- /* dojo.alert.text(Alert) */ -}}
-{{- /* Textual representation of the Alert with: */ -}}
-{{- /* - A descriptive "alert name": */ -}}
-{{- /*   - "[$alertname_value] ($label=$value)" when "alertname" label exists. */ -}}
-{{- /*   - "($label=$value)" when "alertname" is missing. */ -}}
-{{- /* - Annotations */ -}}
-{{- define "dojo.alert.text" -}}
-	{{- $alert := . -}}
-	{{- with index .Labels.alertname -}}
-		{{- "[" -}}{{ . }}{{- "]" -}}
-		{{- with ($alert.Labels.Remove (stringSlice "alertname")).SortedPairs -}}
-			{{- " (" }}
-			{{- with index . 0 -}}
-				{{- .Name }}={{ .Value -}}
-			{{- end -}}
-			{{- range slice . 1 -}}
-				{{- " " }}{{ .Name }}={{ .Value -}}
-			{{- end -}}
-			{{- ")" }}
-		{{- end -}}
-	{{- else -}}
-		{{- "(" -}}
-			{{- with index $alert.Labels.SortedPairs 0 -}}
-				{{- .Name }}={{ .Value -}}
-			{{- end -}}
-			{{- with slice $alert.Labels.SortedPairs 1 -}}
-				{{- range . -}}
-					{{- " " }}{{ .Name }}={{ .Value -}}
-				{{- end -}}
-			{{- end -}}
-		{{- ")" -}}
-	{{- end -}}
-	{{- with .Annotations.SortedPairs -}}
-		{{- "\nAnnotations:" -}}
-		{{- range . -}}
-			{{ "\n" }}{{ .Name }}: {{ .Value }}
-		{{- end -}}
-	{{- end -}}
-	{{- with .GeneratorURL -}}
-		{{ "\n" }}{{ . }}
-	{{- end -}}
-{{- end -}}
-
-{{- /* dojo.alerts.text(Alerts) */ -}}
-{{- /* Textual representation of a list of Alerts. */ -}}
-{{- /* See also: dojo.alert.text */ -}}
-{{- /* See also: dojo.alerts.status_grouped_text */ -}}
-{{- define "dojo.alerts.text" -}}
-	{{- with . -}}
-		{{- with index . 0 -}}
-			{{- template "dojo.alert.text" . -}}
-		{{- end -}}
-		{{- with slice . 1 -}}
-			{{- range . -}}
-				{{- "\n\n" }}
-				{{- template "dojo.alert.text" . -}}
-			{{- end -}}
-		{{- end -}}
-	{{- end -}}
-{{- end -}}
-
-{{- /* dojo.alerts.status_grouped_text(Alerts) */ -}}
-{{- /* Textual representation of a list of Alerts with status */ -}}
-{{- /* (firing / resolved) grouping. */ -}}
-{{- /* See also: dojo.alert.text */ -}}
-{{- /* See also: dojo.alerts.text */ -}}
-{{- define "dojo.alerts.status_grouped_text" -}}
-	{{- if and (gt (len .Firing) 0) (gt (len .Resolved) 0)  }}
-		{{- $alerts := . -}}
-		{{- with .Firing -}}
-			{{- "FIRING:\n\n" -}}
-			{{- template "dojo.alerts.text" . -}}
-		{{- end -}}
-		{{- with .Resolved -}}
-			{{- with $alerts.Firing -}}
-				{{- "\n\n" -}}
-			{{- end -}}
-			{{- "RESOLVED:\n\n" -}}
-			{{- template "dojo.alerts.text" . -}}
-		{{- end -}}
-	{{- else -}}
-		{{- template "dojo.alerts.text" .Firing -}}
-		{{- template "dojo.alerts.text" .Resolved -}}
-	{{- end -}}
-{{- end -}}
-
-{{- /* dojo.alerts.url.firing(Data) */ -}}
-{{- /* URL that points to Grafana Labs list of firing alerts. */ -}}
-{{- define "dojo.alerts.url.firing" -}}
-	{{- "https://paymentsense.grafana.net/alerting/list?" }}
-		{{- "dataSource=DATASOURCE_NAME" -}}
-		{{- "&queryString=" -}}
-			{{- /* tenant is a mandatory field for all configured alerts, */ -}}
-			{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
-			{{- "tenant%3D" -}}{{- .CommonLabels.tenant | urlquery -}}{{- "," -}}
-			{{- /* urgency is to become mandatory via CI... */ -}}
-			{{- with .CommonLabels.urgency -}}
-				{{- "urgency%3D" -}}{{- . | urlquery -}}{{- "," -}}
-			{{- /* ...until then, we must account for when it is missing. */ -}}
-			{{- else -}}
-				{{- "urgency!~%5E(high%7Clow)$," -}}
-			{{- end -}}
-			{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency") -}}
-				{{- range .SortedPairs -}}
-					{{- .Name | urlquery -}}{{- "%3D" -}}{{- .Value | urlquery -}}{{- "," -}}
-				{{- end -}}
-			{{- end -}}
-		{{- "&ruleType=alerting" -}}
-		{{- "&alertState=firing" -}}
-{{- end -}}
-
-{{- /* dojo.alerts.url.history(Data) */ -}}
-{{- /* URL that points to a Grafana Labs Dashboard with the history of alerts */ -}}
-{{- define "dojo.alerts.url.history" -}}
-	{{- "https://paymentsense.grafana.net/d/luyBQ9Y7z/?" -}}
-		{{- "orgId=1&" -}}
-		{{- "var-data_source=DATASOURCE_NAME&" -}}
-		{{- /* tenant is a mandatory field for all configured alerts, */ -}}
-		{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
-		{{- "var-tenant=" -}}{{- .CommonLabels.tenant | urlquery -}}{{- "&" -}}
-		{{- /* urgency is to become mandatory via CI... */ -}}
-		{{- with .CommonLabels.urgency -}}
-			{{- "var-urgency=" -}}{{- . | urlquery -}}{{- "&" -}}
-		{{- /* ...until then, we must account for when it is missing. */ -}}
-		{{- else -}}
-			{{- "var-label=urgency%7C!~%7C%5E(high__gfp__low)$" -}}{{- "&" -}}
-		{{- end -}}
-		{{- /* alertname MAY be part of grouped labels */ -}}
-		{{- with .GroupLabels.alertname -}}
-			{{- "var-alertname=" -}}{{- . | urlquery -}}{{- "&" -}}
-		{{- end -}}
-		{{- /* Add any other group labels other than the ones already set */ -}}
-		{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency" "alertname") -}}
-			{{- range .SortedPairs -}}
-				{{- "var-label=" -}}
-					{{- .Name | urlquery -}}
-					{{- "%7C%3D%7C" -}}
-					{{- .Value | urlquery -}}
-					{{- "&" -}}
-			{{- end -}}
-		{{- end -}}
-{{- end -}}
-
-{{- /* dojo.alerts.url.new_silence(Data) */ -}}
-{{- /* URL that points to a Grafana Labs page where a silence to all matching */ -}}
-{{- /* alerts can be added */ -}}
-{{- define "dojo.alerts.url.new_silence" -}}
-	{{- "https://paymentsense.grafana.net/alerting/silence/new?" -}}
-		{{- "alertmanager=ALERTMANAGER_NAME&" -}}
-		{{- /* tenant is a mandatory field for all configured alerts, */ -}}
-		{{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
-		{{- "matcher=tenant%3D" -}}{{- .CommonLabels.tenant | urlquery -}}{{- "&" -}}
-		{{- /* urgency is to become mandatory via CI... */ -}}
-		{{- with .CommonLabels.urgency -}}
-			{{- "matcher=urgency%3D" -}}{{- . | urlquery -}}{{- "&" -}}
-		{{- /* ...until then, we must account for when it is missing. */ -}}
-		{{- else -}}
-			{{- "matcher=urgency!~%5E(high|low)$" -}}{{- "&" -}}
-		{{- end -}}
-		{{- /* Add any other group labels other than the ones already set */ -}}
-		{{- with .GroupLabels.Remove (stringSlice "tenant" "urgency") -}}
-			{{- range .SortedPairs -}}
-				{{- "matcher=" -}}
-					{{- .Name | urlquery -}}
-					{{- "%3D" -}}
-					{{- .Value | urlquery -}}
-					{{- "&" -}}
-			{{- end -}}
-		{{- end -}}
-{{- end -}}
-
-{{- /* dojo.documentation.links(Data) */ -}}
-{{- /* Docummentation with links to references regarding the notification */ -}}
-{{- define "dojo.documentation.links" -}}
-	{{- "Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" -}}
-	{{- "\n" -}}
-	{{- "Currently firing alerts for this incident:\n" -}}
-	{{ template "dojo.alerts.url.firing" . }}{{- "\n" -}}
-	{{- "\n" -}}
-	{{- "History of alerts for this incident:\n" -}}
-	{{ template "dojo.alerts.url.history" . -}}{{- "\n" -}}
-	{{- "\n" -}}
-	{{- "Create new silence to all alerts from this incident:\n" -}}
-	{{ template "dojo.alerts.url.new_silence" . -}}
-{{- end -}}
-
-{{- /* dojo.documentation.high_urgency(Data) */ -}}
-{{- /* Docummentation to be used in notifications for high urgency alerts */ -}}
-{{- define "dojo.documentation.high_urgency" -}}
-	{{- "Alert(s) of high urgency have fired meaning there's likely business impact going on. Please work on fixing the problem IMMEDIATELY!\n" -}}
-	{{- "\n" -}}
-	{{- template "dojo.documentation.links" . -}}
-{{- end -}}
-
-{{- /* dojo.documentation.low_urgency(Data) */ -}}
-{{- /* Docummentation to be used in notifications for low urgency alerts */ -}}
-{{- define "dojo.documentation.low_urgency" -}}
-	{{- "Alert(s) of low urgency have fired. They indicate that there's either tolerable business impact or potential business impact if no action is taken within the next business day. Evaluate the firing alerts and take necessary actions to fix / prevent any problems.\n" -}}
-	{{- "\n" -}}
-	{{- "If you identify that no action is required, it means the alert misfired, meaning the action to be taken here is to adjust the alert tirggering mechanism so that it only fires when it is actionable. If you find the alert signal useful, despite not being actionable, then the signal can be moved to a dashboard.\n" -}}
-	{{- "\n" -}}
-	{{- template "dojo.documentation.links" . -}}
-{{- end -}}
-
-{{- /* dojo.documentation.unknown_urgency(Data) */ -}}
-{{- /* Docummentation to be used in notifications for low urgency alerts */ -}}
-{{- define "dojo.documentation.unknown_urgency" -}}
-	{{- "An alert without a label urgency set to either high or low fired. The worst is assumed here: that the alert is of high urgency.\n" -}}
-	{{- "\n" -}}
-	{{- "This only happens when a misconfiguration happened on this alert, so it needs fixing. There are two actions required.\n" -}}
-	{{- "\n" -}}
-	{{- "The immediate action, is to evaluate the real urgency of the firing alert(s) and work on it accordingly.\n" -}}
-	{{- "\n" -}}
-	{{- "The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time.\n" -}}
-	{{- "\n" -}}
-	{{- template "dojo.documentation.links" . -}}
-{{- end -}}
-`
 	for _, tc := range []struct {
 		title string
 		in    string
@@ -662,7 +404,6 @@ func TestDojoTemplates(t *testing.T) {
 		exp  string
 		fail bool
 	}{
-		// dojo.subject.stable_text
 		{
 			title: "dojo.subject.stable_text with no group_by and firing alerts",
 			in:    `{{ template "dojo.subject.stable_text" . }}`,
@@ -735,7 +476,33 @@ func TestDojoTemplates(t *testing.T) {
 			},
 			exp: "Resolved: (label1=value1 label2=value2)",
 		},
-		// dojo.alert.text
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoAlertText(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.alert.text with alertname and labels",
 			in:    `{{ template "dojo.alert.text" (index .Alerts 0) }}`,
@@ -811,7 +578,33 @@ func TestDojoTemplates(t *testing.T) {
 				"annotation2: value2\n" +
 				"http://generator.url/",
 		},
-		// dojo.alerts.status_grouped_text
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoAlertsStatusGroupedText(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.alerts.status_grouped_text with firing & resolved",
 			in:    `{{ template "dojo.alerts.status_grouped_text" .Alerts }}`,
@@ -904,7 +697,33 @@ func TestDojoTemplates(t *testing.T) {
 				"annotation2: value2\n" +
 				"http://generator.url/",
 		},
-		// dojo.alerts.url.firing
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoAlertsUrlFiring(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.alerts.url.firing with group_by and with alertname and urgency",
 			in:    `{{ template "dojo.alerts.url.firing" . }}`,
@@ -974,7 +793,33 @@ func TestDojoTemplates(t *testing.T) {
 				"ruleType=alerting&" +
 				"alertState=firing",
 		},
-		// dojo.alerts.url.history
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoAlertsUrlHistory(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.alerts.url.history with group_by and with alertname and urgency",
 			in:    `{{ template "dojo.alerts.url.history" . }}`,
@@ -1035,7 +880,33 @@ func TestDojoTemplates(t *testing.T) {
 				"var-tenant=example&" +
 				"var-urgency=high&",
 		},
-		// dojo.alerts.url.new_silence
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoAlertsUrlNewSilence(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.alerts.url.new_silence with group_by and with alertname and urgency",
 			in:    `{{ template "dojo.alerts.url.new_silence" . }}`,
@@ -1096,7 +967,33 @@ func TestDojoTemplates(t *testing.T) {
 				"matcher=tenant%3Dexample&" +
 				"matcher=urgency%3Dhigh&",
 		},
-		// dojo.documentation.high_urgency
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoDocumentationHighUrgency(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.documentation.high_urgency",
 			in:    `{{ template "dojo.documentation.high_urgency" . }}`,
@@ -1123,7 +1020,33 @@ func TestDojoTemplates(t *testing.T) {
 				"Create new silence to all alerts from this incident:\n" +
 				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dhigh&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
 		},
-		// dojo.documentation.low_urgency
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoDocumentationLowUrgency(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.documentation.low_urgency",
 			in:    `{{ template "dojo.documentation.low_urgency" . }}`,
@@ -1152,7 +1075,33 @@ func TestDojoTemplates(t *testing.T) {
 				"Create new silence to all alerts from this incident:\n" +
 				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dlow&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
 		},
-		// dojo.documentation.unknown_urgency
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoDocumentationUnknownUrgency(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
 		{
 			title: "dojo.documentation.unknown_urgency",
 			in:    `{{ template "dojo.documentation.unknown_urgency" . }}`,
@@ -1189,7 +1138,7 @@ func TestDojoTemplates(t *testing.T) {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
 			f := tmpl.ExecuteTextString
-			got, err := f(commonTmpl+tc.in, tc.data)
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
 			if tc.fail {
 				require.NotNil(t, err)
 				return
