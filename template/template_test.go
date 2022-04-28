@@ -616,7 +616,10 @@ func TestDojoTemplates(t *testing.T) {
 	{{ template "dojo.alerts.url.firing" . }}{{- "\n" -}}
 	{{- "\n" -}}
 	{{- "History of alerts for this incident:\n" -}}
-	{{ template "dojo.alerts.url.history" . }}
+	{{ template "dojo.alerts.url.history" . -}}{{- "\n" -}}
+	{{- "\n" -}}
+	{{- "Create new silence to all alerts from this incident:\n" -}}
+	{{ template "dojo.alerts.url.history" . -}}
 {{- end -}}
 
 {{- /* dojo.documentation.high_urgency(Data) */ -}}
@@ -1115,6 +1118,9 @@ func TestDojoTemplates(t *testing.T) {
 				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dhigh,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
 				"\n" +
 				"History of alerts for this incident:\n" +
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
+				"\n" +
+				"Create new silence to all alerts from this incident:\n" +
 				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
 		},
 		// dojo.documentation.low_urgency
@@ -1141,6 +1147,9 @@ func TestDojoTemplates(t *testing.T) {
 				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
 				"\n" +
 				"History of alerts for this incident:\n" +
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
+				"\n" +
+				"Create new silence to all alerts from this incident:\n" +
 				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
 		},
 		// dojo.documentation.unknown_urgency
@@ -1171,6 +1180,9 @@ func TestDojoTemplates(t *testing.T) {
 				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
 				"\n" +
 				"History of alerts for this incident:\n" +
+				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
+				"\n" +
+				"Create new silence to all alerts from this incident:\n" +
 				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&",
 		},
 	} {
