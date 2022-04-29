@@ -80,7 +80,6 @@ type Dispatcher struct {
 	metrics *DispatcherMetrics
 	limits  Limits
 
-	marker  types.Marker
 	timeout func(time.Duration) time.Duration
 
 	mtx                sync.RWMutex
@@ -121,7 +120,6 @@ func NewDispatcher(
 		alerts:  ap,
 		stage:   s,
 		route:   r,
-		marker:  mk,
 		timeout: to,
 		logger:  log.With(l, "component", "dispatcher"),
 		metrics: m,
