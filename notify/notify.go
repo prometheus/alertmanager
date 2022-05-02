@@ -330,9 +330,9 @@ func (pb *PipelineBuilder) New(
 
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
-	ss := NewMuteStage(silencer)
-	tms := NewTimeMuteStage(times)
 	tas := NewTimeActiveStage(times)
+	tms := NewTimeMuteStage(times)
+	ss := NewMuteStage(silencer)
 
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
