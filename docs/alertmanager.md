@@ -7,8 +7,7 @@ nav_icon: sliders
 # Alertmanager
 
 The [Alertmanager](https://github.com/prometheus/alertmanager) handles alerts sent by client applications such as the Prometheus server.
-It takes care of deduplicating, grouping, and routing them to the correct receiver integration such as email, [xMatters](https://help.xmatters.com/ondemand/xmodwelcome/flowdesigner/prometheus-steps.htm), PagerDuty, or OpsGenie.
-It also takes care of silencing and inhibition of alerts.
+It takes care of deduplicating, grouping, and routing them to the correct receiver integration such as email, [xMatters](https://help.xmatters.com/ondemand/xmodwelcome/flowdesigner/prometheus-steps.htm), PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
 
 The following describes the core concepts the Alertmanager implements. Consult
 the [configuration documentation](configuration.md) to learn how to use them
