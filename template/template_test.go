@@ -1007,7 +1007,9 @@ func TestDojoDocumentationHighUrgency(t *testing.T) {
 					"urgency": "high",
 				},
 			},
-			exp: "Alert(s) of high urgency have fired meaning there's likely business impact going on. Please work on fixing the problem IMMEDIATELY!",
+			exp: "Alert(s) of high urgency have fired meaning there's likely business impact going on. Please work on fixing the problem IMMEDIATELY!\n" +
+				"\n" +
+				"You must work until all firing alerts are resolved.",
 		},
 	} {
 		tc := tc

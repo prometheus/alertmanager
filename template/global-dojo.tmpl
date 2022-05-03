@@ -215,22 +215,22 @@
 {{- /* dojo.documentation.links(Data) */ -}}
 {{- /* Docummentation with links to references regarding the notification */ -}}
 {{- define "dojo.documentation.links" -}}
-    {{- "Below are links referring to all grouped alerts. You must work until all of them are resolved.\n" -}}
-    {{- "\n" -}}
-    {{- "Currently firing alerts for this incident:\n" -}}
+    {{- "Alert Rules:\n" -}}
     {{ template "dojo.alerts.url.firing" . }}{{- "\n" -}}
     {{- "\n" -}}
-    {{- "History of alerts for this incident:\n" -}}
+    {{- "Alert History Dashboard:\n" -}}
     {{ template "dojo.alerts.url.history" . -}}{{- "\n" -}}
     {{- "\n" -}}
-    {{- "Create new silence to all alerts from this incident:\n" -}}
+    {{- "Silence Alerts:\n" -}}
     {{ template "dojo.alerts.url.new_silence" . -}}
 {{- end -}}
 
 {{- /* dojo.documentation.high_urgency(Data) */ -}}
 {{- /* Docummentation to be used in notifications for high urgency alerts */ -}}
 {{- define "dojo.documentation.high_urgency" -}}
-    {{- "Alert(s) of high urgency have fired meaning there's likely business impact going on. Please work on fixing the problem IMMEDIATELY!" -}}
+    {{- "Alert(s) of high urgency have fired meaning there's likely business impact going on. Please work on fixing the problem IMMEDIATELY!\n" -}}
+    {{- "\n" -}}
+    {{- "You must work until all firing alerts are resolved." -}}
 {{- end -}}
 
 {{- /* dojo.documentation.low_urgency(Data) */ -}}
