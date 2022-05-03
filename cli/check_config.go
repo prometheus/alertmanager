@@ -82,9 +82,14 @@ func CheckConfig(args []string) error {
 			}
 			fmt.Printf(" - %d inhibit rules\n", len(cfg.InhibitRules))
 			fmt.Printf(" - %d receivers\n", len(cfg.Receivers))
-			fmt.Printf(" - %d templates\n", len(cfg.Templates))
-			if len(cfg.Templates) > 0 {
-				_, err = template.FromGlobs(cfg.Templates...)
+			fmt.Println(" - builtin templates")
+			tmpl, err := template.New()
+			if err != nil {
+				fmt.Printf("  FAILED: %s\n", err)
+				failed++
+			} else if len(cfg.Templates) > 0 {
+				fmt.Printf(" - %d templates\n", len(cfg.Templates))
+				err := tmpl.Delims(cfg.TemplateConfig.DelimLeft, cfg.TemplateConfig.DelimRight).ParseGlobs(cfg.Templates...)
 				if err != nil {
 					fmt.Printf("  FAILED: %s\n", err)
 					failed++

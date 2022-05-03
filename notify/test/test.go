@@ -128,7 +128,7 @@ func DefaultRetryCodes() []int {
 
 // CreateTmpl returns a ready-to-use template.
 func CreateTmpl(t *testing.T) *template.Template {
-	tmpl, err := template.FromGlobs()
+	tmpl, err := template.New()
 	require.NoError(t, err)
 	tmpl.ExternalURL, _ = url.Parse("http://am")
 	return tmpl

@@ -40,9 +40,8 @@ type Template struct {
 	ExternalURL *url.URL
 }
 
-// FromGlobs calls ParseGlob on all path globs provided and returns the
-// resulting Template.
-func FromGlobs(paths ...string) (*Template, error) {
+// New returns a new Template with the default functions and templates applied.
+func New() (*Template, error) {
 	t := &Template{
 		text: tmpltext.New("").Option("missingkey=zero"),
 		html: tmplhtml.New("").Option("missingkey=zero"),
@@ -71,24 +70,39 @@ func FromGlobs(paths ...string) (*Template, error) {
 		}
 
 	}
+	return t, nil
+}
 
+// Delims sets the action delimiters to the specified strings, to be used
+// in subsequent calls to ParseGlobs, ExecuteTextString and ExecuteHTMLString.
+// An empty delimiter stands for the corresponding default: {{ or }}.
+// The return value is the template, so calls can be chained.
+func (t *Template) Delims(left, right string) *Template {
+	t.text = t.text.Delims(left, right)
+	t.html = t.html.Delims(left, right)
+	return t
+}
+
+// ParseGlobs calls ParseGlob on all path globs provided and returns the
+// resulting Template.
+func (t *Template) ParseGlobs(paths ...string) error {
 	for _, tp := range paths {
 		// ParseGlob in the template packages errors if not at least one file is
 		// matched. We want to allow empty matches that may be populated later on.
 		p, err := filepath.Glob(tp)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if len(p) > 0 {
 			if t.text, err = t.text.ParseGlob(tp); err != nil {
-				return nil, err
+				return err
 			}
 			if t.html, err = t.html.ParseGlob(tp); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
-	return t, nil
+	return nil
 }
 
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).

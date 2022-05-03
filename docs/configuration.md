@@ -105,6 +105,17 @@ global:
 templates:
   [ - <filepath> ... ]
 
+# Template configuration applied to <tmpl_string>, <tmpl_secret> and custom notification template files.
+template_config:
+  # String used as left delimiter.
+  # Using an empty string is equal to "{{".
+  # Using a non-default value requires overriding all default templated string values.
+  [ delim_left: <string> | default = "" ]
+  # String used as right delimiter.
+  # Using an empty string is equal to "}}".
+  # Using a non-default value requires overriding all default templated string values.
+  [ delim_right: <string> | default = "" ]
+
 # The root node of the routing tree.
 route: <route>
 

@@ -277,14 +277,16 @@ func TestData(t *testing.T) {
 }
 
 func TestTemplateExpansion(t *testing.T) {
-	tmpl, err := FromGlobs()
+	tmpl, err := New()
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
-		title string
-		in    string
-		data  interface{}
-		html  bool
+		title      string
+		delimLeft  string
+		delimRight string
+		in         string
+		data       interface{}
+		html       bool
 
 		exp  string
 		fail bool
@@ -298,6 +300,13 @@ func TestTemplateExpansion(t *testing.T) {
 			title: "Template with simple action",
 			in:    `{{ "abc" }}`,
 			exp:   "abc",
+		},
+		{
+			title:      "Template with simple action with custom delimiters",
+			delimLeft:  "[[",
+			delimRight: "]]",
+			in:         `[[ "abc" ]]`,
+			exp:        "abc",
 		},
 		{
 			title: "Template with invalid syntax",
@@ -353,6 +362,14 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "<b>",
 		},
 		{
+			title:      "HTML template using safeHTML and custom delimiters",
+			delimLeft:  "[[",
+			delimRight: "]]",
+			in:         `[[ "<b>" | safeHtml ]]`,
+			html:       true,
+			exp:        "<b>",
+		},
+		{
 			title: "Template using reReplaceAll",
 			in:    `{{ reReplaceAll "ab" "AB" "abcdabcda"}}`,
 			exp:   "ABcdABcda",
@@ -370,9 +387,17 @@ func TestTemplateExpansion(t *testing.T) {
 			},
 			exp: "[key2 key4]",
 		},
+		{
+			title:      "Template referencing internal templates with custom delimites",
+			delimLeft:  "[[",
+			delimRight: "]]",
+			in:         `[[ template "__alertmanager" ]]`,
+			exp:        "Alertmanager",
+		},
 	} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
+			tmpl.Delims(tc.delimLeft, tc.delimRight)
 			f := tmpl.ExecuteTextString
 			if tc.html {
 				f = tmpl.ExecuteHTMLString

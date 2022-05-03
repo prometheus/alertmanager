@@ -289,11 +289,12 @@ func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string       `yaml:"templates" json:"templates"`
+	Global         *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Route          *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules   []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers      []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates      []string       `yaml:"templates" json:"templates"`
+	TemplateConfig TemplateConfig `yaml:"template_config,omitempty" json:"template_config,omitempty"`
 	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
@@ -997,4 +998,12 @@ func (m Matchers) MarshalJSON() ([]byte, error) {
 		result[i] = matcher.String()
 	}
 	return json.Marshal(result)
+}
+
+// TemplateConfig defines the configuration parameters for Golang templates.
+type TemplateConfig struct {
+	// String used as left delimiter
+	DelimLeft string `yaml:"delim_left,omitempty" json:"delim_left,omitempty"`
+	// String used as right delimiter
+	DelimRight string `yaml:"delim_right,omitempty" json:"delim_right,omitempty"`
 }

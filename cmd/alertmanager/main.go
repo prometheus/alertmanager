@@ -409,8 +409,11 @@ func run() int {
 		configLogger,
 	)
 	configCoordinator.Subscribe(func(conf *config.Config) error {
-		tmpl, err = template.FromGlobs(conf.Templates...)
+		tmpl, err = template.New()
 		if err != nil {
+			return errors.Wrap(err, "failed to parse builtin templates")
+		}
+		if err := tmpl.Delims(conf.TemplateConfig.DelimLeft, conf.TemplateConfig.DelimRight).ParseGlobs(conf.Templates...); err != nil {
 			return errors.Wrap(err, "failed to parse templates")
 		}
 		tmpl.ExternalURL = amURL
