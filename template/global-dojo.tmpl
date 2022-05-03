@@ -257,7 +257,17 @@
 {{- /* Emoji for Slack notifications. */ -}}
 {{- define "dojo.slack.icon_emoji" -}}
     {{- if eq .Status "firing" -}}
-        {{ ":boom:" }}
+        {{- with .CommonLabels.urgency -}}
+            {{- if eq . "high" -}}
+                {{- ":boom:" -}}
+            {{- else if eq . "low" -}}
+                {{- ":warning:" -}}
+            {{- else -}}
+                {{- ":shit:" -}}
+            {{- end -}}
+        {{- else -}}
+            {{- ":shit:" -}}
+        {{- end -}}
     {{- else -}}
         {{ ":ok_hand:" }}
     {{- end -}}

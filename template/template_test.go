@@ -1131,12 +1131,45 @@ func TestDojoSlack(t *testing.T) {
 		fail bool
 	}{
 		{
-			title: "dojo.slack.icon_emoji with firing alerts",
+			title: "dojo.slack.icon_emoji with firing high urgency alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "high",
+				},
+			},
+			exp: ":boom:",
+		},
+		{
+			title: "dojo.slack.icon_emoji with firing low urgency alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "low",
+				},
+			},
+			exp: ":warning:",
+		},
+		{
+			title: "dojo.slack.icon_emoji with firing bad urgency alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "bad",
+				},
+			},
+			exp: ":shit:",
+		},
+		{
+			title: "dojo.slack.icon_emoji with firing no urgency alerts",
 			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
 			data: Data{
 				Status: "firing",
 			},
-			exp: ":boom:",
+			exp: ":shit:",
 		},
 		{
 			title: "dojo.slack.icon_emoji with non firing alerts",
