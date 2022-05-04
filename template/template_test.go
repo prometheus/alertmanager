@@ -1051,9 +1051,9 @@ func TestDojoDocumentationLowUrgency(t *testing.T) {
 					"urgency": "low",
 				},
 			},
-			exp: "Alert(s) of low urgency have fired. They indicate that there's either tolerable business impact or potential business impact if no action is taken within the next business day. Evaluate the firing alerts and take necessary actions to fix / prevent any problems.\n" +
+			exp: "Alert(s) fired indicating there's tolerable business impact or that action needs to be taken to prevent issues. They can be worked on the next business day.\n" +
 				"\n" +
-				"If you identify that no action is required, it means the alert misfired, meaning the action to be taken here is to adjust the alert tirggering mechanism so that it only fires when it is actionable. If you find the alert signal useful, despite not being actionable, then the signal can be moved to a dashboard.",
+				"If this is a misfire, then fix the alert so that it only triggers when action is required.",
 		},
 	} {
 		tc := tc
