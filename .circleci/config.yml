@@ -8,7 +8,8 @@ jobs:
     # We need to use a machine executor because the front-end validation runs
     # containers with mounted volumes which isn't supported with the docker
     # executor (even with setup_remote_docker).
-    machine: true
+    machine:
+      image: ubuntu-2004:202201-02
     steps:
       - checkout
       - run: sudo service docker restart
