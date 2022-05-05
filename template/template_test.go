@@ -1009,16 +1009,7 @@ func TestDojoDocumentationHighUrgency(t *testing.T) {
 			},
 			exp: "Alert(s) of high urgency have fired meaning there's likely business impact going on. Please work on fixing the problem IMMEDIATELY!\n" +
 				"\n" +
-				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
-				"\n" +
-				"Currently firing alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dhigh,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
-				"\n" +
-				"History of alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=high&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
-				"\n" +
-				"Create new silence to all alerts from this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dhigh&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
+				"You must work until all firing alerts are resolved.",
 		},
 	} {
 		tc := tc
@@ -1060,20 +1051,9 @@ func TestDojoDocumentationLowUrgency(t *testing.T) {
 					"urgency": "low",
 				},
 			},
-			exp: "Alert(s) of low urgency have fired. They indicate that there's either tolerable business impact or potential business impact if no action is taken within the next business day. Evaluate the firing alerts and take necessary actions to fix / prevent any problems.\n" +
+			exp: "Alert(s) fired indicating there's tolerable business impact or that action needs to be taken to prevent issues. They can be worked on the next business day.\n" +
 				"\n" +
-				"If you identify that no action is required, it means the alert misfired, meaning the action to be taken here is to adjust the alert tirggering mechanism so that it only fires when it is actionable. If you find the alert signal useful, despite not being actionable, then the signal can be moved to a dashboard.\n" +
-				"\n" +
-				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
-				"\n" +
-				"Currently firing alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
-				"\n" +
-				"History of alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
-				"\n" +
-				"Create new silence to all alerts from this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dlow&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
+				"If this is a misfire, then fix the alert so that it only triggers when action is required.",
 		},
 	} {
 		tc := tc
@@ -1121,18 +1101,141 @@ func TestDojoDocumentationUnknownUrgency(t *testing.T) {
 				"\n" +
 				"The immediate action, is to evaluate the real urgency of the firing alert(s) and work on it accordingly.\n" +
 				"\n" +
-				"The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time.\n" +
-				"\n" +
-				"Below are links referring to all alerts grouped. You must work until all of them are resolved.\n" +
-				"\n" +
-				"Currently firing alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dlow,label1%3Dvalue+%241,label2%3Dvalue+%242,&ruleType=alerting&alertState=firing\n" +
-				"\n" +
-				"History of alerts for this incident:\n" +
-				"https://paymentsense.grafana.net/d/luyBQ9Y7z/?orgId=1&var-data_source=DATASOURCE_NAME&var-tenant=example&var-urgency=low&var-label=label1%7C%3D%7Cvalue+%241&var-label=label2%7C%3D%7Cvalue+%242&\n" +
-				"\n" +
-				"Create new silence to all alerts from this incident:\n" +
-				"https://paymentsense.grafana.net/alerting/silence/new?alertmanager=ALERTMANAGER_NAME&matcher=tenant%3Dexample&matcher=urgency%3Dlow&matcher=label1%3Dvalue+%241&matcher=label2%3Dvalue+%242&",
+				"The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time.",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			got, err := f(globalDojoTemplate+tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestDojoSlack(t *testing.T) {
+	tmpl, err := FromGlobs()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		title string
+		in    string
+		data  interface{}
+
+		exp  string
+		fail bool
+	}{
+		{
+			title: "dojo.slack.icon_emoji with firing high urgency alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "high",
+				},
+			},
+			exp: ":boom:",
+		},
+		{
+			title: "dojo.slack.icon_emoji with firing low urgency alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "low",
+				},
+			},
+			exp: ":warning:",
+		},
+		{
+			title: "dojo.slack.icon_emoji with firing bad urgency alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "bad",
+				},
+			},
+			exp: ":shit:",
+		},
+		{
+			title: "dojo.slack.icon_emoji with firing no urgency alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "firing",
+			},
+			exp: ":shit:",
+		},
+		{
+			title: "dojo.slack.icon_emoji with non firing alerts",
+			in:    `{{ template "dojo.slack.icon_emoji" . }}`,
+			data: Data{
+				Status: "resolved",
+			},
+			exp: ":ok_hand:",
+		},
+		{
+			title: "dojo.slack.fallback",
+			in:    `{{ template "dojo.slack.fallback" . }}`,
+			data: Data{
+				Receiver: "Receiver",
+				Status:   "firing",
+			},
+			exp: "Alerts for Receiver | https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3D,urgency!~%5E(high%7Clow)$,&ruleType=alerting&alertState=firing",
+		},
+		{
+			title: "dojo.slack.color with firing high urgency alerts",
+			in:    `{{ template "dojo.slack.color" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "high",
+				},
+			},
+			exp: "danger",
+		},
+		{
+			title: "dojo.slack.color with firing low urgency alerts",
+			in:    `{{ template "dojo.slack.color" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "low",
+				},
+			},
+			exp: "warning",
+		},
+		{
+			title: "dojo.slack.color with firing bad urgency alerts",
+			in:    `{{ template "dojo.slack.color" . }}`,
+			data: Data{
+				Status: "firing",
+				CommonLabels: KV{
+					"urgency": "bad",
+				},
+			},
+			exp: "danger",
+		},
+		{
+			title: "dojo.slack.color with firing no urgency alerts",
+			in:    `{{ template "dojo.slack.color" . }}`,
+			data: Data{
+				Status: "firing",
+			},
+			exp: "danger",
+		},
+		{
+			title: "dojo.slack.color with no firing alerts",
+			in:    `{{ template "dojo.slack.color" . }}`,
+			data: Data{
+				Status: "resolved",
+			},
+			exp: "good",
 		},
 	} {
 		tc := tc
