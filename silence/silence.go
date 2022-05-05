@@ -390,7 +390,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 		start := s.nowUTC()
 		level.Debug(s.logger).Log("msg", "Running maintenance")
 		size, err := do()
-		level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.nowUTC().Sub(start), "size", size)
+		level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.clock.Since(start), "size", size)
 		s.metrics.snapshotSize.Set(float64(size))
 		return err
 	}

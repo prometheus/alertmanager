@@ -1003,10 +1003,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	// means that the silence is active immediately after calling Expire.
 	clock.Add(1 * time.Millisecond)
 
-	// Make sure we can still find our silences.
-	_, err = s.QueryOne(QIDs("pending"))
-	require.NoError(t, err)
-
+	// Verify all silences have expired.
 	count, err = s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
