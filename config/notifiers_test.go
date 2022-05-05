@@ -590,6 +590,72 @@ func TestOpsgenieTypeMatcher(t *testing.T) {
 	}
 }
 
+func TestOpsGenieConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+
+		err bool
+	}{
+		{
+			name: "valid configuration",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: scheDule
+- name: bar
+  type: teams
+- username: fred
+  type: USER
+api_url: http://example.com
+`,
+		},
+		{
+			name: "api_key and api_key_file both defined",
+			in: `api_key: xyz
+api_key_file: xyz
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "invalid responder type",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: wrong
+api_url: http://example.com
+`,
+			err: true,
+		},
+		{
+			name: "missing responder field",
+			in: `api_key: xyz
+responders:
+- type: schedule
+api_url: http://example.com
+`,
+			err: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg OpsGenieConfig
+
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			if tc.err {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
+		})
+	}
+}
+
 func TestSNS(t *testing.T) {
 	for _, tc := range []struct {
 		in  string
