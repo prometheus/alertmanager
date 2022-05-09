@@ -38,24 +38,24 @@ import (
 )
 
 const (
-	// Message components
+	// Message components.
 	Subject = "Subject"
 
-	// Modified Message attribute value format
+	// Modified Message attribute value format.
 	ComponentAndModifiedReason = "%s: %s"
 
-	// The errors
+	// Errors messages.
 	SubjectContainsIllegalChars = "Error - contains control- or non-ASCII characters"
 	SubjectSizeExceeded         = "Error - subject has been truncated from %d characters because it exceeds the 100 character size limit"
 	SubjectEmpty                = "Error - subject, if provided, must be non-empty"
 
-	// Message components size limit
+	// Message components size limit.
 	subjectSizeLimitInCharacters = 100
 )
 
 var modifiedMessageAttributeKey = "modified"
 
-//Used for testing
+// Used for testing
 var jsonMarshal = json.Marshal
 
 // Notifier implements a Notifier for SNS notifications.
@@ -244,13 +244,13 @@ func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (stri
 func validateAndTruncateSubject(logger log.Logger, subject string, modifiedReasons *[]string) string {
 	if subject == "" {
 		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectEmpty))
-		level.Info(logger).Log("msg", "subject has been modified because it is empty", "originalSubject", subject)
+		level.Warn(logger).Log("msg", "Subject has been modified because it is empty.", "originalSubject", subject)
 		return SubjectEmpty
 	}
 
 	if !isASCIINonControl(subject) {
 		*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, SubjectContainsIllegalChars))
-		level.Info(logger).Log("msg", "subject has been modified because it contains control- or non-ASCII characters", "originalSubject", subject)
+		level.Warn(logger).Log("msg", "Subject has been modified because it contains control- or non-ASCII characters.", "originalSubject", subject)
 		return SubjectContainsIllegalChars
 	}
 
@@ -260,7 +260,6 @@ func validateAndTruncateSubject(logger log.Logger, subject string, modifiedReaso
 	}
 
 	// If the message is larger than our specified size we have to truncate.
-	level.Info(logger).Log("msg", "subject has been truncated because of size limit exceeded", "originalSubject", subject)
 	*modifiedReasons = append(*modifiedReasons, fmt.Sprintf(ComponentAndModifiedReason, Subject, fmt.Sprintf(SubjectSizeExceeded, charactersInSubject)))
 	return subject[:subjectSizeLimitInCharacters]
 }

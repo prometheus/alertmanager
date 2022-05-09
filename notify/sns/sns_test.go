@@ -15,17 +15,17 @@ package sns
 
 import (
 	"context"
-	"github.com/go-kit/log"
 	"testing"
 	"unicode/utf8"
 
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/go-kit/log"
+
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
-)
 
-var logger = log.NewNopLogger()
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify/test"
+)
 
 func TestValidateAndTruncateMessage(t *testing.T) {
 	sBuff := make([]byte, 257*1024)
@@ -55,6 +55,7 @@ func TestValidateAndTruncateMessage(t *testing.T) {
 func TestValidateAndTruncateSubject(t *testing.T) {
 	var modifiedReasons []string
 	var subject string
+	logger := log.NewNopLogger()
 	notTruncate := make([]rune, 100)
 	for i := range notTruncate {
 		notTruncate[i] = 'e'
@@ -74,8 +75,8 @@ func TestValidateAndTruncateSubject(t *testing.T) {
 	require.Equal(t, "Subject: Error - subject has been truncated from 101 characters because it exceeds the 100 character size limit", modifiedReasons[0])
 
 	modifiedReasons = nil
-	nonAsciiString := "\xc3\x28"
-	subject = validateAndTruncateSubject(logger, nonAsciiString, &modifiedReasons)
+	nonASCIIString := "\xc3\x28"
+	subject = validateAndTruncateSubject(logger, nonASCIIString, &modifiedReasons)
 	require.Equal(t, SubjectContainsIllegalChars, subject)
 	require.Equal(t, 1, len(modifiedReasons))
 	require.Equal(t, "Subject: Error - contains control- or non-ASCII characters", modifiedReasons[0])
@@ -103,7 +104,8 @@ func TestValidateAndTruncateSubject(t *testing.T) {
 }
 
 func TestCreatePublishInput_noErrors(t *testing.T) {
-	var ctx = context.Background()
+	ctx := context.Background()
+	logger := log.NewNopLogger()
 
 	attributes := map[string]string{
 		"attribName1": "attribValue1",
@@ -138,7 +140,8 @@ func TestCreatePublishInput_noErrors(t *testing.T) {
 }
 
 func TestCreatePublishInput_subjectOmitted(t *testing.T) {
-	var ctx = context.Background()
+	ctx := context.Background()
+	logger := log.NewNopLogger()
 
 	attributes := map[string]string{
 		"attribName1": "attribValue1",
@@ -172,7 +175,8 @@ func TestCreatePublishInput_subjectOmitted(t *testing.T) {
 }
 
 func TestCreatePublishInput_subjectEmpty(t *testing.T) {
-	var ctx = context.Background()
+	ctx := context.Background()
+	logger := log.NewNopLogger()
 
 	attributes := map[string]string{
 		"attribName1": "attribValue1",
