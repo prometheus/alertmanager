@@ -171,7 +171,7 @@ func (api *API) receivers(w http.ResponseWriter, req *http.Request) {
 func (api *API) status(w http.ResponseWriter, req *http.Request) {
 	api.mtx.RLock()
 
-	var status = struct {
+	status := struct {
 		ConfigYAML    string            `json:"configYAML"`
 		ConfigJSON    *config.Config    `json:"configJSON"`
 		VersionInfo   map[string]string `json:"versionInfo"`
@@ -618,13 +618,13 @@ func (api *API) listSilences(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sort.Slice(active, func(i int, j int) bool {
+	sort.Slice(active, func(i, j int) bool {
 		return active[i].EndsAt.Before(active[j].EndsAt)
 	})
-	sort.Slice(pending, func(i int, j int) bool {
+	sort.Slice(pending, func(i, j int) bool {
 		return pending[i].StartsAt.Before(pending[j].EndsAt)
 	})
-	sort.Slice(expired, func(i int, j int) bool {
+	sort.Slice(expired, func(i, j int) bool {
 		return expired[i].EndsAt.After(expired[j].EndsAt)
 	})
 

@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/sigv4"
 )
@@ -136,6 +135,15 @@ var (
 		},
 		Subject: `{{ template "sns.default.subject" . }}`,
 		Message: `{{ template "sns.default.message" . }}`,
+	}
+
+	DefaultTelegramConfig = TelegramConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		DisableNotifications: false,
+		Message:              `{{ template "telegram.default.message" . }}`,
+		ParseMode:            "MarkdownV2",
 	}
 )
 
@@ -443,7 +451,7 @@ func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if !wechatTypeMatcher.MatchString(c.MessageType) {
-		return errors.Errorf("WeChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
+		return errors.Errorf("weChat message type %q does not match valid options %s", c.MessageType, wechatValidTypesRe)
 	}
 
 	return nil
@@ -489,12 +497,12 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 
 	for _, r := range c.Responders {
 		if r.ID == "" && r.Username == "" && r.Name == "" {
-			return errors.Errorf("OpsGenieConfig responder %v has to have at least one of id, username or name specified", r)
+			return errors.Errorf("opsGenieConfig responder %v has to have at least one of id, username or name specified", r)
 		}
 
 		r.Type = strings.ToLower(r.Type)
 		if !opsgenieTypeMatcher.MatchString(r.Type) {
-			return errors.Errorf("OpsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
+			return errors.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
 		}
 	}
 
@@ -543,7 +551,7 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 
 	for _, v := range reservedFields {
 		if _, ok := c.CustomFields[v]; ok {
-			return fmt.Errorf("VictorOps config contains custom field %s which cannot be used as it conflicts with the fixed/static fields", v)
+			return fmt.Errorf("victorOps config contains custom field %s which cannot be used as it conflicts with the fixed/static fields", v)
 		}
 	}
 
@@ -622,6 +630,45 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
 		return fmt.Errorf("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
+	}
+	return nil
+}
+
+// TelegramConfig configures notifications via Telegram.
+type TelegramConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIUrl               *URL   `yaml:"api_url" json:"api_url,omitempty"`
+	BotToken             Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
+	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
+	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
+	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
+	ParseMode            string `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTelegramConfig
+	type plain TelegramConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.BotToken == "" {
+		return fmt.Errorf("missing bot_token on telegram_config")
+	}
+	if c.ChatID == 0 {
+		return fmt.Errorf("missing chat_id on telegram_config")
+	}
+	if c.APIUrl == nil {
+		return fmt.Errorf("missing api_url on telegram_config")
+	}
+	if c.ParseMode != "" &&
+		c.ParseMode != "Markdown" &&
+		c.ParseMode != "MarkdownV2" &&
+		c.ParseMode != "HTML" {
+		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
 	return nil
 }

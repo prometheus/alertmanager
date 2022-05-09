@@ -262,7 +262,6 @@ func TestAlertMerge(t *testing.T) {
 }
 
 func TestCalcSilenceState(t *testing.T) {
-
 	var (
 		pastStartTime = time.Now()
 		pastEndTime   = time.Now()

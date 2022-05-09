@@ -137,13 +137,13 @@ func CreateTmpl(t *testing.T) *template.Template {
 // AssertNotifyLeaksNoSecret calls the Notify() method of the notifier, expects
 // it to fail because the context is canceled by the server and checks that no
 // secret data is leaked in the error message returned by Notify().
-func AssertNotifyLeaksNoSecret(t *testing.T, ctx context.Context, n notify.Notifier, secret ...string) {
+func AssertNotifyLeaksNoSecret(ctx context.Context, t *testing.T, n notify.Notifier, secret ...string) {
 	t.Helper()
 	require.NotEmpty(t, secret)
 
 	ctx = notify.WithGroupKey(ctx, "1")
 	ok, err := n.Notify(ctx, []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
 					"lbl1": "val1",

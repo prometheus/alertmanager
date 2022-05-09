@@ -66,23 +66,23 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 	testCases := []struct {
 		bindAddr      string
 		bindPort      int
-		inputIp       string
+		inputIP       string
 		inputPort     int
-		expectedIp    string
+		expectedIP    string
 		expectedPort  int
 		expectedError string
 	}{
-		{bindAddr: localhost, bindPort: 9094, inputIp: "10.0.0.5", inputPort: 54231, expectedIp: "10.0.0.5", expectedPort: 54231},
-		{bindAddr: localhost, bindPort: 9093, inputIp: "invalid", inputPort: 54231, expectedError: "failed to parse advertise address \"invalid\""},
-		{bindAddr: "0.0.0.0", bindPort: 0, inputIp: "", inputPort: 0, expectedIp: "random"},
-		{bindAddr: localhost, bindPort: 0, inputIp: "", inputPort: 0, expectedIp: localhost},
-		{bindAddr: localhost, bindPort: 9095, inputIp: "", inputPort: 0, expectedIp: localhost, expectedPort: 9095},
+		{bindAddr: localhost, bindPort: 9094, inputIP: "10.0.0.5", inputPort: 54231, expectedIP: "10.0.0.5", expectedPort: 54231},
+		{bindAddr: localhost, bindPort: 9093, inputIP: "invalid", inputPort: 54231, expectedError: "failed to parse advertise address \"invalid\""},
+		{bindAddr: "0.0.0.0", bindPort: 0, inputIP: "", inputPort: 0, expectedIP: "random"},
+		{bindAddr: localhost, bindPort: 0, inputIP: "", inputPort: 0, expectedIP: localhost},
+		{bindAddr: localhost, bindPort: 9095, inputIP: "", inputPort: 0, expectedIP: localhost, expectedPort: 9095},
 	}
 	for _, tc := range testCases {
 		tlsConf := mustTLSTransportConfig("testdata/tls_config_node1.yml")
 		transport, err := NewTLSTransport(context2.Background(), logger, nil, tc.bindAddr, tc.bindPort, tlsConf)
 		require.Nil(t, err)
-		ip, port, err := transport.FinalAdvertiseAddr(tc.inputIp, tc.inputPort)
+		ip, port, err := transport.FinalAdvertiseAddr(tc.inputIP, tc.inputPort)
 		if len(tc.expectedError) > 0 {
 			require.Equal(t, tc.expectedError, err.Error())
 		} else {
@@ -93,10 +93,10 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 			} else {
 				require.Equal(t, tc.expectedPort, port)
 			}
-			if tc.expectedIp == "random" {
+			if tc.expectedIP == "random" {
 				require.NotNil(t, ip)
 			} else {
-				require.Equal(t, tc.expectedIp, ip.String())
+				require.Equal(t, tc.expectedIP, ip.String())
 			}
 		}
 		transport.Shutdown()

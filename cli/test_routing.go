@@ -19,10 +19,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/xlab/treeprint"
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/xlab/treeprint"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 const routingTestHelp = `Test alert routing
@@ -40,7 +41,7 @@ Example:
 `
 
 func configureRoutingTestCmd(cc *kingpin.CmdClause, c *routingShow) {
-	var routingTestCmd = cc.Command("test", routingTestHelp)
+	routingTestCmd := cc.Command("test", routingTestHelp)
 
 	routingTestCmd.Flag("verify.receivers", "Checks if specified receivers matches resolved receivers. The command fails if the labelset does not route to the specified receivers.").StringVar(&c.expectedReceivers)
 	routingTestCmd.Flag("tree", "Prints out matching routes tree.").BoolVar(&c.debugTree)

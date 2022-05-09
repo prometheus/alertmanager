@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright 2022 Prometheus Team
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,10 +11,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pushover
+package telegram
 
 import (
 	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -25,37 +26,26 @@ import (
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
-func TestPushoverRetry(t *testing.T) {
+func TestTelegramRetry(t *testing.T) {
+	// Fake url for testing purpouses
+	fakeURL := config.URL{
+		URL: &url.URL{
+			Scheme: "https",
+			Host:   "FAKE_API",
+		},
+	}
 	notifier, err := New(
-		&config.PushoverConfig{
+		&config.TelegramConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			APIUrl:     &fakeURL,
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
 	)
 	require.NoError(t, err)
+
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
-}
-
-func TestPushoverRedactedURL(t *testing.T) {
-	ctx, u, fn := test.GetContextWithCancelingURL()
-	defer fn()
-
-	key, token := "user_key", "token"
-	notifier, err := New(
-		&config.PushoverConfig{
-			UserKey:    config.Secret(key),
-			Token:      config.Secret(token),
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
-		},
-		test.CreateTmpl(t),
-		log.NewNopLogger(),
-	)
-	require.NoError(t, err)
-	notifier.apiURL = u.String()
-
-	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key, token)
 }

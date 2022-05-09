@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestSetGet(t *testing.T) {

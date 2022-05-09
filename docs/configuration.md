@@ -91,7 +91,7 @@ global:
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
-
+  [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -116,9 +116,14 @@ receivers:
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 
+# DEPRECATED: use time_intervals below.
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
+
+# A list of time intervals for muting/activating routes.
+time_intervals:
+  [ - <time_interval> ... ]
 ```
 
 ## `<route>`
@@ -189,6 +194,16 @@ matchers:
 mute_time_intervals:
   [ - <string> ...]
 
+# Times when the route should be active. These must match the name of a
+# time interval defined in the time_intervals section. An empty value
+# means that the route is always active.
+# Additionally, the root node cannot have any active times.
+# The route will send notifications only when active, but otherwise
+# acts normally (including ending the route-matching process
+# if the `continue` option is not set).
+active_time_intervals:
+  [ - <string> ...]
+
 # Zero or more child routes.
 routes:
   [ - <route> ... ]
@@ -221,12 +236,32 @@ route:
     group_by: [product, environment]
     matchers:
     - team="frontend"
+
+  # All alerts with the service=inhouse-service label match this sub-route.
+  # the route will be muted during offhours and holidays time intervals.
+  # even if it matches, it will continue to the next sub-route
+  - receiver: 'dev-pager'
+    matchers:
+      - service="inhouse-service"
+    mute_time_intervals:
+      - offhours
+      - holidays
+    continue: true
+
+    # All alerts with the service=inhouse-service label match this sub-route
+    # the route will be active only during offhours and holidays time intervals.
+  - receiver: 'on-call-pager'
+    matchers:
+      - service="inhouse-service"
+    active_time_intervals:
+      - offhours
+      - holidays
 ```
 
-## `<mute_time_interval>`
+## `<time_interval>`
 
-A `mute_time_interval` specifies a named interval of time that may be referenced
-in the routing tree to mute particular routes for particular times of the day.
+A `time_interval` specifies a named interval of time that may be referenced
+in the routing tree to mute/activate particular routes for particular times of the day.
 
 ```yaml
 name: <string>
@@ -452,6 +487,8 @@ webhook_configs:
   [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+telegram_configs:
+  [ - <telegram_config>, ... ]
 ```
 
 ## `<email_config>`
@@ -562,7 +599,7 @@ responders:
 [ name: <tmpl_string> ]
 [ username: <tmpl_string> ]
 
-# "team", "teams, "user", "escalation" or "schedule".
+# "team", "teams", "user", "escalation" or "schedule".
 type: <tmpl_string>
 ```
 
@@ -1001,4 +1038,32 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_user: <string> | default = '{{ template "wechat.default.to_user" . }}' ]
 [ to_party: <string> | default = '{{ template "wechat.default.to_party" . }}' ]
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
+```
+
+## `<telegram_config>`
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Telegram API URL i.e. https://api.telegram.org.
+# If not specified, default API URL will be used.
+[ api_url: <string> | default = global.telegram_api_url ]
+
+# Telegram bot token
+[ bot_token: <string> ]
+
+# ID of the chat where to send the messages.
+[ chat_id: <int> ]
+
+# Message template
+[ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
+
+# Disable telegram notifications
+[ disable_notifications: <boolean> | default = false ]
+
+# Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+[ parse_mode: <string> | default = "MarkdownV2" ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```

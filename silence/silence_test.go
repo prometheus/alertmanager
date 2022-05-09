@@ -25,11 +25,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
-	pb "github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+
+	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func checkErr(t *testing.T, expected string, got error) {
@@ -362,7 +363,6 @@ func TestSilenceSet(t *testing.T) {
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
-
 	// Update silence 2 with new matcher expires it and creates a new one.
 	now = now.Add(time.Minute)
 	now4 := now
@@ -424,6 +424,55 @@ func TestSilenceSet(t *testing.T) {
 				UpdatedAt: now5,
 			},
 			ExpiresAt: now5.Add(5*time.Minute + s.retention),
+		},
+	}
+	require.Equal(t, want, s.st, "unexpected state after silence creation")
+}
+
+func TestSetActiveSilence(t *testing.T) {
+	s, err := New(Options{
+		Retention: time.Hour,
+	})
+	require.NoError(t, err)
+
+	now := utcNow()
+	s.now = func() time.Time { return now }
+
+	startsAt := now.Add(-1 * time.Minute)
+	endsAt := now.Add(5 * time.Minute)
+	// Insert silence with fixed start time.
+	sil1 := &pb.Silence{
+		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
+		StartsAt: startsAt,
+		EndsAt:   endsAt,
+	}
+	id1, _ := s.Set(sil1)
+
+	// Update silence with 2 extra nanoseconds so the "seconds" part should not change
+
+	newStartsAt := now.Add(2 * time.Nanosecond)
+	newEndsAt := endsAt.Add(2 * time.Minute)
+
+	sil2 := cloneSilence(sil1)
+	sil2.Id = id1
+	sil2.StartsAt = newStartsAt
+	sil2.EndsAt = newEndsAt
+
+	now = now.Add(time.Minute)
+	id2, err := s.Set(sil2)
+	require.NoError(t, err)
+	require.Equal(t, id1, id2)
+
+	want := state{
+		id2: &pb.MeshSilence{
+			Silence: &pb.Silence{
+				Id:        id1,
+				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
+				StartsAt:  newStartsAt,
+				EndsAt:    newEndsAt,
+				UpdatedAt: now,
+			},
+			ExpiresAt: newEndsAt.Add(s.retention),
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
@@ -835,9 +884,7 @@ func TestSilenceExpire(t *testing.T) {
 	require.NoError(t, s.Expire("pending"))
 	require.NoError(t, s.Expire("active"))
 
-	err = s.Expire("expired")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "already expired")
+	require.NoError(t, s.Expire("expired"))
 
 	sil, err := s.QueryOne(QIDs("pending"))
 	require.NoError(t, err)
@@ -884,7 +931,6 @@ func TestSilenceExpire(t *testing.T) {
 		EndsAt:    now.Add(-time.Minute),
 		UpdatedAt: now.Add(-time.Hour),
 	}, sil)
-
 }
 
 // TestSilenceExpireWithZeroRetention covers the problem that, with zero
@@ -935,9 +981,7 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	require.NoError(t, s.Expire("pending"))
 	require.NoError(t, s.Expire("active"))
 
-	err = s.Expire("expired")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "already expired")
+	require.NoError(t, s.Expire("expired"))
 
 	_, err = s.QueryOne(QIDs("pending"))
 	require.NoError(t, err)
@@ -1109,7 +1153,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1121,7 +1165,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1143,8 +1187,8 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
-					&pb.Matcher{Name: "00", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
+					{Name: "00", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1156,8 +1200,8 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: ""},
-					&pb.Matcher{Name: "b", Pattern: ".*", Type: pb.Matcher_REGEXP},
+					{Name: "a", Pattern: ""},
+					{Name: "b", Pattern: ".*", Type: pb.Matcher_REGEXP},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1169,7 +1213,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  now,
 				EndsAt:    now.Add(-time.Second),
@@ -1181,7 +1225,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  zeroTimestamp,
 				EndsAt:    validTimestamp,
@@ -1193,7 +1237,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    zeroTimestamp,
@@ -1205,7 +1249,7 @@ func TestValidateSilence(t *testing.T) {
 			s: &pb.Silence{
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
-					&pb.Matcher{Name: "a", Pattern: "b"},
+					{Name: "a", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
@@ -1368,8 +1412,8 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 		s.st[id] = &pb.MeshSilence{Silence: &pb.Silence{
 			Id: id,
 			Matchers: []*pb.Matcher{
-				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
-				&pb.Matcher{Type: pb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
+				{Type: pb.Matcher_REGEXP, Name: "aaaa", Pattern: patA},
+				{Type: pb.Matcher_REGEXP, Name: "bbbb", Pattern: patB},
 			},
 			StartsAt:  now.Add(-time.Minute),
 			EndsAt:    now.Add(time.Hour),

@@ -1,14 +1,15 @@
 ---
 version: 2.1
 orbs:
-  prometheus: prometheus/prometheus@0.11.0
+  prometheus: prometheus/prometheus@0.16.0
   go: circleci/go@1.7.0
 jobs:
   test_frontend:
     # We need to use a machine executor because the front-end validation runs
     # containers with mounted volumes which isn't supported with the docker
     # executor (even with setup_remote_docker).
-    machine: true
+    machine:
+      image: ubuntu-2004:202201-02
     steps:
       - checkout
       - run: sudo service docker restart
@@ -36,6 +37,13 @@ jobs:
       - run: git diff --exit-code
       - store_test_results:
           path: ~/test-results
+      - run:
+          name: Save assets
+          command: make assets-tarball
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .tarballs
   test:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.

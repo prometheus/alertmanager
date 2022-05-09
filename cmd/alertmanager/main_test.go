@@ -39,10 +39,10 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			receiver: &config.Receiver{
 				Name: "foo",
 				WebhookConfigs: []*config.WebhookConfig{
-					&config.WebhookConfig{
+					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
 					},
-					&config.WebhookConfig{
+					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
 						NotifierConfig: config.NotifierConfig{
 							VSendResolved: true,
@@ -59,7 +59,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			receiver: &config.Receiver{
 				Name: "foo",
 				WebhookConfigs: []*config.WebhookConfig{
-					&config.WebhookConfig{
+					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{
 							TLSConfig: commoncfg.TLSConfig{
 								CAFile: "not_existing",
