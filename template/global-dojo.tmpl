@@ -37,7 +37,17 @@
             {{ ")" }}
         {{- end -}}
     {{- else -}}
-        {{- "Alerts for " -}}{{- .Receiver -}}
+        {{- /* tenant is a mandatory field for all configured alerts, */ -}}
+        {{- /* validated by CI so it is guaranteed to exist at CommonLabels */ -}}
+        {{- .CommonLabels.tenant -}}{{- ": " -}}
+        {{- /* urgency is to become mandatory via CI... */ -}}
+        {{- with .CommonLabels.urgency -}}
+            {{- . -}}
+        {{- /* ...until then, we must account for when it is missing. */ -}}
+        {{- else -}}
+            {{- "unknown" -}}
+        {{- end -}}
+        {{- " urgency alerts firing" -}}
     {{- end -}}
 {{- end -}}
 

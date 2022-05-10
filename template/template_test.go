@@ -410,8 +410,12 @@ func TestDojoSubjectStableText(t *testing.T) {
 			data: Data{
 				Receiver: "Receiver",
 				Status:   "firing",
+				CommonLabels: KV{
+					"tenant":  "example",
+					"urgency": "high",
+				},
 			},
-			exp: "Alerts for Receiver",
+			exp: "example: high urgency alerts firing",
 		},
 		{
 			title: "dojo.subject.stable_text with no group_by and resolved alerts",
@@ -419,8 +423,12 @@ func TestDojoSubjectStableText(t *testing.T) {
 			data: Data{
 				Receiver: "Receiver",
 				Status:   "resolved",
+				CommonLabels: KV{
+					"tenant":  "example",
+					"urgency": "high",
+				},
 			},
-			exp: "Resolved: Alerts for Receiver",
+			exp: "Resolved: example: high urgency alerts firing",
 		},
 		{
 			title: "dojo.subject.stable_text with group_by, alertname and firing alerts",
@@ -1185,8 +1193,12 @@ func TestDojoSlack(t *testing.T) {
 			data: Data{
 				Receiver: "Receiver",
 				Status:   "firing",
+				CommonLabels: KV{
+					"tenant":  "example",
+					"urgency": "low",
+				},
 			},
-			exp: "Alerts for Receiver | https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3D,urgency!~%5E(high%7Clow)$,&ruleType=alerting&alertState=firing",
+			exp: "example: low urgency alerts firing | https://paymentsense.grafana.net/alerting/list?dataSource=DATASOURCE_NAME&queryString=tenant%3Dexample,urgency%3Dlow,&ruleType=alerting&alertState=firing",
 		},
 		{
 			title: "dojo.slack.color with firing high urgency alerts",
