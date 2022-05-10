@@ -215,13 +215,13 @@
 {{- /* dojo.documentation.links(Data) */ -}}
 {{- /* Docummentation with links to references regarding the notification */ -}}
 {{- define "dojo.documentation.links" -}}
-    {{- "Alert Rules:\n" -}}
+    {{- "📜 Alert Rules:\n" -}}
     {{ template "dojo.alerts.url.firing" . }}{{- "\n" -}}
     {{- "\n" -}}
-    {{- "Alert History Dashboard:\n" -}}
+    {{- "📈 Alert History Dashboard:\n" -}}
     {{ template "dojo.alerts.url.history" . -}}{{- "\n" -}}
     {{- "\n" -}}
-    {{- "Silence Alerts:\n" -}}
+    {{- "🔕 Silence Alerts:\n" -}}
     {{ template "dojo.alerts.url.new_silence" . -}}
 {{- end -}}
 
