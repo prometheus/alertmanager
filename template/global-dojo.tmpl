@@ -252,3 +252,55 @@
     {{- "\n" -}}
     {{- "The secondary action, is to fix the alert configuration so that it fires with a correctly defined urgency next time." -}}
 {{- end -}}
+
+{{- /* dojo.slack.icon_emoji(Data) */ -}}
+{{- /* Emoji for Slack notifications. */ -}}
+{{- define "dojo.slack.icon_emoji" -}}
+    {{- if eq .Status "firing" -}}
+        {{- with .CommonLabels.urgency -}}
+            {{- if eq . "high" -}}
+                {{- ":boom:" -}}
+            {{- else if eq . "low" -}}
+                {{- ":warning:" -}}
+            {{- else -}}
+                {{- ":shit:" -}}
+            {{- end -}}
+        {{- else -}}
+            {{- ":shit:" -}}
+        {{- end -}}
+    {{- else -}}
+        {{ ":ok_hand:" }}
+    {{- end -}}
+{{- end -}}
+
+{{- /* dojo.slack.fallback(Data) */ -}}
+{{- /* Fallback for Slack notifications. */ -}}
+{{- define "dojo.slack.fallback" -}}
+    {{- template "dojo.subject.stable_text" . -}}
+    {{- " | " -}}
+    {{- template "dojo.alerts.url.firing" . -}}
+{{- end -}}
+
+{{- /* dojo.slack.color(Data) */ -}}
+{{- /* Color Slack notifications: */ -}}
+{{- /* - High urgency: red. */ -}}
+{{- /* - Low urgency: yellow. */ -}}
+{{- /* - Unknown urgency: red. */ -}}
+{{- /* - Resolved: green. */ -}}
+{{ define "dojo.slack.color" -}}
+    {{- if eq .Status "firing" -}}
+        {{- with .CommonLabels.urgency -}}
+            {{- if eq . "high" -}}
+                {{- "danger" -}}
+            {{- else if eq . "low" -}}
+                {{- "warning" -}}
+            {{- else -}}
+                {{- "danger" -}}
+            {{- end -}}
+        {{- else -}}
+            {{- "danger" -}}
+        {{- end -}}
+    {{ else -}}
+        {{- "good" -}}
+    {{- end -}}
+{{- end -}}
