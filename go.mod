@@ -36,6 +36,7 @@ require (
 	go.uber.org/atomic v1.9.0
 	golang.org/x/mod v0.5.1
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
+	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.9
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/telebot.v3 v3.0.0
