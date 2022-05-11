@@ -40,6 +40,10 @@ type Template struct {
 	ExternalURL *url.URL
 }
 
+const (
+	ExtraDelimsAnnotation = "extra_delims"
+)
+
 // FromGlobs calls ParseGlob on all path globs provided and returns the
 // resulting Template.
 func FromGlobs(paths ...string) (*Template, error) {
@@ -91,37 +95,83 @@ func FromGlobs(paths ...string) (*Template, error) {
 	return t, nil
 }
 
+type templateExecOptions struct {
+	leftDelim  string
+	rightDelim string
+}
+
+type ExecOption func(*templateExecOptions)
+
+func WithDelims(leftDelim, rightDelim string) ExecOption {
+	return func(o *templateExecOptions) {
+		o.leftDelim = leftDelim
+		o.rightDelim = rightDelim
+	}
+}
+
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteTextString(text string, data interface{}) (string, error) {
+func (t *Template) ExecuteTextString(text string, data interface{}, opts ...ExecOption) (string, error) {
 	if text == "" {
 		return "", nil
 	}
+
+	tmplOpts := &templateExecOptions{}
+	for _, opt := range opts {
+		opt(tmplOpts)
+	}
+
 	tmpl, err := t.text.Clone()
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(text)
-	if err != nil {
-		return "", err
+
+	switch {
+	case tmplOpts.leftDelim != "" && tmplOpts.rightDelim != "":
+		tmpl, err = tmpl.New("").Option("missingkey=zero").Delims(tmplOpts.leftDelim, tmplOpts.rightDelim).Parse(text)
+		if err != nil {
+			return "", err
+		}
+	default:
+		tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(text)
+		if err != nil {
+			return "", err
+		}
 	}
+
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, data)
 	return buf.String(), err
 }
 
 // ExecuteHTMLString needs a meaningful doc comment (TODO(fabxc)).
-func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, error) {
+func (t *Template) ExecuteHTMLString(html string, data interface{}, opts ...ExecOption) (string, error) {
 	if html == "" {
 		return "", nil
 	}
+
+	tmplOpts := &templateExecOptions{}
+	for _, opt := range opts {
+		opt(tmplOpts)
+	}
+
 	tmpl, err := t.html.Clone()
 	if err != nil {
 		return "", err
 	}
-	tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(html)
-	if err != nil {
-		return "", err
+
+	switch {
+	case tmplOpts.leftDelim != "" && tmplOpts.rightDelim != "":
+		tmpl, err = tmpl.New("").Option("missingkey=zero").Delims(tmplOpts.leftDelim, tmplOpts.rightDelim).Parse(html)
+		if err != nil {
+			return "", err
+		}
+	default:
+		tmpl, err = tmpl.New("").Option("missingkey=zero").Parse(html)
+		if err != nil {
+			return "", err
+		}
 	}
+
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, data)
 	return buf.String(), err
@@ -198,6 +248,9 @@ func (kv KV) SortedPairs() Pairs {
 	sort.Strings(keys[sortStart:])
 
 	for _, k := range keys {
+		if k == ExtraDelimsAnnotation {
+			continue
+		}
 		pairs = append(pairs, Pair{k, kv[k]})
 	}
 	return pairs

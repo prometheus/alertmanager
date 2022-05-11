@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -101,7 +102,25 @@ func TmplText(tmpl *template.Template, data *template.Data, err *error) func(str
 		if *err != nil {
 			return
 		}
+
 		s, *err = tmpl.ExecuteTextString(name, data)
+		if *err != nil {
+			return s
+		}
+
+		extraDelimsAnnotation, hasAnnotation := data.CommonAnnotations[template.ExtraDelimsAnnotation]
+		if !hasAnnotation {
+			return s
+		}
+
+		delims := strings.Split(extraDelimsAnnotation, ",")
+		if len(delims) != 2 {
+			*err = errors.Errorf("invalid annotation %s - must be two delimiters comma separated (ie. '<<,>>')", template.ExtraDelimsAnnotation)
+			return s
+		}
+
+		s, *err = tmpl.ExecuteTextString(s, data, template.WithDelims(delims[0], delims[1]))
+
 		return s
 	}
 }
@@ -113,7 +132,25 @@ func TmplHTML(tmpl *template.Template, data *template.Data, err *error) func(str
 		if *err != nil {
 			return
 		}
+
 		s, *err = tmpl.ExecuteHTMLString(name, data)
+		if *err != nil {
+			return s
+		}
+
+		extraDelimsAnnotation, hasAnnotation := data.CommonAnnotations[template.ExtraDelimsAnnotation]
+		if !hasAnnotation {
+			return s
+		}
+
+		delims := strings.Split(extraDelimsAnnotation, ",")
+		if len(delims) != 2 {
+			*err = errors.Errorf("invalid annotation %s - must be two delimiters comma separated (ie. '<<,>>')", template.ExtraDelimsAnnotation)
+			return s
+		}
+
+		s, *err = tmpl.ExecuteHTMLString(s, data, template.WithDelims(delims[0], delims[1]))
+
 		return s
 	}
 }

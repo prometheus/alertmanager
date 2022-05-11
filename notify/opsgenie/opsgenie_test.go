@@ -208,6 +208,41 @@ func TestOpsGenie(t *testing.T) {
 			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{"Actions":"doThis,doThat","Description":"adjusted description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderName3":"TeamA,TeamB","ResponderType1":"team","ResponderType2":"escalation","ResponderType3":"teams","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"TeamB","type":"team"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
 `,
 		},
+		{
+			title: "config with details for template with << >> delims",
+			cfg: &config.OpsGenieConfig{
+				NotifierConfig: config.NotifierConfig{
+					VSendResolved: true,
+				},
+				Message:     `{{ .CommonLabels.Message }}`,
+				Description: `{{ .CommonLabels.Description }}`,
+				Source:      `{{ .CommonLabels.Source }}`,
+				Details: map[string]string{
+					"Description": `adjusted {{ .CommonLabels.Description }}`,
+					"AlertStatus": `<< (index .Alerts 0).Status >>`,
+				},
+				Responders: []config.OpsGenieConfigResponder{
+					{
+						Name: `{{ .CommonLabels.ResponderName1 }}`,
+						Type: `{{ .CommonLabels.ResponderType1 }}`,
+					},
+					{
+						Name: `{{ .CommonLabels.ResponderName2 }}`,
+						Type: `{{ .CommonLabels.ResponderType2 }}`,
+					},
+				},
+				Tags:       `{{ .CommonLabels.Tags }}`,
+				Note:       `{{ .CommonLabels.Note }}`,
+				Priority:   `{{ .CommonLabels.Priority }}`,
+				APIKey:     `{{ .ExternalURL }}`,
+				APIURL:     &config.URL{URL: u},
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+			},
+			expectedEmptyAlertBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"","details":{"AlertStatus":"firing","Description":"adjusted "},"source":""}
+`,
+			expectedBody: `{"alias":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b","message":"message","description":"description","details":{"Actions":"doThis,doThat","AlertStatus":"firing","Description":"adjusted description","Entity":"test-domain","Message":"message","Note":"this is a note","Priority":"P1","ResponderName1":"TeamA","ResponderName2":"EscalationA","ResponderName3":"TeamA,TeamB","ResponderType1":"team","ResponderType2":"escalation","ResponderType3":"teams","Source":"http://prometheus","Tags":"tag1,tag2"},"source":"http://prometheus","responders":[{"name":"TeamA","type":"team"},{"name":"EscalationA","type":"escalation"}],"tags":["tag1","tag2"],"note":"this is a note","priority":"P1"}
+`,
+		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			notifier, err := New(tc.cfg, tmpl, logger)
@@ -221,6 +256,9 @@ func TestOpsGenie(t *testing.T) {
 			// Empty alert.
 			alert1 := &types.Alert{
 				Alert: model.Alert{
+					Annotations: model.LabelSet{
+						"extra_delims": "<<,>>",
+					},
 					StartsAt: time.Now(),
 					EndsAt:   time.Now().Add(time.Hour),
 				},
@@ -237,6 +275,9 @@ func TestOpsGenie(t *testing.T) {
 			// Fully defined alert.
 			alert2 := &types.Alert{
 				Alert: model.Alert{
+					Annotations: model.LabelSet{
+						"extra_delims": "<<,>>",
+					},
 					Labels: model.LabelSet{
 						"Message":        "message",
 						"Description":    "description",
