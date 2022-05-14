@@ -291,7 +291,7 @@ to match a complete time interval, all fields must match.
 Some fields support ranges and negative indices, and are detailed below. All definitions are
 taken to be in UTC, no other timezones are currently supported.
 
-`time_range` ranges are inclusive of the starting time and exclusive of the end time to
+`time_range`: Ranges inclusive of the starting time and exclusive of the end time to
 make it easy to represent times that start/end on hour boundaries.
 For example, `start_time: '17:00'` and `end_time: '24:00'` will begin at 17:00 and finish
 immediately before 24:00. They are specified like so:
