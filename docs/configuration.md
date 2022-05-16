@@ -291,9 +291,9 @@ to match a complete time interval, all fields must match.
 Some fields support ranges and negative indices, and are detailed below. All definitions are
 taken to be in UTC, no other timezones are currently supported.
 
-`time_range` Ranges inclusive of the starting time and exclusive of the end time to
+`time_range`: Ranges inclusive of the starting time and exclusive of the end time to
 make it easy to represent times that start/end on hour boundaries.
-For example, start_time: '17:00' and end_time: '24:00' will begin at 17:00 and finish
+For example, `start_time: '17:00'` and `end_time: '24:00'` will begin at 17:00 and finish
 immediately before 24:00. They are specified like so:
 
         times:
@@ -302,7 +302,7 @@ immediately before 24:00. They are specified like so:
 
 `weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
-of the form <start_day>:<end_day> and are inclusive on both ends. For example:
+of the form `<start_day>:<end_day>` and are inclusive on both ends. For example:
 `['monday:wednesday','saturday', 'sunday']`
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
