@@ -2,44 +2,109 @@ package slackV2
 
 import (
 	"fmt"
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/common/model"
+	"github.com/satori/go.uuid"
 	"github.com/slack-go/slack"
+	"net/http"
 	url2 "net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
-type Text struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+const unixMinute = 1000 * 60
+const unixSec = 1000
+
+func genGrafanaRenderUrl(dash string, panel string, org string) string {
+
+	url := ""
+	if u, err := url2.Parse("https://grafana.adsrv.wtf/"); err == nil {
+		u.Scheme = "https"
+		u.Host = "grafana.adsrv.wtf"
+		u.Path = "/render/d-solo/" + dash + "/"
+		q := u.Query()
+		q.Set("orgId", org)
+		q.Set("from", strconv.FormatInt(time.Now().UnixMilli()-(unixMinute*60), 10))
+		q.Set("to", strconv.FormatInt(time.Now().UnixMilli()-(unixSec*10), 10))
+		q.Set("panelId", panel)
+		q.Set("width", "1000")
+		q.Set("height", "500")
+		q.Set("tz", "Europe/Moscow")
+		u.RawQuery = q.Encode()
+		url = u.String()
+	}
+	//fmt.Printf("URL: %v\n", url)
+	return url
 }
-type Element struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-type Field struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-type Block struct {
-	Type     slack.MessageBlockType `json:"type"`
-	Text     *Text                  `json:"text,omitempty"`
-	Fields   []*Field               `json:"fields,omitempty"`
-	Elements []*Element             `json:"elements,omitempty"`
-	ImageUrl string                 `json:"image_url,omitempty"`
-	AltText  string                 `json:"alt_text,omitempty"`
+func genGrafanaUrl(dash string, panel string) string {
+	grafanaDashUrl := ""
+	if u, err := url2.Parse(""); err == nil {
+		u.Scheme = "https"
+		u.Host = "grafana.adsrv.wtf"
+		u.Path = "d/" + dash
+		if panel != "" {
+			q := u.Query()
+			q.Set("viewPanel", panel)
+			u.RawQuery = q.Encode()
+		}
+		grafanaDashUrl = u.String()
+	}
+	return grafanaDashUrl
 }
 
-func (b Block) BlockType() slack.MessageBlockType {
-	return b.Type
+func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Secret) string {
+
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	req.Header.Set("Authorization", "Bearer "+string(grafanaToken))
+	response, err := client.Do(req)
+	defer response.Body.Close()
+
+	if err != nil {
+		fmt.Printf("invalid req")
+		return ""
+	}
+
+	if response.StatusCode != 200 {
+		fmt.Printf("received non 200 response code")
+		return ""
+	}
+
+	uuid := uuid.NewV4()
+	fileName := strings.Replace(uuid.String(), "-", "", -1)
+	channel := make([]string, 0)
+	channel = append(channel, "C031W8H3B17")
+	api := slack.New(string(token))
+	params := slack.FileUploadParameters{
+		//Channels: channel,
+		Reader:   response.Body,
+		Filetype: "jpg",
+		Filename: fileName + ".jpg",
+	}
+	image, err := api.UploadFile(params)
+
+	if err != nil {
+		fmt.Printf("UPLOAD ERROR - 1\nName: %s, isPublic: %v\n", image.Name, token)
+		return ""
+	}
+
+	fmt.Printf("Data1 : %v\n", image)
+	return image.PermalinkPublic
+
 }
 
-func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
+func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
+
+	dashboardUid := ""
+	panelId := ""
+	orgId := ""
 	firing := make([]string, 0)
 	resolved := make([]string, 0)
 	severity := make([]string, 0)
 	envs := make([]string, 0)
-
+	grafanaValues := make([]string, 0)
 	blocks := make([]slack.Block, 0)
 
 	for _, alert := range data.Alerts {
@@ -56,6 +121,19 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 				severity = append(severity, v.Value)
 			case "env":
 				envs = append(envs, v.Value)
+			case "orgId":
+				orgId = v.Value
+			}
+		}
+		for _, v := range alert.Annotations.SortedPairs() {
+			switch v.Name {
+
+			case "__dashboardUid__":
+				dashboardUid = v.Value
+			case "__panelId__":
+				panelId = v.Value
+			case "__value_string__":
+				grafanaValues = append(grafanaValues, v.Value)
 			}
 		}
 	}
@@ -83,26 +161,40 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 			url = strings.Replace(url, "%23", "#", 1)
 		}
 
-		graphUrl := ""
+		alertEditUrl := ""
 		for _, alert := range data.Alerts {
 			if alert.GeneratorURL != "" {
-				graphUrl = alert.GeneratorURL
+				alertEditUrl = alert.GeneratorURL
 				break
 			}
 		}
 
+		grafanaDashUrl := genGrafanaUrl(dashboardUid, "")
+		grafanaPanelUrl := genGrafanaUrl(dashboardUid, panelId)
+
 		fields := make([]*Field, 0)
 		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Env: %s*", strings.ToUpper(strings.Join(envs, ", ")))})
 		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Severety: %s*", strings.ToUpper(strings.Join(severity, ", ")))})
-		if graphUrl != "" {
-			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:chart_with_upwards_trend:Graph>*", graphUrl)})
+		if grafanaPanelUrl != "" {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:design:Graph>*", grafanaPanelUrl)})
 		} else {
-			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf(":chart_with_upwards_trend:~Graph~")})
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf(":design:~Graph~")})
 		}
+		if grafanaDashUrl != "" {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:chart_with_upwards_trend:Dash>*", grafanaDashUrl)})
+		} else {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf(":chart_with_upwards_trend:~Dash~")})
+		}
+
 		if url != "" {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:no_bell:Silence>*", url)})
 		} else {
-			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*:no_bell:~Silence~")})
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:no_bell:Silence>*", url)})
+		}
+		if alertEditUrl != "" {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:gear:Edit>*", alertEditUrl)})
+		} else {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*:gear:~Edit~")})
 		}
 
 		blocks = append(blocks, Block{Type: slack.MBTSection, Fields: fields})
@@ -121,6 +213,13 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Firing: *`%s`", strings.Join(firing, ", "))})
 		}
 		blocks = append(blocks, Block{Type: slack.MBTSection, Fields: fields})
+	}
+
+	{
+		grafanaImageUrl := genGrafanaRenderUrl(dashboardUid, panelId, orgId)
+		slackImageUrl := getUploadedImageUrl(grafanaImageUrl, n.conf.Token, n.conf.GrafanaToken)
+		blocks = append(blocks, Block{Type: slack.MBTImage, ImageUrl: slackImageUrl, AltText: "inspiration"})
+
 	}
 
 	{
