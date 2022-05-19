@@ -12,7 +12,6 @@ import (
 type Text struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
-	//Accessory *Accessory `json:"accessory"`
 }
 type Element struct {
 	Type string `json:"type"`

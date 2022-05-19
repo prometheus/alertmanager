@@ -242,7 +242,6 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	{
 		grafanaImageUrl := genGrafanaRenderUrl(dashboardUid, panelId, orgId)
 		slackImageUrl := getUploadedImageUrl(grafanaImageUrl, n.conf.UserToken, n.conf.GrafanaToken)
-		slackImageUrl = ""
 		blocks = append(blocks, Block{Type: slack.MBTImage, ImageURL: slackImageUrl, AltText: "inspiration"})
 
 	}
