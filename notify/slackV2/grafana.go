@@ -14,12 +14,13 @@ import (
 	"time"
 )
 
-const unixMinute = 1000 * 60
-const unixSec = 1000
-
 func genGrafanaRenderUrl(dash string, panel string, org string) string {
 
+	const unixMinute = 1000 * 60
+	const unixSec = 1000
+
 	url := ""
+
 	if u, err := url2.Parse("https://grafana.adsrv.wtf/"); err == nil {
 		u.Scheme = "https"
 		u.Host = "grafana.adsrv.wtf"
@@ -30,16 +31,16 @@ func genGrafanaRenderUrl(dash string, panel string, org string) string {
 		q.Set("to", strconv.FormatInt(time.Now().UnixMilli()-(unixSec*10), 10))
 		q.Set("panelId", panel)
 		q.Set("width", "1000")
-		q.Set("height", "500")
+		q.Set("height", "300")
 		q.Set("tz", "Europe/Moscow")
 		u.RawQuery = q.Encode()
 		url = u.String()
 	}
-	//fmt.Printf("URL: %v\n", url)
 	return url
 }
 func genGrafanaUrl(dash string, panel string) string {
-	grafanaDashUrl := ""
+	DashUrl := ""
+
 	if u, err := url2.Parse(""); err == nil {
 		u.Scheme = "https"
 		u.Host = "grafana.adsrv.wtf"
@@ -49,9 +50,27 @@ func genGrafanaUrl(dash string, panel string) string {
 			q.Set("viewPanel", panel)
 			u.RawQuery = q.Encode()
 		}
-		grafanaDashUrl = u.String()
+		DashUrl = u.String()
 	}
-	return grafanaDashUrl
+	return DashUrl
+}
+func urlMerger(kUrl string, pUrl string) string {
+	imageLink := ""
+	key := ""
+	if u, err := url2.Parse(kUrl); err == nil {
+		key = u.Path
+	}
+
+	trunc := []rune(key)
+	key = string(trunc[len(trunc)-10:])
+
+	if u2, err := url2.Parse(pUrl); err == nil {
+		q := u2.Query()
+		q.Set("pub_secret", key)
+		u2.RawQuery = q.Encode()
+		imageLink = u2.String()
+	}
+	return imageLink
 }
 
 func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Secret) string {
@@ -60,6 +79,7 @@ func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Se
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Set("Authorization", "Bearer "+string(grafanaToken))
 	response, err := client.Do(req)
+
 	defer response.Body.Close()
 
 	if err != nil {
@@ -74,11 +94,8 @@ func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Se
 
 	uuid := uuid.NewV4()
 	fileName := strings.Replace(uuid.String(), "-", "", -1)
-	channel := make([]string, 0)
-	channel = append(channel, "C031W8H3B17")
 	api := slack.New(string(token))
 	params := slack.FileUploadParameters{
-		//Channels: channel,
 		Reader:   response.Body,
 		Filetype: "jpg",
 		Filename: fileName + ".jpg",
@@ -86,12 +103,19 @@ func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Se
 	image, err := api.UploadFile(params)
 
 	if err != nil {
-		fmt.Printf("UPLOAD ERROR - 1\nName: %s, isPublic: %v\n", image.Name, token)
+		fmt.Printf("UPLOAD ERROR - 1\nName: %s", image.Name)
+		return ""
+	}
+	sharedUrl, _, _, err := api.ShareFilePublicURL(image.ID)
+
+	if err != nil {
+		fmt.Printf("SharedError :%v", sharedUrl)
 		return ""
 	}
 
-	fmt.Printf("Data1 : %v\n", image)
-	return image.PermalinkPublic
+	imageUrl := urlMerger(sharedUrl.PermalinkPublic, sharedUrl.URLPrivate)
+
+	return imageUrl
 
 }
 
@@ -100,11 +124,11 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	dashboardUid := ""
 	panelId := ""
 	orgId := ""
+	grafanaValues := ""
 	firing := make([]string, 0)
 	resolved := make([]string, 0)
 	severity := make([]string, 0)
 	envs := make([]string, 0)
-	grafanaValues := make([]string, 0)
 	blocks := make([]slack.Block, 0)
 
 	for _, alert := range data.Alerts {
@@ -121,8 +145,6 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 				severity = append(severity, v.Value)
 			case "env":
 				envs = append(envs, v.Value)
-			case "orgId":
-				orgId = v.Value
 			}
 		}
 		for _, v := range alert.Annotations.SortedPairs() {
@@ -132,8 +154,10 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 				dashboardUid = v.Value
 			case "__panelId__":
 				panelId = v.Value
+			case "orgid":
+				orgId = v.Value
 			case "__value_string__":
-				grafanaValues = append(grafanaValues, v.Value)
+				grafanaValues = v.Value
 			}
 		}
 	}
@@ -217,8 +241,9 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 
 	{
 		grafanaImageUrl := genGrafanaRenderUrl(dashboardUid, panelId, orgId)
-		slackImageUrl := getUploadedImageUrl(grafanaImageUrl, n.conf.Token, n.conf.GrafanaToken)
-		blocks = append(blocks, Block{Type: slack.MBTImage, ImageUrl: slackImageUrl, AltText: "inspiration"})
+		slackImageUrl := getUploadedImageUrl(grafanaImageUrl, n.conf.UserToken, n.conf.GrafanaToken)
+		slackImageUrl = ""
+		blocks = append(blocks, Block{Type: slack.MBTImage, ImageURL: slackImageUrl, AltText: "inspiration"})
 
 	}
 
@@ -241,7 +266,7 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		}
 
 		if val := getMapValue(data.CommonAnnotations, "description"); len(val) > 0 {
-			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s", val)})
+			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s Value: %v", val, grafanaValues)})
 		} else {
 			for _, al := range data.Alerts {
 				if val, ok := al.Annotations["description"]; ok && len(val) > 0 {
@@ -257,6 +282,5 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	}
 
 	result := slack.Blocks{BlockSet: blocks}
-
 	return result
 }

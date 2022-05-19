@@ -12,6 +12,7 @@ import (
 type Text struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+	//Accessory *Accessory `json:"accessory"`
 }
 type Element struct {
 	Type string `json:"type"`
@@ -21,12 +22,13 @@ type Field struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
+
 type Block struct {
 	Type     slack.MessageBlockType `json:"type"`
 	Text     *Text                  `json:"text,omitempty"`
 	Fields   []*Field               `json:"fields,omitempty"`
 	Elements []*Element             `json:"elements,omitempty"`
-	ImageUrl string                 `json:"image_url,omitempty"`
+	ImageURL string                 `json:"image_url,omitempty"`
 	AltText  string                 `json:"alt_text,omitempty"`
 }
 

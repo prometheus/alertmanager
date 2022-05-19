@@ -132,9 +132,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 }
 
 func (n *Notifier) send(data *template.Data, ts string) (string, error) {
-
-	fmt.Printf("%v", data)
-
 	channel := n.conf.Channel
 	if n.conf.GrafanaToken != "" {
 		for _, alert := range data.Alerts {
