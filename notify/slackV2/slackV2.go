@@ -132,18 +132,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 }
 
 func (n *Notifier) send(data *template.Data, ts string) (string, error) {
-	channel := n.conf.Channel
-	if n.conf.GrafanaToken != "" {
-		for _, alert := range data.Alerts {
-			for _, v := range alert.Annotations.SortedPairs() {
-				switch v.Name {
-				case "channel_override":
-					channel = v.Value
-				}
-			}
-		}
-	}
 
+	channel := n.conf.Channel
 	attachment := slack.Attachment{}
 
 	if n.conf.GrafanaToken != "" {

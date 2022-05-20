@@ -18,31 +18,39 @@ func genGrafanaRenderUrl(dash string, panel string, org string, host string) str
 
 	const unixMinute = 1000 * 60
 	const unixSec = 1000
+	const imageWidth = "999"
+	const imageHeight = "333"
+	const timeZone = "Europe/Moscow"
+	const urlPath = "/render/d-solo/"
+	const urlScheme = "https"
 
 	url := ""
 
 	if u, err := url2.Parse(""); err == nil {
-		u.Scheme = "https"
+		u.Scheme = urlScheme
 		u.Host = host
-		u.Path = "/render/d-solo/" + dash + "/"
+		u.Path = urlPath + dash + "/"
 		q := u.Query()
 		q.Set("orgId", org)
 		q.Set("from", strconv.FormatInt(time.Now().UnixMilli()-(unixMinute*60), 10))
 		q.Set("to", strconv.FormatInt(time.Now().UnixMilli()-(unixSec*10), 10))
 		q.Set("panelId", panel)
-		q.Set("width", "999")
-		q.Set("height", "333")
-		q.Set("tz", "Europe/Moscow")
+		q.Set("width", imageWidth)
+		q.Set("height", imageHeight)
+		q.Set("tz", timeZone)
 		u.RawQuery = q.Encode()
 		url = u.String()
 	}
 	return url
 }
 func genGrafanaUrl(dash string, panel string, org string, host string) string {
+
+	const urlScheme = "https"
+
 	DashUrl := ""
 
 	if u, err := url2.Parse(""); err == nil {
-		u.Scheme = "https"
+		u.Scheme = urlScheme
 		u.Host = host
 		u.Path = "d/" + dash
 		q := u.Query()
@@ -262,11 +270,11 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		block := Block{Type: slack.MBTContext, Elements: make([]*Element, 0)}
 
 		if val := getMapValue(data.CommonAnnotations, "description"); len(val) > 0 {
-			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n", val)})
+			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n\n", val)})
 		} else {
 			for _, al := range data.Alerts {
 				if val, ok := al.Annotations["description"]; ok && len(val) > 0 {
-					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n", val)})
+					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n\n", val)})
 					break
 				}
 			}
