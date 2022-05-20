@@ -14,16 +14,16 @@ import (
 	"time"
 )
 
-func genGrafanaRenderUrl(dash string, panel string, org string) string {
+func genGrafanaRenderUrl(dash string, panel string, org string, host string) string {
 
 	const unixMinute = 1000 * 60
 	const unixSec = 1000
 
 	url := ""
 
-	if u, err := url2.Parse("https://grafana.adsrv.wtf/"); err == nil {
+	if u, err := url2.Parse(""); err == nil {
 		u.Scheme = "https"
-		u.Host = "grafana.adsrv.wtf"
+		u.Host = host
 		u.Path = "/render/d-solo/" + dash + "/"
 		q := u.Query()
 		q.Set("orgId", org)
@@ -38,19 +38,19 @@ func genGrafanaRenderUrl(dash string, panel string, org string) string {
 	}
 	return url
 }
-func genGrafanaUrl(dash string, panel string, org string) string {
+func genGrafanaUrl(dash string, panel string, org string, host string) string {
 	DashUrl := ""
 
 	if u, err := url2.Parse(""); err == nil {
 		u.Scheme = "https"
-		u.Host = "grafana.adsrv.wtf"
+		u.Host = host
 		u.Path = "d/" + dash
 		q := u.Query()
 		q.Set("orgId", org)
-		u.RawQuery = q.Encode()
 		if panel != "" {
 			q.Set("viewPanel", panel)
 		}
+		u.RawQuery = q.Encode()
 		DashUrl = u.String()
 	}
 	return DashUrl
@@ -171,9 +171,9 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	firing = UniqStr(firing)
 	envs = UniqStr(envs)
 
-	grafanaDashUrl := genGrafanaUrl(dashboardUid, "", orgId)
-	grafanaPanelUrl := genGrafanaUrl(dashboardUid, panelId, orgId)
-	grafanaImageUrl := genGrafanaRenderUrl(dashboardUid, panelId, orgId)
+	grafanaDashUrl := genGrafanaUrl(dashboardUid, "", orgId, n.conf.GrafanaHost)
+	grafanaPanelUrl := genGrafanaUrl(dashboardUid, panelId, orgId, n.conf.GrafanaHost)
+	grafanaImageUrl := genGrafanaRenderUrl(dashboardUid, panelId, orgId, n.conf.GrafanaHost)
 	slackImageUrl := getUploadedImageUrl(grafanaImageUrl, n.conf.UserToken, n.conf.GrafanaToken)
 
 	{
