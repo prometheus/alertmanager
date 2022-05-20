@@ -149,7 +149,8 @@ func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 	if n.conf.GrafanaToken != "" {
 		attachment = slack.Attachment{
 			Color:  n.conf.Color,
-			Blocks: n.formatGrafanaMessage(data)}
+			Blocks: n.formatGrafanaMessage(data),
+		}
 	} else {
 		attachment = slack.Attachment{
 			Color:  n.conf.Color,
