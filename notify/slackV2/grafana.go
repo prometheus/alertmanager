@@ -38,17 +38,18 @@ func genGrafanaRenderUrl(dash string, panel string, org string) string {
 	}
 	return url
 }
-func genGrafanaUrl(dash string, panel string) string {
+func genGrafanaUrl(dash string, panel string, org string) string {
 	DashUrl := ""
 
 	if u, err := url2.Parse(""); err == nil {
 		u.Scheme = "https"
 		u.Host = "grafana.adsrv.wtf"
 		u.Path = "d/" + dash
+		q := u.Query()
+		q.Set("orgId", org)
+		u.RawQuery = q.Encode()
 		if panel != "" {
-			q := u.Query()
 			q.Set("viewPanel", panel)
-			u.RawQuery = q.Encode()
 		}
 		DashUrl = u.String()
 	}
@@ -124,7 +125,7 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	dashboardUid := ""
 	panelId := ""
 	orgId := ""
-	grafanaValues := ""
+	//grafanaValues := ""
 	runBook := ""
 	firing := make([]string, 0)
 	resolved := make([]string, 0)
@@ -157,8 +158,8 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 				panelId = v.Value
 			case "orgid":
 				orgId = v.Value
-			case "__value_string__":
-				grafanaValues = v.Value
+			//case "__value_string__":
+			//	grafanaValues = v.Value
 			case "runbook_url":
 				runBook = v.Value
 			}
@@ -170,8 +171,8 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	firing = UniqStr(firing)
 	envs = UniqStr(envs)
 
-	grafanaDashUrl := genGrafanaUrl(dashboardUid, "")
-	grafanaPanelUrl := genGrafanaUrl(dashboardUid, panelId)
+	grafanaDashUrl := genGrafanaUrl(dashboardUid, "", orgId)
+	grafanaPanelUrl := genGrafanaUrl(dashboardUid, panelId, orgId)
 	grafanaImageUrl := genGrafanaRenderUrl(dashboardUid, panelId, orgId)
 	slackImageUrl := getUploadedImageUrl(grafanaImageUrl, n.conf.UserToken, n.conf.GrafanaToken)
 
@@ -193,7 +194,7 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		alertEditUrl := ""
 		for _, alert := range data.Alerts {
 			if alert.GeneratorURL != "" {
-				alertEditUrl = alert.GeneratorURL
+				alertEditUrl = alert.GeneratorURL + "?orgId=" + orgId
 				break
 			}
 		}
@@ -261,11 +262,11 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		block := Block{Type: slack.MBTContext, Elements: make([]*Element, 0)}
 
 		if val := getMapValue(data.CommonAnnotations, "description"); len(val) > 0 {
-			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s %s", grafanaValues, val)})
+			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n", val)})
 		} else {
 			for _, al := range data.Alerts {
 				if val, ok := al.Annotations["description"]; ok && len(val) > 0 {
-					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s %s", grafanaValues, val)})
+					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n", val)})
 					break
 				}
 			}
