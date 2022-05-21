@@ -55,7 +55,7 @@ const MinTimeout = 10 * time.Second
 // returns an error if unsuccessful and a flag whether the error is
 // recoverable. This information is useful for a retry logic.
 type Notifier interface {
-	Notify(context.Context, ...*types.Alert) (bool, error)
+	Notify(context.Context, ...*types.Alert) (bool, bool, error)
 }
 
 // Integration wraps a notifier and its configuration to be uniquely identified
@@ -78,7 +78,7 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) 
 }
 
 // Notify implements the Notifier interface.
-func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, bool, error) {
 	return i.notifier.Notify(ctx, alerts...)
 }
 
@@ -246,6 +246,7 @@ type NotificationLog interface {
 type Metrics struct {
 	numNotifications                   *prometheus.CounterVec
 	numTotalFailedNotifications        *prometheus.CounterVec
+	numTotal4xxFailedNotifications     *prometheus.CounterVec
 	numNotificationRequestsTotal       *prometheus.CounterVec
 	numNotificationRequestsFailedTotal *prometheus.CounterVec
 	notificationLatencySeconds         *prometheus.HistogramVec
@@ -262,6 +263,11 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
+		}, []string{"integration"}),
+		numTotal4xxFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "alertmanager",
+			Name:      "notifications_4xx_failed_total",
+			Help:      "The total number of failed 4xx notifications.",
 		}, []string{"integration"}),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
@@ -294,12 +300,13 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numTotalFailedNotifications.WithLabelValues(integration)
+		m.numTotal4xxFailedNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
 	}
 	r.MustRegister(
-		m.numNotifications, m.numTotalFailedNotifications,
+		m.numNotifications, m.numTotalFailedNotifications, m.numTotal4xxFailedNotifications,
 		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
 		m.notificationLatencySeconds,
 	)
@@ -719,11 +726,14 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		select {
 		case <-tick.C:
 			now := time.Now()
-			retry, err := r.integration.Notify(ctx, sent...)
+			retry, is4xx, err := r.integration.Notify(ctx, sent...)
 			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
 			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.integration.Name()).Inc()
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.integration.Name()).Inc()
+				if is4xx {
+					r.metrics.numTotal4xxFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+				}
 				if !retry {
 					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
 				}

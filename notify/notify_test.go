@@ -19,11 +19,14 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -42,9 +45,9 @@ func (s sendResolved) SendResolved() bool {
 	return bool(s)
 }
 
-type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
+type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, bool, error)
 
-func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, bool, error) {
 	return f(ctx, alerts...)
 }
 
@@ -380,13 +383,13 @@ func TestRetryStageWithError(t *testing.T) {
 	fail, retry := true, true
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, bool, error) {
 			if fail {
 				fail = false
-				return retry, errors.New("fail to deliver notification")
+				return retry, false, errors.New("fail to deliver notification")
 			}
 			sent = append(sent, alerts...)
-			return false, nil
+			return false, false, nil
 		}),
 		rs: sendResolved(false),
 	}
@@ -425,9 +428,9 @@ func TestRetryStageWithError(t *testing.T) {
 func TestRetryStageNoResolved(t *testing.T) {
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, bool, error) {
 			sent = append(sent, alerts...)
-			return false, nil
+			return false, false, nil
 		}),
 		rs: sendResolved(false),
 	}
@@ -479,9 +482,9 @@ func TestRetryStageNoResolved(t *testing.T) {
 func TestRetryStageSendResolved(t *testing.T) {
 	sent := []*types.Alert{}
 	i := Integration{
-		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, bool, error) {
 			sent = append(sent, alerts...)
-			return false, nil
+			return false, false, nil
 		}),
 		rs: sendResolved(true),
 	}
@@ -911,5 +914,76 @@ func BenchmarkHashAlert(b *testing.B) {
 	}
 	for i := 0; i < b.N; i++ {
 		hashAlert(alert)
+	}
+}
+
+func TestRetryStageWithErrorCode(t *testing.T) {
+
+	testcases := map[string]struct {
+		errorcode        int
+		expected4xxCount int
+	}{
+
+		"for 400": {errorcode: 400, expected4xxCount: 1},
+		"for 401": {errorcode: 401, expected4xxCount: 1},
+		"for 403": {errorcode: 403, expected4xxCount: 1},
+		"for 404": {errorcode: 404, expected4xxCount: 1},
+		"for 413": {errorcode: 413, expected4xxCount: 1},
+		"for 422": {errorcode: 422, expected4xxCount: 1},
+		"for 429": {errorcode: 429, expected4xxCount: 1},
+		"for 500": {errorcode: 500, expected4xxCount: 0},
+		"for 502": {errorcode: 502, expected4xxCount: 0},
+	}
+	for _, testData := range testcases {
+		fail, retry := true, true
+		sent := []*types.Alert{}
+		testData := testData
+		is4xx := Check4xxStatus(testData.errorcode)
+		i := Integration{
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, bool, error) {
+				if fail {
+					fail = false
+					return retry, is4xx, awserr.New(strconv.Itoa(testData.errorcode), "Not found", errors.New("fail to deliver notification"))
+				}
+				sent = append(sent, alerts...)
+				return false, is4xx, nil
+			}),
+			rs: sendResolved(false),
+		}
+		r := RetryStage{
+			integration: i,
+			metrics:     NewMetrics(prometheus.NewRegistry()),
+		}
+
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithFiringAlerts(ctx, []uint64{0})
+
+		// Notify with a recoverable error should retry and succeed.
+		resctx, res, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+		var counter = r.metrics.numTotal4xxFailedNotifications
+		require.Equal(t, testData.expected4xxCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name()))))
+
+		require.Nil(t, err)
+		require.Equal(t, alerts, res)
+		require.Equal(t, alerts, sent)
+		require.NotNil(t, resctx)
+
+		// Notify with an unrecoverable error should fail.
+		sent = sent[:0]
+		fail = true
+		retry = false
+
+		resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
+		require.NotNil(t, err)
+		require.NotNil(t, resctx)
+
 	}
 }

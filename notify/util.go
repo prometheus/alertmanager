@@ -210,3 +210,11 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	}
 	return retry, errors.New(s)
 }
+
+func Check4xxStatus(statusCode int) bool {
+	var is4xx = false
+	if statusCode/100 == 4 {
+		is4xx = true
+	}
+	return is4xx
+}
