@@ -399,7 +399,8 @@ type SlackConfigV2 struct {
 	Token        Secret         `yaml:"token,omitempty" json:"token,omitempty"`
 	GrafanaToken Secret         `yaml:"grafana_token,omitempty" json:"grafana_token,omitempty"`
 	UserToken    Secret         `yaml:"user_token,omitempty" json:"user_token,omitempty"`
-	GrafanaHost  string         `yaml:"grafana_host,omitempty" json:"grafana_host,omitempty"`
+	GrafanaUrl   string         `yaml:"grafana_url,omitempty" json:"grafana_url,omitempty"`
+	GrafanaTZ    string         `yaml:"grafana_tz,omitempty" json:"grafana_tz,omitempty"`
 	Channel      string         `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Color        string         `yaml:"color,omitempty" json:"color,omitempty"`
 	Debug        bool           `yaml:"debug" json:"debug"`
