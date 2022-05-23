@@ -2,106 +2,114 @@ package slackV2
 
 import (
 	"fmt"
+	"github.com/gofrs/uuid"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/common/model"
-	"github.com/satori/go.uuid"
 	"github.com/slack-go/slack"
 	"net/http"
 	url2 "net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func genGrafanaRenderUrl(dash string, panel string, org string, host string) string {
+func genGrafanaRenderUrl(grafanaUrl string, grafanaTZ string, org string, dash string, panel string) (string, error) {
 
-	const unixMinute = 1000 * 60
-	const unixSec = 1000
+	const fromShift = -time.Hour
+	const toShift = -time.Second * 10
 	const imageWidth = "999"
 	const imageHeight = "333"
-	const timeZone = "Europe/Moscow"
 	const urlPath = "/render/d-solo/"
-	const urlScheme = "https"
 
-	url := ""
-
-	if u, err := url2.Parse(""); err == nil {
-		u.Scheme = urlScheme
-		u.Host = host
-		u.Path = urlPath + dash + "/"
-		q := u.Query()
-		q.Set("orgId", org)
-		q.Set("from", strconv.FormatInt(time.Now().UnixMilli()-(unixMinute*60), 10))
-		q.Set("to", strconv.FormatInt(time.Now().UnixMilli()-(unixSec*10), 10))
-		q.Set("panelId", panel)
-		q.Set("width", imageWidth)
-		q.Set("height", imageHeight)
-		q.Set("tz", timeZone)
-		u.RawQuery = q.Encode()
-		url = u.String()
-	}
-	return url
-}
-func genGrafanaUrl(dash string, panel string, org string, host string) string {
-
-	const urlScheme = "https"
-
-	DashUrl := ""
-
-	if u, err := url2.Parse(""); err == nil {
-		u.Scheme = urlScheme
-		u.Host = host
-		u.Path = "d/" + dash
-		q := u.Query()
-		q.Set("orgId", org)
-		if panel != "" {
-			q.Set("viewPanel", panel)
-		}
-		u.RawQuery = q.Encode()
-		DashUrl = u.String()
-	}
-	return DashUrl
-}
-func urlMerger(kUrl string, pUrl string) string {
-	imageLink := ""
-	key := ""
-	if u, err := url2.Parse(kUrl); err == nil {
-		key = u.Path
+	if grafanaUrl == "" {
+		return "", fmt.Errorf("grafanaUrl is empty")
 	}
 
-	trunc := []rune(key)
-	key = string(trunc[len(trunc)-10:])
-
-	if u2, err := url2.Parse(pUrl); err == nil {
-		q := u2.Query()
-		q.Set("pub_secret", key)
-		u2.RawQuery = q.Encode()
-		imageLink = u2.String()
+	u, err := url2.Parse(grafanaUrl)
+	if err != nil {
+		return "", err
 	}
-	return imageLink
+
+	u.Path = path.Join(u.Path, urlPath, dash)
+	q := u.Query()
+	q.Set("orgId", org)
+	q.Set("from", strconv.Itoa(int(time.Now().Add(fromShift).Unix())))
+	q.Set("to", strconv.Itoa(int(time.Now().Add(toShift).Unix())))
+	q.Set("panelId", panel)
+	q.Set("width", imageWidth)
+	q.Set("height", imageHeight)
+	q.Set("tz", grafanaTZ)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+
 }
 
-func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Secret) string {
+func genGrafanaUrl(grafanaUrl string, org string, dash string, panel string) (string, error) {
 
+	if grafanaUrl == "" {
+		return "", fmt.Errorf("grafanaUrl is empty")
+	}
+
+	u, err := url2.Parse(grafanaUrl)
+	if err != nil {
+		return "", err
+	}
+
+	u.Path = path.Join(u.Path, "/d/"+dash)
+	q := u.Query()
+	q.Set("orgId", org)
+	if panel != "" {
+		q.Set("viewPanel", panel)
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+func urlMerger(publicUrl string, privateUrl string) (string, error) {
+	u, err := url2.Parse(publicUrl)
+	if err != nil {
+		return "", err
+	}
+
+	trunc := []rune(u.Path)
+	key := string(trunc[len(trunc)-10:])
+
+	u, err = url2.Parse(privateUrl)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("pub_secret", key)
+	u.RawQuery = q.Encode()
+
+	return u.String(), nil
+}
+
+func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Secret) (string, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
 	req.Header.Set("Authorization", "Bearer "+string(grafanaToken))
+
 	response, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
 
 	defer response.Body.Close()
 
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("request status code %d != %d", response.StatusCode, http.StatusOK)
+	}
+
+	uuid, err := uuid.NewV4()
 	if err != nil {
-		fmt.Printf("invalid req: %v\n", err)
-		return ""
+		return "", err
 	}
-
-	if response.StatusCode != 200 {
-		fmt.Printf("received non 200 response code, code: %v\n", response.StatusCode)
-		return ""
-	}
-
-	uuid := uuid.NewV4()
 	fileName := strings.Replace(uuid.String(), "-", "", -1)
 	api := slack.New(string(token))
 	params := slack.FileUploadParameters{
@@ -109,22 +117,23 @@ func getUploadedImageUrl(url string, token config.Secret, grafanaToken config.Se
 		Filetype: "jpg",
 		Filename: fileName + ".jpg",
 	}
+
 	image, err := api.UploadFile(params)
-
 	if err != nil {
-		fmt.Printf("UPLOAD ERROR. Name: %s\n", image.Name)
-		return ""
+		return "", fmt.Errorf("upload error, image: %s, error: %w", image.Name, err)
 	}
+
 	sharedUrl, _, _, err := api.ShareFilePublicURL(image.ID)
-
 	if err != nil {
-		fmt.Printf("SharedError :%v\n", sharedUrl)
-		return ""
+		return "", fmt.Errorf("share error: %w", err)
 	}
 
-	imageUrl := urlMerger(sharedUrl.PermalinkPublic, sharedUrl.URLPrivate)
+	imageUrl, err := urlMerger(sharedUrl.PermalinkPublic, sharedUrl.URLPrivate)
+	if err != nil {
+		return "", fmt.Errorf("url merge error: %w", err)
+	}
 
-	return imageUrl
+	return imageUrl, nil
 
 }
 
@@ -179,11 +188,6 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	firing = UniqStr(firing)
 	envs = UniqStr(envs)
 
-	grafanaDashUrl := genGrafanaUrl(dashboardUid, "", orgId, n.conf.GrafanaHost)
-	grafanaPanelUrl := genGrafanaUrl(dashboardUid, panelId, orgId, n.conf.GrafanaHost)
-	grafanaImageUrl := genGrafanaRenderUrl(dashboardUid, panelId, orgId, n.conf.GrafanaHost)
-	slackImageUrl := getUploadedImageUrl(grafanaImageUrl, n.conf.UserToken, n.conf.GrafanaToken)
-
 	{
 		url := ""
 		if urlParsed, err := url2.Parse(data.ExternalURL); err == nil {
@@ -219,8 +223,8 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*Severety: %s*", strings.ToUpper(strings.Join(severity, ", ")))})
 
 		//Buttons
-		if grafanaPanelUrl != "" {
-			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:chart_with_upwards_trend:Panel>*", grafanaPanelUrl)})
+		if url, err := genGrafanaUrl(n.conf.GrafanaUrl, orgId, dashboardUid, panelId); err == nil {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:chart_with_upwards_trend:Panel>*", url)})
 		} else {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf(":chart_with_upwards_trend:~Panel~")})
 		}
@@ -230,8 +234,8 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		} else {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:no_bell:Silence>*", url)})
 		}
-		if grafanaDashUrl != "" {
-			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:dashboard:Dash>*", grafanaDashUrl)})
+		if url, err := genGrafanaUrl(n.conf.GrafanaUrl, orgId, dashboardUid, ""); err == nil {
+			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf("*<%s|:dashboard:Dash>*", url)})
 		} else {
 			fields = append(fields, &Field{Type: slack.MarkdownType, Text: fmt.Sprintf(":dashboard:~Dash~")})
 		}
@@ -261,8 +265,10 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	}
 
 	//GrafanaImage
-	if slackImageUrl != "" {
-		blocks = append(blocks, Block{Type: slack.MBTImage, ImageURL: slackImageUrl, AltText: "inspiration"})
+	if imageUrl, err := genGrafanaRenderUrl(n.conf.GrafanaUrl, n.conf.GrafanaTZ, orgId, dashboardUid, panelId); err == nil {
+		if slackImageUrl, err := getUploadedImageUrl(imageUrl, n.conf.UserToken, n.conf.GrafanaToken); err == nil {
+			blocks = append(blocks, Block{Type: slack.MBTImage, ImageURL: slackImageUrl, AltText: "inspiration"})
+		}
 	}
 
 	//Summary and description
