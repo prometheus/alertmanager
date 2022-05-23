@@ -133,9 +133,19 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 
-	attachment := slack.Attachment{
-		Color:  n.conf.Color,
-		Blocks: n.formatMessage(data),
+	channel := n.conf.Channel
+	attachment := slack.Attachment{}
+
+	if n.conf.GrafanaToken != "" {
+		attachment = slack.Attachment{
+			Color:  n.conf.Color,
+			Blocks: n.formatGrafanaMessage(data),
+		}
+	} else {
+		attachment = slack.Attachment{
+			Color:  n.conf.Color,
+			Blocks: n.formatMessage(data),
+		}
 	}
 
 	if len(data.Alerts.Firing()) == 0 {
@@ -145,10 +155,10 @@ func (n *Notifier) send(data *template.Data, ts string) (string, error) {
 	att := slack.MsgOptionAttachments(attachment)
 
 	if ts != "" {
-		_, _, messageTs, err := n.client.UpdateMessage(n.conf.Channel, ts, att)
+		_, _, messageTs, err := n.client.UpdateMessage(channel, ts, att)
 		return messageTs, err
 	} else {
-		_, messageTs, err := n.client.PostMessage(n.conf.Channel, att)
+		_, messageTs, err := n.client.PostMessage(channel, att)
 		return messageTs, err
 	}
 }

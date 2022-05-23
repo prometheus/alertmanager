@@ -15,6 +15,7 @@ require (
 	github.com/go-openapi/validate v0.20.2
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/gogo/protobuf v1.3.2
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/go-uuid v1.0.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4
@@ -30,9 +31,10 @@ require (
 	github.com/prometheus/common/sigv4 v0.1.0
 	github.com/prometheus/exporter-toolkit v0.7.0
 	github.com/rs/cors v1.8.0
+	github.com/satori/go.uuid v1.2.0
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
-	github.com/slack-go/slack v0.10.0
+	github.com/slack-go/slack v0.10.4-0.20220503131901-0e14c9d4a15c
 	github.com/stretchr/testify v1.7.0
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
