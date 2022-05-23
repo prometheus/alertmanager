@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -194,7 +195,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, err
 		}
-		u = string(content)
+		u = strings.TrimSpace(string(content))
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
