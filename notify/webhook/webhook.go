@@ -56,6 +56,7 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger, httpOpt
 			CustomDetailsFunc: func(int, io.Reader) string {
 				return conf.URL.String()
 			},
+			RetryCodes: conf.RetryCodes,
 		},
 	}, nil
 }

@@ -399,6 +399,9 @@ type WebhookConfig struct {
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
 	// allows an unlimited number of alerts.
 	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+
+	// Additional HTTP status codes that should be retried.
+	RetryCodes []int `yaml:"retry_codes,omitempty" json:"retry_codes,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
