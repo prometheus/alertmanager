@@ -47,7 +47,7 @@ receivers:
 	require.Equal(t, "https://api.telegram.org", c.Receivers[0].TelegramConfigs[0].APIUrl.String())
 	require.Equal(t, config.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
 	require.Equal(t, int64(1234), c.Receivers[0].TelegramConfigs[0].ChatID)
-	require.Equal(t, "MarkdownV2", c.Receivers[0].TelegramConfigs[0].ParseMode)
+	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
 }
 
 func TestTelegramRetry(t *testing.T) {
