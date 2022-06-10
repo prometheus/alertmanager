@@ -32,6 +32,15 @@ var (
 		},
 	}
 
+	// DefaultDiscordConfig defines default values for Discord configurations.
+	DefaultDiscordConfig = DiscordConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title:   `{{ template "discord.default.title" . }}`,
+		Message: `{{ template "discord.default.message" . }}`,
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -154,6 +163,24 @@ type NotifierConfig struct {
 
 func (nc *NotifierConfig) SendResolved() bool {
 	return nc.VSendResolved
+}
+
+// DiscordConfig configures notifications via Discord.
+type DiscordConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+
+	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *DiscordConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultDiscordConfig
+	type plain DiscordConfig
+	return unmarshal((*plain)(c))
 }
 
 // EmailConfig configures notifications via mail.
