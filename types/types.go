@@ -53,18 +53,18 @@ type AlertStatus struct {
 // Marker helps to mark alerts as silenced and/or inhibited.
 // All methods are goroutine-safe.
 type Marker interface {
-	// SetSilenced replaces the previous SilencedBy by the provided IDs of
+	// SetActiveOrSilenced replaces the previous SilencedBy by the provided IDs of
 	// active and pending silences, including the version number of the
 	// silences state. The set of provided IDs is supposed to represent the
 	// complete set of relevant silences. If no active silence IDs are provided and
 	// InhibitedBy is already empty, it sets the provided alert to AlertStateActive.
 	// Otherwise, it sets the provided alert to AlertStateSuppressed.
-	SetSilenced(alert model.Fingerprint, version int, activeSilenceIDs, pendingSilenceIDs []string)
+	SetActiveOrSilenced(alert model.Fingerprint, version int, activeSilenceIDs, pendingSilenceIDs []string)
 	// SetInhibited replaces the previous InhibitedBy by the provided IDs of
-	// alerts. In contrast to SetSilenced, the set of provided IDs is not
+	// alerts. In contrast to SetActiveOrSilenced, the set of provided IDs is not
 	// expected to represent the complete set of inhibiting alerts. (In
 	// practice, this method is only called with one or zero IDs. However,
-	// this expectation might change in the future.) If no IDs are provided
+	// this expectation might change in the future. If no IDs are provided
 	// and InhibitedBy is already empty, it sets the provided alert to
 	// AlertStateActive. Otherwise, it sets the provided alert to
 	// AlertStateSuppressed.
@@ -150,8 +150,8 @@ func (m *memMarker) Count(states ...AlertState) int {
 	return count
 }
 
-// SetSilenced implements Marker.
-func (m *memMarker) SetSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
+// SetActiveOrSilenced implements Marker.
+func (m *memMarker) SetActiveOrSilenced(alert model.Fingerprint, version int, activeIDs, pendingIDs []string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 

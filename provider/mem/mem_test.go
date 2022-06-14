@@ -297,7 +297,7 @@ func TestAlertsGC(t *testing.T) {
 	}
 
 	for _, a := range insert {
-		marker.SetSilenced(a.Fingerprint(), 0, nil, nil)
+		marker.SetActiveOrSilenced(a.Fingerprint(), 0, nil, nil)
 		marker.SetInhibited(a.Fingerprint())
 		if !marker.Active(a.Fingerprint()) {
 			t.Errorf("error setting status: %v", a)
