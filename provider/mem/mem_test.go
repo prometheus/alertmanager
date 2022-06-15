@@ -405,19 +405,48 @@ func TestAlerts_Count(t *testing.T) {
 	require.Equal(t, 0, countTotal())
 
 	// When you insert a new alert that will eventually be active, it should be unprocessed first.
-	alerts.Put(alert1)
+	now := time.Now()
+	a1 := &types.Alert{
+		Alert: model.Alert{
+			Labels:       model.LabelSet{"bar": "foo"},
+			Annotations:  model.LabelSet{"foo": "bar"},
+			StartsAt:     now,
+			EndsAt:       now.Add(400 * time.Millisecond),
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: now,
+		Timeout:   false,
+	}
+
+	alerts.Put(a1)
 	require.Equal(t, 1, countByState(types.AlertStateUnprocessed))
 	require.Equal(t, 1, countTotal())
+	require.Eventually(t, func() bool {
+		// When the alert will eventually expire and is considered resolved - it won't count.
+		return countTotal() == 0
+	}, 600*time.Millisecond, 100*time.Millisecond)
 
-	// When we insert an alert and then silence it. It shows up with the correct filter.
-	alerts.Put(alert2)
-	marker.SetSilenced(alert2.Fingerprint(), 1, []string{"1"}, nil)
-	require.Equal(t, 1, countByState(types.AlertStateUnprocessed))
+	now = time.Now()
+	a2 := &types.Alert{
+		Alert: model.Alert{
+			Labels:       model.LabelSet{"bar": "foo"},
+			Annotations:  model.LabelSet{"foo": "bar"},
+			StartsAt:     now,
+			EndsAt:       now.Add(400 * time.Millisecond),
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: now,
+		Timeout:   false,
+	}
+
+	// When insert an alert, and then silence it. It shows up with the correct filter.
+	alerts.Put(a2)
+	marker.SetSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
 	require.Equal(t, 1, countByState(types.AlertStateSuppressed))
-	require.Equal(t, 2, countTotal())
+	require.Equal(t, 1, countTotal())
 
 	require.Eventually(t, func() bool {
-		// When the alerts eventually expire and are considered resolved they won't count.
+		// When the alert will eventually expire and is considered resolved - it won't count.
 		return countTotal() == 0
 	}, 600*time.Millisecond, 100*time.Millisecond)
 }
