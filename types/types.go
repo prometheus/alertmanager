@@ -108,11 +108,11 @@ type memMarker struct {
 }
 
 func (m *memMarker) registerMetrics(r prometheus.Registerer) {
-	newAlertMetricByState := func(st AlertState) prometheus.GaugeFunc {
+	newMarkedAlertMetricByState := func(st AlertState) prometheus.GaugeFunc {
 		return prometheus.NewGaugeFunc(
 			prometheus.GaugeOpts{
-				Name:        "alertmanager_alerts",
-				Help:        "How many alerts by state.",
+				Name:        "alertmanager_marked_alerts",
+				Help:        "How many alerts by state are currently marked in the Alertmanager regardless of their expiry.",
 				ConstLabels: prometheus.Labels{"state": string(st)},
 			},
 			func() float64 {
@@ -121,11 +121,13 @@ func (m *memMarker) registerMetrics(r prometheus.Registerer) {
 		)
 	}
 
-	alertsActive := newAlertMetricByState(AlertStateActive)
-	alertsSuppressed := newAlertMetricByState(AlertStateSuppressed)
+	alertsActive := newMarkedAlertMetricByState(AlertStateActive)
+	alertsSuppressed := newMarkedAlertMetricByState(AlertStateSuppressed)
+	alertStateUnprocessed := newMarkedAlertMetricByState(AlertStateUnprocessed)
 
 	r.MustRegister(alertsActive)
 	r.MustRegister(alertsSuppressed)
+	r.MustRegister(alertStateUnprocessed)
 }
 
 // Count implements Marker.
