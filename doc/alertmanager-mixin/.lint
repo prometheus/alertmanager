@@ -5,3 +5,7 @@ exclusions:
     entries:
     - dashboard: Alertmanager / Overview 
       reason: multi-select is not always required
+  template-instance-rule:
+    entries:
+    - dashboard: Alertmanager / Overview
+      reason: multi-select is not always required
