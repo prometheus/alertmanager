@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/provider"
@@ -33,8 +34,10 @@ const alertChannelLength = 200
 type Alerts struct {
 	cancel context.CancelFunc
 
+	alerts *store.Alerts
+	marker types.Marker
+
 	mtx       sync.Mutex
-	alerts    *store.Alerts
 	listeners map[int]listeningAlerts
 	next      int
 
@@ -62,14 +65,34 @@ type listeningAlerts struct {
 	done   chan struct{}
 }
 
+func (a *Alerts) registerMetrics(r prometheus.Registerer) {
+	newMemAlertByStatus := func(s types.AlertState) prometheus.GaugeFunc {
+		return prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name:        "alertmanager_alerts",
+				Help:        "How many alerts by state.",
+				ConstLabels: prometheus.Labels{"state": string(s)},
+			},
+			func() float64 {
+				return float64(a.count(s))
+			},
+		)
+	}
+
+	r.MustRegister(newMemAlertByStatus(types.AlertStateActive))
+	r.MustRegister(newMemAlertByStatus(types.AlertStateSuppressed))
+	r.MustRegister(newMemAlertByStatus(types.AlertStateUnprocessed))
+}
+
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger, r prometheus.Registerer) (*Alerts, error) {
 	if alertCallback == nil {
 		alertCallback = noopCallback{}
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
+		marker:    m,
 		alerts:    store.NewAlerts(),
 		cancel:    cancel,
 		listeners: map[int]listeningAlerts{},
@@ -98,6 +121,11 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, al
 		}
 		a.mtx.Unlock()
 	})
+
+	if r != nil {
+		a.registerMetrics(r)
+	}
+
 	go a.alerts.Run(ctx, intervalGC)
 
 	return a, nil
@@ -210,6 +238,25 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 	}
 
 	return nil
+}
+
+// count returns the number of non-resolved alerts we currently have stored filtered by the provided state.
+func (a *Alerts) count(state types.AlertState) int {
+	var count int
+	for _, alert := range a.alerts.List() {
+		if alert.Resolved() {
+			continue
+		}
+
+		status := a.marker.Status(alert.Fingerprint())
+		if status.State != state {
+			continue
+		}
+
+		count++
+	}
+
+	return count
 }
 
 type noopCallback struct{}
