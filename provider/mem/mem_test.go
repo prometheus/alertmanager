@@ -441,7 +441,7 @@ func TestAlerts_Count(t *testing.T) {
 
 	// When insert an alert, and then silence it. It shows up with the correct filter.
 	alerts.Put(a2)
-	marker.SetSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
+	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
 	require.Equal(t, 1, countByState(types.AlertStateSuppressed))
 	require.Equal(t, 1, countTotal())
 
