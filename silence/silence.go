@@ -154,7 +154,7 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	}
 	if len(allSils) == 0 {
 		// Easy case, neither active nor pending silences anymore.
-		s.marker.SetSilenced(fp, newVersion, nil, nil)
+		s.marker.SetActiveOrSilenced(fp, newVersion, nil, nil)
 		return false
 	}
 	// It is still possible that nothing has changed, but finding out is not
@@ -183,7 +183,7 @@ func (s *Silencer) Mutes(lset model.LabelSet) bool {
 	sort.Strings(activeIDs)
 	sort.Strings(pendingIDs)
 
-	s.marker.SetSilenced(fp, newVersion, activeIDs, pendingIDs)
+	s.marker.SetActiveOrSilenced(fp, newVersion, activeIDs, pendingIDs)
 
 	return len(activeIDs) > 0
 }
