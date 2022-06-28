@@ -190,6 +190,10 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			input: `job=`,
+			err:   `matcher value is not present: job=`,
+		},
+		{
 			input: `job="value`,
 			err:   `matcher value contains unescaped double quote: "value`,
 		},
