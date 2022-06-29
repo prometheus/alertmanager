@@ -9,3 +9,7 @@ exclusions:
     entries:
     - dashboard: Alertmanager / Overview
       reason: multi-select is not always required
+  panel-units-rule:
+    entries:
+    - dashboard: Alertmanager / Overview
+      reason: Dashboard does not benefit from specific unit specification.
