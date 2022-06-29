@@ -626,6 +626,17 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
+	username := api.usernameFromHeaderOrBasicAuth(params.HTTPRequest)
+	if username != "" {
+		if params.Silence.CreatedBy == nil {
+			params.Silence.CreatedBy = &username
+		}
+
+		if params.Silence.CreatedBy != &username {
+			return silence_ops.NewPostSilencesBadRequest().WithPayload(fmt.Sprintf("created_by does not match HTTP basic authentication or value of %s HTTP header", api.alertmanagerConfig.Global.UserHTTPHeader))
+		}
+	}
+
 	sil, err := PostableSilenceToProto(params.Silence)
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to marshal silence to proto", "err", err)
@@ -658,6 +669,18 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	return silence_ops.NewPostSilencesOK().WithPayload(&silence_ops.PostSilencesOKBody{
 		SilenceID: sid,
 	})
+}
+
+// usernameFromHeaderOrBasicAuth returns the username specified as part of Basic Authentication. If no auth is provided,
+// it tries the specified HTTP header of UserHTTPHeader. If none are found it returns an empty string "".
+func (api *API) usernameFromHeaderOrBasicAuth(request *http.Request) string {
+	// First, let's try getting the username from Basic Authentication.
+	if user, _, ok := request.BasicAuth(); ok {
+		return user
+	}
+
+	// No Basic Authentication, let's try the header.
+	return request.Header.Get(api.alertmanagerConfig.Global.UserHTTPHeader)
 }
 
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
