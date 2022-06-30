@@ -42,6 +42,7 @@ local graphPanel = grafana.graphPanel;
       local alerts =
         graphPanel.new(
           'Alerts',
+          description='current set of alerts stored in the Alertmanager',
           datasource='$datasource',
           span=6,
           format='none',
@@ -54,6 +55,7 @@ local graphPanel = grafana.graphPanel;
       local alertsRate =
         graphPanel.new(
           'Alerts receive rate',
+          description='rate of successful and invalid alerts received by the Alertmanager',
           datasource='$datasource',
           span=6,
           format='ops',
@@ -67,6 +69,7 @@ local graphPanel = grafana.graphPanel;
       local notifications =
         graphPanel.new(
           '$integration: Notifications Send Rate',
+          description='rate of successful and invalid notifications sent by the Alertmanager',
           datasource='$datasource',
           format='ops',
           stack=true,
@@ -80,6 +83,7 @@ local graphPanel = grafana.graphPanel;
       local notificationDuration =
         graphPanel.new(
           '$integration: Notification Duration',
+          description='latency of notifications sent by the Alertmanager',
           datasource='$datasource',
           format='s',
           stack=false,
