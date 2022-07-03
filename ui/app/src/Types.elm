@@ -1,8 +1,10 @@
-module Types exposing (Model, Msg(..), Route(..))
+module Types exposing (Model, Msg(..), Route(..), getUser)
 
 import Browser.Navigation exposing (Key)
+import Data.User exposing (User)
+import Utils.Api
 import Utils.Filter exposing (Filter, SilenceFormGetParams)
-import Utils.Types exposing (ApiData)
+import Utils.Types exposing (ApiData(..))
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.SilenceList.Types as SilenceList exposing (SilenceListMsg)
@@ -26,6 +28,7 @@ type alias Model =
     , elmDatepickerCSS : ApiData String
     , defaultCreator : String
     , expandAll : Bool
+    , username : Maybe String
     , key : Key
     }
 
@@ -51,6 +54,7 @@ type Msg
     | ElmDatepickerCSSLoaded (ApiData String)
     | SetDefaultCreator String
     | SetGroupExpandAll Bool
+    | UserFetch (ApiData User)
 
 
 type Route
@@ -62,3 +66,13 @@ type Route
     | SilenceViewRoute String
     | StatusRoute
     | TopLevelRoute
+
+
+getUser : String -> (ApiData User -> msg) -> Cmd msg
+getUser apiUrl msg =
+    let
+        url =
+            String.join "/" [ apiUrl, "me" ]
+    in
+    Utils.Api.send (Utils.Api.get url Data.User.decoder)
+        |> Cmd.map msg

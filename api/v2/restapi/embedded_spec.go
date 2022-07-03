@@ -210,6 +210,23 @@ func init() {
         }
       }
     },
+    "/me": {
+      "get": {
+        "description": "Get current user info",
+        "tags": [
+          "general"
+        ],
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "description": "Get user info",
+            "schema": {
+              "$ref": "#/definitions/user"
+            }
+          }
+        }
+      }
+    },
     "/receivers": {
       "get": {
         "description": "Get list of all receivers (name of notification integrations)",
@@ -750,6 +767,17 @@ func init() {
         }
       }
     },
+    "user": {
+      "type": "object",
+      "required": [
+        "username"
+      ],
+      "properties": {
+        "username": {
+          "type": "string"
+        }
+      }
+    },
     "versionInfo": {
       "type": "object",
       "required": [
@@ -1007,6 +1035,23 @@ func init() {
             "description": "Internal server error",
             "schema": {
               "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "description": "Get current user info",
+        "tags": [
+          "general"
+        ],
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "description": "Get user info",
+            "schema": {
+              "$ref": "#/definitions/user"
             }
           }
         }
@@ -1561,6 +1606,17 @@ func init() {
             "active",
             "pending"
           ]
+        }
+      }
+    },
+    "user": {
+      "type": "object",
+      "required": [
+        "username"
+      ],
+      "properties": {
+        "username": {
+          "type": "string"
         }
       }
     },

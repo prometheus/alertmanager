@@ -15,8 +15,8 @@ import Views.Shared.SilencePreview
 import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
-view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
-view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
+view : Maybe String -> SilenceFormGetParams -> String -> Maybe String -> Model -> Html SilenceFormMsg
+view maybeId silenceFormGetParams defaultCreator username { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
     let
         ( title, resetClick ) =
             case maybeId of
@@ -25,6 +25,14 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
 
                 Nothing ->
                     ( "New Silence", NewSilenceFromMatchersAndComment defaultCreator silenceFormGetParams )
+
+        ro =
+            case username of
+                Just _ ->
+                    True
+
+                Nothing ->
+                    False
     in
     div []
         [ h1 [] [ text title ]
@@ -36,6 +44,7 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
             (UpdateCreatedBy >> UpdateField)
             (ValidateCreatedBy |> UpdateField)
             form.createdBy
+            ro
         , validatedTextareaField
             "Comment"
             inputSectionPadding
@@ -105,18 +114,21 @@ timeInput startsAt endsAt duration =
             (UpdateStartsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             startsAt
+            False
         , validatedField input
             "Duration"
             "col-lg-3 col-6"
             (UpdateDuration >> UpdateField)
             (ValidateTime |> UpdateField)
             duration
+            False
         , validatedField input
             "End"
             "col-lg-4 col-6"
             (UpdateEndsAt >> UpdateField)
             (ValidateTime |> UpdateField)
             endsAt
+            False
         , div
             [ class "form-group col-lg-1 col-6" ]
             [ label

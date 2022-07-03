@@ -79,8 +79,8 @@ checkbox name status msg =
         ]
 
 
-validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> msg -> ValidatedField -> Html msg
-validatedField htmlField labelText classes inputMsg blurMsg field =
+validatedField : (List (Attribute msg) -> List (Html msg) -> Html msg) -> String -> String -> (String -> msg) -> msg -> ValidatedField -> Bool -> Html msg
+validatedField htmlField labelText classes inputMsg blurMsg field ro =
     case field.validationState of
         Valid ->
             div [ class <| "d-flex flex-column form-group has-success " ++ classes ]
@@ -90,6 +90,7 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , onInput inputMsg
                     , onBlur blurMsg
                     , class "form-control form-control-success"
+                    , readonly ro
                     ]
                     []
                 ]
@@ -102,6 +103,7 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , onInput inputMsg
                     , onBlur blurMsg
                     , class "form-control"
+                    , readonly ro
                     ]
                     []
                 ]
@@ -114,6 +116,7 @@ validatedField htmlField labelText classes inputMsg blurMsg field =
                     , onInput inputMsg
                     , onBlur blurMsg
                     , class "form-control form-control-danger"
+                    , readonly ro
                     ]
                     []
                 , div [ class "form-control-feedback" ] [ text error_ ]

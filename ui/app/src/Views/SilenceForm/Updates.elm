@@ -170,8 +170,8 @@ updateForm msg form =
             }
 
 
-update : SilenceFormMsg -> Model -> String -> String -> ( Model, Cmd Msg )
-update msg model basePath apiUrl =
+update : SilenceFormMsg -> Model -> String -> String -> Maybe String -> ( Model, Cmd Msg )
+update msg model basePath apiUrl username =
     case msg of
         CreateSilence ->
             case toSilence model.filterBar model.form of
@@ -209,7 +209,7 @@ update msg model basePath apiUrl =
             ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment >> MsgForSilenceForm) Time.now )
 
         NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment time ->
-            ( { form = fromMatchersAndCommentAndTime defaultCreator comment time
+            ( { form = fromMatchersAndCommentAndTime defaultCreator username comment time
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
@@ -224,7 +224,7 @@ update msg model basePath apiUrl =
             ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetch >> MsgForSilenceForm) )
 
         SilenceFetch (Success silence) ->
-            ( { form = fromSilence silence
+            ( { form = fromSilence silence username
               , filterBar = FilterBar.initFilterBar (List.map Utils.Filter.fromApiMatcher silence.matchers)
               , filterBarValid = Utils.FormValidation.Initial
               , silenceId = model.silenceId

@@ -120,6 +120,7 @@ func NewAPI(
 	openAPI.AlertPostAlertsHandler = alert_ops.PostAlertsHandlerFunc(api.postAlertsHandler)
 	openAPI.AlertgroupGetAlertGroupsHandler = alertgroup_ops.GetAlertGroupsHandlerFunc(api.getAlertGroupsHandler)
 	openAPI.GeneralGetStatusHandler = general_ops.GetStatusHandlerFunc(api.getStatusHandler)
+	openAPI.GeneralGetMeHandler = general_ops.GetMeHandlerFunc(api.getMeHandler)
 	openAPI.ReceiverGetReceiversHandler = receiver_ops.GetReceiversHandlerFunc(api.getReceiversHandler)
 	openAPI.SilenceDeleteSilenceHandler = silence_ops.DeleteSilenceHandlerFunc(api.deleteSilenceHandler)
 	openAPI.SilenceGetSilenceHandler = silence_ops.GetSilenceHandlerFunc(api.getSilenceHandler)
@@ -212,6 +213,13 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 	}
 
 	return receiver_ops.NewGetReceiversOK().WithPayload(receivers)
+}
+
+func (api *API) getMeHandler(params general_ops.GetMeParams) middleware.Responder {
+	// Dummy 
+	username := "dummyuser"
+	res := &open_api_models.User{Username: &username}
+	return general_ops.NewGetMeOK().WithPayload(res)
 }
 
 func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Responder {

@@ -135,8 +135,8 @@ validMatchers { matchers, matcherText } =
                 Ok (List.map Utils.Filter.toApiMatcher nonEmptyMatchers)
 
 
-fromSilence : GettableSilence -> SilenceForm
-fromSilence { id, createdBy, comment, startsAt, endsAt } =
+fromSilence : GettableSilence -> Maybe String -> SilenceForm
+fromSilence { id, createdBy, comment, startsAt, endsAt } username =
     let
         startsPosix =
             Utils.Date.timeFromString (DateTime.toString startsAt)
@@ -145,9 +145,12 @@ fromSilence { id, createdBy, comment, startsAt, endsAt } =
         endsPosix =
             Utils.Date.timeFromString (DateTime.toString endsAt)
                 |> Result.toMaybe
+
+        loginUser =
+            username |> Maybe.withDefault createdBy
     in
     { id = Just id
-    , createdBy = initialField createdBy
+    , createdBy = initialField loginUser
     , comment = initialField comment
     , startsAt = initialField (timeToString startsAt)
     , endsAt = initialField (timeToString endsAt)
@@ -213,13 +216,17 @@ defaultDuration =
     2 * 60 * 60 * 1000
 
 
-fromMatchersAndCommentAndTime : String -> String -> Posix -> SilenceForm
-fromMatchersAndCommentAndTime defaultCreator comment now =
+fromMatchersAndCommentAndTime : String -> Maybe String -> String -> Posix -> SilenceForm
+fromMatchersAndCommentAndTime defaultCreator username comment now =
+    let
+        createdBy =
+            username |> Maybe.withDefault defaultCreator
+    in
     { empty
         | startsAt = initialField (timeToString now)
         , endsAt = initialField (timeToString (addDuration defaultDuration now))
         , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
-        , createdBy = initialField defaultCreator
+        , createdBy = initialField createdBy
         , comment = initialField comment
         , dateTimePicker = initFromStartAndEndTime (Just now) (Just (addDuration defaultDuration now))
         , viewDateTimePicker = False
