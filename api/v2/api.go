@@ -217,7 +217,7 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 
 		for _, integration := range r.Integrations() {
 			notify, duration, err := integration.GetReport()
-			iname := integration.Name()
+			iname := integration.String()
 			integrations = append(integrations, &open_api_models.Integration{
 				Name:               &iname,
 				SendResolve:        integration.SendResolved(),
