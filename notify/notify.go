@@ -65,6 +65,11 @@ type Integration struct {
 	rs       ResolvedSender
 	name     string
 	idx      int
+
+	mtx                sync.RWMutex
+	lastError          error
+	lastNotify         time.Time
+	lastNotifyDuration time.Duration
 }
 
 // NewIntegration returns a new integration.
@@ -95,6 +100,22 @@ func (i *Integration) Name() string {
 // Index returns the index of the integration.
 func (i *Integration) Index() int {
 	return i.idx
+}
+
+func (i *Integration) Report(start time.Time, duration time.Duration, notifyError error) {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+
+	i.lastNotify = start
+	i.lastNotifyDuration = duration
+	i.lastError = notifyError
+}
+
+func (i *Integration) GetReport() (time.Time, time.Duration, error) {
+	i.mtx.RLock()
+	defer i.mtx.RUnlock()
+
+	return i.lastNotify, i.lastNotifyDuration, i.lastError
 }
 
 // String implements the Stringer interface.
@@ -317,15 +338,7 @@ func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
 }
 
 // New returns a map of receivers to Stages.
-func (pb *PipelineBuilder) New(
-	receivers map[string][]Integration,
-	wait func() time.Duration,
-	inhibitor *inhibit.Inhibitor,
-	silencer *silence.Silencer,
-	times map[string][]timeinterval.TimeInterval,
-	notificationLog NotificationLog,
-	peer Peer,
-) RoutingStage {
+func (pb *PipelineBuilder) New(receivers []*Receiver, wait func() time.Duration, inhibitor *inhibit.Inhibitor, silencer *silence.Silencer, times map[string][]timeinterval.TimeInterval, notificationLog NotificationLog, peer Peer) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
 	ms := NewGossipSettleStage(peer)
@@ -334,32 +347,31 @@ func (pb *PipelineBuilder) New(
 	tms := NewTimeMuteStage(times)
 	ss := NewMuteStage(silencer)
 
-	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
-		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
+	for _, r := range receivers {
+		st := createReceiverStage(r, wait, notificationLog, pb.metrics)
+		rs[r.name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 	return rs
 }
 
 // createReceiverStage creates a pipeline of stages for a receiver.
 func createReceiverStage(
-	name string,
-	integrations []Integration,
+	receiver *Receiver,
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
 ) Stage {
 	var fs FanoutStage
-	for i := range integrations {
+	for i := range receiver.integrations {
 		recv := &nflogpb.Receiver{
-			GroupName:   name,
-			Integration: integrations[i].Name(),
-			Idx:         uint32(integrations[i].Index()),
+			GroupName:   receiver.name,
+			Integration: receiver.integrations[i].Name(),
+			Idx:         uint32(receiver.integrations[i].Index()),
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
+		s = append(s, NewDedupStage(&receiver.integrations[i], notificationLog, recv))
+		s = append(s, NewRetryStage(receiver.integrations[i], receiver, metrics))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -646,15 +658,15 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
 	integration Integration
-	groupName   string
+	receiver    *Receiver
 	metrics     *Metrics
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i Integration, receiver *Receiver, metrics *Metrics) *RetryStage {
 	return &RetryStage{
 		integration: i,
-		groupName:   groupName,
+		receiver:    receiver,
 		metrics:     metrics,
 	}
 }
@@ -701,7 +713,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		i    = 0
 		iErr error
 	)
-	l = log.With(l, "receiver", r.groupName, "integration", r.integration.String())
+	l = log.With(l, "receiver", r.receiver.name, "integration", r.integration.String())
 
 	for {
 		i++
@@ -712,7 +724,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				iErr = ctx.Err()
 			}
 
-			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
+			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.receiver.name, r.integration.String(), i)
 		default:
 		}
 
@@ -720,12 +732,15 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
+			duration := time.Since(now)
+
+			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(duration.Seconds())
 			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.integration.Name()).Inc()
+			r.integration.Report(now, duration, err)
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.integration.Name()).Inc()
 				if !retry {
-					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
+					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.receiver.name, r.integration.String(), i)
 				}
 				if ctx.Err() == nil && (iErr == nil || err.Error() != iErr.Error()) {
 					// Log the error if the context isn't done and the error isn't the same as before.
@@ -748,7 +763,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				iErr = ctx.Err()
 			}
 
-			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.groupName, r.integration.String(), i)
+			return ctx, nil, errors.Wrapf(iErr, "%s/%s: notify retry canceled after %d attempts", r.receiver.name, r.integration.String(), i)
 		}
 	}
 }

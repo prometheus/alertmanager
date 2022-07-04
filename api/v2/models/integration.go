@@ -20,33 +20,39 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
-	"strconv"
-
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/go-openapi/validate"
 )
 
-// Receiver receiver
+// Integration integration
 //
-// swagger:model receiver
-type Receiver struct {
+// swagger:model integration
+type Integration struct {
 
-	// active
-	Active bool `json:"active,omitempty"`
+	// last error
+	LastError string `json:"lastError,omitempty"`
 
-	// integrations
-	Integrations []*Integration `json:"integrations"`
+	// last notify
+	LastNotify string `json:"lastNotify,omitempty"`
+
+	// last notify duration
+	LastNotifyDuration string `json:"lastNotifyDuration,omitempty"`
 
 	// name
-	Name string `json:"name,omitempty"`
+	// Required: true
+	Name *string `json:"name"`
+
+	// send resolve
+	SendResolve bool `json:"sendResolve,omitempty"`
 }
 
-// Validate validates this receiver
-func (m *Receiver) Validate(formats strfmt.Registry) error {
+// Validate validates this integration
+func (m *Integration) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateIntegrations(formats); err != nil {
+	if err := m.validateName(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -56,33 +62,17 @@ func (m *Receiver) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Receiver) validateIntegrations(formats strfmt.Registry) error {
+func (m *Integration) validateName(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Integrations) { // not required
-		return nil
-	}
-
-	for i := 0; i < len(m.Integrations); i++ {
-		if swag.IsZero(m.Integrations[i]) { // not required
-			continue
-		}
-
-		if m.Integrations[i] != nil {
-			if err := m.Integrations[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
-					return ve.ValidateName("integrations" + "." + strconv.Itoa(i))
-				}
-				return err
-			}
-		}
-
+	if err := validate.Required("name", "body", m.Name); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 // MarshalBinary interface implementation
-func (m *Receiver) MarshalBinary() ([]byte, error) {
+func (m *Integration) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -90,8 +80,8 @@ func (m *Receiver) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary interface implementation
-func (m *Receiver) UnmarshalBinary(b []byte) error {
-	var res Receiver
+func (m *Integration) UnmarshalBinary(b []byte) error {
+	var res Integration
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

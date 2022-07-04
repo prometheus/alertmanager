@@ -31,7 +31,6 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/rs/cors"
 
-	"github.com/prometheus/alertmanager/api/metrics"
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/api/v2/restapi"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
@@ -40,9 +39,12 @@ import (
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
+
+	"github.com/prometheus/alertmanager/api/metrics"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
@@ -70,7 +72,8 @@ type API struct {
 	logger log.Logger
 	m      *metrics.Alerts
 
-	Handler http.Handler
+	Handler   http.Handler
+	receivers []*notify.Receiver
 }
 
 type (
@@ -137,13 +140,14 @@ func (api *API) requestLogger(req *http.Request) log.Logger {
 }
 
 // Update sets the API struct members that may change between reloads of alertmanager.
-func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn) {
+func (api *API) Update(cfg *config.Config, setAlertStatus setAlertStatusFn, receivers []*notify.Receiver) {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
 	api.alertmanagerConfig = cfg
 	api.route = dispatch.NewRoute(cfg.Route, nil)
 	api.setAlertStatus = setAlertStatus
+	api.receivers = receivers
 }
 
 func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.Responder {
@@ -204,11 +208,38 @@ func (api *API) getStatusHandler(params general_ops.GetStatusParams) middleware.
 
 func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) middleware.Responder {
 	api.mtx.RLock()
-	defer api.mtx.RUnlock()
+	configReceivers := api.receivers
+	api.mtx.RUnlock()
 
-	receivers := make([]*open_api_models.Receiver, 0, len(api.alertmanagerConfig.Receivers))
-	for _, r := range api.alertmanagerConfig.Receivers {
-		receivers = append(receivers, &open_api_models.Receiver{Name: &r.Name})
+	receivers := make([]*open_api_models.Receiver, 0, len(configReceivers))
+	for _, r := range configReceivers {
+		integrations := make([]*open_api_models.Integration, 0, len(r.Integrations()))
+
+		for _, integration := range r.Integrations() {
+			notify, duration, err := integration.GetReport()
+			iname := integration.Name()
+			integrations = append(integrations, &open_api_models.Integration{
+				Name:               &iname,
+				SendResolve:        integration.SendResolved(),
+				LastNotify:         notify.UTC().String(),
+				LastNotifyDuration: duration.String(),
+				//TODO: Last error should be optional.
+				LastError: func() string {
+					if err != nil {
+						return err.Error()
+					}
+					return ""
+				}(),
+			})
+		}
+
+		model := &open_api_models.Receiver{
+			Name:         r.Name(),
+			Active:       r.Active(),
+			Integrations: integrations,
+		}
+
+		receivers = append(receivers, model)
 	}
 
 	return receiver_ops.NewGetReceiversOK().WithPayload(receivers)
@@ -390,7 +421,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 	for _, alertGroup := range alertGroups {
 		ag := &open_api_models.AlertGroup{
-			Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
+			Receiver: &open_api_models.Receiver{Name: alertGroup.Receiver},
 			Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
 			Alerts:   make([]*open_api_models.GettableAlert, 0, len(alertGroup.Alerts)),
 		}

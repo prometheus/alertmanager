@@ -599,6 +599,29 @@ func init() {
         "$ref": "#/definitions/gettableSilence"
       }
     },
+    "integration": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "lastError": {
+          "type": "string"
+        },
+        "lastNotify": {
+          "type": "string"
+        },
+        "lastNotifyDuration": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sendResolve": {
+          "type": "boolean"
+        }
+      }
+    },
     "labelSet": {
       "type": "object",
       "additionalProperties": {
@@ -696,10 +719,16 @@ func init() {
     },
     "receiver": {
       "type": "object",
-      "required": [
-        "name"
-      ],
       "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/integration"
+          }
+        },
         "name": {
           "type": "string"
         }
@@ -1413,6 +1442,29 @@ func init() {
         "$ref": "#/definitions/gettableSilence"
       }
     },
+    "integration": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "lastError": {
+          "type": "string"
+        },
+        "lastNotify": {
+          "type": "string"
+        },
+        "lastNotifyDuration": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sendResolve": {
+          "type": "boolean"
+        }
+      }
+    },
     "labelSet": {
       "type": "object",
       "additionalProperties": {
@@ -1510,10 +1562,16 @@ func init() {
     },
     "receiver": {
       "type": "object",
-      "required": [
-        "name"
-      ],
       "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/integration"
+          }
+        },
         "name": {
           "type": "string"
         }
