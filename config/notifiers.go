@@ -143,7 +143,7 @@ var (
 		},
 		DisableNotifications: false,
 		Message:              `{{ template "telegram.default.message" . }}`,
-		ParseMode:            "MarkdownV2",
+		ParseMode:            "HTML",
 	}
 )
 
@@ -660,9 +660,6 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	if c.ChatID == 0 {
 		return fmt.Errorf("missing chat_id on telegram_config")
-	}
-	if c.APIUrl == nil {
-		return fmt.Errorf("missing api_url on telegram_config")
 	}
 	if c.ParseMode != "" &&
 		c.ParseMode != "Markdown" &&
