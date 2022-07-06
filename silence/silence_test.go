@@ -29,7 +29,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
@@ -211,21 +210,26 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
 	stopc := make(chan struct{})
 
-	calls := atomic.NewInt32(0)
-	go s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-		calls.Add(1)
-		return 0, nil
-	})
+	called := make(chan struct{}, 5)
+	go func() {
+		s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+			called <- struct{}{}
+			return 0, nil
+		})
+		close(called)
+	}()
 	runtime.Gosched()
 
 	clock.Add(100 * time.Millisecond)
 
 	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
+	calls := 0
+	for range called {
+		calls++
+	}
 
-	require.Eventually(t, func() bool {
-		return calls.Load() == 2
-	}, 100*time.Millisecond, 1*time.Millisecond)
+	require.EqualValues(t, 2, calls)
 }
 
 func TestSilencesSetSilence(t *testing.T) {
