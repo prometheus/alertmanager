@@ -287,7 +287,9 @@ func TestResolved(t *testing.T) {
 	t.Parallel()
 
 	for i := 0; i < 2; i++ {
-		conf := `
+		t.Run(fmt.Sprint("Run", i), func(t *testing.T) {
+			t.Parallel()
+			conf := `
 global:
   resolve_timeout: 10s
 
@@ -303,35 +305,36 @@ receivers:
   - url: 'http://%s'
 `
 
-		at := NewAcceptanceTest(t, &AcceptanceOpts{
-			Tolerance: 150 * time.Millisecond,
+			at := NewAcceptanceTest(t, &AcceptanceOpts{
+				Tolerance: 150 * time.Millisecond,
+			})
+
+			co := at.Collector("webhook")
+			wh := NewWebhook(t, co)
+
+			am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+
+			am.Push(At(1),
+				Alert("alertname", "test", "lbl", "v1"),
+				Alert("alertname", "test", "lbl", "v2"),
+				Alert("alertname", "test", "lbl", "v3"),
+			)
+
+			co.Want(Between(2, 2.5),
+				Alert("alertname", "test", "lbl", "v1").Active(1),
+				Alert("alertname", "test", "lbl", "v2").Active(1),
+				Alert("alertname", "test", "lbl", "v3").Active(1),
+			)
+			co.Want(Between(12, 13),
+				Alert("alertname", "test", "lbl", "v1").Active(1, 11),
+				Alert("alertname", "test", "lbl", "v2").Active(1, 11),
+				Alert("alertname", "test", "lbl", "v3").Active(1, 11),
+			)
+
+			at.Run()
+
+			t.Log(co.Check())
 		})
-
-		co := at.Collector("webhook")
-		wh := NewWebhook(t, co)
-
-		am := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
-
-		am.Push(At(1),
-			Alert("alertname", "test", "lbl", "v1"),
-			Alert("alertname", "test", "lbl", "v2"),
-			Alert("alertname", "test", "lbl", "v3"),
-		)
-
-		co.Want(Between(2, 2.5),
-			Alert("alertname", "test", "lbl", "v1").Active(1),
-			Alert("alertname", "test", "lbl", "v2").Active(1),
-			Alert("alertname", "test", "lbl", "v3").Active(1),
-		)
-		co.Want(Between(12, 13),
-			Alert("alertname", "test", "lbl", "v1").Active(1, 11),
-			Alert("alertname", "test", "lbl", "v2").Active(1, 11),
-			Alert("alertname", "test", "lbl", "v3").Active(1, 11),
-		)
-
-		at.Run()
-
-		t.Log(co.Check())
 	}
 }
 

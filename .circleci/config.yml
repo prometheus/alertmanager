@@ -91,6 +91,7 @@ jobs:
             # don't limit this to the number of allocated cores, the job is
             # likely to get OOMed and killed.
             GOOPTS: "-p 2"
+            GOTESTOPTS: "-parallel 16"
       - prometheus/check_proto:
           version: "3.15.8"
       - prometheus/store_artifact:
