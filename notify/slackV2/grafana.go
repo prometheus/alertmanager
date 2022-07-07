@@ -10,6 +10,7 @@ import (
 	"net/http"
 	url2 "net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -137,7 +138,7 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 	dashboardUid := ""
 	panelId := ""
 	orgId := ""
-	//grafanaValues := ""
+	grafanaValues := ""
 	runBook := ""
 	firing := make([]string, 0)
 	resolved := make([]string, 0)
@@ -169,8 +170,8 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 				panelId = v.Value
 			case "orgid":
 				orgId = v.Value
-			//case "__value_string__":
-			//	grafanaValues = v.Value
+			case "__value_string__":
+				grafanaValues = v.Value
 			case "runbook_url":
 				runBook = v.Value
 			}
@@ -265,16 +266,31 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		}
 	}
 
-	//Summary and description
+	//Summary Description and metrics
 	{
 		block := Block{Type: slack.MBTContext, Elements: make([]*Element, 0)}
 
+		if (grafanaValues != "[no value]") || (grafanaValues != "") {
+			regexpForParseMetric := regexp.MustCompile(`(?m) labels={[a-zA-z0-9=:,_@{ -.]+} value=`)
+			valueStringCollection := regexpForParseMetric.ReplaceAllString(grafanaValues, ", value=")
+			regexpForParseParams := regexp.MustCompile(`(?m)metric='(?P<name>.*)', value=(?P<value>.*)`)
+
+			grafanaMapParams := make(map[string]string)
+			for _, parsedCollection := range strings.Split(valueStringCollection, "], [ ") {
+				match := regexpForParseParams.FindStringSubmatch(parsedCollection)
+				if len(match) >= 3 {
+					grafanaMapParams[match[1]] = match[2]
+				}
+			}
+			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Metric:* %s\n", valueStringCollection)})
+		}
+
 		if val := getMapValue(data.CommonAnnotations, "description"); len(val) > 0 {
-			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n\n", val)})
+			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n", val)})
 		} else {
 			for _, al := range data.Alerts {
 				if val, ok := al.Annotations["description"]; ok && len(val) > 0 {
-					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n\n", val)})
+					block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Description:* %s\n", val)})
 					break
 				}
 			}
