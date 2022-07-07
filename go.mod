@@ -13,7 +13,7 @@ require (
 	github.com/go-openapi/spec v0.20.6
 	github.com/go-openapi/strfmt v0.21.2
 	github.com/go-openapi/swag v0.21.1
-	github.com/go-openapi/validate v0.21.0
+	github.com/go-openapi/validate v0.22.0
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/go-sockaddr v1.0.2
