@@ -274,14 +274,14 @@ func (amc *AlertmanagerCluster) Start() error {
 	for _, am := range amc.ams {
 		err := am.Start(peerFlags)
 		if err != nil {
-			return fmt.Errorf("starting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("failed to start alertmanager cluster: %v", err.Error())
 		}
 	}
 
 	for _, am := range amc.ams {
 		err := am.WaitForCluster(len(amc.ams))
 		if err != nil {
-			return fmt.Errorf("starting alertmanager cluster: %v", err.Error())
+			return fmt.Errorf("failed to wait for Alertmanager instance %q to join cluster: %v", am.clusterAddr, err.Error())
 		}
 	}
 
@@ -322,7 +322,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	am.cmd = cmd
 
 	if err := am.cmd.Start(); err != nil {
-		return fmt.Errorf("starting alertmanager failed: %s", err)
+		return err
 	}
 
 	go func() {
@@ -332,14 +332,15 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
+	var lastErr error
 	for i := 0; i < 10; i++ {
-		_, err := am.clientV2.General.GetStatus(nil)
-		if err == nil {
+		_, lastErr = am.clientV2.General.GetStatus(nil)
+		if lastErr == nil {
 			return nil
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("starting alertmanager failed: timeout")
+	return fmt.Errorf("unable to get a successful response from the Alertmanager: %v", lastErr)
 }
 
 // WaitForCluster waits for the Alertmanager instance to join a cluster with the
@@ -364,8 +365,7 @@ func (am *Alertmanager) WaitForCluster(size int) error {
 	}
 
 	return fmt.Errorf(
-		"failed to wait for Alertmanager instance %q to join cluster: expected %v peers, but got %v",
-		am.clusterAddr,
+		"expected %v peers, but got %v",
 		size,
 		len(status.Payload.Cluster.Peers),
 	)
@@ -384,7 +384,7 @@ func (amc *AlertmanagerCluster) Terminate() {
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
 	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Fatalf("Error sending SIGTERM to Alertmanager process: %v", err)
+		am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
 	}
 }
 
