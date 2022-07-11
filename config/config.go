@@ -585,7 +585,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		ResolveTimeout: model.Duration(5 * time.Minute),
 		HTTPConfig:     &defaultHTTPConfig,
 
-		UserHTTPHeader: "X-Alertmanager-User",
+		UserHTTPHeader: "",
 
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
