@@ -92,8 +92,13 @@ global:
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+     
   # The default HTTP client configuration
   [ http_config: <http_config> ]
+     
+  # Name of the HTTP request header to obtain the user's identify from.
+  # Currently, it is only used to populate and validate the creator as part of silences.
+  [user_http_header: <string> ]
 
   # ResolveTimeout is the default value used by alertmanager if the alert does
   # not include EndsAt, after this time passes it can declare the alert as resolved if it has not been updated.
