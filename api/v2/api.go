@@ -687,6 +687,7 @@ func (api *API) GetCreatorForSilence(request *http.Request) string {
 
 	return ""
 }
+
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {

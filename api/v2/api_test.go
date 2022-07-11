@@ -415,7 +415,6 @@ func TestPostSilencesHandler(t *testing.T) {
 				} else {
 					require.Equal(t, tt.expectedError, string(result))
 				}
-
 			})
 		}
 	})
