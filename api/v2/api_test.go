@@ -318,38 +318,46 @@ func TestPostSilencesHandler(t *testing.T) {
 			expectedCreator    string
 		}{
 			{
-				name:               "when a header is configured and has a value",
+				name:               "when a header is configured and has a value - it takes the header value as the creator",
 				header:             &kv{key: "X-Alertmanager-User", value: "user1"},
 				expectedStatusCode: http.StatusOK,
 				expectedCreator:    "user1",
 			},
 			{
-				name:               "when a header is configured with no value",
+				name:               "when a header is configured with no value and no creator is set through params - it takes no value",
 				header:             &kv{key: "X-Alertmanager-User", value: ""},
 				expectedStatusCode: http.StatusOK,
 				expectedCreator:    "",
 			},
 			{
-				name:               "when no header is configured but basic auth is present",
+				name:               "when a header is configured with no value and a creator is set through params - it takes the creator via params",
+				header:             &kv{key: "X-Alertmanager-User", value: ""},
+				creator:            "user3",
+				expectedStatusCode: http.StatusOK,
+				expectedCreator:    "user3",
+			},
+
+			{
+				name:               "when no header is configured but basic auth is present - it takes the basic auth username",
 				basicAuth:          "userba:password",
 				expectedStatusCode: http.StatusOK,
 				expectedCreator:    "userba",
 			},
 			{
-				name:               "when no header is configured and no basic auth - it takes the creator",
+				name:               "when no header is configured and no basic auth - it takes the creator via params",
 				creator:            "usernothing",
 				expectedStatusCode: http.StatusOK,
 				expectedCreator:    "usernothing",
 			},
 			{
-				name:               "when params value is different from basic auth username",
+				name:               "when params value is different from basic auth username - it fails",
 				creator:            "userdifferent",
 				basicAuth:          "user:password",
 				expectedStatusCode: http.StatusBadRequest,
 				expectedError:      "created_by does not match HTTP basic authentication or value of HTTP header",
 			},
 			{
-				name:               "when params value is different from header value",
+				name:               "when params value is different from header value - it fails",
 				creator:            "userdifferent",
 				header:             &kv{key: "X-Alertmanager-User", value: "user"},
 				expectedStatusCode: http.StatusBadRequest,
