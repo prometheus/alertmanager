@@ -15,11 +15,13 @@ package v2
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -275,9 +277,10 @@ func TestPostSilencesHandler(t *testing.T) {
 				silence, silenceBytes := createSilence(t, tc.sid, "silenceCreator", tc.start, tc.end)
 
 				api := API{
-					uptime:   time.Now(),
-					silences: silences,
-					logger:   log.NewNopLogger(),
+					alertmanagerConfig: &config.Config{Global: &config.GlobalConfig{}},
+					uptime:             time.Now(),
+					silences:           silences,
+					logger:             log.NewNopLogger(),
 				}
 
 				r, err := http.NewRequest("POST", "/api/v2/silence/${tc.sid}", bytes.NewReader(silenceBytes))
@@ -293,6 +296,126 @@ func TestPostSilencesHandler(t *testing.T) {
 				body, _ := ioutil.ReadAll(w.Result().Body)
 
 				require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
+			})
+		}
+	})
+
+	t.Run("Silences creation handles auto population of creator", func(t *testing.T) {
+		type kv struct {
+			key   string
+			value string
+		}
+
+		tc := []struct {
+			name      string
+			body      string
+			creator   string
+			header    *kv
+			basicAuth string
+
+			expectedStatusCode int
+			expectedError      string
+			expectedCreator    string
+		}{
+			{
+				name:               "when a header is configured and has a value",
+				header:             &kv{key: "X-Alertmanager-User", value: "user1"},
+				expectedStatusCode: http.StatusOK,
+				expectedCreator:    "user1",
+			},
+			{
+				name:               "when a header is configured with no value",
+				header:             &kv{key: "X-Alertmanager-User", value: ""},
+				expectedStatusCode: http.StatusOK,
+				expectedCreator:    "",
+			},
+			{
+				name:               "when no header is configured but basic auth is present",
+				basicAuth:          "userba:password",
+				expectedStatusCode: http.StatusOK,
+				expectedCreator:    "userba",
+			},
+			{
+				name:               "when no header is configured and no basic auth - it takes the creator",
+				creator:            "usernothing",
+				expectedStatusCode: http.StatusOK,
+				expectedCreator:    "usernothing",
+			},
+			{
+				name:               "when params value is different from basic auth username",
+				creator:            "userdifferent",
+				basicAuth:          "user:password",
+				expectedStatusCode: http.StatusBadRequest,
+				expectedError:      "created_by does not match HTTP basic authentication or value of HTTP header",
+			},
+			{
+				name:               "when params value is different from header value",
+				creator:            "userdifferent",
+				header:             &kv{key: "X-Alertmanager-User", value: "user"},
+				expectedStatusCode: http.StatusBadRequest,
+				expectedError:      "created_by does not match HTTP basic authentication or value of HTTP header",
+			},
+		}
+
+		for _, tt := range tc {
+			t.Run(tt.name, func(t *testing.T) {
+				now := time.Now()
+
+				s, silenceBytes := createSilence(t, "", tt.creator, now, now.Add(1*time.Hour))
+
+				headerKey := ""
+				if tt.header != nil {
+					headerKey = tt.header.key
+				}
+
+				api := API{
+					alertmanagerConfig: &config.Config{
+						Global: &config.GlobalConfig{
+							UserHTTPHeader: headerKey,
+						},
+					},
+					uptime:   time.Now(),
+					silences: silences,
+					logger:   log.NewNopLogger(),
+				}
+
+				r, err := http.NewRequest("POST", "/api/v2/silence/", bytes.NewReader(silenceBytes))
+				require.NoError(t, err)
+
+				if tt.header != nil {
+					r.Header.Set(tt.header.key, tt.header.value)
+				}
+
+				if tt.basicAuth != "" {
+					auth := strings.Split(tt.basicAuth, ":")
+					require.Len(t, auth, 2)
+					r.SetBasicAuth(auth[0], auth[1])
+				}
+
+				w := httptest.NewRecorder()
+				p := runtime.TextProducer()
+				responder := api.postSilencesHandler(silence_ops.PostSilencesParams{
+					HTTPRequest: r,
+					Silence:     &s,
+				})
+				responder.WriteResponse(w, p)
+
+				require.Equal(t, tt.expectedStatusCode, w.Code)
+				result, err := ioutil.ReadAll(w.Result().Body)
+				require.NoError(t, err)
+
+				if tt.expectedError == "" {
+					var id silence_ops.PostSilencesOKBody
+					err = json.Unmarshal(result, &id)
+					require.NoError(t, err)
+
+					resultSilence, err := silences.QueryOne(silence.QIDs(id.SilenceID))
+					require.NoError(t, err)
+					require.Equal(t, tt.expectedCreator, resultSilence.CreatedBy)
+				} else {
+					require.Equal(t, tt.expectedError, string(result))
+				}
+
 			})
 		}
 	})

@@ -626,14 +626,15 @@ func (api *API) deleteSilenceHandler(params silence_ops.DeleteSilenceParams) mid
 func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
-	username := api.usernameFromHeaderOrBasicAuth(params.HTTPRequest)
+	// Try to infer the username from basic authentication or a specified header.
+	username := api.GetCreatorForSilence(params.HTTPRequest)
 	if username != "" {
-		if params.Silence.CreatedBy == nil {
+		if params.Silence.CreatedBy == nil || *params.Silence.CreatedBy == "" {
 			params.Silence.CreatedBy = &username
 		}
 
-		if params.Silence.CreatedBy != &username {
-			return silence_ops.NewPostSilencesBadRequest().WithPayload(fmt.Sprintf("created_by does not match HTTP basic authentication or value of %s HTTP header", api.alertmanagerConfig.Global.UserHTTPHeader))
+		if *params.Silence.CreatedBy != username {
+			return silence_ops.NewPostSilencesBadRequest().WithPayload("created_by does not match HTTP basic authentication or value of HTTP header")
 		}
 	}
 
@@ -671,18 +672,21 @@ func (api *API) postSilencesHandler(params silence_ops.PostSilencesParams) middl
 	})
 }
 
-// usernameFromHeaderOrBasicAuth returns the username specified as part of Basic Authentication. If no auth is provided,
-// it tries the specified HTTP header of UserHTTPHeader. If none are found it returns an empty string "".
-func (api *API) usernameFromHeaderOrBasicAuth(request *http.Request) string {
-	// First, let's try getting the username from Basic Authentication.
+// GetCreatorForSilence returns the username specified by UserHTTPHeader or Basic Authentication. If no header is configured,
+// it uses the basic auth username as a fallback. It returns an empty string when the username couldn't be determined.
+func (api *API) GetCreatorForSilence(request *http.Request) string {
+	// If the Alertmanager has a user header configured, use that regardless of what comes from basic auth.
+	if api.alertmanagerConfig.Global.UserHTTPHeader != "" {
+		return request.Header.Get(api.alertmanagerConfig.Global.UserHTTPHeader)
+	}
+
+	// If there's no header configured, let's try getting the username from basic auth.
 	if user, _, ok := request.BasicAuth(); ok {
 		return user
 	}
 
-	// No Basic Authentication, let's try the header.
-	return request.Header.Get(api.alertmanagerConfig.Global.UserHTTPHeader)
+	return ""
 }
-
 func parseFilter(filter []string) ([]*labels.Matcher, error) {
 	matchers := make([]*labels.Matcher, 0, len(filter))
 	for _, matcherString := range filter {

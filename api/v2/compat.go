@@ -78,7 +78,7 @@ func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSil
 	return sil, nil
 }
 
-// PostableSilenceToProto converts *open_api_models.PostableSilenc to *silencepb.Silence.
+// PostableSilenceToProto converts *open_api_models.PostableSilence to *silencepb.Silence.
 func PostableSilenceToProto(s *open_api_models.PostableSilence) (*silencepb.Silence, error) {
 	sil := &silencepb.Silence{
 		Id:        s.ID,

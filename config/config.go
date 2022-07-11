@@ -695,7 +695,7 @@ type GlobalConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	UserHTTPHeader string `yaml:"user_http_header" json:"user_http_header"`
+	UserHTTPHeader string `yaml:"user_http_header,omitempty" json:"user_http_header,omitempty"`
 
 	SMTPFrom           string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello          string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
