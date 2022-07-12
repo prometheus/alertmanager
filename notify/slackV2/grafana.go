@@ -163,16 +163,16 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 			}
 		}
 		for _, v := range alert.Annotations.SortedPairs() {
-			switch v.Name {
-			case "__dashboardUid__":
+			switch strings.ToLower(v.Name) {
+			case strings.ToLower("__dashboardUid__"):
 				dashboardUid = v.Value
-			case "__panelId__":
+			case strings.ToLower("__panelId__"):
 				panelId = v.Value
-			case "orgid":
+			case strings.ToLower("OrgID"):
 				orgId = v.Value
-			case "__value_string__":
+			case strings.ToLower("__value_string__"):
 				grafanaValues = v.Value
-			case "runbook_url":
+			case strings.ToLower("runbook_url"):
 				runBook = v.Value
 			}
 		}
