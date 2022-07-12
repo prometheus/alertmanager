@@ -1,5 +1,5 @@
 # Build image
-FROM nexus.adsrv.wtf/click/golang:1.17.1-buster as build
+FROM nexus.adsrv.wtf/click/golang:1.18.3-202206230758 as build
 
 WORKDIR /app
 COPY ./ ./
