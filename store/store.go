@@ -24,8 +24,12 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// ErrNotFound is returned if a Store cannot find the Alert.
-var ErrNotFound = errors.New("alert not found")
+var (
+	// ErrNotFound is returned if a Store cannot find the Alert.
+	ErrNotFound = errors.New("alert not found")
+	// ErrNotResolved is returned if the alert is not resolved.
+	ErrNotResolved = errors.New("alert is not resolved")
+)
 
 // Alerts provides lock-coordinated to an in-memory map of alerts, keyed by
 // their fingerprint. Resolved alerts are removed from the map based on
@@ -98,10 +102,26 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 
 // Set unconditionally sets the alert in memory.
 func (a *Alerts) Set(alert *types.Alert) error {
+	fp := alert.Fingerprint()
+
 	a.Lock()
 	defer a.Unlock()
 
-	a.c[alert.Fingerprint()] = alert
+	a.c[fp] = alert
+	return nil
+}
+
+// SetOrReplaceResolved returns ErrNotFound if the alert is resolved and
+// there is no corresponding record in the store.
+func (a *Alerts) SetOrReplaceResolved(alert *types.Alert) error {
+	fp := alert.Fingerprint()
+
+	a.Lock()
+	defer a.Unlock()
+	if _, ok := a.c[fp]; !ok && alert.Resolved() {
+		return ErrNotFound
+	}
+	a.c[fp] = alert
 	return nil
 }
 
@@ -110,6 +130,20 @@ func (a *Alerts) Delete(fp model.Fingerprint) error {
 	a.Lock()
 	defer a.Unlock()
 
+	delete(a.c, fp)
+	return nil
+}
+
+// DeleteIfResolved removes the Alert if it is resolved.
+func (a *Alerts) DeleteIfResolved(fp model.Fingerprint) error {
+	a.Lock()
+	defer a.Unlock()
+
+	if exist, ok := a.c[fp]; !ok {
+		return ErrNotFound
+	} else if !exist.Resolved() {
+		return ErrNotResolved
+	}
 	delete(a.c, fp)
 	return nil
 }

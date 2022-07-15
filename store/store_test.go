@@ -54,17 +54,33 @@ func TestDelete(t *testing.T) {
 	require.Equal(t, ErrNotFound, err)
 }
 
+func TestResolved(t *testing.T) {
+	a := NewAlerts()
+
+	now := time.Now()
+	require.NoError(t, a.SetOrReplaceResolved(makeAlert("a", now, -2, 10)))
+	resolved := makeAlert("a", now, -2, -1)
+	require.NoError(t, a.SetOrReplaceResolved(resolved))
+	require.NoError(t, a.SetOrReplaceResolved(resolved))
+	a.gc()
+	require.ErrorIs(t, a.SetOrReplaceResolved(resolved), ErrNotFound)
+
+	require.ErrorIs(t, a.DeleteIfResolved(resolved.Fingerprint()), ErrNotFound)
+	require.NoError(t, a.SetOrReplaceResolved(makeAlert("a", now, -2, 10)))
+	require.ErrorIs(t, a.DeleteIfResolved(resolved.Fingerprint()), ErrNotResolved)
+	require.NoError(t, a.SetOrReplaceResolved(resolved))
+	require.NoError(t, a.DeleteIfResolved(resolved.Fingerprint()))
+	_, err := a.Get(resolved.Fingerprint())
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestGC(t *testing.T) {
 	now := time.Now()
+
 	newAlert := func(key string, start, end time.Duration) *types.Alert {
-		return &types.Alert{
-			Alert: model.Alert{
-				Labels:   model.LabelSet{model.LabelName(key): "b"},
-				StartsAt: now.Add(start * time.Minute),
-				EndsAt:   now.Add(end * time.Minute),
-			},
-		}
+		return makeAlert(key, now, start, end)
 	}
+
 	active := []*types.Alert{
 		newAlert("b", 10, 20),
 		newAlert("c", -10, 10),
@@ -110,4 +126,14 @@ func TestGC(t *testing.T) {
 		}
 	}
 	require.Len(t, resolved, n)
+}
+
+func makeAlert(key string, now time.Time, start, end time.Duration) *types.Alert {
+	return &types.Alert{
+		Alert: model.Alert{
+			Labels:   model.LabelSet{model.LabelName(key): "b"},
+			StartsAt: now.Add(start * time.Minute),
+			EndsAt:   now.Add(end * time.Minute),
+		},
+	}
 }
