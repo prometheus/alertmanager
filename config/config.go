@@ -585,6 +585,8 @@ func DefaultGlobalConfig() GlobalConfig {
 		ResolveTimeout: model.Duration(5 * time.Minute),
 		HTTPConfig:     &defaultHTTPConfig,
 
+		UserHTTPHeader: "",
+
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
@@ -692,6 +694,8 @@ type GlobalConfig struct {
 	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	UserHTTPHeader string `yaml:"user_http_header,omitempty" json:"user_http_header,omitempty"`
 
 	SMTPFrom           string     `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello          string     `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
