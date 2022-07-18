@@ -16,7 +16,7 @@ package v2
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -204,7 +204,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 			HTTPRequest: r,
 		})
 		responder.WriteResponse(w, p)
-		body, _ := ioutil.ReadAll(w.Result().Body)
+		body, _ := io.ReadAll(w.Result().Body)
 
 		require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
 	}
@@ -290,7 +290,7 @@ func TestPostSilencesHandler(t *testing.T) {
 					Silence:     &silence,
 				})
 				responder.WriteResponse(w, p)
-				body, _ := ioutil.ReadAll(w.Result().Body)
+				body, _ := io.ReadAll(w.Result().Body)
 
 				require.Equal(t, tc.expectedCode, w.Code, fmt.Sprintf("test case: %d, response: %s", i, string(body)))
 			})

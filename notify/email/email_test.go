@@ -31,7 +31,7 @@ package email
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -128,7 +128,7 @@ func (m *mailDev) doEmailRequest(method, path string) (int, []byte, error) {
 		return 0, nil, err
 	}
 	defer res.Body.Close()
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -145,7 +145,7 @@ type emailTestConfig struct {
 
 func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
 	c := emailTestConfig{}
-	b, err := ioutil.ReadFile(f)
+	b, err := os.ReadFile(f)
 	if err != nil {
 		return c, err
 	}

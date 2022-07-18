@@ -18,8 +18,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -276,7 +276,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	if n.conf.APIKey != "" {
 		apiKey = tmpl(string(n.conf.APIKey))
 	} else {
-		content, err := ioutil.ReadFile(n.conf.APIKeyFile)
+		content, err := os.ReadFile(n.conf.APIKeyFile)
 		if err != nil {
 			return nil, false, errors.Wrap(err, "read key_file error")
 		}

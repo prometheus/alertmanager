@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -150,7 +150,7 @@ func TestAddAlerts(t *testing.T) {
 
 		api.addAlerts(w, r)
 		res := w.Result()
-		body, _ := ioutil.ReadAll(res.Body)
+		body, _ := io.ReadAll(res.Body)
 
 		require.Equal(t, tc.code, w.Code, fmt.Sprintf("test case: %d, StartsAt %v, EndsAt %v, Response: %s", i, tc.start, tc.end, string(body)))
 	}
@@ -282,7 +282,7 @@ func TestListAlerts(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		api.listAlerts(w, r)
-		body, _ := ioutil.ReadAll(w.Result().Body)
+		body, _ := io.ReadAll(w.Result().Body)
 
 		var res response
 		err = json.Unmarshal(body, &res)
