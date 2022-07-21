@@ -61,19 +61,21 @@ type Notifier interface {
 // Integration wraps a notifier and its configuration to be uniquely identified
 // by name and index from its origin in the configuration.
 type Integration struct {
-	notifier Notifier
-	rs       ResolvedSender
-	name     string
-	idx      int
+	notifier     Notifier
+	rs           ResolvedSender
+	name         string
+	idx          int
+	receiverName string
 }
 
 // NewIntegration returns a new integration.
-func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) Integration {
+func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, receiverName string) Integration {
 	return Integration{
-		notifier: notifier,
-		rs:       rs,
-		name:     name,
-		idx:      idx,
+		notifier:     notifier,
+		rs:           rs,
+		name:         name,
+		idx:          idx,
+		receiverName: receiverName,
 	}
 }
 
@@ -257,28 +259,28 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 			Namespace: "alertmanager",
 			Name:      "notifications_total",
 			Help:      "The total number of attempted notifications.",
-		}, []string{"integration"}),
+		}, []string{"integration", "receiver_name"}),
 		numTotalFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
-		}, []string{"integration", "reason"}),
+		}, []string{"integration", "reason", "receiver_name"}),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
 			Help:      "The total number of attempted notification requests.",
-		}, []string{"integration"}),
+		}, []string{"integration", "receiver_name"}),
 		numNotificationRequestsFailedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_failed_total",
 			Help:      "The total number of failed notification requests.",
-		}, []string{"integration"}),
+		}, []string{"integration", "receiver_name"}),
 		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_latency_seconds",
 			Help:      "The latency of notifications in seconds.",
 			Buckets:   []float64{1, 5, 10, 15, 20},
-		}, []string{"integration"}),
+		}, []string{"integration", "receiver_name"}),
 	}
 	for _, integration := range []string{
 		"email",
@@ -664,7 +666,7 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 }
 
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
+	r.metrics.numNotifications.WithLabelValues(r.integration.Name(), r.integration.receiverName).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
 
 	failureReason := DefaultReason.String()
@@ -672,7 +674,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		if e, ok := errors.Cause(err).(*ErrorWithReason); ok {
 			failureReason = e.Reason.String()
 		}
-		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), failureReason).Inc()
+		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), failureReason, r.integration.receiverName).Inc()
 	}
 	return ctx, alerts, err
 }
@@ -733,10 +735,10 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
-			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.integration.Name()).Inc()
+			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name(), r.integration.receiverName).Observe(time.Since(now).Seconds())
+			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.integration.Name(), r.integration.receiverName).Inc()
 			if err != nil {
-				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.integration.Name()).Inc()
+				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.integration.Name(), r.integration.receiverName).Inc()
 				if !retry {
 					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
 				}

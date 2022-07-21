@@ -142,7 +142,7 @@ func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 				errs.Add(err)
 				return
 			}
-			integrations = append(integrations, notify.NewIntegration(n, rs, name, i))
+			integrations = append(integrations, notify.NewIntegration(n, rs, name, i, nc.Name))
 		}
 	)
 
