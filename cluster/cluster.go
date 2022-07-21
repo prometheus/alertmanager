@@ -142,6 +142,7 @@ func Create(
 	probeInterval time.Duration,
 	tlsTransportConfig *TLSTransportConfig,
 	allowInsecureAdvertise bool,
+	name string,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -188,9 +189,13 @@ func Create(
 	}
 
 	// TODO(fabxc): generate human-readable but random names?
-	name, err := ulid.New(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano())))
-	if err != nil {
-		return nil, err
+	if name == "" {
+		id, err := ulid.New(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano())))
+		if err != nil {
+			return nil, err
+		}
+
+		name = id.String()
 	}
 
 	p := &Peer{
@@ -203,7 +208,7 @@ func Create(
 		knownPeers:    knownPeers,
 	}
 
-	p.register(reg, name.String())
+	p.register(reg, name)
 
 	retransmit := len(knownPeers) / 2
 	if retransmit < 3 {
@@ -212,7 +217,7 @@ func Create(
 	p.delegate = newDelegate(l, reg, p, retransmit)
 
 	cfg := memberlist.DefaultLANConfig()
-	cfg.Name = name.String()
+	cfg.Name = name
 	cfg.BindAddr = bindHost
 	cfg.BindPort = bindPort
 	cfg.Delegate = p.delegate
