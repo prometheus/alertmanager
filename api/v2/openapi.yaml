@@ -506,8 +506,32 @@ definitions:
     properties:
       name:
         type: string
+      active:
+        type: boolean
+      integrations:
+        type: array
+        items:
+          $ref: '#/definitions/integration'
     required:
       - name
+      - active
+      - integrations
+  integration:
+    type: object
+    properties:
+      name:
+        type: string
+      sendResolve:
+        type: boolean
+      lastNotify:
+        type: string
+      lastNotifyDuration:
+        type: string
+      lastError:
+        type: string
+    required:
+      - name
+      - sendResolve
   labelSet:
     type: object
     additionalProperties:

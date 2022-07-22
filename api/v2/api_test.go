@@ -15,6 +15,7 @@ package v2
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -30,8 +31,10 @@ import (
 
 	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
 	general_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
+	receiver_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	silence_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
@@ -467,4 +470,100 @@ func TestMatchFilterLabels(t *testing.T) {
 		ms := []*labels.Matcher{m}
 		require.Equal(t, tc.expected, matchFilterLabels(ms, sms))
 	}
+}
+
+func TestGetReceiversHandler(t *testing.T) {
+	tc := []struct {
+		name         string
+		expectedCode int
+		expectedBody string
+		receivers    []*notify.Receiver
+	}{
+		{
+			name:         "with no receivers configured",
+			expectedCode: http.StatusOK,
+			receivers:    []*notify.Receiver{},
+		},
+		{
+			name:         "with receivers configured",
+			expectedCode: http.StatusOK,
+			receivers: []*notify.Receiver{
+				notify.NewReceiver("awebhookreceiver", true, []*notify.Integration{}),
+			},
+			expectedBody: `
+[
+  {
+    "active": true,
+    "integrations": [],
+    "name": "awebhookreceiver"
+  }
+]
+`,
+		},
+		{
+			name:         "with a receivers and integrations configured",
+			expectedCode: http.StatusOK,
+			receivers: []*notify.Receiver{
+				notify.NewReceiver("awebhookreceiver", true, []*notify.Integration{
+					notify.NewIntegration(notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+						return true, nil
+					}), sendResolved(true), "webhook", 0),
+				}),
+			},
+			expectedBody: `
+[
+  {
+    "active": true,
+    "integrations": [
+      {
+        "lastNotify": "0001-01-01 00:00:00 +0000 UTC",
+        "lastNotifyDuration": "0s",
+        "name": "webhook[0]",
+        "sendResolve": true
+      }
+    ],
+    "name": "awebhookreceiver"
+  }
+]`,
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			api := API{
+				uptime:    time.Now(),
+				receivers: tt.receivers,
+				logger:    log.NewNopLogger(),
+			}
+
+			r, err := http.NewRequest("GET", "/api/v2/receivers", nil)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			p := runtime.TextProducer()
+			responder := api.getReceiversHandler(receiver_ops.GetReceiversParams{
+				HTTPRequest: r,
+			})
+			responder.WriteResponse(w, p)
+			body, _ := ioutil.ReadAll(w.Result().Body)
+
+			require.Equal(t, tt.expectedCode, w.Code)
+			if tt.expectedBody != "" {
+				require.JSONEq(t, tt.expectedBody, string(body))
+			}
+		})
+	}
+
+}
+
+type sendResolved bool
+
+func (s sendResolved) SendResolved() bool {
+	return bool(s)
+}
+
+type notifierFunc func(ctx context.Context, alerts ...*types.Alert) (bool, error)
+
+func (f notifierFunc) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	return f(ctx, alerts...)
 }

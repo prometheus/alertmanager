@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -379,7 +380,7 @@ func TestRoutingStage(t *testing.T) {
 func TestRetryStageWithError(t *testing.T) {
 	fail, retry := true, true
 	sent := []*types.Alert{}
-	i := Integration{
+	i := &Integration{
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 			if fail {
 				fail = false
@@ -390,9 +391,15 @@ func TestRetryStageWithError(t *testing.T) {
 		}),
 		rs: sendResolved(false),
 	}
+
+	fakeClock := clock.NewMock()
+	fakeClock.Set(time.Now())
+
 	r := RetryStage{
 		integration: i,
 		metrics:     NewMetrics(prometheus.NewRegistry()),
+		receiver:    NewReceiver(i.Name(), true, []*Integration{i}),
+		clock:       fakeClock,
 	}
 
 	alerts := []*types.Alert{
@@ -413,6 +420,12 @@ func TestRetryStageWithError(t *testing.T) {
 	require.Equal(t, alerts, sent)
 	require.NotNil(t, resctx)
 
+	// With recoverable errors.
+	notify, duration, lastError := i.GetReport()
+	require.Equal(t, fakeClock.Now(), notify)      // We have a last notify date.
+	require.Greater(t, duration, time.Duration(0)) // Duration is more than 0.
+	require.Nil(t, lastError)                      // There is no last error.
+
 	// Notify with an unrecoverable error should fail.
 	sent = sent[:0]
 	fail = true
@@ -420,11 +433,17 @@ func TestRetryStageWithError(t *testing.T) {
 	resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NotNil(t, err)
 	require.NotNil(t, resctx)
+
+	// With unrecoverable errors, we have something to report.
+	notify, duration, lastError = i.GetReport()
+	require.Equal(t, fakeClock.Now(), notify)
+	require.Greater(t, duration, time.Duration(0))
+	require.Equal(t, lastError, errors.New("fail to deliver notification"))
 }
 
 func TestRetryStageNoResolved(t *testing.T) {
 	sent := []*types.Alert{}
-	i := Integration{
+	i := &Integration{
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 			sent = append(sent, alerts...)
 			return false, nil
@@ -434,6 +453,8 @@ func TestRetryStageNoResolved(t *testing.T) {
 	r := RetryStage{
 		integration: i,
 		metrics:     NewMetrics(prometheus.NewRegistry()),
+		receiver:    NewReceiver(i.Name(), true, []*Integration{i}),
+		clock:       clock.NewMock(),
 	}
 
 	alerts := []*types.Alert{
@@ -478,7 +499,7 @@ func TestRetryStageNoResolved(t *testing.T) {
 
 func TestRetryStageSendResolved(t *testing.T) {
 	sent := []*types.Alert{}
-	i := Integration{
+	i := &Integration{
 		notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 			sent = append(sent, alerts...)
 			return false, nil
@@ -488,6 +509,8 @@ func TestRetryStageSendResolved(t *testing.T) {
 	r := RetryStage{
 		integration: i,
 		metrics:     NewMetrics(prometheus.NewRegistry()),
+		receiver:    NewReceiver(i.Name(), true, []*Integration{i}),
+		clock:       clock.NewMock(),
 	}
 
 	alerts := []*types.Alert{
