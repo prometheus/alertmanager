@@ -9,7 +9,7 @@ jobs:
     # containers with mounted volumes which isn't supported with the docker
     # executor (even with setup_remote_docker).
     machine:
-      image: ubuntu-2004:202201-02
+      image: ubuntu-2204:current
     steps:
       - checkout
       - run: sudo service docker restart
@@ -18,7 +18,7 @@ jobs:
           command: sudo rm -rf /usr/local/go
       # Whenever the Go version is updated here, .promu.yml should also be updated.
       - go/install:
-          version: "1.17"
+          version: "1.18"
       - run:
           name: Remove generated code
           command: make clean
@@ -47,15 +47,15 @@ jobs:
   test:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.17-base
+      - image: quay.io/prometheus/golang-builder:1.18-base
       # maildev containers are for running the email tests against a "real" SMTP server.
       # See notify/email_test.go for details.
-      - image: djfarrelly/maildev:1.1.0
+      - image: maildev/maildev:1.1.0
         name: maildev-noauth
         entrypoint: bin/maildev
         command:
           - -v
-      - image: djfarrelly/maildev:1.1.0
+      - image: maildev/maildev:1.1.0
         name: maildev-auth
         entrypoint: bin/maildev
         command:
@@ -104,13 +104,13 @@ jobs:
   mixin:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.17-base
+      - image: quay.io/prometheus/golang-builder:1.18-base
     steps:
       - checkout
-      - run: cd doc/alertmanager-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
-      - run: cd doc/alertmanager-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
-      - run: cd doc/alertmanager-mixin; go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
-      - run: cd doc/alertmanager-mixin; make lint
+      - run: go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
+      - run: go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
+      - run: go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
+      - run: make -C doc/alertmanager-mixin lint
 workflows:
   version: 2
   alertmanager:

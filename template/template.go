@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
@@ -132,7 +134,7 @@ type FuncMap map[string]interface{}
 var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
 	"toLower": strings.ToLower,
-	"title":   strings.Title,
+	"title":   cases.Title(language.AmericanEnglish).String,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
 	"join": func(sep string, s []string) string {
