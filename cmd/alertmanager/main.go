@@ -438,9 +438,8 @@ func run() int {
 			if err != nil {
 				return err
 			}
-			receivers = append(receivers, notify.NewReceiver(rcv.Name, true, integrations))
 			// rcv.Name is guaranteed to be unique across all receivers.
-			//receivers[rcv.Name] = integrations
+			receivers = append(receivers, notify.NewReceiver(rcv.Name, true, integrations))
 			integrationsNum += len(integrations)
 		}
 
