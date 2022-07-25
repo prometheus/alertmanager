@@ -21,13 +21,37 @@ import (
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
+func TestTelegramUnmarshal(t *testing.T) {
+	in := `
+route:
+  receiver: test
+receivers:
+- name: test
+  telegram_configs:
+  - chat_id: 1234
+    bot_token: secret
+`
+	var c config.Config
+	err := yaml.Unmarshal([]byte(in), &c)
+	require.NoError(t, err)
+
+	require.Len(t, c.Receivers, 1)
+	require.Len(t, c.Receivers[0].TelegramConfigs, 1)
+
+	require.Equal(t, "https://api.telegram.org", c.Receivers[0].TelegramConfigs[0].APIUrl.String())
+	require.Equal(t, config.Secret("secret"), c.Receivers[0].TelegramConfigs[0].BotToken)
+	require.Equal(t, int64(1234), c.Receivers[0].TelegramConfigs[0].ChatID)
+	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
+}
+
 func TestTelegramRetry(t *testing.T) {
-	// Fake url for testing purpouses
+	// Fake url for testing purposes
 	fakeURL := config.URL{
 		URL: &url.URL{
 			Scheme: "https",

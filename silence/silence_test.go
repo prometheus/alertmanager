@@ -18,11 +18,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"sort"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,8 +83,8 @@ func TestSilencesGC(t *testing.T) {
 	s, err := New(Options{})
 	require.NoError(t, err)
 
-	now := utcNow()
-	s.now = func() time.Time { return now }
+	s.clock = clock.NewMock()
+	now := s.nowUTC()
 
 	newSilence := func(exp time.Time) *pb.MeshSilence {
 		return &pb.MeshSilence{ExpiresAt: exp}
@@ -105,7 +106,7 @@ func TestSilencesGC(t *testing.T) {
 
 func TestSilencesSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
-	now := utcNow()
+	now := clock.NewMock().Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshSilence
@@ -185,7 +186,8 @@ func TestSilencesSnapshot(t *testing.T) {
 func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 	f, err := ioutil.TempFile("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
-	s := &Silences{st: state{}, logger: log.NewNopLogger(), now: utcNow, metrics: newMetrics(nil, nil)}
+	clock := clock.NewMock()
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
 	stopc := make(chan struct{})
 
 	done := make(chan struct{})
@@ -193,8 +195,9 @@ func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 		s.Maintenance(100*time.Millisecond, f.Name(), stopc, nil)
 		close(done)
 	}()
+	runtime.Gosched()
 
-	time.Sleep(200 * time.Millisecond)
+	clock.Add(100 * time.Millisecond)
 	close(stopc)
 
 	<-done
@@ -203,27 +206,30 @@ func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := ioutil.TempFile("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
-	s := &Silences{st: state{}, logger: log.NewNopLogger(), now: utcNow, metrics: newMetrics(nil, nil)}
+	clock := clock.NewMock()
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
 	stopc := make(chan struct{})
-	var mtx sync.Mutex
-	var mc int
 
-	go s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-		mtx.Lock()
-		mc++
-		mtx.Unlock()
+	called := make(chan struct{}, 5)
+	go func() {
+		s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+			called <- struct{}{}
+			return 0, nil
+		})
+		close(called)
+	}()
+	runtime.Gosched()
 
-		return 0, nil
-	})
+	clock.Add(100 * time.Millisecond)
 
-	time.Sleep(200 * time.Millisecond)
+	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
+	calls := 0
+	for range called {
+		calls++
+	}
 
-	require.Eventually(t, func() bool {
-		mtx.Lock()
-		defer mtx.Unlock()
-		return mc >= 2 // At least, one for the regular schedule and one at shutdown.
-	}, 500*time.Millisecond, 100*time.Millisecond)
+	require.EqualValues(t, 2, calls)
 }
 
 func TestSilencesSetSilence(t *testing.T) {
@@ -232,8 +238,10 @@ func TestSilencesSetSilence(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	now := utcNow()
-	nowpb := now
+	clock := clock.NewMock()
+	s.clock = clock
+
+	nowpb := s.nowUTC()
 
 	sil := &pb.Silence{
 		Id:       "some_id",
@@ -245,11 +253,11 @@ func TestSilencesSetSilence(t *testing.T) {
 	want := state{
 		"some_id": &pb.MeshSilence{
 			Silence:   sil,
-			ExpiresAt: now.Add(time.Minute),
+			ExpiresAt: nowpb.Add(time.Minute),
 		},
 	}
 
-	done := make(chan bool)
+	done := make(chan struct{})
 	s.broadcast = func(b []byte) {
 		var e pb.MeshSilence
 		r := bytes.NewReader(b)
@@ -260,18 +268,16 @@ func TestSilencesSetSilence(t *testing.T) {
 		close(done)
 	}
 
-	// setSilence() is always called with s.mtx locked()
-	go func() {
+	// setSilence() is always called with s.mtx locked() in the application code
+	func() {
 		s.mtx.Lock()
-		require.NoError(t, s.setSilence(sil, now))
-		s.mtx.Unlock()
+		defer s.mtx.Unlock()
+		require.NoError(t, s.setSilence(sil, nowpb))
 	}()
 
-	// GossipBroadcast is called in a goroutine.
-	select {
-	case <-done:
-	case <-time.After(1 * time.Second):
-		t.Fatal("GossipBroadcast was not called")
+	// Ensure broadcast was called.
+	if _, isOpen := <-done; isOpen {
+		t.Fatal("broadcast was not called")
 	}
 
 	require.Equal(t, want, s.st, "Unexpected silence state")
@@ -283,15 +289,15 @@ func TestSilenceSet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	now := utcNow()
-	now1 := now
-	s.now = func() time.Time { return now }
+	clock := clock.NewMock()
+	s.clock = clock
+	start1 := s.nowUTC()
 
 	// Insert silence with fixed start time.
 	sil1 := &pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-		StartsAt: now.Add(2 * time.Minute),
-		EndsAt:   now.Add(5 * time.Minute),
+		StartsAt: start1.Add(2 * time.Minute),
+		EndsAt:   start1.Add(5 * time.Minute),
 	}
 	id1, err := s.Set(sil1)
 	require.NoError(t, err)
@@ -302,22 +308,22 @@ func TestSilenceSet(t *testing.T) {
 			Silence: &pb.Silence{
 				Id:        id1,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now1.Add(2 * time.Minute),
-				EndsAt:    now1.Add(5 * time.Minute),
-				UpdatedAt: now1,
+				StartsAt:  start1.Add(2 * time.Minute),
+				EndsAt:    start1.Add(5 * time.Minute),
+				UpdatedAt: start1,
 			},
-			ExpiresAt: now1.Add(5*time.Minute + s.retention),
+			ExpiresAt: start1.Add(5*time.Minute + s.retention),
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
 	// Insert silence with unset start time. Must be set to now.
-	now = now.Add(time.Minute)
-	now2 := now
+	clock.Add(time.Minute)
+	start2 := s.nowUTC()
 
 	sil2 := &pb.Silence{
 		Matchers: []*pb.Matcher{{Name: "a", Pattern: "b"}},
-		EndsAt:   now.Add(1 * time.Minute),
+		EndsAt:   start2.Add(1 * time.Minute),
 	}
 	id2, err := s.Set(sil2)
 	require.NoError(t, err)
@@ -329,21 +335,21 @@ func TestSilenceSet(t *testing.T) {
 			Silence: &pb.Silence{
 				Id:        id2,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now2,
-				EndsAt:    now2.Add(1 * time.Minute),
-				UpdatedAt: now2,
+				StartsAt:  start2,
+				EndsAt:    start2.Add(1 * time.Minute),
+				UpdatedAt: start2,
 			},
-			ExpiresAt: now2.Add(1*time.Minute + s.retention),
+			ExpiresAt: start2.Add(1*time.Minute + s.retention),
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
 	// Overwrite silence 2 with new end time.
-	now = now.Add(time.Minute)
-	now3 := now
+	clock.Add(time.Minute)
+	start3 := s.nowUTC()
 
 	sil3 := cloneSilence(sil2)
-	sil3.EndsAt = now.Add(100 * time.Minute)
+	sil3.EndsAt = start3.Add(100 * time.Minute)
 
 	id3, err := s.Set(sil3)
 	require.NoError(t, err)
@@ -355,23 +361,25 @@ func TestSilenceSet(t *testing.T) {
 			Silence: &pb.Silence{
 				Id:        id2,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now2,
-				EndsAt:    now3.Add(100 * time.Minute),
-				UpdatedAt: now3,
+				StartsAt:  start2,
+				EndsAt:    start3.Add(100 * time.Minute),
+				UpdatedAt: start3,
 			},
-			ExpiresAt: now3.Add(100*time.Minute + s.retention),
+			ExpiresAt: start3.Add(100*time.Minute + s.retention),
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
-	// Update silence 2 with new matcher expires it and creates a new one.
-	now = now.Add(time.Minute)
-	now4 := now
+
+	// Update this silence again with new matcher. This expires it and creates a new one.
+	clock.Add(time.Minute)
+	start4 := s.nowUTC()
 
 	sil4 := cloneSilence(sil3)
 	sil4.Matchers = []*pb.Matcher{{Name: "a", Pattern: "c"}}
 
 	id4, err := s.Set(sil4)
 	require.NoError(t, err)
+	// This new silence gets a new id.
 	require.NotEqual(t, id2, id4)
 
 	want = state{
@@ -380,32 +388,32 @@ func TestSilenceSet(t *testing.T) {
 			Silence: &pb.Silence{
 				Id:        id2,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now2,
-				EndsAt:    now4,
-				UpdatedAt: now4,
+				StartsAt:  start2,
+				EndsAt:    start4, // Expired
+				UpdatedAt: start4,
 			},
-			ExpiresAt: now4.Add(s.retention),
+			ExpiresAt: start4.Add(s.retention),
 		},
 		id4: &pb.MeshSilence{
 			Silence: &pb.Silence{
 				Id:        id4,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "c"}},
-				StartsAt:  now4,
-				EndsAt:    now3.Add(100 * time.Minute),
-				UpdatedAt: now4,
+				StartsAt:  start4,
+				EndsAt:    start3.Add(100 * time.Minute),
+				UpdatedAt: start4,
 			},
-			ExpiresAt: now3.Add(100*time.Minute + s.retention),
+			ExpiresAt: start3.Add(100*time.Minute + s.retention),
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
 
-	// Re-create expired silence.
-	now = now.Add(time.Minute)
-	now5 := now
+	// Re-create the silence that just expired.
+	clock.Add(time.Minute)
+	start5 := s.nowUTC()
 
 	sil5 := cloneSilence(sil3)
-	sil5.StartsAt = now
-	sil5.EndsAt = now.Add(5 * time.Minute)
+	sil5.StartsAt = start1
+	sil5.EndsAt = start1.Add(5 * time.Minute)
 
 	id5, err := s.Set(sil5)
 	require.NoError(t, err)
@@ -419,11 +427,11 @@ func TestSilenceSet(t *testing.T) {
 			Silence: &pb.Silence{
 				Id:        id5,
 				Matchers:  []*pb.Matcher{{Name: "a", Pattern: "b"}},
-				StartsAt:  now5,
-				EndsAt:    now5.Add(5 * time.Minute),
-				UpdatedAt: now5,
+				StartsAt:  start5, // New silences have their start time set to "now" when created.
+				EndsAt:    start1.Add(5 * time.Minute),
+				UpdatedAt: start5,
 			},
-			ExpiresAt: now5.Add(5*time.Minute + s.retention),
+			ExpiresAt: start1.Add(5*time.Minute + s.retention),
 		},
 	}
 	require.Equal(t, want, s.st, "unexpected state after silence creation")
@@ -435,8 +443,9 @@ func TestSetActiveSilence(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	now := utcNow()
-	s.now = func() time.Time { return now }
+	clock := clock.NewMock()
+	s.clock = clock
+	now := clock.Now()
 
 	startsAt := now.Add(-1 * time.Minute)
 	endsAt := now.Add(5 * time.Minute)
@@ -458,7 +467,8 @@ func TestSetActiveSilence(t *testing.T) {
 	sil2.StartsAt = newStartsAt
 	sil2.EndsAt = newEndsAt
 
-	now = now.Add(time.Minute)
+	clock.Add(time.Minute)
+	now = s.nowUTC()
 	id2, err := s.Set(sil2)
 	require.NoError(t, err)
 	require.Equal(t, id1, id2)
@@ -482,8 +492,8 @@ func TestSilencesSetFail(t *testing.T) {
 	s, err := New(Options{})
 	require.NoError(t, err)
 
-	now := utcNow()
-	s.now = func() time.Time { return now }
+	clock := clock.NewMock()
+	s.clock = clock
 
 	cases := []struct {
 		s   *pb.Silence
@@ -504,7 +514,7 @@ func TestSilencesSetFail(t *testing.T) {
 }
 
 func TestQState(t *testing.T) {
-	now := utcNow()
+	now := time.Now().UTC()
 
 	cases := []struct {
 		sil    *pb.Silence
@@ -715,7 +725,7 @@ func (s silencesByID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s silencesByID) Less(i, j int) bool { return s[i].Id < s[j].Id }
 
 func TestSilenceCanUpdate(t *testing.T) {
-	now := utcNow()
+	now := time.Now().UTC()
 
 	cases := []struct {
 		a, b *pb.Silence
@@ -844,8 +854,9 @@ func TestSilenceExpire(t *testing.T) {
 	s, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
 
-	now := time.Now()
-	s.now = func() time.Time { return now }
+	clock := clock.NewMock()
+	s.clock = clock
+	now := s.nowUTC()
 
 	m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
 
@@ -897,7 +908,7 @@ func TestSilenceExpire(t *testing.T) {
 	}, sil)
 
 	// Let time pass...
-	s.now = func() time.Time { return now.Add(time.Second) }
+	clock.Add(time.Second)
 
 	count, err = s.CountState(types.SilenceStatePending)
 	require.NoError(t, err)
@@ -937,12 +948,12 @@ func TestSilenceExpire(t *testing.T) {
 // retention time, a silence explicitly set to expired will also immediately
 // expire from the silence storage.
 func TestSilenceExpireWithZeroRetention(t *testing.T) {
-	s, err := New(Options{})
+	s, err := New(Options{Retention: 0})
 	require.NoError(t, err)
 
-	now := time.Now()
-	// But don't set s.now here because we need a changing time to
-	// demonstrate expiration from the silence storage.
+	clock := clock.NewMock()
+	s.clock = clock
+	now := s.nowUTC()
 
 	m := &pb.Matcher{Type: pb.Matcher_EQUAL, Name: "a", Pattern: "b"}
 
@@ -974,20 +985,34 @@ func TestSilenceExpireWithZeroRetention(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
+	count, err = s.CountState(types.SilenceStateActive)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
 	count, err = s.CountState(types.SilenceStateExpired)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
+	// Advance time. The silence state management code uses update time when
+	// merging, and the logic is "first write wins". So we must advance the clock
+	// one tick for updates to take effect.
+	clock.Add(1 * time.Millisecond)
+
 	require.NoError(t, s.Expire("pending"))
 	require.NoError(t, s.Expire("active"))
-
 	require.NoError(t, s.Expire("expired"))
 
-	_, err = s.QueryOne(QIDs("pending"))
-	require.NoError(t, err)
-	require.Equal(t, 1, count)
+	// Advance time again. Despite what the function name says, s.Expire() does
+	// not expire a silence. It sets the silence to EndAt the current time. This
+	// means that the silence is active immediately after calling Expire.
+	clock.Add(1 * time.Millisecond)
 
+	// Verify all silences have expired.
 	count, err = s.CountState(types.SilenceStatePending)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+
+	count, err = s.CountState(types.SilenceStateActive)
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 
@@ -1000,8 +1025,9 @@ func TestSilencer(t *testing.T) {
 	ss, err := New(Options{Retention: time.Hour})
 	require.NoError(t, err)
 
-	now := time.Now()
-	ss.now = func() time.Time { return now }
+	clock := clock.NewMock()
+	ss.clock = clock
+	now := ss.nowUTC()
 
 	m := types.NewMarker(prometheus.NewRegistry())
 	s := NewSilencer(ss, m, log.NewNopLogger())
@@ -1027,7 +1053,9 @@ func TestSilencer(t *testing.T) {
 
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by matching silence")
 
-	now = now.Add(time.Hour) // One hour passes, silence expires.
+	// One hour passes, silence expires.
+	clock.Add(time.Hour)
+	now = ss.nowUTC()
 
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by expired silence")
 
@@ -1042,7 +1070,9 @@ func TestSilencer(t *testing.T) {
 
 	require.False(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert not silenced by future silence")
 
-	now = now.Add(2 * time.Hour) // Two hours pass, silence becomes active.
+	// Two hours pass, silence becomes active.
+	clock.Add(2 * time.Hour)
+	now = ss.nowUTC()
 
 	// Exposes issue #2426.
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated silence")
@@ -1057,7 +1087,8 @@ func TestSilencer(t *testing.T) {
 	// Note that issue #2426 doesn't apply anymore because we added a new silence.
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert still silenced by activated silence")
 
-	now = now.Add(2 * time.Hour) // Two hours pass, first silence expires, overlapping second silence becomes active.
+	// Two hours pass, first silence expires, overlapping second silence becomes active.
+	clock.Add(2 * time.Hour)
 
 	// Another variant of issue #2426 (overlapping silences).
 	require.True(t, s.Mutes(model.LabelSet{"foo": "bar"}), "expected alert silenced by activated second silence")
@@ -1141,7 +1172,7 @@ func TestValidateMatcher(t *testing.T) {
 
 func TestValidateSilence(t *testing.T) {
 	var (
-		now            = utcNow()
+		now            = time.Now().UTC()
 		zeroTimestamp  = time.Time{}
 		validTimestamp = now
 	)
@@ -1264,7 +1295,7 @@ func TestValidateSilence(t *testing.T) {
 }
 
 func TestStateMerge(t *testing.T) {
-	now := utcNow()
+	now := time.Now().UTC()
 
 	// We only care about key names and timestamps for the
 	// merging logic.
@@ -1313,7 +1344,7 @@ func TestStateMerge(t *testing.T) {
 
 func TestStateCoding(t *testing.T) {
 	// Check whether encoding and decoding the data is symmetric.
-	now := utcNow()
+	now := time.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshSilence
@@ -1393,8 +1424,9 @@ func benchmarkSilencesQuery(b *testing.B, numSilences int) {
 	s, err := New(Options{})
 	require.NoError(b, err)
 
-	now := time.Now()
-	s.now = func() time.Time { return now }
+	clock := clock.NewMock()
+	s.clock = clock
+	now := clock.Now()
 
 	lset := model.LabelSet{"aaaa": "AAAA", "bbbb": "BBBB", "cccc": "CCCC"}
 
