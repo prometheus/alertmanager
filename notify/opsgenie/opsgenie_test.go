@@ -16,9 +16,10 @@ package opsgenie
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -75,7 +76,7 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 
 	key := "key"
 
-	f, err := ioutil.TempFile("", "opsgenie_test")
+	f, err := os.CreateTemp("", "opsgenie_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -322,7 +323,7 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 
 func readBody(t *testing.T, r *http.Request) string {
 	t.Helper()
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	require.NoError(t, err)
 	return string(body)
 }

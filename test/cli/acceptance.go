@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -145,7 +145,7 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 			opts: t.opts,
 		}
 
-		dir, err := ioutil.TempDir("", "am_test")
+		dir, err := os.MkdirTemp("", "am_test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -362,7 +362,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("starting alertmanager failed: expected HTTP status '200', got '%d'", resp.StatusCode)
 		}
-		_, err = ioutil.ReadAll(resp.Body)
+		_, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("starting alertmanager failed: %s", err)
 		}

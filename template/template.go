@@ -16,7 +16,7 @@ package template
 import (
 	"bytes"
 	tmplhtml "html/template"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -61,7 +61,7 @@ func FromGlobs(paths ...string) (*Template, error) {
 			return nil, err
 		}
 		defer f.Close()
-		b, err := ioutil.ReadAll(f)
+		b, err := io.ReadAll(f)
 		if err != nil {
 			return nil, err
 		}

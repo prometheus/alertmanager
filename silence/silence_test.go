@@ -16,7 +16,6 @@ package silence
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"runtime"
 	"sort"
@@ -156,7 +155,7 @@ func TestSilencesSnapshot(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		f, err := ioutil.TempFile("", "snapshot")
+		f, err := os.CreateTemp("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
 		s1 := &Silences{st: state{}, metrics: newMetrics(nil, nil)}
@@ -184,7 +183,7 @@ func TestSilencesSnapshot(t *testing.T) {
 
 // This tests a regression introduced by https://github.com/prometheus/alertmanager/pull/2689.
 func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
-	f, err := ioutil.TempFile("", "snapshot")
+	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := clock.NewMock()
 	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
@@ -204,7 +203,7 @@ func TestSilences_Maintenance_DefaultMaintenanceFuncDoesntCrash(t *testing.T) {
 }
 
 func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
-	f, err := ioutil.TempFile("", "snapshot")
+	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := clock.NewMock()
 	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}

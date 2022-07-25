@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -125,7 +124,7 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 			opts: t.opts,
 		}
 
-		dir, err := ioutil.TempDir("", "am_test")
+		dir, err := os.MkdirTemp("", "am_test")
 		if err != nil {
 			t.Fatal(err)
 		}
