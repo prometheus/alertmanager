@@ -2,7 +2,7 @@ module Updates exposing (update)
 
 import Browser.Navigation as Navigation
 import Task
-import Types exposing (Model, Msg(..), Route(..), getUser)
+import Types exposing (Model, Msg(..), Route(..))
 import Utils.Types as Types
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.AlertList.Updates
@@ -53,7 +53,7 @@ update msg ({ basePath, apiUrl } as model) =
             )
 
         NavigateToSilenceFormEdit uuid ->
-            ( { model | route = SilenceFormEditRoute uuid }, Task.perform identity (Task.succeed <| (FetchSilence uuid |> MsgForSilenceForm)) )
+            ( { model | route = SilenceFormEditRoute uuid }, Task.perform identity (Task.succeed <| (FetchSilenceWithUser uuid |> MsgForSilenceForm)) )
 
         NavigateToNotFound ->
             ( { model | route = NotFoundRoute }, Cmd.none )
@@ -94,12 +94,12 @@ update msg ({ basePath, apiUrl } as model) =
         MsgForSilenceForm subMsg ->
             let
                 ( silenceForm, cmd ) =
-                    Views.SilenceForm.Updates.update subMsg model.silenceForm basePath apiUrl model.username
+                    Views.SilenceForm.Updates.update subMsg model.silenceForm basePath apiUrl
             in
             ( { model | silenceForm = silenceForm }, cmd )
 
         BootstrapCSSLoaded css ->
-            ( { model | bootstrapCSS = css }, getUser apiUrl UserFetch )
+            ( { model | bootstrapCSS = css }, Cmd.none )
 
         FontAwesomeCSSLoaded css ->
             ( { model | fontAwesomeCSS = css }, Cmd.none )
@@ -112,14 +112,3 @@ update msg ({ basePath, apiUrl } as model) =
 
         SetGroupExpandAll expanded ->
             ( { model | expandAll = expanded }, Cmd.none )
-
-        UserFetch apiResponse ->
-            case apiResponse of
-                Types.Success user ->
-                    ( { model | username = Just user.username }, Cmd.none )
-
-                Types.Failure e ->
-                    ( model, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )

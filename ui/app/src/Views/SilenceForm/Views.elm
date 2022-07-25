@@ -15,13 +15,13 @@ import Views.Shared.SilencePreview
 import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
-view : Maybe String -> SilenceFormGetParams -> String -> Maybe String -> Model -> Html SilenceFormMsg
-view maybeId silenceFormGetParams defaultCreator username { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId } =
+view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
+view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarValid, silenceId, alerts, activeAlertId, username } =
     let
         ( title, resetClick ) =
             case maybeId of
                 Just silenceId_ ->
-                    ( "Edit Silence", FetchSilence silenceId_ )
+                    ( "Edit Silence", FetchSilenceWithUser silenceId_ )
 
                 Nothing ->
                     ( "New Silence", NewSilenceFromMatchersAndComment defaultCreator silenceFormGetParams )

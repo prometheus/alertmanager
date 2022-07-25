@@ -216,8 +216,11 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 }
 
 func (api *API) getMeHandler(params general_ops.GetMeParams) middleware.Responder {
-	// Dummy 
-	username := "dummyuser"
+	// Try to infer the username from basic authentication or a specified header.
+	username := api.GetCreatorForSilence(params.HTTPRequest)
+	if username == "" {
+		return general_ops.NewGetMeNoContent()
+	}
 	res := &open_api_models.User{Username: &username}
 	return general_ops.NewGetMeOK().WithPayload(res)
 }

@@ -18,6 +18,7 @@ import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher
 import Data.PostableSilence exposing (PostableSilence)
+import Data.User exposing (User)
 import DateTime
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix)
@@ -43,6 +44,7 @@ type alias Model =
     , silenceId : ApiData String
     , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
+    , username : Maybe String
     , key : Key
     }
 
@@ -65,10 +67,12 @@ type SilenceFormMsg
     | PreviewSilence
     | AlertGroupsPreview (ApiData (List GettableAlert))
     | SetActiveAlert (Maybe String)
-    | FetchSilence String
+    | FetchSilenceWithUser String
+    | FetchSilence String (ApiData User)
     | NewSilenceFromMatchersAndComment String Utils.Filter.SilenceFormGetParams
-    | NewSilenceFromMatchersAndCommentAndTime String (List Utils.Filter.Matcher) String Posix
-    | SilenceFetch (ApiData GettableSilence)
+    | NewSilenceFromMatchersAndCommentAndUser String Utils.Filter.SilenceFormGetParams (ApiData User)
+    | NewSilenceFromMatchersAndCommentAndTime String (List Utils.Filter.Matcher) String (Maybe String) Posix
+    | SilenceFetch (Maybe String) (ApiData GettableSilence)
     | SilenceCreate (ApiData String)
     | UpdateDateTimePicker Utils.DateTimePicker.Types.Msg
     | MsgForFilterBar FilterBar.Msg
@@ -96,6 +100,7 @@ initSilenceForm key =
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     , activeAlertId = Nothing
+    , username = Nothing
     , key = key
     }
 

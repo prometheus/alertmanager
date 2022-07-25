@@ -1,7 +1,8 @@
-module Silences.Api exposing (create, destroy, getSilence, getSilences)
+module Silences.Api exposing (create, destroy, getSilence, getSilences, getUser)
 
 import Data.GettableSilence exposing (GettableSilence)
 import Data.PostableSilence exposing (PostableSilence)
+import Data.User exposing (User)
 import Http
 import Json.Decode
 import Silences.Decoders
@@ -27,6 +28,16 @@ getSilence apiUrl uuid msg =
             String.join "/" [ apiUrl, "silence", uuid ]
     in
     Utils.Api.send (Utils.Api.get url Data.GettableSilence.decoder)
+        |> Cmd.map msg
+
+
+getUser : String -> (ApiData User -> msg) -> Cmd msg
+getUser apiUrl msg =
+    let
+        url =
+            String.join "/" [ apiUrl, "me" ]
+    in
+    Utils.Api.send (Utils.Api.get url Data.User.decoder)
         |> Cmd.map msg
 
 

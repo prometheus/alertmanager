@@ -4,7 +4,7 @@ import Browser exposing (UrlRequest(..))
 import Browser.Navigation exposing (Key)
 import Json.Decode as Json
 import Parsing
-import Types exposing (Model, Msg(..), Route(..), getUser)
+import Types exposing (Model, Msg(..), Route(..))
 import Updates exposing (update)
 import Url exposing (Url)
 import Utils.Api as Api
@@ -104,7 +104,6 @@ init flags url key =
             Loading
             defaultCreator
             groupExpandAll
-            Nothing
             key
         )
 

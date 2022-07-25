@@ -1,4 +1,4 @@
-module Types exposing (Model, Msg(..), Route(..), getUser)
+module Types exposing (Model, Msg(..), Route(..))
 
 import Browser.Navigation exposing (Key)
 import Data.User exposing (User)
@@ -28,7 +28,6 @@ type alias Model =
     , elmDatepickerCSS : ApiData String
     , defaultCreator : String
     , expandAll : Bool
-    , username : Maybe String
     , key : Key
     }
 
@@ -54,7 +53,6 @@ type Msg
     | ElmDatepickerCSSLoaded (ApiData String)
     | SetDefaultCreator String
     | SetGroupExpandAll Bool
-    | UserFetch (ApiData User)
 
 
 type Route
@@ -66,13 +64,3 @@ type Route
     | SilenceViewRoute String
     | StatusRoute
     | TopLevelRoute
-
-
-getUser : String -> (ApiData User -> msg) -> Cmd msg
-getUser apiUrl msg =
-    let
-        url =
-            String.join "/" [ apiUrl, "me" ]
-    in
-    Utils.Api.send (Utils.Api.get url Data.User.decoder)
-        |> Cmd.map msg

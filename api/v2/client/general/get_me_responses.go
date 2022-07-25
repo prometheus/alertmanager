@@ -43,6 +43,12 @@ func (o *GetMeReader) ReadResponse(response runtime.ClientResponse, consumer run
 			return nil, err
 		}
 		return result, nil
+	case 204:
+		result := NewGetMeNoContent()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return result, nil
 
 	default:
 		return nil, runtime.NewAPIError("unknown error", response, response.Code())
@@ -78,6 +84,27 @@ func (o *GetMeOK) readResponse(response runtime.ClientResponse, consumer runtime
 	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
 		return err
 	}
+
+	return nil
+}
+
+// NewGetMeNoContent creates a GetMeNoContent with default headers values
+func NewGetMeNoContent() *GetMeNoContent {
+	return &GetMeNoContent{}
+}
+
+/*GetMeNoContent handles this case with default header values.
+
+No user in basic authentication or a specified header
+*/
+type GetMeNoContent struct {
+}
+
+func (o *GetMeNoContent) Error() string {
+	return fmt.Sprintf("[GET /me][%d] getMeNoContent ", 204)
+}
+
+func (o *GetMeNoContent) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	return nil
 }

@@ -70,3 +70,27 @@ func (o *GetMeOK) WriteResponse(rw http.ResponseWriter, producer runtime.Produce
 		}
 	}
 }
+
+// GetMeNoContentCode is the HTTP code returned for type GetMeNoContent
+const GetMeNoContentCode int = 204
+
+/*GetMeNoContent No user in basic authentication or a specified header
+
+swagger:response getMeNoContent
+*/
+type GetMeNoContent struct {
+}
+
+// NewGetMeNoContent creates GetMeNoContent with default headers values
+func NewGetMeNoContent() *GetMeNoContent {
+
+	return &GetMeNoContent{}
+}
+
+// WriteResponse to the client
+func (o *GetMeNoContent) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
+
+	rw.WriteHeader(204)
+}

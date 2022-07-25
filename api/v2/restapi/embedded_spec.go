@@ -223,6 +223,9 @@ func init() {
             "schema": {
               "$ref": "#/definitions/user"
             }
+          },
+          "204": {
+            "description": "No user in basic authentication or a specified header"
           }
         }
       }
@@ -1053,6 +1056,9 @@ func init() {
             "schema": {
               "$ref": "#/definitions/user"
             }
+          },
+          "204": {
+            "description": "No user in basic authentication or a specified header"
           }
         }
       }
