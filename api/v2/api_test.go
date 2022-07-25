@@ -553,7 +553,6 @@ func TestGetReceiversHandler(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 type sendResolved bool
