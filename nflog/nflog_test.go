@@ -15,7 +15,7 @@ package nflog
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -98,7 +98,7 @@ func TestLogSnapshot(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		f, err := ioutil.TempFile("", "snapshot")
+		f, err := os.CreateTemp("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
 		l1 := &Log{
@@ -127,7 +127,7 @@ func TestLogSnapshot(t *testing.T) {
 }
 
 func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
-	f, err := ioutil.TempFile("", "snapshot")
+	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 
 	stopc := make(chan struct{})
@@ -154,7 +154,7 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 }
 
 func TestReplaceFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "replace_file")
+	dir, err := os.MkdirTemp("", "replace_file")
 	require.NoError(t, err, "creating temp dir failed")
 
 	origFilename := filepath.Join(dir, "testfile")
@@ -176,7 +176,7 @@ func TestReplaceFile(t *testing.T) {
 	require.NoError(t, err, "opening original file failed")
 	defer ofr.Close()
 
-	res, err := ioutil.ReadAll(ofr)
+	res, err := io.ReadAll(ofr)
 	require.NoError(t, err, "reading original file failed")
 	require.Equal(t, "test", string(res), "unexpected file contents")
 }

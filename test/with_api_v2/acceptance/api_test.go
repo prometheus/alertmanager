@@ -58,7 +58,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := a.NewWebhook(co)
+	wh := a.NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -89,8 +89,8 @@ receivers:
 	require.NoError(t, err)
 	// No silence has been created or inhibiting alert sent, alert should
 	// be active.
-	for _, alert := range resp.Payload {
-		require.Equal(t, models.AlertStatusStateActive, *alert.Status.State)
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 	}
 
 	// Wait for group_wait, so that we are in the group_interval period,
@@ -121,11 +121,11 @@ receivers:
 
 	resp, err = am.Client().Alert.GetAlerts(nil)
 	require.NoError(t, err)
-	for _, alert := range resp.Payload {
-		require.Equal(t, models.AlertStatusStateSuppressed, *alert.Status.State)
-		require.Equal(t, fp.String(), *alert.Fingerprint)
-		require.Equal(t, 1, len(alert.Status.SilencedBy))
-		require.Equal(t, silenceID, alert.Status.SilencedBy[0])
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
+		require.Equal(t, fp.String(), *al.Fingerprint)
+		require.Equal(t, 1, len(al.Status.SilencedBy))
+		require.Equal(t, silenceID, al.Status.SilencedBy[0])
 	}
 
 	// Create inhibiting alert and verify that original alert is
@@ -138,14 +138,14 @@ receivers:
 
 	resp, err = am.Client().Alert.GetAlerts(nil)
 	require.NoError(t, err)
-	for _, alert := range resp.Payload {
-		require.Equal(t, 1, len(alert.Status.SilencedBy))
-		require.Equal(t, silenceID, alert.Status.SilencedBy[0])
-		if fp.String() == *alert.Fingerprint {
-			require.Equal(t, models.AlertStatusStateSuppressed, *alert.Status.State)
-			require.Equal(t, fp.String(), *alert.Fingerprint)
-			require.Equal(t, 1, len(alert.Status.InhibitedBy))
-			require.Equal(t, inhibitingFP.String(), alert.Status.InhibitedBy[0])
+	for _, al := range resp.Payload {
+		require.Equal(t, 1, len(al.Status.SilencedBy))
+		require.Equal(t, silenceID, al.Status.SilencedBy[0])
+		if fp.String() == *al.Fingerprint {
+			require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
+			require.Equal(t, fp.String(), *al.Fingerprint)
+			require.Equal(t, 1, len(al.Status.InhibitedBy))
+			require.Equal(t, inhibitingFP.String(), al.Status.InhibitedBy[0])
 		}
 	}
 
@@ -157,12 +157,12 @@ receivers:
 	require.NoError(t, err)
 	// Silence has been deleted, inhibiting alert should be active.
 	// Original alert should still be inhibited.
-	for _, alert := range resp.Payload {
-		require.Equal(t, 0, len(alert.Status.SilencedBy))
-		if inhibitingFP.String() == *alert.Fingerprint {
-			require.Equal(t, models.AlertStatusStateActive, *alert.Status.State)
+	for _, al := range resp.Payload {
+		require.Equal(t, 0, len(al.Status.SilencedBy))
+		if inhibitingFP.String() == *al.Fingerprint {
+			require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 		} else {
-			require.Equal(t, models.AlertStatusStateSuppressed, *alert.Status.State)
+			require.Equal(t, models.AlertStatusStateSuppressed, *al.Status.State)
 		}
 	}
 }
@@ -195,7 +195,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := a.NewWebhook(co)
+	wh := a.NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
 	require.NoError(t, amc.Start())
@@ -228,7 +228,7 @@ receivers:
 	resp, err := am.Client().Alert.GetAlerts(alert.NewGetAlertsParams().WithFilter(filter))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(resp.Payload))
-	for _, alert := range resp.Payload {
-		require.Equal(t, models.AlertStatusStateActive, *alert.Status.State)
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 	}
 }

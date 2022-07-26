@@ -339,7 +339,7 @@ func run() int {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, nil, logger)
+	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, nil, logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		return 1
@@ -347,7 +347,9 @@ func run() int {
 	defer alerts.Close()
 
 	var disp *dispatch.Dispatcher
-	defer disp.Stop()
+	defer func() {
+		disp.Stop()
+	}()
 
 	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
 		return disp.Groups(routeFilter, alertFilter)

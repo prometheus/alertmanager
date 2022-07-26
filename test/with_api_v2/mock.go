@@ -16,10 +16,11 @@ package test
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/go-openapi/strfmt"
@@ -256,7 +257,7 @@ func equalTime(a, b time.Time, opts *AcceptanceOpts) bool {
 type MockWebhook struct {
 	opts      *AcceptanceOpts
 	collector *Collector
-	listener  net.Listener
+	addr      string
 
 	// Func is called early on when retrieving a notification by an
 	// Alertmanager. If Func returns true, the given notification is dropped.
@@ -264,24 +265,20 @@ type MockWebhook struct {
 	Func func(timestamp float64) bool
 }
 
-func NewWebhook(c *Collector) *MockWebhook {
-	l, err := net.Listen("tcp4", "localhost:0")
-	if err != nil {
-		// TODO(fabxc): if shutdown of mock destinations ever becomes a concern
-		// we want to shut them down after test completion. Then we might want to
-		// log the error properly, too.
-		panic(err)
-	}
+func NewWebhook(t *testing.T, c *Collector) *MockWebhook {
+	t.Helper()
+
 	wh := &MockWebhook{
-		listener:  l,
 		collector: c,
 		opts:      c.opts,
 	}
-	go func() {
-		if err := http.Serve(l, wh); err != nil {
-			panic(err)
-		}
-	}()
+
+	server := httptest.NewServer(wh)
+	wh.addr = server.Listener.Addr().String()
+
+	t.Cleanup(func() {
+		server.Close()
+	})
 
 	return wh
 }
@@ -334,5 +331,5 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (ws *MockWebhook) Address() string {
-	return ws.listener.Addr().String()
+	return ws.addr
 }

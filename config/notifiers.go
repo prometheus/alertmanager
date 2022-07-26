@@ -22,6 +22,8 @@ import (
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/sigv4"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -143,8 +145,10 @@ var (
 		},
 		DisableNotifications: false,
 		Message:              `{{ template "telegram.default.message" . }}`,
-		ParseMode:            "MarkdownV2",
+		ParseMode:            "HTML",
 	}
+
+	normalizeTitle = cases.Title(language.AmericanEnglish)
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -189,7 +193,7 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Header names are case-insensitive, check for collisions.
 	normalizedHeaders := map[string]string{}
 	for h, v := range c.Headers {
-		normalized := strings.Title(h)
+		normalized := normalizeTitle.String(h)
 		if _, ok := normalizedHeaders[normalized]; ok {
 			return fmt.Errorf("duplicate header %q in email config", normalized)
 		}
@@ -495,7 +499,7 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return err
 	}
 
-	if c.APIURL != nil && len(c.APIKeyFile) > 0 {
+	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
 		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
 	}
 
@@ -664,9 +668,6 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	if c.ChatID == 0 {
 		return fmt.Errorf("missing chat_id on telegram_config")
-	}
-	if c.APIUrl == nil {
-		return fmt.Errorf("missing api_url on telegram_config")
 	}
 	if c.ParseMode != "" &&
 		c.ParseMode != "Markdown" &&

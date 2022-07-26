@@ -25,6 +25,58 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMemMarker_Count(t *testing.T) {
+	r := prometheus.NewRegistry()
+	marker := NewMarker(r)
+	now := time.Now()
+
+	states := []AlertState{AlertStateSuppressed, AlertStateActive, AlertStateUnprocessed}
+	countByState := func(state AlertState) int {
+		return marker.Count(state)
+	}
+
+	countTotal := func() int {
+		var count int
+		for _, s := range states {
+			count += countByState(s)
+		}
+		return count
+	}
+
+	require.Equal(t, 0, countTotal())
+
+	a1 := model.Alert{
+		StartsAt: now.Add(-2 * time.Minute),
+		EndsAt:   now.Add(2 * time.Minute),
+		Labels:   model.LabelSet{"test": "active"},
+	}
+	a2 := model.Alert{
+		StartsAt: now.Add(-2 * time.Minute),
+		EndsAt:   now.Add(2 * time.Minute),
+		Labels:   model.LabelSet{"test": "suppressed"},
+	}
+	a3 := model.Alert{
+		StartsAt: now.Add(-2 * time.Minute),
+		EndsAt:   now.Add(-1 * time.Minute),
+		Labels:   model.LabelSet{"test": "resolved"},
+	}
+
+	// Insert an active alert.
+	marker.SetActiveOrSilenced(a1.Fingerprint(), 1, nil, nil)
+	require.Equal(t, 1, countByState(AlertStateActive))
+	require.Equal(t, 1, countTotal())
+
+	// Insert a suppressed alert.
+	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
+	require.Equal(t, 1, countByState(AlertStateSuppressed))
+	require.Equal(t, 2, countTotal())
+
+	// Insert a resolved alert - it'll count as active.
+	marker.SetActiveOrSilenced(a3.Fingerprint(), 1, []string{"1"}, nil)
+	require.Equal(t, 1, countByState(AlertStateActive))
+	require.Equal(t, 3, countTotal())
+}
+
 func TestAlertMerge(t *testing.T) {
 	now := time.Now()
 

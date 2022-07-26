@@ -8,7 +8,8 @@ jobs:
     # We need to use a machine executor because the front-end validation runs
     # containers with mounted volumes which isn't supported with the docker
     # executor (even with setup_remote_docker).
-    machine: true
+    machine:
+      image: ubuntu-2204:current
     steps:
       - checkout
       - run: sudo service docker restart
@@ -17,7 +18,7 @@ jobs:
           command: sudo rm -rf /usr/local/go
       # Whenever the Go version is updated here, .promu.yml should also be updated.
       - go/install:
-          version: "1.17"
+          version: "1.18"
       - run:
           name: Remove generated code
           command: make clean
@@ -36,18 +37,25 @@ jobs:
       - run: git diff --exit-code
       - store_test_results:
           path: ~/test-results
+      - run:
+          name: Save assets
+          command: make assets-tarball
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .tarballs
   test:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.17-base
+      - image: quay.io/prometheus/golang-builder:1.18-base
       # maildev containers are for running the email tests against a "real" SMTP server.
       # See notify/email_test.go for details.
-      - image: djfarrelly/maildev:1.1.0
+      - image: maildev/maildev:1.1.0
         name: maildev-noauth
         entrypoint: bin/maildev
         command:
           - -v
-      - image: djfarrelly/maildev:1.1.0
+      - image: maildev/maildev:1.1.0
         name: maildev-auth
         entrypoint: bin/maildev
         command:
@@ -96,13 +104,13 @@ jobs:
   mixin:
     docker:
       # Whenever the Go version is updated here, .promu.yml should also be updated.
-      - image: quay.io/prometheus/golang-builder:1.17-base
+      - image: quay.io/prometheus/golang-builder:1.18-base
     steps:
       - checkout
-      - run: cd doc/alertmanager-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
-      - run: cd doc/alertmanager-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
-      - run: cd doc/alertmanager-mixin; go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
-      - run: cd doc/alertmanager-mixin; make lint
+      - run: go install github.com/monitoring-mixins/mixtool/cmd/mixtool@latest
+      - run: go install github.com/google/go-jsonnet/cmd/jsonnetfmt@latest
+      - run: go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
+      - run: make -C doc/alertmanager-mixin lint
 workflows:
   version: 2
   alertmanager:
@@ -117,10 +125,21 @@ workflows:
               only: /.*/
       - prometheus/build:
           name: build
-          parallelism: 8
+          parallelism: 3
+          promu_opts: "-p linux/amd64 -p windows/amd64 -p linux/arm64 -p darwin/amd64 -p darwin/arm64 -p linux/386"
           filters:
             tags:
-              only: /.*/
+              ignore: /^v2(\.[0-9]+){2}(-.+|[^-.]*)$/
+            branches:
+              ignore: /^(main|release-.*|.*build-all.*)$/
+      - prometheus/build:
+          name: build_all
+          parallelism: 12
+          filters:
+            branches:
+              only: /^(main|release-.*|.*build-all.*)$/
+            tags:
+              only: /^v2(\.[0-9]+){2}(-.+|[^-.]*)$/
       - mixin:
           filters:
             tags:
@@ -130,7 +149,7 @@ workflows:
           requires:
             - test_frontend
             - test
-            - build
+            - build_all
           filters:
             branches:
               only: main
@@ -139,7 +158,7 @@ workflows:
           requires:
             - test_frontend
             - test
-            - build
+            - build_all
           filters:
             tags:
               only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/

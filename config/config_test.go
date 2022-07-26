@@ -855,6 +855,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		Global: &GlobalConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{
 				FollowRedirects: true,
+				EnableHTTP2:     true,
 			},
 			ResolveTimeout:  model.Duration(5 * time.Minute),
 			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},

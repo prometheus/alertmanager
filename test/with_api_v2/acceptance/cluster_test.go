@@ -45,7 +45,7 @@ receivers:
 		Tolerance: 1 * time.Second,
 	})
 	co := at.Collector("webhook")
-	wh := a.NewWebhook(co)
+	wh := a.NewWebhook(t, co)
 
 	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 3)
 
@@ -92,20 +92,20 @@ receivers:
 	amClusters := []*a.AlertmanagerCluster{}
 	wg := sync.WaitGroup{}
 
-	for i, t := range tests {
-		collectors = append(collectors, t.Collector("webhook"))
-		webhook := a.NewWebhook(collectors[i])
+	for i, tc := range tests {
+		collectors = append(collectors, tc.Collector("webhook"))
+		webhook := a.NewWebhook(t, collectors[i])
 
-		amClusters = append(amClusters, t.AlertmanagerCluster(fmt.Sprintf(conf, webhook.Address()), clusterSizes[i]))
+		amClusters = append(amClusters, tc.AlertmanagerCluster(fmt.Sprintf(conf, webhook.Address()), clusterSizes[i]))
 
 		wg.Add(1)
 	}
 
-	for _, time := range []float64{0, 2, 4, 6, 8} {
+	for _, alertTime := range []float64{0, 2, 4, 6, 8} {
 		for i, amc := range amClusters {
-			alert := a.Alert("alertname", fmt.Sprintf("test1-%v", time))
-			amc.Push(a.At(time), alert)
-			collectors[i].Want(a.Between(time, time+5), alert.Active(time))
+			alert := a.Alert("alertname", fmt.Sprintf("test1-%v", alertTime))
+			amc.Push(a.At(alertTime), alert)
+			collectors[i].Want(a.Between(alertTime, alertTime+5), alert.Active(alertTime))
 		}
 	}
 

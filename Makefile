@@ -29,6 +29,10 @@ build-all: assets apiv2 build
 .PHONY: assets
 assets: asset/assets_vfsdata.go
 
+.PHONY: assets-tarball
+assets-tarball: ui/app/script.js ui/app/index.html
+	scripts/package_assets.sh
+
 asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
 	GO111MODULE=$(GO111MODULE) $(GO) generate $(GOOPTS) ./asset
 	@$(GOFMT) -w ./asset
