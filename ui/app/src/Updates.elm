@@ -3,7 +3,6 @@ module Updates exposing (update)
 import Browser.Navigation as Navigation
 import Task
 import Types exposing (Model, Msg(..), Route(..))
-import Utils.Types as Types
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.AlertList.Updates
 import Views.SilenceForm.Types exposing (SilenceFormMsg(..))
