@@ -52,7 +52,7 @@ update msg ({ basePath, apiUrl } as model) =
             )
 
         NavigateToSilenceFormEdit uuid ->
-            ( { model | route = SilenceFormEditRoute uuid }, Task.perform identity (Task.succeed <| (FetchSilence uuid |> MsgForSilenceForm)) )
+            ( { model | route = SilenceFormEditRoute uuid }, Task.perform identity (Task.succeed <| (FetchSilenceWithUser uuid |> MsgForSilenceForm)) )
 
         NavigateToNotFound ->
             ( { model | route = NotFoundRoute }, Cmd.none )

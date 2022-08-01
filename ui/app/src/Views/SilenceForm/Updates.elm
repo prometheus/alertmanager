@@ -206,36 +206,54 @@ update msg model basePath apiUrl =
             ( { model | silenceId = silenceId }, cmd )
 
         NewSilenceFromMatchersAndComment defaultCreator params ->
-            ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment >> MsgForSilenceForm) Time.now )
+            ( model, Silences.Api.getUser apiUrl (NewSilenceFromMatchersAndCommentAndUser defaultCreator params >> MsgForSilenceForm) )
 
-        NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment time ->
-            ( { form = fromMatchersAndCommentAndTime defaultCreator comment time
+        NewSilenceFromMatchersAndCommentAndUser defaultCreator params (Success user) ->
+            ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment (Just user.username) >> MsgForSilenceForm) Time.now )
+
+        NewSilenceFromMatchersAndCommentAndUser defaultCreator params _ ->
+            ( model, Task.perform (NewSilenceFromMatchersAndCommentAndTime defaultCreator params.matchers params.comment Nothing >> MsgForSilenceForm) Time.now )
+
+        NewSilenceFromMatchersAndCommentAndTime defaultCreator matchers comment username time ->
+            ( { form = fromMatchersAndCommentAndTime defaultCreator username comment time
               , alerts = Initial
               , activeAlertId = Nothing
               , silenceId = Initial
               , filterBar = FilterBar.initFilterBar matchers
               , filterBarValid = Utils.FormValidation.Initial
+              , username = username
               , key = model.key
               }
             , Cmd.none
             )
 
-        FetchSilence silenceId ->
-            ( model, Silences.Api.getSilence apiUrl silenceId (SilenceFetch >> MsgForSilenceForm) )
+        FetchSilenceWithUser silenceId ->
+            ( model, Silences.Api.getUser apiUrl (FetchSilence silenceId >> MsgForSilenceForm) )
 
-        SilenceFetch (Success silence) ->
-            ( { form = fromSilence silence
+        FetchSilence silenceId (Success user) ->
+            ( model
+            , Silences.Api.getSilence apiUrl silenceId (SilenceFetch (Just user.username) >> MsgForSilenceForm)
+            )
+
+        FetchSilence silenceId _ ->
+            ( model
+            , Silences.Api.getSilence apiUrl silenceId (SilenceFetch Nothing >> MsgForSilenceForm)
+            )
+
+        SilenceFetch username (Success silence) ->
+            ( { form = fromSilence silence username
               , filterBar = FilterBar.initFilterBar (List.map Utils.Filter.fromApiMatcher silence.matchers)
               , filterBarValid = Utils.FormValidation.Initial
               , silenceId = model.silenceId
               , alerts = Initial
               , activeAlertId = Nothing
+              , username = username
               , key = model.key
               }
             , Task.perform identity (Task.succeed (MsgForSilenceForm PreviewSilence))
             )
 
-        SilenceFetch _ ->
+        SilenceFetch _ _ ->
             ( model, Cmd.none )
 
         PreviewSilence ->

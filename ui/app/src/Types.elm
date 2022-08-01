@@ -2,7 +2,7 @@ module Types exposing (Model, Msg(..), Route(..))
 
 import Browser.Navigation exposing (Key)
 import Utils.Filter exposing (Filter, SilenceFormGetParams)
-import Utils.Types exposing (ApiData)
+import Utils.Types exposing (ApiData(..))
 import Views.AlertList.Types as AlertList exposing (AlertListMsg)
 import Views.SilenceForm.Types as SilenceForm exposing (SilenceFormMsg)
 import Views.SilenceList.Types as SilenceList exposing (SilenceListMsg)

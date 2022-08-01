@@ -18,6 +18,7 @@ import Data.GettableAlert exposing (GettableAlert)
 import Data.GettableSilence exposing (GettableSilence)
 import Data.Matcher
 import Data.PostableSilence exposing (PostableSilence)
+import Data.User exposing (User)
 import DateTime
 import Silences.Types exposing (nullSilence)
 import Time exposing (Posix)
@@ -43,6 +44,7 @@ type alias Model =
     , silenceId : ApiData String
     , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
+    , username : Maybe String
     , key : Key
     }
 
@@ -65,10 +67,12 @@ type SilenceFormMsg
     | PreviewSilence
     | AlertGroupsPreview (ApiData (List GettableAlert))
     | SetActiveAlert (Maybe String)
-    | FetchSilence String
+    | FetchSilenceWithUser String
+    | FetchSilence String (ApiData User)
     | NewSilenceFromMatchersAndComment String Utils.Filter.SilenceFormGetParams
-    | NewSilenceFromMatchersAndCommentAndTime String (List Utils.Filter.Matcher) String Posix
-    | SilenceFetch (ApiData GettableSilence)
+    | NewSilenceFromMatchersAndCommentAndUser String Utils.Filter.SilenceFormGetParams (ApiData User)
+    | NewSilenceFromMatchersAndCommentAndTime String (List Utils.Filter.Matcher) String (Maybe String) Posix
+    | SilenceFetch (Maybe String) (ApiData GettableSilence)
     | SilenceCreate (ApiData String)
     | UpdateDateTimePicker Utils.DateTimePicker.Types.Msg
     | MsgForFilterBar FilterBar.Msg
@@ -96,6 +100,7 @@ initSilenceForm key =
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     , activeAlertId = Nothing
+    , username = Nothing
     , key = key
     }
 
@@ -135,8 +140,8 @@ validMatchers { matchers, matcherText } =
                 Ok (List.map Utils.Filter.toApiMatcher nonEmptyMatchers)
 
 
-fromSilence : GettableSilence -> SilenceForm
-fromSilence { id, createdBy, comment, startsAt, endsAt } =
+fromSilence : GettableSilence -> Maybe String -> SilenceForm
+fromSilence { id, createdBy, comment, startsAt, endsAt } username =
     let
         startsPosix =
             Utils.Date.timeFromString (DateTime.toString startsAt)
@@ -145,9 +150,12 @@ fromSilence { id, createdBy, comment, startsAt, endsAt } =
         endsPosix =
             Utils.Date.timeFromString (DateTime.toString endsAt)
                 |> Result.toMaybe
+
+        loginUser =
+            username |> Maybe.withDefault createdBy
     in
     { id = Just id
-    , createdBy = initialField createdBy
+    , createdBy = initialField loginUser
     , comment = initialField comment
     , startsAt = initialField (timeToString startsAt)
     , endsAt = initialField (timeToString endsAt)
@@ -213,13 +221,17 @@ defaultDuration =
     2 * 60 * 60 * 1000
 
 
-fromMatchersAndCommentAndTime : String -> String -> Posix -> SilenceForm
-fromMatchersAndCommentAndTime defaultCreator comment now =
+fromMatchersAndCommentAndTime : String -> Maybe String -> String -> Posix -> SilenceForm
+fromMatchersAndCommentAndTime defaultCreator username comment now =
+    let
+        createdBy =
+            username |> Maybe.withDefault defaultCreator
+    in
     { empty
         | startsAt = initialField (timeToString now)
         , endsAt = initialField (timeToString (addDuration defaultDuration now))
         , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
-        , createdBy = initialField defaultCreator
+        , createdBy = initialField createdBy
         , comment = initialField comment
         , dateTimePicker = initFromStartAndEndTime (Just now) (Just (addDuration defaultDuration now))
         , viewDateTimePicker = False

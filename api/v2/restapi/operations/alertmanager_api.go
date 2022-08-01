@@ -70,6 +70,9 @@ func NewAlertmanagerAPI(spec *loads.Document) *AlertmanagerAPI {
 		AlertGetAlertsHandler: alert.GetAlertsHandlerFunc(func(params alert.GetAlertsParams) middleware.Responder {
 			return middleware.NotImplemented("operation alert.GetAlerts has not yet been implemented")
 		}),
+		GeneralGetMeHandler: general.GetMeHandlerFunc(func(params general.GetMeParams) middleware.Responder {
+			return middleware.NotImplemented("operation general.GetMe has not yet been implemented")
+		}),
 		ReceiverGetReceiversHandler: receiver.GetReceiversHandlerFunc(func(params receiver.GetReceiversParams) middleware.Responder {
 			return middleware.NotImplemented("operation receiver.GetReceivers has not yet been implemented")
 		}),
@@ -127,6 +130,8 @@ type AlertmanagerAPI struct {
 	AlertgroupGetAlertGroupsHandler alertgroup.GetAlertGroupsHandler
 	// AlertGetAlertsHandler sets the operation handler for the get alerts operation
 	AlertGetAlertsHandler alert.GetAlertsHandler
+	// GeneralGetMeHandler sets the operation handler for the get me operation
+	GeneralGetMeHandler general.GetMeHandler
 	// ReceiverGetReceiversHandler sets the operation handler for the get receivers operation
 	ReceiverGetReceiversHandler receiver.GetReceiversHandler
 	// SilenceGetSilenceHandler sets the operation handler for the get silence operation
@@ -213,6 +218,9 @@ func (o *AlertmanagerAPI) Validate() error {
 	}
 	if o.AlertGetAlertsHandler == nil {
 		unregistered = append(unregistered, "alert.GetAlertsHandler")
+	}
+	if o.GeneralGetMeHandler == nil {
+		unregistered = append(unregistered, "general.GetMeHandler")
 	}
 	if o.ReceiverGetReceiversHandler == nil {
 		unregistered = append(unregistered, "receiver.GetReceiversHandler")
@@ -332,6 +340,10 @@ func (o *AlertmanagerAPI) initHandlerCache() {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/alerts"] = alert.NewGetAlerts(o.context, o.AlertGetAlertsHandler)
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/me"] = general.NewGetMe(o.context, o.GeneralGetMeHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
