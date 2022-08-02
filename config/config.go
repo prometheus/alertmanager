@@ -738,7 +738,8 @@ func (hp HostPort) String() string {
 type GlobalConfig struct {
 	// ResolveTimeout is the time after which an alert is declared resolved
 	// if it has not been updated.
-	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
+	ResolveTimeout   model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
+	ResolveInhibited bool           `yaml:"resolve_inhibited,omitempty" json:"resolve_inhibited,omitempty"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 

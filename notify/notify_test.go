@@ -666,7 +666,7 @@ func TestMuteStage(t *testing.T) {
 		return ok
 	})
 
-	stage := NewMuteStage(muter)
+	stage := NewMuteStage(muter, false)
 
 	in := []model.LabelSet{
 		{},
@@ -707,6 +707,52 @@ func TestMuteStage(t *testing.T) {
 	}
 }
 
+func TestResolveMuted(t *testing.T) {
+	// test alert
+	alert := &types.Alert{
+		Alert: model.Alert{Labels: model.LabelSet{"mute": "me"}},
+	}
+
+	// fire alert unmuted
+	nonMuter := types.MuteFunc(func(lset model.LabelSet) bool {
+		return false
+	})
+
+	stage := NewMuteStage(nonMuter, true)
+
+	_, alerts, err := stage.Exec(context.Background(), log.NewNopLogger(), alert)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if len(alerts) != 1 {
+		t.Fatalf("Did not receive alert back")
+	}
+
+	if !alerts[0].FiredUnmuted {
+		t.Fatalf("Alert did not have fired unmuted flag set")
+	}
+
+	alert.EndsAt = time.Now().Add(-time.Second)
+
+	// Mute all label sets that have a "mute" key.
+	muter := types.MuteFunc(func(lset model.LabelSet) bool {
+		_, ok := lset["mute"]
+		return ok
+	})
+
+	stage = NewMuteStage(muter, true)
+
+	_, alerts, err = stage.Exec(context.Background(), log.NewNopLogger(), alert)
+	if err != nil {
+		t.Fatalf("Exec failed: %s", err)
+	}
+
+	if len(alerts) != 1 {
+		t.Fatalf("Did not receive muted resolved alert back")
+	}
+}
+
 func TestMuteStageWithSilences(t *testing.T) {
 	silences, err := silence.New(silence.Options{Retention: time.Hour})
 	if err != nil {
@@ -722,7 +768,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	marker := types.NewMarker(prometheus.NewRegistry())
 	silencer := silence.NewSilencer(silences, marker, log.NewNopLogger())
-	stage := NewMuteStage(silencer)
+	stage := NewMuteStage(silencer, false)
 
 	in := []model.LabelSet{
 		{},

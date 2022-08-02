@@ -377,14 +377,15 @@ func (pb *PipelineBuilder) New(
 	intervener *timeinterval.Intervener,
 	notificationLog NotificationLog,
 	peer Peer,
+	resolveInhibited bool,
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
 	ms := NewGossipSettleStage(peer)
-	is := NewMuteStage(inhibitor)
 	tas := NewTimeActiveStage(intervener)
 	tms := NewTimeMuteStage(intervener)
-	ss := NewMuteStage(silencer)
+	is := NewMuteStage(inhibitor, resolveInhibited)
+	ss := NewMuteStage(silencer, resolveInhibited)
 
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
@@ -509,12 +510,13 @@ func (n *GossipSettleStage) Exec(ctx context.Context, _ log.Logger, alerts ...*t
 
 // MuteStage filters alerts through a Muter.
 type MuteStage struct {
-	muter types.Muter
+	muter            types.Muter
+	resolveInhibited bool
 }
 
 // NewMuteStage return a new MuteStage.
-func NewMuteStage(m types.Muter) *MuteStage {
-	return &MuteStage{muter: m}
+func NewMuteStage(m types.Muter, resolveInhibited bool) *MuteStage {
+	return &MuteStage{muter: m, resolveInhibited: resolveInhibited}
 }
 
 // Exec implements the Stage interface.
@@ -525,11 +527,17 @@ func (n *MuteStage) Exec(ctx context.Context, logger log.Logger, alerts ...*type
 	)
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
+		isMuted := n.muter.Mutes(a.Labels)
+		if !isMuted && !a.Resolved() && n.resolveInhibited {
+			a.FiredUnmuted = true
+		}
 		// Do not send the alert if muted.
-		if n.muter.Mutes(a.Labels) {
-			muted = append(muted, a)
-		} else {
+		// Do send resolved notifications if configured
+		// to do so and the alert fired unmuted.
+		if !isMuted || (a.Resolved() && a.FiredUnmuted && n.resolveInhibited) {
 			filtered = append(filtered, a)
+		} else {
+			muted = append(muted, a)
 		}
 		// TODO(fabxc): increment muted alerts counter if muted.
 	}
