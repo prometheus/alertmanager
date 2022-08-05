@@ -965,6 +965,52 @@ func TestSMTPHello(t *testing.T) {
 	}
 }
 
+func TestSMTPBothPasswordAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.smtp-both-password-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.smtp-both-password-and-file.yml", err)
+	}
+	if err.Error() != "at most one of smtp_auth_password & smtp_auth_password_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of auth_password & auth_password_file must be configured", err.Error())
+	}
+}
+
+func TestSMTPNoUsernameOrPassword(t *testing.T) {
+	_, err := LoadFile("testdata/conf.smtp-no-username-or-password.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.smtp-no-username-or-password.yml", err)
+	}
+}
+
+func TestSMTPNoPassword(t *testing.T) {
+	_, err := LoadFile("testdata/conf.smtp-no-password.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.smtp-no-password.yml", err)
+	}
+	if err.Error() != "SMTP username provided, but no global SMTP password set either inline or in a file" {
+		t.Errorf("Expected: %s\nGot: %s", "no global SMTP password set either inline or in a file", err.Error())
+	}
+}
+
+func TestGlobalAndLocalSMTPPassword(t *testing.T) {
+	config, err := LoadFile("testdata/conf.smtp-password-global-and-local.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.smtp-password-global-and-local.yml", err)
+	}
+
+	if config.Receivers[0].EmailConfigs[0].AuthPasswordFile != "/tmp/globaluserpassword" {
+		t.Fatalf("first email should use password file /tmp/globaluserpassword")
+	}
+
+	if config.Receivers[0].EmailConfigs[1].AuthPasswordFile != "/tmp/localuser1password" {
+		t.Fatalf("second email should use password file /tmp/localuser1password")
+	}
+
+	if config.Receivers[0].EmailConfigs[2].AuthPassword != "mysecret" {
+		t.Fatalf("third email should use password mysecret")
+	}
+}
+
 func TestGroupByAll(t *testing.T) {
 	c, err := LoadFile("testdata/conf.group-by-all.yml")
 	if err != nil {

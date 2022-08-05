@@ -91,7 +91,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 			return smtp.CRAMMD5Auth(username, secret), nil
 
 		case "PLAIN":
-			password := string(n.conf.AuthPassword)
+			password := n.getPassword()
 			if password == "" {
 				err.Add(errors.New("missing password for PLAIN auth mechanism"))
 				continue
@@ -100,7 +100,7 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 
 			return smtp.PlainAuth(identity, username, password, n.conf.Smarthost.Host), nil
 		case "LOGIN":
-			password := string(n.conf.AuthPassword)
+			password := n.getPassword()
 			if password == "" {
 				err.Add(errors.New("missing password for LOGIN auth mechanism"))
 				continue
@@ -352,4 +352,15 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
+}
+
+func (n *Email) getPassword() string {
+	if len(n.conf.AuthPassword) > 0 {
+		return string(n.conf.AuthPassword)
+	}
+	content, err := os.ReadFile(string(n.conf.AuthPasswordFile))
+	if err != nil {
+		return ""
+	}
+	return string(content)
 }
