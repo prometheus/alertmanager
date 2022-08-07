@@ -143,24 +143,28 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 
 // Match does a depth-first left-to-right search through the route tree
 // and returns the matching routing nodes.
+// 告警匹配
 func (r *Route) Match(lset model.LabelSet) []*Route {
+	// 判断告警是否还是否存在于路由中
 	if !r.Matchers.Matches(lset) {
 		return nil
 	}
 
 	var all []*Route
 
+	// 匹配告警路由信息
 	for _, cr := range r.Routes {
 		matches := cr.Match(lset)
 
 		all = append(all, matches...)
-
+		// 判断是否继续匹配，只要有一个匹配成功就结束匹配
 		if matches != nil && !cr.Continue {
 			break
 		}
 	}
 
 	// If no child nodes were matches, the current node itself is a match.
+	// 如果没有匹配的路由，就是用默认的路由
 	if len(all) == 0 {
 		all = append(all, r)
 	}

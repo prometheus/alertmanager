@@ -143,7 +143,9 @@ func (d *Dispatcher) Run() {
 	close(d.done)
 }
 
+// 告警调度
 func (d *Dispatcher) run(it provider.AlertIterator) {
+	// 初始化定时器
 	cleanup := time.NewTicker(30 * time.Second)
 	defer cleanup.Stop()
 
@@ -151,7 +153,9 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 	for {
 		select {
+		// 获取告警信息
 		case alert, ok := <-it.Next():
+			// 判断是否成功获取
 			if !ok {
 				// Iterator exhausted for some reason.
 				if err := it.Err(); err != nil {
@@ -169,7 +173,9 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 			}
 
 			now := time.Now()
+			// 告警信息路由匹配
 			for _, r := range d.route.Match(alert.Labels) {
+				// 告警信息处理
 				d.processAlert(alert, r)
 			}
 			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
@@ -177,6 +183,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 		case <-cleanup.C:
 			d.mtx.Lock()
 
+			// 没过30s清除为空的告警组
 			for _, groups := range d.aggrGroupsPerRoute {
 				for _, ag := range groups {
 					if ag.empty() {
@@ -302,7 +309,9 @@ type notifyFunc func(context.Context, ...*types.Alert) bool
 
 // processAlert determines in which aggregation group the alert falls
 // and inserts it.
+// 告警处理
 func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
+	// 获取分组的维度信息和维度值
 	groupLabels := getGroupLabels(alert, route)
 
 	fp := groupLabels.Fingerprint()
@@ -310,14 +319,18 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	// 判断是否需要告警路由组
 	routeGroups, ok := d.aggrGroupsPerRoute[route]
 	if !ok {
+		// 新建告警路由组
 		routeGroups = map[model.Fingerprint]*aggrGroup{}
 		d.aggrGroupsPerRoute[route] = routeGroups
 	}
 
+	// 获取告警组
 	ag, ok := routeGroups[fp]
 	if ok {
+		// 新建告警路由组
 		ag.insert(alert)
 		return
 	}
@@ -337,8 +350,10 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
+	// 将告警信息拆入告警列表中
 	ag.insert(alert)
 
+	// 启动告警组
 	go ag.run(func(ctx context.Context, alerts ...*types.Alert) bool {
 		_, _, err := d.stage.Exec(ctx, d.logger, alerts...)
 		if err != nil {
@@ -422,37 +437,47 @@ func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
 }
 
+// 启动告警组
 func (ag *aggrGroup) run(nf notifyFunc) {
 	defer close(ag.done)
 	defer ag.next.Stop()
 
 	for {
 		select {
+		// 根据 ag.next 进行周期性告警调度，ag.next的初始值为GroupWait
 		case now := <-ag.next.C:
 			// Give the notifications time until the next flush to
 			// finish before terminating them.
+			// 记录发送告警的超时时间
 			ctx, cancel := context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
 
 			// The now time we retrieve from the ticker is the only reliable
 			// point of time reference for the subsequent notification pipeline.
 			// Calculating the current time directly is prone to flaky behavior,
 			// which usually only becomes apparent in tests.
+			// 记录告警通知的开始时间
 			ctx = notify.WithNow(ctx, now)
 
 			// Populate context with information needed along the pipeline.
+			// 记录告警组的名称
 			ctx = notify.WithGroupKey(ctx, ag.GroupKey())
+			// 记录告警组维度的信息
 			ctx = notify.WithGroupLabels(ctx, ag.labels)
+			// 记录告警接收方的名称
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
+			// 记录告警重复发送的时间间隔
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
 			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
+			// 重置 ag.next 的值为 GroupInterval
 			ag.next.Reset(ag.opts.GroupInterval)
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
+			// 告警输出
 			ag.flush(func(alerts ...*types.Alert) bool {
 				return nf(ctx, alerts...)
 			})
@@ -492,6 +517,7 @@ func (ag *aggrGroup) empty() bool {
 }
 
 // flush sends notifications for all new alerts.
+// 告警输出
 func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	if ag.empty() {
 		return
@@ -502,6 +528,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 		alertsSlice = make(types.AlertSlice, 0, len(alerts))
 		now         = time.Now()
 	)
+	// 遍历告警信息将其缓存到 alerts于alertsSlices中
 	for _, alert := range alerts {
 		a := *alert
 		// Ensure that alerts don't resolve as time move forwards.
@@ -514,7 +541,9 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 
 	level.Debug(ag.logger).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
+	// 告警通知回调
 	if notify(alertsSlice...) {
+		// 遍历告警信息， 删除过期的告警
 		for _, a := range alertsSlice {
 			// Only delete if the fingerprint has not been inserted
 			// again since we notified about it.
@@ -525,6 +554,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				level.Error(ag.logger).Log("msg", "failed to get alert", "err", err, "alert", a.String())
 				continue
 			}
+			// 删除过期的告警
 			if a.Resolved() && got.UpdatedAt == a.UpdatedAt {
 				if err := ag.alerts.Delete(fp); err != nil {
 					level.Error(ag.logger).Log("msg", "error on delete alert", "err", err, "alert", a.String())

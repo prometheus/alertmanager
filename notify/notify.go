@@ -317,6 +317,7 @@ func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
 }
 
 // New returns a map of receivers to Stages.
+// 构建管道阶段
 func (pb *PipelineBuilder) New(
 	receivers map[string][]Integration,
 	wait func() time.Duration,
@@ -329,13 +330,18 @@ func (pb *PipelineBuilder) New(
 	rs := make(RoutingStage, len(receivers))
 
 	ms := NewGossipSettleStage(peer)
+	// 控制告警抑制
 	is := NewMuteStage(inhibitor)
 	tas := NewTimeActiveStage(times)
 	tms := NewTimeMuteStage(times)
+	// 控制告警静默
 	ss := NewMuteStage(silencer)
 
+	// 遍历 alertmanager.yaml中配置的 receiver节点
+	// 对发送的每种告警都构建一个 MultiStage
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		// rc.name 为告警接受方式的名称
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 	return rs
