@@ -83,4 +83,4 @@ require (
 // fix CVE-2022-24450
 replace github.com/nats-io/nats-server/v2 => github.com/nats-io/nats-server/v2 v2.7.2
 
-go 1.17
+go 1.18
