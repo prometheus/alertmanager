@@ -129,11 +129,13 @@ const defaultClusterAddr = "0.0.0.0:9094"
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
+// 根据告警接收器构建 Integration
 func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
 	var (
 		errs         types.MultiError
 		integrations []notify.Integration
-		add          = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {
+		// 根据 Notifier 及对于的配置信息构建 Integration, 并将其添加到 Integration 数组中
+		add = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {
 			n, err := f(log.With(logger, "integration", name))
 			if err != nil {
 				errs.Add(err)
@@ -143,6 +145,7 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		}
 	)
 
+	// 构建 各种类型的 Notifier （webhook， email。。。类型的）
 	for i, c := range nc.WebhookConfigs {
 		add("webhook", i, c, func(l log.Logger) (notify.Notifier, error) { return webhook.New(c, tmpl, l) })
 	}
