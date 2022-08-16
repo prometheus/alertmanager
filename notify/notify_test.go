@@ -207,7 +207,7 @@ func TestDedupStageNeedsUpdate(t *testing.T) {
 			now: func() time.Time { return now },
 			rs:  sendResolved(c.resolve),
 		}
-		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat)
+		res := s.needsUpdate(c.entry, c.firingAlerts, c.resolvedAlerts, c.repeat, 2*time.Hour)
 		require.Equal(t, c.res, res)
 	}
 }

@@ -116,6 +116,7 @@ const (
 	keyNow
 	keyMuteTimeIntervals
 	keyActiveTimeIntervals
+	keyGroupInterval
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -162,6 +163,11 @@ func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
 	return context.WithValue(ctx, keyActiveTimeIntervals, at)
 }
 
+// WithGroupInterval populates a context with a group interval.
+func WithGroupInterval(ctx context.Context, t time.Duration) context.Context {
+	return context.WithValue(ctx, keyGroupInterval, t)
+}
+
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
 // second argument is false.
 func RepeatInterval(ctx context.Context) (time.Duration, bool) {
@@ -187,6 +193,13 @@ func GroupKey(ctx context.Context) (string, bool) {
 // second argument is false.
 func GroupLabels(ctx context.Context) (model.LabelSet, bool) {
 	v, ok := ctx.Value(keyGroupLabels).(model.LabelSet)
+	return v, ok
+}
+
+// GroupInterval extracts group interval from the context. Iff none exists, the
+// second argument is false.
+func GroupInterval(ctx context.Context) (time.Duration, bool) {
+	v, ok := ctx.Value(keyGroupInterval).(time.Duration)
 	return v, ok
 }
 
@@ -560,14 +573,16 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat, groupInterval time.Duration) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
 		return len(firing) > 0
 	}
 
-	if !entry.IsFiringSubset(firing) {
+	groupIntervalMuted := len(entry.FiringAlerts) > 0 && entry.Timestamp.After(time.Now().Add(-groupInterval))
+
+	if !entry.IsFiringSubset(firing) && !groupIntervalMuted {
 		return true
 	}
 
@@ -582,7 +597,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return len(entry.FiringAlerts) > 0
 	}
 
-	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
+	if n.rs.SendResolved() && !groupIntervalMuted {
 		return true
 	}
 
@@ -595,6 +610,11 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
+	}
+
+	groupInterval, ok := GroupInterval(ctx)
+	if !ok {
+		return ctx, nil, errors.New("group interval missing")
 	}
 
 	repeatInterval, ok := RepeatInterval(ctx)
@@ -636,7 +656,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 		return ctx, nil, errors.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, groupInterval) {
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil

@@ -446,10 +446,11 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
 			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
+			ctx = notify.WithGroupInterval(ctx, ag.opts.GroupInterval)
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
-			ag.next.Reset(ag.opts.GroupInterval)
+			ag.next.Reset(ag.opts.GroupWait)
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 
