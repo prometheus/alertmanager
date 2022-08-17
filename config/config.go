@@ -486,6 +486,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sns.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
+		for _, telegram := range rcv.TelegramConfigs {
+			if telegram.HTTPConfig == nil {
+				telegram.HTTPConfig = c.Global.HTTPConfig
+			}
+			if telegram.APIUrl == nil {
+				telegram.APIUrl = c.Global.TelegramAPIUrl
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 

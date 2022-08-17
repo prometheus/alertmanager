@@ -323,7 +323,7 @@ func run() int {
 	// Start providers before router potentially sends updates.
 	wg.Add(1)
 	go func() {
-		silences.Maintenance(15*time.Minute, filepath.Join(*dataDir, "silences"), stopc, nil)
+		silences.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "silences"), stopc, nil)
 		wg.Done()
 	}()
 
@@ -359,7 +359,9 @@ func run() int {
 	defer alerts.Close()
 
 	var disp *dispatch.Dispatcher
-	defer disp.Stop()
+	defer func() {
+		disp.Stop()
+	}()
 
 	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
 		return disp.Groups(routeFilter, alertFilter)
@@ -453,10 +455,14 @@ func run() int {
 			integrationsNum += len(integrations)
 		}
 
-		// Build the map of time interval names to mute time definitions.
-		muteTimes := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals))
+		// Build the map of time interval names to time interval definitions.
+		timeIntervals := make(map[string][]timeinterval.TimeInterval, len(conf.MuteTimeIntervals)+len(conf.TimeIntervals))
 		for _, ti := range conf.MuteTimeIntervals {
-			muteTimes[ti.Name] = ti.TimeIntervals
+			timeIntervals[ti.Name] = ti.TimeIntervals
+		}
+
+		for _, ti := range conf.TimeIntervals {
+			timeIntervals[ti.Name] = ti.TimeIntervals
 		}
 
 		inhibitor.Stop()
@@ -478,7 +484,7 @@ func run() int {
 			waitFunc,
 			inhibitor,
 			silencer,
-			muteTimes,
+			timeIntervals,
 			notificationLog,
 			pipelinePeer,
 		)
