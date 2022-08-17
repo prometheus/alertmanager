@@ -30,7 +30,8 @@ import (
 // GetSilenceOKCode is the HTTP code returned for type GetSilenceOK
 const GetSilenceOKCode int = 200
 
-/*GetSilenceOK Get silence response
+/*
+GetSilenceOK Get silence response
 
 swagger:response getSilenceOK
 */
@@ -74,7 +75,8 @@ func (o *GetSilenceOK) WriteResponse(rw http.ResponseWriter, producer runtime.Pr
 // GetSilenceNotFoundCode is the HTTP code returned for type GetSilenceNotFound
 const GetSilenceNotFoundCode int = 404
 
-/*GetSilenceNotFound A silence with the specified ID was not found
+/*
+GetSilenceNotFound A silence with the specified ID was not found
 
 swagger:response getSilenceNotFound
 */
@@ -98,7 +100,8 @@ func (o *GetSilenceNotFound) WriteResponse(rw http.ResponseWriter, producer runt
 // GetSilenceInternalServerErrorCode is the HTTP code returned for type GetSilenceInternalServerError
 const GetSilenceInternalServerErrorCode int = 500
 
-/*GetSilenceInternalServerError Internal server error
+/*
+GetSilenceInternalServerError Internal server error
 
 swagger:response getSilenceInternalServerError
 */

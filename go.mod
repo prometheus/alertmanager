@@ -36,6 +36,7 @@ require (
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/slack-go/slack v0.10.4-0.20220503131901-0e14c9d4a15c
 	github.com/stretchr/testify v1.7.0
+	github.com/twilio/twilio-go v0.26.0
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	golang.org/x/mod v0.4.2

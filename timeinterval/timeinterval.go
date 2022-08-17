@@ -373,7 +373,7 @@ func (ir InclusiveRange) MarshalText() ([]byte, error) {
 	return []byte(out), nil
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
+// MarshalYAML implements the yaml.Marshaler interface for InclusiveRange.
 func (ir InclusiveRange) MarshalYAML() (interface{}, error) {
 	bytes, err := ir.MarshalText()
 	return string(bytes), err

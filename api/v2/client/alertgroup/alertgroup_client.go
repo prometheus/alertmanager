@@ -47,7 +47,7 @@ type ClientService interface {
 }
 
 /*
-  GetAlertGroups Get a list of alert groups
+GetAlertGroups Get a list of alert groups
 */
 func (a *Client) GetAlertGroups(params *GetAlertGroupsParams) (*GetAlertGroupsOK, error) {
 	// TODO: Validate the params before sending

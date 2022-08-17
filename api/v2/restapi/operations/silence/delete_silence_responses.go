@@ -28,7 +28,8 @@ import (
 // DeleteSilenceOKCode is the HTTP code returned for type DeleteSilenceOK
 const DeleteSilenceOKCode int = 200
 
-/*DeleteSilenceOK Delete silence response
+/*
+DeleteSilenceOK Delete silence response
 
 swagger:response deleteSilenceOK
 */
@@ -52,7 +53,8 @@ func (o *DeleteSilenceOK) WriteResponse(rw http.ResponseWriter, producer runtime
 // DeleteSilenceInternalServerErrorCode is the HTTP code returned for type DeleteSilenceInternalServerError
 const DeleteSilenceInternalServerErrorCode int = 500
 
-/*DeleteSilenceInternalServerError Internal server error
+/*
+DeleteSilenceInternalServerError Internal server error
 
 swagger:response deleteSilenceInternalServerError
 */

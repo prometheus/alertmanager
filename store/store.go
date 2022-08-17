@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	// ErrNotFound is returned if a Store cannot find the Alert.
+	// ErrNotFound is returned if a store cannot find the Alert.
 	ErrNotFound = errors.New("alert not found")
 )
 
