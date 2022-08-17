@@ -266,7 +266,7 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		}
 	}
 
-	//Summary Description and metrics
+	//Summary Description and Metrics
 	{
 		block := Block{Type: slack.MBTContext, Elements: make([]*Element, 0)}
 
@@ -282,7 +282,9 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 					grafanaMapParams[match[1]] = match[2]
 				}
 			}
-			block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Metric:* %s\n", valueStringCollection)})
+			if valueStringCollection != "" {
+				block.Elements = append(block.Elements, &Element{Type: slack.MarkdownType, Text: fmt.Sprintf("*Metric:* %s\n", valueStringCollection)})
+			}
 		}
 
 		if val := getMapValue(data.CommonAnnotations, "description"); len(val) > 0 {
