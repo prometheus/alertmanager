@@ -210,7 +210,7 @@ _API v2 is still under heavy development and thereby subject to change._
 
 Alternatively you can install with:
 ```
-go get github.com/prometheus/alertmanager/cmd/amtool
+$ go install github.com/prometheus/alertmanager/cmd/amtool@latest
 ```
 
 ### Examples

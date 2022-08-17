@@ -15,14 +15,14 @@ package cli
 
 import (
 	"context"
-
 	"fmt"
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type alertAddCmd struct {
@@ -70,7 +70,6 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 }
 
 func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) error {
-
 	if len(a.labels) > 0 {
 		// Allow the alertname label to be defined implicitly as the first argument rather
 		// than explicitly as a key=value pair.

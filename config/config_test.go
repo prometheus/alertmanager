@@ -79,7 +79,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestReceiverExists(t *testing.T) {
@@ -100,7 +99,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestReceiverExistsForDeepSubRoute(t *testing.T) {
@@ -128,7 +126,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestReceiverHasName(t *testing.T) {
@@ -148,7 +145,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestMuteTimeExists(t *testing.T) {
@@ -174,12 +170,36 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
-func TestMuteTimeHasName(t *testing.T) {
+func TestActiveTimeExists(t *testing.T) {
 	in := `
-mute_time_intervals:
+route:
+    receiver: team-Y
+    routes:
+    -  match:
+        severity: critical
+       active_time_intervals:
+       - business_hours
+
+receivers:
+- name: 'team-Y'
+`
+	_, err := Load(in)
+
+	expected := "undefined time interval \"business_hours\" used in route"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%q", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+	}
+}
+
+func TestTimeIntervalHasName(t *testing.T) {
+	in := `
+time_intervals:
 - name: 
   time_intervals:
   - times:
@@ -199,7 +219,7 @@ route:
 `
 	_, err := Load(in)
 
-	expected := "missing name in mute time interval"
+	expected := "missing name in time interval"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
@@ -207,7 +227,6 @@ route:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestMuteTimeNoDuplicates(t *testing.T) {
@@ -245,7 +264,6 @@ route:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestGroupByHasNoDuplicatedLabels(t *testing.T) {
@@ -266,7 +284,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestWildcardGroupByWithOtherGroupByLabels(t *testing.T) {
@@ -307,7 +324,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestRootRouteExists(t *testing.T) {
@@ -325,7 +341,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestRootRouteNoMuteTimes(t *testing.T) {
@@ -355,22 +370,28 @@ route:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
-func TestRootRouteHasNoMatcher(t *testing.T) {
+func TestRootRouteNoActiveTimes(t *testing.T) {
 	in := `
-route:
-  receiver: 'team-X'
-  match:
-    severity: critical
+time_intervals:
+- name: my_active_time
+  time_intervals:
+  - times:
+     - start_time: '09:00'
+       end_time: '17:00'
 
 receivers:
-- name: 'team-X'
+- name: 'team-X-mails'
+
+route:
+  receiver: 'team-X-mails'
+  active_time_intervals:
+  - my_active_time
 `
 	_, err := Load(in)
 
-	expected := "root route must not have any matchers"
+	expected := "root route must not have any active time intervals"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
@@ -378,7 +399,50 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
+}
 
+func TestRootRouteHasNoMatcher(t *testing.T) {
+	testCases := []struct {
+		name string
+		in   string
+	}{
+		{
+			name: "Test deprecated matchers on root route not allowed",
+			in: `
+route:
+  receiver: 'team-X'
+  match:
+    severity: critical
+receivers:
+- name: 'team-X'
+`,
+		},
+		{
+			name: "Test matchers not allowed on root route",
+			in: `
+route:
+  receiver: 'team-X'
+  matchers:
+    - severity=critical
+receivers:
+- name: 'team-X'
+`,
+		},
+	}
+	expected := "root route must not have any matchers"
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load(tc.in)
+
+			if err == nil {
+				t.Fatalf("no error returned, expected:\n%q", expected)
+			}
+			if err.Error() != expected {
+				t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
+			}
+		})
+	}
 }
 
 func TestContinueErrorInRouteRoot(t *testing.T) {
@@ -400,7 +464,6 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
-
 }
 
 func TestGroupIntervalIsGreaterThanZero(t *testing.T) {
@@ -783,16 +846,16 @@ receivers:
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
 	boolFoo := true
-	var regexpFoo = Regexp{
+	regexpFoo := Regexp{
 		Regexp:   regexp.MustCompile("^(?:^(foo1|foo2|baz)$)$"),
 		original: "^(foo1|foo2|baz)$",
 	}
 
-	var expectedConf = Config{
-
+	expectedConf := Config{
 		Global: &GlobalConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{
 				FollowRedirects: true,
+				EnableHTTP2:     true,
 			},
 			ResolveTimeout:  model.Duration(5 * time.Minute),
 			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
@@ -803,6 +866,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
 			WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 			VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+			TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
 		},
 
 		Templates: []string{
@@ -895,7 +959,7 @@ func TestSMTPHello(t *testing.T) {
 	}
 
 	const refValue = "host.example.org"
-	var hostName = c.Global.SMTPHello
+	hostName := c.Global.SMTPHello
 	if hostName != refValue {
 		t.Errorf("Invalid SMTP Hello hostname: %s\nExpected: %s", hostName, refValue)
 	}
@@ -918,7 +982,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
 	}
 
-	var defaultKey = conf.Global.VictorOpsAPIKey
+	defaultKey := conf.Global.VictorOpsAPIKey
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
 		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
@@ -943,7 +1007,7 @@ func TestOpsGenieDefaultAPIKey(t *testing.T) {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey.yml", err)
 	}
 
-	var defaultKey = conf.Global.OpsGenieAPIKey
+	defaultKey := conf.Global.OpsGenieAPIKey
 	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKey {
 		t.Fatalf("Invalid OpsGenie key: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKey, defaultKey)
 	}
@@ -958,7 +1022,7 @@ func TestOpsGenieDefaultAPIKeyFile(t *testing.T) {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.opsgenie-default-apikey-file.yml", err)
 	}
 
-	var defaultKey = conf.Global.OpsGenieAPIKeyFile
+	defaultKey := conf.Global.OpsGenieAPIKeyFile
 	if defaultKey != conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile {
 		t.Fatalf("Invalid OpsGenie key_file: %s\nExpected: %s", conf.Receivers[0].OpsGenieConfigs[0].APIKeyFile, defaultKey)
 	}
@@ -994,7 +1058,7 @@ func TestOpsGenieDeprecatedTeamSpecified(t *testing.T) {
 	}
 
 	const expectedErr = `yaml: unmarshal errors:
-  line 18: field teams not found in type config.plain`
+  line 16: field teams not found in type config.plain`
 	if err.Error() != expectedErr {
 		t.Errorf("Expected: %s\nGot: %s", expectedErr, err.Error())
 	}

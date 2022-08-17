@@ -16,9 +16,9 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -192,7 +192,7 @@ func Load(s string) (*Config, error) {
 
 // LoadFile parses the given YAML file into a Config.
 func LoadFile(filename string) (*Config, error) {
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +245,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.SNSConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.TelegramConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.SigmaConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -269,14 +272,34 @@ func (mt *MuteTimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) err
 	return nil
 }
 
+// TimeInterval represents a named set of time intervals for which a route should be muted.
+type TimeInterval struct {
+	Name          string                      `yaml:"name" json:"name"`
+	TimeIntervals []timeinterval.TimeInterval `yaml:"time_intervals" json:"time_intervals"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MuteTimeInterval.
+func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain TimeInterval
+	if err := unmarshal((*plain)(ti)); err != nil {
+		return err
+	}
+	if ti.Name == "" {
+		return fmt.Errorf("missing name in time interval")
+	}
+	return nil
+}
+
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global            *GlobalConfig      `yaml:"global,omitempty" json:"global,omitempty"`
-	Route             *Route             `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules      []*InhibitRule     `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers         []*Receiver        `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates         []string           `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string       `yaml:"templates" json:"templates"`
+	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -463,9 +486,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				sns.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
-		for _, sigma := range rcv.SigmaConfigs {
-			if sigma.HTTPConfig == nil {
-				sigma.HTTPConfig = c.Global.HTTPConfig
+		for _, telegram := range rcv.TelegramConfigs {
+			if telegram.HTTPConfig == nil {
+				telegram.HTTPConfig = c.Global.HTTPConfig
+			}
+			if telegram.APIUrl == nil {
+				telegram.APIUrl = c.Global.TelegramAPIUrl
 			}
 		}
 		names[rcv.Name] = struct{}{}
@@ -479,11 +505,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.Route.Receiver) == 0 {
 		return fmt.Errorf("root route must specify a default receiver")
 	}
-	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
+	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 || len(c.Route.Matchers) > 0 {
 		return fmt.Errorf("root route must not have any matchers")
 	}
 	if len(c.Route.MuteTimeIntervals) > 0 {
 		return fmt.Errorf("root route must not have any mute time intervals")
+	}
+
+	if len(c.Route.ActiveTimeIntervals) > 0 {
+		return fmt.Errorf("root route must not have any active time intervals")
 	}
 
 	// Validate that all receivers used in the routing tree are defined.
@@ -492,12 +522,22 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	tiNames := make(map[string]struct{})
+
+	// read mute time intervals until deprecated
 	for _, mt := range c.MuteTimeIntervals {
 		if _, ok := tiNames[mt.Name]; ok {
 			return fmt.Errorf("mute time interval %q is not unique", mt.Name)
 		}
 		tiNames[mt.Name] = struct{}{}
 	}
+
+	for _, mt := range c.TimeIntervals {
+		if _, ok := tiNames[mt.Name]; ok {
+			return fmt.Errorf("time interval %q is not unique", mt.Name)
+		}
+		tiNames[mt.Name] = struct{}{}
+	}
+
 	return checkTimeInterval(c.Route, tiNames)
 }
 
@@ -524,12 +564,16 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 			return err
 		}
 	}
-	if len(r.MuteTimeIntervals) == 0 {
-		return nil
+
+	for _, ti := range r.ActiveTimeIntervals {
+		if _, ok := timeIntervals[ti]; !ok {
+			return fmt.Errorf("undefined time interval %q used in route", ti)
+		}
 	}
-	for _, mt := range r.MuteTimeIntervals {
-		if _, ok := timeIntervals[mt]; !ok {
-			return fmt.Errorf("undefined time interval %q used in route", mt)
+
+	for _, tm := range r.MuteTimeIntervals {
+		if _, ok := timeIntervals[tm]; !ok {
+			return fmt.Errorf("undefined time interval %q used in route", tm)
 		}
 	}
 	return nil
@@ -537,7 +581,7 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
-	var defaultHTTPConfig = commoncfg.DefaultHTTPClientConfig
+	defaultHTTPConfig := commoncfg.DefaultHTTPClientConfig
 	return GlobalConfig{
 		ResolveTimeout: model.Duration(5 * time.Minute),
 		HTTPConfig:     &defaultHTTPConfig,
@@ -548,6 +592,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
 	}
 }
 
@@ -668,6 +713,7 @@ type GlobalConfig struct {
 	WeChatAPICorpID    string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL    *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey    Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	TelegramAPIUrl     *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -687,11 +733,12 @@ type Route struct {
 	// Deprecated. Remove before v1.0 release.
 	Match map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
 	// Deprecated. Remove before v1.0 release.
-	MatchRE           MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
-	Matchers          Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
-	MuteTimeIntervals []string     `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
-	Continue          bool         `yaml:"continue" json:"continue,omitempty"`
-	Routes            []*Route     `yaml:"routes,omitempty" json:"routes,omitempty"`
+	MatchRE             MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Matchers            Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	MuteTimeIntervals   []string     `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	ActiveTimeIntervals []string     `yaml:"active_time_intervals,omitempty" json:"active_time_intervals,omitempty"`
+	Continue            bool         `yaml:"continue" json:"continue,omitempty"`
+	Routes              []*Route     `yaml:"routes,omitempty" json:"routes,omitempty"`
 
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
@@ -810,6 +857,7 @@ type Receiver struct {
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	SigmaConfigs     []*SigmaConfig     `yaml:"sigma_configs,omitempty" json:"sigma_configs,omitempty"`
 	TwilioConfigs    []*TwilioConfig    `yaml:"twilio_configs,omitempty" json:"twilio_configs,omitempty"`
+	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

@@ -1,6 +1,5 @@
 global:
   opsgenie_api_key: asd132
-
 route:
   group_by: ['alertname', 'cluster', 'service']
   group_wait: 30s
@@ -8,10 +7,9 @@ route:
   repeat_interval: 3h
   receiver: escalation-Y-opsgenie
   routes:
-  - match:
-      service: foo
-    receiver: team-X-opsgenie
-
+    - match:
+        service: foo
+      receiver: team-X-opsgenie
 receivers:
   - name: 'team-X-opsgenie'
     opsgenie_configs:

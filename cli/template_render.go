@@ -17,12 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"time"
 
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/prometheus/alertmanager/template"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 var defaultData = template.Data{
@@ -120,7 +121,7 @@ func (c *templateRenderCmd) render(ctx context.Context, _ *kingpin.ParseContext)
 	if c.templateData == nil {
 		data = defaultData
 	} else {
-		content, err := ioutil.ReadAll(c.templateData)
+		content, err := io.ReadAll(c.templateData)
 		if err != nil {
 			return err
 		}

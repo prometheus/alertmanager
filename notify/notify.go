@@ -115,6 +115,7 @@ const (
 	keyResolvedAlerts
 	keyNow
 	keyMuteTimeIntervals
+	keyActiveTimeIntervals
 )
 
 // WithReceiverName populates a context with a receiver name.
@@ -155,6 +156,10 @@ func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 // WithMuteTimeIntervals populates a context with a slice of mute time names.
 func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
 	return context.WithValue(ctx, keyMuteTimeIntervals, mt)
+}
+
+func WithActiveTimeIntervals(ctx context.Context, at []string) context.Context {
+	return context.WithValue(ctx, keyActiveTimeIntervals, at)
 }
 
 // RepeatInterval extracts a repeat interval from the context. Iff none exists, the
@@ -206,10 +211,17 @@ func ResolvedAlerts(ctx context.Context) ([]uint64, bool) {
 	return v, ok
 }
 
-// MuteTimeIntervalNames extracts a slice of mute time names from the context. Iff none exists, the
+// MuteTimeIntervalNames extracts a slice of mute time names from the context. If and only if none exists, the
 // second argument is false.
 func MuteTimeIntervalNames(ctx context.Context) ([]string, bool) {
 	v, ok := ctx.Value(keyMuteTimeIntervals).([]string)
+	return v, ok
+}
+
+// ActiveTimeIntervalNames extracts a slice of active time names from the context. If none exists, the
+// second argument is false.
+func ActiveTimeIntervalNames(ctx context.Context) ([]string, bool) {
+	v, ok := ctx.Value(keyActiveTimeIntervals).([]string)
 	return v, ok
 }
 
@@ -278,6 +290,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"webhook",
 		"victorops",
 		"sns",
+		"telegram",
 	} {
 		m.numNotifications.WithLabelValues(integration)
 		m.numTotalFailedNotifications.WithLabelValues(integration)
@@ -309,7 +322,7 @@ func (pb *PipelineBuilder) New(
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
-	muteTimes map[string][]timeinterval.TimeInterval,
+	times map[string][]timeinterval.TimeInterval,
 	notificationLog NotificationLog,
 	peer Peer,
 ) RoutingStage {
@@ -317,12 +330,13 @@ func (pb *PipelineBuilder) New(
 
 	ms := NewGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor)
+	tas := NewTimeActiveStage(times)
+	tms := NewTimeMuteStage(times)
 	ss := NewMuteStage(silencer)
-	tms := NewTimeMuteStage(muteTimes)
 
 	for name := range receivers {
 		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
-		rs[name] = MultiStage{ms, is, tms, ss, st}
+		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 	return rs
 }
@@ -774,12 +788,14 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved)
 }
 
-type TimeMuteStage struct {
-	muteTimes map[string][]timeinterval.TimeInterval
+type timeStage struct {
+	Times map[string][]timeinterval.TimeInterval
 }
 
-func NewTimeMuteStage(mt map[string][]timeinterval.TimeInterval) *TimeMuteStage {
-	return &TimeMuteStage{mt}
+type TimeMuteStage timeStage
+
+func NewTimeMuteStage(ti map[string][]timeinterval.TimeInterval) *TimeMuteStage {
+	return &TimeMuteStage{ti}
 }
 
 // Exec implements the stage interface for TimeMuteStage.
@@ -794,24 +810,69 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 		return ctx, alerts, errors.New("missing now timestamp")
 	}
 
-	muted := false
-Loop:
-	for _, mtName := range muteTimeIntervalNames {
-		mt, ok := tms.muteTimes[mtName]
-		if !ok {
-			return ctx, alerts, errors.Errorf("mute time %s doesn't exist in config", mtName)
-		}
-		for _, ti := range mt {
-			if ti.ContainsTime(now.UTC()) {
-				muted = true
-				break Loop
-			}
-		}
+	muted, err := inTimeIntervals(now, tms.Times, muteTimeIntervalNames)
+	if err != nil {
+		return ctx, alerts, err
 	}
+
 	// If the current time is inside a mute time, all alerts are removed from the pipeline.
 	if muted {
 		level.Debug(l).Log("msg", "Notifications not sent, route is within mute time")
 		return ctx, nil, nil
 	}
 	return ctx, alerts, nil
+}
+
+type TimeActiveStage timeStage
+
+func NewTimeActiveStage(ti map[string][]timeinterval.TimeInterval) *TimeActiveStage {
+	return &TimeActiveStage{ti}
+}
+
+// Exec implements the stage interface for TimeActiveStage.
+// TimeActiveStage is responsible for muting alerts whose route is not in an active time.
+func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
+	if !ok {
+		return ctx, alerts, nil
+	}
+
+	// if we don't have active time intervals at all it is always active.
+	if len(activeTimeIntervalNames) == 0 {
+		return ctx, alerts, nil
+	}
+
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, alerts, errors.New("missing now timestamp")
+	}
+
+	active, err := inTimeIntervals(now, tas.Times, activeTimeIntervalNames)
+	if err != nil {
+		return ctx, alerts, err
+	}
+
+	// If the current time is not inside an active time, all alerts are removed from the pipeline
+	if !active {
+		level.Debug(l).Log("msg", "Notifications not sent, route is not within active time")
+		return ctx, nil, nil
+	}
+
+	return ctx, alerts, nil
+}
+
+// inTimeIntervals returns true if the current time is contained in one of the given time intervals.
+func inTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInterval, intervalNames []string) (bool, error) {
+	for _, name := range intervalNames {
+		interval, ok := intervals[name]
+		if !ok {
+			return false, errors.Errorf("time interval %s doesn't exist in config", name)
+		}
+		for _, ti := range interval {
+			if ti.ContainsTime(now.UTC()) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }

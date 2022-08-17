@@ -43,7 +43,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
 }
 
 func TestWechatRedactedURLOnNotify(t *testing.T) {
@@ -65,7 +65,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret, token)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret, token)
 }
 
 func TestWechatMessageTypeSelector(t *testing.T) {
@@ -88,5 +88,5 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret, token)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret, token)
 }

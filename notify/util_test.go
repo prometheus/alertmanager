@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"testing"
 
@@ -156,7 +155,7 @@ func TestRetrierCheck(t *testing.T) {
 				if status != http.StatusServiceUnavailable {
 					return "invalid"
 				}
-				bs, _ := ioutil.ReadAll(b)
+				bs, _ := io.ReadAll(b)
 				return fmt.Sprintf("server response is %q", string(bs))
 			}},
 			status: http.StatusServiceUnavailable,

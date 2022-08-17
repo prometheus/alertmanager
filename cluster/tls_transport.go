@@ -194,7 +194,7 @@ func (t *TLSTransport) Shutdown() error {
 // from the pool, and writes to it. It also returns a timestamp of when
 // the packet was written.
 func (t *TLSTransport) WriteTo(b []byte, addr string) (time.Time, error) {
-	conn, err := t.connPool.borrowConnection(addr, DefaultTcpTimeout)
+	conn, err := t.connPool.borrowConnection(addr, DefaultTCPTimeout)
 	if err != nil {
 		t.writeErrs.WithLabelValues("packet").Inc()
 		return time.Now(), errors.Wrap(err, "failed to dial")

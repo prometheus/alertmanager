@@ -49,7 +49,6 @@ func (s ByAddress) Less(i, j int) bool {
 		p1, _ := strconv.Atoi(port1)
 		p2, _ := strconv.Atoi(port2)
 		return p1 < p2
-	} else {
-		return bytes.Compare(net.ParseIP(ip1), net.ParseIP(ip2)) < 0
 	}
+	return bytes.Compare(net.ParseIP(ip1), net.ParseIP(ip2)) < 0
 }
