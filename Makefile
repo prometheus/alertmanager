@@ -17,6 +17,7 @@ DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
 include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
+TEMPLATE_DIR             = $(BIN_DIR)/template
 DOCKER_IMAGE_NAME       ?= alertmanager
 
 STATICCHECK_IGNORE =
@@ -28,12 +29,19 @@ build-all: assets apiv2 build
 .PHONY: assets
 assets: asset/assets_vfsdata.go
 
-asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl
+.PHONY: assets-tarball
+assets-tarball: ui/app/script.js ui/app/index.html
+	scripts/package_assets.sh
+
+asset/assets_vfsdata.go: ui/app/script.js ui/app/index.html ui/app/lib template/default.tmpl template/email.tmpl
 	GO111MODULE=$(GO111MODULE) $(GO) generate $(GOOPTS) ./asset
 	@$(GOFMT) -w ./asset
 
 ui/app/script.js: $(shell find ui/app/src -iname *.elm) api/v2/openapi.yaml
 	cd $(FRONTEND_DIR) && $(MAKE) script.js
+
+template/email.tmpl: template/email.html
+	cd $(TEMPLATE_DIR) && $(MAKE) email.tmpl
 
 .PHONY: apiv2
 apiv2: api/v2/models api/v2/restapi api/v2/client

@@ -14,7 +14,6 @@
 package config
 
 import (
-	"io/ioutil"
 	"os"
 
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -37,7 +36,7 @@ func NewResolver(files []string, legacyFlags map[string]string) (*Resolver, erro
 		if _, err := os.Stat(f); err != nil {
 			continue
 		}
-		b, err := ioutil.ReadFile(f)
+		b, err := os.ReadFile(f)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue

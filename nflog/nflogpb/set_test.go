@@ -26,7 +26,7 @@ func TestIsFiringSubset(t *testing.T) {
 		subset   map[uint64]struct{}
 		expected bool
 	}{
-		{newSubset(), true}, //empty subset
+		{newSubset(), true}, // empty subset
 		{newSubset(1), true},
 		{newSubset(2), true},
 		{newSubset(3), true},
@@ -54,7 +54,7 @@ func TestIsResolvedSubset(t *testing.T) {
 		subset   map[uint64]struct{}
 		expected bool
 	}{
-		{newSubset(), true}, //empty subset
+		{newSubset(), true}, // empty subset
 		{newSubset(1), true},
 		{newSubset(2), true},
 		{newSubset(3), true},

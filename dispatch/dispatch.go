@@ -80,7 +80,6 @@ type Dispatcher struct {
 	metrics *DispatcherMetrics
 	limits  Limits
 
-	marker  types.Marker
 	timeout func(time.Duration) time.Duration
 
 	mtx                sync.RWMutex
@@ -121,7 +120,6 @@ func NewDispatcher(
 		alerts:  ap,
 		stage:   s,
 		route:   r,
-		marker:  mk,
 		timeout: to,
 		logger:  log.With(l, "component", "dispatcher"),
 		metrics: m,
@@ -447,6 +445,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
+			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()

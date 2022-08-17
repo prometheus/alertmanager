@@ -19,8 +19,9 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/prometheus/alertmanager/test/cli"
 	"github.com/stretchr/testify/require"
+
+	. "github.com/prometheus/alertmanager/test/cli"
 )
 
 func TestMain(m *testing.M) {

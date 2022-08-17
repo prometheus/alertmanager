@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -62,6 +62,7 @@ func (f *fakeAlerts) Get(model.Fingerprint) (*types.Alert, error) { return nil, 
 func (f *fakeAlerts) Put(alerts ...*types.Alert) error {
 	return f.err
 }
+
 func (f *fakeAlerts) GetPending() provider.AlertIterator {
 	ch := make(chan *types.Alert)
 	done := make(chan struct{})
@@ -149,7 +150,7 @@ func TestAddAlerts(t *testing.T) {
 
 		api.addAlerts(w, r)
 		res := w.Result()
-		body, _ := ioutil.ReadAll(res.Body)
+		body, _ := io.ReadAll(res.Body)
 
 		require.Equal(t, tc.code, w.Code, fmt.Sprintf("test case: %d, StartsAt %v, EndsAt %v, Response: %s", i, tc.start, tc.end, string(body)))
 	}
@@ -158,31 +159,31 @@ func TestAddAlerts(t *testing.T) {
 func TestListAlerts(t *testing.T) {
 	now := time.Now()
 	alerts := []*types.Alert{
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "active", "alertname": "alert1"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "unprocessed", "alertname": "alert2"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "suppressed", "silenced_by": "abc", "alertname": "alert3"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"state": "suppressed", "inhibited_by": "abc", "alertname": "alert4"},
 				StartsAt: now.Add(-time.Minute),
 			},
 		},
-		&types.Alert{
+		{
 			Alert: model.Alert{
 				Labels:   model.LabelSet{"alertname": "alert5"},
 				StartsAt: now.Add(-2 * time.Minute),
@@ -281,7 +282,7 @@ func TestListAlerts(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		api.listAlerts(w, r)
-		body, _ := ioutil.ReadAll(w.Result().Body)
+		body, _ := io.ReadAll(w.Result().Body)
 
 		var res response
 		err = json.Unmarshal(body, &res)

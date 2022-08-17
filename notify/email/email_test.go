@@ -31,7 +31,7 @@ package email
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,7 +43,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
@@ -115,7 +115,7 @@ func (m *mailDev) deleteAllEmails() error {
 }
 
 // doEmailRequest makes a request to the MailDev API.
-func (m *mailDev) doEmailRequest(method string, path string) (int, []byte, error) {
+func (m *mailDev) doEmailRequest(method, path string) (int, []byte, error) {
 	req, err := http.NewRequest(method, fmt.Sprintf("%s://%s%s", m.Scheme, m.Host, path), nil)
 	if err != nil {
 		return 0, nil, err
@@ -128,7 +128,7 @@ func (m *mailDev) doEmailRequest(method string, path string) (int, []byte, error
 		return 0, nil, err
 	}
 	defer res.Body.Close()
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -145,7 +145,7 @@ type emailTestConfig struct {
 
 func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
 	c := emailTestConfig{}
-	b, err := ioutil.ReadFile(f)
+	b, err := os.ReadFile(f)
 	if err != nil {
 		return c, err
 	}

@@ -357,7 +357,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "end day must be negative if start day is negative",
 	},
 	{
-		// Negative end date before positive postive start date.
+		// Negative end date before positive positive start date.
 		in: `
 ---
 - days_of_month: ['10:-25']

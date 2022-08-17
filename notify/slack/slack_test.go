@@ -15,7 +15,7 @@ package slack
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -56,14 +56,14 @@ func TestSlackRedactedURL(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, u.String())
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
 }
 
 func TestGettingSlackURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := ioutil.TempFile("", "slack_test")
+	f, err := os.CreateTemp("", "slack_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String())
 	require.NoError(t, err, "writing to temp file failed")
@@ -78,5 +78,5 @@ func TestGettingSlackURLFromFile(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, u.String())
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
 }
