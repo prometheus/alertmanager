@@ -28,7 +28,8 @@ import (
 // PostSilencesOKCode is the HTTP code returned for type PostSilencesOK
 const PostSilencesOKCode int = 200
 
-/*PostSilencesOK Create / update silence response
+/*
+PostSilencesOK Create / update silence response
 
 swagger:response postSilencesOK
 */
@@ -72,7 +73,8 @@ func (o *PostSilencesOK) WriteResponse(rw http.ResponseWriter, producer runtime.
 // PostSilencesBadRequestCode is the HTTP code returned for type PostSilencesBadRequest
 const PostSilencesBadRequestCode int = 400
 
-/*PostSilencesBadRequest Bad request
+/*
+PostSilencesBadRequest Bad request
 
 swagger:response postSilencesBadRequest
 */
@@ -114,7 +116,8 @@ func (o *PostSilencesBadRequest) WriteResponse(rw http.ResponseWriter, producer 
 // PostSilencesNotFoundCode is the HTTP code returned for type PostSilencesNotFound
 const PostSilencesNotFoundCode int = 404
 
-/*PostSilencesNotFound A silence with the specified ID was not found
+/*
+PostSilencesNotFound A silence with the specified ID was not found
 
 swagger:response postSilencesNotFound
 */

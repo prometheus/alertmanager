@@ -65,7 +65,8 @@ func NewPostSilencesOK() *PostSilencesOK {
 	return &PostSilencesOK{}
 }
 
-/*PostSilencesOK handles this case with default header values.
+/*
+PostSilencesOK handles this case with default header values.
 
 Create / update silence response
 */
@@ -98,7 +99,8 @@ func NewPostSilencesBadRequest() *PostSilencesBadRequest {
 	return &PostSilencesBadRequest{}
 }
 
-/*PostSilencesBadRequest handles this case with default header values.
+/*
+PostSilencesBadRequest handles this case with default header values.
 
 Bad request
 */
@@ -129,7 +131,8 @@ func NewPostSilencesNotFound() *PostSilencesNotFound {
 	return &PostSilencesNotFound{}
 }
 
-/*PostSilencesNotFound handles this case with default header values.
+/*
+PostSilencesNotFound handles this case with default header values.
 
 A silence with the specified ID was not found
 */
@@ -155,7 +158,8 @@ func (o *PostSilencesNotFound) readResponse(response runtime.ClientResponse, con
 	return nil
 }
 
-/*PostSilencesOKBody post silences o k body
+/*
+PostSilencesOKBody post silences o k body
 swagger:model PostSilencesOKBody
 */
 type PostSilencesOKBody struct {

@@ -69,7 +69,8 @@ func NewGetReceiversParamsWithHTTPClient(client *http.Client) *GetReceiversParam
 	}
 }
 
-/*GetReceiversParams contains all the parameters to send to the API endpoint
+/*
+GetReceiversParams contains all the parameters to send to the API endpoint
 for the get receivers operation typically these are written to a http.Request
 */
 type GetReceiversParams struct {

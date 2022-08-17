@@ -47,7 +47,7 @@ type ClientService interface {
 }
 
 /*
-  GetReceivers Get list of all receivers (name of notification integrations)
+GetReceivers Get list of all receivers (name of notification integrations)
 */
 func (a *Client) GetReceivers(params *GetReceiversParams) (*GetReceiversOK, error) {
 	// TODO: Validate the params before sending

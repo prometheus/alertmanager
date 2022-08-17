@@ -43,10 +43,10 @@ func NewGetSilences(ctx *middleware.Context, handler GetSilencesHandler) *GetSil
 	return &GetSilences{Context: ctx, Handler: handler}
 }
 
-/*GetSilences swagger:route GET /silences silence getSilences
+/*
+GetSilences swagger:route GET /silences silence getSilences
 
 Get a list of silences
-
 */
 type GetSilences struct {
 	Context *middleware.Context

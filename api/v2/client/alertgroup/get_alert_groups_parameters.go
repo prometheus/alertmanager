@@ -98,7 +98,8 @@ func NewGetAlertGroupsParamsWithHTTPClient(client *http.Client) *GetAlertGroupsP
 	}
 }
 
-/*GetAlertGroupsParams contains all the parameters to send to the API endpoint
+/*
+GetAlertGroupsParams contains all the parameters to send to the API endpoint
 for the get alert groups operation typically these are written to a http.Request
 */
 type GetAlertGroupsParams struct {

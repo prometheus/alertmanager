@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/prometheus/alertmanager/notify/slackV2"
+	"github.com/prometheus/alertmanager/notify/twilio"
 	"net"
 	"net/http"
 	"net/url"
@@ -176,6 +177,9 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	}
 	for i, c := range nc.SigmaConfigs {
 		add("sigma", i, c, func(l log.Logger) (notify.Notifier, error) { return sigma.New(c, tmpl, l) })
+	}
+	for i, c := range nc.TwilioConfigs {
+		add("twilio", i, c, func(l log.Logger) (notify.Notifier, error) { return twilio.New(c, tmpl, l) })
 	}
 	if errs.Len() > 0 {
 		return nil, &errs
@@ -525,6 +529,20 @@ func run() int {
 	webReload := make(chan chan error)
 
 	ui.Register(router, webReload, logger)
+
+	router.Get("/callback/twilio", func(w http.ResponseWriter, req *http.Request) {
+		id := req.URL.Query().Get("id")
+		twilio.Storage.Get(id)
+		w.Header().Add("Content-Type", "text/xml")
+		if val := twilio.Storage.Get(id); val == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		} else {
+			w.WriteHeader(http.StatusOK)
+			w.Write(val.Data)
+			return
+		}
+	})
 
 	mux := api.Register(router, *routePrefix)
 

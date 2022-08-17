@@ -64,7 +64,8 @@ func NewPostAlertsOK() *PostAlertsOK {
 	return &PostAlertsOK{}
 }
 
-/*PostAlertsOK handles this case with default header values.
+/*
+PostAlertsOK handles this case with default header values.
 
 Create alerts response
 */
@@ -85,7 +86,8 @@ func NewPostAlertsBadRequest() *PostAlertsBadRequest {
 	return &PostAlertsBadRequest{}
 }
 
-/*PostAlertsBadRequest handles this case with default header values.
+/*
+PostAlertsBadRequest handles this case with default header values.
 
 Bad request
 */
@@ -116,7 +118,8 @@ func NewPostAlertsInternalServerError() *PostAlertsInternalServerError {
 	return &PostAlertsInternalServerError{}
 }
 
-/*PostAlertsInternalServerError handles this case with default header values.
+/*
+PostAlertsInternalServerError handles this case with default header values.
 
 Internal server error
 */

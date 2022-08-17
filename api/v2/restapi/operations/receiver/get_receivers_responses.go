@@ -30,7 +30,8 @@ import (
 // GetReceiversOKCode is the HTTP code returned for type GetReceiversOK
 const GetReceiversOKCode int = 200
 
-/*GetReceiversOK Get receivers response
+/*
+GetReceiversOK Get receivers response
 
 swagger:response getReceiversOK
 */

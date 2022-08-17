@@ -49,7 +49,7 @@ type ClientService interface {
 }
 
 /*
-  GetAlerts Get a list of alerts
+GetAlerts Get a list of alerts
 */
 func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 	// TODO: Validate the params before sending
@@ -83,7 +83,7 @@ func (a *Client) GetAlerts(params *GetAlertsParams) (*GetAlertsOK, error) {
 }
 
 /*
-  PostAlerts Create new Alerts
+PostAlerts Create new Alerts
 */
 func (a *Client) PostAlerts(params *PostAlertsParams) (*PostAlertsOK, error) {
 	// TODO: Validate the params before sending

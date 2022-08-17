@@ -809,6 +809,7 @@ type Receiver struct {
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	SigmaConfigs     []*SigmaConfig     `yaml:"sigma_configs,omitempty" json:"sigma_configs,omitempty"`
+	TwilioConfigs    []*TwilioConfig    `yaml:"twilio_configs,omitempty" json:"twilio_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

@@ -40,6 +40,12 @@ var (
 		},
 	}
 
+	DefaultTwilioConfig = TwilioConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -495,21 +501,61 @@ func (c *SigmaConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+type TwilioConfig struct {
+	NotifierConfig   `yaml:",inline" json:",inline"`
+	HTTPConfig       *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	AccountID        string                      `yaml:"account_id" json:"account_id"`
+	Token            Secret                      `yaml:"token" json:"token"`
+	AlertManagerUrl  *URL                        `yaml:"alert_manager_url" json:"alert_manager_url"`
+	PlayFileUrl      *URL                        `yaml:"play_file_url" json:"play_file_url"`
+	Recipient        []string                    `yaml:"recipient" json:"recipient"`
+	NotificationType string                      `yaml:"notification_type" json:"notification_type"`
+	SenderName       string                      `yaml:"sender_name" json:"sender_name"`
+	Text             string                      `yaml:"text" json:"text"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TwilioConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTwilioConfig
+	type plain TwilioConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.AccountID == "" {
+		return fmt.Errorf("account_id must be configured")
+	}
+	if c.Token == "" {
+		return fmt.Errorf("token must be configured")
+	}
+	switch strings.ToLower(c.NotificationType) {
+	case "sms", "":
+		c.NotificationType = "sms"
+	case "voice":
+		c.NotificationType = "voice"
+		if c.AlertManagerUrl == nil {
+			return fmt.Errorf("missing Alert manager URL in Twilio voice config")
+		}
+	default:
+		return fmt.Errorf("unknown notification type: %s", c.NotificationType)
+	}
+
+	return nil
+}
+
 // WechatConfig configures notifications via Wechat.
 type WechatConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
-
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-
-	APISecret   Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
-	CorpID      string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
-	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL      *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser      string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
-	ToParty     string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
-	ToTag       string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
-	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
-	MessageType string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	APISecret      Secret                      `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	CorpID         string                      `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message        string                      `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser         string                      `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty        string                      `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag          string                      `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID        string                      `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType    string                      `yaml:"message_type,omitempty" json:"message_type,omitempty"`
 }
 
 const wechatValidTypesRe = `^(text|markdown)$`
