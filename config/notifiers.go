@@ -34,6 +34,13 @@ var (
 		},
 	}
 
+	// DefaultAlertmanagerConfig defines default values for Webhook configurations.
+	DefaultAlertmanagerConfig = AlertmanagerConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -393,6 +400,20 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // WebhookConfig configures notifications via a generic webhook.
 type WebhookConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	// URL to send POST request to.
+	URL *URL `yaml:"url" json:"url"`
+	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
+	// Alerts exceeding this threshold will be truncated. Setting this to 0
+	// allows an unlimited number of alerts.
+	MaxAlerts uint64 `yaml:"max_alerts" json:"max_alerts"`
+}
+
+// AlertmanagerConfig configures notifications via a generic webhook.
+type AlertmanagerConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
