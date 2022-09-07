@@ -388,7 +388,7 @@ func run() int {
 
 	waitFunc := func() time.Duration { return 0 }
 	if peer != nil {
-		waitFunc = clusterWait(peer, *peerTimeout)
+		waitFunc = clusterWait(peer /*j: current node */, *peerTimeout)
 	}
 	timeoutFunc := func(d time.Duration) time.Duration {
 		if d < notify.MinTimeout {
