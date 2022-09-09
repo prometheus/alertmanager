@@ -418,11 +418,9 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) UpdateConfig(conf string) {
 	if _, err := am.confFile.WriteString(conf); err != nil {
 		am.t.Fatal(err)
-		return
 	}
 	if err := am.confFile.Sync(); err != nil {
 		am.t.Fatal(err)
-		return
 	}
 }
 
