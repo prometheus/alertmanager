@@ -15,6 +15,7 @@ package slack
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 
