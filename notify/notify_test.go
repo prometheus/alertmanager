@@ -728,7 +728,7 @@ func TestTimeMuteStage(t *testing.T) {
 	muteIn := `
 ---
 - weekdays: ['monday:friday']
-  time_zone: 'Australia/Sydney'
+  location: 'Australia/Sydney'
   months: ['November']
   times:
    - start_time: '00:00'
@@ -737,7 +737,7 @@ func TestTimeMuteStage(t *testing.T) {
      end_time: '24:00'
 - weekdays: ['saturday', 'sunday']
   months: ['November']
-  time_zone: 'Australia/Sydney'`
+  location: 'Australia/Sydney'`
 
 	cases := []struct {
 		fireTime   string

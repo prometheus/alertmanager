@@ -35,7 +35,7 @@ type TimeInterval struct {
 	DaysOfMonth []DayOfMonthRange `yaml:"days_of_month,flow,omitempty" json:"days_of_month,omitempty"`
 	Months      []MonthRange      `yaml:"months,flow,omitempty" json:"months,omitempty"`
 	Years       []YearRange       `yaml:"years,flow,omitempty" json:"years,omitempty"`
-	Location    *Location         `yaml:"time_zone,flow,omitempty" json:"time_zone,omitempty"`
+	Location    *Location         `yaml:"location,flow,omitempty" json:"location,omitempty"`
 }
 
 // TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.

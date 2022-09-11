@@ -414,7 +414,7 @@ var yamlUnmarshalTestCases = []struct {
 		in: `
 ---
 - years: ['2020:2022']
-  time_zone: 'Australia/Sydney'
+  location: 'Australia/Sydney'
 `,
 		expectError: false,
 		intervals: []TimeInterval{
