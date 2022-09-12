@@ -707,7 +707,7 @@ type GlobalConfig struct {
 	SMTPSmarthost        HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername     string     `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
 	SMTPAuthPassword     Secret     `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
-	SMTPAuthPasswordFile Secret     `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
+	SMTPAuthPasswordFile string     `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
 	SMTPAuthSecret       Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthIdentity     string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS       bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`

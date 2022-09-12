@@ -171,7 +171,7 @@ type EmailConfig struct {
 	Smarthost        HostPort            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername     string              `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
 	AuthPassword     Secret              `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
-	AuthPasswordFile Secret              `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
+	AuthPasswordFile string              `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
 	AuthSecret       Secret              `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
 	AuthIdentity     string              `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
 	Headers          map[string]string   `yaml:"headers,omitempty" json:"headers,omitempty"`
