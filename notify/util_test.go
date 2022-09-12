@@ -46,7 +46,7 @@ func TestTruncate(t *testing.T) {
 		{
 			in:    "abcde",
 			n:     4,
-			out:   "a...",
+			out:   "abc…",
 			trunc: true,
 		},
 		{
@@ -58,7 +58,7 @@ func TestTruncate(t *testing.T) {
 		{
 			in:    "abcdefgh",
 			n:     5,
-			out:   "ab...",
+			out:   "abcd…",
 			trunc: true,
 		},
 		{
@@ -70,7 +70,7 @@ func TestTruncate(t *testing.T) {
 		{
 			in:    "a⌘cdef",
 			n:     5,
-			out:   "a⌘...",
+			out:   "a⌘cd…",
 			trunc: true,
 		},
 	}

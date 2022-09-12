@@ -90,7 +90,7 @@ func Truncate(s string, n int) (string, bool) {
 	if n <= 3 {
 		return string(r[:n]), true
 	}
-	return string(r[:n-3]) + "...", true
+	return string(r[:n-1]) + "…", true
 }
 
 // TmplText is using monadic error handling in order to make string templating
