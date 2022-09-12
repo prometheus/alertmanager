@@ -72,7 +72,7 @@ global:
   # SMTP Auth using LOGIN and PLAIN.
   [ smtp_auth_password: <secret> ]
   # SMTP Auth using LOGIN and PLAIN.
-  [ smtp_auth_password_file: <secret> ]
+  [ smtp_auth_password_file: <string> ]
   # SMTP Auth using PLAIN.
   [ smtp_auth_identity: <string> ]
   # SMTP Auth using CRAM-MD5.
@@ -520,7 +520,7 @@ to: <tmpl_string>
 # The SMTP password. Either auth_password or auth_password_file should be set.
 # Defaults to global settings if none are set here.
 [ auth_password: <secret> | default = global.smtp_auth_password ]
-[ auth_password_file: <secret> | default = global.smtp_auth_password_file ]
+[ auth_password_file: <string> | default = global.smtp_auth_password_file ]
 [ auth_secret: <secret> | default = global.smtp_auth_secret ]
 [ auth_identity: <string> | default = global.smtp_auth_identity ]
 
