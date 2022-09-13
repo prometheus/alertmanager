@@ -516,8 +516,8 @@ to: <tmpl_string>
 [ hello: <string> | default = global.smtp_hello ]
 
 # SMTP authentication information.
+# auth_password and auth_password_file are mutually exclusive.
 [ auth_username: <string> | default = global.smtp_auth_username ]
-# The SMTP password. Either auth_password or auth_password_file should be set.
 # Defaults to global settings if none are set here.
 [ auth_password: <secret> | default = global.smtp_auth_password ]
 [ auth_password_file: <string> | default = global.smtp_auth_password_file ]
