@@ -982,16 +982,6 @@ func TestSMTPNoUsernameOrPassword(t *testing.T) {
 	}
 }
 
-func TestSMTPNoPassword(t *testing.T) {
-	_, err := LoadFile("testdata/conf.smtp-no-password.yml")
-	if err == nil {
-		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.smtp-no-password.yml", err)
-	}
-	if err.Error() != "SMTP username provided, but no global SMTP password set either inline or in a file" {
-		t.Errorf("Expected: %s\nGot: %s", "no global SMTP password set either inline or in a file", err.Error())
-	}
-}
-
 func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 	config, err := LoadFile("testdata/conf.smtp-password-global-and-local.yml")
 	if err != nil {

@@ -369,12 +369,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if ec.AuthUsername == "" {
 				ec.AuthUsername = c.Global.SMTPAuthUsername
 			}
-			// require a password only if a username is provided
-			if len(ec.AuthUsername) > 0 && ec.AuthPassword == "" && ec.AuthPasswordFile == "" {
-				if c.Global.SMTPAuthPassword == "" && c.Global.SMTPAuthPasswordFile == "" {
-					return fmt.Errorf("SMTP username provided, but no global SMTP password set either inline or in a file")
-				}
+			if ec.AuthPassword == "" {
 				ec.AuthPassword = c.Global.SMTPAuthPassword
+			}
+			if ec.AuthPasswordFile == "" {
 				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
 			}
 			if ec.AuthSecret == "" {
