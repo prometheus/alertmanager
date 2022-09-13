@@ -988,17 +988,9 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf.smtp-password-global-and-local.yml", err)
 	}
 
-	if config.Receivers[0].EmailConfigs[0].AuthPasswordFile != "/tmp/globaluserpassword" {
-		t.Fatalf("first email should use password file /tmp/globaluserpassword")
-	}
-
-	if config.Receivers[0].EmailConfigs[1].AuthPasswordFile != "/tmp/localuser1password" {
-		t.Fatalf("second email should use password file /tmp/localuser1password")
-	}
-
-	if config.Receivers[0].EmailConfigs[2].AuthPassword != "mysecret" {
-		t.Fatalf("third email should use password mysecret")
-	}
+	require.Equal(t, "/tmp/globaluserpassword", config.Receivers[0].EmailConfigs[0].AuthPasswordFile, "first email should use password file /tmp/globaluserpassword")
+	require.Equal(t, "/tmp/localuser1password", config.Receivers[0].EmailConfigs[1].AuthPasswordFile, "second email should use password file /tmp/localuser1password")
+	require.Equal(t, Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
 }
 
 func TestGroupByAll(t *testing.T) {
