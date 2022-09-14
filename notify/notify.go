@@ -594,7 +594,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 }
 
 // Exec implements the Stage interface.
-func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+func (n *DedupStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
@@ -640,6 +640,17 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	}
 
 	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+		if entry != nil {
+			// get the tick time from the context.
+			timeNow, ok := Now(ctx)
+			// now make sure that the current state is from past
+			if ok && entry.Timestamp.After(timeNow) {
+				diff := entry.Timestamp.Sub(timeNow)
+				// this usually means that the WaitStage took longer than the group_wait, and the subsequent node in the cluster sees the event from the first node
+				_ = level.Info(l).Log("msg", "timestamp of notification log entry is after the current pipeline timestamp. Skip execution", "entry_timestamp", entry.Timestamp, "tick_timestamp", timeNow, "diff", diff)
+				return ctx, nil, nil
+			}
+		}
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil
