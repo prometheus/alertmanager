@@ -427,6 +427,16 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	fileWithCorrectPassword, err := os.CreateTemp("", "smtp-password-correct")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = fileWithCorrectPassword.WriteString(c.Password)
+	require.NoError(t, err, "writing to temp file failed")
+
+	fileWithIncorrectPassword, err := os.CreateTemp("", "smtp-password-incorrect")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = fileWithIncorrectPassword.WriteString(c.Password + "wrong")
+	require.NoError(t, err, "writing to temp file failed")
+
 	for _, tc := range []struct {
 		title     string
 		updateCfg func(*config.EmailConfig)
@@ -439,6 +449,13 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = config.Secret(c.Password)
+			},
+		},
+		{
+			title: "email with authentication (password from file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthPasswordFile = fileWithCorrectPassword.Name()
 			},
 		},
 		{
@@ -481,6 +498,16 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = config.Secret(c.Password + "wrong")
+			},
+
+			errMsg: "Invalid username or password",
+			retry:  true,
+		},
+		{
+			title: "wrong credentials (password from file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthPasswordFile = fileWithIncorrectPassword.Name()
 			},
 
 			errMsg: "Invalid username or password",
