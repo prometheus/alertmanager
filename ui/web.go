@@ -76,9 +76,15 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
 	}))
+	r.Head("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
 	r.Get("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
+	}))
+	r.Head("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	}))
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)
