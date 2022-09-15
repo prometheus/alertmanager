@@ -686,7 +686,6 @@ func TestEmailGetPassword(t *testing.T) {
 				require.Nil(t, err)
 				require.Equal(t, "secret", password)
 			}
-
 		})
 	}
 }
