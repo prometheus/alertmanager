@@ -450,7 +450,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()
-			ag.next.Reset(ag.opts.GroupWait)
+			ag.next.Reset(ag.opts.GroupInterval)
 			ag.hasFlushed = true
 			ag.mtx.Unlock()
 

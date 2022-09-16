@@ -573,14 +573,15 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat, groupInterval time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat, groupInterval time.Duration, now time.Time) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
 		return len(firing) > 0
 	}
 
-	groupIntervalMuted := len(entry.FiringAlerts) > 0 && entry.Timestamp.After(time.Now().Add(-groupInterval))
+	groupIntervalExpired := float64(now.UnixMilli()-entry.Timestamp.UnixMilli())/float64(groupInterval.Milliseconds()) >= 0.99
+	groupIntervalMuted := len(entry.FiringAlerts) > 0 && !groupIntervalExpired
 
 	if !entry.IsFiringSubset(firing) && !groupIntervalMuted {
 		return true
@@ -589,7 +590,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	// Notify about all alerts being resolved.
 	// This is done irrespective of the send_resolved flag to make sure that
 	// the firing alerts are cleared from the notification log.
-	if len(firing) == 0 {
+	if len(firing) == 0 && !groupIntervalMuted {
 		// If the current alert group and last notification contain no firing
 		// alert, it means that some alerts have been fired and resolved during the
 		// last interval. In this case, there is no need to notify the receiver
@@ -597,7 +598,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return len(entry.FiringAlerts) > 0
 	}
 
-	if n.rs.SendResolved() && !groupIntervalMuted {
+	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) && !groupIntervalMuted {
 		return true
 	}
 
@@ -620,6 +621,11 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
 		return ctx, nil, errors.New("repeat interval missing")
+	}
+
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, nil, errors.New("now timestamp missing")
 	}
 
 	firingSet := map[uint64]struct{}{}
@@ -656,9 +662,10 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 		return ctx, nil, errors.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, groupInterval) {
+	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval, groupInterval, now) {
 		return ctx, alerts, nil
 	}
+
 	return ctx, nil, nil
 }
 

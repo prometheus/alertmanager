@@ -207,9 +207,9 @@ receivers:
 	am.Push(At(1), Alert("alertname", "test1"))
 
 	co1.Want(Between(2, 2.5), Alert("alertname", "test1").Active(1))
-	co1.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1))
+	co1.Want(Between(5, 6.5), Alert("alertname", "test1").Active(1))
 
-	co2.Want(Between(6, 6.5), Alert("alertname", "test1").Active(1))
+	co2.Want(Between(5, 6.5), Alert("alertname", "test1").Active(1))
 
 	at.Run()
 
