@@ -23,8 +23,6 @@ import (
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/sigv4"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 var (
@@ -148,8 +146,6 @@ var (
 		Message:              `{{ template "telegram.default.message" . }}`,
 		ParseMode:            "HTML",
 	}
-
-	normalizeTitle = cases.Title(language.AmericanEnglish)
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
