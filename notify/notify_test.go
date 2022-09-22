@@ -724,16 +724,20 @@ func TestMuteStageWithSilences(t *testing.T) {
 }
 
 func TestTimeMuteStage(t *testing.T) {
-	// Route mutes alerts outside business hours if it is a mute_time_interval
+	// Route mutes alerts outside business hours in November, using the +1100 timezone.
 	muteIn := `
 ---
 - weekdays: ['monday:friday']
+  location: 'Australia/Sydney'
+  months: ['November']
   times:
    - start_time: '00:00'
      end_time: '09:00'
    - start_time: '17:00'
      end_time: '24:00'
-- weekdays: ['saturday', 'sunday']`
+- weekdays: ['saturday', 'sunday']
+  months: ['November']
+  location: 'Australia/Sydney'`
 
 	cases := []struct {
 		fireTime   string
@@ -742,39 +746,48 @@ func TestTimeMuteStage(t *testing.T) {
 	}{
 		{
 			// Friday during business hours
-			fireTime:   "01 Jan 21 09:00 +0000",
+			fireTime:   "19 Nov 21 13:00 +1100",
 			labels:     model.LabelSet{"foo": "bar"},
 			shouldMute: false,
 		},
 		{
 			// Tuesday before 5pm
-			fireTime:   "01 Dec 20 16:59 +0000",
+			fireTime:   "16 Nov 21 16:59 +1100",
 			labels:     model.LabelSet{"dont": "mute"},
 			shouldMute: false,
 		},
 		{
 			// Saturday
-			fireTime:   "17 Oct 20 10:00 +0000",
+			fireTime:   "20 Nov 21 10:00 +1100",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
 		{
 			// Wednesday before 9am
-			fireTime:   "14 Oct 20 05:00 +0000",
+			fireTime:   "17 Nov 21 05:00 +1100",
 			labels:     model.LabelSet{"mute": "me"},
 			shouldMute: true,
 		},
 		{
-			// Ensure comparisons are UTC only. 12:00 KST should be muted (03:00 UTC)
-			fireTime:   "14 Oct 20 12:00 +0900",
+			// Ensure comparisons with other time zones work as expected.
+			fireTime:   "14 Nov 21 20:00 +0900",
 			labels:     model.LabelSet{"mute": "kst"},
 			shouldMute: true,
 		},
 		{
-			// Ensure comparisons are UTC only. 22:00 KST should not be muted (13:00 UTC)
-			fireTime:   "14 Oct 20 22:00 +0900",
+			fireTime:   "14 Nov 21 21:30 +0000",
+			labels:     model.LabelSet{"mute": "utc"},
+			shouldMute: true,
+		},
+		{
+			fireTime:   "15 Nov 22 14:30 +0900",
 			labels:     model.LabelSet{"kst": "dont_mute"},
 			shouldMute: false,
+		},
+		{
+			fireTime:   "15 Nov 21 02:00 -0500",
+			labels:     model.LabelSet{"mute": "0500"},
+			shouldMute: true,
 		},
 	}
 	var intervals []timeinterval.TimeInterval
