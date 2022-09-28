@@ -855,6 +855,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 		Global: &GlobalConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{
 				FollowRedirects: true,
+				EnableHTTP2:     true,
 			},
 			ResolveTimeout:  model.Duration(5 * time.Minute),
 			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
@@ -962,6 +963,39 @@ func TestSMTPHello(t *testing.T) {
 	if hostName != refValue {
 		t.Errorf("Invalid SMTP Hello hostname: %s\nExpected: %s", hostName, refValue)
 	}
+}
+
+func TestSMTPBothPasswordAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.smtp-both-password-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.smtp-both-password-and-file.yml", err)
+	}
+	if err.Error() != "at most one of smtp_auth_password & smtp_auth_password_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of auth_password & auth_password_file must be configured", err.Error())
+	}
+}
+
+func TestSMTPNoUsernameOrPassword(t *testing.T) {
+	_, err := LoadFile("testdata/conf.smtp-no-username-or-password.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.smtp-no-username-or-password.yml", err)
+	}
+}
+
+func TestGlobalAndLocalSMTPPassword(t *testing.T) {
+	config, err := LoadFile("testdata/conf.smtp-password-global-and-local.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.smtp-password-global-and-local.yml", err)
+	}
+
+	require.Equal(t, "/tmp/globaluserpassword", config.Receivers[0].EmailConfigs[0].AuthPasswordFile, "first email should use password file /tmp/globaluserpassword")
+	require.Emptyf(t, config.Receivers[0].EmailConfigs[0].AuthPassword, "password field should be empty when file provided")
+
+	require.Equal(t, "/tmp/localuser1password", config.Receivers[0].EmailConfigs[1].AuthPasswordFile, "second email should use password file /tmp/localuser1password")
+	require.Emptyf(t, config.Receivers[0].EmailConfigs[1].AuthPassword, "password field should be empty when file provided")
+
+	require.Equal(t, Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
+	require.Emptyf(t, config.Receivers[0].EmailConfigs[2].AuthPasswordFile, "file field should be empty when password provided")
 }
 
 func TestGroupByAll(t *testing.T) {

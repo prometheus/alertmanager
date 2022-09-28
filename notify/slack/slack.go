@@ -18,8 +18,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -190,11 +191,11 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if n.conf.APIURL != nil {
 		u = n.conf.APIURL.String()
 	} else {
-		content, err := ioutil.ReadFile(n.conf.APIURLFile)
+		content, err := os.ReadFile(n.conf.APIURLFile)
 		if err != nil {
 			return false, err
 		}
-		u = string(content)
+		u = strings.TrimSpace(string(content))
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, u, &buf)

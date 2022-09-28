@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"testing"
 
@@ -47,7 +46,7 @@ func TestTruncate(t *testing.T) {
 		{
 			in:    "abcde",
 			n:     4,
-			out:   "a...",
+			out:   "abc…",
 			trunc: true,
 		},
 		{
@@ -59,7 +58,7 @@ func TestTruncate(t *testing.T) {
 		{
 			in:    "abcdefgh",
 			n:     5,
-			out:   "ab...",
+			out:   "abcd…",
 			trunc: true,
 		},
 		{
@@ -71,7 +70,7 @@ func TestTruncate(t *testing.T) {
 		{
 			in:    "a⌘cdef",
 			n:     5,
-			out:   "a⌘...",
+			out:   "a⌘cd…",
 			trunc: true,
 		},
 	}
@@ -156,7 +155,7 @@ func TestRetrierCheck(t *testing.T) {
 				if status != http.StatusServiceUnavailable {
 					return "invalid"
 				}
-				bs, _ := ioutil.ReadAll(b)
+				bs, _ := io.ReadAll(b)
 				return fmt.Sprintf("server response is %q", string(bs))
 			}},
 			status: http.StatusServiceUnavailable,

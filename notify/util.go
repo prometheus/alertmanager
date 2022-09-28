@@ -18,7 +18,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -78,7 +77,7 @@ func request(ctx context.Context, client *http.Client, method, url, bodyType str
 // Drain consumes and closes the response's body to make sure that the
 // HTTP client can reuse existing connections.
 func Drain(r *http.Response) {
-	io.Copy(ioutil.Discard, r.Body)
+	io.Copy(io.Discard, r.Body)
 	r.Body.Close()
 }
 
@@ -91,7 +90,7 @@ func Truncate(s string, n int) (string, bool) {
 	if n <= 3 {
 		return string(r[:n]), true
 	}
-	return string(r[:n-3]) + "...", true
+	return string(r[:n-1]) + "…", true
 }
 
 // TmplText is using monadic error handling in order to make string templating
@@ -161,7 +160,7 @@ func readAll(r io.Reader) string {
 	if r == nil {
 		return ""
 	}
-	bs, err := ioutil.ReadAll(r)
+	bs, err := io.ReadAll(r)
 	if err != nil {
 		return ""
 	}
