@@ -1075,6 +1075,10 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 
 	require.Equal(t, Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[2].AuthPasswordFile, "file field should be empty when password provided")
+
+	require.Equal(t, Secret("myprecious"), config.Receivers[0].EmailConfigs[3].AuthSecret, "fourth email should use secret myprecious")
+
+	require.Equal(t, "/tmp/localuser4secret", config.Receivers[0].EmailConfigs[4].AuthSecretFile, "fifth email should use secret file /tmp/localuser4secret")
 }
 
 func TestGroupByAll(t *testing.T) {

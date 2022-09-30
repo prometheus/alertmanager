@@ -870,3 +870,115 @@ func TestEmailNotifyWithThreading(t *testing.T) {
 		})
 	}
 }
+
+func TestEmailGetPassword(t *testing.T) {
+	passwordFile, err := os.CreateTemp("", "smtp-password")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = passwordFile.WriteString("secret")
+	require.NoError(t, err, "writing to temp file failed")
+
+	for _, tc := range []struct {
+		title     string
+		updateCfg func(*config.EmailConfig)
+
+		errMsg string
+	}{
+		{
+			title: "password from field",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthPassword = "secret"
+				cfg.AuthPasswordFile = ""
+			},
+		},
+		{
+			title: "password from file field",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthPassword = ""
+				cfg.AuthPasswordFile = passwordFile.Name()
+			},
+		},
+		{
+			title: "password file path incorrect",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthPassword = ""
+				cfg.AuthPasswordFile = "/does/not/exist"
+			},
+			errMsg: "could not read",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			email := &Email{
+				conf: &config.EmailConfig{},
+			}
+
+			tc.updateCfg(email.conf)
+
+			password, err := email.getPassword()
+			if len(tc.errMsg) > 0 {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errMsg)
+				require.Equal(t, "", password)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, "secret", password)
+			}
+		})
+	}
+}
+
+func TestEmailGetSecret(t *testing.T) {
+	secretFile, err := os.CreateTemp("", "smtp-password")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = secretFile.WriteString("secret")
+	require.NoError(t, err, "writing to temp file failed")
+
+	for _, tc := range []struct {
+		title     string
+		updateCfg func(*config.EmailConfig)
+
+		errMsg string
+	}{
+		{
+			title: "secret from field",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthSecret = "secret"
+				cfg.AuthSecretFile = ""
+			},
+		},
+		{
+			title: "secret from file field",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthSecret = ""
+				cfg.AuthSecretFile = secretFile.Name()
+			},
+		},
+		{
+			title: "secret file path incorrect",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthSecret = ""
+				cfg.AuthSecretFile = "/does/not/exist"
+			},
+			errMsg: "could not read",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			email := &Email{
+				conf: &config.EmailConfig{},
+			}
+
+			tc.updateCfg(email.conf)
+
+			secret, err := email.getAuthSecret()
+			if len(tc.errMsg) > 0 {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errMsg)
+				require.Equal(t, "", secret)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, "secret", secret)
+			}
+		})
+	}
+}
