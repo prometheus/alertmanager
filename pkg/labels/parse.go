@@ -120,18 +120,14 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		return nil, errors.Errorf("bad matcher format: %s", s)
 	}
 
-	rawValue := ms[3]
-	if len(rawValue) == 0 {
-		return nil, errors.Errorf("matcher value is not present: %s", s)
-	}
-
 	var (
+		rawValue            = ms[3]
 		value               strings.Builder
 		escaped             bool
 		expectTrailingQuote bool
 	)
 
-	if rawValue[0] == '"' {
+	if strings.HasPrefix(rawValue, "\"") {
 		rawValue = strings.TrimPrefix(rawValue, "\"")
 		expectTrailingQuote = true
 	}

@@ -191,7 +191,10 @@ func TestMatchers(t *testing.T) {
 		},
 		{
 			input: `job=`,
-			err:   `matcher value is not present: job=`,
+			want: func() []*Matcher {
+				m, _ := NewMatcher(MatchEqual, "job", "")
+				return []*Matcher{m}
+			}(),
 		},
 		{
 			input: `job="value`,
