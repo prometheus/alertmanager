@@ -127,7 +127,7 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		expectTrailingQuote bool
 	)
 
-	if rawValue[0] == '"' {
+	if strings.HasPrefix(rawValue, "\"") {
 		rawValue = strings.TrimPrefix(rawValue, "\"")
 		expectTrailingQuote = true
 	}
