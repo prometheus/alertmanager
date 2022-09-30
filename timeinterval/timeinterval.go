@@ -408,13 +408,13 @@ func (tz Location) MarshalText() ([]byte, error) {
 	return []byte(tz.Location.String()), nil
 }
 
-//MarshalYAML implements the yaml.Marshaler interface for Location.
+// MarshalYAML implements the yaml.Marshaler interface for Location.
 func (tz Location) MarshalYAML() (interface{}, error) {
 	bytes, err := tz.MarshalText()
 	return string(bytes), err
 }
 
-//MarshalJSON implements the json.Marshaler interface for Location.
+// MarshalJSON implements the json.Marshaler interface for Location.
 func (tz Location) MarshalJSON() (out []byte, err error) {
 	return json.Marshal(tz.String())
 }
