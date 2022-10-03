@@ -44,6 +44,7 @@ type alias Model =
     , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
     , key : Key
+    , firstDayOfWeek : Int
     }
 
 
@@ -72,6 +73,7 @@ type SilenceFormMsg
     | SilenceCreate (ApiData String)
     | UpdateDateTimePicker Utils.DateTimePicker.Types.Msg
     | MsgForFilterBar FilterBar.Msg
+    | UpdateFirstDayOfWeek Int
 
 
 type SilenceFormFieldMsg
@@ -88,15 +90,16 @@ type SilenceFormFieldMsg
     | CloseDateTimePicker
 
 
-initSilenceForm : Key -> Model
-initSilenceForm key =
-    { form = empty
+initSilenceForm : Key -> Int -> Model
+initSilenceForm key firstDayOfWeek =
+    { form = empty firstDayOfWeek
     , filterBar = FilterBar.initFilterBar []
     , filterBarValid = Utils.FormValidation.Initial
     , silenceId = Utils.Types.Initial
     , alerts = Utils.Types.Initial
     , activeAlertId = Nothing
     , key = key
+    , firstDayOfWeek = firstDayOfWeek
     }
 
 
@@ -135,8 +138,8 @@ validMatchers { matchers, matcherText } =
                 Ok (List.map Utils.Filter.toApiMatcher nonEmptyMatchers)
 
 
-fromSilence : GettableSilence -> SilenceForm
-fromSilence { id, createdBy, comment, startsAt, endsAt } =
+fromSilence : GettableSilence -> Int -> SilenceForm
+fromSilence { id, createdBy, comment, startsAt, endsAt } firstDayOfWeek =
     let
         startsPosix =
             Utils.Date.timeFromString (DateTime.toString startsAt)
@@ -152,7 +155,7 @@ fromSilence { id, createdBy, comment, startsAt, endsAt } =
     , startsAt = initialField (timeToString startsAt)
     , endsAt = initialField (timeToString endsAt)
     , duration = initialField (durationFormat (timeDifference startsAt endsAt) |> Maybe.withDefault "")
-    , dateTimePicker = initFromStartAndEndTime startsPosix endsPosix
+    , dateTimePicker = initFromStartAndEndTime startsPosix endsPosix firstDayOfWeek
     , viewDateTimePicker = False
     }
 
@@ -194,15 +197,15 @@ parseEndsAt startsAt endsAt =
             endsResult
 
 
-empty : SilenceForm
-empty =
+empty : Int -> SilenceForm
+empty firstDayOfWeek =
     { id = Nothing
     , createdBy = initialField ""
     , comment = initialField ""
     , startsAt = initialField ""
     , endsAt = initialField ""
     , duration = initialField ""
-    , dateTimePicker = initDateTimePicker
+    , dateTimePicker = initDateTimePicker firstDayOfWeek
     , viewDateTimePicker = False
     }
 
@@ -213,16 +216,16 @@ defaultDuration =
     2 * 60 * 60 * 1000
 
 
-fromMatchersAndCommentAndTime : String -> String -> Posix -> SilenceForm
-fromMatchersAndCommentAndTime defaultCreator comment now =
-    { empty
-        | startsAt = initialField (timeToString now)
-        , endsAt = initialField (timeToString (addDuration defaultDuration now))
-        , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
-        , createdBy = initialField defaultCreator
-        , comment = initialField comment
-        , dateTimePicker = initFromStartAndEndTime (Just now) (Just (addDuration defaultDuration now))
-        , viewDateTimePicker = False
+fromMatchersAndCommentAndTime : String -> String -> Posix -> Int -> SilenceForm
+fromMatchersAndCommentAndTime defaultCreator comment now firstDayOfWeek =
+    { id = Nothing
+    , startsAt = initialField (timeToString now)
+    , endsAt = initialField (timeToString (addDuration defaultDuration now))
+    , duration = initialField (durationFormat defaultDuration |> Maybe.withDefault "")
+    , createdBy = initialField defaultCreator
+    , comment = initialField comment
+    , dateTimePicker = initFromStartAndEndTime (Just now) (Just (addDuration defaultDuration now)) firstDayOfWeek
+    , viewDateTimePicker = False
     }
 
 

@@ -80,14 +80,19 @@ viewMonth : DateTimePicker -> Posix -> Html Msg
 viewMonth dateTimePicker justViewTime =
     let
         days =
-            listDaysOfMonth justViewTime
+            listDaysOfMonth justViewTime dateTimePicker.firstDayOfWeek
 
         weeks =
             splitWeek days []
     in
     div [ class "row justify-content-center" ]
         [ div [ class "weekheader" ]
-            (List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ])
+            (if dateTimePicker.firstDayOfWeek == 7 then
+                List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ]
+
+             else
+                List.map viewWeekHeader [ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" ]
+            )
         , div
             [ class "date-container"
             , onMouseOut ClearMouseOverDay

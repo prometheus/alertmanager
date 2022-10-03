@@ -86,12 +86,24 @@ init flags url key =
 
             else
                 "/"
+
+        startWeekAtMonday =
+            flags
+                |> Json.decodeValue (Json.field "startWeekAtMonday" Json.bool)
+                |> Result.withDefault False
     in
     update (urlUpdate url)
         (Model
             (initSilenceList key)
             (initSilenceView key)
-            (initSilenceForm key)
+            (initSilenceForm key
+                (if startWeekAtMonday then
+                    1
+
+                 else
+                    7
+                )
+            )
             (initAlertList key groupExpandAll)
             route
             filter
@@ -105,6 +117,13 @@ init flags url key =
             defaultCreator
             groupExpandAll
             key
+            { startOfWeek =
+                if startWeekAtMonday then
+                    1
+
+                else
+                    7
+            }
         )
 
 
@@ -132,6 +151,9 @@ urlUpdate url =
 
         StatusRoute ->
             NavigateToStatus
+
+        SettingsRoute ->
+            NavigateToSettings
 
         TopLevelRoute ->
             RedirectAlerts

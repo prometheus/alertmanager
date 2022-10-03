@@ -20,6 +20,7 @@
             var app = Elm.Main.init({
                 flags: {
                     production: true,
+                    startWeekAtMonday: JSON.parse(localStorage.getItem('startWeekAtMonday')),
                     defaultCreator: localStorage.getItem('defaultCreator'),
                     groupExpandAll: JSON.parse(localStorage.getItem('groupExpandAll'))
                 }
@@ -29,6 +30,9 @@
             });
             app.ports.persistGroupExpandAll.subscribe(function(expanded) {
                 localStorage.setItem('groupExpandAll', JSON.stringify(expanded));
+            });
+            app.ports.persistStartWeekAtMonday.subscribe(function(monday) {
+                localStorage.setItem('startWeekAtMonday', JSON.stringify(monday));
             });
         </script>
     </body>

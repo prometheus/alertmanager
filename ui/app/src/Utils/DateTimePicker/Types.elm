@@ -18,6 +18,7 @@ type alias DateTimePicker =
     , endDate : Maybe Posix
     , startTime : Maybe Posix
     , endTime : Maybe Posix
+    , firstDayOfWeek : Int
     }
 
 
@@ -41,19 +42,20 @@ type InputHourOrMinute
     | InputMinute
 
 
-initDateTimePicker : DateTimePicker
-initDateTimePicker =
+initDateTimePicker : Int -> DateTimePicker
+initDateTimePicker firstDayOfWeek =
     { month = Nothing
     , mouseOverDay = Nothing
     , startDate = Nothing
     , endDate = Nothing
     , startTime = Nothing
     , endTime = Nothing
+    , firstDayOfWeek = firstDayOfWeek
     }
 
 
-initFromStartAndEndTime : Maybe Posix -> Maybe Posix -> DateTimePicker
-initFromStartAndEndTime start end =
+initFromStartAndEndTime : Maybe Posix -> Maybe Posix -> Int -> DateTimePicker
+initFromStartAndEndTime start end firstDayOfWeek =
     let
         startTime =
             Maybe.map (\s -> floorMinute s) start
@@ -67,4 +69,5 @@ initFromStartAndEndTime start end =
     , endDate = end
     , startTime = startTime
     , endTime = endTime
+    , firstDayOfWeek = firstDayOfWeek
     }
