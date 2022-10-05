@@ -694,7 +694,7 @@ func getSwaggerSpec() (*loads.Document, error) {
 	// Load embedded swagger file.
 	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to load embedded swagger file: %v", err.Error())
+		return nil, fmt.Errorf("failed to load embedded swagger file: %w", err)
 	}
 
 	swaggerSpecCache = swaggerSpec
