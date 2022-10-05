@@ -101,9 +101,9 @@ func NewAPI(
 	}
 
 	// Load embedded swagger file.
-	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
+	swaggerSpec, err := getSwaggerSpec()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load embedded swagger file: %v", err.Error())
+		return nil, err
 	}
 
 	// Create new service API.
@@ -671,4 +671,32 @@ func parseFilter(filter []string) ([]*labels.Matcher, error) {
 		matchers = append(matchers, matcher)
 	}
 	return matchers, nil
+}
+
+var (
+	swaggerSpecCacheMx sync.Mutex
+	swaggerSpecCache   *loads.Document
+)
+
+// getSwaggerSpec loads and caches the swagger spec. If a cached version already exists,
+// it returns the cached one. The reason why we cache it is because some downstream projects
+// (e.g. Grafana Mimir) creates many Alertmanager instances in the same process, so they would
+// incur in a significant memory penalty if we would reload the swagger spec each time.
+func getSwaggerSpec() (*loads.Document, error) {
+	swaggerSpecCacheMx.Lock()
+	defer swaggerSpecCacheMx.Unlock()
+
+	// Check if a cached version exists.
+	if swaggerSpecCache != nil {
+		return swaggerSpecCache, nil
+	}
+
+	// Load embedded swagger file.
+	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load embedded swagger file: %v", err.Error())
+	}
+
+	swaggerSpecCache = swaggerSpec
+	return swaggerSpec, nil
 }
