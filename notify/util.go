@@ -167,6 +167,17 @@ func readAll(r io.Reader) string {
 	return string(bs)
 }
 
+func getFailureStatusCodeCategory(statusCode int) string {
+	if statusCode/100 == 4 {
+		return "4xx"
+	}
+	if statusCode/100 == 5 {
+		return "5xx"
+	}
+
+	return ""
+}
+
 // Retrier knows when to retry an HTTP request to a receiver. 2xx status codes
 // are successful, anything else is a failure and only 5xx status codes should
 // be retried.
@@ -208,4 +219,22 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 		s = fmt.Sprintf("%s: %s", s, details)
 	}
 	return retry, errors.New(s)
+}
+
+type ErrorWithStatusCode struct {
+	Err error
+
+	// The status code of the HTTP response.
+	StatusCode int
+}
+
+func NewErrorWithStatusCode(statusCode int, err error) *ErrorWithStatusCode {
+	return &ErrorWithStatusCode{
+		Err:        err,
+		StatusCode: statusCode,
+	}
+}
+
+func (e *ErrorWithStatusCode) Error() string {
+	return e.Err.Error()
 }

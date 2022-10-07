@@ -51,6 +51,9 @@ type Peer interface {
 // to a notification pipeline.
 const MinTimeout = 10 * time.Second
 
+// defaultStatusCode is the default status code for numTotalFailedNotifications metric
+const defaultStatusCode = "5xx"
+
 // Notifier notifies about alerts under constraints of the given context. It
 // returns an error if unsuccessful and a flag whether the error is
 // recoverable. This information is useful for a retry logic.
@@ -262,7 +265,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
-		}, []string{"integration"}),
+		}, []string{"integration", "statusCode"}),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
@@ -293,7 +296,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"telegram",
 	} {
 		m.numNotifications.WithLabelValues(integration)
-		m.numTotalFailedNotifications.WithLabelValues(integration)
+		m.numTotalFailedNotifications.WithLabelValues(integration, "")
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
@@ -663,7 +666,11 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
 	if err != nil {
-		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+		if e, ok := errors.Cause(err).(*ErrorWithStatusCode); ok {
+			r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), getFailureStatusCodeCategory(e.StatusCode)).Inc()
+		} else {
+			r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), defaultStatusCode).Inc()
+		}
 	}
 	return ctx, alerts, err
 }

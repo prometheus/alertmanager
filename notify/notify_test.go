@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -420,6 +421,60 @@ func TestRetryStageWithError(t *testing.T) {
 	resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NotNil(t, err)
 	require.NotNil(t, resctx)
+}
+
+func TestRetryStageWithErrorCode(t *testing.T) {
+	testcases := map[string]struct {
+		errorcode     int
+		codelabel     string
+		expectedCount int
+	}{
+		"for 400": {errorcode: 400, codelabel: "4xx", expectedCount: 1},
+		"for 402": {errorcode: 402, codelabel: "4xx", expectedCount: 1},
+		"for 500": {errorcode: 500, codelabel: "5xx", expectedCount: 1},
+		"for 502": {errorcode: 502, codelabel: "5xx", expectedCount: 1},
+	}
+	for _, testData := range testcases {
+		fail, retry := true, false
+		sent := []*types.Alert{}
+		testData := testData
+		i := Integration{
+			name: "test",
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+				if fail {
+					fail = false
+					return retry, NewErrorWithStatusCode(testData.errorcode, errors.New("fail to deliver notification"))
+				}
+				sent = append(sent, alerts...)
+				return false, nil
+			}),
+			rs: sendResolved(false),
+		}
+		r := RetryStage{
+			integration: i,
+			metrics:     NewMetrics(prometheus.NewRegistry()),
+		}
+
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithFiringAlerts(ctx, []uint64{0})
+
+		// Notify with a non-recoverable error.
+		resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+		counter := r.metrics.numTotalFailedNotifications
+
+		require.Equal(t, testData.expectedCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), testData.codelabel))))
+
+		require.NotNil(t, err)
+		require.NotNil(t, resctx)
+	}
 }
 
 func TestRetryStageNoResolved(t *testing.T) {
