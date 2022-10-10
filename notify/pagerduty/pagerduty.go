@@ -209,6 +209,11 @@ func (n *Notifier) notifyV2(
 		level.Debug(n.logger).Log("msg", "Truncated summary", "summary", summary, "key", key)
 	}
 
+	payloadSource := n.conf.Client
+	if n.conf.Source != "" {
+		payloadSource = n.conf.Source
+	}
+
 	msg := &pagerDutyMessage{
 		Client:      tmpl(n.conf.Client),
 		ClientURL:   tmpl(n.conf.ClientURL),
@@ -219,7 +224,7 @@ func (n *Notifier) notifyV2(
 		Links:       make([]pagerDutyLink, 0, len(n.conf.Links)),
 		Payload: &pagerDutyPayload{
 			Summary:       summary,
-			Source:        tmpl(n.conf.Client),
+			Source:        tmpl(payloadSource),
 			Severity:      tmpl(n.conf.Severity),
 			CustomDetails: details,
 			Class:         tmpl(n.conf.Class),
