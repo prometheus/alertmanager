@@ -660,6 +660,9 @@ service_key: <tmpl_secret>
 # Severity of the incident.
 [ severity: <tmpl_string> | default = 'error' ]
 
+# Unique location of the affected system.
+[ source: <tmpl_string> | default = client ]
+
 # A set of arbitrary key/value pairs that provide further detail
 # about the incident.
 [ details: { <string>: <tmpl_string>, ... } | default = {
