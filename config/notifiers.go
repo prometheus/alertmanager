@@ -250,6 +250,9 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if c.Details == nil {
 		c.Details = make(map[string]string)
 	}
+	if c.Source == "" {
+		c.Source = c.Client
+	}
 	for k, v := range DefaultPagerdutyDetails {
 		if _, ok := c.Details[k]; !ok {
 			c.Details[k] = v
