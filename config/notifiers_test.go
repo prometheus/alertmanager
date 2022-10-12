@@ -14,9 +14,10 @@
 package config
 
 import (
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"gopkg.in/yaml.v2"
 )
