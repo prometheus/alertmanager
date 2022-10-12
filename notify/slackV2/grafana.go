@@ -42,7 +42,7 @@ func genGrafanaRenderUrl(grafanaUrl string, grafanaTZ string, org string, dash s
 	q.Set("width", imageWidth)
 	q.Set("height", imageHeight)
 	q.Set("tz", grafanaTZ)
-	u.RawQuery = q.Encode()
+	u.RawQuery = EncodeUrlArgs(q)
 	return u.String(), nil
 
 }
@@ -64,7 +64,7 @@ func genGrafanaUrl(grafanaUrl string, org string, dash string, panel string) (st
 	if panel != "" {
 		q.Set("viewPanel", panel)
 	}
-	u.RawQuery = q.Encode()
+	u.RawQuery = EncodeUrlArgs(q)
 	return u.String(), nil
 }
 
@@ -83,7 +83,7 @@ func urlMerger(publicUrl string, privateUrl string) (string, error) {
 	}
 	q := u.Query()
 	q.Set("pub_secret", key)
-	u.RawQuery = q.Encode()
+	u.RawQuery = EncodeUrlArgs(q)
 
 	return u.String(), nil
 }
@@ -192,8 +192,9 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 			for _, v := range data.CommonLabels.SortedPairs() {
 				filters = append(filters, fmt.Sprintf("%s=\"%s\"", v.Name, v.Value))
 			}
+
 			args.Add("filter", fmt.Sprintf("{%s}", strings.Join(filters, ",")))
-			urlParsed.RawQuery = args.Encode()
+			urlParsed.RawQuery = EncodeUrlArgs(args)
 			url = urlParsed.String()
 			url = strings.Replace(url, "%23", "#", 1)
 		}
@@ -201,8 +202,13 @@ func (n *Notifier) formatGrafanaMessage(data *template.Data) slack.Blocks {
 		alertEditUrl := ""
 		for _, alert := range data.Alerts {
 			if alert.GeneratorURL != "" {
-				alertEditUrl = alert.GeneratorURL + "?orgId=" + orgId
-				break
+				if urlParsed, err := url2.Parse(alert.GeneratorURL); err == nil {
+					args := urlParsed.Query()
+					args.Add("orgId", orgId)
+					urlParsed.RawQuery = EncodeUrlArgs(args)
+					alertEditUrl = urlParsed.String()
+					break
+				}
 			}
 		}
 

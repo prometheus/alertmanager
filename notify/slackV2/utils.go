@@ -2,6 +2,8 @@ package slackV2
 
 import (
 	"github.com/prometheus/alertmanager/template"
+	url2 "net/url"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -104,4 +106,10 @@ func cut(text string, limit int) string {
 		return string(runes[:limit])
 	}
 	return text
+}
+
+func EncodeUrlArgs(values url2.Values) string {
+	result := values.Encode()
+	result = strings.Replace(result, "+", "%20", -1)
+	return result
 }

@@ -79,7 +79,7 @@ func (n *Notifier) formatMessage(data *template.Data) slack.Blocks {
 				filters = append(filters, fmt.Sprintf("%s=\"%s\"", v.Name, v.Value))
 			}
 			args.Add("filter", fmt.Sprintf("{%s}", strings.Join(filters, ",")))
-			urlParsed.RawQuery = args.Encode()
+			urlParsed.RawQuery = EncodeUrlArgs(args)
 			url = urlParsed.String()
 			url = strings.Replace(url, "%23", "#", 1)
 		}
