@@ -51,8 +51,8 @@ type Peer interface {
 // to a notification pipeline.
 const MinTimeout = 10 * time.Second
 
-// defaultStatusCode is the default status code for numTotalFailedNotifications metric
-const defaultStatusCode = "5xx"
+// defaultStatusCodeCategory is the default status code category for numTotalFailedNotifications metric
+const defaultStatusCodeCategory = "5xx"
 
 // Notifier notifies about alerts under constraints of the given context. It
 // returns an error if unsuccessful and a flag whether the error is
@@ -665,13 +665,17 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
+
+	statusCodeCategory := defaultStatusCodeCategory
 	if err != nil {
 		if e, ok := errors.Cause(err).(*ErrorWithStatusCode); ok {
-			r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), getFailureStatusCodeCategory(e.StatusCode)).Inc()
-		} else {
-			r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), defaultStatusCode).Inc()
+			result, interErr := getFailureStatusCodeCategory(e.StatusCode)
+			if interErr == nil {
+				statusCodeCategory = result
+			}
 		}
 	}
+	r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), statusCodeCategory).Inc()
 	return ctx, alerts, err
 }
 

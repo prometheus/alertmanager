@@ -167,15 +167,18 @@ func readAll(r io.Reader) string {
 	return string(bs)
 }
 
-func getFailureStatusCodeCategory(statusCode int) string {
+// getFailureStatusCodeCategory return the status code category for failure request
+// the status starts with 4 will return 4xx and starts with 5 will return 5xx
+// other than 4xx and 5xx input status will return an error.
+func getFailureStatusCodeCategory(statusCode int) (string, error) {
 	if statusCode/100 == 4 {
-		return "4xx"
+		return "4xx", nil
 	}
 	if statusCode/100 == 5 {
-		return "5xx"
+		return "5xx", nil
 	}
 
-	return ""
+	return "", fmt.Errorf("unexpected status code %v", statusCode)
 }
 
 // Retrier knows when to retry an HTTP request to a receiver. 2xx status codes
