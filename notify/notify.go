@@ -674,8 +674,8 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				statusCodeCategory = result
 			}
 		}
+		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), statusCodeCategory).Inc()
 	}
-	r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), statusCodeCategory).Inc()
 	return ctx, alerts, err
 }
 
