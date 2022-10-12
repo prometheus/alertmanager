@@ -14,6 +14,7 @@
 package config
 
 import (
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 
@@ -143,6 +144,40 @@ details:
 		if tc.checkFn != nil {
 			tc.checkFn(cfg.Details)
 		}
+	}
+}
+
+func TestPagerDutySource(t *testing.T) {
+	for _, tc := range []struct {
+		title string
+		in    string
+
+		expectedSource string
+	}{
+		{
+			title: "check source field is backward compatible",
+			in: `
+routing_key: 'xyz'
+client: 'alert-manager-client'
+`,
+			expectedSource: "alert-manager-client",
+		},
+		{
+			title: "check source field is set",
+			in: `
+routing_key: 'xyz'
+client: 'alert-manager-client'
+source: 'alert-manager-source'
+`,
+			expectedSource: "alert-manager-source",
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			var cfg PagerdutyConfig
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedSource, cfg.Source)
+		})
 	}
 }
 
