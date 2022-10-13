@@ -640,11 +640,15 @@ PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometh
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The following two options are mutually exclusive.
+# The routing key and service key are mutually exclusive.
 # The PagerDuty integration key (when using PagerDuty integration type `Events API v2`).
 routing_key: <tmpl_secret>
+# The filepath to the Pager Duty routing key. Conflicts with routing_key.
+routing_key_file: <filepath>
 # The PagerDuty integration key (when using PagerDuty integration type `Prometheus`).
 service_key: <tmpl_secret>
+# The filepath to the Pager Duty service key. Conflicts with service_key.
+service_key_file: <filepath>
 
 # The URL to send API requests to
 [ url: <string> | default = global.pagerduty_url ]
