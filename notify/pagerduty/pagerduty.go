@@ -219,7 +219,7 @@ func (n *Notifier) notifyV2(
 		Links:       make([]pagerDutyLink, 0, len(n.conf.Links)),
 		Payload: &pagerDutyPayload{
 			Summary:       summary,
-			Source:        tmpl(n.conf.Client),
+			Source:        tmpl(n.conf.Source),
 			Severity:      tmpl(n.conf.Severity),
 			CustomDetails: details,
 			Class:         tmpl(n.conf.Class),
