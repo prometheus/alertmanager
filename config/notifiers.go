@@ -217,6 +217,7 @@ type PagerdutyConfig struct {
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
 	Images      []PagerdutyImage  `yaml:"images,omitempty" json:"images,omitempty"`
 	Links       []PagerdutyLink   `yaml:"links,omitempty" json:"links,omitempty"`
+	Source      string            `yaml:"source,omitempty" json:"source,omitempty"`
 	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
 	Class       string            `yaml:"class,omitempty" json:"class,omitempty"`
 	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
@@ -248,6 +249,9 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	}
 	if c.Details == nil {
 		c.Details = make(map[string]string)
+	}
+	if c.Source == "" {
+		c.Source = c.Client
 	}
 	for k, v := range DefaultPagerdutyDetails {
 		if _, ok := c.Details[k]; !ok {
