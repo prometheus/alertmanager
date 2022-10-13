@@ -59,38 +59,78 @@ headers:
 	}
 }
 
-func TestPagerdutyRoutingKeyIsPresent(t *testing.T) {
-	in := `
+func TestPagerdutyTestRoutingKey(t *testing.T) {
+	t.Run("error if no routing key or key file", func(t *testing.T) {
+		in := `
 routing_key: ''
 `
-	var cfg PagerdutyConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing service or routing key in PagerDuty config"
+		expected := "missing service or routing key in PagerDuty config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("error if both routing key and key file", func(t *testing.T) {
+		in := `
+routing_key: 'xyz'
+routing_key_file: 'xyz'
+`
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of routing_key & routing_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
-func TestPagerdutyServiceKeyIsPresent(t *testing.T) {
-	in := `
+func TestPagerdutyServiceKey(t *testing.T) {
+	t.Run("error if no service key or key file", func(t *testing.T) {
+		in := `
 service_key: ''
 `
-	var cfg PagerdutyConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing service or routing key in PagerDuty config"
+		expected := "missing service or routing key in PagerDuty config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("error if both service key and key file", func(t *testing.T) {
+		in := `
+service_key: 'xyz'
+service_key_file: 'xyz'
+`
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of service_key & service_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
 func TestPagerdutyDetails(t *testing.T) {
