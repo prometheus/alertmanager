@@ -640,7 +640,7 @@ PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometh
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The routing key and service key are mutually exclusive.
+# The routing and service keys are mutually exclusive.
 # The PagerDuty integration key (when using PagerDuty integration type `Events API v2`).
 routing_key: <tmpl_secret>
 # The filepath to the Pager Duty routing key. Conflicts with routing_key.
