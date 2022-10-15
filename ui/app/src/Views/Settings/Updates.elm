@@ -10,10 +10,10 @@ import Views.SilenceForm.Types
 update : SettingsMsg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        UpdateStartWeekAtMonday startOfWeekString ->
+        Views.Settings.Types.UpdateFirstDayOfWeek firstDayOfWeekString ->
             let
-                startOfWeek =
-                    case startOfWeekString of
+                firstDayOfWeek =
+                    case firstDayOfWeekString of
                         "Monday" ->
                             Monday
 
@@ -23,27 +23,27 @@ update msg model =
                         _ ->
                             Monday
 
-                startOfWeekString2 =
-                    case startOfWeek of
+                firstDayOfWeekString2 =
+                    case firstDayOfWeek of
                         Monday ->
                             "Monday"
 
                         Sunday ->
                             "Sunday"
             in
-            ( { model | startOfWeek = startOfWeek }
+            ( { model | firstDayOfWeek = firstDayOfWeek }
             , Cmd.batch
                 [ Task.perform identity
                     (Task.succeed
                         (MsgForSilenceForm
-                            (UpdateFirstDayOfWeek
-                                startOfWeek
+                            (Views.SilenceForm.Types.UpdateFirstDayOfWeek
+                                firstDayOfWeek
                             )
                         )
                     )
-                , persistStartWeekAtMonday startOfWeekString2
+                , persistFirstDayOfWeek firstDayOfWeekString2
                 ]
             )
 
 
-port persistStartWeekAtMonday : String -> Cmd msg
+port persistFirstDayOfWeek : String -> Cmd msg

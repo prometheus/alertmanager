@@ -10,24 +10,22 @@ import Views.Settings.Types exposing (Model, SettingsMsg(..))
 view : Model -> Html SettingsMsg
 view model =
     div []
-        [ h1 []
-            [ text "Settings" ]
-        , div [ class "form-group" ]
+        [ div [ class "form-group" ]
             [ label
                 [ for "select" ]
                 [ text "Start of Week:" ]
             , select
-                [ onInput UpdateStartWeekAtMonday, id "select", class "form-control" ]
+                [ onInput UpdateFirstDayOfWeek, id "select", class "form-control" ]
                 [ option
                     [ value "Monday"
                     , selected
-                        (model.startOfWeek == Monday)
+                        (model.firstDayOfWeek == Monday)
                     ]
                     [ text "Monday" ]
                 , option
                     [ value "Sunday"
                     , selected
-                        (model.startOfWeek == Sunday)
+                        (model.firstDayOfWeek == Sunday)
                     ]
                     [ text "Sunday" ]
                 ]

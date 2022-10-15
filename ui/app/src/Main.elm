@@ -88,24 +88,24 @@ init flags url key =
             else
                 "/"
 
-        startWeekAtMonday =
+        firstDayOfWeek =
             flags
-                |> Json.decodeValue (Json.field "startWeekAtMonday" Json.string)
+                |> Json.decodeValue (Json.field "firstDayOfWeek" Json.string)
                 |> Result.withDefault "Monday"
                 |> (\d ->
                         case d of
-                            "Monday" ->
-                                Monday
+                            "Sunday" ->
+                                Sunday
 
                             _ ->
-                                Sunday
+                                Monday
                    )
     in
     update (urlUpdate url)
         (Model
             (initSilenceList key)
             (initSilenceView key)
-            (initSilenceForm key startWeekAtMonday)
+            (initSilenceForm key firstDayOfWeek)
             (initAlertList key groupExpandAll)
             route
             filter
@@ -119,7 +119,7 @@ init flags url key =
             defaultCreator
             groupExpandAll
             key
-            { startOfWeek = startWeekAtMonday
+            { firstDayOfWeek = firstDayOfWeek
             }
         )
 
