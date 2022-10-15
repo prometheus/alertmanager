@@ -9,7 +9,8 @@ import Time exposing (Posix, utc)
 import Utils.DateTimePicker.Types exposing (DateTimePicker, InputHourOrMinute(..), Msg(..), StartOrEnd(..))
 import Utils.DateTimePicker.Utils
     exposing
-        ( floorDate
+        ( FirstDayOfWeek(..)
+        , floorDate
         , floorMonth
         , listDaysOfMonth
         , monthToString
@@ -87,7 +88,7 @@ viewMonth dateTimePicker justViewTime =
     in
     div [ class "row justify-content-center" ]
         [ div [ class "weekheader" ]
-            (if dateTimePicker.firstDayOfWeek == 7 then
+            (if dateTimePicker.firstDayOfWeek == Sunday then
                 List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ]
 
              else

@@ -1,11 +1,10 @@
 port module Views.Settings.Updates exposing (..)
 
-import Maybe
-import String
 import Task
 import Types exposing (Msg(..))
+import Utils.DateTimePicker.Utils exposing (FirstDayOfWeek(..))
 import Views.Settings.Types exposing (..)
-import Views.SilenceForm.Types exposing (SilenceFormMsg(..))
+import Views.SilenceForm.Types
 
 
 update : SettingsMsg -> Model -> ( Model, Cmd Msg )
@@ -13,14 +12,24 @@ update msg model =
     case msg of
         UpdateStartWeekAtMonday startOfWeekString ->
             let
-                monday =
-                    startOfWeekString == "1"
-
                 startOfWeek =
-                    Maybe.withDefault 7
-                        (String.toInt
-                            startOfWeekString
-                        )
+                    case startOfWeekString of
+                        "Monday" ->
+                            Monday
+
+                        "Sunday" ->
+                            Sunday
+
+                        _ ->
+                            Monday
+
+                startOfWeekString2 =
+                    case startOfWeek of
+                        Monday ->
+                            "Monday"
+
+                        Sunday ->
+                            "Sunday"
             in
             ( { model | startOfWeek = startOfWeek }
             , Cmd.batch
@@ -32,9 +41,9 @@ update msg model =
                             )
                         )
                     )
-                , persistStartWeekAtMonday monday
+                , persistStartWeekAtMonday startOfWeekString2
                 ]
             )
 
 
-port persistStartWeekAtMonday : Bool -> Cmd msg
+port persistStartWeekAtMonday : String -> Cmd msg

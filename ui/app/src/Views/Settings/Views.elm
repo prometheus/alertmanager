@@ -3,6 +3,7 @@ module Views.Settings.Views exposing (view)
 import Html exposing (..)
 import Html.Attributes exposing (class, for, id, selected, value)
 import Html.Events exposing (..)
+import Utils.DateTimePicker.Utils exposing (FirstDayOfWeek(..))
 import Views.Settings.Types exposing (Model, SettingsMsg(..))
 
 
@@ -18,15 +19,15 @@ view model =
             , select
                 [ onInput UpdateStartWeekAtMonday, id "select", class "form-control" ]
                 [ option
-                    [ value "1"
+                    [ value "Monday"
                     , selected
-                        (model.startOfWeek == 1)
+                        (model.startOfWeek == Monday)
                     ]
                     [ text "Monday" ]
                 , option
-                    [ value "7"
+                    [ value "Sunday"
                     , selected
-                        (model.startOfWeek == 7)
+                        (model.startOfWeek == Sunday)
                     ]
                     [ text "Sunday" ]
                 ]

@@ -1,5 +1,6 @@
 module Utils.DateTimePicker.Utils exposing
-    ( addHour
+    ( FirstDayOfWeek(..)
+    , addHour
     , addMinute
     , firstDayOfNextMonth
     , firstDayOfPrevMonth
@@ -21,7 +22,12 @@ import Time exposing (Month(..), Posix, Weekday(..), utc)
 import Time.Extra as Time exposing (Interval(..))
 
 
-listDaysOfMonth : Posix -> Int -> List Posix
+type FirstDayOfWeek
+    = Monday
+    | Sunday
+
+
+listDaysOfMonth : Posix -> FirstDayOfWeek -> List Posix
 listDaysOfMonth time firstDayOfWeek =
     let
         firstOfMonth =
@@ -33,7 +39,7 @@ listDaysOfMonth time firstDayOfWeek =
         padFront =
             weekToInt (Time.toWeekday utc firstOfMonth)
                 |> (\wd ->
-                        if firstDayOfWeek == 7 then
+                        if firstDayOfWeek == Sunday then
                             if wd == 7 then
                                 0
 
@@ -52,7 +58,7 @@ listDaysOfMonth time firstDayOfWeek =
         padBack =
             weekToInt (Time.toWeekday utc firstOfNextMonth)
                 |> (\wd ->
-                        if firstDayOfWeek == 7 then
+                        if firstDayOfWeek == Sunday then
                             wd
 
                         else if wd == 1 then

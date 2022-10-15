@@ -8,7 +8,7 @@ module Utils.DateTimePicker.Types exposing
     )
 
 import Time exposing (Posix)
-import Utils.DateTimePicker.Utils exposing (floorMinute)
+import Utils.DateTimePicker.Utils exposing (FirstDayOfWeek, floorMinute)
 
 
 type alias DateTimePicker =
@@ -18,7 +18,7 @@ type alias DateTimePicker =
     , endDate : Maybe Posix
     , startTime : Maybe Posix
     , endTime : Maybe Posix
-    , firstDayOfWeek : Int
+    , firstDayOfWeek : FirstDayOfWeek
     }
 
 
@@ -42,7 +42,7 @@ type InputHourOrMinute
     | InputMinute
 
 
-initDateTimePicker : Int -> DateTimePicker
+initDateTimePicker : FirstDayOfWeek -> DateTimePicker
 initDateTimePicker firstDayOfWeek =
     { month = Nothing
     , mouseOverDay = Nothing
@@ -54,7 +54,7 @@ initDateTimePicker firstDayOfWeek =
     }
 
 
-initFromStartAndEndTime : Maybe Posix -> Maybe Posix -> Int -> DateTimePicker
+initFromStartAndEndTime : Maybe Posix -> Maybe Posix -> FirstDayOfWeek -> DateTimePicker
 initFromStartAndEndTime start end firstDayOfWeek =
     let
         startTime =

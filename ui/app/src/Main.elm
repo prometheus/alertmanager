@@ -8,6 +8,7 @@ import Types exposing (Model, Msg(..), Route(..))
 import Updates exposing (update)
 import Url exposing (Url)
 import Utils.Api as Api
+import Utils.DateTimePicker.Utils exposing (FirstDayOfWeek(..))
 import Utils.Filter exposing (nullFilter)
 import Utils.Types exposing (ApiData(..))
 import Views
@@ -89,21 +90,22 @@ init flags url key =
 
         startWeekAtMonday =
             flags
-                |> Json.decodeValue (Json.field "startWeekAtMonday" Json.bool)
-                |> Result.withDefault False
+                |> Json.decodeValue (Json.field "startWeekAtMonday" Json.string)
+                |> Result.withDefault "Monday"
+                |> (\d ->
+                        case d of
+                            "Monday" ->
+                                Monday
+
+                            _ ->
+                                Sunday
+                   )
     in
     update (urlUpdate url)
         (Model
             (initSilenceList key)
             (initSilenceView key)
-            (initSilenceForm key
-                (if startWeekAtMonday then
-                    1
-
-                 else
-                    7
-                )
-            )
+            (initSilenceForm key startWeekAtMonday)
             (initAlertList key groupExpandAll)
             route
             filter
@@ -117,12 +119,7 @@ init flags url key =
             defaultCreator
             groupExpandAll
             key
-            { startOfWeek =
-                if startWeekAtMonday then
-                    1
-
-                else
-                    7
+            { startOfWeek = startWeekAtMonday
             }
         )
 

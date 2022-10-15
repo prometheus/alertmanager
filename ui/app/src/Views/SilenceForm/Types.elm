@@ -23,6 +23,7 @@ import Silences.Types exposing (nullSilence)
 import Time exposing (Posix)
 import Utils.Date exposing (addDuration, durationFormat, parseDuration, timeDifference, timeFromString, timeToString)
 import Utils.DateTimePicker.Types exposing (DateTimePicker, initDateTimePicker, initFromStartAndEndTime)
+import Utils.DateTimePicker.Utils exposing (FirstDayOfWeek)
 import Utils.Filter
 import Utils.FormValidation
     exposing
@@ -44,7 +45,7 @@ type alias Model =
     , alerts : ApiData (List GettableAlert)
     , activeAlertId : Maybe String
     , key : Key
-    , firstDayOfWeek : Int
+    , firstDayOfWeek : FirstDayOfWeek
     }
 
 
@@ -73,7 +74,7 @@ type SilenceFormMsg
     | SilenceCreate (ApiData String)
     | UpdateDateTimePicker Utils.DateTimePicker.Types.Msg
     | MsgForFilterBar FilterBar.Msg
-    | UpdateFirstDayOfWeek Int
+    | UpdateFirstDayOfWeek FirstDayOfWeek
 
 
 type SilenceFormFieldMsg
@@ -90,7 +91,7 @@ type SilenceFormFieldMsg
     | CloseDateTimePicker
 
 
-initSilenceForm : Key -> Int -> Model
+initSilenceForm : Key -> FirstDayOfWeek -> Model
 initSilenceForm key firstDayOfWeek =
     { form = empty firstDayOfWeek
     , filterBar = FilterBar.initFilterBar []
@@ -138,7 +139,7 @@ validMatchers { matchers, matcherText } =
                 Ok (List.map Utils.Filter.toApiMatcher nonEmptyMatchers)
 
 
-fromSilence : GettableSilence -> Int -> SilenceForm
+fromSilence : GettableSilence -> FirstDayOfWeek -> SilenceForm
 fromSilence { id, createdBy, comment, startsAt, endsAt } firstDayOfWeek =
     let
         startsPosix =
@@ -197,7 +198,7 @@ parseEndsAt startsAt endsAt =
             endsResult
 
 
-empty : Int -> SilenceForm
+empty : FirstDayOfWeek -> SilenceForm
 empty firstDayOfWeek =
     { id = Nothing
     , createdBy = initialField ""
@@ -216,7 +217,7 @@ defaultDuration =
     2 * 60 * 60 * 1000
 
 
-fromMatchersAndCommentAndTime : String -> String -> Posix -> Int -> SilenceForm
+fromMatchersAndCommentAndTime : String -> String -> Posix -> FirstDayOfWeek -> SilenceForm
 fromMatchersAndCommentAndTime defaultCreator comment now firstDayOfWeek =
     { id = Nothing
     , startsAt = initialField (timeToString now)
