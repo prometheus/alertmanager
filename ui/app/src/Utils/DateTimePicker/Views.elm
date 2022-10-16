@@ -88,11 +88,12 @@ viewMonth dateTimePicker justViewTime =
     in
     div [ class "row justify-content-center" ]
         [ div [ class "weekheader" ]
-            (if dateTimePicker.firstDayOfWeek == Sunday then
-                List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ]
+            (case dateTimePicker.firstDayOfWeek of
+                Sunday ->
+                    List.map viewWeekHeader [ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" ]
 
-             else
-                List.map viewWeekHeader [ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" ]
+                Monday ->
+                    List.map viewWeekHeader [ "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" ]
             )
         , div
             [ class "date-container"

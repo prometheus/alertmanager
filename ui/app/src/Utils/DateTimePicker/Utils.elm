@@ -39,18 +39,20 @@ listDaysOfMonth time firstDayOfWeek =
         padFront =
             weekToInt (Time.toWeekday utc firstOfMonth)
                 |> (\wd ->
-                        if firstDayOfWeek == Sunday then
-                            if wd == 7 then
-                                0
+                        case firstDayOfWeek of
+                            Sunday ->
+                                if wd == 7 then
+                                    0
 
-                            else
-                                wd
+                                else
+                                    wd
 
-                        else if wd == 1 then
-                            0
+                            Monday ->
+                                if wd == 1 then
+                                    0
 
-                        else
-                            wd - 1
+                                else
+                                    wd - 1
                    )
                 |> (\w -> Time.add Time.Day -w utc firstOfMonth)
                 |> (\d -> Time.range Time.Day 1 utc d firstOfMonth)
@@ -58,14 +60,16 @@ listDaysOfMonth time firstDayOfWeek =
         padBack =
             weekToInt (Time.toWeekday utc firstOfNextMonth)
                 |> (\wd ->
-                        if firstDayOfWeek == Sunday then
-                            wd
+                        case firstDayOfWeek of
+                            Sunday ->
+                                wd
 
-                        else if wd == 1 then
-                            7
+                            Monday ->
+                                if wd == 1 then
+                                    7
 
-                        else
-                            wd - 1
+                                else
+                                    wd - 1
                    )
                 |> (\w -> Time.add Time.Day (7 - w) utc firstOfNextMonth)
                 |> Time.range Time.Day 1 utc firstOfNextMonth
