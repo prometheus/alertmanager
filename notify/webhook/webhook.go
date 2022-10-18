@@ -118,5 +118,5 @@ func errDetails(body io.Reader, url string) string {
 	if err != nil {
 		return url
 	}
-	return fmt.Sprintf("%s at %s", string(bs), url)
+	return fmt.Sprintf("%s: %s", url, string(bs))
 }

@@ -67,7 +67,7 @@ func TestWebhookRetry(t *testing.T) {
 					`{"status":"invalid event"}`,
 				)),
 
-				exp: fmt.Sprintf(`unexpected status code %d: {"status":"invalid event"} at %s`, http.StatusBadRequest, u.String()),
+				exp: fmt.Sprintf(`unexpected status code %d: %s: {"status":"invalid event"}`, http.StatusBadRequest, u.String()),
 			},
 			{
 				status: http.StatusBadRequest,
@@ -76,7 +76,7 @@ func TestWebhookRetry(t *testing.T) {
 			},
 		} {
 			t.Run("", func(t *testing.T) {
-				_, err := notifier.retrier.Check(tc.status, tc.body)
+				_, err = notifier.retrier.Check(tc.status, tc.body)
 				require.Equal(t, tc.exp, err.Error())
 			})
 		}
