@@ -91,7 +91,7 @@ init flags url key =
         firstDayOfWeek =
             flags
                 |> Json.decodeValue (Json.field "firstDayOfWeek" Json.string)
-                |> Result.withDefault "Monday"
+                |> Result.withDefault "Sunday"
                 |> (\d ->
                         case d of
                             "Sunday" ->
