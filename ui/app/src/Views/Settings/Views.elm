@@ -27,9 +27,15 @@ view model =
 
 radio : String -> Bool -> (String -> msg) -> Html msg
 radio radioValue isChecked msg =
-    div [ class "form-check" ]
-        [ input [ type_ "radio", onInput msg, class "form-check-input", id radioValue, checked isChecked, value radioValue ] []
-        , label [ class "form-check-label", for radioValue ]
-            [ text radioValue
+    label [ class "mt-1 ml-1 custom-control custom-radio" ]
+        [ input
+            [ type_ "checkbox"
+            , class "custom-control-input"
+            , checked isChecked
+            , value radioValue
+            , onInput msg
             ]
+            []
+        , span [ class "custom-control-indicator" ] []
+        , span [ class "custom-control-description" ] [ text radioValue ]
         ]
