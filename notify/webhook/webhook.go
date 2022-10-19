@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -53,8 +54,8 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger, httpOpt
 		// Webhooks are assumed to respond with 2xx response codes on a successful
 		// request and 5xx response codes are assumed to be recoverable.
 		retrier: &notify.Retrier{
-			CustomDetailsFunc: func(int, io.Reader) string {
-				return conf.URL.String()
+			CustomDetailsFunc: func(_ int, body io.Reader) string {
+				return errDetails(body, conf.URL.String())
 			},
 		},
 	}, nil
@@ -104,7 +105,18 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	if err != nil {
 		return true, err
 	}
-	notify.Drain(resp)
+	defer notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, nil)
+	return n.retrier.Check(resp.StatusCode, resp.Body)
+}
+
+func errDetails(body io.Reader, url string) string {
+	if body == nil {
+		return url
+	}
+	bs, err := io.ReadAll(body)
+	if err != nil {
+		return url
+	}
+	return fmt.Sprintf("%s: %s", url, string(bs))
 }
