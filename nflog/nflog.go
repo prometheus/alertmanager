@@ -399,7 +399,7 @@ func stateKey(k string, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, receiverKey(r))
 }
 
-func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
+func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -415,6 +415,11 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 		}
 	}
 
+	expiresAt := now.Add(l.retention)
+	if expiry > 0 && l.retention > expiry {
+		expiresAt = now.Add(expiry)
+	}
+
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:       r,
@@ -423,7 +428,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
 		},
-		ExpiresAt: now.Add(l.retention),
+		ExpiresAt: expiresAt,
 	}
 
 	b, err := marshalMeshEntry(e)
