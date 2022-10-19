@@ -8,6 +8,7 @@ import Types exposing (Model, Msg(..), Route(..))
 import Updates exposing (update)
 import Url exposing (Url)
 import Utils.Api as Api
+import Utils.DateTimePicker.Utils exposing (FirstDayOfWeek(..))
 import Utils.Filter exposing (nullFilter)
 import Utils.Types exposing (ApiData(..))
 import Views
@@ -86,12 +87,25 @@ init flags url key =
 
             else
                 "/"
+
+        firstDayOfWeek =
+            flags
+                |> Json.decodeValue (Json.field "firstDayOfWeek" Json.string)
+                |> Result.withDefault "Sunday"
+                |> (\d ->
+                        case d of
+                            "Sunday" ->
+                                Sunday
+
+                            _ ->
+                                Monday
+                   )
     in
     update (urlUpdate url)
         (Model
             (initSilenceList key)
             (initSilenceView key)
-            (initSilenceForm key)
+            (initSilenceForm key firstDayOfWeek)
             (initAlertList key groupExpandAll)
             route
             filter
@@ -105,6 +119,8 @@ init flags url key =
             defaultCreator
             groupExpandAll
             key
+            { firstDayOfWeek = firstDayOfWeek
+            }
         )
 
 
@@ -132,6 +148,9 @@ urlUpdate url =
 
         StatusRoute ->
             NavigateToStatus
+
+        SettingsRoute ->
+            NavigateToSettings
 
         TopLevelRoute ->
             RedirectAlerts
