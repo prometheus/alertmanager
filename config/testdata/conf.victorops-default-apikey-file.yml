@@ -17,4 +17,4 @@ receivers:
   - name: 'team-Y-victorops'
     victorops_configs:
       - routing_key: 'team-Y'
-        api_key: qwe456
+        api_key_file: /override_file
