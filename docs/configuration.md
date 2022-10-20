@@ -85,6 +85,7 @@ global:
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
+  [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
   [ opsgenie_api_key: <secret> ]
