@@ -299,7 +299,6 @@ api_key_file: /global_file
 `
 		var cfg VictorOpsConfig
 		err := yaml.UnmarshalStrict([]byte(in), &cfg)
-
 		if err != nil {
 			t.Fatalf("no error was expected:\n%v", err)
 		}
