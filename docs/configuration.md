@@ -977,7 +977,8 @@ VictorOps notifications are sent out via the [VictorOps API](https://help.victor
 # It is mutually exclusive with `api_key_file`.
 [ api_key: <secret> | default = global.victorops_api_key ]
 
-# The filepath to API key to use when talking to the VictorOps API. Conflicts with api_key.
+# Reads the API key to use when talking to the VictorOps API from a file.
+# It is mutually exclusive with `api_key`.
 [ api_key_file: <filepath> | default = global.victorops_api_key_file ]
 
 # The VictorOps API URL.
