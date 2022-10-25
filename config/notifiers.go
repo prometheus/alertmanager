@@ -540,7 +540,7 @@ type VictorOpsConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIKey            Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIKeyFile        Secret            `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
+	APIKeyFile        string            `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
 	APIURL            *URL              `yaml:"api_url" json:"api_url"`
 	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`
 	MessageType       string            `yaml:"message_type" json:"message_type"`
@@ -559,6 +559,9 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	}
 	if c.RoutingKey == "" {
 		return fmt.Errorf("missing Routing key in VictorOps config")
+	}
+	if c.APIKey != "" && len(c.APIKeyFile) > 0 {
+		return fmt.Errorf("at most one of api_key & api_key_file must be configured")
 	}
 
 	reservedFields := []string{"routing_key", "message_type", "state_message", "entity_display_name", "monitoring_tool", "entity_id", "entity_state"}

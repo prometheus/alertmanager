@@ -85,6 +85,7 @@ global:
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
+  [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
   [ opsgenie_api_key: <secret> ]
@@ -973,7 +974,12 @@ VictorOps notifications are sent out via the [VictorOps API](https://help.victor
 [ send_resolved: <boolean> | default = true ]
 
 # The API key to use when talking to the VictorOps API.
+# It is mutually exclusive with `api_key_file`.
 [ api_key: <secret> | default = global.victorops_api_key ]
+
+# Reads the API key to use when talking to the VictorOps API from a file.
+# It is mutually exclusive with `api_key`.
+[ api_key_file: <filepath> | default = global.victorops_api_key_file ]
 
 # The VictorOps API URL.
 [ api_url: <string> | default = global.victorops_api_url ]

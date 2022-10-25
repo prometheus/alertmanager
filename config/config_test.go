@@ -1016,11 +1016,38 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	}
 
 	defaultKey := conf.Global.VictorOpsAPIKey
+	overrideKey := Secret("qwe456")
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
 		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
-	if defaultKey == conf.Receivers[1].VictorOpsConfigs[0].APIKey {
-		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, "qwe456")
+	if overrideKey != conf.Receivers[1].VictorOpsConfigs[0].APIKey {
+		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, string(overrideKey))
+	}
+}
+
+func TestVictorOpsDefaultAPIKeyFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.victorops-default-apikey-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey-file.yml", err)
+	}
+
+	defaultKey := conf.Global.VictorOpsAPIKeyFile
+	overrideKey := "/override_file"
+	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile {
+		t.Fatalf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile, defaultKey)
+	}
+	if overrideKey != conf.Receivers[1].VictorOpsConfigs[0].APIKeyFile {
+		t.Errorf("Invalid VictorOps key_file: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKeyFile, overrideKey)
+	}
+}
+
+func TestVictorOpsBothAPIKeyAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.victorops-both-file-and-apikey.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.victorops-both-file-and-apikey.yml", err)
+	}
+	if err.Error() != "at most one of victorops_api_key & victorops_api_key_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of victorops_api_key & victorops_api_key_file must be configured", err.Error())
 	}
 }
 

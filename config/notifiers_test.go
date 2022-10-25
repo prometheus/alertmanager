@@ -291,21 +291,54 @@ http_config:
 	}
 }
 
-func TestVictorOpsRoutingKeyIsPresent(t *testing.T) {
-	in := `
+func TestVictorOpsConfiguration(t *testing.T) {
+	t.Run("valid configuration", func(t *testing.T) {
+		in := `
+routing_key: test
+api_key_file: /global_file
+`
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err != nil {
+			t.Fatalf("no error was expected:\n%v", err)
+		}
+	})
+
+	t.Run("routing key is missing", func(t *testing.T) {
+		in := `
 routing_key: ''
 `
-	var cfg VictorOpsConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing Routing key in VictorOps config"
+		expected := "missing Routing key in VictorOps config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("api_key and api_key_file both defined", func(t *testing.T) {
+		in := `
+routing_key: test
+api_key: xyz
+api_key_file: /global_file
+`
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of api_key & api_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
 func TestVictorOpsCustomFieldsValidation(t *testing.T) {
