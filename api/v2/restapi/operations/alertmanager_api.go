@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-openapi/analysis"
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime"
@@ -41,7 +42,7 @@ import (
 )
 
 // NewAlertmanagerAPI creates a new Alertmanager instance
-func NewAlertmanagerAPI(spec *loads.Document) *AlertmanagerAPI {
+func NewAlertmanagerAPI(spec *loads.Document, specAnalysis *analysis.Spec) *AlertmanagerAPI {
 	return &AlertmanagerAPI{
 		handlers:            make(map[string]map[string]http.Handler),
 		formats:             strfmt.Default,
@@ -52,6 +53,7 @@ func NewAlertmanagerAPI(spec *loads.Document) *AlertmanagerAPI {
 		PreServerShutdown:   func() {},
 		ServerShutdown:      func() {},
 		spec:                spec,
+		specAnalysis:        specAnalysis,
 		ServeError:          errors.ServeError,
 		BasicAuthenticator:  security.BasicAuth,
 		APIKeyAuthenticator: security.APIKeyAuth,
@@ -94,6 +96,7 @@ func NewAlertmanagerAPI(spec *loads.Document) *AlertmanagerAPI {
 /*AlertmanagerAPI API of the Prometheus Alertmanager (https://github.com/prometheus/alertmanager) */
 type AlertmanagerAPI struct {
 	spec            *loads.Document
+	specAnalysis    *analysis.Spec
 	context         *middleware.Context
 	handlers        map[string]map[string]http.Handler
 	formats         strfmt.Registry
@@ -171,6 +174,7 @@ func (o *AlertmanagerAPI) SetDefaultConsumes(mediaType string) {
 // SetSpec sets a spec that will be served for the clients.
 func (o *AlertmanagerAPI) SetSpec(spec *loads.Document) {
 	o.spec = spec
+	o.specAnalysis = analysis.New(spec.Spec())
 }
 
 // DefaultProduces returns the default produces media type
@@ -308,7 +312,7 @@ func (o *AlertmanagerAPI) HandlerFor(method, path string) (http.Handler, bool) {
 // Context returns the middleware context for the alertmanager API
 func (o *AlertmanagerAPI) Context() *middleware.Context {
 	if o.context == nil {
-		o.context = middleware.NewRoutableContext(o.spec, o, nil)
+		o.context = middleware.NewRoutableContextWithAnalyzedSpec(o.spec, o.specAnalysis, o, nil)
 	}
 
 	return o.context
