@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/go-openapi/analysis"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
@@ -101,7 +102,7 @@ func NewAPI(
 	}
 
 	// Load embedded swagger file.
-	swaggerSpec, err := getSwaggerSpec()
+	swaggerSpec, swaggerSpecAnalysis, err := getSwaggerSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +114,9 @@ func NewAPI(
 	// the API itself via RoutesHandler. See:
 	// https://github.com/go-swagger/go-swagger/issues/1779
 	openAPI.Middleware = func(b middleware.Builder) http.Handler {
-		return middleware.Spec("", swaggerSpec.Raw(), openAPI.Context().RoutesHandler(b))
+		// Manually create the context so that we can use the singleton swaggerSpecAnalysis.
+		swaggerContext := middleware.NewRoutableContextWithAnalyzedSpec(swaggerSpec, swaggerSpecAnalysis, openAPI, nil)
+		return middleware.Spec("", swaggerSpec.Raw(), swaggerContext.RoutesHandler(b))
 	}
 
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
@@ -674,29 +677,31 @@ func parseFilter(filter []string) ([]*labels.Matcher, error) {
 }
 
 var (
-	swaggerSpecCacheMx sync.Mutex
-	swaggerSpecCache   *loads.Document
+	swaggerSpecCacheMx       sync.Mutex
+	swaggerSpecCache         *loads.Document
+	swaggerSpecAnalysisCache *analysis.Spec
 )
 
 // getSwaggerSpec loads and caches the swagger spec. If a cached version already exists,
 // it returns the cached one. The reason why we cache it is because some downstream projects
 // (e.g. Grafana Mimir) creates many Alertmanager instances in the same process, so they would
 // incur in a significant memory penalty if we would reload the swagger spec each time.
-func getSwaggerSpec() (*loads.Document, error) {
+func getSwaggerSpec() (*loads.Document, *analysis.Spec, error) {
 	swaggerSpecCacheMx.Lock()
 	defer swaggerSpecCacheMx.Unlock()
 
 	// Check if a cached version exists.
 	if swaggerSpecCache != nil {
-		return swaggerSpecCache, nil
+		return swaggerSpecCache, swaggerSpecAnalysisCache, nil
 	}
 
 	// Load embedded swagger file.
 	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to load embedded swagger file: %w", err)
+		return nil, nil, fmt.Errorf("failed to load embedded swagger file: %w", err)
 	}
 
 	swaggerSpecCache = swaggerSpec
-	return swaggerSpec, nil
+	swaggerSpecAnalysisCache = analysis.New(swaggerSpec.Spec())
+	return swaggerSpec, swaggerSpecAnalysisCache, nil
 }
