@@ -429,10 +429,11 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 		codelabel     string
 		expectedCount int
 	}{
-		"for 400": {errorcode: 400, codelabel: "4xx", expectedCount: 1},
-		"for 402": {errorcode: 402, codelabel: "4xx", expectedCount: 1},
-		"for 500": {errorcode: 500, codelabel: "5xx", expectedCount: 1},
-		"for 502": {errorcode: 502, codelabel: "5xx", expectedCount: 1},
+		"for 400":               {errorcode: 400, codelabel: failure4xxCategoryCode, expectedCount: 1},
+		"for 402":               {errorcode: 402, codelabel: failure4xxCategoryCode, expectedCount: 1},
+		"for 500":               {errorcode: 500, codelabel: failure5xxCategoryCode, expectedCount: 1},
+		"for 502":               {errorcode: 502, codelabel: failure5xxCategoryCode, expectedCount: 1},
+		"for expected code 100": {errorcode: 100, codelabel: failure5xxCategoryCode, expectedCount: 1},
 	}
 	for _, testData := range testcases {
 		fail, retry := true, false

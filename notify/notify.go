@@ -265,7 +265,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
-		}, []string{"integration", "statusCode"}),
+		}, []string{"integration", "code"}),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
@@ -300,6 +300,10 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
+
+		for _, code := range PossibleFailureStatusCategory {
+			m.numTotalFailedNotifications.WithLabelValues(integration, code)
+		}
 	}
 	r.MustRegister(
 		m.numNotifications, m.numTotalFailedNotifications,
