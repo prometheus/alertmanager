@@ -296,7 +296,6 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"telegram",
 	} {
 		m.numNotifications.WithLabelValues(integration)
-		m.numTotalFailedNotifications.WithLabelValues(integration, "")
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
