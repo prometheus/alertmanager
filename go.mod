@@ -42,13 +42,16 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/mod v0.12.0
 	golang.org/x/net v0.17.0
+	golang.org/x/sync v0.3.0
 	golang.org/x/text v0.13.0
 	golang.org/x/tools v0.13.0
+	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/telebot.v3 v3.1.3
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -86,7 +89,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
-	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect

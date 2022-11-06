@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/go-kit/log"
@@ -38,6 +39,7 @@ import (
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promlog"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -85,13 +87,67 @@ func (t *testReceiversCmd) testReceivers(ctx context.Context, _ *kingpin.ParseCo
 			tmpl.ExternalURL = u
 		}
 
-		return TestReceivers(ctx, cfg.Receivers, tmpl)
+		fmt.Printf("Testing %d receivers...\n", len(cfg.Receivers))
+		result := TestReceivers(ctx, cfg.Receivers, tmpl)
+		printTestReceiversResults(result)
 	}
 
 	return nil
 }
 
-func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *template.Template) error {
+func printTestReceiversResults(result *TestReceiversResult) {
+	successful := 0
+	successfulCounts := make(map[string]int)
+	for _, rcv := range result.Receivers {
+		successfulCounts[rcv.Name] = 0
+		for _, cfg := range rcv.ConfigResults {
+			if cfg.Error == nil {
+				successful += 1
+				successfulCounts[rcv.Name] += 1
+			}
+		}
+	}
+
+	fmt.Printf("\nSuccessfully notified %d/%d receivers at %v:\n", successful, len(result.Receivers), result.NotifedAt.Format("2006-01-02 15:04:05"))
+
+	for _, rcv := range result.Receivers {
+		fmt.Printf("   %d/%d - '%s'\n", successfulCounts[rcv.Name], len(rcv.ConfigResults), rcv.Name)
+		for _, cfg := range rcv.ConfigResults {
+			if cfg.Error != nil {
+				fmt.Printf("     - %s - %s: %s\n", cfg.Name, cfg.Status, cfg.Error.Error())
+			} else {
+				fmt.Printf("     - %s - %s\n", cfg.Name, cfg.Status)
+			}
+		}
+	}
+}
+
+const (
+	maxTestReceiversWorkers = 10
+)
+
+var (
+	ErrNoReceivers = errors.New("no receivers")
+)
+
+type TestReceiversResult struct {
+	Alert     types.Alert
+	Receivers []TestReceiverResult
+	NotifedAt time.Time
+}
+
+type TestReceiverResult struct {
+	Name          string
+	ConfigResults []TestReceiverConfigResult
+}
+
+type TestReceiverConfigResult struct {
+	Name   string
+	Status string
+	Error  error
+}
+
+func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *template.Template) *TestReceiversResult {
 	// now represents the start time of the test
 	now := time.Now()
 	testAlert := newTestAlert(now, now)
@@ -115,43 +171,108 @@ func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *temp
 		Error       error
 	}
 
+	newTestReceiversResult := func(alert types.Alert, results []result, notifiedAt time.Time) *TestReceiversResult {
+		m := make(map[string]TestReceiverResult)
+		for _, receiver := range receivers {
+			// set up the result for this receiver
+			m[receiver.Name] = TestReceiverResult{
+				Name:          receiver.Name,
+				ConfigResults: []TestReceiverConfigResult{},
+			}
+		}
+		for _, result := range results {
+			tmp := m[result.Receiver.Name]
+			status := "ok"
+			if result.Error != nil {
+				status = "failed"
+			}
+			tmp.ConfigResults = append(tmp.ConfigResults, TestReceiverConfigResult{
+				Name:   result.Integration.Name(),
+				Status: status,
+				Error:  result.Error,
+			})
+			m[result.Receiver.Name] = tmp
+		}
+		v := new(TestReceiversResult)
+		v.Alert = alert
+		v.Receivers = make([]TestReceiverResult, 0, len(receivers))
+		v.NotifedAt = notifiedAt
+		for _, result := range m {
+			v.Receivers = append(v.Receivers, result)
+		}
+
+		// Make sure the return order is deterministic.
+		sort.Slice(v.Receivers, func(i, j int) bool {
+			return v.Receivers[i].Name < v.Receivers[j].Name
+		})
+
+		return v
+	}
+
 	// invalid keeps track of all invalid receiver configurations
 	var invalid []result
 	// jobs keeps track of all receivers that need to be sent test notifications
 	var jobs []job
 
 	for _, receiver := range receivers {
-		integrations, err := buildReceiverIntegrations(receiver, tmpl, logger)
+		integrations := buildReceiverIntegrations(receiver, tmpl, logger)
 		for _, integration := range integrations {
-			if err != nil {
+			if integration.Error != nil {
 				invalid = append(invalid, result{
 					Receiver:    receiver,
-					Integration: &integration,
-					Error:       err,
+					Integration: &integration.Integration,
+					Error:       integration.Error,
 				})
 			} else {
 				jobs = append(jobs, job{
 					Receiver:    receiver,
-					Integration: &integration,
+					Integration: &integration.Integration,
 				})
 			}
 		}
 	}
 
-	fmt.Printf("Performing %v jobs!\n", len(jobs))
-
-	for _, job := range jobs {
-		v := result{
-			Receiver:    job.Receiver,
-			Integration: job.Integration,
-		}
-		if _, err := job.Integration.Notify(notify.WithReceiverName(ctx, job.Receiver.Name), &testAlert); err != nil {
-			v.Error = err
-		}
+	if len(jobs) == 0 {
+		return newTestReceiversResult(testAlert, invalid, now)
 	}
 
-	fmt.Printf("Done!\n")
-	return nil
+	numWorkers := maxTestReceiversWorkers
+	if numWorkers > len(jobs) {
+		numWorkers = len(jobs)
+	}
+
+	resultCh := make(chan result, len(jobs))
+	jobCh := make(chan job, len(jobs))
+	for _, job := range jobs {
+		jobCh <- job
+	}
+	close(jobCh)
+
+	g, ctx := errgroup.WithContext(ctx)
+	for i := 0; i < numWorkers; i++ {
+		g.Go(func() error {
+			for job := range jobCh {
+				v := result{
+					Receiver:    job.Receiver,
+					Integration: job.Integration,
+				}
+				if _, err := job.Integration.Notify(notify.WithReceiverName(ctx, job.Receiver.Name), &testAlert); err != nil {
+					v.Error = err
+				}
+				resultCh <- v
+			}
+			return nil
+		})
+	}
+	g.Wait() // nolint
+	close(resultCh)
+
+	results := make([]result, 0, len(jobs))
+	for next := range resultCh {
+		results = append(results, next)
+	}
+
+	return newTestReceiversResult(testAlert, append(invalid, results...), now)
 }
 
 func newTestAlert(startsAt, updatedAt time.Time) types.Alert {
@@ -178,19 +299,28 @@ func newTestAlert(startsAt, updatedAt time.Time) types.Alert {
 	return alert
 }
 
+type ReceiverIntegration struct {
+	Integration notify.Integration
+	Error       error
+}
+
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
+func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) []ReceiverIntegration {
 	var (
-		errs         types.MultiError
-		integrations []notify.Integration
+		integrations []ReceiverIntegration
 		add          = func(name string, i int, rs notify.ResolvedSender, f func(l log.Logger) (notify.Notifier, error)) {
 			n, err := f(log.With(logger, "integration", name))
 			if err != nil {
-				errs.Add(err)
-				return
+				integrations = append(integrations, ReceiverIntegration{
+					Integration: notify.NewIntegration(nil, rs, name, i),
+					Error:       err,
+				})
+			} else {
+				integrations = append(integrations, ReceiverIntegration{
+					Integration: notify.NewIntegration(n, rs, name, i),
+				})
 			}
-			integrations = append(integrations, notify.NewIntegration(n, rs, name, i))
 		}
 	)
 
@@ -228,8 +358,5 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 		add("discord", i, c, func(l log.Logger) (notify.Notifier, error) { return discord.New(c, tmpl, l) })
 	}
 
-	if errs.Len() > 0 {
-		return nil, &errs
-	}
-	return integrations, nil
+	return integrations
 }
