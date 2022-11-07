@@ -1094,8 +1094,11 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 # If not specified, default API URL will be used.
 [ api_url: <string> | default = global.telegram_api_url ]
 
-# Telegram bot token
+# Telegram bot token. It is mutually exclusive with `bot_token_file`.
 [ bot_token: <string> ]
+
+# Read Telegram bot token from a file. It is mutually exclusive with `bot_token`.
+[ bot_token_file: <filepath> ]
 
 # ID of the chat where to send the messages.
 [ chat_id: <int> ]

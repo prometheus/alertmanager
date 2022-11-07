@@ -16,12 +16,15 @@ package telegram
 import (
 	"context"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
 	"gopkg.in/telebot.v3"
 
+	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -44,7 +47,19 @@ func New(conf *config.TelegramConfig, t *template.Template, l log.Logger, httpOp
 		return nil, err
 	}
 
-	client, err := createTelegramClient(conf.BotToken, conf.APIUrl.String(), conf.ParseMode, httpclient)
+	var u string
+	if conf.BotToken != "" {
+		u = string(conf.BotToken)
+	}
+	if len(conf.BotTokenFile) > 0 {
+		content, err := os.ReadFile(conf.BotTokenFile)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to read bot token from file")
+		}
+		u = strings.TrimSpace(string(content))
+	}
+
+	client, err := createTelegramClient(u, conf.APIUrl.String(), conf.ParseMode, httpclient)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +98,8 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	return false, nil
 }
 
-func createTelegramClient(token config.Secret, apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
-	secret := string(token)
+func createTelegramClient(token, apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
+	secret := token
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:     secret,
 		URL:       apiURL,

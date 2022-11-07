@@ -16,6 +16,7 @@ package telegram
 import (
 	"fmt"
 	"net/url"
+	//"os"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -73,3 +74,52 @@ func TestTelegramRetry(t *testing.T) {
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
+
+/*
+func TestTelegramRedactedBotToken(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	botToken := "test"
+
+	notifier, err := New(
+		&config.TelegramConfig{
+			APIUrl: &config.URL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			ChatID:   1234,
+			BotToken: config.Secret(botToken),
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, botToken)
+}
+
+func TestTelegramBotTokenFromFile(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	botToken := "test"
+
+	f, err := os.CreateTemp("", "telegram_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(botToken)
+	require.NoError(t, err, "writing to temp file failed")
+
+	notifier, err := New(
+		&config.TelegramConfig{
+			APIUrl: &config.URL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			ChatID:   1234,
+			BotTokenFile: f.Name(),
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, botToken)
+}
+*/

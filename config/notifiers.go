@@ -685,7 +685,8 @@ type TelegramConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	APIUrl               *URL   `yaml:"api_url" json:"api_url,omitempty"`
-	BotToken             Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
+	BotToken             Secret `yaml:"bot_token,omitempty" json:"bot_token,omitempty"`
+	BotTokenFile         string `yaml:"bot_token_file,omitempty" json:"bot_token_file,omitempty"`
 	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
 	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
@@ -699,8 +700,11 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.BotToken == "" {
-		return fmt.Errorf("missing bot_token on telegram_config")
+	if c.BotToken != "" && len(c.BotTokenFile) > 0 {
+		return fmt.Errorf("at most one of bot_token & bot_token_file must be configured")
+	}
+	if c.BotToken == "" && len(c.BotTokenFile) == 0 {
+		return fmt.Errorf("missing bot_token or bot_token_file on telegram_config")
 	}
 	if c.ChatID == 0 {
 		return fmt.Errorf("missing chat_id on telegram_config")
