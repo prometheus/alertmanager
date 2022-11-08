@@ -58,6 +58,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
 	"github.com/prometheus/alertmanager/notify/victorops"
+	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -176,6 +177,9 @@ func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	}
 	for i, c := range nc.DiscordConfigs {
 		add("discord", i, c, func(l log.Logger) (notify.Notifier, error) { return discord.New(c, tmpl, l) })
+	}
+	for i, c := range nc.WebexConfigs {
+		add("webex", i, c, func(l log.Logger) (notify.Notifier, error) { return webex.New(c, tmpl, l) })
 	}
 
 	if errs.Len() > 0 {

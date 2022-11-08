@@ -33,6 +33,14 @@ var (
 		},
 	}
 
+	// DefaultWebexConfig defines default values for Webex configurations.
+	DefaultWebexConfig = WebexConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message: `{{ template "webex.default.message" . }}`,
+	}
+
 	// DefaultDiscordConfig defines default values for Discord configurations.
 	DefaultDiscordConfig = DiscordConfig{
 		NotifierConfig: NotifierConfig{
@@ -164,6 +172,23 @@ type NotifierConfig struct {
 
 func (nc *NotifierConfig) SendResolved() bool {
 	return nc.VSendResolved
+}
+
+// WebexConfig configures notifications via Webex.
+type WebexConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	RoomID  string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWebexConfig
+	type plain WebexConfig
+	return unmarshal((*plain)(c))
 }
 
 // DiscordConfig configures notifications via Discord.

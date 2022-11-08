@@ -251,6 +251,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.DiscordConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.WebexConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -511,6 +514,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if discord.WebhookURL == nil {
 				return fmt.Errorf("no discord webhook URL provided")
+			}
+		}
+		for _, webex := range rcv.WebexConfigs {
+			if webex.HTTPConfig == nil {
+				webex.HTTPConfig = c.Global.HTTPConfig
+			}
+			if webex.WebhookURL == nil {
+				return fmt.Errorf("no webex webhook URL provided")
 			}
 		}
 
@@ -878,6 +889,7 @@ type Receiver struct {
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
