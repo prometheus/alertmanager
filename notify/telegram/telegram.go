@@ -65,8 +65,8 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
-	// Telegram supports 4096 chars max
-	messageText, truncated := notify.Truncate(tmpl(n.conf.Message), 4096)
+	// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
+	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), 4096)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", messageText)
 	}

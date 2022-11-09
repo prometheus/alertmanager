@@ -134,7 +134,8 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		messageType = victorOpsEventResolve
 	}
 
-	stateMessage, truncated := notify.Truncate(stateMessage, 20480)
+	// https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
+	stateMessage, truncated := notify.TruncateInRunes(stateMessage, 20480)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "truncated stateMessage", "truncated_state_message", stateMessage, "incident", key)
 	}
