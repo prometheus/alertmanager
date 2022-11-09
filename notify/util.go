@@ -30,6 +30,9 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// truncationMarker is the character used to represent a truncation.
+const truncationMarker = "…"
+
 // UserAgentHeader is the default User-Agent for notification requests
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
@@ -81,7 +84,7 @@ func Drain(r *http.Response) {
 	r.Body.Close()
 }
 
-// Truncate truncates a string to fit the given size in Runes.
+// TruncateInRunes truncates a string to fit the given size in Runes.
 func TruncateInRunes(s string, n int) (string, bool) {
 	r := []rune(s)
 	if len(r) <= n {
@@ -92,10 +95,10 @@ func TruncateInRunes(s string, n int) (string, bool) {
 		return string(r[:n]), true
 	}
 
-	return string(r[:n-1]) + "…", true
+	return string(r[:n-1]) + truncationMarker, true
 }
 
-// Truncate truncates a string to fit the given size in Bytes.
+// TruncateInBytes truncates a string to fit the given size in Bytes.
 func TruncateInBytes(s string, n int) (string, bool) {
 	if len(s) <= n {
 		return s, false
@@ -105,7 +108,7 @@ func TruncateInBytes(s string, n int) (string, bool) {
 		return string(s[:n]), true
 	}
 
-	return string(s[:n-3]) + "…", true // This rune
+	return string(s[:n-3]) + truncationMarker, true // In bytes, the truncation marker is 3 bytes.
 }
 
 // TmplText is using monadic error handling in order to make string templating
