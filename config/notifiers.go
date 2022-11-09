@@ -197,6 +197,12 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing room_id on webex_config")
 	}
 
+	if c.BotToken == "" {
+		if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
+			return fmt.Errorf("missing one of webex_configs.http_config.authorization or bot_token")
+		}
+	}
+
 	return nil
 }
 
