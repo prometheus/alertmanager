@@ -81,7 +81,7 @@ func Drain(r *http.Response) {
 	r.Body.Close()
 }
 
-// Truncate truncates a string to fit the given size in Bytes.
+// Truncate truncates a string to fit the given size in Runes.
 func TruncateInRunes(s string, n int) (string, bool) {
 	r := []rune(s)
 	if len(r) <= n {
@@ -95,7 +95,7 @@ func TruncateInRunes(s string, n int) (string, bool) {
 	return string(r[:n-1]) + "…", true
 }
 
-// Truncate truncates a string to fit the given size in Runes.
+// Truncate truncates a string to fit the given size in Bytes.
 func TruncateInBytes(s string, n int) (string, bool) {
 	if len(s) <= n {
 		return s, false
