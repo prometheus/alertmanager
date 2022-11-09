@@ -171,7 +171,8 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		}
 		requests = append(requests, req.WithContext(ctx))
 	default:
-		message, truncated := notify.Truncate(tmpl(n.conf.Message), 130)
+		// https://docs.opsgenie.com/docs/alert-api - 130 characters meaning runes.
+		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), 130)
 		if truncated {
 			level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", message, "alert", key)
 		}

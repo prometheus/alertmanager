@@ -149,7 +149,8 @@ func (n *Notifier) notifyV1(
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
-	description, truncated := notify.Truncate(tmpl(n.conf.Description), 1024)
+	// https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event - 1204 characters or runes.
+	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), 1024)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated description", "description", description, "key", key)
 	}
@@ -214,7 +215,8 @@ func (n *Notifier) notifyV2(
 		n.conf.Severity = "error"
 	}
 
-	summary, truncated := notify.Truncate(tmpl(n.conf.Description), 1024)
+	// https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event - 1204 characters or runes.
+	summary, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), 1024)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "Truncated summary", "summary", summary, "key", key)
 	}

@@ -99,7 +99,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		markdownIn = n.conf.MrkdwnIn
 	}
-	title, truncated := notify.Truncate(tmplText(n.conf.Title), 1024)
+	// No refernce in https://api.slack.com/reference/messaging/attachments#legacy_fields - assuming runes or characters.
+	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), 1024)
 	if truncated {
 		key, err := notify.ExtractGroupKey(ctx)
 		if err != nil {
