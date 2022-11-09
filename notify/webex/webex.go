@@ -35,28 +35,35 @@ const (
 )
 
 type Notifier struct {
-	conf       *config.WebexConfig
-	tmpl       *template.Template
-	logger     log.Logger
-	client     *http.Client
-	retrier    *notify.Retrier
-	webhookURL *config.SecretURL
+	conf    *config.WebexConfig
+	tmpl    *template.Template
+	logger  log.Logger
+	client  *http.Client
+	retrier *notify.Retrier
+	APIURL  *config.URL
 }
 
 // New returns a new Webex notifier.
 func New(c *config.WebexConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	if c.HTTPConfig.Authorization == nil && c.HTTPConfig.BearerToken == "" {
+		c.HTTPConfig.Authorization = &commoncfg.Authorization{
+			Type:        "Bearer",
+			Credentials: commoncfg.Secret(c.BotToken),
+		}
+	}
+
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "webex", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	n := &Notifier{
-		conf:       c,
-		tmpl:       t,
-		logger:     l,
-		client:     client,
-		retrier:    &notify.Retrier{},
-		webhookURL: c.WebhookURL,
+		conf:    c,
+		tmpl:    t,
+		logger:  l,
+		client:  client,
+		retrier: &notify.Retrier{},
+		APIURL:  c.APIURL,
 	}
 
 	return n, nil
@@ -102,7 +109,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.webhookURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, n.APIURL.String(), &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}

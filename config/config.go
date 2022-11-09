@@ -520,8 +520,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if webex.HTTPConfig == nil {
 				webex.HTTPConfig = c.Global.HTTPConfig
 			}
-			if webex.WebhookURL == nil {
-				return fmt.Errorf("no webex webhook URL provided")
+			if webex.APIURL == nil {
+				if c.Global.WebexAPIURL == nil {
+					return fmt.Errorf("no global Webex URL set")
+				}
+
+				webex.APIURL = c.Global.WebexAPIURL
 			}
 		}
 
@@ -624,6 +628,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
+		WebexAPIURL:     mustParseURL("https://webexapis.com/v1/messages"),
 	}
 }
 
@@ -747,6 +752,7 @@ type GlobalConfig struct {
 	VictorOpsAPIKey      Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile  string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl       *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
+	WebexAPIURL          *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.

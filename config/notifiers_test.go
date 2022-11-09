@@ -14,6 +14,7 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -863,6 +864,39 @@ func TestWeChatTypeMatcher(t *testing.T) {
 		if wechatTypeMatcher.MatchString(b) {
 			t.Errorf("mistakenly match with %s", b)
 		}
+	}
+}
+
+func TestWebexConfiguration(t *testing.T) {
+	tc := []struct {
+		name string
+
+		in       string
+		expected error
+	}{
+		{
+			name: "with no room_id - it fails",
+			in: `
+bot_token: xyz123
+`,
+			expected: errors.New("missing room_id on webex_config"),
+		},
+		{
+			name: "with room_id and bot_token present - it succeeds",
+			in: `
+room_id: 2
+bot_token: xyz123
+`,
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg WebexConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
 	}
 }
 

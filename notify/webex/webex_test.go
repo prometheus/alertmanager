@@ -41,7 +41,7 @@ func TestWebexRetry(t *testing.T) {
 	notifier, err := New(
 		&config.WebexConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			WebhookURL: &config.SecretURL{URL: testWebhookURL},
+			APIURL:     &config.URL{URL: testWebhookURL},
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
@@ -85,15 +85,18 @@ func TestWebexTemplating(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			var out []byte
+			var header http.Header
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var err error
 				out, err = io.ReadAll(r.Body)
+				header = r.Header.Clone()
 				require.NoError(t, err)
 			}))
 			defer srv.Close()
 			u, _ := url.Parse(srv.URL)
 
-			tt.cfg.WebhookURL = &config.SecretURL{URL: u}
+			tt.cfg.APIURL = &config.URL{URL: u}
+			tt.cfg.BotToken = "xxxyyyzz"
 			tt.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), log.NewNopLogger())
 			require.NoError(t, err)
@@ -127,7 +130,7 @@ func TestWebexTemplating(t *testing.T) {
 
 			if tt.errMsg == "" {
 				require.NoError(t, err)
-				fmt.Println(string(out))
+				require.Equal(t, "sss", header.Get("Authorization"))
 				require.JSONEq(t, tt.expJSON, string(out))
 			} else {
 				require.Error(t, err)

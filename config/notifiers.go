@@ -178,17 +178,26 @@ func (nc *NotifierConfig) SendResolved() bool {
 type WebexConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
-	RoomID  string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
+	Message  string `yaml:"message,omitempty" json:"message,omitempty"`
+	RoomID   string `yaml:"room_id" json:"room_id"`
+	BotToken Secret `yaml:"bot_token" yaml:"bot_token"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWebexConfig
 	type plain WebexConfig
-	return unmarshal((*plain)(c))
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.RoomID == "" {
+		return fmt.Errorf("missing room_id on webex_config")
+	}
+
+	return nil
 }
 
 // DiscordConfig configures notifications via Discord.
