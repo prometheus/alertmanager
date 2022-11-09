@@ -58,27 +58,46 @@ func TestWebexTemplating(t *testing.T) {
 	tc := []struct {
 		name string
 
-		cfg     *config.WebexConfig
-		Message string
-		expJSON string
+		cfg       *config.WebexConfig
+		Message   string
+		expJSON   string
+		commonCfg *commoncfg.HTTPClientConfig
 
-		retry  bool
-		errMsg string
+		retry     bool
+		errMsg    string
+		expHeader string
 	}{
 		{
-			name: "with a valid message, it is formatted as expected",
+			name: "with a valid message and a set bot_token, it is formatted as expected",
 			cfg: &config.WebexConfig{
 				Message: `{{ template "webex.default.message" . }}`,
 			},
-			expJSON: `{"markdown":"\n\nAlerts Firing:\nLabels:\n - lbl1 = val1\n - lbl3 = val3\nAnnotations:\nSource: \nLabels:\n - lbl1 = val1\n - lbl2 = val2\nAnnotations:\nSource: \n\n\n\n"}`,
-			retry:   false,
+			commonCfg: &commoncfg.HTTPClientConfig{},
+
+			expJSON:   `{"markdown":"\n\nAlerts Firing:\nLabels:\n - lbl1 = val1\n - lbl3 = val3\nAnnotations:\nSource: \nLabels:\n - lbl1 = val1\n - lbl2 = val2\nAnnotations:\nSource: \n\n\n\n"}`,
+			retry:     false,
+			expHeader: "Bearer xxxyyyzz",
+		},
+		{
+			name: "with a valid message and a set http_config.authorization, it is formatted as expected",
+			cfg: &config.WebexConfig{
+				Message: `{{ template "webex.default.message" . }}`,
+			},
+			commonCfg: &commoncfg.HTTPClientConfig{
+				Authorization: &commoncfg.Authorization{Type: "Bearer", Credentials: "anewsecret"},
+			},
+
+			expJSON:   `{"markdown":"\n\nAlerts Firing:\nLabels:\n - lbl1 = val1\n - lbl3 = val3\nAnnotations:\nSource: \nLabels:\n - lbl1 = val1\n - lbl2 = val2\nAnnotations:\nSource: \n\n\n\n"}`,
+			retry:     false,
+			expHeader: "Bearer anewsecret",
 		},
 		{
 			name: "with templating errors, it fails.",
 			cfg: &config.WebexConfig{
 				Message: "{{ ",
 			},
-			errMsg: "template: :1: unclosed action",
+			commonCfg: &commoncfg.HTTPClientConfig{},
+			errMsg:    "template: :1: unclosed action",
 		},
 	}
 
@@ -97,7 +116,7 @@ func TestWebexTemplating(t *testing.T) {
 
 			tt.cfg.APIURL = &config.URL{URL: u}
 			tt.cfg.BotToken = "xxxyyyzz"
-			tt.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+			tt.cfg.HTTPConfig = tt.commonCfg
 			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), log.NewNopLogger())
 			require.NoError(t, err)
 
@@ -130,7 +149,7 @@ func TestWebexTemplating(t *testing.T) {
 
 			if tt.errMsg == "" {
 				require.NoError(t, err)
-				require.Equal(t, "sss", header.Get("Authorization"))
+				require.Equal(t, tt.expHeader, header.Get("Authorization"))
 				require.JSONEq(t, tt.expJSON, string(out))
 			} else {
 				require.Error(t, err)
