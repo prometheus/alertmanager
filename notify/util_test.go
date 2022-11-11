@@ -49,7 +49,7 @@ func TestTruncate(t *testing.T) {
 			in:    "abcde",
 			n:     2,
 			runes: expect{out: "ab", trunc: true},
-			bytes: expect{out: "ab", trunc: true},
+			bytes: expect{out: "..", trunc: true},
 		},
 		{
 			in:    "abcde",
@@ -73,25 +73,25 @@ func TestTruncate(t *testing.T) {
 			in:    "a⌘cde",
 			n:     5,
 			runes: expect{out: "a⌘cde", trunc: false},
-			bytes: expect{out: "a\xe2…", trunc: true},
+			bytes: expect{out: "a…", trunc: true},
 		},
 		{
 			in:    "a⌘cdef",
 			n:     5,
 			runes: expect{out: "a⌘cd…", trunc: true},
-			bytes: expect{out: "a\xe2…", trunc: true},
+			bytes: expect{out: "a…", trunc: true},
 		},
 		{
 			in:    "世界cdef",
 			n:     3,
 			runes: expect{out: "世界c", trunc: true},
-			bytes: expect{out: "世", trunc: true},
+			bytes: expect{out: "…", trunc: true},
 		},
 		{
-			in:    "❤️✅🚀🔥❌",
-			n:     4,
-			runes: expect{out: "❤️✅…", trunc: true},
-			bytes: expect{out: "\xe2…", trunc: true},
+			in:    "❤️✅🚀🔥❌❤️✅🚀🔥❌❤️✅🚀🔥❌❤️✅🚀🔥❌",
+			n:     19,
+			runes: expect{out: "❤️✅🚀🔥❌❤️✅🚀🔥❌❤️✅🚀🔥❌…", trunc: true},
+			bytes: expect{out: "❤️✅🚀…", trunc: true},
 		},
 	}
 
@@ -117,8 +117,8 @@ func TestTruncate(t *testing.T) {
 
 			t.Run(fmt.Sprintf("%s(%s,%d)", fnName, tc.in, tc.n), func(t *testing.T) {
 				s, trunc := fn(tc.in, tc.n)
-				require.Equal(t, truncated, trunc)
 				require.Equal(t, out, s)
+				require.Equal(t, truncated, trunc)
 			})
 		}
 	}

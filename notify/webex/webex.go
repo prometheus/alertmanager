@@ -94,7 +94,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	message, truncated := notify.Truncate(message, maxMessageSize)
+	message, truncated := notify.TruncateInBytes(message, maxMessageSize)
 	if truncated {
 		level.Debug(n.logger).Log("msg", "message truncated due to exceeding maximum allowed length by webex", "truncated_message", message)
 	}
