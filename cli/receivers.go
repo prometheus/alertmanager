@@ -48,6 +48,16 @@ var (
 	ErrNoReceivers = errors.New("no receivers with configuration set")
 )
 
+type TestReceiversParams struct {
+	Alert     *TestReceiversAlertParams
+	Receivers []*config.Receiver
+}
+
+type TestReceiversAlertParams struct {
+	Annotations model.LabelSet `yaml:"annotations,omitempty" json:"annotations,omitempty"`
+	Labels      model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
+}
+
 type TestReceiversResult struct {
 	Alert     types.Alert
 	Receivers []TestReceiverResult
@@ -65,10 +75,10 @@ type TestReceiverConfigResult struct {
 	Error  error
 }
 
-func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *template.Template) (*TestReceiversResult, error) {
+func TestReceivers(ctx context.Context, c TestReceiversParams, tmpl *template.Template) (*TestReceiversResult, error) {
 	// now represents the start time of the test
 	now := time.Now()
-	testAlert := newTestAlert(now, now)
+	testAlert := newTestAlert(c, now, now)
 
 	// we must set a group key that is unique per test as some receivers use this key to deduplicate alerts
 	ctx = notify.WithGroupKey(ctx, testAlert.Labels.String()+now.String())
@@ -91,7 +101,7 @@ func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *temp
 
 	newTestReceiversResult := func(alert types.Alert, results []result, notifiedAt time.Time) *TestReceiversResult {
 		m := make(map[string]TestReceiverResult)
-		for _, receiver := range receivers {
+		for _, receiver := range c.Receivers {
 			// set up the result for this receiver
 			m[receiver.Name] = TestReceiverResult{
 				Name:          receiver.Name,
@@ -113,7 +123,7 @@ func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *temp
 		}
 		v := new(TestReceiversResult)
 		v.Alert = alert
-		v.Receivers = make([]TestReceiverResult, 0, len(receivers))
+		v.Receivers = make([]TestReceiverResult, 0, len(c.Receivers))
 		v.NotifedAt = notifiedAt
 		for _, result := range m {
 			v.Receivers = append(v.Receivers, result)
@@ -132,7 +142,7 @@ func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *temp
 	// jobs keeps track of all receivers that need to be sent test notifications
 	var jobs []job
 
-	for _, receiver := range receivers {
+	for _, receiver := range c.Receivers {
 		integrations := buildReceiverIntegrations(receiver, tmpl, logger)
 		for _, integration := range integrations {
 			if integration.Error != nil {
@@ -197,7 +207,7 @@ func TestReceivers(ctx context.Context, receivers []*config.Receiver, tmpl *temp
 	return newTestReceiversResult(testAlert, append(invalid, results...), now), nil
 }
 
-func newTestAlert(startsAt, updatedAt time.Time) types.Alert {
+func newTestAlert(c TestReceiversParams, startsAt, updatedAt time.Time) types.Alert {
 	var (
 		defaultAnnotations = model.LabelSet{
 			"summary":          "Notification test",
@@ -216,6 +226,19 @@ func newTestAlert(startsAt, updatedAt time.Time) types.Alert {
 			StartsAt:    startsAt,
 		},
 		UpdatedAt: updatedAt,
+	}
+
+	if c.Alert != nil {
+		if c.Alert.Annotations != nil {
+			for k, v := range c.Alert.Annotations {
+				alert.Annotations[k] = v
+			}
+		}
+		if c.Alert.Labels != nil {
+			for k, v := range c.Alert.Labels {
+				alert.Labels[k] = v
+			}
+		}
 	}
 
 	return alert
