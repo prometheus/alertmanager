@@ -38,7 +38,7 @@ func Test_TestReceivers_Error(t *testing.T) {
 	t.Run("invalid alert", func(t *testing.T) {
 		test := testReceiversCmd{
 			configFile: "testdata/conf.receiver.yml",
-			alertFile: "testdata/conf.bad-alert.yml",
+			alertFile:  "testdata/conf.bad-alert.yml",
 		}
 
 		err := test.testReceivers(ctx, &parseContext)
