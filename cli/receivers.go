@@ -82,6 +82,7 @@ func TestReceivers(ctx context.Context, c TestReceiversParams, tmpl *template.Te
 
 	// we must set a group key that is unique per test as some receivers use this key to deduplicate alerts
 	ctx = notify.WithGroupKey(ctx, testAlert.Labels.String()+now.String())
+	// we must set group labels to avoid issues with templating
 	ctx = notify.WithGroupLabels(ctx, testAlert.Labels)
 
 	logger := promlog.New(&promlog.Config{})
