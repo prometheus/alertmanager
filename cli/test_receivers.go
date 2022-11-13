@@ -15,15 +15,10 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/url"
-	"os"
-
-	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/template"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"gopkg.in/yaml.v2"
 )
 
 type testReceiversCmd struct {
@@ -35,6 +30,14 @@ const testReceiversHelp = `Test alertmanager receivers
 
 Send test notifications to every receiver for an alertmanager config file.
 `
+
+var (
+	ErrNoConfigFile      = errors.New("no config file was specified")
+	ErrInvalidConfigFile = errors.New("invalid alertmanager config file")
+	ErrInvalidAlertFile  = errors.New("invalid alert config file")
+	ErrInvalidTemplate   = errors.New("failed to parse templates")
+	ErrInternal          = errors.New("internal error parsing mock url")
+)
 
 func configureTestReceiversCmd(app *kingpin.Application) {
 	var (
@@ -48,13 +51,13 @@ func configureTestReceiversCmd(app *kingpin.Application) {
 
 func (t *testReceiversCmd) testReceivers(ctx context.Context, _ *kingpin.ParseContext) error {
 	if len(t.configFile) == 0 {
-		kingpin.Fatalf("No config file was specified")
+		return ErrNoConfigFile
 	}
 
 	fmt.Printf("Checking alertmanager config '%s'...\n", t.configFile)
 	cfg, err := config.LoadFile(t.configFile)
 	if err != nil {
-		kingpin.Fatalf("Invalid alertmanager config file")
+		return ErrInvalidConfigFile
 	}
 
 	if cfg != nil {
@@ -70,7 +73,7 @@ func (t *testReceiversCmd) testReceivers(ctx context.Context, _ *kingpin.ParseCo
 		if t.alertFile != "" {
 			alert, err := loadAlertConfigFile(t.alertFile)
 			if err != nil {
-				kingpin.Fatalf("Invalid alert config file")
+				return ErrInvalidAlertFile
 			}
 			c.Alert = alert
 		}
@@ -111,36 +114,4 @@ func printTestReceiversResults(result *TestReceiversResult) {
 			}
 		}
 	}
-}
-
-func getTemplate(cfg *config.Config) (*template.Template, error) {
-	tmpl, err := template.FromGlobs(cfg.Templates...)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse templates")
-	}
-	if alertmanagerURL != nil {
-		tmpl.ExternalURL = alertmanagerURL
-	} else {
-		u, err := url.Parse("http://localhost:1234")
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to parse mock url")
-		}
-		tmpl.ExternalURL = u
-	}
-	return tmpl, nil
-}
-
-func loadAlertConfigFile(filename string) (*TestReceiversAlertParams, error) {
-	b, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	alert := &TestReceiversAlertParams{}
-	err = yaml.UnmarshalStrict(b, alert)
-	if err != nil {
-		return nil, err
-	}
-
-	return alert, nil
 }

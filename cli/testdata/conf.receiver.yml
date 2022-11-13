@@ -1,0 +1,14 @@
+global:
+  slack_api_url: "https://hooks.slack.com/services/random/random"
+
+route:
+  group_by: ["alertname"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 5m
+  receiver: "slack-alerts"
+
+receivers:
+  - name: "slack-alerts"
+    slack_configs:
+      - channel: "#dev"
