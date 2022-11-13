@@ -137,7 +137,7 @@ func getTemplate(cfg *config.Config) (*template.Template, error) {
 	if alertmanagerURL != nil {
 		tmpl.ExternalURL = alertmanagerURL
 	} else {
-		u, err := url.Parse("http://localhost:1234")
+		u, err := url.Parse("https://example.com")
 		if err != nil {
 			return nil, ErrInternal
 		}
