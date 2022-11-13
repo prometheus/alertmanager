@@ -23,11 +23,13 @@ import (
 
 	"github.com/prometheus/common/model"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/alertmanager/template"
 )
 
 // GetAlertmanagerURL appends the given path to the alertmanager base URL
@@ -153,4 +155,36 @@ func execWithTimeout(fn func(context.Context, *kingpin.ParseContext) error) func
 		defer cancel()
 		return fn(ctx, x)
 	}
+}
+
+func loadAlertConfigFile(filename string) (*TestReceiversAlertParams, error) {
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	alert := &TestReceiversAlertParams{}
+	err = yaml.UnmarshalStrict(b, alert)
+	if err != nil {
+		return nil, err
+	}
+
+	return alert, nil
+}
+
+func getTemplate(cfg *config.Config) (*template.Template, error) {
+	tmpl, err := template.FromGlobs(cfg.Templates...)
+	if err != nil {
+		return nil, ErrInvalidTemplate
+	}
+	if alertmanagerURL != nil {
+		tmpl.ExternalURL = alertmanagerURL
+	} else {
+		u, err := url.Parse("https://example.com")
+		if err != nil {
+			return nil, ErrInternal
+		}
+		tmpl.ExternalURL = u
+	}
+	return tmpl, nil
 }
