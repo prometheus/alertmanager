@@ -182,7 +182,7 @@ type WebexConfig struct {
 
 	Message  string `yaml:"message,omitempty" json:"message,omitempty"`
 	RoomID   string `yaml:"room_id" json:"room_id"`
-	BotToken Secret `yaml:"bot_token" yaml:"bot_token"`
+	BotToken Secret `yaml:"bot_token" json:"bot_token"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
