@@ -30,17 +30,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-const (
-	failure4xxCategoryCode     = "4xx"
-	failure5xxCategoryCode     = "5xx"
-	failureUnknownCategoryCode = "unknown"
-)
-
 // UserAgentHeader is the default User-Agent for notification requests
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
-
-// PossibleFailureStatusCategory is a list of possible failure status code category
-var PossibleFailureStatusCategory = []string{failure4xxCategoryCode, failure5xxCategoryCode, failureUnknownCategoryCode}
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
@@ -174,20 +165,6 @@ func readAll(r io.Reader) string {
 		return ""
 	}
 	return string(bs)
-}
-
-// getFailureStatusCodeCategory return the status code category for failure request
-// the status starts with 4 will return 4xx and starts with 5 will return 5xx
-// other than 4xx and 5xx input status will return an error.
-func getFailureStatusCodeCategory(statusCode int) (string, error) {
-	if statusCode/100 == 4 {
-		return failure4xxCategoryCode, nil
-	}
-	if statusCode/100 == 5 {
-		return failure5xxCategoryCode, nil
-	}
-
-	return failureUnknownCategoryCode, fmt.Errorf("unexpected status code %v", statusCode)
 }
 
 // Retrier knows when to retry an HTTP request to a receiver. 2xx status codes

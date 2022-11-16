@@ -54,6 +54,14 @@ const MinTimeout = 10 * time.Second
 // defaultStatusCodeCategory is the default status code category for numTotalFailedNotifications metric
 const defaultStatusCodeCategory = "5xx"
 
+const (
+	failure4xxCategoryCode = "4xx"
+	failure5xxCategoryCode = "5xx"
+)
+
+// possibleFailureStatusCategory is a list of possible failure status code category
+var possibleFailureStatusCategory = []string{failure4xxCategoryCode, failure5xxCategoryCode}
+
 // Notifier notifies about alerts under constraints of the given context. It
 // returns an error if unsuccessful and a flag whether the error is
 // recoverable. This information is useful for a retry logic.
@@ -300,7 +308,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
 
-		for _, code := range PossibleFailureStatusCategory {
+		for _, code := range possibleFailureStatusCategory {
 			m.numTotalFailedNotifications.WithLabelValues(integration, code)
 		}
 	}
@@ -672,10 +680,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	statusCodeCategory := defaultStatusCodeCategory
 	if err != nil {
 		if e, ok := errors.Cause(err).(*ErrorWithStatusCode); ok {
-			result, interErr := getFailureStatusCodeCategory(e.StatusCode)
-			if interErr == nil {
-				statusCodeCategory = result
-			}
+			statusCodeCategory = getFailureStatusCodeCategory(e.StatusCode)
 		}
 		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), statusCodeCategory).Inc()
 	}
@@ -889,4 +894,18 @@ func inTimeIntervals(now time.Time, intervals map[string][]timeinterval.TimeInte
 		}
 	}
 	return false, nil
+}
+
+// getFailureStatusCodeCategory return the status code category for failure request
+// the status starts with 4 will return 4xx and starts with 5 will return 5xx
+// other than 4xx and 5xx input status will return an 5xx.
+func getFailureStatusCodeCategory(statusCode int) string {
+	if statusCode/100 == 4 {
+		return failure4xxCategoryCode
+	}
+	if statusCode/100 == 5 {
+		return failure5xxCategoryCode
+	}
+
+	return defaultStatusCodeCategory
 }
