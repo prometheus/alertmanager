@@ -79,6 +79,7 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) 
 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	fmt.Println("Send notify Jichao")
 	return i.notifier.Notify(ctx, alerts...)
 }
 
@@ -637,8 +638,11 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	}
 
 	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+		fmt.Println("Needs Update")
 		return ctx, alerts, nil
 	}
+	fmt.Println("Deduped?")
+
 	return ctx, nil, nil
 }
 
