@@ -744,6 +744,8 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				if i > 1 {
 					lvl = level.Info(l)
 				}
+				// Saw log: ts=2022-11-22T09:53:28.759Z caller=notify.go:747
+				// level=debug component=dispatcher receiver=web.hook integration=webhook[0] msg="Notify success" attempts=1
 				lvl.Log("msg", "Notify success", "attempts", i)
 				return ctx, alerts, nil
 			}
