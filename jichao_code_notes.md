@@ -21,8 +21,17 @@
 * Where to call the receiver?
   * notify.go -> RetryStage.exec -> r.integration.Notify(ctx, sent...)
 * task: to log the nofitication gossip?
-  * nflog -> Merge: level.Debug(l.logger).Log("msg", "gossiping new entry", "entry", e)
-
+  * nflog -> Merge: level.Debug(l.logger).Log("msg", "gossiping new entry", "entry", e)
+* Who will trigger the pipeline?
+  * Dispatcher
+  * main.go: disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, nil, logger, dispMetrics)
+  * dispatcher -> Run -> run -> processAlert -> stage.Exec
+* How do these stages construct the pipeline?
+  * MultiStage + FanoutStage.
+    * MultiStage will run Stage one by one.
+    * FanoutStage will run Stages concurrently.
+* How Dedup stage take effect?
+  * TODO
 * References
   * https://promcon.io/2017-munich/slides/alertmanager-and-high-availability.pdf
   * ![notification-pipeline](./jichao_images/notification-pipeline.png)

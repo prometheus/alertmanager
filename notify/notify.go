@@ -373,6 +373,7 @@ func createReceiverStage(
 type RoutingStage map[string]Stage
 
 // Exec implements the Stage interface.
+// jichao; routingstage is a map. However, we can add Exec interface to the map.
 func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	receiver, ok := ReceiverName(ctx)
 	if !ok {
@@ -674,6 +675,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 }
 
 func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
+
 	var sent []*types.Alert
 
 	// If we shouldn't send notifications for resolved alerts, but there are only
