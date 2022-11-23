@@ -569,6 +569,7 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 	}
 
 	if !entry.IsFiringSubset(firing) {
+
 		return true
 	}
 

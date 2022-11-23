@@ -535,6 +535,7 @@ func (l *Log) MarshalBinary() ([]byte, error) {
 
 // Merge merges notification log state received from the cluster with the local state.
 func (l *Log) Merge(b []byte) error {
+	// st is with type: map[string]*pb.MeshEntry
 	st, err := decodeState(bytes.NewReader(b))
 	if err != nil {
 		return err
