@@ -15,6 +15,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/go-kit/log"
@@ -65,10 +66,15 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
+	key, ok := notify.GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+
 	// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
 	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), 4096)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated message")
+		level.Warn(n.logger).Log("msg", "Truncated message", "alert", key)
 	}
 
 	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
