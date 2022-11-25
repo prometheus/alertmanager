@@ -81,7 +81,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// https://pushover.net/api#limits - 250 characters or runes.
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), 250)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated title", "truncated_title", title, "incident", key)
+		level.Warn(n.logger).Log("msg", "Truncated title", "truncated_title", title, "incident", key)
 	}
 	parameters.Add("title", title)
 
@@ -95,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// https://pushover.net/api#limits - 1024 characters or runes.
 	message, truncated = notify.TruncateInRunes(message, 1024)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated message", "truncated_message", message, "incident", key)
+		level.Warn(n.logger).Log("msg", "Truncated message", "truncated_message", message, "incident", key)
 	}
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -107,7 +107,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// https://pushover.net/api#limits - 512 characters or runes.
 	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), 512)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated URL", "truncated_url", supplementaryURL, "incident", key)
+		level.Warn(n.logger).Log("msg", "Truncated URL", "truncated_url", supplementaryURL, "incident", key)
 	}
 	parameters.Add("url", supplementaryURL)
 	parameters.Add("url_title", tmpl(n.conf.URLTitle))

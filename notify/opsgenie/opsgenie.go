@@ -174,7 +174,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 		// https://docs.opsgenie.com/docs/alert-api - 130 characters meaning runes.
 		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), 130)
 		if truncated {
-			level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", message, "alert", key)
+			level.Warn(n.logger).Log("msg", "truncated message", "truncated_message", message, "alert", key)
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()

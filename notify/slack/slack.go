@@ -106,7 +106,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if err != nil {
 			return false, err
 		}
-		level.Debug(n.logger).Log("msg", "Truncated title", "text", title, "key", key)
+		level.Warn(n.logger).Log("msg", "Truncated title", "text", title, "key", key)
 	}
 	att := &attachment{
 		Title:      title,
