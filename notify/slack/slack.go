@@ -33,6 +33,9 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
+const maxTitleLenRunes = 1024
+
 // Notifier implements a Notifier for Slack notifications.
 type Notifier struct {
 	conf    *config.SlackConfig
@@ -99,14 +102,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		markdownIn = n.conf.MrkdwnIn
 	}
-	// No reference in https://api.slack.com/reference/messaging/attachments#legacy_fields - assuming runes or characters.
-	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), 1024)
+
+	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
 	if truncated {
 		key, err := notify.ExtractGroupKey(ctx)
 		if err != nil {
 			return false, err
 		}
-		level.Warn(n.logger).Log("msg", "Truncated title", "key", key)
+		level.Warn(n.logger).Log("msg", "Truncated title", "key", key, "runes", maxTitleLenRunes)
 	}
 	att := &attachment{
 		Title:      title,

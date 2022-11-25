@@ -29,6 +29,9 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
+const maxMessageLenRunes = 4096
+
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
 	conf    *config.TelegramConfig
@@ -71,10 +74,9 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return false, fmt.Errorf("group key missing")
 	}
 
-	// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
-	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), 4096)
+	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated message", "alert", key)
+		level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "runes", maxMessageLenRunes)
 	}
 
 	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{

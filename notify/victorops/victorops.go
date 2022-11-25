@@ -34,6 +34,9 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
+const maxMessageLenRunes = 20480
+
 // Notifier implements a Notifier for VictorOps notifications.
 type Notifier struct {
 	conf    *config.VictorOpsConfig
@@ -134,10 +137,9 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		messageType = victorOpsEventResolve
 	}
 
-	// https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
-	stateMessage, truncated := notify.TruncateInRunes(stateMessage, 20480)
+	stateMessage, truncated := notify.TruncateInRunes(stateMessage, maxMessageLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "truncated stateMessage", "incident", key)
+		level.Warn(n.logger).Log("msg", "truncated stateMessage", "incident", key, "runes", maxMessageLenRunes)
 	}
 
 	msg := map[string]string{
