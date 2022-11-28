@@ -506,7 +506,7 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		}
 
 		if strings.Contains(r.Type, "{{") {
-			_, err := template.New("").Parse(r.Type);
+			_, err := template.New("").Parse(r.Type)
 			if err != nil {
 				return errors.Errorf("opsGenieConfig responder %v type is not a valid template: %v", r, err)
 			}
