@@ -15,7 +15,6 @@ package slack
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -86,7 +85,7 @@ func TestTrimmingSlackURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := ioutil.TempFile("", "slack_test_newline")
+	f, err := os.CreateTemp("", "slack_test_newline")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n\n")
 	require.NoError(t, err, "writing to temp file failed")
