@@ -58,7 +58,8 @@ func NewDeleteSilenceOK() *DeleteSilenceOK {
 	return &DeleteSilenceOK{}
 }
 
-/*DeleteSilenceOK handles this case with default header values.
+/*
+DeleteSilenceOK handles this case with default header values.
 
 Delete silence response
 */
@@ -79,7 +80,8 @@ func NewDeleteSilenceInternalServerError() *DeleteSilenceInternalServerError {
 	return &DeleteSilenceInternalServerError{}
 }
 
-/*DeleteSilenceInternalServerError handles this case with default header values.
+/*
+DeleteSilenceInternalServerError handles this case with default header values.
 
 Internal server error
 */

@@ -47,7 +47,7 @@ type ClientService interface {
 }
 
 /*
-  GetStatus Get current status of an Alertmanager instance and its cluster
+GetStatus Get current status of an Alertmanager instance and its cluster
 */
 func (a *Client) GetStatus(params *GetStatusParams) (*GetStatusOK, error) {
 	// TODO: Validate the params before sending

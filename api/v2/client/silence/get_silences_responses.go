@@ -60,7 +60,8 @@ func NewGetSilencesOK() *GetSilencesOK {
 	return &GetSilencesOK{}
 }
 
-/*GetSilencesOK handles this case with default header values.
+/*
+GetSilencesOK handles this case with default header values.
 
 Get silences response
 */
@@ -91,7 +92,8 @@ func NewGetSilencesInternalServerError() *GetSilencesInternalServerError {
 	return &GetSilencesInternalServerError{}
 }
 
-/*GetSilencesInternalServerError handles this case with default header values.
+/*
+GetSilencesInternalServerError handles this case with default header values.
 
 Internal server error
 */

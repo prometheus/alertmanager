@@ -43,10 +43,10 @@ func NewGetReceivers(ctx *middleware.Context, handler GetReceiversHandler) *GetR
 	return &GetReceivers{Context: ctx, Handler: handler}
 }
 
-/*GetReceivers swagger:route GET /receivers receiver getReceivers
+/*
+GetReceivers swagger:route GET /receivers receiver getReceivers
 
 Get list of all receivers (name of notification integrations)
-
 */
 type GetReceivers struct {
 	Context *middleware.Context

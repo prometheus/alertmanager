@@ -30,7 +30,8 @@ import (
 // GetAlertGroupsOKCode is the HTTP code returned for type GetAlertGroupsOK
 const GetAlertGroupsOKCode int = 200
 
-/*GetAlertGroupsOK Get alert groups response
+/*
+GetAlertGroupsOK Get alert groups response
 
 swagger:response getAlertGroupsOK
 */
@@ -77,7 +78,8 @@ func (o *GetAlertGroupsOK) WriteResponse(rw http.ResponseWriter, producer runtim
 // GetAlertGroupsBadRequestCode is the HTTP code returned for type GetAlertGroupsBadRequest
 const GetAlertGroupsBadRequestCode int = 400
 
-/*GetAlertGroupsBadRequest Bad request
+/*
+GetAlertGroupsBadRequest Bad request
 
 swagger:response getAlertGroupsBadRequest
 */
@@ -119,7 +121,8 @@ func (o *GetAlertGroupsBadRequest) WriteResponse(rw http.ResponseWriter, produce
 // GetAlertGroupsInternalServerErrorCode is the HTTP code returned for type GetAlertGroupsInternalServerError
 const GetAlertGroupsInternalServerErrorCode int = 500
 
-/*GetAlertGroupsInternalServerError Internal server error
+/*
+GetAlertGroupsInternalServerError Internal server error
 
 swagger:response getAlertGroupsInternalServerError
 */

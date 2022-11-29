@@ -43,10 +43,10 @@ func NewGetAlertGroups(ctx *middleware.Context, handler GetAlertGroupsHandler) *
 	return &GetAlertGroups{Context: ctx, Handler: handler}
 }
 
-/*GetAlertGroups swagger:route GET /alerts/groups alertgroup getAlertGroups
+/*
+GetAlertGroups swagger:route GET /alerts/groups alertgroup getAlertGroups
 
 Get a list of alert groups
-
 */
 type GetAlertGroups struct {
 	Context *middleware.Context
