@@ -70,7 +70,7 @@ const (
 )
 
 // NewAlertmanagerClient initializes an alertmanager client with the given URL
-func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
+func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 	address := defaultAmHost + ":" + defaultAmPort
 	schemes := []string{"http"}
 

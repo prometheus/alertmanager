@@ -29,7 +29,8 @@ import (
 )
 
 // NewDeleteSilenceParams creates a new DeleteSilenceParams object
-// no default values defined in spec.
+//
+// There are no default values defined in the spec.
 func NewDeleteSilenceParams() DeleteSilenceParams {
 
 	return DeleteSilenceParams{}
@@ -64,7 +65,6 @@ func (o *DeleteSilenceParams) BindRequest(r *http.Request, route *middleware.Mat
 	if err := o.bindSilenceID(rSilenceID, rhkSilenceID, route.Formats); err != nil {
 		res = append(res, err)
 	}
-
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
