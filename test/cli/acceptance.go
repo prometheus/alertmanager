@@ -270,7 +270,7 @@ type Alertmanager struct {
 
 	apiAddr     string
 	clusterAddr string
-	clientV2    *apiclient.Alertmanager
+	clientV2    *apiclient.AlertmanagerAPI
 	cmd         *exec.Cmd
 	confFile    *os.File
 	dir         string
