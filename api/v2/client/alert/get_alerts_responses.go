@@ -55,9 +55,8 @@ func (o *GetAlertsReader) ReadResponse(response runtime.ClientResponse, consumer
 			return nil, err
 		}
 		return nil, result
-
 	default:
-		return nil, runtime.NewAPIError("unknown error", response, response.Code())
+		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
 	}
 }
 
@@ -67,7 +66,7 @@ func NewGetAlertsOK() *GetAlertsOK {
 }
 
 /*
-GetAlertsOK handles this case with default header values.
+GetAlertsOK describes a response with status code 200, with default header values.
 
 Get alerts response
 */
@@ -75,7 +74,36 @@ type GetAlertsOK struct {
 	Payload models.GettableAlerts
 }
 
+// IsSuccess returns true when this get alerts o k response has a 2xx status code
+func (o *GetAlertsOK) IsSuccess() bool {
+	return true
+}
+
+// IsRedirect returns true when this get alerts o k response has a 3xx status code
+func (o *GetAlertsOK) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this get alerts o k response has a 4xx status code
+func (o *GetAlertsOK) IsClientError() bool {
+	return false
+}
+
+// IsServerError returns true when this get alerts o k response has a 5xx status code
+func (o *GetAlertsOK) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this get alerts o k response a status code equal to that given
+func (o *GetAlertsOK) IsCode(code int) bool {
+	return code == 200
+}
+
 func (o *GetAlertsOK) Error() string {
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
+}
+
+func (o *GetAlertsOK) String() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
 }
 
@@ -99,7 +127,7 @@ func NewGetAlertsBadRequest() *GetAlertsBadRequest {
 }
 
 /*
-GetAlertsBadRequest handles this case with default header values.
+GetAlertsBadRequest describes a response with status code 400, with default header values.
 
 Bad request
 */
@@ -107,7 +135,36 @@ type GetAlertsBadRequest struct {
 	Payload string
 }
 
+// IsSuccess returns true when this get alerts bad request response has a 2xx status code
+func (o *GetAlertsBadRequest) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this get alerts bad request response has a 3xx status code
+func (o *GetAlertsBadRequest) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this get alerts bad request response has a 4xx status code
+func (o *GetAlertsBadRequest) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this get alerts bad request response has a 5xx status code
+func (o *GetAlertsBadRequest) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this get alerts bad request response a status code equal to that given
+func (o *GetAlertsBadRequest) IsCode(code int) bool {
+	return code == 400
+}
+
 func (o *GetAlertsBadRequest) Error() string {
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
+}
+
+func (o *GetAlertsBadRequest) String() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
 }
 
@@ -131,7 +188,7 @@ func NewGetAlertsInternalServerError() *GetAlertsInternalServerError {
 }
 
 /*
-GetAlertsInternalServerError handles this case with default header values.
+GetAlertsInternalServerError describes a response with status code 500, with default header values.
 
 Internal server error
 */
@@ -139,7 +196,36 @@ type GetAlertsInternalServerError struct {
 	Payload string
 }
 
+// IsSuccess returns true when this get alerts internal server error response has a 2xx status code
+func (o *GetAlertsInternalServerError) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this get alerts internal server error response has a 3xx status code
+func (o *GetAlertsInternalServerError) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this get alerts internal server error response has a 4xx status code
+func (o *GetAlertsInternalServerError) IsClientError() bool {
+	return false
+}
+
+// IsServerError returns true when this get alerts internal server error response has a 5xx status code
+func (o *GetAlertsInternalServerError) IsServerError() bool {
+	return true
+}
+
+// IsCode returns true when this get alerts internal server error response a status code equal to that given
+func (o *GetAlertsInternalServerError) IsCode(code int) bool {
+	return code == 500
+}
+
 func (o *GetAlertsInternalServerError) Error() string {
+	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
+}
+
+func (o *GetAlertsInternalServerError) String() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
 }
 
