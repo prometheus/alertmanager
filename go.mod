@@ -20,7 +20,6 @@ require (
 	github.com/gofrs/uuid v4.3.1+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/hashicorp/go-sockaddr v1.0.2
-	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/memberlist v0.4.0
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/kylelemons/godebug v1.1.0
