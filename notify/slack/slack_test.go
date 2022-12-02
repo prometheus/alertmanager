@@ -14,16 +14,23 @@
 package slack
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestSlackRetry(t *testing.T) {
@@ -40,6 +47,69 @@ func TestSlackRetry(t *testing.T) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
+}
+
+func TestSlackPostMessageHappyPath(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"ok": true}`)
+	}))
+	defer ts.Close()
+	tsUrl, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	tsUrl.Path = "api/chat.postMessage"
+
+	notifier, err := New(
+		&config.SlackConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			APIURL:     &config.SecretURL{URL: tsUrl},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	_, err = notifier.Notify(context.TODO(), &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	})
+	require.NoError(t, err)
+}
+
+func TestSlackPostMessageErrorHandling(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"ok": false, "error": "no_text"}`)
+	}))
+	defer ts.Close()
+	tsUrl, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+	tsUrl.Path = "api/chat.postMessage"
+
+	notifier, err := New(
+		&config.SlackConfig{
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			APIURL:     &config.SecretURL{URL: tsUrl},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	retry, err := notifier.Notify(context.TODO(), &types.Alert{
+		Alert: model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		},
+	})
+	require.False(t, retry, "Should not retry configuration errors")
+	require.Error(t, err)
 }
 
 func TestSlackRedactedURL(t *testing.T) {

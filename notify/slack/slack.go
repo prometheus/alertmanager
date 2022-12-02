@@ -85,6 +85,11 @@ type attachment struct {
 	MrkdwnIn   []string             `json:"mrkdwn_in,omitempty"`
 }
 
+type postMessageResponse struct {
+	Ok    bool   `json:"ok"`
+	Error string `json:"error"`
+}
+
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
@@ -205,10 +210,33 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	// Only 5xx response codes are recoverable and 2xx codes are successful.
+	// Only 5xx response codes are recoverable and 2xx codes are successful (unless using the
+	// postMessage API, see below).
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+
+	// For the postMessage API, if the status code is 200, we need to do
+	// additional checks, since the API returns 200 even for circumstances
+	// which might typically have been a 4xx response (eg invalid channel)
+	// https://api.slack.com/methods/chat.postMessage#errors
+	if resp.StatusCode == 200 && strings.HasSuffix(u, "api/chat.postMessage") {
+		apiResp := postMessageResponse{}
+		d := json.NewDecoder(resp.Body)
+		decErr := d.Decode(&apiResp)
+		if decErr != nil {
+			// This should only happen if the Slack API is returning non-json,
+			// which would presumably only happen in major outages where they
+			// do not process calls(?). Always retry.
+			err = errors.Wrap(errors.New("could not decode slack API response"), fmt.Sprintf("channel %q", req.Channel))
+			retry = true
+		}
+		if !apiResp.Ok {
+			err = errors.Wrap(errors.New(apiResp.Error), fmt.Sprintf("channel %q", req.Channel))
+			retry = false
+		}
+	}
+
 	return retry, err
 }
