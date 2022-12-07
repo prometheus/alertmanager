@@ -746,6 +746,25 @@ api_url: http://example.com
 `,
 			err: true,
 		},
+		{
+			name: "valid responder type template",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: "{{/* valid comment */}}team"
+api_url: http://example.com
+`,
+		},
+		{
+			name: "invalid responder type template",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: "{{/* invalid comment }}team"
+api_url: http://example.com
+`,
+			err: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var cfg OpsGenieConfig

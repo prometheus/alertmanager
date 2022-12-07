@@ -18,6 +18,7 @@ import (
 	"net/textproto"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/pkg/errors"
@@ -541,9 +542,16 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 			return errors.Errorf("opsGenieConfig responder %v has to have at least one of id, username or name specified", r)
 		}
 
-		r.Type = strings.ToLower(r.Type)
-		if !opsgenieTypeMatcher.MatchString(r.Type) {
-			return errors.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
+		if strings.Contains(r.Type, "{{") {
+			_, err := template.New("").Parse(r.Type)
+			if err != nil {
+				return errors.Errorf("opsGenieConfig responder %v type is not a valid template: %v", r, err)
+			}
+		} else {
+			r.Type = strings.ToLower(r.Type)
+			if !opsgenieTypeMatcher.MatchString(r.Type) {
+				return errors.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)
+			}
 		}
 	}
 
