@@ -765,6 +765,7 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
+	WaitOnStartup  bool            `yaml:"wait_on_startup" json:"wait_on_startup,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.

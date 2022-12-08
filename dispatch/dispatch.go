@@ -90,7 +90,8 @@ type Dispatcher struct {
 	ctx    context.Context
 	cancel func()
 
-	logger log.Logger
+	logger    log.Logger
+	startTime time.Time
 }
 
 // Limits describes limits used by Dispatcher.
@@ -117,13 +118,14 @@ func NewDispatcher(
 	}
 
 	disp := &Dispatcher{
-		alerts:  ap,
-		stage:   s,
-		route:   r,
-		timeout: to,
-		logger:  log.With(l, "component", "dispatcher"),
-		metrics: m,
-		limits:  lim,
+		alerts:    ap,
+		stage:     s,
+		route:     r,
+		timeout:   to,
+		logger:    log.With(l, "component", "dispatcher"),
+		metrics:   m,
+		limits:    lim,
+		startTime: time.Now(),
 	}
 	return disp
 }
@@ -329,7 +331,7 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 		return
 	}
 
-	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger)
+	ag = newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.logger, d.startTime)
 	routeGroups[fp] = ag
 	d.aggrGroupsNum++
 	d.metrics.aggrGroups.Inc()
@@ -384,20 +386,22 @@ type aggrGroup struct {
 
 	mtx        sync.RWMutex
 	hasFlushed bool
+	startTime  time.Time
 }
 
 // newAggrGroup returns a new aggregation group.
-func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger log.Logger) *aggrGroup {
+func newAggrGroup(ctx context.Context, labels model.LabelSet, r *Route, to func(time.Duration) time.Duration, logger log.Logger, startTime time.Time) *aggrGroup {
 	if to == nil {
 		to = func(d time.Duration) time.Duration { return d }
 	}
 	ag := &aggrGroup{
-		labels:   labels,
-		routeKey: r.Key(),
-		opts:     &r.RouteOpts,
-		timeout:  to,
-		alerts:   store.NewAlerts(),
-		done:     make(chan struct{}),
+		labels:    labels,
+		routeKey:  r.Key(),
+		opts:      &r.RouteOpts,
+		timeout:   to,
+		alerts:    store.NewAlerts(),
+		done:      make(chan struct{}),
+		startTime: startTime,
 	}
 	ag.ctx, ag.cancel = context.WithCancel(ctx)
 
@@ -472,17 +476,32 @@ func (ag *aggrGroup) stop() {
 	<-ag.done
 }
 
+// check if we want to wait on initial startup before sending notification
+func (ag *aggrGroup) shouldWaitOnStartup() bool {
+	now := time.Now()
+	return !ag.opts.WaitOnStartup || ag.startTime.Add(ag.opts.GroupWait).Before(now)
+}
+
+func (ag *aggrGroup) shouldWaitForGroup(alert *types.Alert) bool {
+	now := time.Now()
+	return alert.StartsAt.Add(ag.opts.GroupWait).Before(now)
+}
+
+// check if we want alertgroup timer to reset
+func (ag *aggrGroup) shouldReset(alert *types.Alert) bool {
+	return !ag.hasFlushed && ag.shouldWaitForGroup(alert) && ag.shouldWaitOnStartup()
+}
+
 // insert inserts the alert into the aggregation group.
 func (ag *aggrGroup) insert(alert *types.Alert) {
 	if err := ag.alerts.Set(alert); err != nil {
 		level.Error(ag.logger).Log("msg", "error on set alert", "err", err)
 	}
-
 	// Immediately trigger a flush if the wait duration for this
 	// alert is already over.
 	ag.mtx.Lock()
 	defer ag.mtx.Unlock()
-	if !ag.hasFlushed && alert.StartsAt.Add(ag.opts.GroupWait).Before(time.Now()) {
+	if ag.shouldReset(alert) {
 		ag.next.Reset(0)
 	}
 }
