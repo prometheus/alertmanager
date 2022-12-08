@@ -164,7 +164,7 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 
 // Run starts all Alertmanagers and runs queries against them. It then checks
 // whether all expected notifications have arrived at the expected receiver.
-func (t *AcceptanceTest) Run() {
+func (t *AcceptanceTest) Run(additionalArgs ...string) {
 	errc := make(chan error)
 
 	for _, am := range t.amc.ams {
@@ -173,7 +173,7 @@ func (t *AcceptanceTest) Run() {
 		t.Cleanup(am.cleanup)
 	}
 
-	err := t.amc.Start()
+	err := t.amc.Start(additionalArgs...)
 	if err != nil {
 		t.Log(err)
 		t.Fail()
@@ -263,14 +263,14 @@ type AlertmanagerCluster struct {
 }
 
 // Start the Alertmanager cluster and wait until it is ready to receive.
-func (amc *AlertmanagerCluster) Start() error {
-	var peerFlags []string
+func (amc *AlertmanagerCluster) Start(additionalArgs ...string) error {
+	args := additionalArgs
 	for _, am := range amc.ams {
-		peerFlags = append(peerFlags, "--cluster.peer="+am.clusterAddr)
+		args = append(args, "--cluster.peer="+am.clusterAddr)
 	}
 
 	for _, am := range amc.ams {
-		err := am.Start(peerFlags)
+		err := am.Start(args)
 		if err != nil {
 			return fmt.Errorf("failed to start alertmanager cluster: %w", err)
 		}
