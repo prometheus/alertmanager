@@ -94,7 +94,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 
 	if httpConfigFile != "" {
 		var err error
-		httpConfig, err := config.LoadHTTPConfigFile(httpConfigFile)
+		httpConfig, _, err := promconfig.LoadHTTPConfigFile(httpConfigFile)
 		if err != nil {
 			kingpin.Fatalf("failed to load HTTP config file: %v", err)
 		}
