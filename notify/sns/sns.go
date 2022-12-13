@@ -18,7 +18,10 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
+
+	"github.com/pkg/errors"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -88,7 +91,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return true, err
 	}
 
-	level.Debug(n.logger).Log("msg", "SNS message successfully published", "message_id", publishOutput.MessageId, "sequence number", publishOutput.SequenceNumber)
+	level.Debug(n.logger).Log("msg", "SNS message successfully published", "message_id", publishOutput.MessageId, "sequence_number(only apply for FIFO topic)", publishOutput.SequenceNumber)
 
 	return false, nil
 }
@@ -149,12 +152,19 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 		// If we are using a topic ARN, it could be a FIFO topic specified by the topic's suffix ".fifo".
 		if strings.HasSuffix(topicARN, ".fifo") {
 			// Deduplication key and Message Group ID are only added if it's a FIFO SNS Topic.
-			key, err := notify.ExtractGroupKey(ctx)
+			groupKey, err := notify.ExtractGroupKey(ctx)
 			if err != nil {
 				return nil, err
 			}
-			publishInput.SetMessageDeduplicationId(key.Hash())
-			publishInput.SetMessageGroupId(key.Hash())
+			now, ok := notify.Now(ctx)
+			if !ok {
+				return nil, errors.New("failed to extract now timestamp from context")
+			}
+			// Technically, this is a group of alerts so we should have set only the GroupId. However,
+			// even in the case of a single alert per group - the Alertmanager does its own grouping.
+			// This basically means we don't want SNS to do any sort of deduplication for us.
+			publishInput.SetMessageDeduplicationId(createMessageDeduplicationID(groupKey, now))
+			publishInput.SetMessageGroupId(groupKey.Hash())
 		}
 	}
 	if n.conf.PhoneNumber != "" {
@@ -183,6 +193,11 @@ func (n *Notifier) createPublishInput(ctx context.Context, tmpl func(string) str
 	}
 
 	return publishInput, nil
+}
+
+func createMessageDeduplicationID(groupKey notify.Key, now time.Time) string {
+	deduplicationID := groupKey.String() + now.String()
+	return notify.Key(deduplicationID).Hash()
 }
 
 func validateAndTruncateMessage(message string, maxMessageSizeInBytes int) (string, bool, error) {

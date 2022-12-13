@@ -858,8 +858,6 @@ sigv4:
 
 # SNS topic ARN, i.e. arn:aws:sns:us-east-2:698519295917:My-Topic
 # If you don't specify this value, you must specify a value for the phone_number or target_arn.
-# If you are using a FIFO SNS topic you should set a message group interval longer than 5 minutes
-# to prevent messages with the same group key being deduplicated by the SNS default deduplication window
 [ topic_arn: <tmpl_string> ]
 
 # Subject line when the message is delivered to email endpoints.
