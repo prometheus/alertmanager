@@ -31,6 +31,15 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+const (
+	// https://pushover.net/api#limits - 250 characters or runes.
+	maxTitleLenRunes = 250
+	// https://pushover.net/api#limits - 1024 characters or runes.
+	maxMessageLenRunes = 1024
+	// https://pushover.net/api#limits - 512 characters or runes.
+	maxURLLenRunes = 512
+)
+
 // Notifier implements a Notifier for Pushover notifications.
 type Notifier struct {
 	conf    *config.PushoverConfig
@@ -78,10 +87,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters.Add("token", tmpl(string(n.conf.Token)))
 	parameters.Add("user", tmpl(string(n.conf.UserKey)))
 
-	// https://pushover.net/api#limits - 250 characters or runes.
-	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), 250)
+	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated title", "truncated_title", title, "incident", key)
+		level.Warn(n.logger).Log("msg", "Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
 	}
 	parameters.Add("title", title)
 
@@ -92,10 +100,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = tmpl(n.conf.Message)
 	}
 
-	// https://pushover.net/api#limits - 1024 characters or runes.
-	message, truncated = notify.TruncateInRunes(message, 1024)
+	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated message", "truncated_message", message, "incident", key)
+		level.Warn(n.logger).Log("msg", "Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
 	}
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -104,10 +111,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	parameters.Add("message", message)
 
-	// https://pushover.net/api#limits - 512 characters or runes.
-	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), 512)
+	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), maxURLLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated URL", "truncated_url", supplementaryURL, "incident", key)
+		level.Warn(n.logger).Log("msg", "Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
 	}
 	parameters.Add("url", supplementaryURL)
 	parameters.Add("url_title", tmpl(n.conf.URLTitle))

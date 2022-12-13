@@ -15,6 +15,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/go-kit/log"
@@ -27,6 +28,9 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
+const maxMessageLenRunes = 4096
 
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
@@ -65,10 +69,14 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
-	// Telegram supports 4096 chars max - from https://limits.tginfo.me/en.
-	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), 4096)
+	key, ok := notify.GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+
+	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "truncated message", "truncated_message", messageText)
+		level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 	}
 
 	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
