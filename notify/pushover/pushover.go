@@ -89,7 +89,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	title, truncated := notify.TruncateInRunes(tmpl(n.conf.Title), maxTitleLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated title", "incident", key, "runes", maxTitleLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated title", "incident", key, "max_runes", maxTitleLenRunes)
 	}
 	parameters.Add("title", title)
 
@@ -102,7 +102,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated message", "incident", key, "runes", maxMessageLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated message", "incident", key, "max_runes", maxMessageLenRunes)
 	}
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -113,7 +113,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	supplementaryURL, truncated := notify.TruncateInRunes(tmpl(n.conf.URL), maxURLLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated URL", "incident", key, "runes", maxURLLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
 	}
 	parameters.Add("url", supplementaryURL)
 	parameters.Add("url_title", tmpl(n.conf.URLTitle))

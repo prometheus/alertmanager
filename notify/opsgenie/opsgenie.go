@@ -176,7 +176,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 	default:
 		message, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 		if truncated {
-			level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "runes", maxMessageLenRunes)
+			level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 		}
 
 		createEndpointURL := n.conf.APIURL.Copy()

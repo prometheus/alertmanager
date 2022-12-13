@@ -157,7 +157,7 @@ func (n *Notifier) notifyV1(
 
 	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV1DescriptionLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated description", "key", key, "runes", maxV1DescriptionLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated description", "key", key, "max_runes", maxV1DescriptionLenRunes)
 	}
 
 	serviceKey := string(n.conf.ServiceKey)
@@ -222,7 +222,7 @@ func (n *Notifier) notifyV2(
 
 	summary, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV2SummaryLenRunes)
 	if truncated {
-		level.Warn(n.logger).Log("msg", "Truncated summary", "key", key, "runes", maxV2SummaryLenRunes)
+		level.Warn(n.logger).Log("msg", "Truncated summary", "key", key, "max_runes", maxV2SummaryLenRunes)
 	}
 
 	routingKey := string(n.conf.RoutingKey)
