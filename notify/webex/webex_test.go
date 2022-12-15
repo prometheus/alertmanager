@@ -68,17 +68,6 @@ func TestWebexTemplating(t *testing.T) {
 		expHeader string
 	}{
 		{
-			name: "with a valid message and a set bot_token, it is formatted as expected",
-			cfg: &config.WebexConfig{
-				Message: `{{ template "webex.default.message" . }}`,
-			},
-			commonCfg: &commoncfg.HTTPClientConfig{},
-
-			expJSON:   `{"markdown":"\n\nAlerts Firing:\nLabels:\n - lbl1 = val1\n - lbl3 = val3\nAnnotations:\nSource: \nLabels:\n - lbl1 = val1\n - lbl2 = val2\nAnnotations:\nSource: \n\n\n\n"}`,
-			retry:     false,
-			expHeader: "Bearer xxxyyyzz",
-		},
-		{
 			name: "with a valid message and a set http_config.authorization, it is formatted as expected",
 			cfg: &config.WebexConfig{
 				Message: `{{ template "webex.default.message" . }}`,
@@ -115,7 +104,6 @@ func TestWebexTemplating(t *testing.T) {
 			u, _ := url.Parse(srv.URL)
 
 			tt.cfg.APIURL = &config.URL{URL: u}
-			tt.cfg.BotToken = "xxxyyyzz"
 			tt.cfg.HTTPConfig = tt.commonCfg
 			notifierWebex, err := New(tt.cfg, test.CreateTmpl(t), log.NewNopLogger())
 			require.NoError(t, err)

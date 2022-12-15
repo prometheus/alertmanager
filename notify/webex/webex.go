@@ -45,13 +45,6 @@ type Notifier struct {
 
 // New returns a new Webex notifier.
 func New(c *config.WebexConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	if c.HTTPConfig.Authorization == nil && c.HTTPConfig.BearerToken == "" {
-		c.HTTPConfig.Authorization = &commoncfg.Authorization{
-			Type:        "Bearer",
-			Credentials: commoncfg.Secret(c.BotToken),
-		}
-	}
-
 	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "webex", httpOpts...)
 	if err != nil {
 		return nil, err

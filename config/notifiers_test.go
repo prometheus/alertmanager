@@ -877,15 +877,17 @@ func TestWebexConfiguration(t *testing.T) {
 		{
 			name: "with no room_id - it fails",
 			in: `
-bot_token: xyz123
+message: xyz123
 `,
 			expected: errors.New("missing room_id on webex_config"),
 		},
 		{
-			name: "with room_id and bot_token present - it succeeds",
+			name: "with room_id and http_config.authorization set - it succeeds",
 			in: `
 room_id: 2
-bot_token: xyz123
+http_config:
+  authorization:
+    credentials: "xxxyyyzz"
 `,
 		},
 	}

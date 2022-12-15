@@ -1124,15 +1124,12 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 # If not specified, default API URL will be used.
 [ api_url: <string> | default = global.webex_api_url ]
 
-# Webex bot token
-[ bot_token: <string> ]
-
 # ID of the Webex Teams room where to send the messages.
 [ room_id: <string> ]
 
 # Message template
 [ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
 
-# The HTTP client's configuration. As an alternative, You can use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
+# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
 [ http_config: <http_config> | default = global.http_config ]
 ```

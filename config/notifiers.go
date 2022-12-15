@@ -180,9 +180,8 @@ type WebexConfig struct {
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 
-	Message  string `yaml:"message,omitempty" json:"message,omitempty"`
-	RoomID   string `yaml:"room_id" json:"room_id"`
-	BotToken Secret `yaml:"bot_token" json:"bot_token"`
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	RoomID  string `yaml:"room_id" json:"room_id"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -197,10 +196,8 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("missing room_id on webex_config")
 	}
 
-	if c.BotToken == "" {
-		if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
-			return fmt.Errorf("missing one of webex_configs.http_config.authorization or bot_token")
-		}
+	if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
+		return fmt.Errorf("missing webex_configs.http_config.authorization")
 	}
 
 	return nil
