@@ -251,6 +251,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.DiscordConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.WebexConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -513,6 +516,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				return fmt.Errorf("no discord webhook URL provided")
 			}
 		}
+		for _, webex := range rcv.WebexConfigs {
+			if webex.HTTPConfig == nil {
+				webex.HTTPConfig = c.Global.HTTPConfig
+			}
+			if webex.APIURL == nil {
+				if c.Global.WebexAPIURL == nil {
+					return fmt.Errorf("no global Webex URL set")
+				}
+
+				webex.APIURL = c.Global.WebexAPIURL
+			}
+		}
 
 		names[rcv.Name] = struct{}{}
 	}
@@ -613,6 +628,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 		TelegramAPIUrl:  mustParseURL("https://api.telegram.org"),
+		WebexAPIURL:     mustParseURL("https://webexapis.com/v1/messages"),
 	}
 }
 
@@ -736,6 +752,7 @@ type GlobalConfig struct {
 	VictorOpsAPIKey      Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile  string     `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl       *URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
+	WebexAPIURL          *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
@@ -878,6 +895,7 @@ type Receiver struct {
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
+	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.

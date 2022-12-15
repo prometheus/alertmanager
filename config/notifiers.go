@@ -34,6 +34,14 @@ var (
 		},
 	}
 
+	// DefaultWebexConfig defines default values for Webex configurations.
+	DefaultWebexConfig = WebexConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message: `{{ template "webex.default.message" . }}`,
+	}
+
 	// DefaultDiscordConfig defines default values for Discord configurations.
 	DefaultDiscordConfig = DiscordConfig{
 		NotifierConfig: NotifierConfig{
@@ -165,6 +173,35 @@ type NotifierConfig struct {
 
 func (nc *NotifierConfig) SendResolved() bool {
 	return nc.VSendResolved
+}
+
+// WebexConfig configures notifications via Webex.
+type WebexConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	APIURL         *URL                        `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	RoomID  string `yaml:"room_id" json:"room_id"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWebexConfig
+	type plain WebexConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.RoomID == "" {
+		return fmt.Errorf("missing room_id on webex_config")
+	}
+
+	if c.HTTPConfig == nil || c.HTTPConfig.Authorization == nil {
+		return fmt.Errorf("missing webex_configs.http_config.authorization")
+	}
+
+	return nil
 }
 
 // DiscordConfig configures notifications via Discord.

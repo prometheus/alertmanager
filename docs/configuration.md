@@ -95,6 +95,7 @@ global:
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -516,6 +517,8 @@ wechat_configs:
   [ - <wechat_config>, ... ]
 telegram_configs:
   [ - <telegram_config>, ... ]
+webex_configs:
+  [ - <webex_config>, ... ]
 ```
 
 ## `<email_config>`
@@ -1110,5 +1113,24 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ parse_mode: <string> | default = "MarkdownV2" ]
 
 # The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+## `<webex_config>`
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Webex Teams API URL i.e. https://webexapis.com/v1/messages
+# If not specified, default API URL will be used.
+[ api_url: <string> | default = global.webex_api_url ]
+
+# ID of the Webex Teams room where to send the messages.
+room_id: <string>
+
+# Message template
+[ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
+
+# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
 [ http_config: <http_config> | default = global.http_config ]
 ```
