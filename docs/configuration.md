@@ -95,6 +95,7 @@ global:
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -1125,7 +1126,7 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ api_url: <string> | default = global.webex_api_url ]
 
 # ID of the Webex Teams room where to send the messages.
-[ room_id: <string> ]
+room_id: <string>
 
 # Message template
 [ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
