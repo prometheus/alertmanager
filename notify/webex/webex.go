@@ -40,7 +40,6 @@ type Notifier struct {
 	logger  log.Logger
 	client  *http.Client
 	retrier *notify.Retrier
-	APIURL  *config.URL
 }
 
 // New returns a new Webex notifier.
@@ -56,7 +55,6 @@ func New(c *config.WebexConfig, t *template.Template, l log.Logger, httpOpts ...
 		logger:  l,
 		client:  client,
 		retrier: &notify.Retrier{},
-		APIURL:  c.APIURL,
 	}
 
 	return n, nil
@@ -102,7 +100,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.APIURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
