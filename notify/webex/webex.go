@@ -70,8 +70,8 @@ func New(c *config.WebexConfig, t *template.Template, l log.Logger, httpOpts ...
 }
 
 type webhook struct {
-	Message string `json:"markdown"`
-	RoomID  string `json:"roomId,omitempty"`
+	Markdown string `json:"markdown"`
+	RoomID   string `json:"roomId,omitempty"`
 }
 
 // Notify implements the Notifier interface.
@@ -100,8 +100,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	w := webhook{
-		Message: message,
-		RoomID:  n.conf.RoomID,
+		Markdown: message,
+		RoomID:   n.conf.RoomID,
 	}
 
 	var payload bytes.Buffer
