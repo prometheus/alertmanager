@@ -42,7 +42,7 @@ type Template struct {
 	ExternalURL *url.URL
 }
 
-// Option is generic modifier of the text and html templates used by a Template
+// Option is generic modifier of the text and html templates used by a Template.
 type Option func(text *tmpltext.Template, html *tmplhtml.Template)
 
 // FromGlobs calls ParseGlob on all path globs provided and returns the
@@ -58,8 +58,8 @@ func FromGlobs(paths []string, options ...Option) (*Template, error) {
 		o(t.text, t.html)
 	}
 
-	t.text = t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
-	t.html = t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
+	t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
+	t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
 
 	defaultTemplates := []string{"default.tmpl", "email.tmpl"}
 
