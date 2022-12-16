@@ -42,12 +42,20 @@ type Template struct {
 	ExternalURL *url.URL
 }
 
+// Option is generic modifier of the text and html templates used by a Template
+type Option func(text *tmpltext.Template, html *tmplhtml.Template)
+
 // FromGlobs calls ParseGlob on all path globs provided and returns the
-// resulting Template.
-func FromGlobs(paths ...string) (*Template, error) {
+// resulting Template. Options allows customization of the text and html templates in given order.
+// The DefaultFuncs have precedence over any added custom functions.
+func FromGlobs(paths []string, options ...Option) (*Template, error) {
 	t := &Template{
 		text: tmpltext.New("").Option("missingkey=zero"),
 		html: tmplhtml.New("").Option("missingkey=zero"),
+	}
+
+	for _, o := range options {
+		o(t.text, t.html)
 	}
 
 	t.text = t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
