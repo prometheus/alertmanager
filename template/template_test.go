@@ -14,8 +14,10 @@
 package template
 
 import (
+	tmplhtml "html/template"
 	"net/url"
 	"testing"
+	tmpltext "text/template"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -277,7 +279,7 @@ func TestData(t *testing.T) {
 }
 
 func TestTemplateExpansion(t *testing.T) {
-	tmpl, err := FromGlobs()
+	tmpl, err := FromGlobs([]string{})
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -373,6 +375,70 @@ func TestTemplateExpansion(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
+			f := tmpl.ExecuteTextString
+			if tc.html {
+				f = tmpl.ExecuteHTMLString
+			}
+			got, err := f(tc.in, tc.data)
+			if tc.fail {
+				require.NotNil(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.exp, got)
+		})
+	}
+}
+
+func TestTemplateExpansionWithOptions(t *testing.T) {
+	testOptionWithAdditionalFuncs := func(funcs FuncMap) Option {
+		return func(text *tmpltext.Template, html *tmplhtml.Template) {
+			text.Funcs(tmpltext.FuncMap(funcs))
+			html.Funcs(tmplhtml.FuncMap(funcs))
+		}
+	}
+	for _, tc := range []struct {
+		options []Option
+		title   string
+		in      string
+		data    interface{}
+		html    bool
+
+		exp  string
+		fail bool
+	}{
+		{
+			title:   "Test custom function",
+			options: []Option{testOptionWithAdditionalFuncs(FuncMap{"printFoo": func() string { return "foo" }})},
+			in:      `{{ printFoo }}`,
+			exp:     "foo",
+		},
+		{
+			title:   "Test Default function with additional function added",
+			options: []Option{testOptionWithAdditionalFuncs(FuncMap{"printFoo": func() string { return "foo" }})},
+			in:      `{{ toUpper "test" }}`,
+			exp:     "TEST",
+		},
+		{
+			title:   "Test custom function is overridden by the DefaultFuncs",
+			options: []Option{testOptionWithAdditionalFuncs(FuncMap{"toUpper": func(s string) string { return "foo" }})},
+			in:      `{{ toUpper "test" }}`,
+			exp:     "TEST",
+		},
+		{
+			title: "Test later Option overrides the previous",
+			options: []Option{
+				testOptionWithAdditionalFuncs(FuncMap{"printFoo": func() string { return "foo" }}),
+				testOptionWithAdditionalFuncs(FuncMap{"printFoo": func() string { return "bar" }}),
+			},
+			in:  `{{ printFoo }}`,
+			exp: "bar",
+		},
+	} {
+		tc := tc
+		t.Run(tc.title, func(t *testing.T) {
+			tmpl, err := FromGlobs([]string{}, tc.options...)
+			require.NoError(t, err)
 			f := tmpl.ExecuteTextString
 			if tc.html {
 				f = tmpl.ExecuteHTMLString
