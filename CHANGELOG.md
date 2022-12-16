@@ -1,4 +1,4 @@
-## 0.25.0-rc.0 / 2022-12-16
+## 0.25.0-rc.1 / 2022-12-16
 
 * [CHANGE] Change the default `parse_mode` value from `MarkdownV2` to `HTML` for Telegram. #2981
 * [CHANGE] Make `api_url` field optional for Telegram. #2981
