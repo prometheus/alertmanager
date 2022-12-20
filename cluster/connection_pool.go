@@ -33,7 +33,7 @@ type connectionPool struct {
 
 func newConnectionPool(tlsClientCfg *tls.Config) (*connectionPool, error) {
 	cache, err := lru.NewWithEvict(
-		capacity, func(k string, conn *tlsConn) {
+		capacity, func(_ string, conn *tlsConn) {
 			conn.Close()
 		},
 	)
