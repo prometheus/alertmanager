@@ -1,4 +1,4 @@
-## 0.25.0-rc.2 / 2022-12-19
+## 0.25.0 / 2022-12-22
 
 * [CHANGE] Change the default `parse_mode` value from `MarkdownV2` to `HTML` for Telegram. #2981
 * [CHANGE] Make `api_url` field optional for Telegram. #2981
@@ -31,6 +31,7 @@
 * [BUGFIX] amtool: Avoid panic when the label value matcher is empty. #2968
 * [BUGFIX] Fail configuration loading if `api_url` is empty for OpsGenie. #2910
 * [BUGFIX] Fix email template for resolved notifications. #3166
+* [BUGFIX] Use the HTML template engine when the parse mode is HTML for Telegram. #3183
 
 ## 0.24.0 / 2022-03-24
 
