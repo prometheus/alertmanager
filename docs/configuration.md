@@ -1127,7 +1127,7 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ disable_notifications: <boolean> | default = false ]
 
 # Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
-[ parse_mode: <string> | default = "MarkdownV2" ]
+[ parse_mode: <string> | default = "HTML" ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
