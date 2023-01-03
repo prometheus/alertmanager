@@ -391,7 +391,25 @@ user_key: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing user key in Pushover config"
+	expected := "one of user_key or user_key_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverUserKeyOrUserKeyFile(t *testing.T) {
+	in := `
+user_key: 'user key'
+user_key_file: /pushover/user_key
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of user_key & user_key_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -409,7 +427,26 @@ token: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing token in Pushover config"
+	expected := "one of token or token_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverTokenOrTokenFile(t *testing.T) {
+	in := `
+token: 'pushover token'
+token_file: /pushover/token
+user_key: 'user key'
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of token & token_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
