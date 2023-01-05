@@ -749,7 +749,8 @@ Pushover notifications are sent via the [Pushover API](https://pushover.net/api)
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The recipient user's key. Either `user_key` or `user_key_file` should be set.
+# The recipient user's key. 
+# user_key and user_key_file are mutually exclusive.
 user_key: <secret>
 user_key_file: <filepath>
 
