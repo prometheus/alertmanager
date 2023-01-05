@@ -757,7 +757,7 @@ user_key_file: <filepath>
 # Your registered application's API token, see https://pushover.net/apps
 # You can also register a token by cloning this Prometheus app:
 # https://pushover.net/apps/clone/prometheus
-# Either `token` or `token_file` should be set.
+# token and token_file are mutually exclusive.
 token: <secret>
 token_file: <filepath>
 
