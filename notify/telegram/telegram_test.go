@@ -14,17 +14,26 @@
 package telegram
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestTelegramUnmarshal(t *testing.T) {
@@ -71,5 +80,73 @@ func TestTelegramRetry(t *testing.T) {
 	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+	}
+}
+
+func TestTelegramNotify(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		cfg     config.TelegramConfig
+		expText string
+	}{
+		{
+			name: "No escaping by default",
+			cfg: config.TelegramConfig{
+				Message:    "<code>x < y</code>",
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+			},
+			expText: "<code>x < y</code>",
+		},
+		{
+			name: "Characters escaped in HTML mode",
+			cfg: config.TelegramConfig{
+				ParseMode:  "HTML",
+				Message:    "<code>x < y</code>",
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+			},
+			expText: "<code>x &lt; y</code>",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out []byte
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var err error
+				out, err = io.ReadAll(r.Body)
+				require.NoError(t, err)
+				w.Write([]byte(`{"ok":true,"result":{"chat":{}}}`))
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+
+			tc.cfg.APIUrl = &config.URL{URL: u}
+
+			notifier, err := New(&tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			retry, err := notifier.Notify(ctx, []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"lbl1": "val1",
+							"lbl3": "val3",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
+					},
+				},
+			}...)
+
+			require.False(t, retry)
+			require.NoError(t, err)
+
+			req := map[string]string{}
+			err = json.Unmarshal(out, &req)
+			require.NoError(t, err)
+			require.Equal(t, tc.expText, req["text"])
+		})
 	}
 }
