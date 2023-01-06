@@ -654,6 +654,10 @@ responders:
 type: <tmpl_string>
 ```
 
+The `teams` responder is configured using the `name` field. This field can
+contain a comma-separated list of team names. If the list is empty, no
+responders are configured.
+
 ## `<pagerduty_config>`
 
 PagerDuty notifications are sent via the [PagerDuty API](https://developer.pagerduty.com/documentation/integration/events).
