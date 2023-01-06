@@ -554,31 +554,19 @@ func run() int {
 	}()
 
 	var (
-		hup      = make(chan os.Signal, 1)
-		hupReady = make(chan bool)
-		term     = make(chan os.Signal, 1)
+		hup  = make(chan os.Signal, 1)
+		term = make(chan os.Signal, 1)
 	)
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
-	go func() {
-		<-hupReady
-		for {
-			select {
-			case <-hup:
-				// ignore error, already logged in `reload()`
-				_ = configCoordinator.Reload()
-			case errc := <-webReload:
-				errc <- configCoordinator.Reload()
-			}
-		}
-	}()
-
-	// Wait for reload or termination signals.
-	close(hupReady) // Unblock SIGHUP handler.
-
 	for {
 		select {
+		case <-hup:
+			// ignore error, already logged in `reload()`
+			_ = configCoordinator.Reload()
+		case errc := <-webReload:
+			errc <- configCoordinator.Reload()
 		case <-term:
 			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
 			return 0
