@@ -153,7 +153,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []*config.InhibitRule{&rule1, &rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -249,7 +249,7 @@ func TestInhibitRuleMatchers(t *testing.T) {
 	}
 
 	m := types.NewMarker(prometheus.NewRegistry())
-	ih := NewInhibitor(nil, []*config.InhibitRule{&rule1, &rule2}, m, nopLogger)
+	ih := NewInhibitor(nil, []config.InhibitRule{rule1, rule2}, m, nopLogger)
 	now := time.Now()
 	// Active alert that matches the source filter of rule1.
 	sourceAlert1 := &types.Alert{
@@ -370,8 +370,8 @@ func TestInhibit(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	inhibitRule := func() *config.InhibitRule {
-		return &config.InhibitRule{
+	inhibitRule := func() config.InhibitRule {
+		return config.InhibitRule{
 			SourceMatch: map[string]string{"s": "1"},
 			TargetMatch: map[string]string{"t": "1"},
 			Equal:       model.LabelNames{"e"},
@@ -452,7 +452,7 @@ func TestInhibit(t *testing.T) {
 	} {
 		ap := newFakeAlerts(tc.alerts)
 		mk := types.NewMarker(prometheus.NewRegistry())
-		inhibitor := NewInhibitor(ap, []*config.InhibitRule{inhibitRule()}, mk, nopLogger)
+		inhibitor := NewInhibitor(ap, []config.InhibitRule{inhibitRule()}, mk, nopLogger)
 
 		go func() {
 			for ap.finished != nil {
