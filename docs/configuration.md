@@ -536,6 +536,8 @@ telegram_configs:
   [ - <telegram_config>, ... ]
 webex_configs:
   [ - <webex_config>, ... ]
+discord_configs:
+  [ - <discord_config>, ... ]
 ```
 
 ## `<email_config>`
@@ -1131,7 +1133,7 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ disable_notifications: <boolean> | default = false ]
 
 # Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
-[ parse_mode: <string> | default = "MarkdownV2" ]
+[ parse_mode: <string> | default = "HTML" ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
@@ -1153,5 +1155,26 @@ room_id: <string>
 [ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
 
 # The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+## `<discord_config>`
+
+Discord notifications are sent via the [Discord webhook API](https://discord.com/developers/docs/resources/webhook). See Discord's ["Intro to Webhooks" article](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) to learn how to configure a webhook integration for a channel.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Discord webhook URL.
+webhook_url: <secret>
+
+# Message title template.
+[ title: <tmpl_string> | default = '{{ template "discord.default.title" . }}' ]
+
+# Message body template.
+[ message: <tmpl_string> | default = '{{ template "discord.default.message" . }}' ]
+
+# The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
