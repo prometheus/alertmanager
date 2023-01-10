@@ -425,27 +425,25 @@ func TestRetryStageWithError(t *testing.T) {
 
 func TestRetryStageWithErrorCode(t *testing.T) {
 	testcases := map[string]struct {
-		reason        string
-		reasonlabel   string
-		expectedCount int
+		isNewErrorWithReason bool
+		reason               Reason
+		reasonlabel          string
+		expectedCount        int
 	}{
-		"for clientError":     {reason: clientError, reasonlabel: clientError, expectedCount: 1},
-		"for serverError":     {reason: serverError, reasonlabel: serverError, expectedCount: 1},
-		"for unexpected code": {reason: "unexpected", reasonlabel: defaultFailureReason, expectedCount: 1},
+		"for clientError":     {isNewErrorWithReason: true, reason: ClientErrorReason, reasonlabel: ClientErrorReason.String(), expectedCount: 1},
+		"for serverError":     {isNewErrorWithReason: true, reason: ServerErrorReason, reasonlabel: ServerErrorReason.String(), expectedCount: 1},
+		"for unexpected code": {isNewErrorWithReason: false, reason: DefaultReason, reasonlabel: DefaultReason.String(), expectedCount: 1},
 	}
 	for _, testData := range testcases {
-		fail, retry := true, false
-		sent := []*types.Alert{}
+		retry := false
 		testData := testData
 		i := Integration{
 			name: "test",
 			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-				if fail {
-					fail = false
-					return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
+				if !testData.isNewErrorWithReason {
+					return retry, errors.New("fail to deliver notification")
 				}
-				sent = append(sent, alerts...)
-				return false, nil
+				return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
 			}),
 			rs: sendResolved(false),
 		}

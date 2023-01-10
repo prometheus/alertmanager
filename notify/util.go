@@ -30,17 +30,6 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-// defaultFailureReason is the default reason for numTotalFailedNotifications metric
-const defaultFailureReason = "other"
-
-const (
-	clientError = "clientError"
-	serverError = "ServerError"
-)
-
-// possibleFailureStatusCategory is a list of possible failure reason
-var possibleFailureStatusCategory = []string{clientError, serverError, defaultFailureReason}
-
 // UserAgentHeader is the default User-Agent for notification requests
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
@@ -225,10 +214,10 @@ type ErrorWithReason struct {
 	Err error
 
 	// The reason of the failure.
-	Reason string
+	Reason Reason
 }
 
-func NewErrorWithReason(reason string, err error) *ErrorWithReason {
+func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
 	return &ErrorWithReason{
 		Err:    err,
 		Reason: reason,
@@ -239,16 +228,41 @@ func (e *ErrorWithReason) Error() string {
 	return e.Err.Error()
 }
 
+// Reason is the failure reason
+type Reason int
+
+const (
+	DefaultReason Reason = iota
+	ClientErrorReason
+	ServerErrorReason
+)
+
+func (s Reason) String() string {
+	switch s {
+	case DefaultReason:
+		return "other"
+	case ClientErrorReason:
+		return "clientError"
+	case ServerErrorReason:
+		return "serverError"
+	default:
+		panic(fmt.Sprintf("unknown Reason: %d", s))
+	}
+}
+
+// possibleFailureReasonCategory is a list of possible failure reason
+var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String()}
+
 // GetFailureReasonFromStatusCode return the reason for failure request
 // the status starts with 4 will return 4xx and starts with 5 will return 5xx
 // other than 4xx and 5xx input status will return an 5xx.
-func GetFailureReasonFromStatusCode(statusCode int) string {
+func GetFailureReasonFromStatusCode(statusCode int) Reason {
 	if statusCode/100 == 4 {
-		return clientError
+		return ClientErrorReason
 	}
 	if statusCode/100 == 5 {
-		return serverError
+		return ServerErrorReason
 	}
 
-	return defaultFailureReason
+	return DefaultReason
 }

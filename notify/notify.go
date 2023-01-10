@@ -262,7 +262,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
-		}, []string{"integration", "code"}),
+		}, []string{"integration", "reason"}),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
@@ -297,8 +297,8 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
 
-		for _, code := range possibleFailureStatusCategory {
-			m.numTotalFailedNotifications.WithLabelValues(integration, code)
+		for _, reason := range possibleFailureReasonCategory {
+			m.numTotalFailedNotifications.WithLabelValues(integration, reason)
 		}
 	}
 	r.MustRegister(
@@ -666,10 +666,10 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
 
-	failureReason := defaultFailureReason
+	failureReason := DefaultReason.String()
 	if err != nil {
 		if e, ok := errors.Cause(err).(*ErrorWithReason); ok {
-			failureReason = e.Reason
+			failureReason = e.Reason.String()
 		}
 		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), failureReason).Inc()
 	}
