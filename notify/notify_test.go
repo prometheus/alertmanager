@@ -425,15 +425,13 @@ func TestRetryStageWithError(t *testing.T) {
 
 func TestRetryStageWithErrorCode(t *testing.T) {
 	testcases := map[string]struct {
-		errorcode     int
-		codelabel     string
+		reason        string
+		reasonlabel   string
 		expectedCount int
 	}{
-		"for 400":               {errorcode: 400, codelabel: failure4xxCategoryCode, expectedCount: 1},
-		"for 402":               {errorcode: 402, codelabel: failure4xxCategoryCode, expectedCount: 1},
-		"for 500":               {errorcode: 500, codelabel: failure5xxCategoryCode, expectedCount: 1},
-		"for 502":               {errorcode: 502, codelabel: failure5xxCategoryCode, expectedCount: 1},
-		"for expected code 100": {errorcode: 100, codelabel: failure5xxCategoryCode, expectedCount: 1},
+		"for clientError":     {reason: clientError, reasonlabel: clientError, expectedCount: 1},
+		"for serverError":     {reason: serverError, reasonlabel: serverError, expectedCount: 1},
+		"for unexpected code": {reason: "unexpected", reasonlabel: defaultFailureReason, expectedCount: 1},
 	}
 	for _, testData := range testcases {
 		fail, retry := true, false
@@ -444,7 +442,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 				if fail {
 					fail = false
-					return retry, NewErrorWithStatusCode(testData.errorcode, errors.New("fail to deliver notification"))
+					return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
 				}
 				sent = append(sent, alerts...)
 				return false, nil
@@ -471,7 +469,7 @@ func TestRetryStageWithErrorCode(t *testing.T) {
 		resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
 		counter := r.metrics.numTotalFailedNotifications
 
-		require.Equal(t, testData.expectedCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), testData.codelabel))))
+		require.Equal(t, testData.expectedCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), testData.reasonlabel))))
 
 		require.NotNil(t, err)
 		require.NotNil(t, resctx)

@@ -30,6 +30,17 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// defaultFailureReason is the default reason for numTotalFailedNotifications metric
+const defaultFailureReason = "other"
+
+const (
+	clientError = "clientError"
+	serverError = "ServerError"
+)
+
+// possibleFailureStatusCategory is a list of possible failure reason
+var possibleFailureStatusCategory = []string{clientError, serverError, defaultFailureReason}
+
 // UserAgentHeader is the default User-Agent for notification requests
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
@@ -210,20 +221,34 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	return retry, errors.New(s)
 }
 
-type ErrorWithStatusCode struct {
+type ErrorWithReason struct {
 	Err error
 
-	// The status code of the HTTP response.
-	StatusCode int
+	// The reason of the failure.
+	Reason string
 }
 
-func NewErrorWithStatusCode(statusCode int, err error) *ErrorWithStatusCode {
-	return &ErrorWithStatusCode{
-		Err:        err,
-		StatusCode: statusCode,
+func NewErrorWithReason(reason string, err error) *ErrorWithReason {
+	return &ErrorWithReason{
+		Err:    err,
+		Reason: reason,
 	}
 }
 
-func (e *ErrorWithStatusCode) Error() string {
+func (e *ErrorWithReason) Error() string {
 	return e.Err.Error()
+}
+
+// GetFailureReasonFromStatusCode return the reason for failure request
+// the status starts with 4 will return 4xx and starts with 5 will return 5xx
+// other than 4xx and 5xx input status will return an 5xx.
+func GetFailureReasonFromStatusCode(statusCode int) string {
+	if statusCode/100 == 4 {
+		return clientError
+	}
+	if statusCode/100 == 5 {
+		return serverError
+	}
+
+	return defaultFailureReason
 }
