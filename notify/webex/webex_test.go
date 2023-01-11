@@ -14,7 +14,9 @@
 package webex
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -52,6 +54,84 @@ func TestWebexRetry(t *testing.T) {
 		actual, _ := notifier.retrier.Check(statusCode, nil)
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
+}
+
+func TestWebex_PreSendHook(t *testing.T) {
+	type ExtendedPayload struct {
+		Payload
+		Files []string `json:"files,omitempty"`
+	}
+
+	var out []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		out, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	cfg := &config.WebexConfig{
+		NotifierConfig: config.NotifierConfig{},
+		HTTPConfig: &commoncfg.HTTPClientConfig{
+			Authorization: &commoncfg.Authorization{Type: "Bearer", Credentials: "anewsecret"},
+		},
+		APIURL:  &config.URL{URL: u},
+		Message: `{{ template "webex.default.message" . }}`,
+		RoomID:  "12345",
+	}
+
+	var expectedPayload ExtendedPayload
+
+	notifierWebex, err := WithPreSendHook(New(cfg, test.CreateTmpl(t), log.NewNopLogger()))(
+		func(ctx context.Context, payload Payload, alerts []*types.Alert) (io.Reader, error) {
+			expectedPayload = ExtendedPayload{
+				Payload: payload,
+				Files: []string{
+					"http://localhost/files",
+				},
+			}
+			var buffer bytes.Buffer
+			if err := json.NewEncoder(&buffer).Encode(expectedPayload); err != nil {
+				return nil, err
+			}
+			return &buffer, nil
+		})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ctx = notify.WithGroupKey(ctx, "1")
+
+	ok, err := notifierWebex.Notify(ctx, []*types.Alert{
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
+					"lbl3": "val3",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+		{
+			Alert: model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
+					"lbl2": "val2",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			},
+		},
+	}...)
+
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	var actualPayload ExtendedPayload
+	require.NoError(t, json.NewDecoder(bytes.NewReader(out)).Decode(&actualPayload))
+	require.Equal(t, expectedPayload, actualPayload)
 }
 
 func TestWebexTemplating(t *testing.T) {

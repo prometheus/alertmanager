@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/go-kit/log"
@@ -34,12 +35,27 @@ const (
 	maxMessageSize = 7439
 )
 
+type PreSendHookFunc func(context.Context, Payload, []*types.Alert) (io.Reader, error)
+
+func WithPreSendHook(n *Notifier, err error) func(f PreSendHookFunc) (*Notifier, error) {
+	return func(f PreSendHookFunc) (*Notifier, error) {
+		if err != nil {
+			return n, err
+		}
+		m := *n
+		m.serializeBody = f
+		return &m, nil
+	}
+}
+
 type Notifier struct {
 	conf    *config.WebexConfig
 	tmpl    *template.Template
 	logger  log.Logger
 	client  *http.Client
 	retrier *notify.Retrier
+
+	serializeBody PreSendHookFunc
 }
 
 // New returns a new Webex notifier.
@@ -55,12 +71,19 @@ func New(c *config.WebexConfig, t *template.Template, l log.Logger, httpOpts ...
 		logger:  l,
 		client:  client,
 		retrier: &notify.Retrier{},
+		serializeBody: func(_ context.Context, payload Payload, _ []*types.Alert) (io.Reader, error) {
+			var buffer bytes.Buffer
+			if err := json.NewEncoder(&buffer).Encode(payload); err != nil {
+				return nil, err
+			}
+			return &buffer, nil
+		},
 	}
 
 	return n, nil
 }
 
-type webhook struct {
+type Payload struct {
 	Markdown string `json:"markdown"`
 	RoomID   string `json:"roomId,omitempty"`
 }
@@ -90,17 +113,18 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		level.Debug(n.logger).Log("msg", "message truncated due to exceeding maximum allowed length by webex", "truncated_message", message)
 	}
 
-	w := webhook{
+	w := Payload{
 		Markdown: message,
 		RoomID:   n.conf.RoomID,
 	}
 
-	var payload bytes.Buffer
-	if err = json.NewEncoder(&payload).Encode(w); err != nil {
+	var payload io.Reader
+	payload, err = n.serializeBody(ctx, w, as)
+	if err != nil {
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
