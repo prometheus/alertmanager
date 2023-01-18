@@ -359,6 +359,10 @@ func (s *Silences) nowUTC() time.Time {
 // Terminates on receiving from stopc.
 // If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
 func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, override MaintenanceFunc) {
+	if interval == 0 || stopc == nil {
+		level.Error(s.logger).Log("msg", "interval or stop signal are missing - not running maintenance")
+		return
+	}
 	t := s.clock.Ticker(interval)
 	defer t.Stop()
 
@@ -377,6 +381,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 			return size, err
 		}
 		if size, err = s.Snapshot(f); err != nil {
+			f.Close()
 			return size, err
 		}
 		return size, f.Close()
@@ -406,6 +411,7 @@ Loop:
 			}
 		}
 	}
+
 	// No need for final maintenance if we don't want to snapshot.
 	if snapf == "" {
 		return

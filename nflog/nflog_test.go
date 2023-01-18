@@ -15,9 +15,11 @@ package nflog
 
 import (
 	"bytes"
+	"github.com/benbjohnson/clock"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -29,7 +31,8 @@ import (
 )
 
 func TestLogGC(t *testing.T) {
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now()
 	// We only care about key names and expiration timestamps.
 	newEntry := func(ts time.Time) *pb.MeshEntry {
 		return &pb.MeshEntry{
@@ -43,7 +46,7 @@ func TestLogGC(t *testing.T) {
 			"a2": newEntry(now.Add(time.Second)),
 			"a3": newEntry(now.Add(-time.Second)),
 		},
-		now:     func() time.Time { return now },
+		clock:   mockClock,
 		metrics: newMetrics(nil),
 	}
 	n, err := l.GC()
@@ -58,7 +61,8 @@ func TestLogGC(t *testing.T) {
 
 func TestLogSnapshot(t *testing.T) {
 	// Check whether storing and loading the snapshot is symmetric.
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
@@ -133,24 +137,31 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 	stopc := make(chan struct{})
 	var mtx sync.Mutex
 	var mc int
-	l, err := New(WithMetrics(prometheus.NewPedanticRegistry()), WithSnapshot(f.Name()), WithMaintenance(100*time.Millisecond, stopc, nil, func() (int64, error) {
+	opts := Options{
+		Metrics:      prometheus.NewPedanticRegistry(),
+		SnapshotFile: f.Name(),
+	}
+
+	l, err := New(opts)
+	mockClock := clock.NewMock()
+	l.clock = mockClock
+	require.NoError(t, err)
+
+	go l.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
 		mtx.Lock()
 		mc++
 		mtx.Unlock()
 
 		return 0, nil
-	}))
-	require.NoError(t, err)
+	})
+	runtime.Gosched() // ensure that the ticker is running.
 
-	go l.run()
-	time.Sleep(200 * time.Millisecond)
+	mockClock.Add(200 * time.Millisecond)
 	close(stopc)
 
-	require.Eventually(t, func() bool {
-		mtx.Lock()
-		defer mtx.Unlock()
-		return mc >= 2
-	}, 500*time.Millisecond, 100*time.Millisecond)
+	mtx.Lock()
+	defer mtx.Unlock()
+	require.Equal(t, 2, mc)
 }
 
 func TestReplaceFile(t *testing.T) {
@@ -182,7 +193,8 @@ func TestReplaceFile(t *testing.T) {
 }
 
 func TestStateMerge(t *testing.T) {
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now()
 
 	// We only care about key names and timestamps for the
 	// merging logic.
@@ -243,7 +255,8 @@ func TestStateMerge(t *testing.T) {
 
 func TestStateDataCoding(t *testing.T) {
 	// Check whether encoding and decoding the data is symmetric.
-	now := utcNow()
+	mockClock := clock.NewMock()
+	now := mockClock.Now().UTC()
 
 	cases := []struct {
 		entries []*pb.MeshEntry
@@ -299,7 +312,8 @@ func TestStateDataCoding(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	nl, err := New(WithRetention(time.Second))
+	opts := Options{Retention: time.Second}
+	nl, err := New(opts)
 	if err != nil {
 		require.NoError(t, err, "constructing nflog failed")
 	}
