@@ -320,7 +320,7 @@ func (l *Log) Maintenance(interval time.Duration, snapf string, stopc <-chan str
 		start := l.now().UTC()
 		level.Debug(l.logger).Log("msg", "Running maintenance")
 		size, err := do()
-		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.clock.Now().Sub(start), "size", size)
+		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
 		l.metrics.snapshotSize.Set(float64(size))
 		return err
 	}
