@@ -862,13 +862,17 @@ Pushover notifications are sent via the [Pushover API](https://pushover.net/api)
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The recipient user's user key.
+# The recipient user's key. 
+# user_key and user_key_file are mutually exclusive.
 user_key: <secret>
+user_key_file: <filepath>
 
 # Your registered application's API token, see https://pushover.net/apps
 # You can also register a token by cloning this Prometheus app:
 # https://pushover.net/apps/clone/prometheus
+# token and token_file are mutually exclusive.
 token: <secret>
+token_file: <filepath>
 
 # Notification title.
 [ title: <tmpl_string> | default = '{{ template "pushover.default.title" . }}' ]
