@@ -238,7 +238,6 @@ func (o *Options) validate() error {
 // New creates a new notification log based on the provided options.
 // The snapshot is loaded into the Log if it is set.
 func New(o Options) (*Log, error) {
-
 	if err := o.validate(); err != nil {
 		return nil, err
 	}
