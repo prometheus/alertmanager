@@ -338,7 +338,7 @@ func New(o Options) (*Silences, error) {
 			if !os.IsNotExist(err) {
 				return nil, err
 			}
-			level.Debug(s.logger).Log("msg", "failed to load silence snapshot file", "err", err)
+			level.Debug(s.logger).Log("msg", "silences snapshot file doesn't exist", "err", err)
 		} else {
 			o.SnapshotReader = r
 			defer r.Close()
