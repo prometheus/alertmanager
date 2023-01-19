@@ -33,7 +33,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 	for _, tc := range []struct {
 		receiver config.Receiver
 		err      bool
-		exp      []notify.Integration
+		exp      []*notify.Integration
 	}{
 		{
 			receiver: config.Receiver{
@@ -50,7 +50,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 					},
 				},
 			},
-			exp: []notify.Integration{
+			exp: []*notify.Integration{
 				notify.NewIntegration(nil, sendResolved(false), "webhook", 0),
 				notify.NewIntegration(nil, sendResolved(true), "webhook", 1),
 			},

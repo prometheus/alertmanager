@@ -65,11 +65,16 @@ type Integration struct {
 	rs       ResolvedSender
 	name     string
 	idx      int
+
+	mtx                       sync.RWMutex
+	lastNotifyAttempt         time.Time
+	lastNotifyAttemptDuration model.Duration
+	lastNotifyAttemptError    error
 }
 
 // NewIntegration returns a new integration.
-func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) Integration {
-	return Integration{
+func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int) *Integration {
+	return &Integration{
 		notifier: notifier,
 		rs:       rs,
 		name:     name,
@@ -95,6 +100,22 @@ func (i *Integration) Name() string {
 // Index returns the index of the integration.
 func (i *Integration) Index() int {
 	return i.idx
+}
+
+func (i *Integration) Report(start time.Time, duration model.Duration, notifyError error) {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+
+	i.lastNotifyAttempt = start
+	i.lastNotifyAttemptDuration = duration
+	i.lastNotifyAttemptError = notifyError
+}
+
+func (i *Integration) GetReport() (time.Time, model.Duration, error) {
+	i.mtx.RLock()
+	defer i.mtx.RUnlock()
+
+	return i.lastNotifyAttempt, i.lastNotifyAttemptDuration, i.lastNotifyAttemptError
 }
 
 // String implements the Stringer interface.
@@ -322,7 +343,7 @@ func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
 
 // New returns a map of receivers to Stages.
 func (pb *PipelineBuilder) New(
-	receivers map[string][]Integration,
+	receivers []*Receiver,
 	wait func() time.Duration,
 	inhibitor *inhibit.Inhibitor,
 	silencer *silence.Silencer,
@@ -338,32 +359,31 @@ func (pb *PipelineBuilder) New(
 	tms := NewTimeMuteStage(times)
 	ss := NewMuteStage(silencer)
 
-	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
-		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
+	for _, r := range receivers {
+		st := createReceiverStage(r, wait, notificationLog, pb.metrics)
+		rs[r.groupName] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 	return rs
 }
 
 // createReceiverStage creates a pipeline of stages for a receiver.
 func createReceiverStage(
-	name string,
-	integrations []Integration,
+	receiver *Receiver,
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
 ) Stage {
 	var fs FanoutStage
-	for i := range integrations {
+	for i := range receiver.integrations {
 		recv := &nflogpb.Receiver{
-			GroupName:   name,
-			Integration: integrations[i].Name(),
-			Idx:         uint32(integrations[i].Index()),
+			GroupName:   receiver.groupName,
+			Integration: receiver.integrations[i].Name(),
+			Idx:         uint32(receiver.integrations[i].Index()),
 		}
 		var s MultiStage
 		s = append(s, NewWaitStage(wait))
-		s = append(s, NewDedupStage(&integrations[i], notificationLog, recv))
-		s = append(s, NewRetryStage(integrations[i], name, metrics))
+		s = append(s, NewDedupStage(receiver.integrations[i], notificationLog, recv))
+		s = append(s, NewRetryStage(receiver.integrations[i], receiver.groupName, metrics))
 		s = append(s, NewSetNotifiesStage(notificationLog, recv))
 
 		fs = append(fs, s)
@@ -649,13 +669,13 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 // RetryStage notifies via passed integration with exponential backoff until it
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
-	integration Integration
+	integration *Integration
 	groupName   string
 	metrics     *Metrics
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
-func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+func NewRetryStage(i *Integration, groupName string, metrics *Metrics) *RetryStage {
 	return &RetryStage{
 		integration: i,
 		groupName:   groupName,
@@ -733,8 +753,11 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(time.Since(now).Seconds())
+			duration := time.Since(now)
+
+			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name()).Observe(duration.Seconds())
 			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.integration.Name()).Inc()
+			r.integration.Report(now, model.Duration(duration), err)
 			if err != nil {
 				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.integration.Name()).Inc()
 				if !retry {
