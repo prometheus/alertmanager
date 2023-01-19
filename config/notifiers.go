@@ -473,7 +473,8 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL *URL `yaml:"url" json:"url"`
+	URL     *URL   `yaml:"url" json:"url"`
+	URLFile string `yaml:"url_file" json:"url_file"`
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
 	// allows an unlimited number of alerts.
@@ -487,11 +488,16 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil {
-		return fmt.Errorf("missing URL in webhook config")
+	if c.URL == nil && c.URLFile == "" {
+		return fmt.Errorf("one of url or url_file must be configured")
 	}
-	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
-		return fmt.Errorf("scheme required for webhook url")
+	if c.URL != nil && c.URLFile != "" {
+		return fmt.Errorf("at most one of url & url_file must be configured")
+	}
+	if c.URL != nil {
+		if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
+			return fmt.Errorf("scheme required for webhook url")
+		}
 	}
 	return nil
 }
