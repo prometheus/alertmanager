@@ -260,7 +260,7 @@ func New(o Options) (*Log, error) {
 			if !os.IsNotExist(err) {
 				return nil, err
 			}
-			level.Debug(l.logger).Log("msg", "failed to load notification log snapshot file", "err", err)
+			level.Debug(l.logger).Log("msg", "notification log snapshot file doesn't exist", "err", err)
 		} else {
 			o.SnapshotReader = r
 			defer r.Close()
