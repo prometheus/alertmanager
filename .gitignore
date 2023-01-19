@@ -21,3 +21,7 @@
 !/.promu.yml
 !/api/v2/openapi.yaml
 !.github/workflows/*.yml
+
+# Editor
+.vscode
+.DS_Store
