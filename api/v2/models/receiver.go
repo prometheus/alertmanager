@@ -20,6 +20,7 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"strconv"
 	"context"
 
 	"github.com/go-openapi/errors"
@@ -33,6 +34,14 @@ import (
 // swagger:model receiver
 type Receiver struct {
 
+	// active
+	// Required: true
+	Active *bool `json:"active"`
+
+	// integrations
+	// Required: true
+	Integrations []*Integration `json:"integrations"`
+
 	// name
 	// Required: true
 	Name *string `json:"name"`
@@ -42,6 +51,14 @@ type Receiver struct {
 func (m *Receiver) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateActive(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateIntegrations(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateName(formats); err != nil {
 		res = append(res, err)
 	}
@@ -49,6 +66,40 @@ func (m *Receiver) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *Receiver) validateActive(formats strfmt.Registry) error {
+
+	if err := validate.Required("active", "body", m.Active); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Receiver) validateIntegrations(formats strfmt.Registry) error {
+
+	if err := validate.Required("integrations", "body", m.Integrations); err != nil {
+		return err
+	}
+
+	for i := 0; i < len(m.Integrations); i++ {
+		if swag.IsZero(m.Integrations[i]) { // not required
+			continue
+		}
+
+		if m.Integrations[i] != nil {
+			if err := m.Integrations[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("integrations" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
 	return nil
 }
 

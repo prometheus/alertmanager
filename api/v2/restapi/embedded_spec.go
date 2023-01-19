@@ -605,6 +605,34 @@ func init() {
         "$ref": "#/definitions/gettableSilence"
       }
     },
+    "integration": {
+      "type": "object",
+      "required": [
+        "name",
+        "sendResolved"
+      ],
+      "properties": {
+        "lastNotifyAttempt": {
+          "description": "A timestamp indicating the last attempt to deliver a notification regardless of the outcome.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastNotifyAttemptDuration": {
+          "description": "Duration of the last attempt to deliver a notification in humanized format (` + "`" + `1s` + "`" + ` or ` + "`" + `15ms` + "`" + `, etc).",
+          "type": "string"
+        },
+        "lastNotifyAttemptError": {
+          "description": "Error string for the last attempt to deliver a notification. Empty if the last attempt was successful.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sendResolved": {
+          "type": "boolean"
+        }
+      }
+    },
     "labelSet": {
       "type": "object",
       "additionalProperties": {
@@ -703,9 +731,20 @@ func init() {
     "receiver": {
       "type": "object",
       "required": [
-        "name"
+        "name",
+        "active",
+        "integrations"
       ],
       "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/integration"
+          }
+        },
         "name": {
           "type": "string"
         }
@@ -1428,6 +1467,34 @@ func init() {
         "$ref": "#/definitions/gettableSilence"
       }
     },
+    "integration": {
+      "type": "object",
+      "required": [
+        "name",
+        "sendResolved"
+      ],
+      "properties": {
+        "lastNotifyAttempt": {
+          "description": "A timestamp indicating the last attempt to deliver a notification regardless of the outcome.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastNotifyAttemptDuration": {
+          "description": "Duration of the last attempt to deliver a notification in humanized format (` + "`" + `1s` + "`" + ` or ` + "`" + `15ms` + "`" + `, etc).",
+          "type": "string"
+        },
+        "lastNotifyAttemptError": {
+          "description": "Error string for the last attempt to deliver a notification. Empty if the last attempt was successful.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sendResolved": {
+          "type": "boolean"
+        }
+      }
+    },
     "labelSet": {
       "type": "object",
       "additionalProperties": {
@@ -1526,9 +1593,20 @@ func init() {
     "receiver": {
       "type": "object",
       "required": [
-        "name"
+        "name",
+        "active",
+        "integrations"
       ],
       "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/integration"
+          }
+        },
         "name": {
           "type": "string"
         }

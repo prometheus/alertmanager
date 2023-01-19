@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/types"
@@ -186,8 +187,8 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
-func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet)) {
-	api.v2.Update(cfg, setAlertStatus)
+func (api *API) Update(cfg *config.Config, receivers []*notify.Receiver, setAlertStatus func(model.LabelSet)) {
+	api.v2.Update(cfg, setAlertStatus, receivers)
 }
 
 func (api *API) limitHandler(h http.Handler) http.Handler {
