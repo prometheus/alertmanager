@@ -299,6 +299,7 @@ func run() int {
 	wg.Add(1)
 	go func() {
 		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
+		wg.Done()
 	}()
 
 	marker := types.NewMarker(prometheus.DefaultRegisterer)
