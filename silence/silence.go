@@ -319,16 +319,6 @@ func New(o Options) (*Silences, error) {
 	if err := o.validate(); err != nil {
 		return nil, err
 	}
-	if o.SnapshotFile != "" {
-		if r, err := os.Open(o.SnapshotFile); err != nil {
-			if !os.IsNotExist(err) {
-				return nil, err
-			}
-		} else {
-			o.SnapshotReader = r
-			defer r.Close()
-		}
-	}
 	s := &Silences{
 		clock:     clock.New(),
 		mc:        matcherCache{},
@@ -342,6 +332,19 @@ func New(o Options) (*Silences, error) {
 	if o.Logger != nil {
 		s.logger = o.Logger
 	}
+
+	if o.SnapshotFile != "" {
+		if r, err := os.Open(o.SnapshotFile); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+			level.Debug(s.logger).Log("msg", "silences snapshot file doesn't exist", "err", err)
+		} else {
+			o.SnapshotReader = r
+			defer r.Close()
+		}
+	}
+
 	if o.SnapshotReader != nil {
 		if err := s.loadSnapshot(o.SnapshotReader); err != nil {
 			return s, err
@@ -359,6 +362,10 @@ func (s *Silences) nowUTC() time.Time {
 // Terminates on receiving from stopc.
 // If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
 func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-chan struct{}, override MaintenanceFunc) {
+	if interval == 0 || stopc == nil {
+		level.Error(s.logger).Log("msg", "interval or stop signal are missing - not running maintenance")
+		return
+	}
 	t := s.clock.Ticker(interval)
 	defer t.Stop()
 
@@ -377,6 +384,7 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 			return size, err
 		}
 		if size, err = s.Snapshot(f); err != nil {
+			f.Close()
 			return size, err
 		}
 		return size, f.Close()
@@ -406,6 +414,7 @@ Loop:
 			}
 		}
 	}
+
 	// No need for final maintenance if we don't want to snapshot.
 	if snapf == "" {
 		return

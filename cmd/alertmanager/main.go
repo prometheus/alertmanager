@@ -279,15 +279,14 @@ func run() int {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	notificationLogOpts := []nflog.Option{
-		nflog.WithRetention(*retention),
-		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
-		nflog.WithMaintenance(*maintenanceInterval, stopc, wg.Done, nil),
-		nflog.WithMetrics(prometheus.DefaultRegisterer),
-		nflog.WithLogger(log.With(logger, "component", "nflog")),
+	notificationLogOpts := nflog.Options{
+		SnapshotFile: filepath.Join(*dataDir, "nflog"),
+		Retention:    *retention,
+		Logger:       log.With(logger, "component", "nflog"),
+		Metrics:      prometheus.DefaultRegisterer,
 	}
 
-	notificationLog, err := nflog.New(notificationLogOpts...)
+	notificationLog, err := nflog.New(notificationLogOpts)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		return 1
@@ -296,6 +295,12 @@ func run() int {
 		c := peer.AddState("nfl", notificationLog, prometheus.DefaultRegisterer)
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
+
+	wg.Add(1)
+	go func() {
+		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
+		wg.Done()
+	}()
 
 	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
