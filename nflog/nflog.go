@@ -242,17 +242,6 @@ func New(o Options) (*Log, error) {
 		return nil, err
 	}
 
-	if o.SnapshotFile != "" {
-		if r, err := os.Open(o.SnapshotFile); err != nil {
-			if !os.IsNotExist(err) {
-				return nil, err
-			}
-		} else {
-			o.SnapshotReader = r
-			defer r.Close()
-		}
-	}
-
 	l := &Log{
 		clock:     clock.New(),
 		retention: o.Retention,
@@ -264,6 +253,18 @@ func New(o Options) (*Log, error) {
 
 	if o.Logger != nil {
 		l.logger = o.Logger
+	}
+
+	if o.SnapshotFile != "" {
+		if r, err := os.Open(o.SnapshotFile); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+			level.Debug(l.logger).Log("msg", "failed to load notification log snapshot file", "err", err)
+		} else {
+			o.SnapshotReader = r
+			defer r.Close()
+		}
 	}
 
 	if o.SnapshotReader != nil {

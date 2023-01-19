@@ -319,16 +319,6 @@ func New(o Options) (*Silences, error) {
 	if err := o.validate(); err != nil {
 		return nil, err
 	}
-	if o.SnapshotFile != "" {
-		if r, err := os.Open(o.SnapshotFile); err != nil {
-			if !os.IsNotExist(err) {
-				return nil, err
-			}
-		} else {
-			o.SnapshotReader = r
-			defer r.Close()
-		}
-	}
 	s := &Silences{
 		clock:     clock.New(),
 		mc:        matcherCache{},
@@ -342,6 +332,19 @@ func New(o Options) (*Silences, error) {
 	if o.Logger != nil {
 		s.logger = o.Logger
 	}
+
+	if o.SnapshotFile != "" {
+		if r, err := os.Open(o.SnapshotFile); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+			level.Debug(s.logger).Log("msg", "failed to load silence snapshot file", "err", err)
+		} else {
+			o.SnapshotReader = r
+			defer r.Close()
+		}
+	}
+
 	if o.SnapshotReader != nil {
 		if err := s.loadSnapshot(o.SnapshotReader); err != nil {
 			return s, err
