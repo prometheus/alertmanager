@@ -131,7 +131,7 @@ const defaultClusterAddr = "0.0.0.0:9094"
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
+func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
 	var (
 		errs         types.MultiError
 		integrations []notify.Integration

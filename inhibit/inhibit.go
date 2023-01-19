@@ -44,7 +44,7 @@ type Inhibitor struct {
 }
 
 // NewInhibitor returns a new Inhibitor.
-func NewInhibitor(ap provider.Alerts, rs []*config.InhibitRule, mk types.Marker, logger log.Logger) *Inhibitor {
+func NewInhibitor(ap provider.Alerts, rs []config.InhibitRule, mk types.Marker, logger log.Logger) *Inhibitor {
 	ih := &Inhibitor{
 		alerts: ap,
 		marker: mk,
@@ -166,7 +166,7 @@ type InhibitRule struct {
 }
 
 // NewInhibitRule returns a new InhibitRule based on a configuration definition.
-func NewInhibitRule(cr *config.InhibitRule) *InhibitRule {
+func NewInhibitRule(cr config.InhibitRule) *InhibitRule {
 	var (
 		sourcem labels.Matchers
 		targetm labels.Matchers
