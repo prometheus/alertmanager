@@ -47,6 +47,7 @@ type delegate struct {
 	messagesPruned       prometheus.Counter
 	nodeAlive            *prometheus.CounterVec
 	nodePingDuration     *prometheus.HistogramVec
+	conflictsCount       prometheus.Counter
 }
 
 func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit int) *delegate {
@@ -109,6 +110,10 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5},
 	}, []string{"peer"},
 	)
+	conflictsCount := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_cluster_conflicts_total",
+		Help: "Total number of times memberlist has noticed conflicting peer ids",
+	})
 
 	messagesReceived.WithLabelValues(fullState)
 	messagesReceivedSize.WithLabelValues(fullState)
@@ -121,7 +126,7 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 
 	reg.MustRegister(messagesReceived, messagesReceivedSize, messagesSent, messagesSentSize,
 		gossipClusterMembers, peerPosition, healthScore, messagesQueued, messagesPruned,
-		nodeAlive, nodePingDuration,
+		nodeAlive, nodePingDuration, conflictsCount,
 	)
 
 	d := &delegate{
@@ -135,6 +140,7 @@ func newDelegate(l log.Logger, reg prometheus.Registerer, p *Peer, retransmit in
 		messagesPruned:       messagesPruned,
 		nodeAlive:            nodeAlive,
 		nodePingDuration:     nodePingDuration,
+		conflictsCount:       conflictsCount,
 	}
 
 	go d.handleQueueDepth()
@@ -169,6 +175,12 @@ func (d *delegate) NotifyMsg(b []byte) {
 		level.Warn(d.logger).Log("msg", "merge broadcast", "err", err, "key", p.Key)
 		return
 	}
+}
+
+// NotifyConflict is the callback when memberlist encounters two nodes with the same ID.
+func (d *delegate) NotifyConflict(existing, other *memberlist.Node) {
+	d.logger.Log("msg", "Found conflicting peer IDs", "peer", existing.Name)
+	d.conflictsCount.Inc()
 }
 
 // GetBroadcasts is called when user data messages can be broadcasted.

@@ -224,6 +224,7 @@ func Create(
 	cfg.Ping = p.delegate
 	cfg.Alive = p.delegate
 	cfg.Events = p.delegate
+	cfg.Conflict = p.delegate
 	cfg.GossipInterval = gossipInterval
 	cfg.PushPullInterval = pushPullInterval
 	cfg.TCPTimeout = tcpTimeout
