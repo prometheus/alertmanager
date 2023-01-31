@@ -251,74 +251,91 @@ type Metrics struct {
 	numNotificationRequestsTotal       *prometheus.CounterVec
 	numNotificationRequestsFailedTotal *prometheus.CounterVec
 	notificationLatencySeconds         *prometheus.HistogramVec
+
+	enableReceiverNamesInMetrics bool
 }
 
-func NewMetrics(r prometheus.Registerer) *Metrics {
+func NewMetrics(r prometheus.Registerer, enableReceiverNamesInMetrics bool) *Metrics {
+	labels := []string{"integration"}
+	if enableReceiverNamesInMetrics {
+		labels = append(labels, "receiver_name")
+	}
+
 	m := &Metrics{
 		numNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_total",
 			Help:      "The total number of attempted notifications.",
-		}, []string{"integration", "receiver_name"}),
+		}, labels),
 		numTotalFailedNotifications: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
-		}, []string{"integration", "reason", "receiver_name"}),
+		}, append(labels, "reason")),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
 			Help:      "The total number of attempted notification requests.",
-		}, []string{"integration", "receiver_name"}),
+		}, labels),
 		numNotificationRequestsFailedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_failed_total",
 			Help:      "The total number of failed notification requests.",
-		}, []string{"integration", "receiver_name"}),
+		}, labels),
 		notificationLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_latency_seconds",
 			Help:      "The latency of notifications in seconds.",
 			Buckets:   []float64{1, 5, 10, 15, 20},
-		}, []string{"integration", "receiver_name"}),
+		}, labels),
+		enableReceiverNamesInMetrics: enableReceiverNamesInMetrics,
 	}
-	for _, integration := range []string{
-		"email",
-		"msteams",
-		"pagerduty",
-		"wechat",
-		"pushover",
-		"slack",
-		"opsgenie",
-		"webhook",
-		"victorops",
-		"sns",
-		"telegram",
-	} {
-		m.numNotifications.WithLabelValues(integration)
-		m.numNotificationRequestsTotal.WithLabelValues(integration)
-		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
-		m.notificationLatencySeconds.WithLabelValues(integration)
 
-		for _, reason := range possibleFailureReasonCategory {
-			m.numTotalFailedNotifications.WithLabelValues(integration, reason)
+	// If we aren't including receiver names then initialise the possible label combinations.
+	// We don't have receiver names here, so if we are including them then we can't do this here.
+	if !enableReceiverNamesInMetrics {
+		for _, integration := range []string{
+			"email",
+			"msteams",
+			"pagerduty",
+			"wechat",
+			"pushover",
+			"slack",
+			"opsgenie",
+			"webhook",
+			"victorops",
+			"sns",
+			"telegram",
+		} {
+			m.numNotifications.WithLabelValues(integration)
+			m.numNotificationRequestsTotal.WithLabelValues(integration)
+			m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
+			m.notificationLatencySeconds.WithLabelValues(integration)
+
+			for _, reason := range possibleFailureReasonCategory {
+				m.numTotalFailedNotifications.WithLabelValues(integration, reason)
+			}
 		}
 	}
+
 	r.MustRegister(
 		m.numNotifications, m.numTotalFailedNotifications,
 		m.numNotificationRequestsTotal, m.numNotificationRequestsFailedTotal,
 		m.notificationLatencySeconds,
 	)
+
 	return m
 }
 
 type PipelineBuilder struct {
-	metrics *Metrics
+	metrics                      *Metrics
+	enableReceiverNamesInMetrics bool
 }
 
-func NewPipelineBuilder(r prometheus.Registerer) *PipelineBuilder {
+func NewPipelineBuilder(r prometheus.Registerer, enableReceiverNamesInMetrics bool) *PipelineBuilder {
 	return &PipelineBuilder{
-		metrics: NewMetrics(r),
+		metrics:                      NewMetrics(r, enableReceiverNamesInMetrics),
+		enableReceiverNamesInMetrics: enableReceiverNamesInMetrics,
 	}
 }
 
@@ -341,7 +358,7 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.enableReceiverNamesInMetrics)
 		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
 	}
 	return rs
@@ -354,6 +371,7 @@ func createReceiverStage(
 	wait func() time.Duration,
 	notificationLog NotificationLog,
 	metrics *Metrics,
+	enableReceiverNamesInMetrics bool,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -651,22 +669,29 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 // RetryStage notifies via passed integration with exponential backoff until it
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
-	integration Integration
-	groupName   string
-	metrics     *Metrics
+	integration  Integration
+	groupName    string
+	metrics      *Metrics
+	metricLabels []string
 }
 
 // NewRetryStage returns a new instance of a RetryStage.
 func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStage {
+	labels := []string{i.Name()}
+	if metrics.enableReceiverNamesInMetrics {
+		labels = append(labels, i.receiverName)
+	}
+
 	return &RetryStage{
-		integration: i,
-		groupName:   groupName,
-		metrics:     metrics,
+		integration:  i,
+		groupName:    groupName,
+		metrics:      metrics,
+		metricLabels: labels,
 	}
 }
 
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
-	r.metrics.numNotifications.WithLabelValues(r.integration.Name(), r.integration.receiverName).Inc()
+	r.metrics.numNotifications.WithLabelValues(r.metricLabels...).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
 
 	failureReason := DefaultReason.String()
@@ -674,7 +699,7 @@ func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		if e, ok := errors.Cause(err).(*ErrorWithReason); ok {
 			failureReason = e.Reason.String()
 		}
-		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), failureReason, r.integration.receiverName).Inc()
+		r.metrics.numTotalFailedNotifications.WithLabelValues(append(r.metricLabels, failureReason)...).Inc()
 	}
 	return ctx, alerts, err
 }
@@ -735,10 +760,10 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 		case <-tick.C:
 			now := time.Now()
 			retry, err := r.integration.Notify(ctx, sent...)
-			r.metrics.notificationLatencySeconds.WithLabelValues(r.integration.Name(), r.integration.receiverName).Observe(time.Since(now).Seconds())
-			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.integration.Name(), r.integration.receiverName).Inc()
+			r.metrics.notificationLatencySeconds.WithLabelValues(r.metricLabels...).Observe(time.Since(now).Seconds())
+			r.metrics.numNotificationRequestsTotal.WithLabelValues(r.metricLabels...).Inc()
 			if err != nil {
-				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.integration.Name(), r.integration.receiverName).Inc()
+				r.metrics.numNotificationRequestsFailedTotal.WithLabelValues(r.metricLabels...).Inc()
 				if !retry {
 					return ctx, alerts, errors.Wrapf(err, "%s/%s: notify retry canceled due to unrecoverable error after %d attempts", r.groupName, r.integration.String(), i)
 				}
