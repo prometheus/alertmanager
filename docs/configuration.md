@@ -1116,7 +1116,7 @@ The webhook receiver allows configuring a generic receiver.
 [ send_resolved: <boolean> | default = true ]
 
 # The endpoint to send HTTP POST requests to.
-url: <string>
+url: <secret>
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
