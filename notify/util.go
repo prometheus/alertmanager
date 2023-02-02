@@ -213,7 +213,6 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 type ErrorWithReason struct {
 	Err error
 
-	// The reason of the failure.
 	Reason Reason
 }
 
@@ -228,7 +227,7 @@ func (e *ErrorWithReason) Error() string {
 	return e.Err.Error()
 }
 
-// Reason is the failure reason
+// Reason is the failure reason.
 type Reason int
 
 const (
@@ -250,12 +249,10 @@ func (s Reason) String() string {
 	}
 }
 
-// possibleFailureReasonCategory is a list of possible failure reason
+// possibleFailureReasonCategory is a list of possible failure reason.
 var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String()}
 
-// GetFailureReasonFromStatusCode return the reason for failure request
-// the status starts with 4 will return 4xx and starts with 5 will return 5xx
-// other than 4xx and 5xx input status will return an 5xx.
+// GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
 func GetFailureReasonFromStatusCode(statusCode int) Reason {
 	if statusCode/100 == 4 {
 		return ClientErrorReason
