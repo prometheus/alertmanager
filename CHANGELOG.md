@@ -1,3 +1,38 @@
+## 0.25.0 / 2022-12-22
+
+* [CHANGE] Change the default `parse_mode` value from `MarkdownV2` to `HTML` for Telegram. #2981
+* [CHANGE] Make `api_url` field optional for Telegram. #2981
+* [CHANGE] Use CanonicalMIMEHeaderKey instead of TitleCasing for email headers. #3080
+* [CHANGE] Reduce the number of notification logs broadcasted between peers by expiring them after (2 * repeat interval). #2982
+* [FEATURE] Add `proxy_url` support for OAuth2 in HTTP client configuration. #3010
+* [FEATURE] Reload TLS certificate and key from disk when updated. #3168
+* [FEATURE] Add Discord integration. #2948
+* [FEATURE] Add Webex integration. #3132
+* [ENHANCEMENT] Add `--web.systemd-socket` flag to systemd socket activation listeners instead of port listeners (Linux only). #3140
+* [ENHANCEMENT] Add `enable_http2` support in HTTP client configuration. #3010
+* [ENHANCEMENT] Add `min_version` support to select the minimum TLS version in HTTP client configuration. #3010
+* [ENHANCEMENT] Add `max_version` support to select the maximum TLS version in HTTP client configuration. #3168
+* [ENHANCEMENT] Emit warning logs when truncating messages in notifications. #3145
+* [ENHANCEMENT] Add `--data.maintenance-interval` flag to define the interval between the garbage collection and snapshotting to disk of the silences and the notification logs. #2849
+* [ENHANCEMENT] Support HEAD method for the `/-/healty` and `/-/ready` endpoints. #3039
+* [ENHANCEMENT] Truncate messages with the `…` ellipsis character instead of the 3-dots string `...`. #3072
+* [ENHANCEMENT] Add support for reading global and local SMTP passwords from files. #3038
+* [ENHANCEMENT] Add Location support to time intervals. #2782
+* [ENHANCEMENT] UI: Add 'Link' button to alerts in list. #2880
+* [ENHANCEMENT] Add the `source` field to the PagerDuty configuration. #3106
+* [ENHANCEMENT] Add support for reading PagerDuty routing and service keys from files. #3107
+* [ENHANCEMENT] Log response details when notifications fail for Webhooks, Pushover and VictorOps. #3103
+* [ENHANCEMENT] UI: Allow to choose the first day of the week as Sunday or Monday. #3093
+* [ENHANCEMENT] Add support for reading VictorOps API key from file. #3111
+* [ENHANCEMENT] Support templating for Opsgenie's responder type. #3060
+* [BUGFIX] Fail configuration loading if `api_key` and `api_key_file` are defined at the same time. #2910
+* [BUGFIX] Fix the `alertmanager_alerts` metric to avoid counting resolved alerts as active. Also added a new `alertmanager_marked_alerts` metric that retain the old behavior. #2943
+* [BUGFIX] Trim contents of Slack API URLs when reading from files. #2929
+* [BUGFIX] amtool: Avoid panic when the label value matcher is empty. #2968
+* [BUGFIX] Fail configuration loading if `api_url` is empty for OpsGenie. #2910
+* [BUGFIX] Fix email template for resolved notifications. #3166
+* [BUGFIX] Use the HTML template engine when the parse mode is HTML for Telegram. #3183
+
 ## 0.24.0 / 2022-03-24
 
 * [CHANGE] Add the `/api/v2` prefix to all endpoints in the OpenAPI specification and generated client code. #2696

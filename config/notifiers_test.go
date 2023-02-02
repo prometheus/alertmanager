@@ -14,8 +14,11 @@
 package config
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"gopkg.in/yaml.v2"
 )
@@ -57,38 +60,78 @@ headers:
 	}
 }
 
-func TestPagerdutyRoutingKeyIsPresent(t *testing.T) {
-	in := `
+func TestPagerdutyTestRoutingKey(t *testing.T) {
+	t.Run("error if no routing key or key file", func(t *testing.T) {
+		in := `
 routing_key: ''
 `
-	var cfg PagerdutyConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing service or routing key in PagerDuty config"
+		expected := "missing service or routing key in PagerDuty config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("error if both routing key and key file", func(t *testing.T) {
+		in := `
+routing_key: 'xyz'
+routing_key_file: 'xyz'
+`
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of routing_key & routing_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
-func TestPagerdutyServiceKeyIsPresent(t *testing.T) {
-	in := `
+func TestPagerdutyServiceKey(t *testing.T) {
+	t.Run("error if no service key or key file", func(t *testing.T) {
+		in := `
 service_key: ''
 `
-	var cfg PagerdutyConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing service or routing key in PagerDuty config"
+		expected := "missing service or routing key in PagerDuty config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("error if both service key and key file", func(t *testing.T) {
+		in := `
+service_key: 'xyz'
+service_key_file: 'xyz'
+`
+		var cfg PagerdutyConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of service_key & service_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
 func TestPagerdutyDetails(t *testing.T) {
@@ -143,6 +186,40 @@ details:
 		if tc.checkFn != nil {
 			tc.checkFn(cfg.Details)
 		}
+	}
+}
+
+func TestPagerDutySource(t *testing.T) {
+	for _, tc := range []struct {
+		title string
+		in    string
+
+		expectedSource string
+	}{
+		{
+			title: "check source field is backward compatible",
+			in: `
+routing_key: 'xyz'
+client: 'alert-manager-client'
+`,
+			expectedSource: "alert-manager-client",
+		},
+		{
+			title: "check source field is set",
+			in: `
+routing_key: 'xyz'
+client: 'alert-manager-client'
+source: 'alert-manager-source'
+`,
+			expectedSource: "alert-manager-source",
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			var cfg PagerdutyConfig
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedSource, cfg.Source)
+		})
 	}
 }
 
@@ -215,21 +292,54 @@ http_config:
 	}
 }
 
-func TestVictorOpsRoutingKeyIsPresent(t *testing.T) {
-	in := `
+func TestVictorOpsConfiguration(t *testing.T) {
+	t.Run("valid configuration", func(t *testing.T) {
+		in := `
+routing_key: test
+api_key_file: /global_file
+`
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		if err != nil {
+			t.Fatalf("no error was expected:\n%v", err)
+		}
+	})
+
+	t.Run("routing key is missing", func(t *testing.T) {
+		in := `
 routing_key: ''
 `
-	var cfg VictorOpsConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing Routing key in VictorOps config"
+		expected := "missing Routing key in VictorOps config"
 
-	if err == nil {
-		t.Fatalf("no error returned, expected:\n%v", expected)
-	}
-	if err.Error() != expected {
-		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
-	}
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
+
+	t.Run("api_key and api_key_file both defined", func(t *testing.T) {
+		in := `
+routing_key: test
+api_key: xyz
+api_key_file: /global_file
+`
+		var cfg VictorOpsConfig
+		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+		expected := "at most one of api_key & api_key_file must be configured"
+
+		if err == nil {
+			t.Fatalf("no error returned, expected:\n%v", expected)
+		}
+		if err.Error() != expected {
+			t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+		}
+	})
 }
 
 func TestVictorOpsCustomFieldsValidation(t *testing.T) {
@@ -281,7 +391,25 @@ user_key: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing user key in Pushover config"
+	expected := "one of user_key or user_key_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverUserKeyOrUserKeyFile(t *testing.T) {
+	in := `
+user_key: 'user key'
+user_key_file: /pushover/user_key
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of user_key & user_key_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -299,7 +427,26 @@ token: ''
 	var cfg PushoverConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing token in Pushover config"
+	expected := "one of token or token_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestPushoverTokenOrTokenFile(t *testing.T) {
+	in := `
+token: 'pushover token'
+token_file: /pushover/token
+user_key: 'user key'
+`
+	var cfg PushoverConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of token & token_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
@@ -637,6 +784,25 @@ api_url: http://example.com
 `,
 			err: true,
 		},
+		{
+			name: "valid responder type template",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: "{{/* valid comment */}}team"
+api_url: http://example.com
+`,
+		},
+		{
+			name: "invalid responder type template",
+			in: `api_key: xyz
+responders:
+- id: foo
+  type: "{{/* invalid comment }}team"
+api_url: http://example.com
+`,
+			err: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var cfg OpsGenieConfig
@@ -754,6 +920,41 @@ func TestWeChatTypeMatcher(t *testing.T) {
 		if wechatTypeMatcher.MatchString(b) {
 			t.Errorf("mistakenly match with %s", b)
 		}
+	}
+}
+
+func TestWebexConfiguration(t *testing.T) {
+	tc := []struct {
+		name string
+
+		in       string
+		expected error
+	}{
+		{
+			name: "with no room_id - it fails",
+			in: `
+message: xyz123
+`,
+			expected: errors.New("missing room_id on webex_config"),
+		},
+		{
+			name: "with room_id and http_config.authorization set - it succeeds",
+			in: `
+room_id: 2
+http_config:
+  authorization:
+    credentials: "xxxyyyzz"
+`,
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg WebexConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
 	}
 }
 

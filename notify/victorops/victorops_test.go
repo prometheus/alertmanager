@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -119,6 +120,30 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
 }
 
+func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
+	key := "key"
+	f, err := os.CreateTemp("", "victorops_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.VictorOpsConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKeyFile: f.Name(),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
+}
+
 func TestVictorOpsTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
@@ -181,6 +206,7 @@ func TestVictorOpsTemplating(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIKey = "test"
 			vo, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
 			require.NoError(t, err)
 			ctx := context.Background()

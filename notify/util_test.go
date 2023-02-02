@@ -18,69 +18,109 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
+	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestTruncate(t *testing.T) {
+	type expect struct {
+		out   string
+		trunc bool
+	}
+
 	testCases := []struct {
 		in string
 		n  int
 
-		out   string
-		trunc bool
+		runes expect
+		bytes expect
 	}{
 		{
 			in:    "",
 			n:     5,
-			out:   "",
-			trunc: false,
+			runes: expect{out: "", trunc: false},
+			bytes: expect{out: "", trunc: false},
 		},
 		{
 			in:    "abcde",
 			n:     2,
-			out:   "ab",
-			trunc: true,
+			runes: expect{out: "ab", trunc: true},
+			bytes: expect{out: "..", trunc: true},
 		},
 		{
 			in:    "abcde",
 			n:     4,
-			out:   "abc…",
-			trunc: true,
+			runes: expect{out: "abc…", trunc: true},
+			bytes: expect{out: "a…", trunc: true},
 		},
 		{
 			in:    "abcde",
 			n:     5,
-			out:   "abcde",
-			trunc: false,
+			runes: expect{out: "abcde", trunc: false},
+			bytes: expect{out: "abcde", trunc: false},
 		},
 		{
 			in:    "abcdefgh",
 			n:     5,
-			out:   "abcd…",
-			trunc: true,
+			runes: expect{out: "abcd…", trunc: true},
+			bytes: expect{out: "ab…", trunc: true},
 		},
 		{
 			in:    "a⌘cde",
 			n:     5,
-			out:   "a⌘cde",
-			trunc: false,
+			runes: expect{out: "a⌘cde", trunc: false},
+			bytes: expect{out: "a…", trunc: true},
 		},
 		{
 			in:    "a⌘cdef",
 			n:     5,
-			out:   "a⌘cd…",
-			trunc: true,
+			runes: expect{out: "a⌘cd…", trunc: true},
+			bytes: expect{out: "a…", trunc: true},
+		},
+		{
+			in:    "世界cdef",
+			n:     3,
+			runes: expect{out: "世界c", trunc: true},
+			bytes: expect{out: "…", trunc: true},
+		},
+		{
+			in:    "❤️✅🚀🔥❌❤️✅🚀🔥❌❤️✅🚀🔥❌❤️✅🚀🔥❌",
+			n:     19,
+			runes: expect{out: "❤️✅🚀🔥❌❤️✅🚀🔥❌❤️✅🚀🔥❌…", trunc: true},
+			bytes: expect{out: "❤️✅🚀…", trunc: true},
 		},
 	}
 
+	type truncateFunc func(string, int) (string, bool)
+
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("truncate(%s,%d)", tc.in, tc.n), func(t *testing.T) {
-			s, trunc := Truncate(tc.in, tc.n)
-			require.Equal(t, tc.trunc, trunc)
-			require.Equal(t, tc.out, s)
-		})
+		for _, fn := range []truncateFunc{TruncateInBytes, TruncateInRunes} {
+			var truncated bool
+			var out string
+
+			fnPath := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+			fnName := path.Base(fnPath)
+			switch fnName {
+			case "notify.TruncateInRunes":
+				truncated = tc.runes.trunc
+				out = tc.runes.out
+			case "notify.TruncateInBytes":
+				truncated = tc.bytes.trunc
+				out = tc.bytes.out
+			default:
+				t.Fatalf("unknown function")
+			}
+
+			t.Run(fmt.Sprintf("%s(%s,%d)", fnName, tc.in, tc.n), func(t *testing.T) {
+				s, trunc := fn(tc.in, tc.n)
+				require.Equal(t, out, s)
+				require.Equal(t, truncated, trunc)
+			})
+		}
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -29,6 +30,9 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+// truncationMarker is the character used to represent a truncation.
+const truncationMarker = "…"
 
 // UserAgentHeader is the default User-Agent for notification requests
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
@@ -81,16 +85,48 @@ func Drain(r *http.Response) {
 	r.Body.Close()
 }
 
-// Truncate truncates a string to fit the given size.
-func Truncate(s string, n int) (string, bool) {
+// TruncateInRunes truncates a string to fit the given size in Runes.
+func TruncateInRunes(s string, n int) (string, bool) {
 	r := []rune(s)
 	if len(r) <= n {
 		return s, false
 	}
+
 	if n <= 3 {
 		return string(r[:n]), true
 	}
-	return string(r[:n-1]) + "…", true
+
+	return string(r[:n-1]) + truncationMarker, true
+}
+
+// TruncateInBytes truncates a string to fit the given size in Bytes.
+func TruncateInBytes(s string, n int) (string, bool) {
+	// First, measure the string the w/o a to-rune conversion.
+	if len(s) <= n {
+		return s, false
+	}
+
+	// The truncationMarker itself is 3 bytes, we can't return any part of the string when it's less than 3.
+	if n <= 3 {
+		switch n {
+		case 3:
+			return truncationMarker, true
+		default:
+			return strings.Repeat(".", n), true
+		}
+	}
+
+	// Now, to ensure we don't butcher the string we need to remove using runes.
+	r := []rune(s)
+	truncationTarget := n - 3
+
+	// Next, let's truncate the runes to the lower possible number.
+	truncatedRunes := r[:truncationTarget]
+	for len(string(truncatedRunes)) > truncationTarget {
+		truncatedRunes = r[:len(truncatedRunes)-1]
+	}
+
+	return string(truncatedRunes) + truncationMarker, true
 }
 
 // TmplText is using monadic error handling in order to make string templating

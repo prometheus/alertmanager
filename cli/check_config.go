@@ -84,7 +84,7 @@ func CheckConfig(args []string) error {
 			fmt.Printf(" - %d receivers\n", len(cfg.Receivers))
 			fmt.Printf(" - %d templates\n", len(cfg.Templates))
 			if len(cfg.Templates) > 0 {
-				_, err = template.FromGlobs(cfg.Templates...)
+				_, err = template.FromGlobs(cfg.Templates)
 				if err != nil {
 					fmt.Printf("  FAILED: %s\n", err)
 					failed++

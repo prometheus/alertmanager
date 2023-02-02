@@ -20,9 +20,9 @@ To view all available command-line flags, run `alertmanager -h`.
 Alertmanager can reload its configuration at runtime. If the new configuration
 is not well-formed, the changes will not be applied and an error is logged.
 A configuration reload is triggered by sending a `SIGHUP` to the process or
-sending a HTTP POST request to the `/-/reload` endpoint.
+sending an HTTP POST request to the `/-/reload` endpoint.
 
-## Configuration file
+## Configuration file introduction
 
 To specify which configuration file to load, use the `--config.file` flag.
 
@@ -47,15 +47,18 @@ Generic placeholders are defined as follows:
 * `<tmpl_string>`: a string which is template-expanded before usage
 * `<tmpl_secret>`: a string which is template-expanded before usage that is a secret
 * `<int>`: an integer value
+* `<regex>`: any valid [RE2 regular expression](https://github.com/google/re2/wiki/Syntax) (The regex is anchored on both ends. To un-anchor the regex, use `.*<regex>.*`.)
 
 The other placeholders are specified separately.
 
 A provided [valid example file](https://github.com/prometheus/alertmanager/blob/main/doc/examples/simple.yml)
 shows usage in context.
 
+## File layout and global settings
+
 The global configuration specifies parameters that are valid in all other
 configuration contexts. They also serve as defaults for other configuration
-sections.
+sections. The other top-level sections are documented below on this page.
 
 ```yaml
 global:
@@ -85,6 +88,7 @@ global:
   [ slack_api_url: <secret> ]
   [ slack_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
+  [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
   [ opsgenie_api_key: <secret> ]
@@ -94,6 +98,7 @@ global:
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -128,7 +133,11 @@ time_intervals:
   [ - <time_interval> ... ]
 ```
 
-## `<route>`
+## Route-related settings
+
+Routing-related settings allow configuring how alerts are routed, aggregated, throttled, and muted based on time.
+
+### `<route>`
 
 A route block defines a node in a routing tree and its children. Its optional
 configuration parameters are inherited from its parent node if not set.
@@ -211,7 +220,7 @@ routes:
   [ - <route> ... ]
 ```
 
-### Example
+#### Example
 
 ```yaml
 # The root route with all parameters, which are inherited by the child
@@ -260,7 +269,7 @@ route:
       - holidays
 ```
 
-## `<time_interval>`
+### `<time_interval>`
 
 A `time_interval` specifies a named interval of time that may be referenced
 in the routing tree to mute/activate particular routes for particular times of the day.
@@ -268,10 +277,11 @@ in the routing tree to mute/activate particular routes for particular times of t
 ```yaml
 name: <string>
 time_intervals:
-  [ - <time_interval> ... ]
+  [ - <time_interval_spec> ... ]
 ```
-## `<time_interval>`
-A `time_interval` contains the actual definition for an interval of time. The syntax
+#### `<time_interval_spec>`
+
+A `time_interval_spec` contains the actual definition for an interval of time. The syntax
 supports the following fields:
 
 ```yaml
@@ -341,7 +351,13 @@ interval is taken to be in UTC time.**Note:** On Windows, only `Local` or `UTC` 
 supported unless you provide a custom time zone database using the `ZONEINFO`
 environment variable.
 
-## `<inhibit_rule>`
+## Inhibition-related settings
+
+Inhibition allows muting a set of alerts based on the presence of another set of
+alerts. This allows establishing dependencies between systems or services such that
+only the most relevant of a set of interconnected alerts are sent out during an outage.
+
+### `<inhibit_rule>`
 
 An inhibition rule mutes an alert (target) matching a set of matchers
 when an alert (source) exists that matches another set of matchers.
@@ -392,504 +408,11 @@ source_matchers:
 
 ```
 
-## `<http_config>`
+## Label matchers
 
-A `http_config` allows configuring the HTTP client that the receiver uses to
-communicate with HTTP-based API services.
+Label matchers are used both in routes and inhibition rules to match certain alerts.
 
-```yaml
-# Note that `basic_auth` and `authorization` options are mutually exclusive.
-
-# Sets the `Authorization` header with the configured username and password.
-# password and password_file are mutually exclusive.
-basic_auth:
-  [ username: <string> ]
-  [ password: <secret> ]
-  [ password_file: <string> ]
-
-# Optional the `Authorization` header configuration.
-authorization:
-  # Sets the authentication type.
-  [ type: <string> | default: Bearer ]
-  # Sets the credentials. It is mutually exclusive with
-  # `credentials_file`.
-  [ credentials: <secret> ]
-  # Sets the credentials with the credentials read from the configured file.
-  # It is mutually exclusive with `credentials`.
-  [ credentials_file: <filename> ]
-
-# Optional OAuth 2.0 configuration.
-# Cannot be used at the same time as basic_auth or authorization.
-oauth2:
-  [ <oauth2> ]
-
-# Optional proxy URL.
-[ proxy_url: <string> ]
-
-# Configure whether HTTP requests follow HTTP 3xx redirects.
-[ follow_redirects: <bool> | default = true ]
-
-# Configures the TLS settings.
-tls_config:
-  [ <tls_config> ]
-```
-
-### `oauth2`
-
-OAuth 2.0 authentication using the client credentials grant type.
-Alertmanager fetches an access token from the specified endpoint with
-the given client access and secret keys.
-
-```yaml
-client_id: <string>
-[ client_secret: <secret> ]
-
-# Read the client secret from a file.
-# It is mutually exclusive with `client_secret`.
-[ client_secret_file: <filename> ]
-
-# Scopes for the token request.
-scopes:
-  [ - <string> ... ]
-
-# The URL to fetch the token from.
-token_url: <string>
-
-# Optional parameters to append to the token URL.
-endpoint_params:
-  [ <string>: <string> ... ]
-
-# Configures the token request's TLS settings.
-tls_config:
-  [ <tls_config> ]
-```
-
-## `<tls_config>`
-
-A `tls_config` allows configuring TLS connections.
-
-```yaml
-# CA certificate to validate the server certificate with.
-[ ca_file: <filepath> ]
-
-# Certificate and key files for client cert authentication to the server.
-[ cert_file: <filepath> ]
-[ key_file: <filepath> ]
-
-# ServerName extension to indicate the name of the server.
-# http://tools.ietf.org/html/rfc4366#section-3.1
-[ server_name: <string> ]
-
-# Disable validation of the server certificate.
-[ insecure_skip_verify: <boolean> | default = false]
-```
-
-## `<receiver>`
-
-Receiver is a named configuration of one or more notification integrations.
-
-Note: As part of lifting the past moratorium on new receivers it was agreed that, in addition to the existing requirements, new notification integrations will be required to have a committed maintainer with push access.
-
-```yaml
-# The unique name of the receiver.
-name: <string>
-
-# Configurations for several notification integrations.
-email_configs:
-  [ - <email_config>, ... ]
-opsgenie_configs:
-  [ - <opsgenie_config>, ... ]
-pagerduty_configs:
-  [ - <pagerduty_config>, ... ]
-pushover_configs:
-  [ - <pushover_config>, ... ]
-slack_configs:
-  [ - <slack_config>, ... ]
-sns_configs:
-  [ - <sns_config>, ... ]
-victorops_configs:
-  [ - <victorops_config>, ... ]
-webhook_configs:
-  [ - <webhook_config>, ... ]
-wechat_configs:
-  [ - <wechat_config>, ... ]
-telegram_configs:
-  [ - <telegram_config>, ... ]
-```
-
-## `<email_config>`
-
-```yaml
-# Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = false ]
-
-# The email address to send notifications to.
-to: <tmpl_string>
-
-# The sender's address.
-[ from: <tmpl_string> | default = global.smtp_from ]
-
-# The SMTP host through which emails are sent.
-[ smarthost: <string> | default = global.smtp_smarthost ]
-
-# The hostname to identify to the SMTP server.
-[ hello: <string> | default = global.smtp_hello ]
-
-# SMTP authentication information.
-# auth_password and auth_password_file are mutually exclusive.
-[ auth_username: <string> | default = global.smtp_auth_username ]
-[ auth_password: <secret> | default = global.smtp_auth_password ]
-[ auth_password_file: <string> | default = global.smtp_auth_password_file ]
-[ auth_secret: <secret> | default = global.smtp_auth_secret ]
-[ auth_identity: <string> | default = global.smtp_auth_identity ]
-
-# The SMTP TLS requirement.
-# Note that Go does not support unencrypted connections to remote SMTP endpoints.
-[ require_tls: <bool> | default = global.smtp_require_tls ]
-
-# TLS configuration.
-tls_config:
-  [ <tls_config> ]
-
-# The HTML body of the email notification.
-[ html: <tmpl_string> | default = '{{ template "email.default.html" . }}' ]
-# The text body of the email notification.
-[ text: <tmpl_string> ]
-
-# Further headers email header key/value pairs. Overrides any headers
-# previously set by the notification implementation.
-[ headers: { <string>: <tmpl_string>, ... } ]
-```
-
-## `<opsgenie_config>`
-
-OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
-
-```yaml
-# Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
-
-# The API key to use when talking to the OpsGenie API.
-[ api_key: <secret> | default = global.opsgenie_api_key ]
-
-# The filepath to API key to use when talking to the OpsGenie API. Conflicts with api_key.
-[ api_key_file: <filepath> | default = global.opsgenie_api_key_file ]
-
-# The host to send OpsGenie API requests to.
-[ api_url: <string> | default = global.opsgenie_api_url ]
-
-# Alert text limited to 130 characters.
-[ message: <tmpl_string> | default = '{{ template "opsgenie.default.message" . }}' ]
-
-# A description of the alert.
-[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
-
-# A backlink to the sender of the notification.
-[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
-
-# A set of arbitrary key/value pairs that provide further detail
-# about the alert.
-# All common labels are included as details by default.
-[ details: { <string>: <tmpl_string>, ... } ]
-
-# List of responders responsible for notifications.
-responders:
-  [ - <responder> ... ]
-
-# Comma separated list of tags attached to the notifications.
-[ tags: <tmpl_string> ]
-
-# Additional alert note.
-[ note: <tmpl_string> ]
-
-# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
-[ priority: <tmpl_string> ]
-
-# Whether to update message and description of the alert in OpsGenie if it already exists
-# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
-[ update_alerts: <boolean> | default = false ]
-
-# Optional field that can be used to specify which domain alert is related to.
-[ entity: <tmpl_string> ]
-
-# Comma separated list of actions that will be available for the alert.
-[ actions: <tmpl_string> ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-### `<responder>`
-
-```yaml
-# Exactly one of these fields should be defined.
-[ id: <tmpl_string> ]
-[ name: <tmpl_string> ]
-[ username: <tmpl_string> ]
-
-# "team", "teams", "user", "escalation" or "schedule".
-type: <tmpl_string>
-```
-
-## `<pagerduty_config>`
-
-PagerDuty notifications are sent via the [PagerDuty API](https://developer.pagerduty.com/documentation/integration/events).
-PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometheus-integration-guide/) on how to integrate. There are important differences with Alertmanager's v0.11 and greater support of PagerDuty's Events API v2.
-
-```yaml
-# Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
-
-# The following two options are mutually exclusive.
-# The PagerDuty integration key (when using PagerDuty integration type `Events API v2`).
-routing_key: <tmpl_secret>
-# The PagerDuty integration key (when using PagerDuty integration type `Prometheus`).
-service_key: <tmpl_secret>
-
-# The URL to send API requests to
-[ url: <string> | default = global.pagerduty_url ]
-
-# The client identification of the Alertmanager.
-[ client:  <tmpl_string> | default = '{{ template "pagerduty.default.client" . }}' ]
-# A backlink to the sender of the notification.
-[ client_url:  <tmpl_string> | default = '{{ template "pagerduty.default.clientURL" . }}' ]
-
-# A description of the incident.
-[ description: <tmpl_string> | default = '{{ template "pagerduty.default.description" .}}' ]
-
-# Severity of the incident.
-[ severity: <tmpl_string> | default = 'error' ]
-
-# A set of arbitrary key/value pairs that provide further detail
-# about the incident.
-[ details: { <string>: <tmpl_string>, ... } | default = {
-  firing:       '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
-  resolved:     '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
-  num_firing:   '{{ .Alerts.Firing | len }}'
-  num_resolved: '{{ .Alerts.Resolved | len }}'
-} ]
-
-# Images to attach to the incident.
-images:
-  [ <image_config> ... ]
-
-# Links to attach to the incident.
-links:
-  [ <link_config> ... ]
-
-# The part or component of the affected system that is broken.
-[ component: <tmpl_string> ]
-
-# A cluster or grouping of sources.
-[ group: <tmpl_string> ]
-
-# The class/type of the event.
-[ class: <tmpl_string> ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-### `<image_config>`
-
-The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-images-property).
-
-```yaml
-href: <tmpl_string>
-source: <tmpl_string>
-alt: <tmpl_string>
-```
-
-### `<link_config>`
-
-The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-links-property).
-
-```yaml
-href: <tmpl_string>
-text: <tmpl_string>
-```
-
-## `<pushover_config>`
-
-Pushover notifications are sent via the [Pushover API](https://pushover.net/api).
-
-```yaml
-# Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
-
-# The recipient user's user key.
-user_key: <secret>
-
-# Your registered application's API token, see https://pushover.net/apps
-# You can also register a token by cloning this Prometheus app:
-# https://pushover.net/apps/clone/prometheus
-token: <secret>
-
-# Notification title.
-[ title: <tmpl_string> | default = '{{ template "pushover.default.title" . }}' ]
-
-# Notification message.
-[ message: <tmpl_string> | default = '{{ template "pushover.default.message" . }}' ]
-
-# A supplementary URL shown alongside the message.
-[ url: <tmpl_string> | default = '{{ template "pushover.default.url" . }}' ]
-
-# Priority, see https://pushover.net/api#priority
-[ priority: <tmpl_string> | default = '{{ if eq .Status "firing" }}2{{ else }}0{{ end }}' ]
-
-# How often the Pushover servers will send the same notification to the user.
-# Must be at least 30 seconds.
-[ retry: <duration> | default = 1m ]
-
-# How long your notification will continue to be retried for, unless the user
-# acknowledges the notification.
-[ expire: <duration> | default = 1h ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-## `<slack_config>`
-
-Slack notifications are sent via [Slack
-webhooks](https://api.slack.com/messaging/webhooks). The notification contains
-an [attachment](https://api.slack.com/messaging/composing/layouts#attachments).
-
-```yaml
-# Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = false ]
-
-# The Slack webhook URL. Either api_url or api_url_file should be set.
-# Defaults to global settings if none are set here.
-[ api_url: <secret> | default = global.slack_api_url ]
-[ api_url_file: <filepath> | default = global.slack_api_url_file ]
-
-# The channel or user to send notifications to.
-channel: <tmpl_string>
-
-# API request data as defined by the Slack webhook API.
-[ icon_emoji: <tmpl_string> ]
-[ icon_url: <tmpl_string> ]
-[ link_names: <boolean> | default = false ]
-[ username: <tmpl_string> | default = '{{ template "slack.default.username" . }}' ]
-# The following parameters define the attachment.
-actions:
-  [ <action_config> ... ]
-[ callback_id: <tmpl_string> | default = '{{ template "slack.default.callbackid" . }}' ]
-[ color: <tmpl_string> | default = '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}' ]
-[ fallback: <tmpl_string> | default = '{{ template "slack.default.fallback" . }}' ]
-fields:
-  [ <field_config> ... ]
-[ footer: <tmpl_string> | default = '{{ template "slack.default.footer" . }}' ]
-[ mrkdwn_in: '[' <string>, ... ']' | default = ["fallback", "pretext", "text"] ]
-[ pretext: <tmpl_string> | default = '{{ template "slack.default.pretext" . }}' ]
-[ short_fields: <boolean> | default = false ]
-[ text: <tmpl_string> | default = '{{ template "slack.default.text" . }}' ]
-[ title: <tmpl_string> | default = '{{ template "slack.default.title" . }}' ]
-[ title_link: <tmpl_string> | default = '{{ template "slack.default.titlelink" . }}' ]
-[ image_url: <tmpl_string> ]
-[ thumb_url: <tmpl_string> ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-### `<action_config>`
-
-The fields are documented in the Slack API documentation for [message attachments](https://api.slack.com/messaging/composing/layouts#attachments) and [interactive messages](https://api.slack.com/legacy/interactive-message-field-guide#action_fields).
-
-```yaml
-text: <tmpl_string>
-type: <tmpl_string>
-# Either url or name and value are mandatory.
-[ url: <tmpl_string> ]
-[ name: <tmpl_string> ]
-[ value: <tmpl_string> ]
-
-[ confirm: <action_confirm_field_config> ]
-[ style: <tmpl_string> | default = '' ]
-```
-
-#### `<action_confirm_field_config>`
-
-The fields are documented in the [Slack API documentation](https://api.slack.com/legacy/interactive-message-field-guide#confirmation_fields).
-
-```yaml
-text: <tmpl_string>
-[ dismiss_text: <tmpl_string> | default '' ]
-[ ok_text: <tmpl_string> | default '' ]
-[ title: <tmpl_string> | default '' ]
-```
-
-### `<field_config>`
-
-The fields are documented in the [Slack API documentation](https://api.slack.com/messaging/composing/layouts#attachments).
-
-```yaml
-title: <tmpl_string>
-value: <tmpl_string>
-[ short: <boolean> | default = slack_config.short_fields ]
-```
-
-## `<sns_config>`
-```yaml
-# Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
-
-# The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
-#  If not specified, the SNS API URL from the SNS SDK will be used.
-[ api_url: <tmpl_string> ]
-
-# Configures AWS's Signature Verification 4 signing process to sign requests.
-sigv4:
-  [ <sigv4_config> ]
-
-# SNS topic ARN, i.e. arn:aws:sns:us-east-2:698519295917:My-Topic
-# If you don't specify this value, you must specify a value for the phone_number or target_arn.
-# If you are using a FIFO SNS topic you should set a message group interval longer than 5 minutes
-# to prevent messages with the same group key being deduplicated by the SNS default deduplication window
-[ topic_arn: <tmpl_string> ]
-
-# Subject line when the message is delivered to email endpoints.
-[ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ]
-
-# Phone number if message is delivered via SMS in E.164 format.
-# If you don't specify this value, you must specify a value for the topic_arn or target_arn.
-[ phone_number: <tmpl_string> ]
-
-# The  mobile platform endpoint ARN if message is delivered via mobile notifications.
-# If you don't specify this value, you must specify a value for the topic_arn or phone_number.
-[ target_arn: <tmpl_string> ]
-
-# The message content of the SNS notification.
-[ message: <tmpl_string> | default = '{{ template "sns.default.message" .}}' ]
-
-# SNS message attributes.
-attributes:
-  [ <string>: <string> ... ]
-
-# The HTTP client's configuration.
-[ http_config: <http_config> | default = global.http_config ]
-```
-
-### `<sigv4_config>`
-```yaml
-# The AWS region. If blank, the region from the default credentials chain is used.
-[ region: <string> ]
-
-# The AWS API keys. Both access_key and secret_key must be supplied or both must be blank.
-# If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used.
-[ access_key: <string> ]
-[ secret_key: <secret> ]
-
-# Named AWS profile used to authenticate.
-[ profile: <string> ]
-
-# AWS Role ARN, an alternative to using AWS API keys.
-[ role_arn: <string> ]
-```
-
-## `<matcher>`
+### `<matcher>`
 
 A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens:
 
@@ -953,7 +476,600 @@ Here are some examples of valid string matchers:
           {quote=~"She said: \"Hi, all!( How're you…)?\""}
     ```
 
-## `<victorops_config>`
+## General receiver-related settings
+
+These receiver settings allow configuring notification destinations (receivers) and HTTP client options for HTTP-based receivers.
+
+### `<receiver>`
+
+Receiver is a named configuration of one or more notification integrations.
+
+Note: As part of lifting the past moratorium on new receivers it was agreed that, in addition to the existing requirements, new notification integrations will be required to have a committed maintainer with push access.
+
+```yaml
+# The unique name of the receiver.
+name: <string>
+
+# Configurations for several notification integrations.
+discord_configs:
+  [ - <discord_config>, ... ]
+email_configs:
+  [ - <email_config>, ... ]
+opsgenie_configs:
+  [ - <opsgenie_config>, ... ]
+pagerduty_configs:
+  [ - <pagerduty_config>, ... ]
+pushover_configs:
+  [ - <pushover_config>, ... ]
+slack_configs:
+  [ - <slack_config>, ... ]
+sns_configs:
+  [ - <sns_config>, ... ]
+telegram_configs:
+  [ - <telegram_config>, ... ]
+victorops_configs:
+  [ - <victorops_config>, ... ]
+webex_configs:
+  [ - <webex_config>, ... ]
+webhook_configs:
+  [ - <webhook_config>, ... ]
+wechat_configs:
+  [ - <wechat_config>, ... ]
+```
+
+### `<http_config>`
+
+An `http_config` allows configuring the HTTP client that the receiver uses to
+communicate with HTTP-based API services.
+
+```yaml
+# Note that `basic_auth` and `authorization` options are mutually exclusive.
+
+# Sets the `Authorization` header with the configured username and password.
+# password and password_file are mutually exclusive.
+basic_auth:
+  [ username: <string> ]
+  [ password: <secret> ]
+  [ password_file: <string> ]
+
+# Optional the `Authorization` header configuration.
+authorization:
+  # Sets the authentication type.
+  [ type: <string> | default: Bearer ]
+  # Sets the credentials. It is mutually exclusive with
+  # `credentials_file`.
+  [ credentials: <secret> ]
+  # Sets the credentials with the credentials read from the configured file.
+  # It is mutually exclusive with `credentials`.
+  [ credentials_file: <filename> ]
+
+# Optional OAuth 2.0 configuration.
+# Cannot be used at the same time as basic_auth or authorization.
+oauth2:
+  [ <oauth2> ]
+
+# Whether to enable HTTP2.
+[ enable_http2: <bool> | default: true ]
+
+# Optional proxy URL.
+[ proxy_url: <string> ]
+
+# Configure whether HTTP requests follow HTTP 3xx redirects.
+[ follow_redirects: <bool> | default = true ]
+
+# Configures the TLS settings.
+tls_config:
+  [ <tls_config> ]
+```
+
+#### `<oauth2>`
+
+OAuth 2.0 authentication using the client credentials grant type.
+Alertmanager fetches an access token from the specified endpoint with
+the given client access and secret keys.
+
+```yaml
+client_id: <string>
+[ client_secret: <secret> ]
+
+# Read the client secret from a file.
+# It is mutually exclusive with `client_secret`.
+[ client_secret_file: <filename> ]
+
+# Scopes for the token request.
+scopes:
+  [ - <string> ... ]
+
+# The URL to fetch the token from.
+token_url: <string>
+
+# Optional parameters to append to the token URL.
+endpoint_params:
+  [ <string>: <string> ... ]
+
+# Configures the token request's TLS settings.
+tls_config:
+  [ <tls_config> ]
+
+# Optional proxy URL.
+[ proxy_url: <string> ]
+```
+
+#### `<tls_config>`
+
+A `tls_config` allows configuring TLS connections.
+
+```yaml
+# CA certificate to validate the server certificate with.
+[ ca_file: <filepath> ]
+
+# Certificate and key files for client cert authentication to the server.
+[ cert_file: <filepath> ]
+[ key_file: <filepath> ]
+
+# ServerName extension to indicate the name of the server.
+# http://tools.ietf.org/html/rfc4366#section-3.1
+[ server_name: <string> ]
+
+# Disable validation of the server certificate.
+[ insecure_skip_verify: <boolean> | default = false]
+
+# Minimum acceptable TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS
+# 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+# If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+# See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+[ min_version: <string> ]
+# Maximum acceptable TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS
+# 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+# If unset, Prometheus will use Go default maximum version, which is TLS 1.3.
+# See MaxVersion in https://pkg.go.dev/crypto/tls#Config.
+[ max_version: <string> ]
+```
+
+## Receiver integration settings
+
+These settings allow configuring specific receiver integrations.
+
+### `<discord_config>`
+
+Discord notifications are sent via the [Discord webhook API](https://discord.com/developers/docs/resources/webhook). See Discord's ["Intro to Webhooks" article](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) to learn how to configure a webhook integration for a channel.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Discord webhook URL.
+webhook_url: <secret>
+
+# Message title template.
+[ title: <tmpl_string> | default = '{{ template "discord.default.title" . }}' ]
+
+# Message body template.
+[ message: <tmpl_string> | default = '{{ template "discord.default.message" . }}' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<email_config>`
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = false ]
+
+# The email address to send notifications to.
+to: <tmpl_string>
+
+# The sender's address.
+[ from: <tmpl_string> | default = global.smtp_from ]
+
+# The SMTP host through which emails are sent.
+[ smarthost: <string> | default = global.smtp_smarthost ]
+
+# The hostname to identify to the SMTP server.
+[ hello: <string> | default = global.smtp_hello ]
+
+# SMTP authentication information.
+# auth_password and auth_password_file are mutually exclusive.
+[ auth_username: <string> | default = global.smtp_auth_username ]
+[ auth_password: <secret> | default = global.smtp_auth_password ]
+[ auth_password_file: <string> | default = global.smtp_auth_password_file ]
+[ auth_secret: <secret> | default = global.smtp_auth_secret ]
+[ auth_identity: <string> | default = global.smtp_auth_identity ]
+
+# The SMTP TLS requirement.
+# Note that Go does not support unencrypted connections to remote SMTP endpoints.
+[ require_tls: <bool> | default = global.smtp_require_tls ]
+
+# TLS configuration.
+tls_config:
+  [ <tls_config> ]
+
+# The HTML body of the email notification.
+[ html: <tmpl_string> | default = '{{ template "email.default.html" . }}' ]
+# The text body of the email notification.
+[ text: <tmpl_string> ]
+
+# Further headers email header key/value pairs. Overrides any headers
+# previously set by the notification implementation.
+[ headers: { <string>: <tmpl_string>, ... } ]
+```
+
+### `<opsgenie_config>`
+
+OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The API key to use when talking to the OpsGenie API.
+[ api_key: <secret> | default = global.opsgenie_api_key ]
+
+# The filepath to API key to use when talking to the OpsGenie API. Conflicts with api_key.
+[ api_key_file: <filepath> | default = global.opsgenie_api_key_file ]
+
+# The host to send OpsGenie API requests to.
+[ api_url: <string> | default = global.opsgenie_api_url ]
+
+# Alert text limited to 130 characters.
+[ message: <tmpl_string> | default = '{{ template "opsgenie.default.message" . }}' ]
+
+# A description of the alert.
+[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
+
+# A backlink to the sender of the notification.
+[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the alert.
+# All common labels are included as details by default.
+[ details: { <string>: <tmpl_string>, ... } ]
+
+# List of responders responsible for notifications.
+responders:
+  [ - <responder> ... ]
+
+# Comma separated list of tags attached to the notifications.
+[ tags: <tmpl_string> ]
+
+# Additional alert note.
+[ note: <tmpl_string> ]
+
+# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
+[ priority: <tmpl_string> ]
+
+# Whether to update message and description of the alert in OpsGenie if it already exists
+# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
+[ update_alerts: <boolean> | default = false ]
+
+# Optional field that can be used to specify which domain alert is related to.
+[ entity: <tmpl_string> ]
+
+# Comma separated list of actions that will be available for the alert.
+[ actions: <tmpl_string> ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+#### `<responder>`
+
+```yaml
+# Exactly one of these fields should be defined.
+[ id: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ username: <tmpl_string> ]
+
+# "team", "teams", "user", "escalation" or "schedule".
+type: <tmpl_string>
+```
+
+### `<pagerduty_config>`
+
+PagerDuty notifications are sent via the [PagerDuty API](https://developer.pagerduty.com/documentation/integration/events).
+PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometheus-integration-guide/) on how to integrate. There are important differences with Alertmanager's v0.11 and greater support of PagerDuty's Events API v2.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The routing and service keys are mutually exclusive.
+# The PagerDuty integration key (when using PagerDuty integration type `Events API v2`).
+# It is mutually exclusive with `routing_key_file`.
+routing_key: <tmpl_secret>
+# Read the Pager Duty routing key from a file.
+# It is mutually exclusive with `routing_key`.
+routing_key_file: <filepath>
+# The PagerDuty integration key (when using PagerDuty integration type `Prometheus`).
+# It is mutually exclusive with `service_key_file`.
+service_key: <tmpl_secret>
+# Read the Pager Duty service key from a file.
+# It is mutually exclusive with `service_key`.
+service_key_file: <filepath>
+
+# The URL to send API requests to
+[ url: <string> | default = global.pagerduty_url ]
+
+# The client identification of the Alertmanager.
+[ client:  <tmpl_string> | default = '{{ template "pagerduty.default.client" . }}' ]
+# A backlink to the sender of the notification.
+[ client_url:  <tmpl_string> | default = '{{ template "pagerduty.default.clientURL" . }}' ]
+
+# A description of the incident.
+[ description: <tmpl_string> | default = '{{ template "pagerduty.default.description" .}}' ]
+
+# Severity of the incident.
+[ severity: <tmpl_string> | default = 'error' ]
+
+# Unique location of the affected system.
+[ source: <tmpl_string> | default = client ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the incident.
+[ details: { <string>: <tmpl_string>, ... } | default = {
+  firing:       '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
+  resolved:     '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
+  num_firing:   '{{ .Alerts.Firing | len }}'
+  num_resolved: '{{ .Alerts.Resolved | len }}'
+} ]
+
+# Images to attach to the incident.
+images:
+  [ <image_config> ... ]
+
+# Links to attach to the incident.
+links:
+  [ <link_config> ... ]
+
+# The part or component of the affected system that is broken.
+[ component: <tmpl_string> ]
+
+# A cluster or grouping of sources.
+[ group: <tmpl_string> ]
+
+# The class/type of the event.
+[ class: <tmpl_string> ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+#### `<image_config>`
+
+The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-images-property).
+
+```yaml
+href: <tmpl_string>
+source: <tmpl_string>
+alt: <tmpl_string>
+```
+
+#### `<link_config>`
+
+The fields are documented in the [PagerDuty API documentation](https://developer.pagerduty.com/docs/events-api-v2/trigger-events/#the-links-property).
+
+```yaml
+href: <tmpl_string>
+text: <tmpl_string>
+```
+
+### `<pushover_config>`
+
+Pushover notifications are sent via the [Pushover API](https://pushover.net/api).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The recipient user's key. 
+# user_key and user_key_file are mutually exclusive.
+user_key: <secret>
+user_key_file: <filepath>
+
+# Your registered application's API token, see https://pushover.net/apps
+# You can also register a token by cloning this Prometheus app:
+# https://pushover.net/apps/clone/prometheus
+# token and token_file are mutually exclusive.
+token: <secret>
+token_file: <filepath>
+
+# Notification title.
+[ title: <tmpl_string> | default = '{{ template "pushover.default.title" . }}' ]
+
+# Notification message.
+[ message: <tmpl_string> | default = '{{ template "pushover.default.message" . }}' ]
+
+# A supplementary URL shown alongside the message.
+[ url: <tmpl_string> | default = '{{ template "pushover.default.url" . }}' ]
+
+# Priority, see https://pushover.net/api#priority
+[ priority: <tmpl_string> | default = '{{ if eq .Status "firing" }}2{{ else }}0{{ end }}' ]
+
+# How often the Pushover servers will send the same notification to the user.
+# Must be at least 30 seconds.
+[ retry: <duration> | default = 1m ]
+
+# How long your notification will continue to be retried for, unless the user
+# acknowledges the notification.
+[ expire: <duration> | default = 1h ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<slack_config>`
+
+Slack notifications are sent via [Slack
+webhooks](https://api.slack.com/messaging/webhooks). The notification contains
+an [attachment](https://api.slack.com/messaging/composing/layouts#attachments).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = false ]
+
+# The Slack webhook URL. Either api_url or api_url_file should be set.
+# Defaults to global settings if none are set here.
+[ api_url: <secret> | default = global.slack_api_url ]
+[ api_url_file: <filepath> | default = global.slack_api_url_file ]
+
+# The channel or user to send notifications to.
+channel: <tmpl_string>
+
+# API request data as defined by the Slack webhook API.
+[ icon_emoji: <tmpl_string> ]
+[ icon_url: <tmpl_string> ]
+[ link_names: <boolean> | default = false ]
+[ username: <tmpl_string> | default = '{{ template "slack.default.username" . }}' ]
+# The following parameters define the attachment.
+actions:
+  [ <action_config> ... ]
+[ callback_id: <tmpl_string> | default = '{{ template "slack.default.callbackid" . }}' ]
+[ color: <tmpl_string> | default = '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}' ]
+[ fallback: <tmpl_string> | default = '{{ template "slack.default.fallback" . }}' ]
+fields:
+  [ <field_config> ... ]
+[ footer: <tmpl_string> | default = '{{ template "slack.default.footer" . }}' ]
+[ mrkdwn_in: '[' <string>, ... ']' | default = ["fallback", "pretext", "text"] ]
+[ pretext: <tmpl_string> | default = '{{ template "slack.default.pretext" . }}' ]
+[ short_fields: <boolean> | default = false ]
+[ text: <tmpl_string> | default = '{{ template "slack.default.text" . }}' ]
+[ title: <tmpl_string> | default = '{{ template "slack.default.title" . }}' ]
+[ title_link: <tmpl_string> | default = '{{ template "slack.default.titlelink" . }}' ]
+[ image_url: <tmpl_string> ]
+[ thumb_url: <tmpl_string> ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+#### `<action_config>`
+
+The fields are documented in the Slack API documentation for [message attachments](https://api.slack.com/messaging/composing/layouts#attachments) and [interactive messages](https://api.slack.com/legacy/interactive-message-field-guide#action_fields).
+
+```yaml
+text: <tmpl_string>
+type: <tmpl_string>
+# Either url or name and value are mandatory.
+[ url: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ value: <tmpl_string> ]
+
+[ confirm: <action_confirm_field_config> ]
+[ style: <tmpl_string> | default = '' ]
+```
+
+##### `<action_confirm_field_config>`
+
+The fields are documented in the [Slack API documentation](https://api.slack.com/legacy/interactive-message-field-guide#confirmation_fields).
+
+```yaml
+text: <tmpl_string>
+[ dismiss_text: <tmpl_string> | default '' ]
+[ ok_text: <tmpl_string> | default '' ]
+[ title: <tmpl_string> | default '' ]
+```
+
+#### `<field_config>`
+
+The fields are documented in the [Slack API documentation](https://api.slack.com/messaging/composing/layouts#attachments).
+
+```yaml
+title: <tmpl_string>
+value: <tmpl_string>
+[ short: <boolean> | default = slack_config.short_fields ]
+```
+
+### `<sns_config>`
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
+#  If not specified, the SNS API URL from the SNS SDK will be used.
+[ api_url: <tmpl_string> ]
+
+# Configures AWS's Signature Verification 4 signing process to sign requests.
+sigv4:
+  [ <sigv4_config> ]
+
+# SNS topic ARN, i.e. arn:aws:sns:us-east-2:698519295917:My-Topic
+# If you don't specify this value, you must specify a value for the phone_number or target_arn.
+# If you are using a FIFO SNS topic you should set a message group interval longer than 5 minutes
+# to prevent messages with the same group key being deduplicated by the SNS default deduplication window
+[ topic_arn: <tmpl_string> ]
+
+# Subject line when the message is delivered to email endpoints.
+[ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ]
+
+# Phone number if message is delivered via SMS in E.164 format.
+# If you don't specify this value, you must specify a value for the topic_arn or target_arn.
+[ phone_number: <tmpl_string> ]
+
+# The  mobile platform endpoint ARN if message is delivered via mobile notifications.
+# If you don't specify this value, you must specify a value for the topic_arn or phone_number.
+[ target_arn: <tmpl_string> ]
+
+# The message content of the SNS notification.
+[ message: <tmpl_string> | default = '{{ template "sns.default.message" .}}' ]
+
+# SNS message attributes.
+attributes:
+  [ <string>: <string> ... ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+#### `<sigv4_config>`
+
+```yaml
+# The AWS region. If blank, the region from the default credentials chain is used.
+[ region: <string> ]
+
+# The AWS API keys. Both access_key and secret_key must be supplied or both must be blank.
+# If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used.
+[ access_key: <string> ]
+[ secret_key: <secret> ]
+
+# Named AWS profile used to authenticate.
+[ profile: <string> ]
+
+# AWS Role ARN, an alternative to using AWS API keys.
+[ role_arn: <string> ]
+```
+
+### `<telegram_config>`
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Telegram API URL i.e. https://api.telegram.org.
+# If not specified, default API URL will be used.
+[ api_url: <string> | default = global.telegram_api_url ]
+
+# Telegram bot token.
+[ bot_token: <secret> ]
+
+# ID of the chat where to send the messages.
+[ chat_id: <int> ]
+
+# Message template.
+[ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
+
+# Disable telegram notifications
+[ disable_notifications: <boolean> | default = false ]
+
+# Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+[ parse_mode: <string> | default = "HTML" ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<victorops_config>`
 
 VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/)
 
@@ -962,7 +1078,12 @@ VictorOps notifications are sent out via the [VictorOps API](https://help.victor
 [ send_resolved: <boolean> | default = true ]
 
 # The API key to use when talking to the VictorOps API.
+# It is mutually exclusive with `api_key_file`.
 [ api_key: <secret> | default = global.victorops_api_key ]
+
+# Reads the API key to use when talking to the VictorOps API from a file.
+# It is mutually exclusive with `api_key`.
+[ api_key_file: <filepath> | default = global.victorops_api_key_file ]
 
 # The VictorOps API URL.
 [ api_url: <string> | default = global.victorops_api_url ]
@@ -986,7 +1107,7 @@ routing_key: <tmpl_string>
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-## `<webhook_config>`
+### `<webhook_config>`
 
 The webhook receiver allows configuring a generic receiver.
 
@@ -995,7 +1116,7 @@ The webhook receiver allows configuring a generic receiver.
 [ send_resolved: <boolean> | default = true ]
 
 # The endpoint to send HTTP POST requests to.
-url: <string>
+url: <secret>
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
@@ -1040,7 +1161,7 @@ There is a list of
 [integrations](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) with
 this feature.
 
-## `<wechat_config>`
+### `<wechat_config>`
 
 WeChat notifications are sent via the [WeChat
 API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
@@ -1068,30 +1189,22 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
 ```
 
-## `<telegram_config>`
+### `<webex_config>`
+
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The Telegram API URL i.e. https://api.telegram.org.
+# The Webex Teams API URL i.e. https://webexapis.com/v1/messages
 # If not specified, default API URL will be used.
-[ api_url: <string> | default = global.telegram_api_url ]
+[ api_url: <string> | default = global.webex_api_url ]
 
-# Telegram bot token
-[ bot_token: <string> ]
+# ID of the Webex Teams room where to send the messages.
+room_id: <string>
 
-# ID of the chat where to send the messages.
-[ chat_id: <int> ]
+# Message template.
+[ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
 
-# Message template
-[ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
-
-# Disable telegram notifications
-[ disable_notifications: <boolean> | default = false ]
-
-# Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
-[ parse_mode: <string> | default = "MarkdownV2" ]
-
-# The HTTP client's configuration.
+# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
 [ http_config: <http_config> | default = global.http_config ]
 ```

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/alecthomas/units"
@@ -35,7 +36,13 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-const maxEventSize int = 512000
+const (
+	maxEventSize int = 512000
+	// https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTc4-send-a-v1-event - 1024 characters or runes.
+	maxV1DescriptionLenRunes = 1024
+	// https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event - 1024 characters or runes.
+	maxV2SummaryLenRunes = 1024
+)
 
 // Notifier implements a Notifier for PagerDuty notifications.
 type Notifier struct {
@@ -54,7 +61,7 @@ func New(c *config.PagerdutyConfig, t *template.Template, l log.Logger, httpOpts
 		return nil, err
 	}
 	n := &Notifier{conf: c, tmpl: t, logger: l, client: client}
-	if c.ServiceKey != "" {
+	if c.ServiceKey != "" || c.ServiceKeyFile != "" {
 		n.apiV1 = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
 		// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 		// https://v2.developer.pagerduty.com/docs/trigger-events
@@ -148,13 +155,22 @@ func (n *Notifier) notifyV1(
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
-	description, truncated := notify.Truncate(tmpl(n.conf.Description), 1024)
+	description, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV1DescriptionLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated description", "description", description, "key", key)
+		level.Warn(n.logger).Log("msg", "Truncated description", "key", key, "max_runes", maxV1DescriptionLenRunes)
+	}
+
+	serviceKey := string(n.conf.ServiceKey)
+	if serviceKey == "" {
+		content, fileErr := os.ReadFile(n.conf.ServiceKeyFile)
+		if fileErr != nil {
+			return false, errors.Wrap(fileErr, "failed to read service key from file")
+		}
+		serviceKey = strings.TrimSpace(string(content))
 	}
 
 	msg := &pagerDutyMessage{
-		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
+		ServiceKey:  tmpl(serviceKey),
 		EventType:   eventType,
 		IncidentKey: key.Hash(),
 		Description: description,
@@ -204,22 +220,31 @@ func (n *Notifier) notifyV2(
 		n.conf.Severity = "error"
 	}
 
-	summary, truncated := notify.Truncate(tmpl(n.conf.Description), 1024)
+	summary, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV2SummaryLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "Truncated summary", "summary", summary, "key", key)
+		level.Warn(n.logger).Log("msg", "Truncated summary", "key", key, "max_runes", maxV2SummaryLenRunes)
+	}
+
+	routingKey := string(n.conf.RoutingKey)
+	if routingKey == "" {
+		content, fileErr := os.ReadFile(n.conf.RoutingKeyFile)
+		if fileErr != nil {
+			return false, errors.Wrap(fileErr, "failed to read routing key from file")
+		}
+		routingKey = strings.TrimSpace(string(content))
 	}
 
 	msg := &pagerDutyMessage{
 		Client:      tmpl(n.conf.Client),
 		ClientURL:   tmpl(n.conf.ClientURL),
-		RoutingKey:  tmpl(string(n.conf.RoutingKey)),
+		RoutingKey:  tmpl(routingKey),
 		EventAction: eventType,
 		DedupKey:    key.Hash(),
 		Images:      make([]pagerDutyImage, 0, len(n.conf.Images)),
 		Links:       make([]pagerDutyLink, 0, len(n.conf.Links)),
 		Payload: &pagerDutyPayload{
 			Summary:       summary,
-			Source:        tmpl(n.conf.Client),
+			Source:        tmpl(n.conf.Source),
 			Severity:      tmpl(n.conf.Severity),
 			CustomDetails: details,
 			Class:         tmpl(n.conf.Class),

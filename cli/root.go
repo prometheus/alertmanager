@@ -70,7 +70,7 @@ const (
 )
 
 // NewAlertmanagerClient initializes an alertmanager client with the given URL
-func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
+func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 	address := defaultAmHost + ":" + defaultAmPort
 	schemes := []string{"http"}
 
@@ -94,7 +94,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	if httpConfigFile != "" {
 		var err error
-		httpConfig, err := config.LoadHTTPConfigFile(httpConfigFile)
+		httpConfig, _, err := promconfig.LoadHTTPConfigFile(httpConfigFile)
 		if err != nil {
 			kingpin.Fatalf("failed to load HTTP config file: %v", err)
 		}

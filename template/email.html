@@ -325,13 +325,17 @@ a {
           <tr>
             {{ if gt (len .Alerts.Firing) 0 }}
             <td class="alert alert-warning">
+              {{ .Alerts | len }} alert{{ if gt (len .Alerts) 1 }}s{{ end }} for {{ range .GroupLabels.SortedPairs }}
+                {{ .Name }}={{ .Value }}
+              {{ end }}
+            </td>
             {{ else }}
             <td class="alert alert-good">
-            {{ end }}
               {{ .Alerts | len }} alert{{ if gt (len .Alerts) 1 }}s{{ end }} for {{ range .GroupLabels.SortedPairs }}
                 {{ .Name }}={{ .Value }} 
               {{ end }}
             </td>
+            {{ end }}
           </tr>
           <tr>
             <td class="content-wrap">

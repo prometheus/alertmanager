@@ -154,3 +154,39 @@ inhibit_rules:
 
 	t.Log(co.Check())
 }
+
+func TestEmptyInhibitionRule(t *testing.T) {
+	t.Parallel()
+
+	// This integration test checks that when we have empty inhibition rules,
+	// there is no panic caused by null-pointer references.
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1s
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+
+inhibit_rules:
+-
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	at.Run()
+
+	t.Log(co.Check())
+}

@@ -30,7 +30,8 @@ import (
 // GetSilencesOKCode is the HTTP code returned for type GetSilencesOK
 const GetSilencesOKCode int = 200
 
-/*GetSilencesOK Get silences response
+/*
+GetSilencesOK Get silences response
 
 swagger:response getSilencesOK
 */
@@ -77,7 +78,8 @@ func (o *GetSilencesOK) WriteResponse(rw http.ResponseWriter, producer runtime.P
 // GetSilencesInternalServerErrorCode is the HTTP code returned for type GetSilencesInternalServerError
 const GetSilencesInternalServerErrorCode int = 500
 
-/*GetSilencesInternalServerError Internal server error
+/*
+GetSilencesInternalServerError Internal server error
 
 swagger:response getSilencesInternalServerError
 */
