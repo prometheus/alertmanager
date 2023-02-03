@@ -1117,7 +1117,7 @@ The webhook receiver allows configuring a generic receiver.
 
 # The endpoint to send HTTP POST requests to.
 # url and url_file are mutually exclusive.
-url: <string>
+url: <secret>
 url_file: <filepath>
 
 # The HTTP client's configuration.

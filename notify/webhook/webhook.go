@@ -115,7 +115,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 
 	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
 	if err != nil {
-		return true, err
+		return true, notify.RedactURL(err)
 	}
 	defer notify.Drain(resp)
 
