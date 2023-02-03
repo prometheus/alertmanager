@@ -245,3 +245,57 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	}
 	return retry, errors.New(s)
 }
+
+type ErrorWithReason struct {
+	Err error
+
+	Reason Reason
+}
+
+func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
+	return &ErrorWithReason{
+		Err:    err,
+		Reason: reason,
+	}
+}
+
+func (e *ErrorWithReason) Error() string {
+	return e.Err.Error()
+}
+
+// Reason is the failure reason.
+type Reason int
+
+const (
+	DefaultReason Reason = iota
+	ClientErrorReason
+	ServerErrorReason
+)
+
+func (s Reason) String() string {
+	switch s {
+	case DefaultReason:
+		return "other"
+	case ClientErrorReason:
+		return "clientError"
+	case ServerErrorReason:
+		return "serverError"
+	default:
+		panic(fmt.Sprintf("unknown Reason: %d", s))
+	}
+}
+
+// possibleFailureReasonCategory is a list of possible failure reason.
+var possibleFailureReasonCategory = []string{DefaultReason.String(), ClientErrorReason.String(), ServerErrorReason.String()}
+
+// GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.
+func GetFailureReasonFromStatusCode(statusCode int) Reason {
+	if statusCode/100 == 4 {
+		return ClientErrorReason
+	}
+	if statusCode/100 == 5 {
+		return ServerErrorReason
+	}
+
+	return DefaultReason
+}

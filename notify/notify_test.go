@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -420,6 +421,57 @@ func TestRetryStageWithError(t *testing.T) {
 	resctx, _, err = r.Exec(ctx, log.NewNopLogger(), alerts...)
 	require.NotNil(t, err)
 	require.NotNil(t, resctx)
+}
+
+func TestRetryStageWithErrorCode(t *testing.T) {
+	testcases := map[string]struct {
+		isNewErrorWithReason bool
+		reason               Reason
+		reasonlabel          string
+		expectedCount        int
+	}{
+		"for clientError":     {isNewErrorWithReason: true, reason: ClientErrorReason, reasonlabel: ClientErrorReason.String(), expectedCount: 1},
+		"for serverError":     {isNewErrorWithReason: true, reason: ServerErrorReason, reasonlabel: ServerErrorReason.String(), expectedCount: 1},
+		"for unexpected code": {isNewErrorWithReason: false, reason: DefaultReason, reasonlabel: DefaultReason.String(), expectedCount: 1},
+	}
+	for _, testData := range testcases {
+		retry := false
+		testData := testData
+		i := Integration{
+			name: "test",
+			notifier: notifierFunc(func(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+				if !testData.isNewErrorWithReason {
+					return retry, errors.New("fail to deliver notification")
+				}
+				return retry, NewErrorWithReason(testData.reason, errors.New("fail to deliver notification"))
+			}),
+			rs: sendResolved(false),
+		}
+		r := RetryStage{
+			integration: i,
+			metrics:     NewMetrics(prometheus.NewRegistry()),
+		}
+
+		alerts := []*types.Alert{
+			{
+				Alert: model.Alert{
+					EndsAt: time.Now().Add(time.Hour),
+				},
+			},
+		}
+
+		ctx := context.Background()
+		ctx = WithFiringAlerts(ctx, []uint64{0})
+
+		// Notify with a non-recoverable error.
+		resctx, _, err := r.Exec(ctx, log.NewNopLogger(), alerts...)
+		counter := r.metrics.numTotalFailedNotifications
+
+		require.Equal(t, testData.expectedCount, int(prom_testutil.ToFloat64(counter.WithLabelValues(r.integration.Name(), testData.reasonlabel))))
+
+		require.NotNil(t, err)
+		require.NotNil(t, resctx)
+	}
 }
 
 func TestRetryStageNoResolved(t *testing.T) {
