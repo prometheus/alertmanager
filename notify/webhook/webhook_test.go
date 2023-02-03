@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -115,4 +116,26 @@ func TestWebhookRedactedURL(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
+}
+
+func TestWebhookReadingURLFromFile(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	f, err := os.CreateTemp("", "webhook_url")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(u.String())
+	require.NoError(t, err, "writing to temp file failed")
+
+	notifier, err := New(
+		&config.WebhookConfig{
+			URLFile:    f.Name(),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
 }
