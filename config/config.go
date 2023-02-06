@@ -295,11 +295,11 @@ func (ti *TimeInterval) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *Route         `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []*InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Receivers    []*Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
-	Templates    []string       `yaml:"templates" json:"templates"`
+	Global       *GlobalConfig `yaml:"global,omitempty" json:"global,omitempty"`
+	Route        *Route        `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules []InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	Receivers    []Receiver    `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	Templates    []string      `yaml:"templates" json:"templates"`
 	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`

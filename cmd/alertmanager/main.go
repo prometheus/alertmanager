@@ -131,7 +131,7 @@ const defaultClusterAddr = "0.0.0.0:9094"
 
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
-func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
+func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
 	var (
 		errs         types.MultiError
 		integrations []notify.Integration
@@ -279,15 +279,14 @@ func run() int {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	notificationLogOpts := []nflog.Option{
-		nflog.WithRetention(*retention),
-		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
-		nflog.WithMaintenance(*maintenanceInterval, stopc, wg.Done, nil),
-		nflog.WithMetrics(prometheus.DefaultRegisterer),
-		nflog.WithLogger(log.With(logger, "component", "nflog")),
+	notificationLogOpts := nflog.Options{
+		SnapshotFile: filepath.Join(*dataDir, "nflog"),
+		Retention:    *retention,
+		Logger:       log.With(logger, "component", "nflog"),
+		Metrics:      prometheus.DefaultRegisterer,
 	}
 
-	notificationLog, err := nflog.New(notificationLogOpts...)
+	notificationLog, err := nflog.New(notificationLogOpts)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		return 1
@@ -296,6 +295,12 @@ func run() int {
 		c := peer.AddState("nfl", notificationLog, prometheus.DefaultRegisterer)
 		notificationLog.SetBroadcast(c.Broadcast)
 	}
+
+	wg.Add(1)
+	go func() {
+		notificationLog.Maintenance(*maintenanceInterval, filepath.Join(*dataDir, "nflog"), stopc, nil)
+		wg.Done()
+	}()
 
 	marker := types.NewMarker(prometheus.DefaultRegisterer)
 
@@ -554,31 +559,19 @@ func run() int {
 	}()
 
 	var (
-		hup      = make(chan os.Signal, 1)
-		hupReady = make(chan bool)
-		term     = make(chan os.Signal, 1)
+		hup  = make(chan os.Signal, 1)
+		term = make(chan os.Signal, 1)
 	)
 	signal.Notify(hup, syscall.SIGHUP)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
-	go func() {
-		<-hupReady
-		for {
-			select {
-			case <-hup:
-				// ignore error, already logged in `reload()`
-				_ = configCoordinator.Reload()
-			case errc := <-webReload:
-				errc <- configCoordinator.Reload()
-			}
-		}
-	}()
-
-	// Wait for reload or termination signals.
-	close(hupReady) // Unblock SIGHUP handler.
-
 	for {
 		select {
+		case <-hup:
+			// ignore error, already logged in `reload()`
+			_ = configCoordinator.Reload()
+		case errc := <-webReload:
+			errc <- configCoordinator.Reload()
 		case <-term:
 			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
 			return 0

@@ -69,6 +69,10 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		tmpl = notify.TmplText(n.tmpl, data, &err)
 	)
 
+	if n.conf.ParseMode == "HTML" {
+		tmpl = notify.TmplHTML(n.tmpl, data, &err)
+	}
+
 	key, ok := notify.GroupKey(ctx)
 	if !ok {
 		return false, fmt.Errorf("group key missing")

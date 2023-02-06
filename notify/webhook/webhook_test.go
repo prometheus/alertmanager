@@ -37,7 +37,7 @@ func TestWebhookRetry(t *testing.T) {
 	}
 	notifier, err := New(
 		&config.WebhookConfig{
-			URL:        &config.URL{URL: u},
+			URL:        &config.SecretURL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -97,4 +97,22 @@ func TestWebhookTruncateAlerts(t *testing.T) {
 	truncatedAlerts, numTruncated = truncateAlerts(100, alerts)
 	require.Len(t, truncatedAlerts, 10)
 	require.EqualValues(t, numTruncated, 0)
+}
+
+func TestWebhookRedactedURL(t *testing.T) {
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	secret := "secret"
+	notifier, err := New(
+		&config.WebhookConfig{
+			URL:        &config.SecretURL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
 }

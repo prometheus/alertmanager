@@ -80,7 +80,6 @@ func NewAcceptanceTest(t *testing.T, opts *AcceptanceOpts) *AcceptanceTest {
 		opts:    opts,
 		actions: map[float64][]func(){},
 	}
-	opts.baseTime = time.Now()
 
 	return test
 }
@@ -176,6 +175,10 @@ func (t *AcceptanceTest) Run() {
 			t.Logf("stderr:\n%v", am.cmd.Stderr)
 		}(am)
 	}
+
+	// Set the reference time right before running the test actions to avoid
+	// test failures due to slow setup of the test environment.
+	t.opts.baseTime = time.Now()
 
 	go t.runActions()
 
@@ -333,28 +336,28 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas []APIV1Alert
-	for i := range alerts {
-		a := alerts[i].nativeAlert(am.opts)
-		al := APIV1Alert{
-			Labels:       LabelSet{},
-			Annotations:  LabelSet{},
-			StartsAt:     a.StartsAt,
-			EndsAt:       a.EndsAt,
-			GeneratorURL: a.GeneratorURL,
-		}
-		for n, v := range a.Labels {
-			al.Labels[LabelName(n)] = LabelValue(v)
-		}
-		for n, v := range a.Annotations {
-			al.Annotations[LabelName(n)] = LabelValue(v)
-		}
-		cas = append(cas, al)
-	}
-
-	alertAPI := NewAlertAPI(am.client)
-
 	am.t.Do(at, func() {
+		var cas []APIV1Alert
+		for i := range alerts {
+			a := alerts[i].nativeAlert(am.opts)
+			al := APIV1Alert{
+				Labels:       LabelSet{},
+				Annotations:  LabelSet{},
+				StartsAt:     a.StartsAt,
+				EndsAt:       a.EndsAt,
+				GeneratorURL: a.GeneratorURL,
+			}
+			for n, v := range a.Labels {
+				al.Labels[LabelName(n)] = LabelValue(v)
+			}
+			for n, v := range a.Annotations {
+				al.Annotations[LabelName(n)] = LabelValue(v)
+			}
+			cas = append(cas, al)
+		}
+
+		alertAPI := NewAlertAPI(am.client)
+
 		if err := alertAPI.Push(context.Background(), cas...); err != nil {
 			am.t.Errorf("Error pushing %v: %s", cas, err)
 		}

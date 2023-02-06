@@ -473,7 +473,8 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL *URL `yaml:"url" json:"url"`
+	URL *SecretURL `yaml:"url" json:"url"`
+
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
 	// allows an unlimited number of alerts.
@@ -666,17 +667,19 @@ type PushoverConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	UserKey  Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
-	Token    Secret   `yaml:"token,omitempty" json:"token,omitempty"`
-	Title    string   `yaml:"title,omitempty" json:"title,omitempty"`
-	Message  string   `yaml:"message,omitempty" json:"message,omitempty"`
-	URL      string   `yaml:"url,omitempty" json:"url,omitempty"`
-	URLTitle string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
-	Sound    string   `yaml:"sound,omitempty" json:"sound,omitempty"`
-	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Retry    duration `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Expire   duration `yaml:"expire,omitempty" json:"expire,omitempty"`
-	HTML     bool     `yaml:"html" json:"html,omitempty"`
+	UserKey     Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
+	UserKeyFile string   `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
+	Token       Secret   `yaml:"token,omitempty" json:"token,omitempty"`
+	TokenFile   string   `yaml:"token_file,omitempty" json:"token_file,omitempty"`
+	Title       string   `yaml:"title,omitempty" json:"title,omitempty"`
+	Message     string   `yaml:"message,omitempty" json:"message,omitempty"`
+	URL         string   `yaml:"url,omitempty" json:"url,omitempty"`
+	URLTitle    string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
+	Sound       string   `yaml:"sound,omitempty" json:"sound,omitempty"`
+	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Expire      duration `yaml:"expire,omitempty" json:"expire,omitempty"`
+	HTML        bool     `yaml:"html" json:"html,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -686,11 +689,17 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.UserKey == "" {
-		return fmt.Errorf("missing user key in Pushover config")
+	if c.UserKey == "" && c.UserKeyFile == "" {
+		return fmt.Errorf("one of user_key or user_key_file must be configured")
 	}
-	if c.Token == "" {
-		return fmt.Errorf("missing token in Pushover config")
+	if c.UserKey != "" && c.UserKeyFile != "" {
+		return fmt.Errorf("at most one of user_key & user_key_file must be configured")
+	}
+	if c.Token == "" && c.TokenFile == "" {
+		return fmt.Errorf("one of token or token_file must be configured")
+	}
+	if c.Token != "" && c.TokenFile != "" {
+		return fmt.Errorf("at most one of token & token_file must be configured")
 	}
 	return nil
 }
