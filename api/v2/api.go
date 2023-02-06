@@ -136,7 +136,7 @@ func NewAPI(
 }
 
 var responseHeaders = map[string]string{
-	"Cache-Control": "no-cache, no-store, must-revalidate",
+	"Cache-Control": "no-store",
 }
 
 func setResponseHeaders(h http.Handler) http.Handler {
