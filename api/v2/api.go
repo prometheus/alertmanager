@@ -130,9 +130,22 @@ func NewAPI(
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
 
 	handleCORS := cors.Default().Handler
-	api.Handler = handleCORS(openAPI.Serve(nil))
+	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
 
 	return &api, nil
+}
+
+var responseHeaders = map[string]string{
+	"Cache-Control": "no-store",
+}
+
+func setResponseHeaders(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for h, v := range responseHeaders {
+			w.Header().Set(h, v)
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (api *API) requestLogger(req *http.Request) log.Logger {
