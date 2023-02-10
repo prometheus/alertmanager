@@ -1,0 +1,25 @@
+---
+name: Release
+on:  # yamllint disable-line rule:truthy
+  push:
+    tags:
+      - v*
+jobs:
+  ci:
+    name: Run ci
+    uses: ./.github/workflows/ci.yml
+
+  publish_release:
+    name: Publish release arfefacts
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - uses: actions/checkout@v3
+      - uses: prometheus/promci@v0.0.2
+      - uses: ./.github/promci/actions/publish_release
+        with:
+          docker_hub_login: ${{ secrets.docker_hub_login }}
+          docker_hub_password: ${{ secrets.docker_hub_password }}
+          quay_io_login: ${{ secrets.quay_io_login }}
+          quay_io_password: ${{ secrets.quay_io_password }}
+          github_token: ${{ secrets.PROMBOT_GITHUB_TOKEN }}
