@@ -226,6 +226,7 @@ func run() int {
 		peerReconnectTimeout   = kingpin.Flag("cluster.reconnect-timeout", "Length of time to attempt to reconnect to a lost peer.").Default(cluster.DefaultReconnectTimeout.String()).Duration()
 		tlsConfigFile          = kingpin.Flag("cluster.tls-config", "[EXPERIMENTAL] Path to config yaml file that can enable mutual TLS within the gossip protocol.").Default("").String()
 		allowInsecureAdvertise = kingpin.Flag("cluster.allow-insecure-public-advertise-address-discovery", "[EXPERIMENTAL] Allow alertmanager to discover and listen on a public IP address.").Bool()
+		gossipLabel            = kingpin.Flag("cluster.gossip-label", "[EXPERIMENTAL] Only accept gossip messages with this label.").Envar("ALERTMANAGER_CLUSTER_GOSSIP_LABEL").String()
 	)
 
 	promlogflag.AddFlags(kingpin.CommandLine, &promlogConfig)
@@ -267,6 +268,7 @@ func run() int {
 			*probeInterval,
 			tlsTransportConfig,
 			*allowInsecureAdvertise,
+			*gossipLabel,
 		)
 		if err != nil {
 			level.Error(logger).Log("msg", "unable to initialize gossip mesh", "err", err)

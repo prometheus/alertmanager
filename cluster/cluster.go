@@ -142,6 +142,7 @@ func Create(
 	probeInterval time.Duration,
 	tlsTransportConfig *TLSTransportConfig,
 	allowInsecureAdvertise bool,
+	gossipLabel string,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -242,6 +243,11 @@ func Create(
 		if err != nil {
 			return nil, errors.Wrap(err, "tls transport")
 		}
+	}
+
+	if gossipLabel != "" {
+		level.Info(l).Log("msg", fmt.Sprintf("using gossip label %s", gossipLabel))
+		cfg.Label = gossipLabel
 	}
 
 	ml, err := memberlist.Create(cfg)

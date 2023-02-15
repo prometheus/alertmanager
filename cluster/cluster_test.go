@@ -36,6 +36,7 @@ func TestClusterJoinAndReconnect(t *testing.T) {
 	t.Run("TestRemoveFailedPeers", testRemoveFailedPeers)
 	t.Run("TestInitiallyFailingPeers", testInitiallyFailingPeers)
 	t.Run("TestTLSConnection", testTLSConnection)
+	t.Run("TestLabelConnection", testLabelConnection)
 }
 
 func testJoinLeave(t *testing.T) {
@@ -54,6 +55,7 @@ func testJoinLeave(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -88,6 +90,7 @@ func testJoinLeave(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -123,6 +126,7 @@ func testReconnect(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -148,6 +152,7 @@ func testReconnect(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -188,6 +193,7 @@ func testRemoveFailedPeers(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -239,6 +245,7 @@ func testInitiallyFailingPeers(t *testing.T) {
 		DefaultProbeInterval,
 		nil,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -286,6 +293,7 @@ func testTLSConnection(t *testing.T) {
 		DefaultProbeInterval,
 		tlsTransportConfig1,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p1)
@@ -317,6 +325,7 @@ func testTLSConnection(t *testing.T) {
 		DefaultProbeInterval,
 		tlsTransportConfig2,
 		false,
+		"",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p2)
@@ -333,4 +342,98 @@ func testTLSConnection(t *testing.T) {
 	require.Equal(t, 1, len(p1.failedPeers))
 	require.Equal(t, p2.Self().Address(), p1.peers[p2.Self().Address()].Node.Address())
 	require.Equal(t, p2.Name(), p1.failedPeers[0].Name)
+}
+
+func testLabelConnection(t *testing.T) {
+	logger := log.NewNopLogger()
+	p1, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"cluster-label",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p1)
+	err = p1.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	require.False(t, p1.Ready())
+	require.Equal(t, p1.Status(), "settling")
+	go p1.Settle(context.Background(), 0*time.Second)
+	p1.WaitReady(context.Background())
+	require.Equal(t, p1.Status(), "ready")
+
+	// Create the peer who can successfully join the first.
+	require.NoError(t, err)
+	p2, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{p1.Self().Address()},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"cluster-label",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+	err = p2.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.NoError(t, err)
+	go p2.Settle(context.Background(), 0*time.Second)
+
+	// An unlabelled peer, which will wind up in an isolated cluster.
+	require.NoError(t, err)
+	p3, err := Create(
+		logger,
+		prometheus.NewRegistry(),
+		"127.0.0.1:0",
+		"",
+		[]string{p1.Self().Address(), p2.Self().Address()},
+		true,
+		DefaultPushPullInterval,
+		DefaultGossipInterval,
+		DefaultTCPTimeout,
+		DefaultProbeTimeout,
+		DefaultProbeInterval,
+		nil,
+		false,
+		"",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, p3)
+	err = p3.Join(
+		DefaultReconnectInterval,
+		DefaultReconnectTimeout,
+	)
+	require.ErrorContains(t, err, "Failed to join")
+	go p3.Settle(context.Background(), 0*time.Second)
+
+	// Peer 1 and 2 form a cluster
+	require.Equal(t, 2, p1.ClusterSize())
+	require.Equal(t, 2, p2.ClusterSize())
+
+	// Peer 3 is in its own cluster, blocked by not having a label
+	require.Equal(t, 1, p3.ClusterSize())
+	require.Equal(t, 2, len(p3.failedPeers))
 }
