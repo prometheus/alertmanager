@@ -146,6 +146,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 				test.CreateTmpl(t),
 				log.NewNopLogger(),
 			)
+			require.NoError(t, err)
 
 			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
 				resp := httptest.NewRecorder()
