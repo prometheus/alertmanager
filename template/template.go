@@ -46,7 +46,7 @@ type Template struct {
 type Option func(text *tmpltext.Template, html *tmplhtml.Template)
 
 // New returns a new Template with the DefaultFuncs added. The DefaultFuncs
-// have precedence over any added custom functions. Options allows customization
+// have precedence over any added custom functions. Options allow customization
 // of the text and html templates in given order.
 func New(options ...Option) (*Template, error) {
 	t := &Template{
