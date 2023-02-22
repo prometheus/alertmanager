@@ -31,6 +31,7 @@ type silenceQueryCmd struct {
 	expired   bool
 	quiet     bool
 	createdBy string
+	ID        string
 	matchers  []string
 	within    time.Duration
 }
@@ -86,6 +87,7 @@ func configureSilenceQueryCmd(cc *kingpin.CmdClause) {
 	queryCmd.Flag("expired", "Show expired silences instead of active").BoolVar(&c.expired)
 	queryCmd.Flag("quiet", "Only show silence ids").Short('q').BoolVar(&c.quiet)
 	queryCmd.Flag("created-by", "Show silences that belong to this creator").StringVar(&c.createdBy)
+	queryCmd.Flag("id", "Get a single silence by its ID").StringVar(&c.ID)
 	queryCmd.Arg("matcher-groups", "Query filter").StringsVar(&c.matchers)
 	queryCmd.Flag("within", "Show silences that will expire or have expired within a duration").DurationVar(&c.within)
 	queryCmd.Action(execWithTimeout(c.query))
@@ -131,6 +133,10 @@ func (c *silenceQueryCmd) query(ctx context.Context, _ *kingpin.ParseContext) er
 		}
 		// Skip silences if the author doesn't match.
 		if c.createdBy != "" && *silence.CreatedBy != c.createdBy {
+			continue
+		}
+		// Skip silences if the ID doesn't match.
+		if c.ID != "" && c.ID != *silence.ID {
 			continue
 		}
 
