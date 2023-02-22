@@ -187,6 +187,19 @@ func (ps Pairs) Values() []string {
 	return vs
 }
 
+func (ps Pairs) String() string {
+	b := strings.Builder{}
+	for i, p := range ps {
+		b.WriteString(p.Name)
+		b.WriteRune('=')
+		b.WriteString(p.Value)
+		if i < len(ps)-1 {
+			b.WriteString(", ")
+		}
+	}
+	return b.String()
+}
+
 // KV is a set of key/value string pairs.
 type KV map[string]string
 
@@ -237,6 +250,10 @@ func (kv KV) Names() []string {
 // Values returns a list of the values in the LabelSet.
 func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
+}
+
+func (kv KV) String() string {
+	return kv.SortedPairs().String()
 }
 
 // Data is the data passed to notification templates and webhook pushes.
