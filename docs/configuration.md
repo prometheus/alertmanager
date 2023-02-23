@@ -194,8 +194,8 @@ matchers:
 
 # How long to wait before sending a notification again if it has already
 # been sent successfully for an alert. (Usually ~3h or more).
-# Note that this parameter is implicitly bound by AlertManager's data
-# retention configuration. Notifications will be resent after either
+# Note that this parameter is implicitly bound by Alertmanager's
+# `--data.retention` configuration flag. Notifications will be resent after either
 # repeat_interval or the data retention period have passed, whichever
 # occurs first.
 [ repeat_interval: <duration> | default = 4h ]
