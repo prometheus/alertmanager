@@ -48,6 +48,13 @@ func TestPairValues(t *testing.T) {
 	require.EqualValues(t, expected, pairs.Values())
 }
 
+func TestPairsString(t *testing.T) {
+	pairs := Pairs{{"name1", "value1"}}
+	require.Equal(t, "name1=value1", pairs.String())
+	pairs = append(pairs, Pair{"name2", "value2"})
+	require.Equal(t, "name1=value1, name2=value2", pairs.String())
+}
+
 func TestKVSortedPairs(t *testing.T) {
 	kv := KV{"d": "dVal", "b": "bVal", "c": "cVal"}
 

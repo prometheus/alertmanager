@@ -45,10 +45,10 @@ type Template struct {
 // Option is generic modifier of the text and html templates used by a Template.
 type Option func(text *tmpltext.Template, html *tmplhtml.Template)
 
-// FromGlobs calls ParseGlob on all path globs provided and returns the
-// resulting Template. Options allows customization of the text and html templates in given order.
-// The DefaultFuncs have precedence over any added custom functions.
-func FromGlobs(paths []string, options ...Option) (*Template, error) {
+// New returns a new Template with the DefaultFuncs added. The DefaultFuncs
+// have precedence over any added custom functions. Options allow customization
+// of the text and html templates in given order.
+func New(options ...Option) (*Template, error) {
 	t := &Template{
 		text: tmpltext.New("").Option("missingkey=zero"),
 		html: tmplhtml.New("").Option("missingkey=zero"),
@@ -61,6 +61,17 @@ func FromGlobs(paths []string, options ...Option) (*Template, error) {
 	t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
 	t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
 
+	return t, nil
+}
+
+// FromGlobs calls ParseGlob on all path globs provided and returns the
+// resulting Template.
+func FromGlobs(paths []string, options ...Option) (*Template, error) {
+	t, err := New(options...)
+	if err != nil {
+		return nil, err
+	}
+
 	defaultTemplates := []string{"default.tmpl", "email.tmpl"}
 
 	for _, file := range defaultTemplates {
@@ -68,37 +79,54 @@ func FromGlobs(paths []string, options ...Option) (*Template, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
-		b, err := io.ReadAll(f)
-		if err != nil {
+		if err := t.Parse(f); err != nil {
+			f.Close()
 			return nil, err
 		}
-		if t.text, err = t.text.Parse(string(b)); err != nil {
-			return nil, err
-		}
-		if t.html, err = t.html.Parse(string(b)); err != nil {
-			return nil, err
-		}
-
+		f.Close()
 	}
 
 	for _, tp := range paths {
-		// ParseGlob in the template packages errors if not at least one file is
-		// matched. We want to allow empty matches that may be populated later on.
-		p, err := filepath.Glob(tp)
-		if err != nil {
+		if err := t.FromGlob(tp); err != nil {
 			return nil, err
-		}
-		if len(p) > 0 {
-			if t.text, err = t.text.ParseGlob(tp); err != nil {
-				return nil, err
-			}
-			if t.html, err = t.html.ParseGlob(tp); err != nil {
-				return nil, err
-			}
 		}
 	}
 	return t, nil
+}
+
+// Parse parses the given text into the template.
+func (t *Template) Parse(r io.Reader) error {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	if t.text, err = t.text.Parse(string(b)); err != nil {
+		return err
+	}
+	if t.html, err = t.html.Parse(string(b)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// FromGlob calls ParseGlob on given path glob provided and parses into the
+// template.
+func (t *Template) FromGlob(path string) error {
+	// ParseGlob in the template packages errors if not at least one file is
+	// matched. We want to allow empty matches that may be populated later on.
+	p, err := filepath.Glob(path)
+	if err != nil {
+		return err
+	}
+	if len(p) > 0 {
+		if t.text, err = t.text.ParseGlob(path); err != nil {
+			return err
+		}
+		if t.html, err = t.html.ParseGlob(path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ExecuteTextString needs a meaningful doc comment (TODO(fabxc)).
@@ -187,6 +215,19 @@ func (ps Pairs) Values() []string {
 	return vs
 }
 
+func (ps Pairs) String() string {
+	b := strings.Builder{}
+	for i, p := range ps {
+		b.WriteString(p.Name)
+		b.WriteRune('=')
+		b.WriteString(p.Value)
+		if i < len(ps)-1 {
+			b.WriteString(", ")
+		}
+	}
+	return b.String()
+}
+
 // KV is a set of key/value string pairs.
 type KV map[string]string
 
@@ -237,6 +278,10 @@ func (kv KV) Names() []string {
 // Values returns a list of the values in the LabelSet.
 func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
+}
+
+func (kv KV) String() string {
+	return kv.SortedPairs().String()
 }
 
 // Data is the data passed to notification templates and webhook pushes.
