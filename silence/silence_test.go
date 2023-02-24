@@ -19,6 +19,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
@@ -209,26 +211,32 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
 	stopc := make(chan struct{})
 
-	called := make(chan struct{}, 5)
+	var calls atomic.Int32
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
-		s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-			called <- struct{}{}
+		defer wg.Done()
+		s.Maintenance(10*time.Second, f.Name(), stopc, func() (int64, error) {
+			calls.Add(1)
 			return 0, nil
 		})
-		close(called)
 	}()
-	runtime.Gosched()
+	gosched()
 
-	clock.Add(100 * time.Millisecond)
+	// Before the first tick, no maintenance executed.
+	clock.Add(9 * time.Second)
+	require.EqualValues(t, 0, calls.Load())
+
+	// Tick once.
+	clock.Add(1 * time.Second)
+	require.EqualValues(t, 1, calls.Load())
 
 	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
-	calls := 0
-	for range called {
-		calls++
-	}
+	wg.Wait()
 
-	require.EqualValues(t, 2, calls)
+	require.EqualValues(t, 2, calls.Load())
 }
 
 func TestSilencesSetSilence(t *testing.T) {
@@ -1481,4 +1489,10 @@ func Benchmark1000SilencesQuery(b *testing.B) {
 
 func Benchmark10000SilencesQuery(b *testing.B) {
 	benchmarkSilencesQuery(b, 10000)
+}
+
+// runtime.Gosched() does not "suspend" the current goroutine so there's no guarantee that the main goroutine won't
+// be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
+func gosched() {
+	time.Sleep(1 * time.Millisecond)
 }
