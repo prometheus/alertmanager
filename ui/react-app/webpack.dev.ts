@@ -68,7 +68,7 @@ const devConfig: Configuration = {
     historyApiFallback: true,
     allowedHosts: 'all',
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': 'http://localhost:9093',
     },
   },
   cache: true,

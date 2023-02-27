@@ -1,5 +1,9 @@
-import { Box } from '@mui/material';
+import { Box, styled } from '@mui/material';
 import Navbar from './components/navbar';
+import Router from './Router';
+
+// Based on the MUI doc: https://mui.com/material-ui/react-app-bar/#fixed-placement
+const Offset = styled('div')(({ theme }) => theme.mixins.toolbar);
 
 function App() {
   return (
@@ -7,16 +11,16 @@ function App() {
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100vh',
       }}
     >
       <Navbar />
+      <Offset />
       <Box
         sx={{
-          paddingBottom: (theme) => theme.spacing(1),
           flex: 1,
         }}
       >
+        <Router />
       </Box>
     </Box>
   );
