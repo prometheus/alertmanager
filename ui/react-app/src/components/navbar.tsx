@@ -13,7 +13,7 @@ export default function Navbar(): JSX.Element {
         <Box sx={{ display: 'flex', flexDirection: 'row' }} flexGrow={1}>
           <Button
             onClick={() => {
-              navigate('/');
+              navigate('/react-app');
             }}
           >
             <Typography
@@ -31,7 +31,7 @@ export default function Navbar(): JSX.Element {
           <Button
             variant="text"
             onClick={() => {
-              navigate('/status');
+              navigate('/react-app/status');
             }}
           >
             Status

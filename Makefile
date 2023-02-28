@@ -26,6 +26,18 @@ STATICCHECK_IGNORE =
 # Will build both the front-end as well as the back-end
 build-all: assets apiv2 build
 
+.PHONY: build
+build: build-react-app assets-compress common-build
+
+.PHONY: build-react-app
+build-react-app:
+	cd ui/react-app && npm install && npm run build
+
+.PHONY: assets-compress
+assets-compress:
+	@echo '>> compressing assets'
+	scripts/compress_assets.sh
+
 .PHONY: assets
 assets: asset/assets_vfsdata.go
 

@@ -8,7 +8,7 @@ function Router() {
   return (
     <Suspense>
       <Routes>
-        <Route path="/status" element={<ViewStatus />} />
+        <Route path="/react-app/status" element={<ViewStatus />} />
       </Routes>
     </Suspense>
   );

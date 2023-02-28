@@ -15,8 +15,13 @@ import { Configuration } from 'webpack';
 import { merge } from 'webpack-merge';
 import { ESBuildMinifyPlugin } from 'esbuild-loader';
 import { commonConfig } from './webpack.common';
+import path from 'path';
 
 const prodConfig: Configuration = {
+  output: {
+    path: path.resolve(__dirname, './dist'),
+    publicPath: '/react-app/',
+  },
   mode: 'production',
   bail: true,
   devtool: 'source-map',
