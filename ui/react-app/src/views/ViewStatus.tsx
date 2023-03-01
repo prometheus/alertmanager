@@ -1,6 +1,8 @@
 import {
   Chip,
   Container,
+  List,
+  ListItem,
   SxProps,
   Table,
   TableCell,
@@ -63,6 +65,26 @@ export default function ViewStatus() {
           </TableCell>
           <TableCell>
             <Chip color={data.cluster.status === 'ready' ? 'success' : 'error'} label={data.cluster.status} />
+          </TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell variant="head" sx={tableHeaderStyle}>
+            Peers
+          </TableCell>
+          <TableCell>
+            <List>
+              {data.cluster.peers.map((peer, i) => {
+                return (
+                  <ListItem disablePadding sx={{ display: 'list-item' }} key={i}>
+                    <p>
+                      Name: {peer.name}
+                      <br />
+                      Address: {peer.address}
+                    </p>
+                  </ListItem>
+                );
+              })}
+            </List>
           </TableCell>
         </TableRow>
       </Table>
