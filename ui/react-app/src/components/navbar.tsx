@@ -7,7 +7,7 @@ export default function Navbar(): JSX.Element {
     <AppBar position={'fixed'} elevation={1}>
       <Toolbar
         sx={{
-          backgroundColor: 'lightgrey',
+          backgroundColor: 'aliceblue',
         }}
       >
         <Box sx={{ display: 'flex', flexDirection: 'row' }} flexGrow={1}>

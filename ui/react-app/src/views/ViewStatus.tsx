@@ -50,12 +50,12 @@ export default function ViewStatus() {
     <Container maxWidth="md">
       <Typography variant="h4">Status</Typography>
       <TableContainer>
-        <Table sx={tableStyle}>
+        <Table size="small" sx={tableStyle}>
           <CustomTableCell header="Uptime" content={data.uptime} />
         </Table>
       </TableContainer>
       <Typography variant="h4">Cluster Status</Typography>
-      <Table sx={tableStyle}>
+      <Table size="small" sx={tableStyle}>
         <CustomTableCell header="Name" content={data.cluster.name} />
         <TableRow>
           <TableCell variant="head" sx={tableHeaderStyle}>
@@ -68,7 +68,7 @@ export default function ViewStatus() {
       </Table>
       <Typography variant="h4">Version Information</Typography>
       <TableContainer>
-        <Table sx={tableStyle}>
+        <Table size="small" sx={tableStyle}>
           <CustomTableCell header="Branch" content={data.versionInfo.branch} />
           <CustomTableCell header="Build Date" content={data.versionInfo.buildDate} />
           <CustomTableCell header="Build User" content={data.versionInfo.buildUser} />
