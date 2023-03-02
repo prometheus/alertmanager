@@ -1,8 +1,9 @@
 import { AppBar, Box, Button, Stack, Toolbar, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function Navbar(): JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <AppBar position={'fixed'} elevation={1}>
       <Toolbar
@@ -33,9 +34,11 @@ export default function Navbar(): JSX.Element {
             onClick={() => {
               navigate('/react-app/status');
             }}
+            disabled={location.pathname === '/react-app/status'}
           >
             Status
           </Button>
+          <Button variant="text">Settings</Button>
           <Button variant="text" target="_blank" href="https://prometheus.io/docs/alerting/latest/alertmanager/">
             Help
           </Button>
