@@ -38,7 +38,7 @@ require (
 	github.com/stretchr/testify v1.8.2
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.10.0
-	golang.org/x/mod v0.7.0
+	golang.org/x/mod v0.8.0
 	golang.org/x/net v0.5.0
 	golang.org/x/text v0.7.0
 	golang.org/x/tools v0.4.0
