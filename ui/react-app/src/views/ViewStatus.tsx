@@ -45,7 +45,7 @@ function CustomTableCell(props: tableCellProperties) {
 export default function ViewStatus() {
   const { data } = useAMStatus();
   if (data === undefined || data === null) {
-    return <></>;
+    return null;
   }
 
   return (

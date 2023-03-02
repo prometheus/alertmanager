@@ -1,4 +1,4 @@
-const apiPrefix = '/api/v2';
+const API_PREFIX = '/api/v2';
 
 export type URLParams = {
   resource: string;
@@ -6,12 +6,10 @@ export type URLParams = {
   apiPrefix?: string;
 };
 
-export default function buildURL(params: URLParams): string {
-  let url = params.apiPrefix === undefined ? apiPrefix : params.apiPrefix;
-  url = `${url}/${params.resource}`;
-
-  if (params.queryParams !== undefined) {
-    url = `${url}?${params.queryParams.toString()}`;
+export default function buildURL({ apiPrefix = API_PREFIX, resource, queryParams }: URLParams): string {
+  let url = `${apiPrefix}/${resource}`;
+  if (queryParams !== undefined) {
+    url = `${url}?${queryParams.toString()}`;
   }
   return url;
 }
