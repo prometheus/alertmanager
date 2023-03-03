@@ -862,7 +862,7 @@ Pushover notifications are sent via the [Pushover API](https://pushover.net/api)
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The recipient user's key. 
+# The recipient user's key.
 # user_key and user_key_file are mutually exclusive.
 user_key: <secret>
 user_key_file: <filepath>
@@ -1116,7 +1116,9 @@ The webhook receiver allows configuring a generic receiver.
 [ send_resolved: <boolean> | default = true ]
 
 # The endpoint to send HTTP POST requests to.
+# url and url_file are mutually exclusive.
 url: <secret>
+url_file: <filepath>
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]

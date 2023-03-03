@@ -228,7 +228,25 @@ func TestWebhookURLIsPresent(t *testing.T) {
 	var cfg WebhookConfig
 	err := yaml.UnmarshalStrict([]byte(in), &cfg)
 
-	expected := "missing URL in webhook config"
+	expected := "one of url or url_file must be configured"
+
+	if err == nil {
+		t.Fatalf("no error returned, expected:\n%v", expected)
+	}
+	if err.Error() != expected {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, err.Error())
+	}
+}
+
+func TestWebhookURLOrURLFile(t *testing.T) {
+	in := `
+url: 'http://example.com'
+url_file: 'http://example.com'
+`
+	var cfg WebhookConfig
+	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+
+	expected := "at most one of url & url_file must be configured"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)
