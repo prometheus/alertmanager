@@ -164,6 +164,14 @@ var (
 		Message:              `{{ template "telegram.default.message" . }}`,
 		ParseMode:            "HTML",
 	}
+
+	DefaultDingtalkConfig = DingtalkConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title: `{{ template "dingtalk.default.title" . }}`,
+		Text:  `{{ template "dingtalk.default.text" . }}`,
+	}
 )
 
 // NotifierConfig contains base options common across all notifier configurations.
@@ -765,5 +773,30 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		c.ParseMode != "HTML" {
 		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
 	}
+	return nil
+}
+
+// DingtalkConfig configures notifications via Dingtalk.
+type DingtalkConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	AccessToken    string   `yaml:"access_token" json:"access_token"`
+	Secret         string   `yaml:"secret,omitempty" json:"secret,omitempty"`
+	AtMobiles      []string `yaml:"at_mobiles,omitempty" json:"at_mobiles,omitempty"`
+	IsAtAll        bool     `yaml:"is_at_all,omitempty" json:"is_at_all,omitempty"`
+	Title          string   `yaml:"title" json:"title"`
+	Text           string   `yaml:"text" json:"text"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *DingtalkConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultDingtalkConfig
+	type plain DingtalkConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.AccessToken == "" {
+		return fmt.Errorf("missing bot_token on telegram_config")
+	}
+
 	return nil
 }
