@@ -2,7 +2,7 @@ module Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlB
 
 import Data.GettableAlert exposing (GettableAlert)
 import Html exposing (Html, a, button, i, span, td, text, th, tr)
-import Html.Attributes exposing (class, href)
+import Html.Attributes exposing (class, href, target)
 import Html.Events exposing (onClick)
 import Utils.Date exposing (dateTimeFormat)
 import Utils.Views exposing (linkifyText)
@@ -46,7 +46,7 @@ titleView alert =
 generatorUrlButton : String -> Html msg
 generatorUrlButton url =
     a
-        [ class "btn btn-outline-info border-0", href url ]
+        [ class "btn btn-outline-info border-0", href url, target "_blank" ]
         [ i [ class "fa fa-line-chart mr-2" ] []
         , text "Source"
         ]
