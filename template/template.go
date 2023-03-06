@@ -172,7 +172,7 @@ var DefaultFuncs = FuncMap{
 	"toLower":   strings.ToLower,
 	"trimSpace": strings.TrimSpace,
 
-	"title":   cases.Title(language.AmericanEnglish).String,
+	"title": cases.Title(language.AmericanEnglish).String,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
 	"join": func(sep string, s []string) string {
