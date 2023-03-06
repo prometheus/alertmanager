@@ -168,8 +168,10 @@ func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, err
 type FuncMap map[string]interface{}
 
 var DefaultFuncs = FuncMap{
-	"toUpper": strings.ToUpper,
-	"toLower": strings.ToLower,
+	"toUpper":   strings.ToUpper,
+	"toLower":   strings.ToLower,
+	"trimSpace": strings.TrimSpace,
+
 	"title":   cases.Title(language.AmericanEnglish).String,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
