@@ -49,6 +49,7 @@ import (
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/dingtalk"
 	"github.com/prometheus/alertmanager/notify/discord"
 	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
@@ -180,6 +181,9 @@ func buildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.WebexConfigs {
 		add("webex", i, c, func(l log.Logger) (notify.Notifier, error) { return webex.New(c, tmpl, l) })
+	}
+	for i, c := range nc.DingtalkConfigs {
+		add("dingtalk", i, c, func(l log.Logger) (notify.Notifier, error) { return dingtalk.New(c, tmpl, l) })
 	}
 
 	if errs.Len() > 0 {
