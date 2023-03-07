@@ -168,11 +168,14 @@ func (t *Template) ExecuteHTMLString(html string, data interface{}) (string, err
 type FuncMap map[string]interface{}
 
 var DefaultFuncs = FuncMap{
-	"toUpper":   strings.ToUpper,
-	"toLower":   strings.ToLower,
+	"toUpper": strings.ToUpper,
+	"toLower": strings.ToLower,
+	"title": func(text string) string {
+		// casers should not be shared between goroutines, instead
+		// create a new caser each time this function is called
+		return cases.Title(language.AmericanEnglish).String(text)
+	},
 	"trimSpace": strings.TrimSpace,
-
-	"title": cases.Title(language.AmericanEnglish).String,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
 	"join": func(sep string, s []string) string {
