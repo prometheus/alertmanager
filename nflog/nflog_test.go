@@ -22,14 +22,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"go.uber.org/atomic"
-
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 
 	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestLogGC(t *testing.T) {
@@ -157,7 +156,6 @@ func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 			calls.Add(1)
 			return 0, nil
 		})
-
 	}()
 	gosched()
 
