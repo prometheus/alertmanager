@@ -171,8 +171,8 @@ var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
 	"toLower": strings.ToLower,
 	"title": func(text string) string {
-		// casers should not be shared between goroutines, instead
-		// create a new caser each time this function is called
+		// Casers should not be shared between goroutines, instead
+		// create a new caser each time this function is called.
 		return cases.Title(language.AmericanEnglish).String(text)
 	},
 	"trimSpace": strings.TrimSpace,
