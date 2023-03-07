@@ -15,13 +15,13 @@ package dingtalk
 
 import (
 	"context"
-	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
-	"github.com/prometheus/alertmanager/notify"
 
 	"github.com/CatchZeng/dingtalk/pkg/dingtalk"
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
