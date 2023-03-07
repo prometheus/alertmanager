@@ -215,6 +215,8 @@ type metrics struct {
 	silencesPending         prometheus.GaugeFunc
 	silencesExpired         prometheus.GaugeFunc
 	propagatedMessagesTotal prometheus.Counter
+	maintenanceTotal        prometheus.Counter
+	maintenanceErrorsTotal  prometheus.Counter
 }
 
 func newSilenceMetricByState(s *Silences, st types.SilenceState) prometheus.GaugeFunc {
@@ -251,6 +253,14 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 		Name: "alertmanager_silences_snapshot_size_bytes",
 		Help: "Size of the last silence snapshot in bytes.",
 	})
+	m.maintenanceTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_maintenance_total",
+		Help: "How many maintenances were executed for silences.",
+	})
+	m.maintenanceErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "alertmanager_silences_maintenance_errors_total",
+		Help: "How many maintenances were executed for silences that failed.",
+	})
 	m.queriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "alertmanager_silences_queries_total",
 		Help: "How many silence queries were received.",
@@ -285,6 +295,8 @@ func newMetrics(r prometheus.Registerer, s *Silences) *metrics {
 			m.silencesPending,
 			m.silencesExpired,
 			m.propagatedMessagesTotal,
+			m.maintenanceTotal,
+			m.maintenanceErrorsTotal,
 		)
 	}
 	return m
@@ -395,12 +407,17 @@ func (s *Silences) Maintenance(interval time.Duration, snapf string, stopc <-cha
 	}
 
 	runMaintenance := func(do MaintenanceFunc) error {
-		start := s.nowUTC()
+		s.metrics.maintenanceTotal.Inc()
 		level.Debug(s.logger).Log("msg", "Running maintenance")
+		start := s.nowUTC()
 		size, err := do()
-		level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.clock.Since(start), "size", size)
 		s.metrics.snapshotSize.Set(float64(size))
-		return err
+		if err != nil {
+			s.metrics.maintenanceErrorsTotal.Inc()
+			return err
+		}
+		level.Debug(s.logger).Log("msg", "Maintenance done", "duration", s.clock.Since(start), "size", size)
+		return nil
 	}
 
 Loop:
@@ -419,7 +436,9 @@ Loop:
 	if snapf == "" {
 		return
 	}
+	s.metrics.maintenanceTotal.Inc()
 	if err := runMaintenance(doMaintenance); err != nil {
+		s.metrics.maintenanceErrorsTotal.Inc()
 		level.Info(s.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
