@@ -18,10 +18,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"go.uber.org/atomic"
 
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
 
@@ -133,35 +135,54 @@ func TestLogSnapshot(t *testing.T) {
 func TestWithMaintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
-
 	stopc := make(chan struct{})
-	var mtx sync.Mutex
-	var mc int
+	reg := prometheus.NewPedanticRegistry()
 	opts := Options{
-		Metrics:      prometheus.NewPedanticRegistry(),
+		Metrics:      reg,
 		SnapshotFile: f.Name(),
 	}
 
 	l, err := New(opts)
-	mockClock := clock.NewMock()
-	l.clock = mockClock
+	clock := clock.NewMock()
+	l.clock = clock
 	require.NoError(t, err)
 
-	go l.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-		mtx.Lock()
-		mc++
-		mtx.Unlock()
+	var calls atomic.Int32
+	var wg sync.WaitGroup
 
-		return 0, nil
-	})
-	runtime.Gosched() // ensure that the ticker is running.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
+			calls.Add(1)
+			return 0, nil
+		})
 
-	mockClock.Add(200 * time.Millisecond)
+	}()
+	gosched()
+
+	// Before the first tick, no maintenance executed.
+	clock.Add(99 * time.Millisecond)
+	require.EqualValues(t, 0, calls.Load())
+
+	// Tick once.
+	clock.Add(1 * time.Millisecond)
+	require.EqualValues(t, 1, calls.Load())
+
+	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
+	wg.Wait()
 
-	mtx.Lock()
-	defer mtx.Unlock()
-	require.Equal(t, 2, mc)
+	require.EqualValues(t, 2, calls.Load())
+	// Check the maintenance metrics.
+	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+# HELP alertmanager_nflog_maintenance_errors_total How many maintenances were executed for the notification log that failed.
+# TYPE alertmanager_nflog_maintenance_errors_total counter
+alertmanager_nflog_maintenance_errors_total 0
+# HELP alertmanager_nflog_maintenance_total How many maintenances were executed for the notification log.
+# TYPE alertmanager_nflog_maintenance_total counter
+alertmanager_nflog_maintenance_total 2
+`), "alertmanager_nflog_maintenance_total", "alertmanager_nflog_maintenance_errors_total"))
 }
 
 func TestReplaceFile(t *testing.T) {
@@ -355,4 +376,10 @@ func TestStateDecodingError(t *testing.T) {
 
 	_, err = decodeState(bytes.NewReader(msg))
 	require.Equal(t, ErrInvalidState, err)
+}
+
+// runtime.Gosched() does not "suspend" the current goroutine so there's no guarantee that the main goroutine won't
+// be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
+func gosched() {
+	time.Sleep(1 * time.Millisecond)
 }
