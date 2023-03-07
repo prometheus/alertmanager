@@ -329,6 +329,11 @@ func TestTemplateExpansion(t *testing.T) {
 			exp:   "Abc",
 		},
 		{
+			title: "Template using TrimSpace",
+			in:    `{{ " a b c " | trimSpace }}`,
+			exp:   "a b c",
+		},
+		{
 			title: "Template using positive match",
 			in:    `{{ if match "^a" "abc"}}abc{{ end }}`,
 			exp:   "abc",
