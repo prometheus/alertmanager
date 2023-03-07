@@ -436,9 +436,7 @@ Loop:
 	if snapf == "" {
 		return
 	}
-	s.metrics.maintenanceTotal.Inc()
 	if err := runMaintenance(doMaintenance); err != nil {
-		s.metrics.maintenanceErrorsTotal.Inc()
 		level.Info(s.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
