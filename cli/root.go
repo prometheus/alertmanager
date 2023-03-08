@@ -20,11 +20,11 @@ import (
 	"path"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
-	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"

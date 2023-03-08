@@ -21,8 +21,8 @@ import (
 	"os"
 	"path"
 
+	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/model"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/general"
 	"github.com/prometheus/alertmanager/api/v2/models"

@@ -3,6 +3,7 @@ module github.com/prometheus/alertmanager
 go 1.18
 
 require (
+	github.com/alecthomas/kingpin/v2 v2.3.2
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aws/aws-sdk-go v1.44.211
 	github.com/benbjohnson/clock v1.3.0
@@ -29,9 +30,9 @@ require (
 	github.com/oklog/ulid v1.3.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.14.0
-	github.com/prometheus/common v0.39.0
+	github.com/prometheus/common v0.42.0
 	github.com/prometheus/common/sigv4 v0.1.0
-	github.com/prometheus/exporter-toolkit v0.8.2
+	github.com/prometheus/exporter-toolkit v0.9.1
 	github.com/rs/cors v1.8.3
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
@@ -39,20 +40,18 @@ require (
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.10.0
 	golang.org/x/mod v0.8.0
-	golang.org/x/net v0.6.0
-	golang.org/x/text v0.7.0
+	golang.org/x/net v0.8.0
+	golang.org/x/text v0.8.0
 	golang.org/x/tools v0.6.0
-	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/telebot.v3 v3.1.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/coreos/go-systemd/v22 v22.4.0 // indirect
+	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
@@ -78,15 +77,16 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
-	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
+	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.mongodb.org/mongo-driver v1.11.0 // indirect
 	go.opentelemetry.io/otel v1.11.1 // indirect
 	go.opentelemetry.io/otel/trace v1.11.1 // indirect
-	golang.org/x/crypto v0.1.0 // indirect
-	golang.org/x/oauth2 v0.3.0 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/oauth2 v0.6.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
