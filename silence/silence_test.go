@@ -27,6 +27,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -208,7 +209,9 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := clock.NewMock()
-	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
+	reg := prometheus.NewRegistry()
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock}
+	s.metrics = newMetrics(reg, s)
 	stopc := make(chan struct{})
 
 	var calls atomic.Int32
@@ -237,6 +240,16 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	wg.Wait()
 
 	require.EqualValues(t, 2, calls.Load())
+
+	// Check the maintenance metrics.
+	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+# HELP alertmanager_silences_maintenance_errors_total How many maintenances were executed for silences that failed.
+# TYPE alertmanager_silences_maintenance_errors_total counter
+alertmanager_silences_maintenance_errors_total 0
+# HELP alertmanager_silences_maintenance_total How many maintenances were executed for silences.
+# TYPE alertmanager_silences_maintenance_total counter
+alertmanager_silences_maintenance_total 2
+`), "alertmanager_silences_maintenance_total", "alertmanager_silences_maintenance_errors_total"))
 }
 
 func TestSilencesSetSilence(t *testing.T) {
