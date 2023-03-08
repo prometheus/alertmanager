@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/hashicorp/memberlist"
@@ -57,6 +58,7 @@ type ClusterChannel interface {
 
 // Peer is a single peer in a gossip cluster.
 type Peer struct {
+	clock    clock.Clock
 	mlist    *memberlist.Memberlist
 	delegate *delegate
 
@@ -194,6 +196,7 @@ func Create(
 	}
 
 	p := &Peer{
+		clock:         clock.New(),
 		states:        map[string]State{},
 		stopc:         make(chan struct{}),
 		readyc:        make(chan struct{}),
@@ -394,7 +397,7 @@ func (p *Peer) register(reg prometheus.Registerer, name string) {
 }
 
 func (p *Peer) runPeriodicTask(d time.Duration, f func()) {
-	tick := time.NewTicker(d)
+	tick := p.clock.Ticker(d)
 	defer tick.Stop()
 
 	for {
@@ -679,20 +682,20 @@ func (p *Peer) Position() int {
 func (p *Peer) Settle(ctx context.Context, interval time.Duration) {
 	const NumOkayRequired = 3
 	level.Info(p.logger).Log("msg", "Waiting for gossip to settle...", "interval", interval)
-	start := time.Now()
+	start := p.clock.Now()
 	nPeers := 0
 	nOkay := 0
 	totalPolls := 0
 	for {
 		select {
 		case <-ctx.Done():
-			elapsed := time.Since(start)
+			elapsed := p.clock.Since(start)
 			level.Info(p.logger).Log("msg", "gossip not settled but continuing anyway", "polls", totalPolls, "elapsed", elapsed)
 			close(p.readyc)
 			return
-		case <-time.After(interval):
+		case <-p.clock.After(interval):
 		}
-		elapsed := time.Since(start)
+		elapsed := p.clock.Since(start)
 		n := len(p.Peers())
 		if nOkay >= NumOkayRequired {
 			level.Info(p.logger).Log("msg", "gossip settled; proceeding", "elapsed", elapsed)

@@ -15,9 +15,11 @@ package cluster
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/stretchr/testify/require"
@@ -57,10 +59,13 @@ func testJoinLeave(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, p)
+	c1 := clock.NewMock()
+	p.clock = c1
 	err = p.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
 	)
+	c1.Add(1 * time.Minute)
 	require.NoError(t, err)
 	require.False(t, p.Ready())
 	{
@@ -69,7 +74,17 @@ func testJoinLeave(t *testing.T) {
 		require.Equal(t, context.Canceled, p.WaitReady(ctx))
 	}
 	require.Equal(t, p.Status(), "settling")
-	go p.Settle(context.Background(), 0*time.Second)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		p.Settle(context.Background(), 1*time.Second)
+	}()
+	time.Sleep(1 * time.Millisecond)
+	c1.Add(10 * time.Second)
+	wg.Wait()
+
 	require.NoError(t, p.WaitReady(context.Background()))
 	require.Equal(t, p.Status(), "ready")
 
@@ -89,14 +104,27 @@ func testJoinLeave(t *testing.T) {
 		nil,
 		false,
 	)
+	c2 := clock.NewMock()
+	p2.clock = c2
 	require.NoError(t, err)
 	require.NotNil(t, p2)
 	err = p2.Join(
 		DefaultReconnectInterval,
 		DefaultReconnectTimeout,
 	)
+	c2.Add(1 * time.Minute)
 	require.NoError(t, err)
-	go p2.Settle(context.Background(), 0*time.Second)
+
+	var wg2 sync.WaitGroup
+	wg2.Add(1)
+	go func() {
+		defer wg2.Done()
+		p2.Settle(context.Background(), 1*time.Second)
+	}()
+	time.Sleep(1 * time.Millisecond)
+	c2.Add(10 * time.Second)
+	wg2.Wait()
+
 	require.NoError(t, p2.WaitReady(context.Background()))
 
 	require.Equal(t, 2, p.ClusterSize())
