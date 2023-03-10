@@ -17,7 +17,7 @@ import (
 	"context"
 	"errors"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 
 	"github.com/prometheus/alertmanager/cli/format"
 )
