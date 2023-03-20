@@ -18,8 +18,8 @@ require (
 	github.com/go-openapi/strfmt v0.21.7
 	github.com/go-openapi/swag v0.22.3
 	github.com/go-openapi/validate v0.22.1
-	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gogo/protobuf v1.3.2
+	github.com/google/uuid v1.1.2
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/hashicorp/memberlist v0.5.0

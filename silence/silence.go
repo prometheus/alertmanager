@@ -30,7 +30,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	uuid "github.com/gofrs/uuid"
+	"github.com/google/uuid"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -593,7 +593,7 @@ func (s *Silences) Set(sil *pb.Silence) (string, error) {
 		}
 	}
 	// If we got here it's either a new silence or a replacing one.
-	uid, err := uuid.NewV4()
+	uid, err := uuid.NewRandom()
 	if err != nil {
 		return "", errors.Wrap(err, "generate uuid")
 	}
