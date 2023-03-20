@@ -443,3 +443,58 @@ func TestNewMarkerRegistersMetrics(t *testing.T) {
 		t.Error("expected NewMarker to register metrics on the given registerer")
 	}
 }
+
+func TestJoinAlertNames(t *testing.T) {
+	namedAlert := func(name string) *Alert {
+		return &Alert{Alert: model.Alert{
+			Labels: model.LabelSet{
+				model.AlertNameLabel: model.LabelValue(name),
+			},
+		}}
+	}
+
+	tests := []struct {
+		name   string
+		limit  int
+		alerts []*Alert
+		want   string
+	}{{
+		name:   "empty",
+		limit:  100,
+		alerts: nil,
+		want:   "",
+	}, {
+		name:   "zero",
+		limit:  0,
+		alerts: []*Alert{namedAlert("one"), namedAlert("two")},
+		want:   "",
+	}, {
+		name:   "one",
+		limit:  5,
+		alerts: []*Alert{namedAlert("one")},
+		want:   "one",
+	}, {
+		name:   "two",
+		limit:  2,
+		alerts: []*Alert{namedAlert("one"), namedAlert("two")},
+		want:   "one,two",
+	}, {
+		name:   "limited",
+		limit:  2,
+		alerts: []*Alert{namedAlert("one"), namedAlert("two"), namedAlert("three")},
+		want:   "one,two,...",
+	}, {
+		name:   "over",
+		limit:  200,
+		alerts: []*Alert{namedAlert("one"), namedAlert("two"), namedAlert("three")},
+		want:   "one,two,three",
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := JoinAlertNames(tt.limit, tt.alerts...); got != tt.want {
+				t.Errorf("JoinAlertNames() = %q want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -737,7 +737,8 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 				}
 				if ctx.Err() == nil && (iErr == nil || err.Error() != iErr.Error()) {
 					// Log the error if the context isn't done and the error isn't the same as before.
-					level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err)
+					level.Warn(l).Log("msg", "Notify attempt failed, will retry later", "attempts", i, "err", err,
+						"num_alerts", len(sent), "alert_names", types.JoinAlertNames(5, sent...))
 				}
 
 				// Save this error to be able to return the last seen error by an

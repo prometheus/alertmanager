@@ -349,7 +349,8 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 				// message should only be logged at the debug level.
 				lvl = level.Debug(d.logger)
 			}
-			lvl.Log("msg", "Notify for alerts failed", "num_alerts", len(alerts), "err", err)
+			lvl.Log("msg", "Notify for alerts failed", "err", err,
+				"num_alerts", len(alerts), "alert_names", types.JoinAlertNames(5, alerts...))
 		}
 		return err == nil
 	})

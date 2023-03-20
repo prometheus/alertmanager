@@ -343,6 +343,30 @@ func Alerts(alerts ...*Alert) model.Alerts {
 	return res
 }
 
+// JoinAlertNames returns a string that contains the names of the given
+// alerts separated by a comma. If there are more than limit alerts, the
+// remaining names are represented by an ellipsis "...".
+func JoinAlertNames(limit int, alerts ...*Alert) string {
+	if len(alerts) == 0 || limit < 1 {
+		return ""
+	}
+
+	s := strings.Builder{}
+	s.WriteString(alerts[0].Name())
+	for i, a := range alerts[1:] {
+		s.WriteString(",")
+
+		if i+1 < limit {
+			s.WriteString(a.Name())
+		} else {
+			s.WriteString("...")
+			return s.String()
+		}
+	}
+
+	return s.String()
+}
+
 // Merge merges the timespan of two alerts based and overwrites annotations
 // based on the authoritative timestamp.  A new alert is returned, the labels
 // are assumed to be equal.
