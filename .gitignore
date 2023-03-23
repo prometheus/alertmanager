@@ -17,3 +17,5 @@
 !/.travis.yml
 !/.promu.yml
 !/api/v2/openapi.yaml
+
+.idea
