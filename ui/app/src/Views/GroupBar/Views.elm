@@ -1,8 +1,8 @@
 module Views.GroupBar.Views exposing (view)
 
-import Html exposing (Attribute, Html, a, button, div, i, input, li, small, span, text, ul)
-import Html.Attributes exposing (class, disabled, href, id, style, value)
-import Html.Events exposing (keyCode, on, onBlur, onClick, onFocus, onInput, onMouseEnter, onMouseLeave)
+import Html exposing (Html, a, button, div, input, small, span, text)
+import Html.Attributes exposing (class, disabled, id, style, value)
+import Html.Events exposing (onBlur, onClick, onFocus, onInput, onMouseEnter, onMouseLeave)
 import Set
 import Utils.Keyboard exposing (keys, onKeyDown, onKeyUp)
 import Utils.List

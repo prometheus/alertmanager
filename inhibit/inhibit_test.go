@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
@@ -48,21 +48,21 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		},
 		{
 			// No equal labels, any source alerts satisfies the requirement.
-			initial: map[model.Fingerprint]*types.Alert{1: &types.Alert{}},
+			initial: map[model.Fingerprint]*types.Alert{1: {}},
 			input:   model.LabelSet{"a": "b"},
 			result:  true,
 		},
 		{
 			// Matching but already resolved.
 			initial: map[model.Fingerprint]*types.Alert{
-				1: &types.Alert{
+				1: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "b": "f"},
 						StartsAt: now.Add(-time.Minute),
 						EndsAt:   now.Add(-time.Second),
 					},
 				},
-				2: &types.Alert{
+				2: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "b": "c"},
 						StartsAt: now.Add(-time.Minute),
@@ -77,14 +77,14 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		{
 			// Matching and unresolved.
 			initial: map[model.Fingerprint]*types.Alert{
-				1: &types.Alert{
+				1: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "c": "d"},
 						StartsAt: now.Add(-time.Minute),
 						EndsAt:   now.Add(-time.Second),
 					},
 				},
-				2: &types.Alert{
+				2: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "b", "c": "f"},
 						StartsAt: now.Add(-time.Minute),
@@ -99,14 +99,14 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 		{
 			// Equal label does not match.
 			initial: map[model.Fingerprint]*types.Alert{
-				1: &types.Alert{
+				1: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "c", "c": "d"},
 						StartsAt: now.Add(-time.Minute),
 						EndsAt:   now.Add(-time.Second),
 					},
 				},
-				2: &types.Alert{
+				2: {
 					Alert: model.Alert{
 						Labels:   model.LabelSet{"a": "c", "c": "f"},
 						StartsAt: now.Add(-time.Minute),
@@ -233,6 +233,7 @@ func TestInhibitRuleMatches(t *testing.T) {
 		}
 	}
 }
+
 func TestInhibitRuleMatchers(t *testing.T) {
 	t.Parallel()
 

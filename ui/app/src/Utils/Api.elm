@@ -1,9 +1,7 @@
-module Utils.Api exposing (andMap, delete, errorToString, fromResult, get, iso8601Time, makeApiUrl, map, parseError, post, request, send, withDefault)
+module Utils.Api exposing (delete, get, makeApiUrl, map, post, send)
 
 import Http exposing (Error(..))
 import Json.Decode as Json exposing (field)
-import Time exposing (Posix)
-import Utils.Date
 import Utils.Types exposing (ApiData(..))
 
 
@@ -21,16 +19,6 @@ map fn response =
 
         Failure a ->
             Failure a
-
-
-withDefault : a -> ApiData a -> a
-withDefault default response =
-    case response of
-        Success value ->
-            value
-
-        _ ->
-            default
 
 
 parseError : String -> Maybe String
@@ -51,7 +39,7 @@ errorToString err =
             parseError resp.body
                 |> Maybe.withDefault (String.fromInt resp.status.code ++ " " ++ resp.status.message)
 
-        BadPayload err_ resp ->
+        BadPayload err_ _ ->
             -- OK status, unexpected payload
             "Unexpected response from api: " ++ err_
 
@@ -102,20 +90,6 @@ request method headers url body decoder =
         }
 
 
-iso8601Time : Json.Decoder Posix
-iso8601Time =
-    Json.andThen
-        (\strTime ->
-            case Utils.Date.timeFromString strTime of
-                Ok time ->
-                    Json.succeed time
-
-                Err err ->
-                    Json.fail ("Could not decode time " ++ strTime ++ ": " ++ err)
-        )
-        Json.string
-
-
 makeApiUrl : String -> String
 makeApiUrl externalUrl =
     let
@@ -127,8 +101,3 @@ makeApiUrl externalUrl =
                 externalUrl
     in
     url ++ "/api/v2"
-
-
-andMap : Json.Decoder a -> Json.Decoder (a -> b) -> Json.Decoder b
-andMap =
-    Json.map2 (|>)

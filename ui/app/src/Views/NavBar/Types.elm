@@ -1,4 +1,4 @@
-module Views.NavBar.Types exposing (Tab, alertsTab, noneTab, silencesTab, statusTab, tabs)
+module Views.NavBar.Types exposing (Tab, alertsTab, noneTab, settingsTab, silencesTab, statusTab, tabs)
 
 
 type alias Tab =
@@ -22,6 +22,11 @@ statusTab =
     { link = "#/status", name = "Status" }
 
 
+settingsTab : Tab
+settingsTab =
+    { link = "#/settings", name = "Settings" }
+
+
 helpTab : Tab
 helpTab =
     { link = "https://prometheus.io/docs/alerting/alertmanager/", name = "Help" }
@@ -34,4 +39,4 @@ noneTab =
 
 tabs : List Tab
 tabs =
-    [ alertsTab, silencesTab, statusTab, helpTab ]
+    [ alertsTab, silencesTab, statusTab, settingsTab, helpTab ]

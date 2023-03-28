@@ -30,7 +30,8 @@ import (
 // GetAlertsOKCode is the HTTP code returned for type GetAlertsOK
 const GetAlertsOKCode int = 200
 
-/*GetAlertsOK Get alerts response
+/*
+GetAlertsOK Get alerts response
 
 swagger:response getAlertsOK
 */
@@ -77,7 +78,8 @@ func (o *GetAlertsOK) WriteResponse(rw http.ResponseWriter, producer runtime.Pro
 // GetAlertsBadRequestCode is the HTTP code returned for type GetAlertsBadRequest
 const GetAlertsBadRequestCode int = 400
 
-/*GetAlertsBadRequest Bad request
+/*
+GetAlertsBadRequest Bad request
 
 swagger:response getAlertsBadRequest
 */
@@ -119,7 +121,8 @@ func (o *GetAlertsBadRequest) WriteResponse(rw http.ResponseWriter, producer run
 // GetAlertsInternalServerErrorCode is the HTTP code returned for type GetAlertsInternalServerError
 const GetAlertsInternalServerErrorCode int = 500
 
-/*GetAlertsInternalServerError Internal server error
+/*
+GetAlertsInternalServerError Internal server error
 
 swagger:response getAlertsInternalServerError
 */

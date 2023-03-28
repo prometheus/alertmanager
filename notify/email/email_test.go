@@ -31,7 +31,7 @@ package email
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -39,11 +39,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
@@ -115,7 +115,7 @@ func (m *mailDev) deleteAllEmails() error {
 }
 
 // doEmailRequest makes a request to the MailDev API.
-func (m *mailDev) doEmailRequest(method string, path string) (int, []byte, error) {
+func (m *mailDev) doEmailRequest(method, path string) (int, []byte, error) {
 	req, err := http.NewRequest(method, fmt.Sprintf("%s://%s%s", m.Scheme, m.Host, path), nil)
 	if err != nil {
 		return 0, nil, err
@@ -128,7 +128,7 @@ func (m *mailDev) doEmailRequest(method string, path string) (int, []byte, error
 		return 0, nil, err
 	}
 	defer res.Body.Close()
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -145,7 +145,7 @@ type emailTestConfig struct {
 
 func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
 	c := emailTestConfig{}
-	b, err := ioutil.ReadFile(f)
+	b, err := os.ReadFile(f)
 	if err != nil {
 		return c, err
 	}
@@ -427,6 +427,16 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	fileWithCorrectPassword, err := os.CreateTemp("", "smtp-password-correct")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = fileWithCorrectPassword.WriteString(c.Password)
+	require.NoError(t, err, "writing to temp file failed")
+
+	fileWithIncorrectPassword, err := os.CreateTemp("", "smtp-password-incorrect")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = fileWithIncorrectPassword.WriteString(c.Password + "wrong")
+	require.NoError(t, err, "writing to temp file failed")
+
 	for _, tc := range []struct {
 		title     string
 		updateCfg func(*config.EmailConfig)
@@ -439,6 +449,13 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			updateCfg: func(cfg *config.EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = config.Secret(c.Password)
+			},
+		},
+		{
+			title: "email with authentication (password from file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthPasswordFile = fileWithCorrectPassword.Name()
 			},
 		},
 		{
@@ -484,6 +501,26 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 			},
 
 			errMsg: "Invalid username or password",
+			retry:  true,
+		},
+		{
+			title: "wrong credentials (password from file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthPasswordFile = fileWithIncorrectPassword.Name()
+			},
+
+			errMsg: "Invalid username or password",
+			retry:  true,
+		},
+		{
+			title: "wrong credentials (missing password file)",
+			updateCfg: func(cfg *config.EmailConfig) {
+				cfg.AuthUsername = c.Username
+				cfg.AuthPasswordFile = "/does/not/exist"
+			},
+
+			errMsg: "could not read",
 			retry:  true,
 		},
 		{

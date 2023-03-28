@@ -22,11 +22,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,7 @@ func TestPagerDutyRedactedURLV1(t *testing.T) {
 	require.NoError(t, err)
 	notifier.apiV1 = u.String()
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestPagerDutyRedactedURLV2(t *testing.T) {
@@ -108,7 +109,55 @@ func TestPagerDutyRedactedURLV2(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, key)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
+}
+
+func TestPagerDutyV1ServiceKeyFromFile(t *testing.T) {
+	key := "01234567890123456789012345678901"
+	f, err := os.CreateTemp("", "pagerduty_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.PagerdutyConfig{
+			ServiceKeyFile: f.Name(),
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+	notifier.apiV1 = u.String()
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
+}
+
+func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
+	key := "01234567890123456789012345678901"
+	f, err := os.CreateTemp("", "pagerduty_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.PagerdutyConfig{
+			URL:            &config.URL{URL: u},
+			RoutingKeyFile: f.Name(),
+			HTTPConfig:     &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestPagerDutyTemplating(t *testing.T) {
@@ -212,7 +261,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 
 			ok, err := pd.Notify(ctx, []*types.Alert{
-				&types.Alert{
+				{
 					Alert: model.Alert{
 						Labels: model.LabelSet{
 							"lbl1": "val1",

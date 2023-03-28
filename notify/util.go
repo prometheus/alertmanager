@@ -18,17 +18,24 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+// truncationMarker is the character used to represent a truncation.
+const truncationMarker = "…"
+
+// UserAgentHeader is the default User-Agent for notification requests
+var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // RedactURL removes the URL part from an error of *url.Error type.
 func RedactURL(err error) error {
@@ -38,6 +45,11 @@ func RedactURL(err error) error {
 	}
 	e.URL = "<redacted>"
 	return e
+}
+
+// Get sends a GET request to the given URL
+func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
+	return request(ctx, client, http.MethodGet, url, "", nil)
 }
 
 // PostJSON sends a POST request with JSON payload to the given URL.
@@ -50,32 +62,71 @@ func PostText(ctx context.Context, client *http.Client, url string, body io.Read
 	return post(ctx, client, url, "text/plain", body)
 }
 
-func post(ctx context.Context, client *http.Client, url string, bodyType string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest("POST", url, body)
+func post(ctx context.Context, client *http.Client, url, bodyType string, body io.Reader) (*http.Response, error) {
+	return request(ctx, client, http.MethodPost, url, bodyType, body)
+}
+
+func request(ctx context.Context, client *http.Client, method, url, bodyType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", bodyType)
+	req.Header.Set("User-Agent", UserAgentHeader)
+	if bodyType != "" {
+		req.Header.Set("Content-Type", bodyType)
+	}
 	return client.Do(req.WithContext(ctx))
 }
 
 // Drain consumes and closes the response's body to make sure that the
 // HTTP client can reuse existing connections.
 func Drain(r *http.Response) {
-	io.Copy(ioutil.Discard, r.Body)
+	io.Copy(io.Discard, r.Body)
 	r.Body.Close()
 }
 
-// Truncate truncates a string to fit the given size.
-func Truncate(s string, n int) (string, bool) {
+// TruncateInRunes truncates a string to fit the given size in Runes.
+func TruncateInRunes(s string, n int) (string, bool) {
 	r := []rune(s)
 	if len(r) <= n {
 		return s, false
 	}
+
 	if n <= 3 {
 		return string(r[:n]), true
 	}
-	return string(r[:n-3]) + "...", true
+
+	return string(r[:n-1]) + truncationMarker, true
+}
+
+// TruncateInBytes truncates a string to fit the given size in Bytes.
+func TruncateInBytes(s string, n int) (string, bool) {
+	// First, measure the string the w/o a to-rune conversion.
+	if len(s) <= n {
+		return s, false
+	}
+
+	// The truncationMarker itself is 3 bytes, we can't return any part of the string when it's less than 3.
+	if n <= 3 {
+		switch n {
+		case 3:
+			return truncationMarker, true
+		default:
+			return strings.Repeat(".", n), true
+		}
+	}
+
+	// Now, to ensure we don't butcher the string we need to remove using runes.
+	r := []rune(s)
+	truncationTarget := n - 3
+
+	// Next, let's truncate the runes to the lower possible number.
+	truncatedRunes := r[:truncationTarget]
+	for len(string(truncatedRunes)) > truncationTarget {
+		truncatedRunes = r[:len(truncatedRunes)-1]
+	}
+
+	return string(truncatedRunes) + truncationMarker, true
 }
 
 // TmplText is using monadic error handling in order to make string templating
@@ -145,7 +196,7 @@ func readAll(r io.Reader) string {
 	if r == nil {
 		return ""
 	}
-	bs, err := ioutil.ReadAll(r)
+	bs, err := io.ReadAll(r)
 	if err != nil {
 		return ""
 	}

@@ -19,7 +19,7 @@ import (
 	_ "net/http/pprof" // Comment this line to disable pprof endpoint.
 	"path"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
 
@@ -76,9 +76,15 @@ func Register(r *route.Router, reloadCh chan<- chan error, logger log.Logger) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
 	}))
+	r.Head("/-/healthy", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
 	r.Get("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
+	}))
+	r.Head("/-/ready", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	}))
 
 	r.Get("/debug/*subpath", http.DefaultServeMux.ServeHTTP)

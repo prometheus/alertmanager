@@ -29,7 +29,8 @@ import (
 )
 
 // NewGetSilencesParams creates a new GetSilencesParams object
-// no default values defined in spec.
+//
+// There are no default values defined in the spec.
 func NewGetSilencesParams() GetSilencesParams {
 
 	return GetSilencesParams{}
@@ -66,7 +67,6 @@ func (o *GetSilencesParams) BindRequest(r *http.Request, route *middleware.Match
 	if err := o.bindFilter(qFilter, qhkFilter, route.Formats); err != nil {
 		res = append(res, err)
 	}
-
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
@@ -77,10 +77,8 @@ func (o *GetSilencesParams) BindRequest(r *http.Request, route *middleware.Match
 //
 // Arrays are parsed according to CollectionFormat: "multi" (defaults to "csv" when empty).
 func (o *GetSilencesParams) bindFilter(rawData []string, hasKey bool, formats strfmt.Registry) error {
-
 	// CollectionFormat: multi
 	filterIC := rawData
-
 	if len(filterIC) == 0 {
 		return nil
 	}

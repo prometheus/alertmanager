@@ -118,6 +118,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	sort.Sort(matchers)
 
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
+	opts.ActiveTimeIntervals = cr.ActiveTimeIntervals
 
 	route := &Route{
 		parent:    parent,
@@ -182,9 +183,6 @@ func (r *Route) Key() string {
 // Walk traverses the route tree in depth-first order.
 func (r *Route) Walk(visit func(*Route)) {
 	visit(r)
-	if r.Routes == nil {
-		return
-	}
 	for i := range r.Routes {
 		r.Routes[i].Walk(visit)
 	}
@@ -210,6 +208,9 @@ type RouteOpts struct {
 
 	// A list of time intervals for which the route is muted.
 	MuteTimeIntervals []string
+
+	// A list of time intervals for which the route is active.
+	ActiveTimeIntervals []string
 }
 
 func (ro *RouteOpts) String() string {

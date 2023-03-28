@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -122,7 +122,7 @@ func freeAddress() string {
 func AmtoolOk() (bool, error) {
 	stat, err := os.Stat(amtool)
 	if err != nil {
-		return false, fmt.Errorf("Error accessing amtool command, try 'make build' to generate the file. %v", err)
+		return false, fmt.Errorf("error accessing amtool command, try 'make build' to generate the file. %w", err)
 	} else if stat.IsDir() {
 		return false, fmt.Errorf("file %s is a directory, expecting a binary executable file", amtool)
 	}
@@ -145,7 +145,7 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 			opts: t.opts,
 		}
 
-		dir, err := ioutil.TempDir("", "am_test")
+		dir, err := os.MkdirTemp("", "am_test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -270,7 +270,7 @@ type Alertmanager struct {
 
 	apiAddr     string
 	clusterAddr string
-	clientV2    *apiclient.Alertmanager
+	clientV2    *apiclient.AlertmanagerAPI
 	cmd         *exec.Cmd
 	confFile    *os.File
 	dir         string
@@ -362,7 +362,7 @@ func (am *Alertmanager) Start(additionalArg []string) error {
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("starting alertmanager failed: expected HTTP status '200', got '%d'", resp.StatusCode)
 		}
-		_, err = ioutil.ReadAll(resp.Body)
+		_, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("starting alertmanager failed: %s", err)
 		}
@@ -569,9 +569,7 @@ func (am *Alertmanager) QuerySilence() ([]TestSilence, error) {
 	return parseSilenceQueryResponse(out)
 }
 
-var (
-	silenceHeaderFields = []string{"ID", "Matchers", "Ends At", "Created By", "Comment"}
-)
+var silenceHeaderFields = []string{"ID", "Matchers", "Ends At", "Created By", "Comment"}
 
 func parseSilenceQueryResponse(data []byte) ([]TestSilence, error) {
 	sils := []TestSilence{}

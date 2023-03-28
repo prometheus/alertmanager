@@ -24,12 +24,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/hashicorp/memberlist"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -120,7 +119,7 @@ func (s PeerStatus) String() string {
 const (
 	DefaultPushPullInterval  = 60 * time.Second
 	DefaultGossipInterval    = 200 * time.Millisecond
-	DefaultTcpTimeout        = 10 * time.Second
+	DefaultTCPTimeout        = 10 * time.Second
 	DefaultProbeTimeout      = 500 * time.Millisecond
 	DefaultProbeInterval     = 1 * time.Second
 	DefaultReconnectInterval = 10 * time.Second
@@ -141,6 +140,8 @@ func Create(
 	tcpTimeout time.Duration,
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
+	tlsTransportConfig *TLSTransportConfig,
+	allowInsecureAdvertise bool,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -172,7 +173,7 @@ func Create(
 	level.Debug(l).Log("msg", "resolved peers to following addresses", "peers", strings.Join(resolvedPeers, ","))
 
 	// Initial validation of user-specified advertise address.
-	addr, err := calculateAdvertiseAddress(bindHost, advertiseHost)
+	addr, err := calculateAdvertiseAddress(bindHost, advertiseHost, allowInsecureAdvertise)
 	if err != nil {
 		level.Warn(l).Log("err", "couldn't deduce an advertise address: "+err.Error())
 	} else if hasNonlocal(resolvedPeers) && isUnroutable(addr.String()) {
@@ -235,6 +236,14 @@ func Create(
 		p.setInitialFailed(resolvedPeers, bindAddr)
 	}
 
+	if tlsTransportConfig != nil {
+		level.Info(l).Log("msg", "using TLS for gossip")
+		cfg.Transport, err = NewTLSTransport(context.Background(), l, reg, cfg.BindAddr, cfg.BindPort, tlsTransportConfig)
+		if err != nil {
+			return nil, errors.Wrap(err, "tls transport")
+		}
+	}
+
 	ml, err := memberlist.Create(cfg)
 	if err != nil {
 		return nil, errors.Wrap(err, "create memberlist")
@@ -245,7 +254,8 @@ func Create(
 
 func (p *Peer) Join(
 	reconnectInterval time.Duration,
-	reconnectTimeout time.Duration) error {
+	reconnectTimeout time.Duration,
+) error {
 	n, err := p.mlist.Join(p.resolvedPeers)
 	if err != nil {
 		level.Warn(p.logger).Log("msg", "failed to join cluster", "err", err)
@@ -536,7 +546,10 @@ func (p *Peer) peerUpdate(n *memberlist.Node) {
 // AddState adds a new state that will be gossiped. It returns a channel to which
 // broadcast messages for the state can be sent.
 func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) ClusterChannel {
+	p.mtx.Lock()
 	p.states[key] = s
+	p.mtx.Unlock()
+
 	send := func(b []byte) {
 		p.delegate.bcast.QueueBroadcast(simpleBroadcast(b))
 	}
@@ -772,7 +785,7 @@ func resolvePeers(ctx context.Context, peers []string, myAddress string, res *ne
 	return resolvedPeers, nil
 }
 
-func removeMyAddr(ips []net.IPAddr, targetPort string, myAddr string) []net.IPAddr {
+func removeMyAddr(ips []net.IPAddr, targetPort, myAddr string) []net.IPAddr {
 	var result []net.IPAddr
 
 	for _, ip := range ips {

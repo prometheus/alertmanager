@@ -3,11 +3,11 @@ module Views.AlertList.AlertView exposing (addLabelMsg, view)
 import Data.GettableAlert exposing (GettableAlert)
 import Dict
 import Html exposing (..)
-import Html.Attributes exposing (class, href, readonly, style, title, value)
+import Html.Attributes exposing (class, href, style, title, value)
 import Html.Events exposing (onClick)
 import Types exposing (Msg(..))
+import Url exposing (percentEncode)
 import Utils.Filter
-import Utils.Views
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.FilterBar.Types as FilterBarTypes
 import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
@@ -23,7 +23,7 @@ view labels maybeActiveId alert =
                 |> Dict.toList
                 |> List.filter ((\b a -> List.member a b) labels >> not)
                 |> List.partition (Tuple.first >> (==) "alertname")
-                |> (\( a, b ) -> (++) a b)
+                |> (\( a, b ) -> a ++ b)
     in
     li
         [ -- speedup rendering in Chrome, because list-group-item className
@@ -48,6 +48,7 @@ view labels maybeActiveId alert =
                     text ""
             , silenceButton alert
             , inhibitedIcon alert
+            , linkButton alert
             ]
         , if maybeActiveId == Just alert.fingerprint then
             table [ class "table w-100 mb-1" ] (List.map annotation <| Dict.toList alert.annotations)
@@ -98,6 +99,26 @@ addLabelMsg ( key, value ) =
         |> MsgForAlertList
 
 
+linkButton : GettableAlert -> Html Msg
+linkButton alert =
+    let
+        link =
+            alert.labels
+                |> Dict.toList
+                |> List.map (\( k, v ) -> Utils.Filter.Matcher k Utils.Filter.Eq v)
+                |> Utils.Filter.stringifyFilter
+                |> percentEncode
+                |> (++) "#/alerts?filter="
+    in
+    a
+        [ class "btn btn-outline-info border-0"
+        , href link
+        ]
+        [ i [ class "fa fa-link mr-2" ] []
+        , text "Link"
+        ]
+
+
 silenceButton : GettableAlert -> Html Msg
 silenceButton alert =
     case List.head alert.status.silencedBy of
@@ -123,7 +144,7 @@ silenceButton alert =
 inhibitedIcon : GettableAlert -> Html Msg
 inhibitedIcon alert =
     case List.head alert.status.inhibitedBy of
-        Just sId ->
+        Just _ ->
             a
                 [ class "btn btn-outline-info border-0 text-info"
                 ]

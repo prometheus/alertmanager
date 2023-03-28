@@ -14,11 +14,14 @@
 package webhook
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"testing"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
 
@@ -43,10 +46,41 @@ func TestWebhookRetry(t *testing.T) {
 	if err != nil {
 		require.NoError(t, err)
 	}
-	for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
-		actual, _ := notifier.retrier.Check(statusCode, nil)
-		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
-	}
+
+	t.Run("test retry status code", func(t *testing.T) {
+		for statusCode, expected := range test.RetryTests(test.DefaultRetryCodes()) {
+			actual, _ := notifier.retrier.Check(statusCode, nil)
+			require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
+		}
+	})
+
+	t.Run("test retry error details", func(t *testing.T) {
+		for _, tc := range []struct {
+			status int
+			body   io.Reader
+
+			exp string
+		}{
+			{
+				status: http.StatusBadRequest,
+				body: bytes.NewBuffer([]byte(
+					`{"status":"invalid event"}`,
+				)),
+
+				exp: fmt.Sprintf(`unexpected status code %d: %s: {"status":"invalid event"}`, http.StatusBadRequest, u.String()),
+			},
+			{
+				status: http.StatusBadRequest,
+
+				exp: fmt.Sprintf(`unexpected status code %d: %s`, http.StatusBadRequest, u.String()),
+			},
+		} {
+			t.Run("", func(t *testing.T) {
+				_, err = notifier.retrier.Check(tc.status, tc.body)
+				require.Equal(t, tc.exp, err.Error())
+			})
+		}
+	})
 }
 
 func TestWebhookTruncateAlerts(t *testing.T) {

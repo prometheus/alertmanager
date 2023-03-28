@@ -21,10 +21,8 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
-var (
-	// ErrNotFound is returned if a provider cannot find a requested item.
-	ErrNotFound = fmt.Errorf("item not found")
-)
+// ErrNotFound is returned if a provider cannot find a requested item.
+var ErrNotFound = fmt.Errorf("item not found")
 
 // Iterator provides the functions common to all iterators. To be useful, a
 // specific iterator interface (e.g. AlertIterator) has to be implemented that
@@ -83,6 +81,6 @@ type Alerts interface {
 	GetPending() AlertIterator
 	// Get returns the alert for a given fingerprint.
 	Get(model.Fingerprint) (*types.Alert, error)
-	// Put adds the given alert to the set.
+	// Put adds the given set of alerts to the set.
 	Put(...*types.Alert) error
 }

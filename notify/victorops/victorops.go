@@ -19,9 +19,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -30,6 +33,9 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
+
+// https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
+const maxMessageLenRunes = 20480
 
 // Notifier implements a Notifier for VictorOps notifications.
 type Notifier struct {
@@ -41,8 +47,8 @@ type Notifier struct {
 }
 
 // New returns a new VictorOps notifier.
-func New(c *config.VictorOpsConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "victorops", false, false)
+func New(c *config.VictorOpsConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -64,14 +70,25 @@ const (
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-
 	var err error
 	var (
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
 		apiURL = n.conf.APIURL.Copy()
 	)
-	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
+
+	var apiKey string
+	if n.conf.APIKey != "" {
+		apiKey = string(n.conf.APIKey)
+	} else {
+		content, fileErr := os.ReadFile(n.conf.APIKeyFile)
+		if fileErr != nil {
+			return false, errors.Wrap(fileErr, "failed to read API key from file")
+		}
+		apiKey = strings.TrimSpace(string(content))
+	}
+
+	apiURL.Path += fmt.Sprintf("%s/%s", apiKey, tmpl(n.conf.RoutingKey))
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
 	}
@@ -87,7 +104,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer notify.Drain(resp)
 
-	return n.retrier.Check(resp.StatusCode, nil)
+	return n.retrier.Check(resp.StatusCode, resp.Body)
 }
 
 // Create the JSON payload to be sent to the VictorOps API.
@@ -120,9 +137,9 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 		messageType = victorOpsEventResolve
 	}
 
-	stateMessage, truncated := notify.Truncate(stateMessage, 20480)
+	stateMessage, truncated := notify.TruncateInRunes(stateMessage, maxMessageLenRunes)
 	if truncated {
-		level.Debug(n.logger).Log("msg", "truncated stateMessage", "truncated_state_message", stateMessage, "incident", key)
+		level.Warn(n.logger).Log("msg", "Truncated state_message", "incident", key, "max_runes", maxMessageLenRunes)
 	}
 
 	msg := map[string]string{

@@ -29,7 +29,7 @@
               < on (%(alertmanagerClusterLabels)s) group_left
                 count by (%(alertmanagerClusterLabels)s) (max_over_time(alertmanager_cluster_members{%(alertmanagerSelector)s}[5m]))
             ||| % $._config,
-            'for': '10m',
+            'for': '15m',
             labels: {
               severity: 'critical',
             },

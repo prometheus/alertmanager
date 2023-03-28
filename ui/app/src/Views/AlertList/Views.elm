@@ -2,20 +2,18 @@ module Views.AlertList.Views exposing (view)
 
 import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
-import Dict exposing (Dict)
+import Dict
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Set exposing (Set)
 import Types exposing (Msg(..))
 import Utils.Filter exposing (Filter)
-import Utils.List
 import Utils.Types exposing (ApiData(..), Labels)
 import Utils.Views
 import Views.AlertList.AlertView as AlertView
 import Views.AlertList.Types exposing (AlertListMsg(..), Model, Tab(..))
 import Views.FilterBar.Views as FilterBar
-import Views.GroupBar.Types as GroupBar
 import Views.GroupBar.Views as GroupBar
 import Views.ReceiverBar.Views as ReceiverBar
 
@@ -47,7 +45,7 @@ groupTabName customGrouping =
 
 
 view : Model -> Filter -> Html Msg
-view { alerts, alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups, expandAll } filter =
+view { alertGroups, groupBar, filterBar, receiverBar, tab, activeId, activeGroups, expandAll } filter =
     div []
         [ div
             [ class "card mb-3" ]

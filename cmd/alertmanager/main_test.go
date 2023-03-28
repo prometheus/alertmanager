@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
 
@@ -39,10 +39,10 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			receiver: &config.Receiver{
 				Name: "foo",
 				WebhookConfigs: []*config.WebhookConfig{
-					&config.WebhookConfig{
+					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
 					},
-					&config.WebhookConfig{
+					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{},
 						NotifierConfig: config.NotifierConfig{
 							VSendResolved: true,
@@ -59,7 +59,7 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 			receiver: &config.Receiver{
 				Name: "foo",
 				WebhookConfigs: []*config.WebhookConfig{
-					&config.WebhookConfig{
+					{
 						HTTPConfig: &commoncfg.HTTPClientConfig{
 							TLSConfig: commoncfg.TLSConfig{
 								CAFile: "not_existing",

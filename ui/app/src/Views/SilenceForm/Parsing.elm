@@ -3,9 +3,9 @@ module Views.SilenceForm.Parsing exposing (newSilenceFromAlertLabels, newSilence
 import Data.Matcher
 import Dict exposing (Dict)
 import Url exposing (percentEncode)
-import Url.Parser exposing ((</>), (<?>), Parser, map, oneOf, s, string)
+import Url.Parser exposing ((</>), (<?>), Parser, s, string)
 import Url.Parser.Query as Query
-import Utils.Filter exposing (Matcher, SilenceFormGetParams, parseFilter)
+import Utils.Filter exposing (SilenceFormGetParams, parseFilter)
 
 
 newSilenceFromAlertLabels : Dict String String -> String

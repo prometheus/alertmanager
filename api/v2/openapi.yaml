@@ -15,6 +15,8 @@ consumes:
 produces:
   - "application/json"
 
+basePath: "/api/v2/"
+
 paths:
   /status:
     get:

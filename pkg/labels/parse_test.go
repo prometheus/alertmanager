@@ -19,7 +19,7 @@ import (
 )
 
 func TestMatchers(t *testing.T) {
-	testCases := []struct {
+	for _, tc := range []struct {
 		input string
 		want  []*Matcher
 		err   string
@@ -173,7 +173,7 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
-			input: `trickier==\\=\=\""`,
+			input: `trickier==\\=\=\"`,
 			want: func() []*Matcher {
 				ms := []*Matcher{}
 				m, _ := NewMatcher(MatchEqual, "trickier", `=\=\="`)
@@ -190,6 +190,25 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			input: `job=`,
+			want: func() []*Matcher {
+				m, _ := NewMatcher(MatchEqual, "job", "")
+				return []*Matcher{m}
+			}(),
+		},
+		{
+			input: `job="value`,
+			err:   `matcher value contains unescaped double quote: "value`,
+		},
+		{
+			input: `job=value"`,
+			err:   `matcher value contains unescaped double quote: value"`,
+		},
+		{
+			input: `trickier==\\=\=\""`,
+			err:   `matcher value contains unescaped double quote: =\\=\=\""`,
+		},
+		{
 			input: `contains_unescaped_quote = foo"bar`,
 			err:   `matcher value contains unescaped double quote: foo"bar`,
 		},
@@ -201,22 +220,46 @@ func TestMatchers(t *testing.T) {
 			input: `{foo=~"invalid[regexp"}`,
 			err:   "error parsing regexp: missing closing ]: `[regexp)$`",
 		},
+		// Double escaped strings.
+		{
+			input: `"{foo=\"bar"}`,
+			err:   `bad matcher format: "{foo=\"bar"`,
+		},
+		{
+			input: `"foo=\"bar"`,
+			err:   `bad matcher format: "foo=\"bar"`,
+		},
+		{
+			input: `"foo=\"bar\""`,
+			err:   `bad matcher format: "foo=\"bar\""`,
+		},
+		{
+			input: `"foo=\"bar\"`,
+			err:   `bad matcher format: "foo=\"bar\"`,
+		},
+		{
+			input: `"{foo=\"bar\"}"`,
+			err:   `bad matcher format: "{foo=\"bar\"}"`,
+		},
+		{
+			input: `"foo="bar""`,
+			err:   `bad matcher format: "foo="bar""`,
+		},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			got, err := ParseMatchers(tc.input)
+			if err != nil && tc.err == "" {
+				t.Fatalf("got error where none expected: %v", err)
+			}
+			if err == nil && tc.err != "" {
+				t.Fatalf("expected error but got none: %v", tc.err)
+			}
+			if err != nil && err.Error() != tc.err {
+				t.Fatalf("error not equal:\ngot  %v\nwant %v", err, tc.err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("labels not equal:\ngot  %v\nwant %v", got, tc.want)
+			}
+		})
 	}
-
-	for i, tc := range testCases {
-		got, err := ParseMatchers(tc.input)
-		if err != nil && tc.err == "" {
-			t.Fatalf("got error where none expected (i=%d): %v", i, err)
-		}
-		if err == nil && tc.err != "" {
-			t.Fatalf("expected error but got none (i=%d): %v", i, tc.err)
-		}
-		if err != nil && err.Error() != tc.err {
-			t.Fatalf("error not equal (i=%d):\ngot  %v\nwant %v", i, err, tc.err)
-		}
-		if !reflect.DeepEqual(got, tc.want) {
-			t.Fatalf("labels not equal (i=%d):\ngot  %v\nwant %v", i, got, tc.want)
-		}
-	}
-
 }

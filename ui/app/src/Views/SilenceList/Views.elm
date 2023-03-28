@@ -1,16 +1,15 @@
-module Views.SilenceList.Views exposing (filterSilencesByState, groupSilencesByState, silencesView, states, tabView, tabsView, view)
+module Views.SilenceList.Views exposing (view)
 
-import Data.GettableSilence exposing (GettableSilence)
 import Data.SilenceStatus exposing (State(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Keyed
-import Html.Lazy exposing (lazy, lazy2, lazy3)
+import Html.Lazy exposing (lazy2, lazy3)
 import Silences.Types exposing (stateToString)
 import Types exposing (Msg(..))
 import Utils.String as StringUtils
-import Utils.Types exposing (ApiData(..), Matcher)
-import Utils.Views exposing (buttonLink, checkbox, error, formField, formInput, iconButtonMsg, loading, textField)
+import Utils.Types exposing (ApiData(..))
+import Utils.Views exposing (error, loading)
 import Views.FilterBar.Views as FilterBar
 import Views.SilenceList.SilenceView
 import Views.SilenceList.Types exposing (Model, SilenceListMsg(..), SilenceTab)
@@ -89,21 +88,6 @@ silencesView showConfirmationDialog tab silencesTab =
             loading
 
 
-groupSilencesByState : List GettableSilence -> List ( State, List GettableSilence )
-groupSilencesByState silences =
-    List.map (\state -> ( state, filterSilencesByState state silences )) states
-
-
 states : List State
 states =
     [ Active, Pending, Expired ]
-
-
-filterSilencesByState : State -> List GettableSilence -> List GettableSilence
-filterSilencesByState state =
-    List.filter (filterSilenceByState state)
-
-
-filterSilenceByState : State -> GettableSilence -> Bool
-filterSilenceByState state silence =
-    silence.status.state == state

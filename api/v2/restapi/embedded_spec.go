@@ -48,6 +48,7 @@ func init() {
     },
     "version": "0.0.1"
   },
+  "basePath": "/api/v2/",
   "paths": {
     "/alerts": {
       "get": {
@@ -831,6 +832,7 @@ func init() {
     },
     "version": "0.0.1"
   },
+  "basePath": "/api/v2/",
   "paths": {
     "/alerts": {
       "get": {

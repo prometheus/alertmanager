@@ -14,14 +14,17 @@
 package cli
 
 import (
+	"fmt"
 	"net/url"
 	"os"
 	"path"
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"golang.org/x/mod/semver"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client"
 	"github.com/prometheus/alertmanager/cli/config"
@@ -35,6 +38,8 @@ var (
 	alertmanagerURL *url.URL
 	output          string
 	timeout         time.Duration
+	httpConfigFile  string
+	versionCheck    bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -65,7 +70,7 @@ const (
 )
 
 // NewAlertmanagerClient initializes an alertmanager client with the given URL
-func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
+func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 	address := defaultAmHost + ":" + defaultAmPort
 	schemes := []string{"http"}
 
@@ -78,19 +83,51 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 
 	cr := clientruntime.New(address, path.Join(amURL.Path, defaultAmApiv2path), schemes)
 
+	if amURL.User != nil && httpConfigFile != "" {
+		kingpin.Fatalf("basic authentication and http.config.file are mutually exclusive")
+	}
+
 	if amURL.User != nil {
 		password, _ := amURL.User.Password()
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
-	return client.New(cr, strfmt.Default)
+	if httpConfigFile != "" {
+		var err error
+		httpConfig, _, err := promconfig.LoadHTTPConfigFile(httpConfigFile)
+		if err != nil {
+			kingpin.Fatalf("failed to load HTTP config file: %v", err)
+		}
+
+		httpclient, err := promconfig.NewClientFromConfig(*httpConfig, "amtool")
+		if err != nil {
+			kingpin.Fatalf("failed to create a new HTTP client: %v", err)
+		}
+		cr = clientruntime.NewWithClient(address, path.Join(amURL.Path, defaultAmApiv2path), schemes, httpclient)
+	}
+
+	c := client.New(cr, strfmt.Default)
+
+	if !versionCheck {
+		return c
+	}
+
+	status, err := c.General.GetStatus(nil)
+	if err != nil || status.Payload.VersionInfo == nil || version.Version == "" {
+		// We can not get version info, or we do not know our own version. Let amtool continue.
+		return c
+	}
+
+	if semver.MajorMinor("v"+*status.Payload.VersionInfo.Version) != semver.MajorMinor("v"+version.Version) {
+		fmt.Fprintf(os.Stderr, "Warning: amtool version (%s) and alertmanager version (%s) are different.\n", version.Version, *status.Payload.VersionInfo.Version)
+	}
+
+	return c
 }
 
 // Execute is the main function for the amtool command
 func Execute() {
-	var (
-		app = kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
-	)
+	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 
 	format.InitFormatFlags(app)
 
@@ -98,6 +135,8 @@ func Execute() {
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
+	app.Flag("http.config.file", "HTTP client configuration file for amtool to connect to Alertmanager.").PlaceHolder("<filename>").ExistingFileVar(&httpConfigFile)
+	app.Flag("version-check", "Check alertmanager version. Use --no-version-check to disable.").Default("true").BoolVar(&versionCheck)
 
 	app.Version(version.Print("amtool"))
 	app.GetFlag("help").Short('h')
@@ -113,6 +152,7 @@ func Execute() {
 	configureCheckConfigCmd(app)
 	configureClusterCmd(app)
 	configureConfigCmd(app)
+	configureTemplateCmd(app)
 
 	err = resolver.Bind(app, os.Args[1:])
 	if err != nil {
@@ -151,5 +191,9 @@ static configuration:
 
 	date.format
 		Sets the output format for dates. Defaults to "2006-01-02 15:04:05 MST"
+
+	http.config.file
+		HTTP client configuration file for amtool to connect to Alertmanager.
+		The format is https://prometheus.io/docs/alerting/latest/configuration/#http_config.
 `
 )

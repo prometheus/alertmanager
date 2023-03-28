@@ -177,10 +177,10 @@ line`,
 			want: `foo="new\nline"`,
 		},
 		{
-			name: `foo`,
-			op:   MatchEqual,
+			name:  `foo`,
+			op:    MatchEqual,
 			value: `tab	stop`,
-			want: `foo="tab	stop"`,
+			want:  `foo="tab	stop"`,
 		},
 	}
 
@@ -195,7 +195,7 @@ line`,
 	}
 }
 
-func TestMatcherJSON(t *testing.T) {
+func TestMatcherJSONMarshal(t *testing.T) {
 	tests := []struct {
 		name  string
 		op    MatchType
@@ -252,6 +252,66 @@ func TestMatcherJSON(t *testing.T) {
 		}
 		if !cmp(*m, m2) {
 			t.Errorf("Doing Marshal and Unmarshal seems to be losing data; before %#v, after %#v", m, m2)
+		}
+	}
+}
+
+func TestMatcherJSONUnmarshal(t *testing.T) {
+	tests := []struct {
+		name  string
+		op    MatchType
+		value string
+		want  string
+	}{
+		{
+			name:  "foo",
+			op:    MatchEqual,
+			value: "bar",
+			want:  `{"name":"foo","value":"bar","isRegex":false}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotEqual,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":false,"isEqual":false}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":true}`,
+		},
+		{
+			name:  `foo`,
+			op:    MatchNotRegexp,
+			value: `bar`,
+			want:  `{"name":"foo","value":"bar","isRegex":true,"isEqual":false}`,
+		},
+	}
+
+	cmp := func(m1, m2 Matcher) bool {
+		return m1.Name == m2.Name && m1.Value == m2.Value && m1.Type == m2.Type
+	}
+
+	for _, test := range tests {
+		var m Matcher
+		if err := json.Unmarshal([]byte(test.want), &m); err != nil {
+			t.Fatal(err)
+		}
+
+		m2, err := NewMatcher(test.op, test.name, test.value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !cmp(m, *m2) {
+			t.Errorf("Unmarshaling seems to be producing unexpected matchers; got %#v, expected %#v", m, m2)
 		}
 	}
 }
