@@ -15,7 +15,7 @@ require (
 	github.com/go-openapi/loads v0.21.2
 	github.com/go-openapi/runtime v0.25.0
 	github.com/go-openapi/spec v0.20.8
-	github.com/go-openapi/strfmt v0.21.3
+	github.com/go-openapi/strfmt v0.21.7
 	github.com/go-openapi/swag v0.22.3
 	github.com/go-openapi/validate v0.22.1
 	github.com/gofrs/uuid v4.4.0+incompatible
@@ -49,7 +49,7 @@ require (
 
 require (
 	github.com/armon/go-metrics v0.3.10 // indirect
-	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
+	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -80,7 +80,7 @@ require (
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
-	go.mongodb.org/mongo-driver v1.11.0 // indirect
+	go.mongodb.org/mongo-driver v1.11.3 // indirect
 	go.opentelemetry.io/otel v1.11.1 // indirect
 	go.opentelemetry.io/otel/trace v1.11.1 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
