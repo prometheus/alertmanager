@@ -135,7 +135,6 @@ func (o *GetAlertsParams) BindRequest(r *http.Request, route *middleware.Matched
 	if err := o.bindUnprocessed(qUnprocessed, qhkUnprocessed, route.Formats); err != nil {
 		res = append(res, err)
 	}
-
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
@@ -151,6 +150,7 @@ func (o *GetAlertsParams) bindActive(rawData []string, hasKey bool, formats strf
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		// Default values have been previously initialized by NewGetAlertsParams()
 		return nil
@@ -169,10 +169,8 @@ func (o *GetAlertsParams) bindActive(rawData []string, hasKey bool, formats strf
 //
 // Arrays are parsed according to CollectionFormat: "multi" (defaults to "csv" when empty).
 func (o *GetAlertsParams) bindFilter(rawData []string, hasKey bool, formats strfmt.Registry) error {
-
 	// CollectionFormat: multi
 	filterIC := rawData
-
 	if len(filterIC) == 0 {
 		return nil
 	}
@@ -198,6 +196,7 @@ func (o *GetAlertsParams) bindInhibited(rawData []string, hasKey bool, formats s
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		// Default values have been previously initialized by NewGetAlertsParams()
 		return nil
@@ -221,10 +220,10 @@ func (o *GetAlertsParams) bindReceiver(rawData []string, hasKey bool, formats st
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		return nil
 	}
-
 	o.Receiver = &raw
 
 	return nil
@@ -239,6 +238,7 @@ func (o *GetAlertsParams) bindSilenced(rawData []string, hasKey bool, formats st
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		// Default values have been previously initialized by NewGetAlertsParams()
 		return nil
@@ -262,6 +262,7 @@ func (o *GetAlertsParams) bindUnprocessed(rawData []string, hasKey bool, formats
 
 	// Required: false
 	// AllowEmptyValue: false
+
 	if raw == "" { // empty values pass all other validations
 		// Default values have been previously initialized by NewGetAlertsParams()
 		return nil

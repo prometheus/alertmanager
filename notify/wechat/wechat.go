@@ -18,13 +18,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 
@@ -71,8 +71,8 @@ type weChatResponse struct {
 }
 
 // New returns a new Wechat notifier.
-func New(c *config.WechatConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "wechat", false, false)
+func New(c *config.WechatConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "wechat", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -108,14 +108,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u.Path += "gettoken"
 		u.RawQuery = parameters.Encode()
 
-		req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-		if err != nil {
-			return true, err
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := n.client.Do(req.WithContext(ctx))
+		resp, err := notify.Get(ctx, n.client, u.String())
 		if err != nil {
 			return true, notify.RedactURL(err)
 		}
@@ -168,12 +161,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	q.Set("access_token", n.accessToken)
 	postMessageURL.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodPost, postMessageURL.String(), &buf)
-	if err != nil {
-		return true, err
-	}
-
-	resp, err := n.client.Do(req.WithContext(ctx))
+	resp, err := notify.PostJSON(ctx, n.client, postMessageURL.String(), &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
@@ -183,7 +171,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return true, err
 	}

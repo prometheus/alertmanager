@@ -1,9 +1,9 @@
-# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/master.svg?style=shield)][circleci]
+# Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
 
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/alertmanager.svg?maxAge=604800)][hub]
 
-The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or OpsGenie. It also takes care of silencing and inhibition of alerts.
+The Alertmanager handles alerts sent by client applications such as the Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct [receiver integrations](https://prometheus.io/docs/alerting/latest/configuration/#receiver) such as email, PagerDuty, OpsGenie, or many other [mechanisms](https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver) thanks to the webhook receiver. It also takes care of silencing and inhibition of alerts.
 
 * [Documentation](http://prometheus.io/docs/alerting/alertmanager/)
 
@@ -149,10 +149,10 @@ route:
 # We use this to mute any warning-level notifications if the same alert is
 # already critical.
 inhibit_rules:
-- source_match:
-    severity: 'critical'
-  target_match:
-    severity: 'warning'
+- source_matchers:
+    - severity="critical"
+  target_matchers:
+    - severity="warning"
   # Apply inhibition if the alertname is the same.
   # CAUTION: 
   #   If all label names listed in `equal` are missing 
@@ -192,7 +192,7 @@ The current Alertmanager API is version 2. This API is fully generated via the
 and [Go Swagger](https://github.com/go-swagger/go-swagger/) with the exception
 of the HTTP handlers themselves. The API specification can be found in
 [api/v2/openapi.yaml](api/v2/openapi.yaml). A HTML rendered version can be
-accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/master/api/v2/openapi.yaml).
+accessed [here](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml).
 Clients can be easily generated via any OpenAPI generator for all major languages.
 
 With the default config, endpoints are accessed under a `/api/v1` or `/api/v2` prefix.
@@ -210,7 +210,7 @@ _API v2 is still under heavy development and thereby subject to change._
 
 Alternatively you can install with:
 ```
-go get github.com/prometheus/alertmanager/cmd/amtool
+$ go install github.com/prometheus/alertmanager/cmd/amtool@latest
 ```
 
 ### Examples
@@ -283,7 +283,7 @@ $ amtool silence query instance=~".+0"
 ID                                    Matchers                            Ends At                  Created By  Comment
 e48cb58a-0b17-49ba-b734-3585139b1d25  alertname=Test_Alert instance=~.+0  2017-08-02 22:41:39 UTC  kellel
 
-$ amtool silence expire $(amtool silence -q query instance=~".+0")
+$ amtool silence expire $(amtool silence query -q instance=~".+0")
 
 $ amtool silence query instance=~".+0"
 
@@ -292,6 +292,17 @@ $ amtool silence query instance=~".+0"
 Expire all silences:
 ```
 $ amtool silence expire $(amtool silence query -q)
+```
+
+Try out how a template works. Let's say you have this in your configuration file:
+```
+templates:
+  - '/foo/bar/*.tmpl'
+```
+
+Then you can test out how a template would look like with example by using this command:
+```
+amtool template render --template.glob='/foo/bar/*.tmpl' --template.text='{{ template "slack.default.markdown.v1" . }}'
 ```
 
 ### Configuration
@@ -395,7 +406,7 @@ If running Alertmanager in high availability mode is not desired, setting `--clu
 
 ## Contributing
 
-Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
+Check the [Prometheus contributing page](https://github.com/prometheus/prometheus/blob/main/CONTRIBUTING.md).
 
 To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CONTRIBUTING.md).
 
@@ -405,7 +416,7 @@ To contribute to the user interface, refer to [ui/app/CONTRIBUTING.md](ui/app/CO
 
 ## License
 
-Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/master/LICENSE).
+Apache License 2.0, see [LICENSE](https://github.com/prometheus/alertmanager/blob/main/LICENSE).
 
 [hub]: https://hub.docker.com/r/prom/alertmanager/
 [circleci]: https://circleci.com/gh/prometheus/alertmanager

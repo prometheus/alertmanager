@@ -13,6 +13,8 @@ In this example we've customised our Slack notification to send a URL to our org
 
 ```
 global:
+  # Also possible to place this URL in a file.
+  # Ex: `slack_api_url_file: '/etc/alertmanager/slack_url'`
   slack_api_url: '<slack_webhook_url>'
 
 route:

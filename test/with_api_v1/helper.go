@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package test
 
 import (
 	"bytes"
@@ -158,11 +158,11 @@ type AlertAPI interface {
 	// List returns all the active alerts.
 	List(ctx context.Context, filter, receiver string, silenced, inhibited, active, unprocessed bool) ([]*ExtendedAlert, error)
 	// Push sends a list of alerts to the Alertmanager.
-	Push(ctx context.Context, alerts ...Alert) error
+	Push(ctx context.Context, alerts ...APIV1Alert) error
 }
 
-// Alert represents an alert as expected by the AlertManager's push alert API.
-type Alert struct {
+// APIV1Alert represents an alert as expected by the AlertManager's push alert API.
+type APIV1Alert struct {
 	Labels       LabelSet  `json:"labels"`
 	Annotations  LabelSet  `json:"annotations"`
 	StartsAt     time.Time `json:"startsAt,omitempty"`
@@ -172,7 +172,7 @@ type Alert struct {
 
 // ExtendedAlert represents an alert as returned by the AlertManager's list alert API.
 type ExtendedAlert struct {
-	Alert
+	APIV1Alert
 	Status      types.AlertStatus `json:"status"`
 	Receivers   []string          `json:"receivers"`
 	Fingerprint string            `json:"fingerprint"`
@@ -225,7 +225,7 @@ func (h *httpAlertAPI) List(ctx context.Context, filter, receiver string, silenc
 	return alts, err
 }
 
-func (h *httpAlertAPI) Push(ctx context.Context, alerts ...Alert) error {
+func (h *httpAlertAPI) Push(ctx context.Context, alerts ...APIV1Alert) error {
 	u := h.client.URL(epAlerts, nil)
 
 	var buf bytes.Buffer

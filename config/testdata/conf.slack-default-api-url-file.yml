@@ -1,0 +1,19 @@
+global:
+  slack_api_url_file: '/global_file'
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      # Use global
+      - channel: '#alerts1'
+        text: 'test'
+      # Override global with other file
+      - channel: '#alerts2'
+        text: 'test'
+        api_url_file: '/override_file'
+      # Override global with inline URL
+      - channel: '#alerts3'
+        text: 'test'
+        api_url: 'http://mysecret.example.com/'

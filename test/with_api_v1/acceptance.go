@@ -18,7 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -31,8 +31,6 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
-
-	"github.com/prometheus/alertmanager/client"
 )
 
 // AcceptanceTest provides declarative definition of given inputs and expected
@@ -117,7 +115,7 @@ func (t *AcceptanceTest) Alertmanager(conf string) *Alertmanager {
 		opts: t.opts,
 	}
 
-	dir, err := ioutil.TempDir("", "am_test")
+	dir, err := os.MkdirTemp("", "am_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +300,7 @@ func (am *Alertmanager) Start() {
 		if resp.StatusCode != http.StatusOK {
 			am.t.Fatalf("Starting alertmanager failed: expected HTTP status '200', got '%d'", resp.StatusCode)
 		}
-		_, err = ioutil.ReadAll(resp.Body)
+		_, err = io.ReadAll(resp.Body)
 		if err != nil {
 			am.t.Fatalf("Starting alertmanager failed: %s", err)
 		}
@@ -335,26 +333,26 @@ func (am *Alertmanager) cleanup() {
 // Push declares alerts that are to be pushed to the Alertmanager
 // server at a relative point in time.
 func (am *Alertmanager) Push(at float64, alerts ...*TestAlert) {
-	var cas []client.Alert
+	var cas []APIV1Alert
 	for i := range alerts {
 		a := alerts[i].nativeAlert(am.opts)
-		al := client.Alert{
-			Labels:       client.LabelSet{},
-			Annotations:  client.LabelSet{},
+		al := APIV1Alert{
+			Labels:       LabelSet{},
+			Annotations:  LabelSet{},
 			StartsAt:     a.StartsAt,
 			EndsAt:       a.EndsAt,
 			GeneratorURL: a.GeneratorURL,
 		}
 		for n, v := range a.Labels {
-			al.Labels[client.LabelName(n)] = client.LabelValue(v)
+			al.Labels[LabelName(n)] = LabelValue(v)
 		}
 		for n, v := range a.Annotations {
-			al.Annotations[client.LabelName(n)] = client.LabelValue(v)
+			al.Annotations[LabelName(n)] = LabelValue(v)
 		}
 		cas = append(cas, al)
 	}
 
-	alertAPI := client.NewAlertAPI(am.client)
+	alertAPI := NewAlertAPI(am.client)
 
 	am.t.Do(at, func() {
 		if err := alertAPI.Push(context.Background(), cas...); err != nil {
@@ -379,7 +377,7 @@ func (am *Alertmanager) SetSilence(at float64, sil *TestSilence) {
 		}
 		defer resp.Body.Close()
 
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		if err != nil {
 			panic(err)
 		}
@@ -420,11 +418,9 @@ func (am *Alertmanager) DelSilence(at float64, sil *TestSilence) {
 func (am *Alertmanager) UpdateConfig(conf string) {
 	if _, err := am.confFile.WriteString(conf); err != nil {
 		am.t.Fatal(err)
-		return
 	}
 	if err := am.confFile.Sync(); err != nil {
 		am.t.Fatal(err)
-		return
 	}
 }
 

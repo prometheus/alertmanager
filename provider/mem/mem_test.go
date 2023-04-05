@@ -18,18 +18,19 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
-	"sync"
-
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/kylelemons/godebug/pretty"
-	"github.com/prometheus/alertmanager/store"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+
+	"github.com/prometheus/alertmanager/store"
+	"github.com/prometheus/alertmanager/types"
 )
 
 var (
@@ -85,7 +86,7 @@ func init() {
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestAlertsSubscribePutStarvation(t *testing.T) {
 
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +165,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, log.NewNopLogger())
+	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +242,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 func TestAlertsGetPending(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, log.NewNopLogger())
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +285,7 @@ func TestAlertsGetPending(t *testing.T) {
 
 func TestAlertsGC(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, log.NewNopLogger())
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, noopCallback{}, log.NewNopLogger(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +297,8 @@ func TestAlertsGC(t *testing.T) {
 	}
 
 	for _, a := range insert {
-		marker.SetActive(a.Fingerprint())
+		marker.SetActiveOrSilenced(a.Fingerprint(), 0, nil, nil)
+		marker.SetInhibited(a.Fingerprint())
 		if !marker.Active(a.Fingerprint()) {
 			t.Errorf("error setting status: %v", a)
 		}
@@ -314,6 +316,139 @@ func TestAlertsGC(t *testing.T) {
 			t.Errorf("marker %d didn't get GC'd: %v", i, s)
 		}
 	}
+}
+
+func TestAlertsStoreCallback(t *testing.T) {
+	cb := &limitCountCallback{limit: 3}
+
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, cb, log.NewNopLogger(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = alerts.Put(alert1, alert2, alert3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if num := cb.alerts.Load(); num != 3 {
+		t.Fatalf("unexpected number of alerts in the store, expected %v, got %v", 3, num)
+	}
+
+	alert1Mod := *alert1
+	alert1Mod.Annotations = model.LabelSet{"foo": "bar", "new": "test"} // Update annotations for alert1
+
+	alert4 := &types.Alert{
+		Alert: model.Alert{
+			Labels:       model.LabelSet{"bar4": "foo4"},
+			Annotations:  model.LabelSet{"foo4": "bar4"},
+			StartsAt:     t0,
+			EndsAt:       t1,
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: t0,
+		Timeout:   false,
+	}
+
+	err = alerts.Put(&alert1Mod, alert4)
+	// Verify that we failed to put new alert into store (not reported via error, only checked using Load)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	if num := cb.alerts.Load(); num != 3 {
+		t.Fatalf("unexpected number of alerts in the store, expected %v, got %v", 3, num)
+	}
+
+	// But we still managed to update alert1, since callback doesn't report error when updating existing alert.
+	a, err := alerts.Get(alert1.Fingerprint())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !alertsEqual(a, &alert1Mod) {
+		t.Errorf("Unexpected alert")
+		t.Fatalf(pretty.Compare(a, &alert1Mod))
+	}
+
+	// Now wait until existing alerts are GC-ed, and make sure that callback was called.
+	time.Sleep(300 * time.Millisecond)
+
+	if num := cb.alerts.Load(); num != 0 {
+		t.Fatalf("unexpected number of alerts in the store, expected %v, got %v", 0, num)
+	}
+
+	err = alerts.Put(alert4)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAlerts_Count(t *testing.T) {
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, nil, log.NewNopLogger(), nil)
+	require.NoError(t, err)
+
+	states := []types.AlertState{types.AlertStateActive, types.AlertStateSuppressed, types.AlertStateUnprocessed}
+
+	countByState := func(st types.AlertState) int {
+		return alerts.count(st)
+	}
+	countTotal := func() int {
+		var count int
+		for _, st := range states {
+			count += countByState(st)
+		}
+		return count
+	}
+
+	// First, there shouldn't be any alerts.
+	require.Equal(t, 0, countTotal())
+
+	// When you insert a new alert that will eventually be active, it should be unprocessed first.
+	now := time.Now()
+	a1 := &types.Alert{
+		Alert: model.Alert{
+			Labels:       model.LabelSet{"bar": "foo"},
+			Annotations:  model.LabelSet{"foo": "bar"},
+			StartsAt:     now,
+			EndsAt:       now.Add(400 * time.Millisecond),
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: now,
+		Timeout:   false,
+	}
+
+	alerts.Put(a1)
+	require.Equal(t, 1, countByState(types.AlertStateUnprocessed))
+	require.Equal(t, 1, countTotal())
+	require.Eventually(t, func() bool {
+		// When the alert will eventually expire and is considered resolved - it won't count.
+		return countTotal() == 0
+	}, 600*time.Millisecond, 100*time.Millisecond)
+
+	now = time.Now()
+	a2 := &types.Alert{
+		Alert: model.Alert{
+			Labels:       model.LabelSet{"bar": "foo"},
+			Annotations:  model.LabelSet{"foo": "bar"},
+			StartsAt:     now,
+			EndsAt:       now.Add(400 * time.Millisecond),
+			GeneratorURL: "http://example.com/prometheus",
+		},
+		UpdatedAt: now,
+		Timeout:   false,
+	}
+
+	// When insert an alert, and then silence it. It shows up with the correct filter.
+	alerts.Put(a2)
+	marker.SetActiveOrSilenced(a2.Fingerprint(), 1, []string{"1"}, nil)
+	require.Equal(t, 1, countByState(types.AlertStateSuppressed))
+	require.Equal(t, 1, countTotal())
+
+	require.Eventually(t, func() bool {
+		// When the alert will eventually expire and is considered resolved - it won't count.
+		return countTotal() == 0
+	}, 600*time.Millisecond, 100*time.Millisecond)
 }
 
 func alertsEqual(a1, a2 *types.Alert) bool {
@@ -339,4 +474,33 @@ func alertsEqual(a1, a2 *types.Alert) bool {
 		return false
 	}
 	return a1.Timeout == a2.Timeout
+}
+
+type limitCountCallback struct {
+	alerts atomic.Int32
+	limit  int
+}
+
+var errTooManyAlerts = fmt.Errorf("too many alerts")
+
+func (l *limitCountCallback) PreStore(_ *types.Alert, existing bool) error {
+	if existing {
+		return nil
+	}
+
+	if int(l.alerts.Load())+1 > l.limit {
+		return errTooManyAlerts
+	}
+
+	return nil
+}
+
+func (l *limitCountCallback) PostStore(_ *types.Alert, existing bool) {
+	if !existing {
+		l.alerts.Inc()
+	}
+}
+
+func (l *limitCountCallback) PostDelete(_ *types.Alert) {
+	l.alerts.Dec()
 }

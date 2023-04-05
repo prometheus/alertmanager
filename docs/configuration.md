@@ -50,7 +50,7 @@ Generic placeholders are defined as follows:
 
 The other placeholders are specified separately.
 
-A provided [valid example file](https://github.com/prometheus/alertmanager/blob/master/doc/examples/simple.yml)
+A provided [valid example file](https://github.com/prometheus/alertmanager/blob/main/doc/examples/simple.yml)
 shows usage in context.
 
 The global configuration specifies parameters that are valid in all other
@@ -71,6 +71,8 @@ global:
   [ smtp_auth_username: <string> ]
   # SMTP Auth using LOGIN and PLAIN.
   [ smtp_auth_password: <secret> ]
+  # SMTP Auth using LOGIN and PLAIN.
+  [ smtp_auth_password_file: <string> ]
   # SMTP Auth using PLAIN.
   [ smtp_auth_identity: <string> ]
   # SMTP Auth using CRAM-MD5.
@@ -81,15 +83,19 @@ global:
 
   # The API URL to use for Slack notifications.
   [ slack_api_url: <secret> ]
+  [ slack_api_url_file: <filepath> ]
   [ victorops_api_key: <secret> ]
+  [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
   [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
   [ opsgenie_api_key: <secret> ]
+  [ opsgenie_api_key_file: <filepath> ]
   [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
   [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
   [ wechat_api_secret: <secret> ]
   [ wechat_api_corp_id: <string> ]
-
+  [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
+  [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -114,9 +120,14 @@ receivers:
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 
+# DEPRECATED: use time_intervals below.
 # A list of mute time intervals for muting routes.
 mute_time_intervals:
   [ - <mute_time_interval> ... ]
+
+# A list of time intervals for muting/activating routes.
+time_intervals:
+  [ - <time_interval> ... ]
 ```
 
 ## `<route>`
@@ -150,13 +161,19 @@ current node.
 # Whether an alert should continue matching subsequent sibling nodes.
 [ continue: <boolean> | default = false ]
 
+# DEPRECATED: Use matchers below.
 # A set of equality matchers an alert has to fulfill to match the node.
 match:
   [ <labelname>: <labelvalue>, ... ]
 
+# DEPRECATED: Use matchers below.
 # A set of regex-matchers an alert has to fulfill to match the node.
 match_re:
   [ <labelname>: <regex>, ... ]
+
+# A list of matchers that an alert has to fulfill to match the node.
+matchers:
+  [ - <matcher> ... ]
 
 # How long to initially wait to send a notification for a group
 # of alerts. Allows to wait for an inhibiting alert to arrive or collect
@@ -173,12 +190,22 @@ match_re:
 [ repeat_interval: <duration> | default = 4h ]
 
 # Times when the route should be muted. These must match the name of a
-# mute time interval defined in the mute_time_intervals section. 
+# mute time interval defined in the mute_time_intervals section.
 # Additionally, the root node cannot have any mute times.
 # When a route is muted it will not send any notifications, but
 # otherwise acts normally (including ending the route-matching process
 # if the `continue` option is not set.)
 mute_time_intervals:
+  [ - <string> ...]
+
+# Times when the route should be active. These must match the name of a
+# time interval defined in the time_intervals section. An empty value
+# means that the route is always active.
+# Additionally, the root node cannot have any active times.
+# The route will send notifications only when active, but otherwise
+# acts normally (including ending the route-matching process
+# if the `continue` option is not set).
+active_time_intervals:
   [ - <string> ...]
 
 # Zero or more child routes.
@@ -204,21 +231,41 @@ route:
   # are dispatched to the database pager.
   - receiver: 'database-pager'
     group_wait: 10s
-    match_re:
-      service: mysql|cassandra
+    matchers:
+    - service=~"mysql|cassandra"
   # All alerts with the team=frontend label match this sub-route.
   # They are grouped by product and environment rather than cluster
   # and alertname.
   - receiver: 'frontend-pager'
     group_by: [product, environment]
-    match:
-      team: frontend
+    matchers:
+    - team="frontend"
+
+  # All alerts with the service=inhouse-service label match this sub-route.
+  # the route will be muted during offhours and holidays time intervals.
+  # even if it matches, it will continue to the next sub-route
+  - receiver: 'dev-pager'
+    matchers:
+      - service="inhouse-service"
+    mute_time_intervals:
+      - offhours
+      - holidays
+    continue: true
+
+    # All alerts with the service=inhouse-service label match this sub-route
+    # the route will be active only during offhours and holidays time intervals.
+  - receiver: 'on-call-pager'
+    matchers:
+      - service="inhouse-service"
+    active_time_intervals:
+      - offhours
+      - holidays
 ```
 
-## `<mute_time_interval>`
+## `<time_interval>`
 
-A `mute_time_interval` specifies a named interval of time that may be referenced
-in the routing tree to mute particular routes for particular times of the day.
+A `time_interval` specifies a named interval of time that may be referenced
+in the routing tree to mute/activate particular routes for particular times of the day.
 
 ```yaml
 name: <string>
@@ -240,27 +287,28 @@ supports the following fields:
   [ - <month_range> ...]
   years:
   [ - <year_range> ...]
+  location: <string>
 ```
 
 All fields are lists. Within each non-empty list, at least one element must be satisfied to match
 the field. If a field is left unspecified, any value will match the field. For an instant of time
 to match a complete time interval, all fields must match.
-Some fields support ranges and negative indices, and are detailed below. All definitions are
-taken to be in UTC, no other timezones are currently supported.
+Some fields support ranges and negative indices, and are detailed below. If a time zone is not
+specified, then the times are taken to be in UTC.
 
-`time_range` Ranges inclusive of the starting time and exclusive of the end time to
+`time_range`: Ranges inclusive of the starting time and exclusive of the end time to
 make it easy to represent times that start/end on hour boundaries.
-For example, start_time: '17:00' and end_time: '24:00' will begin at 17:00 and finish
+For example, `start_time: '17:00'` and `end_time: '24:00'` will begin at 17:00 and finish
 immediately before 24:00. They are specified like so:
 
         times:
         - start_time: HH:MM
           end_time: HH:MM
 
-`weeekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
-Days should be specified by name (e.g. ‘Sunday’). For convenience, ranges are also accepted
-of the form <start_day>:<end_day> and are inclusive on both ends. For example:
-`[‘monday:wednesday','saturday', 'sunday']`
+`weekday_range`: A list of days of the week, where the week begins on Sunday and ends on Saturday.
+Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
+of the form `<start_day>:<end_day>` and are inclusive on both ends. For example:
+`['monday:wednesday','saturday', 'sunday']`
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
@@ -269,12 +317,31 @@ Extending past the start or end of the month will cause it to be clamped. E.g. s
 `['1:31']` during February will clamp the actual end date to 28 or 29 depending on leap years.
 Inclusive on both ends.
 
-`month_range`: A list of calendar months identified by a case-insentive name (e.g. ‘January’) or by number,
+`month_range`: A list of calendar months identified by a case-insensitive name (e.g. 'January') or by number,
 where January = 1. Ranges are also accepted. For example, `['1:3', 'may:august', 'december']`.
 Inclusive on both ends.
 
 `year_range`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`.
 Inclusive on both ends.
+
+`location`: A string that matches a location in the IANA time zone database. For
+example, `'Australia/Sydney'`. The location provides the time zone for the time
+interval. For example, a time interval with a location of `'Australia/Sydney'` that
+contained something like:
+
+        times:
+        - start_time: 09:00
+          end_time: 17:00
+        weekdays: ['monday:friday']
+
+would include any time that fell between the hours of 9:00AM and 5:00PM, between Monday
+and Friday, using the local time in Sydney, Australia.
+
+You may also use `'Local'` as a location to use the local time of the machine where
+Alertmanager is running, or `'UTC'` for UTC time. If no timezone is provided, the time
+interval is taken to be in UTC time.**Note:** On Windows, only `Local` or `UTC` are
+supported unless you provide a custom time zone database using the `ZONEINFO`
+environment variable.
 
 ## `<inhibit_rule>`
 
@@ -294,18 +361,32 @@ source matchers in a way that alerts never match both sides. It is much easier
 to reason about and does not trigger this special case.
 
 ```yaml
+# DEPRECATED: Use target_matchers below.
 # Matchers that have to be fulfilled in the alerts to be muted.
 target_match:
   [ <labelname>: <labelvalue>, ... ]
+# DEPRECATED: Use target_matchers below.
 target_match_re:
   [ <labelname>: <regex>, ... ]
 
+# A list of matchers that have to be fulfilled by the target
+# alerts to be muted.
+target_matchers:
+  [ - <matcher> ... ]
+
+# DEPRECATED: Use source_matchers below.
 # Matchers for which one or more alerts have to exist for the
 # inhibition to take effect.
 source_match:
   [ <labelname>: <labelvalue>, ... ]
+# DEPRECATED: Use source_matchers below.
 source_match_re:
   [ <labelname>: <regex>, ... ]
+
+# A list of matchers for which one or more alerts have
+# to exist for the inhibition to take effect.
+source_matchers:
+  [ - <matcher> ... ]
 
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
@@ -339,6 +420,14 @@ authorization:
   # It is mutually exclusive with `credentials`.
   [ credentials_file: <filename> ]
 
+# Optional OAuth 2.0 configuration.
+# Cannot be used at the same time as basic_auth or authorization.
+oauth2:
+  [ <oauth2> ]
+
+# Whether to enable HTTP2.
+[ enable_http2: <bool> | default: true ]
+
 # Optional proxy URL.
 [ proxy_url: <string> ]
 
@@ -348,6 +437,39 @@ authorization:
 # Configures the TLS settings.
 tls_config:
   [ <tls_config> ]
+```
+
+### `oauth2`
+
+OAuth 2.0 authentication using the client credentials grant type.
+Alertmanager fetches an access token from the specified endpoint with
+the given client access and secret keys.
+
+```yaml
+client_id: <string>
+[ client_secret: <secret> ]
+
+# Read the client secret from a file.
+# It is mutually exclusive with `client_secret`.
+[ client_secret_file: <filename> ]
+
+# Scopes for the token request.
+scopes:
+  [ - <string> ... ]
+
+# The URL to fetch the token from.
+token_url: <string>
+
+# Optional parameters to append to the token URL.
+endpoint_params:
+  [ <string>: <string> ... ]
+
+# Configures the token request's TLS settings.
+tls_config:
+  [ <tls_config> ]
+
+# Optional proxy URL.
+[ proxy_url: <string> ]
 ```
 
 ## `<tls_config>`
@@ -368,13 +490,24 @@ A `tls_config` allows configuring TLS connections.
 
 # Disable validation of the server certificate.
 [ insecure_skip_verify: <boolean> | default = false]
+
+# Minimum acceptable TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS
+# 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+# If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+# See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+[ min_version: <string> ]
+# Maximum acceptable TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS
+# 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+# If unset, Prometheus will use Go default maximum version, which is TLS 1.3.
+# See MaxVersion in https://pkg.go.dev/crypto/tls#Config.
+[ max_version: <string> ]
 ```
 
 ## `<receiver>`
 
 Receiver is a named configuration of one or more notification integrations.
 
-__We're not actively adding new receivers, we recommend implementing custom notification integrations via the [webhook](#webhook_config) receiver.__
+Note: As part of lifting the past moratorium on new receivers it was agreed that, in addition to the existing requirements, new notification integrations will be required to have a committed maintainer with push access.
 
 ```yaml
 # The unique name of the receiver.
@@ -383,32 +516,38 @@ name: <string>
 # Configurations for several notification integrations.
 email_configs:
   [ - <email_config>, ... ]
+opsgenie_configs:
+  [ - <opsgenie_config>, ... ]
 pagerduty_configs:
   [ - <pagerduty_config>, ... ]
 pushover_configs:
   [ - <pushover_config>, ... ]
 slack_configs:
   [ - <slack_config>, ... ]
-opsgenie_configs:
-  [ - <opsgenie_config>, ... ]
-webhook_configs:
-  [ - <webhook_config>, ... ]
+sns_configs:
+  [ - <sns_config>, ... ]
 victorops_configs:
   [ - <victorops_config>, ... ]
+webhook_configs:
+  [ - <webhook_config>, ... ]
 wechat_configs:
   [ - <wechat_config>, ... ]
+telegram_configs:
+  [ - <telegram_config>, ... ]
+webex_configs:
+  [ - <webex_config>, ... ]
 ```
 
 ## `<email_config>`
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The email address to send notifications to.
 to: <tmpl_string>
 
-# The sender address.
+# The sender's address.
 [ from: <tmpl_string> | default = global.smtp_from ]
 
 # The SMTP host through which emails are sent.
@@ -418,8 +557,10 @@ to: <tmpl_string>
 [ hello: <string> | default = global.smtp_hello ]
 
 # SMTP authentication information.
+# auth_password and auth_password_file are mutually exclusive.
 [ auth_username: <string> | default = global.smtp_auth_username ]
 [ auth_password: <secret> | default = global.smtp_auth_password ]
+[ auth_password_file: <string> | default = global.smtp_auth_password_file ]
 [ auth_secret: <secret> | default = global.smtp_auth_secret ]
 [ auth_identity: <string> | default = global.smtp_auth_identity ]
 
@@ -441,20 +582,98 @@ tls_config:
 [ headers: { <string>: <tmpl_string>, ... } ]
 ```
 
+## `<opsgenie_config>`
+
+OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The API key to use when talking to the OpsGenie API.
+[ api_key: <secret> | default = global.opsgenie_api_key ]
+
+# The filepath to API key to use when talking to the OpsGenie API. Conflicts with api_key.
+[ api_key_file: <filepath> | default = global.opsgenie_api_key_file ]
+
+# The host to send OpsGenie API requests to.
+[ api_url: <string> | default = global.opsgenie_api_url ]
+
+# Alert text limited to 130 characters.
+[ message: <tmpl_string> | default = '{{ template "opsgenie.default.message" . }}' ]
+
+# A description of the alert.
+[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
+
+# A backlink to the sender of the notification.
+[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
+
+# A set of arbitrary key/value pairs that provide further detail
+# about the alert.
+# All common labels are included as details by default.
+[ details: { <string>: <tmpl_string>, ... } ]
+
+# List of responders responsible for notifications.
+responders:
+  [ - <responder> ... ]
+
+# Comma separated list of tags attached to the notifications.
+[ tags: <tmpl_string> ]
+
+# Additional alert note.
+[ note: <tmpl_string> ]
+
+# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
+[ priority: <tmpl_string> ]
+
+# Whether to update message and description of the alert in OpsGenie if it already exists
+# By default, the alert is never updated in OpsGenie, the new message only appears in activity log.
+[ update_alerts: <boolean> | default = false ]
+
+# Optional field that can be used to specify which domain alert is related to.
+[ entity: <tmpl_string> ]
+
+# Comma separated list of actions that will be available for the alert.
+[ actions: <tmpl_string> ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+### `<responder>`
+
+```yaml
+# Exactly one of these fields should be defined.
+[ id: <tmpl_string> ]
+[ name: <tmpl_string> ]
+[ username: <tmpl_string> ]
+
+# "team", "teams", "user", "escalation" or "schedule".
+type: <tmpl_string>
+```
+
 ## `<pagerduty_config>`
 
 PagerDuty notifications are sent via the [PagerDuty API](https://developer.pagerduty.com/documentation/integration/events).
 PagerDuty provides [documentation](https://www.pagerduty.com/docs/guides/prometheus-integration-guide/) on how to integrate. There are important differences with Alertmanager's v0.11 and greater support of PagerDuty's Events API v2.
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The following two options are mutually exclusive.
+# The routing and service keys are mutually exclusive.
 # The PagerDuty integration key (when using PagerDuty integration type `Events API v2`).
+# It is mutually exclusive with `routing_key_file`.
 routing_key: <tmpl_secret>
+# Read the Pager Duty routing key from a file.
+# It is mutually exclusive with `routing_key`.
+routing_key_file: <filepath>
 # The PagerDuty integration key (when using PagerDuty integration type `Prometheus`).
+# It is mutually exclusive with `service_key_file`.
 service_key: <tmpl_secret>
+# Read the Pager Duty service key from a file.
+# It is mutually exclusive with `service_key`.
+service_key_file: <filepath>
 
 # The URL to send API requests to
 [ url: <string> | default = global.pagerduty_url ]
@@ -469,6 +688,9 @@ service_key: <tmpl_secret>
 
 # Severity of the incident.
 [ severity: <tmpl_string> | default = 'error' ]
+
+# Unique location of the affected system.
+[ source: <tmpl_string> | default = client ]
 
 # A set of arbitrary key/value pairs that provide further detail
 # about the incident.
@@ -524,13 +746,15 @@ text: <tmpl_string>
 Pushover notifications are sent via the [Pushover API](https://pushover.net/api).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The recipient user’s user key.
+# The recipient user's user key.
 user_key: <secret>
 
-# Your registered application’s API token, see https://pushover.net/apps
+# Your registered application's API token, see https://pushover.net/apps
+# You can also register a token by cloning this Prometheus app:
+# https://pushover.net/apps/clone/prometheus
 token: <secret>
 
 # Notification title.
@@ -560,15 +784,17 @@ token: <secret>
 ## `<slack_config>`
 
 Slack notifications are sent via [Slack
-webhooks](https://api.slack.com/incoming-webhooks). The notification contains
-an [attachment](https://api.slack.com/docs/message-attachments).
+webhooks](https://api.slack.com/messaging/webhooks). The notification contains
+an [attachment](https://api.slack.com/messaging/composing/layouts#attachments).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
-# The Slack webhook URL.
+# The Slack webhook URL. Either api_url or api_url_file should be set.
+# Defaults to global settings if none are set here.
 [ api_url: <secret> | default = global.slack_api_url ]
+[ api_url_file: <filepath> | default = global.slack_api_url_file ]
 
 # The channel or user to send notifications to.
 channel: <tmpl_string>
@@ -602,7 +828,7 @@ fields:
 
 ### `<action_config>`
 
-The fields are documented in the Slack API documentation for [message attachments](https://api.slack.com/docs/message-attachments#action_fields) and [interactive messages](https://api.slack.com/docs/interactive-message-field-guide#action_fields).
+The fields are documented in the Slack API documentation for [message attachments](https://api.slack.com/messaging/composing/layouts#attachments) and [interactive messages](https://api.slack.com/legacy/interactive-message-field-guide#action_fields).
 
 ```yaml
 text: <tmpl_string>
@@ -618,7 +844,7 @@ type: <tmpl_string>
 
 #### `<action_confirm_field_config>`
 
-The fields are documented in the [Slack API documentation](https://api.slack.com/docs/interactive-message-field-guide#confirmation_fields).
+The fields are documented in the [Slack API documentation](https://api.slack.com/legacy/interactive-message-field-guide#confirmation_fields).
 
 ```yaml
 text: <tmpl_string>
@@ -629,7 +855,7 @@ text: <tmpl_string>
 
 ### `<field_config>`
 
-The fields are documented in the [Slack API documentation](https://api.slack.com/docs/message-attachments#fields).
+The fields are documented in the [Slack API documentation](https://api.slack.com/messaging/composing/layouts#attachments).
 
 ```yaml
 title: <tmpl_string>
@@ -637,73 +863,143 @@ value: <tmpl_string>
 [ short: <boolean> | default = slack_config.short_fields ]
 ```
 
-## `<opsgenie_config>`
-
-OpsGenie notifications are sent via the [OpsGenie API](https://docs.opsgenie.com/docs/alert-api).
-
+## `<sns_config>`
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The API key to use when talking to the OpsGenie API.
-[ api_key: <secret> | default = global.opsgenie_api_key ]
+# The SNS API URL i.e. https://sns.us-east-2.amazonaws.com.
+#  If not specified, the SNS API URL from the SNS SDK will be used.
+[ api_url: <tmpl_string> ]
 
-# The host to send OpsGenie API requests to.
-[ api_url: <string> | default = global.opsgenie_api_url ]
+# Configures AWS's Signature Verification 4 signing process to sign requests.
+sigv4:
+  [ <sigv4_config> ]
 
-# Alert text limited to 130 characters.
-[ message: <tmpl_string> ]
+# SNS topic ARN, i.e. arn:aws:sns:us-east-2:698519295917:My-Topic
+# If you don't specify this value, you must specify a value for the phone_number or target_arn.
+# If you are using a FIFO SNS topic you should set a message group interval longer than 5 minutes
+# to prevent messages with the same group key being deduplicated by the SNS default deduplication window
+[ topic_arn: <tmpl_string> ]
 
-# A description of the incident.
-[ description: <tmpl_string> | default = '{{ template "opsgenie.default.description" . }}' ]
+# Subject line when the message is delivered to email endpoints.
+[ subject: <tmpl_string> | default = '{{ template "sns.default.subject" .}}' ]
 
-# A backlink to the sender of the notification.
-[ source: <tmpl_string> | default = '{{ template "opsgenie.default.source" . }}' ]
+# Phone number if message is delivered via SMS in E.164 format.
+# If you don't specify this value, you must specify a value for the topic_arn or target_arn.
+[ phone_number: <tmpl_string> ]
 
-# A set of arbitrary key/value pairs that provide further detail
-# about the incident.
-# All common labels are included as details by default.
-[ details: { <string>: <tmpl_string>, ... } ]
+# The  mobile platform endpoint ARN if message is delivered via mobile notifications.
+# If you don't specify this value, you must specify a value for the topic_arn or phone_number.
+[ target_arn: <tmpl_string> ]
 
-# List of responders responsible for notifications.
-responders:
-  [ - <responder> ... ]
+# The message content of the SNS notification.
+[ message: <tmpl_string> | default = '{{ template "sns.default.message" .}}' ]
 
-# Comma separated list of tags attached to the notifications.
-[ tags: <tmpl_string> ]
-
-# Additional alert note.
-[ note: <tmpl_string> ]
-
-# Priority level of alert. Possible values are P1, P2, P3, P4, and P5.
-[ priority: <tmpl_string> ]
+# SNS message attributes.
+attributes:
+  [ <string>: <string> ... ]
 
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
-### `<responder>`
+### `<sigv4_config>`
+```yaml
+# The AWS region. If blank, the region from the default credentials chain is used.
+[ region: <string> ]
+
+# The AWS API keys. Both access_key and secret_key must be supplied or both must be blank.
+# If blank the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are used.
+[ access_key: <string> ]
+[ secret_key: <secret> ]
+
+# Named AWS profile used to authenticate.
+[ profile: <string> ]
+
+# AWS Role ARN, an alternative to using AWS API keys.
+[ role_arn: <string> ]
+```
+
+## `<matcher>`
+
+A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens:
+
+- A valid Prometheus label name.
+
+- One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
+
+- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
+
+The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
+
+Matchers are ANDed together, meaning that all matchers must evaluate to "true" when tested against the labels on a given alert. For example, an alert with these labels:
+
+```json
+{"alertname":"Watchdog","severity":"none"}
+```
+
+would NOT match this list of matchers:
 
 ```yaml
-# Exactly one of these fields should be defined.
-[ id: <tmpl_string> ]
-[ name: <tmpl_string> ]
-[ username: <tmpl_string> ]
-
-# "team", "user", "escalation" or schedule".
-type: <tmpl_string>
+matchers:
+  - alertname = Watchdog
+  - severity =~ "warning|critical"
 ```
+
+In the configuration, multiple matchers are combined in a YAML list. However, it is also possible to combine multiple matchers within a single YAML string, again using syntax inspired by PromQL. In such a string, a leading `{` and/or a trailing `}` is optional and will be trimmed before further parsing. Individual matchers are separated by commas outside of quoted parts of the string. Those commas may be surrounded by whitespace. Parts of the string inside unescaped double quotes `"…"` are considered quoted (and commas don't act as separators there). If double quotes are escaped with a single backslash `\`, they are ignored for the purpose of identifying quoted parts of the input string. If the input string, after trimming the optional trailing `}`, ends with a comma, followed by optional whitespace, this comma and whitespace will be trimmed.
+
+Here are some examples of valid string matchers:
+
+1. Shown below are two equality matchers combined in a long form YAML list.
+
+    ```yaml
+    matchers:
+      - foo = bar
+      - dings !=bums
+    ```
+
+2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
+
+    ```yaml
+    matchers: [ foo = bar, dings != bums ]
+    ```
+
+    As shown below, in the short-form, it's generally better to quote the list elements to avoid problems with special characters like commas:
+
+    ```yaml
+    matchers: [ "foo = bar,baz", "dings != bums" ]
+    ```
+
+3. You can also put both matchers into one PromQL-like string. Single quotes for the whole string work best here.
+
+    ```yaml
+    matchers: [ '{foo="bar",dings!="bums"}' ]
+    ```
+
+4. To avoid any confusion about YAML string quoting and escaping, you can use YAML block quoting and then only worry about the OpenMetrics escaping inside the block. A complex example with a regular expression and different quotes inside the label value is shown below:
+
+    ```yaml
+    matchers:
+      - |
+          {quote=~"She said: \"Hi, all!( How're you…)?\""}
+    ```
 
 ## `<victorops_config>`
 
-VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/victorops-restendpoint-integration/)
+VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/)
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The API key to use when talking to the VictorOps API.
+# It is mutually exclusive with `api_key_file`.
 [ api_key: <secret> | default = global.victorops_api_key ]
+
+# Reads the API key to use when talking to the VictorOps API from a file.
+# It is mutually exclusive with `api_key`.
+[ api_key_file: <filepath> | default = global.victorops_api_key_file ]
 
 # The VictorOps API URL.
 [ api_url: <string> | default = global.victorops_api_url ]
@@ -732,7 +1028,7 @@ routing_key: <tmpl_string>
 The webhook receiver allows configuring a generic receiver.
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
 # The endpoint to send HTTP POST requests to.
@@ -787,7 +1083,7 @@ WeChat notifications are sent via the [WeChat
 API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 
 ```yaml
-# Whether or not to notify about resolved alerts.
+# Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = false ]
 
 # The API key to use when talking to the WeChat API.
@@ -807,4 +1103,51 @@ API](http://admin.wechat.com/wiki/index.php?title=Customer_Service_Messages).
 [ to_user: <string> | default = '{{ template "wechat.default.to_user" . }}' ]
 [ to_party: <string> | default = '{{ template "wechat.default.to_party" . }}' ]
 [ to_tag: <string> | default = '{{ template "wechat.default.to_tag" . }}' ]
+```
+
+## `<telegram_config>`
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Telegram API URL i.e. https://api.telegram.org.
+# If not specified, default API URL will be used.
+[ api_url: <string> | default = global.telegram_api_url ]
+
+# Telegram bot token
+[ bot_token: <string> ]
+
+# ID of the chat where to send the messages.
+[ chat_id: <int> ]
+
+# Message template
+[ message: <tmpl_string> default = '{{ template "telegram.default.message" .}}' ]
+
+# Disable telegram notifications
+[ disable_notifications: <boolean> | default = false ]
+
+# Parse mode for telegram message, supported values are MarkdownV2, Markdown, HTML and empty string for plain text.
+[ parse_mode: <string> | default = "MarkdownV2" ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
+```
+
+## `<webex_config>`
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Webex Teams API URL i.e. https://webexapis.com/v1/messages
+# If not specified, default API URL will be used.
+[ api_url: <string> | default = global.webex_api_url ]
+
+# ID of the Webex Teams room where to send the messages.
+room_id: <string>
+
+# Message template
+[ message: <tmpl_string> default = '{{ template "webex.default.message" .}}' ]
+
+# The HTTP client's configuration. You must use this configuration to supply the bot token as part of the HTTP `Authorization` header. 
+[ http_config: <http_config> | default = global.http_config ]
 ```

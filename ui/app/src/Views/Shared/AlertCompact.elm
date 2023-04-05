@@ -3,7 +3,7 @@ module Views.Shared.AlertCompact exposing (view)
 import Data.GettableAlert exposing (GettableAlert)
 import Dict
 import Html exposing (Html, div, table, text)
-import Html.Attributes exposing (class, href, style)
+import Html.Attributes exposing (class, style)
 import Utils.Views exposing (labelButton)
 import Views.Shared.Alert exposing (annotation, annotationsButton, generatorUrlButton, titleView)
 import Views.Shared.Types exposing (Msg)
@@ -17,7 +17,7 @@ view activeAlertId alert =
             alert.labels
                 |> Dict.toList
                 |> List.partition (Tuple.first >> (==) "alertname")
-                |> (\( a, b ) -> (++) a b)
+                |> (\( a, b ) -> a ++ b)
                 |> List.map (\( a, b ) -> String.join "=" [ a, b ])
     in
     div

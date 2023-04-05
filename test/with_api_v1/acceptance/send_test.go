@@ -97,7 +97,7 @@ receivers:
 	// On restart the alert is flushed right away as the group_wait has already passed.
 	// However, it must be caught in the deduplication stage.
 	// The next attempt will be 1s later and won't be filtered in deduping.
-	//co.Want(Between(7.7, 8), Alert("alertname", "test").Active(5.3))
+	// co.Want(Between(7.7, 8), Alert("alertname", "test").Active(5.3))
 
 	at.Run()
 }

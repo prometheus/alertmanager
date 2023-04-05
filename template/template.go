@@ -16,8 +16,9 @@ package template
 import (
 	"bytes"
 	tmplhtml "html/template"
-	"io/ioutil"
+	"io"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -26,6 +27,8 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/prometheus/alertmanager/asset"
 	"github.com/prometheus/alertmanager/types"
@@ -46,25 +49,29 @@ func FromGlobs(paths ...string) (*Template, error) {
 		text: tmpltext.New("").Option("missingkey=zero"),
 		html: tmplhtml.New("").Option("missingkey=zero"),
 	}
-	var err error
 
 	t.text = t.text.Funcs(tmpltext.FuncMap(DefaultFuncs))
 	t.html = t.html.Funcs(tmplhtml.FuncMap(DefaultFuncs))
 
-	f, err := asset.Assets.Open("/templates/default.tmpl")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	b, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	if t.text, err = t.text.Parse(string(b)); err != nil {
-		return nil, err
-	}
-	if t.html, err = t.html.Parse(string(b)); err != nil {
-		return nil, err
+	defaultTemplates := []string{"default.tmpl", "email.tmpl"}
+
+	for _, file := range defaultTemplates {
+		f, err := asset.Assets.Open(path.Join("/templates", file))
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		b, err := io.ReadAll(f)
+		if err != nil {
+			return nil, err
+		}
+		if t.text, err = t.text.Parse(string(b)); err != nil {
+			return nil, err
+		}
+		if t.html, err = t.html.Parse(string(b)); err != nil {
+			return nil, err
+		}
+
 	}
 
 	for _, tp := range paths {
@@ -127,7 +134,7 @@ type FuncMap map[string]interface{}
 var DefaultFuncs = FuncMap{
 	"toUpper": strings.ToUpper,
 	"toLower": strings.ToLower,
-	"title":   strings.Title,
+	"title":   cases.Title(language.AmericanEnglish).String,
 	// join is equal to strings.Join but inverts the argument order
 	// for easier pipelining in templates.
 	"join": func(sep string, s []string) string {

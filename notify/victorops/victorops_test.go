@@ -20,10 +20,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
@@ -116,7 +117,31 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	test.AssertNotifyLeaksNoSecret(t, ctx, notifier, secret)
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret)
+}
+
+func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
+	key := "key"
+	f, err := os.CreateTemp("", "victorops_test")
+	require.NoError(t, err, "creating temp file failed")
+	_, err = f.WriteString(key)
+	require.NoError(t, err, "writing to temp file failed")
+
+	ctx, u, fn := test.GetContextWithCancelingURL()
+	defer fn()
+
+	notifier, err := New(
+		&config.VictorOpsConfig{
+			APIURL:     &config.URL{URL: u},
+			APIKeyFile: f.Name(),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		log.NewNopLogger(),
+	)
+	require.NoError(t, err)
+
+	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
 func TestVictorOpsTemplating(t *testing.T) {
@@ -181,20 +206,22 @@ func TestVictorOpsTemplating(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 			tc.cfg.APIURL = &config.URL{URL: u}
+			tc.cfg.APIKey = "test"
 			vo, err := New(tc.cfg, test.CreateTmpl(t), log.NewNopLogger())
 			require.NoError(t, err)
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			_, err = vo.Notify(ctx, []*types.Alert{{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"lbl1": "val1",
+			_, err = vo.Notify(ctx, []*types.Alert{
+				{
+					Alert: model.Alert{
+						Labels: model.LabelSet{
+							"lbl1": "val1",
+						},
+						StartsAt: time.Now(),
+						EndsAt:   time.Now().Add(time.Hour),
 					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
 				},
-			},
 			}...)
 			if tc.errMsg == "" {
 				require.NoError(t, err)
@@ -203,5 +230,4 @@ func TestVictorOpsTemplating(t *testing.T) {
 			}
 		})
 	}
-
 }

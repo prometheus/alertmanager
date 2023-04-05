@@ -17,6 +17,8 @@ RUN microdnf update -y && microdnf clean all
 RUN mkdir -p /alertmanager && \
     chown -R nobody:nobody etc/alertmanager /alertmanager
 
+COPY template /alertmanager/template/
+
 USER       nobody
 EXPOSE     9093
 VOLUME     [ "/alertmanager" ]

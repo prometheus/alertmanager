@@ -4,8 +4,7 @@ import Data.AlertGroup exposing (AlertGroup)
 import Data.GettableAlert exposing (GettableAlert)
 import Data.Receiver exposing (Receiver)
 import Json.Decode
-import Regex
-import Utils.Api exposing (iso8601Time)
+import Utils.Api
 import Utils.Filter exposing (Filter, generateAPIQueryString)
 import Utils.Types exposing (ApiData)
 

@@ -27,12 +27,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/prometheus/alertmanager/cluster"
 	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // ErrNotFound is returned for empty query results.
@@ -85,10 +86,15 @@ type Log struct {
 
 	// For now we only store the most recently added log entry.
 	// The key is a serialized concatenation of group key and receiver.
-	mtx       sync.RWMutex
-	st        state
-	broadcast func([]byte)
+	mtx                 sync.RWMutex
+	st                  state
+	broadcast           func([]byte)
+	maintenanceOverride MaintenanceFunc
 }
+
+// MaintenanceFunc represents the function to run as part of the periodic maintenance for the nflog.
+// It returns the size of the snapshot taken or an error if it failed.
+type MaintenanceFunc func() (int64, error)
 
 type metrics struct {
 	gcDuration              prometheus.Summary
@@ -190,7 +196,8 @@ func WithMetrics(r prometheus.Registerer) Option {
 //
 // The maintenance terminates on receiving from the provided channel.
 // The done function is called after the final snapshot was completed.
-func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
+// If not nil, the last argument is an override for what to do as part of the maintenance - for advanced usage.
+func WithMaintenance(d time.Duration, stopc chan struct{}, done func(), maintenanceOverride MaintenanceFunc) Option {
 	return func(l *Log) error {
 		if d == 0 {
 			return errors.New("maintenance interval must not be 0")
@@ -198,6 +205,7 @@ func WithMaintenance(d time.Duration, stopc chan struct{}, done func()) Option {
 		l.runInterval = d
 		l.stopc = stopc
 		l.done = done
+		l.maintenanceOverride = maintenanceOverride
 		return nil
 	}
 }
@@ -325,34 +333,40 @@ func (l *Log) run() {
 	t := time.NewTicker(l.runInterval)
 	defer t.Stop()
 
+	var doMaintenance MaintenanceFunc
+	doMaintenance = func() (int64, error) {
+		var size int64
+		if _, err := l.GC(); err != nil {
+			return size, err
+		}
+		if l.snapf == "" {
+			return size, nil
+		}
+		f, err := openReplace(l.snapf)
+		if err != nil {
+			return size, err
+		}
+		if size, err = l.Snapshot(f); err != nil {
+			return size, err
+		}
+		return size, f.Close()
+	}
+
+	if l.maintenanceOverride != nil {
+		doMaintenance = l.maintenanceOverride
+	}
+
 	if l.done != nil {
 		defer l.done()
 	}
 
-	f := func() error {
+	runMaintenance := func(do func() (int64, error)) error {
 		start := l.now()
-		var size int64
-
 		level.Debug(l.logger).Log("msg", "Running maintenance")
-		defer func() {
-			level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
-			l.metrics.snapshotSize.Set(float64(size))
-		}()
-
-		if _, err := l.GC(); err != nil {
-			return err
-		}
-		if l.snapf == "" {
-			return nil
-		}
-		f, err := openReplace(l.snapf)
-		if err != nil {
-			return err
-		}
-		if size, err = l.Snapshot(f); err != nil {
-			return err
-		}
-		return f.Close()
+		size, err := do()
+		level.Debug(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start), "size", size)
+		l.metrics.snapshotSize.Set(float64(size))
+		return err
 	}
 
 Loop:
@@ -361,7 +375,7 @@ Loop:
 		case <-l.stopc:
 			break Loop
 		case <-t.C:
-			if err := f(); err != nil {
+			if err := runMaintenance(doMaintenance); err != nil {
 				level.Error(l.logger).Log("msg", "Running maintenance failed", "err", err)
 			}
 		}
@@ -370,7 +384,7 @@ Loop:
 	if l.snapf == "" {
 		return
 	}
-	if err := f(); err != nil {
+	if err := runMaintenance(doMaintenance); err != nil {
 		level.Error(l.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
@@ -385,7 +399,7 @@ func stateKey(k string, r *pb.Receiver) string {
 	return fmt.Sprintf("%s:%s", k, receiverKey(r))
 }
 
-func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error {
+func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error {
 	// Write all st with the same timestamp.
 	now := l.now()
 	key := stateKey(gkey, r)
@@ -401,6 +415,11 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 		}
 	}
 
+	expiresAt := now.Add(l.retention)
+	if expiry > 0 && l.retention > expiry {
+		expiresAt = now.Add(expiry)
+	}
+
 	e := &pb.MeshEntry{
 		Entry: &pb.Entry{
 			Receiver:       r,
@@ -409,7 +428,7 @@ func (l *Log) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []ui
 			FiringAlerts:   firingAlerts,
 			ResolvedAlerts: resolvedAlerts,
 		},
-		ExpiresAt: now.Add(l.retention),
+		ExpiresAt: expiresAt,
 	}
 
 	b, err := marshalMeshEntry(e)

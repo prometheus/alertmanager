@@ -1,19 +1,18 @@
 module Views.SilenceForm.Views exposing (view)
 
 import Data.GettableAlert exposing (GettableAlert)
-import Html exposing (Html, a, button, div, fieldset, h1, h5, i, input, label, legend, span, strong, text, textarea)
-import Html.Attributes exposing (class, href, style)
+import Html exposing (Html, button, div, h1, i, input, label, strong, text)
+import Html.Attributes exposing (class, style)
 import Html.Events exposing (onClick)
 import Utils.DateTimePicker.Views exposing (viewDateTimePicker)
 import Utils.Filter exposing (SilenceFormGetParams)
 import Utils.FormValidation exposing (ValidatedField, ValidationState(..))
 import Utils.Types exposing (ApiData)
-import Utils.Views exposing (checkbox, iconButtonMsg, loading, validatedField, validatedTextareaField)
+import Utils.Views exposing (loading, validatedField, validatedTextareaField)
 import Views.FilterBar.Types as FilterBar
 import Views.FilterBar.Views as FilterBar
 import Views.Shared.SilencePreview
-import Views.Shared.Types exposing (Msg)
-import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..), validMatchers)
+import Views.SilenceForm.Types exposing (Model, SilenceForm, SilenceFormFieldMsg(..), SilenceFormMsg(..))
 
 
 view : Maybe String -> SilenceFormGetParams -> String -> Model -> Html SilenceFormMsg
@@ -45,7 +44,7 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
             form.comment
         , div [ class inputSectionPadding ]
             [ informationBlock activeAlertId silenceId alerts
-            , silenceActionButtons maybeId form resetClick
+            , silenceActionButtons maybeId resetClick
             ]
         , dateTimePickerDialog form
         ]
@@ -53,44 +52,43 @@ view maybeId silenceFormGetParams defaultCreator { form, filterBar, filterBarVal
 
 dateTimePickerDialog : SilenceForm -> Html SilenceFormMsg
 dateTimePickerDialog form =
-    case form.viewDateTimePicker of
-        True ->
-            div []
-                [ div [ class "modal fade show", style "display" "block" ]
-                    [ div [ class "modal-dialog modal-dialog-centered" ]
-                        [ div [ class "modal-content" ]
-                            [ div [ class "modal-header" ]
-                                [ button
-                                    [ class "close ml-auto"
-                                    , onClick (CloseDateTimePicker |> UpdateField)
-                                    ]
-                                    [ text "x" ]
+    if form.viewDateTimePicker then
+        div []
+            [ div [ class "modal fade show", style "display" "block" ]
+                [ div [ class "modal-dialog modal-dialog-centered" ]
+                    [ div [ class "modal-content" ]
+                        [ div [ class "modal-header" ]
+                            [ button
+                                [ class "close ml-auto"
+                                , onClick (CloseDateTimePicker |> UpdateField)
                                 ]
-                            , div [ class "modal-body" ]
-                                [ viewDateTimePicker form.dateTimePicker |> Html.map UpdateDateTimePicker ]
-                            , div [ class "modal-footer" ]
-                                [ button
-                                    [ class "ml-2 btn btn-outline-success mr-auto"
-                                    , onClick (CloseDateTimePicker |> UpdateField)
-                                    ]
-                                    [ text "Cancel" ]
-                                , button
-                                    [ class "ml-2 btn btn-primary"
-                                    , onClick (UpdateTimesFromPicker |> UpdateField)
-                                    ]
-                                    [ text "Set Date/Time" ]
+                                [ text "x" ]
+                            ]
+                        , div [ class "modal-body" ]
+                            [ viewDateTimePicker form.dateTimePicker |> Html.map UpdateDateTimePicker ]
+                        , div [ class "modal-footer" ]
+                            [ button
+                                [ class "ml-2 btn btn-outline-success mr-auto"
+                                , onClick (CloseDateTimePicker |> UpdateField)
                                 ]
+                                [ text "Cancel" ]
+                            , button
+                                [ class "ml-2 btn btn-primary"
+                                , onClick (UpdateTimesFromPicker |> UpdateField)
+                                ]
+                                [ text "Set Date/Time" ]
                             ]
                         ]
                     ]
-                , div [ class "modal-backdrop fade show" ] []
                 ]
+            , div [ class "modal-backdrop fade show" ] []
+            ]
 
-        False ->
-            div [ style "clip" "rect(0,0,0,0)", style "position" "fixed" ]
-                [ div [ class "modal fade" ] []
-                , div [ class "modal-backdrop fade" ] []
-                ]
+    else
+        div [ style "clip" "rect(0,0,0,0)", style "position" "fixed" ]
+            [ div [ class "modal fade" ] []
+            , div [ class "modal-backdrop fade" ] []
+            ]
 
 
 inputSectionPadding : String
@@ -180,8 +178,8 @@ informationBlock activeAlertId silence alerts =
             loading
 
 
-silenceActionButtons : Maybe String -> SilenceForm -> SilenceFormMsg -> Html SilenceFormMsg
-silenceActionButtons maybeId form resetClick =
+silenceActionButtons : Maybe String -> SilenceFormMsg -> Html SilenceFormMsg
+silenceActionButtons maybeId resetClick =
     div [ class ("mb-4 " ++ inputSectionPadding) ]
         [ previewSilenceBtn
         , createSilenceBtn maybeId

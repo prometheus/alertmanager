@@ -21,18 +21,15 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/version"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
-
-var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
 // Notifier implements a Notifier for generic webhooks.
 type Notifier struct {
@@ -44,8 +41,8 @@ type Notifier struct {
 }
 
 // New returns a new Webhook.
-func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", false, false)
+func New(conf *config.WebhookConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +54,8 @@ func New(conf *config.WebhookConfig, t *template.Template, l log.Logger) (*Notif
 		// Webhooks are assumed to respond with 2xx response codes on a successful
 		// request and 5xx response codes are assumed to be recoverable.
 		retrier: &notify.Retrier{
-			CustomDetailsFunc: func(int, io.Reader) string {
-				return conf.URL.String()
+			CustomDetailsFunc: func(_ int, body io.Reader) string {
+				return errDetails(body, conf.URL.String())
 			},
 		},
 	}, nil
@@ -104,18 +101,22 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		return false, err
 	}
 
-	req, err := http.NewRequest("POST", n.conf.URL.String(), &buf)
+	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &buf)
 	if err != nil {
 		return true, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", userAgentHeader)
+	defer notify.Drain(resp)
 
-	resp, err := n.client.Do(req.WithContext(ctx))
-	if err != nil {
-		return true, err
+	return n.retrier.Check(resp.StatusCode, resp.Body)
+}
+
+func errDetails(body io.Reader, url string) string {
+	if body == nil {
+		return url
 	}
-	notify.Drain(resp)
-
-	return n.retrier.Check(resp.StatusCode, nil)
+	bs, err := io.ReadAll(body)
+	if err != nil {
+		return url
+	}
+	return fmt.Sprintf("%s: %s", url, string(bs))
 }

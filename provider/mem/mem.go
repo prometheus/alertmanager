@@ -18,8 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/provider"
@@ -33,12 +34,30 @@ const alertChannelLength = 200
 type Alerts struct {
 	cancel context.CancelFunc
 
+	alerts *store.Alerts
+	marker types.Marker
+
 	mtx       sync.Mutex
-	alerts    *store.Alerts
 	listeners map[int]listeningAlerts
 	next      int
 
+	callback AlertStoreCallback
+
 	logger log.Logger
+}
+
+type AlertStoreCallback interface {
+	// PreStore is called before alert is stored into the store. If this method returns error,
+	// alert is not stored.
+	// Existing flag indicates whether alert has existed before (and is only updated) or not.
+	// If alert has existed before, then alert passed to PreStore is result of merging existing alert with new alert.
+	PreStore(alert *types.Alert, existing bool) error
+
+	// PostStore is called after alert has been put into store.
+	PostStore(alert *types.Alert, existing bool)
+
+	// PostDelete is called after alert has been removed from the store due to alert garbage collection.
+	PostDelete(alert *types.Alert)
 }
 
 type listeningAlerts struct {
@@ -46,15 +65,40 @@ type listeningAlerts struct {
 	done   chan struct{}
 }
 
+func (a *Alerts) registerMetrics(r prometheus.Registerer) {
+	newMemAlertByStatus := func(s types.AlertState) prometheus.GaugeFunc {
+		return prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name:        "alertmanager_alerts",
+				Help:        "How many alerts by state.",
+				ConstLabels: prometheus.Labels{"state": string(s)},
+			},
+			func() float64 {
+				return float64(a.count(s))
+			},
+		)
+	}
+
+	r.MustRegister(newMemAlertByStatus(types.AlertStateActive))
+	r.MustRegister(newMemAlertByStatus(types.AlertStateSuppressed))
+	r.MustRegister(newMemAlertByStatus(types.AlertStateUnprocessed))
+}
+
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l log.Logger) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger, r prometheus.Registerer) (*Alerts, error) {
+	if alertCallback == nil {
+		alertCallback = noopCallback{}
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
+		marker:    m,
 		alerts:    store.NewAlerts(),
 		cancel:    cancel,
 		listeners: map[int]listeningAlerts{},
 		next:      0,
 		logger:    log.With(l, "component", "provider"),
+		callback:  alertCallback,
 	}
 	a.alerts.SetGCCallback(func(alerts []*types.Alert) {
 		for _, alert := range alerts {
@@ -62,6 +106,7 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 			// they are resolved. Alerts waiting for resolved notifications are
 			// held in memory in aggregation groups redundantly.
 			m.Delete(alert.Fingerprint())
+			a.callback.PostDelete(alert)
 		}
 
 		a.mtx.Lock()
@@ -76,6 +121,11 @@ func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, l 
 		}
 		a.mtx.Unlock()
 	})
+
+	if r != nil {
+		a.registerMetrics(r)
+	}
+
 	go a.alerts.Run(ctx, intervalGC)
 
 	return a, nil
@@ -148,13 +198,16 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
-
 	for _, alert := range alerts {
 		fp := alert.Fingerprint()
+
+		existing := false
 
 		// Check that there's an alert existing within the store before
 		// trying to merge.
 		if old, err := a.alerts.Get(fp); err == nil {
+			existing = true
+
 			// Merge alerts if there is an overlap in activity range.
 			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
 				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
@@ -162,10 +215,17 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 			}
 		}
 
+		if err := a.callback.PreStore(alert, existing); err != nil {
+			level.Error(a.logger).Log("msg", "pre-store callback returned error on set alert", "err", err)
+			continue
+		}
+
 		if err := a.alerts.Set(alert); err != nil {
 			level.Error(a.logger).Log("msg", "error on set alert", "err", err)
 			continue
 		}
+
+		a.callback.PostStore(alert, existing)
 
 		a.mtx.Lock()
 		for _, l := range a.listeners {
@@ -179,3 +239,28 @@ func (a *Alerts) Put(alerts ...*types.Alert) error {
 
 	return nil
 }
+
+// count returns the number of non-resolved alerts we currently have stored filtered by the provided state.
+func (a *Alerts) count(state types.AlertState) int {
+	var count int
+	for _, alert := range a.alerts.List() {
+		if alert.Resolved() {
+			continue
+		}
+
+		status := a.marker.Status(alert.Fingerprint())
+		if status.State != state {
+			continue
+		}
+
+		count++
+	}
+
+	return count
+}
+
+type noopCallback struct{}
+
+func (n noopCallback) PreStore(_ *types.Alert, _ bool) error { return nil }
+func (n noopCallback) PostStore(_ *types.Alert, _ bool)      {}
+func (n noopCallback) PostDelete(_ *types.Alert)             {}
