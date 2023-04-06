@@ -976,6 +976,70 @@ http_config:
 	}
 }
 
+func TestTelegramConfiguration(t *testing.T) {
+	tc := []struct {
+		name     string
+		in       string
+		expected error
+	}{
+		{
+			name: "with both bot_token & bot_token_file - it fails",
+			in: `
+bot_token: xyz
+bot_token_file: /file
+`,
+			expected: errors.New("at most one of bot_token & bot_token_file must be configured"),
+		},
+		{
+			name: "with no bot_token & bot_token_file - it fails",
+			in: `
+bot_token: ''
+bot_token_file: ''
+`,
+			expected: errors.New("missing bot_token or bot_token_file on telegram_config"),
+		},
+		{
+			name: "with bot_token and chat_id set - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+`,
+		},
+		{
+			name: "with bot_token_file and chat_id set - it succeeds",
+			in: `
+bot_token_file: /file
+chat_id: 123
+`,
+		},
+		{
+			name: "with no chat_id set - it fails",
+			in: `
+bot_token: xyz
+`,
+			expected: errors.New("missing chat_id on telegram_config"),
+		},
+		{
+			name: "with unknown parse_mode - it fails",
+			in: `
+bot_token: xyz
+chat_id: 123
+parse_mode: invalid
+`,
+			expected: errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string"),
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			var cfg TelegramConfig
+			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+
+			require.Equal(t, tt.expected, err)
+		})
+	}
+}
+
 func newBoolPointer(b bool) *bool {
 	return &b
 }
