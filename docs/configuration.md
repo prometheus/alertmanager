@@ -99,6 +99,8 @@ global:
   [ wechat_api_corp_id: <string> ]
   [ telegram_api_url: <string> | default = "https://api.telegram.org" ]
   [ webex_api_url: <string> | default = "https://webexapis.com/v1/messages" ]
+  [ discord_webhook_url: <secret> ]
+  [ discord_webhook_url_file: <filepath> ]
   # The default HTTP client configuration
   [ http_config: <http_config> ]
 
@@ -643,7 +645,12 @@ Discord notifications are sent via the [Discord webhook API](https://discord.com
 [ send_resolved: <boolean> | default = true ]
 
 # The Discord webhook URL.
-webhook_url: <secret>
+# It is mutually exclusive with webhook_url_file
+[ webhook_url: <secret> | default = global.discord_webhook_url ]
+
+# Read the webhook URL from a file
+# It is mutually exclusive with `webhook_url`.
+[ webhook_url_file: <filepath> | default = global.discord_webhook_url_file ]
 
 # Message title template.
 [ title: <tmpl_string> | default = '{{ template "discord.default.title" . }}' ]

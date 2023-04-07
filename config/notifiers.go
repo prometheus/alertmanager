@@ -208,8 +208,9 @@ func (c *WebexConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type DiscordConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
-	WebhookURL *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
 	Message string `yaml:"message,omitempty" json:"message,omitempty"`

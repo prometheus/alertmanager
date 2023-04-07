@@ -18,9 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
@@ -76,6 +79,17 @@ type webhookEmbed struct {
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	var webhookURL string
+	if n.conf.WebhookURL != nil {
+		webhookURL = n.conf.WebhookURL.String()
+	} else {
+		content, fileErr := os.ReadFile(n.conf.WebhookURLFile)
+		if fileErr != nil {
+			return false, errors.Wrap(fileErr, "failed to read webhook URL from file")
+		}
+		webhookURL = strings.TrimSpace(string(content))
+	}
+
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return false, err
@@ -120,7 +134,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.webhookURL.String(), &payload)
+	resp, err := notify.PostJSON(ctx, n.client, webhookURL, &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
