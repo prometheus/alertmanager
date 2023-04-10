@@ -14,6 +14,7 @@
 package labels
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -122,21 +123,33 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 	}
 
 	var (
-		rawValue            = ms[3]
-		value               strings.Builder
-		escaped             bool
-		expectTrailingQuote bool
+		rawValue = ms[3]
 	)
 
-	if strings.HasPrefix(rawValue, "\"") {
-		rawValue = strings.TrimPrefix(rawValue, "\"")
+	if !utf8.ValidString(rawValue) {
+		return nil, errors.Errorf("matcher value not valid UTF-8: %s", rawValue)
+	}
+
+	value, err := unescapeMatcherString(rawValue)
+	if err != nil {
+		return nil, fmt.Errorf("matcher value %w", err)
+	}
+
+	return NewMatcher(typeMap[ms[2]], ms[1], value)
+}
+
+// unescapeMatcherString unescapes sequences that are escaped by openMetricsEscape: \n, \\, \", and removes leading and trailing double quotes.
+func unescapeMatcherString(raw string) (string, error) {
+	var (
+		escaped             bool
+		value               strings.Builder
+		rawValue            = raw
+		expectTrailingQuote = false
+	)
+	if strings.HasPrefix(rawValue, `"`) {
+		rawValue = rawValue[1:]
 		expectTrailingQuote = true
 	}
-
-	if !utf8.ValidString(rawValue) {
-		return nil, errors.Errorf("matcher value not valid UTF-8: %s", ms[3])
-	}
-
 	// Unescape the rawValue:
 	for i, r := range rawValue {
 		if escaped {
@@ -163,17 +176,15 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 			value.WriteByte('\\')
 		case '"':
 			if !expectTrailingQuote || i < len(rawValue)-1 {
-				return nil, errors.Errorf("matcher value contains unescaped double quote: %s", ms[3])
+				return "", errors.Errorf("contains unescaped double quote: %s", raw)
 			}
 			expectTrailingQuote = false
 		default:
 			value.WriteRune(r)
 		}
 	}
-
 	if expectTrailingQuote {
-		return nil, errors.Errorf("matcher value contains unescaped double quote: %s", ms[3])
+		return "", errors.Errorf("contains unescaped double quote: %s", raw)
 	}
-
-	return NewMatcher(typeMap[ms[2]], ms[1], value.String())
+	return value.String(), nil
 }
