@@ -1147,13 +1147,21 @@ func TestValidateMatcher(t *testing.T) {
 				Type:    pb.Matcher_NOT_REGEXP,
 			},
 			err: "",
-		}, {
+		},
+		{
 			m: &pb.Matcher{
-				Name:    "00",
+				Name:    "\t\n ",
 				Pattern: "a",
 				Type:    pb.Matcher_EQUAL,
 			},
 			err: "invalid label name",
+		},
+		{
+			m: &pb.Matcher{
+				Name:    "0.some.label👍",
+				Pattern: "a",
+				Type:    pb.Matcher_EQUAL,
+			},
 		}, {
 			m: &pb.Matcher{
 				Name:    "a",
@@ -1239,13 +1247,26 @@ func TestValidateSilence(t *testing.T) {
 				Id: "some_id",
 				Matchers: []*pb.Matcher{
 					{Name: "a", Pattern: "b"},
-					{Name: "00", Pattern: "b"},
+					{Name: "       ", Pattern: "b"},
 				},
 				StartsAt:  validTimestamp,
 				EndsAt:    validTimestamp,
 				UpdatedAt: validTimestamp,
 			},
 			err: "invalid label matcher",
+		},
+		{
+			s: &pb.Silence{
+				Id: "some_id",
+				Matchers: []*pb.Matcher{
+					{Name: "a", Pattern: "b"},
+					{Name: "==some\r\n.label==ʤ", Pattern: "b"},
+				},
+				StartsAt:  validTimestamp,
+				EndsAt:    validTimestamp,
+				UpdatedAt: validTimestamp,
+			},
+			err: "",
 		},
 		{
 			s: &pb.Silence{

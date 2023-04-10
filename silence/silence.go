@@ -469,7 +469,7 @@ func (s *Silences) GC() (int, error) {
 
 // ValidateMatcher runs validation on the matcher name, type, and pattern.
 var ValidateMatcher = func(m *pb.Matcher) error {
-	if !model.LabelName(m.Name).IsValid() {
+	if !labels.IsValidName(model.LabelName(m.Name)) {
 		return fmt.Errorf("invalid label name %q", m.Name)
 	}
 	switch m.Type {
