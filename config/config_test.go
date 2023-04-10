@@ -309,14 +309,14 @@ receivers:
 func TestGroupByInvalidLabel(t *testing.T) {
 	in := `
 route:
-  group_by: ['-invalid-']
+  group_by: [' ']
   receiver: team-X-mails
 receivers:
 - name: 'team-X-mails'
 `
 	_, err := Load(in)
 
-	expected := "invalid label name \"-invalid-\" in group_by list"
+	expected := `invalid label name " " in group_by list`
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%q", expected)
@@ -324,6 +324,19 @@ receivers:
 	if err.Error() != expected {
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
+}
+
+func TestGroupByUtf8Label(t *testing.T) {
+	in := `
+route:
+  group_by: ['👍.any.label']
+  receiver: team-X-mails
+receivers:
+- name: 'team-X-mails'
+`
+	_, err := Load(in)
+
+	require.NoError(t, err)
 }
 
 func TestRootRouteExists(t *testing.T) {
