@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -441,5 +442,159 @@ func TestNewMarkerRegistersMetrics(t *testing.T) {
 
 	if len(fr.registeredCollectors) == 0 {
 		t.Error("expected NewMarker to register metrics on the given registerer")
+	}
+}
+
+func TestAlertValidate(t *testing.T) {
+	ts := time.Now()
+	cases := []struct {
+		name  string
+		alert *Alert
+		err   string
+	}{
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"a": "b"},
+					StartsAt: ts,
+				},
+			},
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels: model.LabelSet{"a": "b"},
+				},
+			},
+			err: "start time missing",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"a": "b"},
+					StartsAt: ts,
+					EndsAt:   ts,
+				},
+			},
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"a": "b"},
+					StartsAt: ts,
+					EndsAt:   ts.Add(1 * time.Minute),
+				},
+			},
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"a": "b"},
+					StartsAt: ts,
+					EndsAt:   ts.Add(-1 * time.Minute),
+				},
+			},
+			err: "start time must be before end time",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					StartsAt: ts,
+				},
+			},
+			err: "at least one label pair required",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"!any-utf8.象征.or.‼️": "label"},
+					StartsAt: ts,
+				},
+			},
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{" \n\t ": "label"},
+					StartsAt: ts,
+				},
+			},
+			err: "invalid label set: invalid name",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"\xff.name": "label"},
+					StartsAt: ts,
+				},
+			},
+			err: "invalid label set: invalid name",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:   model.LabelSet{"a": "b", "bad": "\xfflabel"},
+					StartsAt: ts,
+				},
+			},
+			err: "invalid label set: invalid value",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:      model.LabelSet{"a": "b"},
+					Annotations: model.LabelSet{"!any-utf8.象征.or.‼️": "label"},
+					StartsAt:    ts,
+				},
+			},
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:      model.LabelSet{"a": "b"},
+					Annotations: model.LabelSet{" \n\t ": "label"},
+					StartsAt:    ts,
+				},
+			},
+			err: "invalid annotations: invalid name",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:      model.LabelSet{"a": "b"},
+					Annotations: model.LabelSet{"\xff.name": "label"},
+					StartsAt:    ts,
+				},
+			},
+			err: "invalid annotations: invalid name",
+		},
+		{
+			alert: &Alert{
+				Alert: model.Alert{
+					Labels:      model.LabelSet{"a": "b"},
+					Annotations: model.LabelSet{"bad": "\xfflabel"},
+					StartsAt:    ts,
+				},
+			},
+			err: "invalid annotations: invalid value",
+		},
+	}
+
+	for i, c := range cases {
+		err := c.alert.Validate()
+		if err == nil {
+			if c.err == "" {
+				continue
+			}
+			t.Errorf("%d. Expected error %q but got none", i, c.err)
+			continue
+		}
+		if c.err == "" {
+			t.Errorf("%d. Expected no error but got %q", i, err)
+			continue
+		}
+		if !strings.Contains(err.Error(), c.err) {
+			t.Errorf("%d. Expected error to contain %q but got %q", i, c.err, err)
+		}
 	}
 }

@@ -14,6 +14,7 @@
 package types
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -300,6 +301,26 @@ type Alert struct {
 	// The authoritative timestamp.
 	UpdatedAt time.Time
 	Timeout   bool
+}
+
+// Validate checks whether the alert data is inconsistent. Overrides the method for model.Alert with custom validation of Labels and Annotations
+func (a *Alert) Validate() error {
+	if a.StartsAt.IsZero() {
+		return fmt.Errorf("start time missing")
+	}
+	if !a.EndsAt.IsZero() && a.EndsAt.Before(a.StartsAt) {
+		return fmt.Errorf("start time must be before end time")
+	}
+	if err := labels.IsValidSet(a.Labels); err != nil {
+		return fmt.Errorf("invalid label set: %s", err)
+	}
+	if len(a.Labels) == 0 {
+		return fmt.Errorf("at least one label pair required")
+	}
+	if err := labels.IsValidSet(a.Annotations); err != nil {
+		return fmt.Errorf("invalid annotations: %s", err)
+	}
+	return nil
 }
 
 // AlertSlice is a sortable slice of Alerts.
