@@ -20,12 +20,14 @@ import (
 	"unicode/utf8"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/model"
 )
 
 var (
 	// '=~' has to come before '=' because otherwise only the '='
 	// will be consumed, and the '~' will be part of the 3rd token.
-	re      = regexp.MustCompile(`^\s*([a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`)
+	// only prometheus-compatible labels are allowed to be without wrapping double quotes.
+	re      = regexp.MustCompile(`^\s*("[^"]+"|[a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`)
 	typeMap = map[string]MatchType{
 		"=":  MatchEqual,
 		"!=": MatchNotEqual,
@@ -105,8 +107,9 @@ func ParseMatchers(s string) ([]*Matcher, error) {
 // UIs and config files. To support the interactive nature of the use cases, the
 // parser is in various aspects fairly tolerant.
 //
-// The syntax of a matcher consists of three tokens: (1) A valid Prometheus
-// label name. (2) One of '=', '!=', '=~', or '!~', with the same meaning as
+// The syntax of a matcher consists of three tokens: (1) Either a UTF-8 string
+// enclosed in double quotes or a valid Prometheus label name.
+// (2) One of '=', '!=', '=~', or '!~', with the same meaning as
 // known from PromQL selectors. (3) A UTF-8 string, which may be enclosed in
 // double quotes. Before or after each token, there may be any amount of
 // whitespace, which will be discarded. The 3rd token may be the empty
@@ -123,9 +126,18 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 	}
 
 	var (
+		rawName  = ms[1]
 		rawValue = ms[3]
 	)
 
+	matcherType, ok := typeMap[ms[2]]
+	if !ok {
+		return nil, errors.Errorf("matcher type is unknown: %s", ms[2])
+	}
+
+	if !utf8.ValidString(rawName) {
+		return nil, errors.Errorf("matcher label not valid UTF-8: %s", rawName)
+	}
 	if !utf8.ValidString(rawValue) {
 		return nil, errors.Errorf("matcher value not valid UTF-8: %s", rawValue)
 	}
@@ -135,7 +147,20 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		return nil, fmt.Errorf("matcher value %w", err)
 	}
 
-	return NewMatcher(typeMap[ms[2]], ms[1], value)
+	name := rawName
+	// if name is quoted, then it can contain any UTF-8 character. Unescape some escape sequences.
+	if strings.HasPrefix(rawName, `"`) {
+		name, err = unescapeMatcherString(rawName)
+		if err != nil {
+			return nil, fmt.Errorf("matcher label name %w", err)
+		}
+	}
+
+	if !IsValidName(model.LabelName(name)) {
+		return nil, errors.Errorf("invalid matcher label name: \"%s\"", name)
+	}
+
+	return NewMatcher(matcherType, name, value)
 }
 
 // unescapeMatcherString unescapes sequences that are escaped by openMetricsEscape: \n, \\, \", and removes leading and trailing double quotes.

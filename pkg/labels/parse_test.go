@@ -197,6 +197,51 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			input: `{"foo"="bar", instance=~"some-api.*"}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo", "bar")
+				m2, _ := NewMatcher(MatchRegexp, "instance", "some-api.*")
+				return append(ms, m, m2)
+			}(),
+		},
+		{
+			input: `{"foo.bar"="bar"}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo.bar", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{"foo=bar~="="bar"}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo=bar~=", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{"foo\\=bar~=\n爱"="bar"}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo\\=bar~=\n爱", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: "{\"foo\t\r\n\\=bar~=\n爱\"=bar}",
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, "foo\t\r\n\\=bar~=\n爱", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{"\n "="bar"}`,
+			err:   "invalid matcher label name: \"\n \"",
+		},
+		{
 			input: `job="value`,
 			err:   `matcher value contains unescaped double quote: "value`,
 		},
