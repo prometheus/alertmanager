@@ -1126,21 +1126,24 @@ func TestValidateMatcher(t *testing.T) {
 				Type:    pb.Matcher_EQUAL,
 			},
 			err: "",
-		}, {
+		},
+		{
 			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "b",
 				Type:    pb.Matcher_NOT_EQUAL,
 			},
 			err: "",
-		}, {
+		},
+		{
 			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "b",
 				Type:    pb.Matcher_REGEXP,
 			},
 			err: "",
-		}, {
+		},
+		{
 			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "b",
@@ -1162,28 +1165,32 @@ func TestValidateMatcher(t *testing.T) {
 				Pattern: "a",
 				Type:    pb.Matcher_EQUAL,
 			},
-		}, {
+		},
+		{
 			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "((",
 				Type:    pb.Matcher_REGEXP,
 			},
 			err: "invalid regular expression",
-		}, {
+		},
+		{
 			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "))",
 				Type:    pb.Matcher_NOT_REGEXP,
 			},
 			err: "invalid regular expression",
-		}, {
+		},
+		{
 			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "\xff",
 				Type:    pb.Matcher_EQUAL,
 			},
 			err: "invalid label value",
-		}, {
+		},
+		{
 			m: &pb.Matcher{
 				Name:    "a",
 				Pattern: "b",
