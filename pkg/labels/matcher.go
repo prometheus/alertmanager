@@ -74,6 +74,9 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 }
 
 func (m *Matcher) String() string {
+	if !model.LabelName(m.Name).IsValid() {
+		return fmt.Sprintf(`"%s"%s"%s"`, openMetricsEscape(m.Name), m.Type, openMetricsEscape(m.Value))
+	}
 	return fmt.Sprintf(`%s%s"%s"`, m.Name, m.Type, openMetricsEscape(m.Value))
 }
 

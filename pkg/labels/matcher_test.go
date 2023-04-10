@@ -182,6 +182,12 @@ line`,
 			value: `tab	stop`,
 			want:  `foo="tab	stop"`,
 		},
+		{
+			name:  `utf-8.name\😉`,
+			op:    MatchEqual,
+			value: `tab	stop`,
+			want:  `"utf-8.name\\😉"="tab	stop"`,
+		},
 	}
 
 	for _, test := range tests {
