@@ -15,12 +15,13 @@ package dispatch
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/prometheus/alertmanager/config"
 )
@@ -82,7 +83,9 @@ routes:
 `
 
 	var ctree config.Route
-	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	if err := dec.Decode(&ctree); err != nil {
 		t.Fatal(err)
 	}
 	var (
@@ -326,7 +329,9 @@ routes:
 `
 
 	var ctree config.Route
-	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	if err := dec.Decode(&ctree); err != nil {
 		t.Fatal(err)
 	}
 	tree := NewRoute(&ctree, nil)
@@ -370,7 +375,9 @@ routes:
 `
 
 	var ctree config.Route
-	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	if err := dec.Decode(&ctree); err != nil {
 		t.Fatal(err)
 	}
 
@@ -432,7 +439,9 @@ routes:
 `
 
 	var ctree config.Route
-	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	if err := dec.Decode(&ctree); err != nil {
 		t.Fatal(err)
 	}
 	var (
@@ -668,7 +677,9 @@ routes:
 `
 
 	var ctree config.Route
-	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	if err := dec.Decode(&ctree); err != nil {
 		t.Fatal(err)
 	}
 	var (

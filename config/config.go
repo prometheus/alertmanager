@@ -14,6 +14,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -28,7 +29,7 @@ import (
 	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
@@ -170,7 +171,9 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 // Load parses the YAML input s into a Config.
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
-	err := yaml.UnmarshalStrict([]byte(s), cfg)
+	dec := yaml.NewDecoder(bytes.NewBuffer([]byte(s)))
+	dec.KnownFields(true)
+	err := dec.Decode(cfg)
 	if err != nil {
 		return nil, err
 	}

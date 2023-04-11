@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // TimeInterval describes intervals of time. ContainsTime will tell you if a golang time is contained
@@ -172,6 +172,17 @@ var monthsInv = map[int]string{
 	10: "october",
 	11: "november",
 	12: "december",
+}
+
+// MarshalYAML implements the yaml.Marshaller interface for TimeInterval.
+func (t TimeInterval) MarshalYAML() (interface{}, error) {
+	type alias TimeInterval
+	node := yaml.Node{}
+	err := node.Encode(alias(t))
+	if err != nil {
+		return nil, err
+	}
+	return node, nil
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for Location.

@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func TestEmailToIsPresent(t *testing.T) {
@@ -28,7 +28,9 @@ func TestEmailToIsPresent(t *testing.T) {
 to: ''
 `
 	var cfg EmailConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "missing to address in email config"
 
@@ -48,7 +50,9 @@ headers:
   subject: 'New Alert'
 `
 	var cfg EmailConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "duplicate header \"Subject\" in email config"
 
@@ -66,7 +70,9 @@ func TestPagerdutyTestRoutingKey(t *testing.T) {
 routing_key: ''
 `
 		var cfg PagerdutyConfig
-		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 
 		expected := "missing service or routing key in PagerDuty config"
 
@@ -84,7 +90,9 @@ routing_key: 'xyz'
 routing_key_file: 'xyz'
 `
 		var cfg PagerdutyConfig
-		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 
 		expected := "at most one of routing_key & routing_key_file must be configured"
 
@@ -103,7 +111,9 @@ func TestPagerdutyServiceKey(t *testing.T) {
 service_key: ''
 `
 		var cfg PagerdutyConfig
-		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 
 		expected := "missing service or routing key in PagerDuty config"
 
@@ -121,7 +131,9 @@ service_key: 'xyz'
 service_key_file: 'xyz'
 `
 		var cfg PagerdutyConfig
-		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 
 		expected := "at most one of service_key & service_key_file must be configured"
 
@@ -178,7 +190,9 @@ details:
 	}
 	for _, tc := range tests {
 		var cfg PagerdutyConfig
-		err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(tc.in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 		if err != nil {
 			t.Errorf("expected no error, got:%v", err)
 		}
@@ -216,7 +230,9 @@ source: 'alert-manager-source'
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			var cfg PagerdutyConfig
-			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			dec := yaml.NewDecoder(strings.NewReader(tc.in))
+			dec.KnownFields(true)
+			err := dec.Decode(&cfg)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedSource, cfg.Source)
 		})
@@ -226,7 +242,9 @@ source: 'alert-manager-source'
 func TestWebhookURLIsPresent(t *testing.T) {
 	in := `{}`
 	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "one of url or url_file must be configured"
 
@@ -244,7 +262,9 @@ url: 'http://example.com'
 url_file: 'http://example.com'
 `
 	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "at most one of url & url_file must be configured"
 
@@ -264,7 +284,9 @@ http_config:
   bearer_token_file: /tmp/bar
 `
 	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "at most one of bearer_token & bearer_token_file must be configured"
 
@@ -281,7 +303,9 @@ func TestWebhookHttpConfigIsOptional(t *testing.T) {
 url: 'http://example.com'
 `
 	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
 	}
@@ -296,7 +320,9 @@ http_config:
     password: supersecret
 `
 	var cfg WebhookConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 	if err != nil {
 		t.Fatalf("no error expected, returned:\n%v", err.Error())
 	}
@@ -317,7 +343,9 @@ routing_key: test
 api_key_file: /global_file
 `
 		var cfg VictorOpsConfig
-		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 		if err != nil {
 			t.Fatalf("no error was expected:\n%v", err)
 		}
@@ -328,7 +356,9 @@ api_key_file: /global_file
 routing_key: ''
 `
 		var cfg VictorOpsConfig
-		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 
 		expected := "missing Routing key in VictorOps config"
 
@@ -347,7 +377,9 @@ api_key: xyz
 api_key_file: /global_file
 `
 		var cfg VictorOpsConfig
-		err := yaml.UnmarshalStrict([]byte(in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 
 		expected := "at most one of api_key & api_key_file must be configured"
 
@@ -367,7 +399,9 @@ custom_fields:
   entity_state: 'state_message'
 `
 	var cfg VictorOpsConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "victorOps config contains custom field entity_state which cannot be used as it conflicts with the fixed/static fields"
 
@@ -384,7 +418,9 @@ custom_fields:
   my_special_field: 'special_label'
 `
 
-	err = yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec = yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err = dec.Decode(&cfg)
 
 	expected = "special_label"
 
@@ -407,7 +443,9 @@ func TestPushoverUserKeyIsPresent(t *testing.T) {
 user_key: ''
 `
 	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "one of user_key or user_key_file must be configured"
 
@@ -425,7 +463,9 @@ user_key: 'user key'
 user_key_file: /pushover/user_key
 `
 	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "at most one of user_key & user_key_file must be configured"
 
@@ -443,7 +483,9 @@ user_key: '<user_key>'
 token: ''
 `
 	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "one of token or token_file must be configured"
 
@@ -462,7 +504,9 @@ token_file: /pushover/token
 user_key: 'user key'
 `
 	var cfg PushoverConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 
 	expected := "at most one of token & token_file must be configured"
 
@@ -511,7 +555,9 @@ mrkdwn_in:
 	}
 	for _, rt := range tests {
 		var cfg SlackConfig
-		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(rt.in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 		if err != nil {
 			t.Fatalf("\nerror returned when none expected, error:\n%v", err)
 		}
@@ -584,7 +630,9 @@ fields:
 
 	for _, rt := range tests {
 		var cfg SlackConfig
-		err := yaml.UnmarshalStrict([]byte(rt.in), &cfg)
+		dec := yaml.NewDecoder(strings.NewReader(rt.in))
+		dec.KnownFields(true)
+		err := dec.Decode(&cfg)
 
 		// Check if an error occurred when it was NOT expected to.
 		if rt.expected == "" && err != nil {
@@ -632,7 +680,9 @@ fields:
 	}
 
 	var cfg SlackConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 	if err != nil {
 		t.Fatalf("\nerror returned when none expected, error:\n%v", err)
 	}
@@ -696,7 +746,9 @@ actions:
 	}
 
 	var cfg SlackConfig
-	err := yaml.UnmarshalStrict([]byte(in), &cfg)
+	dec := yaml.NewDecoder(strings.NewReader(in))
+	dec.KnownFields(true)
+	err := dec.Decode(&cfg)
 	if err != nil {
 		t.Fatalf("\nerror returned when none expected, error:\n%v", err)
 	}
@@ -825,7 +877,9 @@ api_url: http://example.com
 		t.Run(tc.name, func(t *testing.T) {
 			var cfg OpsGenieConfig
 
-			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			dec := yaml.NewDecoder(strings.NewReader(tc.in))
+			dec.KnownFields(true)
+			err := dec.Decode(&cfg)
 			if tc.err {
 				if err == nil {
 					t.Fatalf("expected error but got none")
@@ -910,7 +964,9 @@ sigv4:
 	} {
 		t.Run("", func(t *testing.T) {
 			var cfg SNSConfig
-			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			dec := yaml.NewDecoder(strings.NewReader(tc.in))
+			dec.KnownFields(true)
+			err := dec.Decode(&cfg)
 			if err != nil {
 				if !tc.err {
 					t.Errorf("expecting no error, got %q", err)
@@ -969,7 +1025,9 @@ http_config:
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			var cfg WebexConfig
-			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+			dec := yaml.NewDecoder(strings.NewReader(tt.in))
+			dec.KnownFields(true)
+			err := dec.Decode(&cfg)
 
 			require.Equal(t, tt.expected, err)
 		})
@@ -1033,7 +1091,9 @@ parse_mode: invalid
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			var cfg TelegramConfig
-			err := yaml.UnmarshalStrict([]byte(tt.in), &cfg)
+			dec := yaml.NewDecoder(strings.NewReader(tt.in))
+			dec.KnownFields(true)
+			err := dec.Decode(&cfg)
 
 			require.Equal(t, tt.expected, err)
 		})

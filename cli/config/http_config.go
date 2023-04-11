@@ -14,11 +14,12 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 
 	promconfig "github.com/prometheus/common/config"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // LoadHTTPConfigFile returns HTTPClientConfig for the given http_config file
@@ -29,7 +30,9 @@ func LoadHTTPConfigFile(filename string) (*promconfig.HTTPClientConfig, error) {
 	}
 
 	httpConfig := &promconfig.HTTPClientConfig{}
-	err = yaml.UnmarshalStrict(b, httpConfig)
+	dec := yaml.NewDecoder(bytes.NewBuffer(b))
+	dec.KnownFields(true)
+	err = dec.Decode(httpConfig)
 	if err != nil {
 		return nil, err
 	}

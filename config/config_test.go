@@ -26,14 +26,14 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoadEmptyString(t *testing.T) {
 	var in string
 	_, err := Load(in)
 
-	expected := "no route provided in config"
+	expected := "EOF"
 
 	if err == nil {
 		t.Fatalf("no error returned, expected:\n%v", expected)

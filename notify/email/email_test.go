@@ -29,6 +29,7 @@
 package email
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -43,7 +44,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
@@ -150,7 +151,9 @@ func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
 		return c, err
 	}
 
-	err = yaml.UnmarshalStrict(b, &c)
+	dec := yaml.NewDecoder(bytes.NewBuffer(b))
+	dec.KnownFields(true)
+	err = dec.Decode(&c)
 	if err != nil {
 		return c, err
 	}

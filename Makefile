@@ -14,6 +14,9 @@
 # Needs to be defined before including Makefile.common to auto-generate targets
 DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
 
+GO           = go
+TIMEOUT_UNIT = 5m
+
 include Makefile.common
 
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
@@ -62,3 +65,12 @@ clean:
 	- @rm -rf asset/assets_vfsdata.go \
                   api/v2/models api/v2/restapi api/v2/client
 	- @cd $(FRONTEND_DIR) && $(MAKE) clean
+
+## Tests
+TEST_UNIT_TARGETS := test-unit-verbose test-unit-race
+test-unit-verbose: ARGS=-v
+test-unit-race:    ARGS=-race
+$(TEST_UNIT_TARGETS): test-unit
+.PHONY: $(TEST_UNIT_TARGETS) test-unit
+test-unit: ## Run unit tests
+	$(GO) test -timeout $(TIMEOUT_UNIT) $(ARGS) ./...

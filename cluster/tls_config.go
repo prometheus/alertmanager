@@ -14,12 +14,13 @@
 package cluster
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type TLSTransportConfig struct {
@@ -31,12 +32,14 @@ func GetTLSTransportConfig(configPath string) (*TLSTransportConfig, error) {
 	if configPath == "" {
 		return nil, nil
 	}
-	bytes, err := os.ReadFile(configPath)
+	dat, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
 	cfg := &TLSTransportConfig{}
-	if err := yaml.UnmarshalStrict(bytes, cfg); err != nil {
+	dec := yaml.NewDecoder(bytes.NewBuffer(dat))
+	dec.KnownFields(true)
+	if err := dec.Decode(cfg); err != nil {
 		return nil, err
 	}
 	cfg.TLSServerConfig.SetDirectory(filepath.Dir(configPath))

@@ -17,7 +17,7 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type getFlagger interface {
