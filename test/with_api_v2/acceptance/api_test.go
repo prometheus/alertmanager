@@ -232,3 +232,70 @@ receivers:
 		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
 	}
 }
+
+func TestFilterAlertRequestWithUtf8Labels(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  10m
+  repeat_interval: 1h
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := a.NewAcceptanceTest(t, &a.AcceptanceOpts{
+		Tolerance: 1 * time.Second,
+	})
+	co := at.Collector("webhook")
+	wh := a.NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+	require.NoError(t, amc.Start())
+	defer amc.Terminate()
+
+	am := amc.Members()[0]
+
+	now := time.Now()
+	startsAt := strfmt.DateTime(now)
+	endsAt := strfmt.DateTime(now.Add(5 * time.Minute))
+
+	labels := models.LabelSet(map[string]string{"alertname": "test1", "🎶": "jazz"})
+	pa1 := &models.PostableAlert{
+		StartsAt: startsAt,
+		EndsAt:   endsAt,
+		Alert:    models.Alert{Labels: labels},
+	}
+	labels = models.LabelSet(map[string]string{"system": "foo", " some\r\n\tspaces ": "utf-8"})
+	pa2 := &models.PostableAlert{
+		StartsAt: startsAt,
+		EndsAt:   endsAt,
+		Alert:    models.Alert{Labels: labels},
+	}
+	alertParams := alert.NewPostAlertsParams()
+	alertParams.Alerts = models.PostableAlerts{pa1, pa2}
+	_, err := am.Client().Alert.PostAlerts(alertParams)
+	require.NoError(t, err)
+
+	filter := []string{`"🎶"=jazz`}
+	resp, err := am.Client().Alert.GetAlerts(alert.NewGetAlertsParams().WithFilter(filter))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(resp.Payload))
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
+	}
+
+	filter = []string{"\" some\r\n\tspaces \"=utf-8"}
+	resp, err = am.Client().Alert.GetAlerts(alert.NewGetAlertsParams().WithFilter(filter))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(resp.Payload))
+	for _, al := range resp.Payload {
+		require.Equal(t, models.AlertStatusStateActive, *al.Status.State)
+	}
+}

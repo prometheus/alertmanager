@@ -122,3 +122,58 @@ receivers:
 
 	t.Log(co.Check())
 }
+
+func TestSilencingUtf8Labels(t *testing.T) {
+	t.Parallel()
+
+	conf := `
+route:
+  receiver: "default"
+  group_by: []
+  group_wait:      1s
+  group_interval:  1s
+  repeat_interval: 1ms
+
+receivers:
+- name: "default"
+  webhook_configs:
+  - url: 'http://%s'
+`
+
+	at := NewAcceptanceTest(t, &AcceptanceOpts{
+		Tolerance: 150 * time.Millisecond,
+	})
+
+	co := at.Collector("webhook")
+	wh := NewWebhook(t, co)
+
+	amc := at.AlertmanagerCluster(fmt.Sprintf(conf, wh.Address()), 1)
+
+	// No repeat interval is configured. Thus, we receive an alert
+	// notification every second.
+	amc.Push(At(1), Alert("alertname", "test1", "label.with-\"-and-⚠️", "test").Active(1))
+	amc.Push(At(1), Alert("alertname", "test2", "  label\nwith spaces ", "test").Active(1))
+
+	co.Want(Between(2, 2.5),
+		Alert("alertname", "test1", "label.with-\"-and-⚠️", "test").Active(1),
+		Alert("alertname", "test2", "  label\nwith spaces ", "test").Active(1),
+	)
+
+	// Add a silence that affects alerts
+	amc.SetSilence(At(2.3), Silence(2.5, 4.5).Match("label.with-\"-and-⚠️", "test"))
+	amc.SetSilence(At(2.3), Silence(2.5, 4.5).MatchRE("  label\nwith spaces ", ".+"))
+
+	co.Want(Between(3, 3.5))
+	co.Want(Between(4, 4.5))
+
+	// Silence should be over now and we receive both alerts again.
+
+	co.Want(Between(5, 5.5),
+		Alert("alertname", "test1", "label.with-\"-and-⚠️", "test").Active(1),
+		Alert("alertname", "test2", "  label\nwith spaces ", "test").Active(1),
+	)
+
+	at.Run()
+
+	t.Log(co.Check())
+}
