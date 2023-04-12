@@ -509,6 +509,8 @@ slack_configs:
   [ - <slack_config>, ... ]
 sns_configs:
   [ - <sns_config>, ... ]
+teams_configs:
+  [ - <teams_config>, ... ]
 telegram_configs:
   [ - <telegram_config>, ... ]
 victorops_configs:
@@ -1066,6 +1068,27 @@ attributes:
 
 # AWS Role ARN, an alternative to using AWS API keys.
 [ role_arn: <string> ]
+```
+
+### `<teams_config>`
+
+Teams notifications are sent via the [Incoming Webhooks](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/what-are-webhooks-and-connectors).
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The Incoming webhook URL.
+[ webhook_url: <secret> ]
+
+# Message title template.
+[ title: <tmpl_string> | default = '{{ template "teams.default.title" . }}' ]
+
+# Message body template.
+[ text: <tmpl_string> | default = '{{ template "teams.default.text" . }}' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
 
 ### `<telegram_config>`

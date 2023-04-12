@@ -254,6 +254,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.WebexConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.TeamsConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -526,6 +529,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 
 				webex.APIURL = c.Global.WebexAPIURL
+			}
+		}
+		for _, tc := range rcv.TeamsConfigs {
+			if tc.HTTPConfig == nil {
+				tc.HTTPConfig = c.Global.HTTPConfig
+			}
+			if tc.WebhookURL == nil {
+				return fmt.Errorf("no teams webhook URL provided")
 			}
 		}
 
@@ -896,6 +907,7 @@ type Receiver struct {
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	TeamsConfigs     []*TeamsConfig     `yaml:"teams_configs,omitempty" json:"teams_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
