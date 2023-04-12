@@ -38,7 +38,8 @@ value is set to the specified default.
 Generic placeholders are defined as follows:
 
 * `<duration>`: a duration matching the regular expression `((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)`, e.g. `1d`, `1h30m`, `5m`, `10s`
-* `<labelname>`: a string matching the regular expression `[a-zA-Z_][a-zA-Z0-9_]*`
+* `<prom_labelname>`: a string matching the regular expression `[a-zA-Z_][a-zA-Z0-9_]*`
+* `<labelname>`: a string of unicode characters
 * `<labelvalue>`: a string of unicode characters
 * `<filepath>`: a valid path in the current working directory
 * `<boolean>`: a boolean that can take the values `true` or `false`
@@ -171,12 +172,12 @@ current node.
 # DEPRECATED: Use matchers below.
 # A set of equality matchers an alert has to fulfill to match the node.
 match:
-  [ <labelname>: <labelvalue>, ... ]
+  [ <prom_labelname>: <labelvalue>, ... ]
 
 # DEPRECATED: Use matchers below.
 # A set of regex-matchers an alert has to fulfill to match the node.
 match_re:
-  [ <labelname>: <regex>, ... ]
+  [ <prom_labelname>: <regex>, ... ]
 
 # A list of matchers that an alert has to fulfill to match the node.
 matchers:
@@ -382,10 +383,10 @@ to reason about and does not trigger this special case.
 # DEPRECATED: Use target_matchers below.
 # Matchers that have to be fulfilled in the alerts to be muted.
 target_match:
-  [ <labelname>: <labelvalue>, ... ]
+  [ <prom_labelname>: <labelvalue>, ... ]
 # DEPRECATED: Use target_matchers below.
 target_match_re:
-  [ <labelname>: <regex>, ... ]
+  [ <prom_labelname>: <regex>, ... ]
 
 # A list of matchers that have to be fulfilled by the target
 # alerts to be muted.
@@ -396,10 +397,10 @@ target_matchers:
 # Matchers for which one or more alerts have to exist for the
 # inhibition to take effect.
 source_match:
-  [ <labelname>: <labelvalue>, ... ]
+  [ <prom_labelname>: <labelvalue>, ... ]
 # DEPRECATED: Use source_matchers below.
 source_match_re:
-  [ <labelname>: <regex>, ... ]
+  [ <prom_labelname>: <regex>, ... ]
 
 # A list of matchers for which one or more alerts have
 # to exist for the inhibition to take effect.
@@ -420,13 +421,15 @@ Label matchers are used both in routes and inhibition rules to match certain ale
 
 A matcher is a string with a syntax inspired by PromQL and OpenMetrics. The syntax of a matcher consists of three tokens:
 
-- A valid Prometheus label name.
+- A UTF-8 string enclosed in double quotes that contains at least one non-whitespace character. If string is a valid Prometheus label name then double quotes can be omitted. 
 
 - One of  `=`, `!=`, `=~`, or `!~`. `=` means equals, `!=` means that the strings are not equal, `=~` is used for equality of regex expressions and `!~` is used for un-equality of regex expressions. They have the same meaning as known from PromQL selectors.
 
-- A UTF-8 string, which may be enclosed in double quotes. Before or after each token, there may be any amount of whitespace.
+- A UTF-8 string, which may be enclosed in double quotes. Can be an empty string.
 
-The 3rd token may be the empty string. Within the 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the 3rd token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
+Before or after each token, there may be any amount of whitespace.
+
+Within the 1st and 3rd token, OpenMetrics escaping rules apply: `\"` for a double-quote, `\n` for a line feed, `\\` for a literal backslash. Unescaped `"` must not occur inside the token (only as the 1st or last character). However, literal line feed characters are tolerated, as are single `\` characters not followed by `\`, `n`, or `"`. They act as a literal backslash in that case.
 
 Matchers are ANDed together, meaning that all matchers must evaluate to "true" when tested against the labels on a given alert. For example, an alert with these labels:
 
@@ -452,6 +455,7 @@ Here are some examples of valid string matchers:
     matchers:
       - foo = bar
       - dings !=bums
+      - "utf-8.string" = value
     ```
 
 2. Similar to example 1, shown below are two equality matchers combined in a short form YAML list.
