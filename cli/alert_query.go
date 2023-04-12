@@ -45,6 +45,10 @@ amtool alert query alertname=foo node=bar
 
 amtool alert query foo node=bar
 
+	If label name contains any UTF-8 symbols, enclose it in double quotes
+
+amtool alert query '"==label.name=="=bar'
+ 
 	If alertname is omitted and the first argument does not contain a '=' or a
 	'=~' then it will be assumed to be the value of the alertname pair.
 
@@ -52,7 +56,8 @@ amtool alert query 'alertname=~foo.*'
 
 	As well as direct equality, regex matching is also supported. The '=~' syntax
 	(similar to prometheus) is used to represent a regex match. Regex matching
-	can be used in combination with a direct match.
+	can be used in combination with a direct match. 
+ 
 
 Amtool supports several flags for filtering the returned alerts by state
 (inhibited, silenced, active, unprocessed). If none of these flags is given,

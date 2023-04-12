@@ -50,6 +50,10 @@ amtool silence query alertname=foo node=bar
 
 amtool silence query foo node=bar
 
+	If label name contains any UTF-8 symbols, enclose it in double quotes
+
+amtool silence query '"==label.name=="=bar'
+
 	If alertname is omitted and the first argument does not contain a '=' or a
 	'=~' then it will be assumed to be the value of the alertname pair.
 

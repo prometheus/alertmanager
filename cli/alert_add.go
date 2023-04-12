@@ -46,6 +46,10 @@ be assumed to be the value of the alertname pair.
 
 	amtool alert add foo node=bar
 
+To specify a label name that contains any UTF-8 character, enclose it in double quotes:
+
+	amtool alert add foo '"==label.name=="=bar'
+
 One or more annotations can be added using the --annotation flag:
 
 	amtool alert add foo node=bar \

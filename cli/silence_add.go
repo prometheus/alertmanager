@@ -68,6 +68,10 @@ const silenceAddHelp = `Add a new alertmanager silence
 	As well as direct equality, regex matching is also supported. The '=~' syntax
 	(similar to Prometheus) is used to represent a regex match. Regex matching
 	can be used in combination with a direct match.
+
+  amtool silence add '"path.to.label"=~foo
+  
+    To use any UTF-8 character in label name enclose it in double quotes.
 `
 
 func configureSilenceAddCmd(cc *kingpin.CmdClause) {
