@@ -27,7 +27,7 @@ var (
 	// '=~' has to come before '=' because otherwise only the '='
 	// will be consumed, and the '~' will be part of the 3rd token.
 	// only prometheus-compatible labels are allowed to be without wrapping double quotes.
-	re      = regexp.MustCompile(`^\s*("[^"]+"|[a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`)
+	re      = regexp.MustCompile(`^\s*((?s)".+"|[a-zA-Z_:][a-zA-Z0-9_:]*)\s*(=~|=|!=|!~)\s*((?s).*?)\s*$`)
 	typeMap = map[string]MatchType{
 		"=":  MatchEqual,
 		"!=": MatchNotEqual,

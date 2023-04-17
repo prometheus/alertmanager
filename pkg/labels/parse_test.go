@@ -238,6 +238,14 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
+			input: `{"\""="\""}`,
+			want: func() []*Matcher {
+				ms := []*Matcher{}
+				m, _ := NewMatcher(MatchEqual, `"`, `"`)
+				return append(ms, m)
+			}(),
+		},
+		{
 			input: `{"\n "="bar"}`,
 			err:   "invalid matcher label name: \"\n \"",
 		},
