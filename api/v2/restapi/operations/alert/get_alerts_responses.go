@@ -24,7 +24,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 
-	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/coatico/alertmanager/api/v2/models"
 )
 
 // GetAlertsOKCode is the HTTP code returned for type GetAlertsOK

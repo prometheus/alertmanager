@@ -24,11 +24,11 @@ import (
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/prometheus/alertmanager/api/v2/client/alert"
-	"github.com/prometheus/alertmanager/api/v2/client/alertgroup"
-	"github.com/prometheus/alertmanager/api/v2/client/general"
-	"github.com/prometheus/alertmanager/api/v2/client/receiver"
-	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/coatico/alertmanager/api/v2/client/alert"
+	"github.com/coatico/alertmanager/api/v2/client/alertgroup"
+	"github.com/coatico/alertmanager/api/v2/client/general"
+	"github.com/coatico/alertmanager/api/v2/client/receiver"
+	"github.com/coatico/alertmanager/api/v2/client/silence"
 )
 
 // Default alertmanager API HTTP client.

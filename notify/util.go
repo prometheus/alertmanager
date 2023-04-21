@@ -27,7 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/version"
 
-	"github.com/prometheus/alertmanager/template"
+	"github.com/coatico/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 

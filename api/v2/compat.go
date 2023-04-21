@@ -20,7 +20,7 @@ import (
 	"github.com/go-openapi/strfmt"
 	prometheus_model "github.com/prometheus/common/model"
 
-	open_api_models "github.com/prometheus/alertmanager/api/v2/models"
+	open_api_models "github.com/coatico/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
 )

@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"runtime"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -26,9 +27,9 @@ import (
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
 
-	"github.com/prometheus/alertmanager/api/v2/client"
-	"github.com/prometheus/alertmanager/cli/config"
-	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/coatico/alertmanager/api/v2/client"
+	"github.com/coatico/alertmanager/cli/config"
+	"github.com/coatico/alertmanager/cli/format"
 
 	clientruntime "github.com/go-openapi/runtime/client"
 )
@@ -40,8 +41,7 @@ var (
 	timeout         time.Duration
 	httpConfigFile  string
 	versionCheck    bool
-
-	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
+	configFiles     []string
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
 
@@ -127,6 +127,11 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 
 // Execute is the main function for the amtool command
 func Execute() {
+	if runtime.GOOS == "windows" { 
+		configFiles =  []string{"C:/program files/amtool/config.yml"}
+	} else {
+		configFiles =  []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"} 
+	}
 	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 
 	format.InitFormatFlags(app)

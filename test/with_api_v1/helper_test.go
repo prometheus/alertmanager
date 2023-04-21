@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/coatico/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/types"
 )

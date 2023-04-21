@@ -19,8 +19,8 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/template"
+	"github.com/coatico/alertmanager/config"
+	"github.com/coatico/alertmanager/template"
 )
 
 // TODO: This can just be a type that is []string, doesn't have to be a struct

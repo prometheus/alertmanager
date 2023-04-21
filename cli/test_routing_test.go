@@ -19,8 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/prometheus/alertmanager/config"
+	"github.com/coatico/alertmanager/api/v2/models"
+	"github.com/coatico/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 )
 

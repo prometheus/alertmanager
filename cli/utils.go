@@ -24,9 +24,9 @@ import (
 	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/api/v2/client/general"
-	"github.com/prometheus/alertmanager/api/v2/models"
-	"github.com/prometheus/alertmanager/config"
+	"github.com/coatico/alertmanager/api/v2/client/general"
+	"github.com/coatico/alertmanager/api/v2/models"
+	"github.com/coatico/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 

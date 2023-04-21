@@ -26,7 +26,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 
-	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/coatico/alertmanager/api/v2/models"
 )
 
 // GetReceiversReader is a Reader for the GetReceivers structure.

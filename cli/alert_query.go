@@ -20,8 +20,8 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
-	"github.com/prometheus/alertmanager/api/v2/client/alert"
-	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/coatico/alertmanager/api/v2/client/alert"
+	"github.com/coatico/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
