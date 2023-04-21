@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/coatico/alertmanager/config"
+	"github.com/prometheus/alertmanager/config"
 )
 
 func TestRouteMatch(t *testing.T) {

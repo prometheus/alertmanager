@@ -21,9 +21,9 @@ import (
 
 	kingpin "github.com/alecthomas/kingpin/v2"
 
-	"github.com/coatico/alertmanager/api/v2/client/silence"
-	"github.com/coatico/alertmanager/api/v2/models"
-	"github.com/coatico/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 

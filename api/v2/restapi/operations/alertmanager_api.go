@@ -33,11 +33,11 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/alert"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/alertgroup"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/general"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/receiver"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/silence"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 )
 
 // NewAlertmanagerAPI creates a new Alertmanager instance

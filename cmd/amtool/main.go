@@ -13,7 +13,7 @@
 
 package main
 
-import "github.com/coatico/alertmanager/cli"
+import "github.com/prometheus/alertmanager/cli"
 
 func main() {
 	cli.Execute()

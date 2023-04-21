@@ -24,7 +24,7 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 
-	"github.com/coatico/alertmanager/config"
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/types"
 )
 

@@ -22,8 +22,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/xlab/treeprint"
 
-	"github.com/coatico/alertmanager/api/v2/models"
-	"github.com/coatico/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/dispatch"
 )
 
 const routingTestHelp = `Test alert routing

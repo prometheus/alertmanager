@@ -45,8 +45,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/coatico/alertmanager/config"
-	"github.com/coatico/alertmanager/template"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 

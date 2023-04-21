@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/coatico/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
 type ByEndAt []models.GettableSilence

@@ -38,7 +38,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	"golang.org/x/net/netutil"
 
-	"github.com/coatico/alertmanager/api/v2/restapi/operations"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
 )
 
 const (

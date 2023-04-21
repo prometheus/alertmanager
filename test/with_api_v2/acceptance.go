@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
-	apiclient "github.com/coatico/alertmanager/api/v2/client"
-	"github.com/coatico/alertmanager/api/v2/client/alert"
-	"github.com/coatico/alertmanager/api/v2/client/general"
-	"github.com/coatico/alertmanager/api/v2/client/silence"
-	"github.com/coatico/alertmanager/api/v2/models"
+	apiclient "github.com/prometheus/alertmanager/api/v2/client"
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/general"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"

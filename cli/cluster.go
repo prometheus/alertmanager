@@ -19,7 +19,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
-	"github.com/coatico/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/cli/format"
 )
 
 const clusterHelp = `View cluster status and peers.`

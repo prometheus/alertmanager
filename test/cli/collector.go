@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coatico/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/api/v2/models"
 )
 
 // Collector gathers alerts received by a notification receiver

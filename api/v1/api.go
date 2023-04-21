@@ -30,10 +30,10 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 
-	"github.com/coatico/alertmanager/api/metrics"
-	"github.com/coatico/alertmanager/config"
-	"github.com/coatico/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/api/metrics"
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"

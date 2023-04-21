@@ -22,9 +22,9 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coatico/alertmanager/api/v2/client/alert"
-	"github.com/coatico/alertmanager/api/v2/client/silence"
-	"github.com/coatico/alertmanager/api/v2/models"
+	"github.com/prometheus/alertmanager/api/v2/client/alert"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
 )
 

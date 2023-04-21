@@ -24,12 +24,12 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 
-	"github.com/coatico/alertmanager/api/v2/restapi/operations"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/alert"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/alertgroup"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/general"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/receiver"
-	"github.com/coatico/alertmanager/api/v2/restapi/operations/silence"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
 )
 
 //go:generate swagger generate server --target ../../v2 --name Alertmanager --spec ../openapi.yaml --principal interface{} --exclude-main

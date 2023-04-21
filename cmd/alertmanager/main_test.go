@@ -21,7 +21,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coatico/alertmanager/config"
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 )
 
