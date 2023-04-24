@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 	"testing"
@@ -381,8 +382,10 @@ func (amc *AlertmanagerCluster) Terminate() {
 // data.
 func (am *Alertmanager) Terminate() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
-		am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+	if runtime.GOOS != "windows" {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGTERM); err != nil {
+			am.t.Logf("Error sending SIGTERM to Alertmanager process: %v", err)
+		}
 	}
 }
 
@@ -396,8 +399,10 @@ func (amc *AlertmanagerCluster) Reload() {
 // Reload sends the reloading signal to the Alertmanager process.
 func (am *Alertmanager) Reload() {
 	am.t.Helper()
-	if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
-		am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+	if runtime.GOOS != "windows" {
+		if err := syscall.Kill(am.cmd.Process.Pid, syscall.SIGHUP); err != nil {
+			am.t.Fatalf("Error sending SIGHUP to Alertmanager process: %v", err)
+		}
 	}
 }
 
