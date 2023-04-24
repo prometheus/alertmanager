@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"runtime"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -127,6 +128,11 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 
 // Execute is the main function for the amtool command
 func Execute() {
+	if runtime.GOOS == "windows" {
+		configFiles = []string{"C:/program files/amtool/config.yml"}
+	} else {
+		configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
+	}
 	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 
 	format.InitFormatFlags(app)
