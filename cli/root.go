@@ -22,6 +22,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
+	"github.com/kirsle/configdir"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 	"golang.org/x/mod/semver"
@@ -41,7 +42,7 @@ var (
 	httpConfigFile  string
 	versionCheck    bool
 
-	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
+	configFiles = configdir.SystemConfig("amtool", "config.yml")
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
 
