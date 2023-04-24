@@ -39,6 +39,10 @@ PRE_GO_111        ?= $(shell echo $(GO_VERSION_NUMBER) | grep -E 'go1\.(10|[0-9]
 PROMU        := $(FIRST_GOPATH)/bin/promu
 pkgs          = ./...
 
+ifneq ($(which promu), $(PROMU))
+	PROMU := $(which promu)
+endif
+
 ifeq (arm, $(GOHOSTARCH))
 	GOHOSTARM ?= $(shell GOARM= $(GO) env GOARM)
 	GO_BUILD_PLATFORM ?= $(GOHOSTOS)-$(GOHOSTARCH)v$(GOHOSTARM)
