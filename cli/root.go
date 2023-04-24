@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"time"
+	"runtime"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
@@ -40,8 +41,8 @@ var (
 	timeout         time.Duration
 	httpConfigFile  string
 	versionCheck    bool
+	configFiles     []string
 
-	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
 
@@ -127,6 +128,11 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 
 // Execute is the main function for the amtool command
 func Execute() {
+	if runtime.GOOS == "windows" {
+		configFiles = []string{"C:/program files/amtool/config.yml"}
+	} else {
+		configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
+	}
 	app := kingpin.New("amtool", helpRoot).UsageWriter(os.Stdout)
 
 	format.InitFormatFlags(app)
