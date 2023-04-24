@@ -40,7 +40,7 @@ PROMU        := $(FIRST_GOPATH)/bin/promu
 pkgs          = ./...
 
 ifneq ($(which promu), $(PROMU))
-	PROMU := $(which promu)
+	PROMU ?= $(which promu)
 endif
 
 ifeq (arm, $(GOHOSTARCH))
