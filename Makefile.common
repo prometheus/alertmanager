@@ -39,10 +39,6 @@ PRE_GO_111        ?= $(shell echo $(GO_VERSION_NUMBER) | grep -E 'go1\.(10|[0-9]
 PROMU        ?= $(FIRST_GOPATH)/bin/promu
 pkgs          = ./...
 
-ifneq ($(shell which promu), $(PROMU))
-	PROMU := $(shell which promu)
-endif
-
 ifeq (arm, $(GOHOSTARCH))
 	GOHOSTARM ?= $(shell GOARM= $(GO) env GOARM)
 	GO_BUILD_PLATFORM ?= $(GOHOSTOS)-$(GOHOSTARCH)v$(GOHOSTARM)
@@ -198,6 +194,11 @@ common-unused:
 
 .PHONY: common-build
 common-build: promu
+ifneq ($(shell which promu), $(PROMU))
+	@echo "\nswitching promu path: $(PROMU) to use: $(shell which promu)\n"
+	$(eval PROMU = $(shell which promu))
+endif
+
 	@echo ">> building binaries"
 	$(PROMU) build --prefix $(PREFIX) $(PROMU_BINARIES)
 
