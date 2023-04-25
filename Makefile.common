@@ -36,7 +36,7 @@ GO_VERSION        ?= $(shell $(GO) version)
 GO_VERSION_NUMBER ?= $(word 3, $(GO_VERSION))
 PRE_GO_111        ?= $(shell echo $(GO_VERSION_NUMBER) | grep -E 'go1\.(10|[0-9])\.')
 
-PROMU        := $(FIRST_GOPATH)/bin/promu
+PROMU        ?= $(FIRST_GOPATH)/bin/promu
 pkgs          = ./...
 
 ifeq (arm, $(GOHOSTARCH))
@@ -194,6 +194,11 @@ common-unused:
 
 .PHONY: common-build
 common-build: promu
+ifneq ($(shell which promu), $(PROMU))
+	@echo "\nswitching promu path: $(PROMU) to use: $(shell which promu)\n"
+	$(eval PROMU = $(shell which promu))
+endif
+
 	@echo ">> building binaries"
 	$(PROMU) build --prefix $(PREFIX) $(PROMU_BINARIES)
 
@@ -235,6 +240,7 @@ $(PROMU):
 ifeq ($(BUILD_PROMU),false)
 	@echo "using installed promu: $(PROMU)"
 else
+	@echo "preparing to install promu: $(PROMU)"
 	$(eval PROMU_TMP := $(shell mktemp -d))
 	curl -s -L $(PROMU_URL) | tar -xvzf - -C $(PROMU_TMP)
 	mkdir -p $(FIRST_GOPATH)/bin
