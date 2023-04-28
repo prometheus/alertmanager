@@ -470,7 +470,7 @@ func TestMatchFilterLabels(t *testing.T) {
 	}
 }
 
-func TestGetReceivers(t *testing.T) {
+func TestGetReceiversHandler(t *testing.T) {
 	in := `
 route:
     receiver: team-X
@@ -506,9 +506,7 @@ receivers:
 		responder.WriteResponse(w, p)
 		body, _ := io.ReadAll(w.Result().Body)
 
-		bodyStr := string(body)
-
 		require.Equal(t, tc.expectedCode, w.Code)
-		require.Equal(t, tc.body, bodyStr)
+		require.Equal(t, tc.body, string(body))
 	}
 }
