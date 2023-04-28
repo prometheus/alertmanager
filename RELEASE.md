@@ -23,4 +23,6 @@ The release shepherd is responsible for the entire release series of a minor rel
 
 See the next section for details on cutting an individual release.
 
-## Release Instructions (TBD)
+## Release Instructions
+
+TBD
