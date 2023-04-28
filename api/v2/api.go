@@ -223,8 +223,8 @@ func (api *API) getReceiversHandler(params receiver_ops.GetReceiversParams) midd
 	defer api.mtx.RUnlock()
 
 	receivers := make([]*open_api_models.Receiver, 0, len(api.alertmanagerConfig.Receivers))
-	for _, r := range api.alertmanagerConfig.Receivers {
-		receivers = append(receivers, &open_api_models.Receiver{Name: &r.Name})
+	for i := range api.alertmanagerConfig.Receivers {
+		receivers = append(receivers, &open_api_models.Receiver{Name: &api.alertmanagerConfig.Receivers[i].Name})
 	}
 
 	return receiver_ops.NewGetReceiversOK().WithPayload(receivers)
