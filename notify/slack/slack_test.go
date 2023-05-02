@@ -117,6 +117,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 		name           string
 		statusCode     int
 		expectedReason notify.Reason
+		noError        bool
 	}{
 		{
 			name:           "with a 4xx status code",
@@ -132,6 +133,11 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			name:           "with any other status code",
 			statusCode:     http.StatusTemporaryRedirect,
 			expectedReason: notify.DefaultReason,
+		},
+		{
+			name:       "with a 2xx status code",
+			statusCode: http.StatusOK,
+			noError:    true,
 		},
 	}
 	for _, tt := range tests {
@@ -163,9 +169,13 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 				},
 			}
 			_, err = notifier.Notify(ctx, alert1)
-			reasonError, ok := err.(*notify.ErrorWithReason)
-			require.True(t, ok)
-			require.Equal(t, tt.expectedReason, reasonError.Reason)
+			if tt.noError {
+				require.NoError(t, err)
+			} else {
+				reasonError, ok := err.(*notify.ErrorWithReason)
+				require.True(t, ok)
+				require.Equal(t, tt.expectedReason, reasonError.Reason)
+			}
 		})
 	}
 }
