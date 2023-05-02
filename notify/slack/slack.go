@@ -216,8 +216,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
-	reasonErr := notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
 
-	return retry, reasonErr
+	return false, nil
 }
