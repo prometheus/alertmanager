@@ -178,7 +178,7 @@ func TestDeleteSilenceHandler(t *testing.T) {
 	}{
 		{
 			"unknownSid",
-			500,
+			404,
 		},
 		{
 			unexpiredSid,

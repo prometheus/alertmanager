@@ -50,6 +50,31 @@ func (o *DeleteSilenceOK) WriteResponse(rw http.ResponseWriter, producer runtime
 	rw.WriteHeader(200)
 }
 
+// DeleteSilenceNotFoundCode is the HTTP code returned for type DeleteSilenceNotFound
+const DeleteSilenceNotFoundCode int = 404
+
+/*
+DeleteSilenceNotFound A silence with the specified ID was not found
+
+swagger:response deleteSilenceNotFound
+*/
+type DeleteSilenceNotFound struct {
+}
+
+// NewDeleteSilenceNotFound creates DeleteSilenceNotFound with default headers values
+func NewDeleteSilenceNotFound() *DeleteSilenceNotFound {
+
+	return &DeleteSilenceNotFound{}
+}
+
+// WriteResponse to the client
+func (o *DeleteSilenceNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.Header().Del(runtime.HeaderContentType) //Remove Content-Type on empty responses
+
+	rw.WriteHeader(404)
+}
+
 // DeleteSilenceInternalServerErrorCode is the HTTP code returned for type DeleteSilenceInternalServerError
 const DeleteSilenceInternalServerErrorCode int = 500
 
