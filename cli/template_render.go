@@ -21,7 +21,7 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 
 	"github.com/prometheus/alertmanager/template"
 )
@@ -107,7 +107,7 @@ func configureTemplateRenderCmd(cc *kingpin.CmdClause) {
 }
 
 func (c *templateRenderCmd) render(ctx context.Context, _ *kingpin.ParseContext) error {
-	tmpl, err := template.FromGlobs(c.templateFilesGlobs...)
+	tmpl, err := template.FromGlobs(c.templateFilesGlobs)
 	if err != nil {
 		return err
 	}

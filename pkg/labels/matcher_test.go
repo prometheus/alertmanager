@@ -177,10 +177,10 @@ line`,
 			want: `foo="new\nline"`,
 		},
 		{
-			name: `foo`,
-			op:   MatchEqual,
+			name:  `foo`,
+			op:    MatchEqual,
 			value: `tab	stop`,
-			want: `foo="tab	stop"`,
+			want:  `foo="tab	stop"`,
 		},
 	}
 

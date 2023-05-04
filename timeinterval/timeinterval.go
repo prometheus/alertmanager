@@ -17,7 +17,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +35,7 @@ type TimeInterval struct {
 	DaysOfMonth []DayOfMonthRange `yaml:"days_of_month,flow,omitempty" json:"days_of_month,omitempty"`
 	Months      []MonthRange      `yaml:"months,flow,omitempty" json:"months,omitempty"`
 	Years       []YearRange       `yaml:"years,flow,omitempty" json:"years,omitempty"`
+	Location    *Location         `yaml:"location,flow,omitempty" json:"location,omitempty"`
 }
 
 // TimeRange represents a range of minutes within a 1440 minute day, exclusive of the End minute. A day consists of 1440 minutes.
@@ -66,6 +69,11 @@ type MonthRange struct {
 // A YearRange is a positive inclusive range.
 type YearRange struct {
 	InclusiveRange
+}
+
+// A Location is a container for a time.Location, used for custom unmarshalling/validation logic.
+type Location struct {
+	*time.Location
 }
 
 type yamlTimeRange struct {
@@ -164,6 +172,34 @@ var monthsInv = map[int]string{
 	10: "october",
 	11: "november",
 	12: "december",
+}
+
+// UnmarshalYAML implements the Unmarshaller interface for Location.
+func (tz *Location) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	loc, err := time.LoadLocation(str)
+	if err != nil {
+		if runtime.GOOS == "windows" {
+			if zoneinfo := os.Getenv("ZONEINFO"); zoneinfo != "" {
+				return fmt.Errorf("%w (ZONEINFO=%q)", err, zoneinfo)
+			}
+			return fmt.Errorf("%w (on Windows platforms, you may have to pass the time zone database using the ZONEINFO environment variable, see https://pkg.go.dev/time#LoadLocation for details)", err)
+		}
+		return err
+	}
+
+	*tz = Location{loc}
+	return nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for Location.
+// It delegates to the YAML unmarshaller as it can parse JSON and has validation logic.
+func (tz *Location) UnmarshalJSON(in []byte) error {
+	return yaml.Unmarshal(in, tz)
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for WeekdayRange.
@@ -363,6 +399,26 @@ func (tr TimeRange) MarshalJSON() (out []byte, err error) {
 	return json.Marshal(yTr)
 }
 
+// MarshalText implements the econding.TextMarshaler interface for Location.
+// It marshals a Location back into a string that represents a time.Location.
+func (tz Location) MarshalText() ([]byte, error) {
+	if tz.Location == nil {
+		return nil, fmt.Errorf("unable to convert nil location into string")
+	}
+	return []byte(tz.Location.String()), nil
+}
+
+// MarshalYAML implements the yaml.Marshaler interface for Location.
+func (tz Location) MarshalYAML() (interface{}, error) {
+	bytes, err := tz.MarshalText()
+	return string(bytes), err
+}
+
+// MarshalJSON implements the json.Marshaler interface for Location.
+func (tz Location) MarshalJSON() (out []byte, err error) {
+	return json.Marshal(tz.String())
+}
+
 // MarshalText implements the encoding.TextMarshaler interface for InclusiveRange.
 // It converts the struct into a colon-separated string, or a single element if
 // appropriate. e.g. "monday:friday" or "monday"
@@ -408,6 +464,9 @@ func clamp(n, min, max int) int {
 
 // ContainsTime returns true if the TimeInterval contains the given time, otherwise returns false.
 func (tp TimeInterval) ContainsTime(t time.Time) bool {
+	if tp.Location != nil {
+		t = t.In(tp.Location.Location)
+	}
 	if tp.Times != nil {
 		in := false
 		for _, validMinutes := range tp.Times {

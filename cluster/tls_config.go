@@ -23,7 +23,7 @@ import (
 )
 
 type TLSTransportConfig struct {
-	TLSServerConfig *web.TLSStruct    `yaml:"tls_server_config"`
+	TLSServerConfig *web.TLSConfig    `yaml:"tls_server_config"`
 	TLSClientConfig *config.TLSConfig `yaml:"tls_client_config"`
 }
 

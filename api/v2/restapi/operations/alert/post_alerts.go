@@ -43,10 +43,10 @@ func NewPostAlerts(ctx *middleware.Context, handler PostAlertsHandler) *PostAler
 	return &PostAlerts{Context: ctx, Handler: handler}
 }
 
-/*PostAlerts swagger:route POST /alerts alert postAlerts
+/*
+	PostAlerts swagger:route POST /alerts alert postAlerts
 
 Create new Alerts
-
 */
 type PostAlerts struct {
 	Context *middleware.Context
@@ -56,17 +56,15 @@ type PostAlerts struct {
 func (o *PostAlerts) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	route, rCtx, _ := o.Context.RouteInfo(r)
 	if rCtx != nil {
-		r = rCtx
+		*r = *rCtx
 	}
 	var Params = NewPostAlertsParams()
-
 	if err := o.Context.BindValidRequest(r, route, &Params); err != nil { // bind params
 		o.Context.Respond(rw, r, route.Produces, route, err)
 		return
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
-
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }

@@ -31,7 +31,7 @@ import (
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 )
 
-// Default alertmanager HTTP client.
+// Default alertmanager API HTTP client.
 var Default = NewHTTPClient(nil)
 
 const (
@@ -46,14 +46,14 @@ const (
 // DefaultSchemes are the default schemes found in Meta (info) section of spec file
 var DefaultSchemes = []string{"http"}
 
-// NewHTTPClient creates a new alertmanager HTTP client.
-func NewHTTPClient(formats strfmt.Registry) *Alertmanager {
+// NewHTTPClient creates a new alertmanager API HTTP client.
+func NewHTTPClient(formats strfmt.Registry) *AlertmanagerAPI {
 	return NewHTTPClientWithConfig(formats, nil)
 }
 
-// NewHTTPClientWithConfig creates a new alertmanager HTTP client,
+// NewHTTPClientWithConfig creates a new alertmanager API HTTP client,
 // using a customizable transport config.
-func NewHTTPClientWithConfig(formats strfmt.Registry, cfg *TransportConfig) *Alertmanager {
+func NewHTTPClientWithConfig(formats strfmt.Registry, cfg *TransportConfig) *AlertmanagerAPI {
 	// ensure nullable parameters have default
 	if cfg == nil {
 		cfg = DefaultTransportConfig()
@@ -64,14 +64,14 @@ func NewHTTPClientWithConfig(formats strfmt.Registry, cfg *TransportConfig) *Ale
 	return New(transport, formats)
 }
 
-// New creates a new alertmanager client
-func New(transport runtime.ClientTransport, formats strfmt.Registry) *Alertmanager {
+// New creates a new alertmanager API client
+func New(transport runtime.ClientTransport, formats strfmt.Registry) *AlertmanagerAPI {
 	// ensure nullable parameters have default
 	if formats == nil {
 		formats = strfmt.Default
 	}
 
-	cli := new(Alertmanager)
+	cli := new(AlertmanagerAPI)
 	cli.Transport = transport
 	cli.Alert = alert.New(transport, formats)
 	cli.Alertgroup = alertgroup.New(transport, formats)
@@ -120,8 +120,8 @@ func (cfg *TransportConfig) WithSchemes(schemes []string) *TransportConfig {
 	return cfg
 }
 
-// Alertmanager is a client for alertmanager
-type Alertmanager struct {
+// AlertmanagerAPI is a client for alertmanager API
+type AlertmanagerAPI struct {
 	Alert alert.ClientService
 
 	Alertgroup alertgroup.ClientService
@@ -136,7 +136,7 @@ type Alertmanager struct {
 }
 
 // SetTransport changes the transport on the client and all its subresources
-func (c *Alertmanager) SetTransport(transport runtime.ClientTransport) {
+func (c *AlertmanagerAPI) SetTransport(transport runtime.ClientTransport) {
 	c.Transport = transport
 	c.Alert.SetTransport(transport)
 	c.Alertgroup.SetTransport(transport)

@@ -19,6 +19,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,8 +27,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/types"
@@ -206,29 +209,47 @@ func TestSilences_Maintenance_SupportsCustomCallback(t *testing.T) {
 	f, err := os.CreateTemp("", "snapshot")
 	require.NoError(t, err, "creating temp file failed")
 	clock := clock.NewMock()
-	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock, metrics: newMetrics(nil, nil)}
+	reg := prometheus.NewRegistry()
+	s := &Silences{st: state{}, logger: log.NewNopLogger(), clock: clock}
+	s.metrics = newMetrics(reg, s)
 	stopc := make(chan struct{})
 
-	called := make(chan struct{}, 5)
+	var calls atomic.Int32
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
-		s.Maintenance(100*time.Millisecond, f.Name(), stopc, func() (int64, error) {
-			called <- struct{}{}
+		defer wg.Done()
+		s.Maintenance(10*time.Second, f.Name(), stopc, func() (int64, error) {
+			calls.Add(1)
 			return 0, nil
 		})
-		close(called)
 	}()
-	runtime.Gosched()
+	gosched()
 
-	clock.Add(100 * time.Millisecond)
+	// Before the first tick, no maintenance executed.
+	clock.Add(9 * time.Second)
+	require.EqualValues(t, 0, calls.Load())
+
+	// Tick once.
+	clock.Add(1 * time.Second)
+	require.EqualValues(t, 1, calls.Load())
 
 	// Stop the maintenance loop. We should get exactly one more execution of the maintenance func.
 	close(stopc)
-	calls := 0
-	for range called {
-		calls++
-	}
+	wg.Wait()
 
-	require.EqualValues(t, 2, calls)
+	require.EqualValues(t, 2, calls.Load())
+
+	// Check the maintenance metrics.
+	require.NoError(t, testutil.GatherAndCompare(reg, bytes.NewBufferString(`
+# HELP alertmanager_silences_maintenance_errors_total How many maintenances were executed for silences that failed.
+# TYPE alertmanager_silences_maintenance_errors_total counter
+alertmanager_silences_maintenance_errors_total 0
+# HELP alertmanager_silences_maintenance_total How many maintenances were executed for silences.
+# TYPE alertmanager_silences_maintenance_total counter
+alertmanager_silences_maintenance_total 2
+`), "alertmanager_silences_maintenance_total", "alertmanager_silences_maintenance_errors_total"))
 }
 
 func TestSilencesSetSilence(t *testing.T) {
@@ -1481,4 +1502,10 @@ func Benchmark1000SilencesQuery(b *testing.B) {
 
 func Benchmark10000SilencesQuery(b *testing.B) {
 	benchmarkSilencesQuery(b, 10000)
+}
+
+// runtime.Gosched() does not "suspend" the current goroutine so there's no guarantee that the main goroutine won't
+// be able to continue. For more see https://pkg.go.dev/runtime#Gosched.
+func gosched() {
+	time.Sleep(1 * time.Millisecond)
 }

@@ -27,7 +27,8 @@ import (
 )
 
 // NewGetReceiversParams creates a new GetReceiversParams object
-// no default values defined in spec.
+//
+// There are no default values defined in the spec.
 func NewGetReceiversParams() GetReceiversParams {
 
 	return GetReceiversParams{}

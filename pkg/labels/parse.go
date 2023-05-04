@@ -45,11 +45,12 @@ var (
 // this comma and whitespace will be trimmed.
 //
 // Examples for valid input strings:
-//   {foo = "bar", dings != "bums", }
-//   foo=bar,dings!=bums
-//   foo=bar, dings!=bums
-//   {quote="She said: \"Hi, ladies! That's gender-neutral…\""}
-//   statuscode=~"5.."
+//
+//	{foo = "bar", dings != "bums", }
+//	foo=bar,dings!=bums
+//	foo=bar, dings!=bums
+//	{quote="She said: \"Hi, ladies! That's gender-neutral…\""}
+//	statuscode=~"5.."
 //
 // See ParseMatcher for details on how an individual Matcher is parsed.
 func ParseMatchers(s string) ([]*Matcher, error) {
@@ -127,7 +128,7 @@ func ParseMatcher(s string) (_ *Matcher, err error) {
 		expectTrailingQuote bool
 	)
 
-	if rawValue[0] == '"' {
+	if strings.HasPrefix(rawValue, "\"") {
 		rawValue = strings.TrimPrefix(rawValue, "\"")
 		expectTrailingQuote = true
 	}

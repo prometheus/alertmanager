@@ -239,7 +239,7 @@ func (f StageFunc) Exec(ctx context.Context, l log.Logger, alerts ...*types.Aler
 }
 
 type NotificationLog interface {
-	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64) error
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
@@ -262,7 +262,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 			Namespace: "alertmanager",
 			Name:      "notifications_failed_total",
 			Help:      "The total number of failed notifications.",
-		}, []string{"integration"}),
+		}, []string{"integration", "reason"}),
 		numNotificationRequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "alertmanager",
 			Name:      "notification_requests_total",
@@ -293,10 +293,13 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"telegram",
 	} {
 		m.numNotifications.WithLabelValues(integration)
-		m.numTotalFailedNotifications.WithLabelValues(integration)
 		m.numNotificationRequestsTotal.WithLabelValues(integration)
 		m.numNotificationRequestsFailedTotal.WithLabelValues(integration)
 		m.notificationLatencySeconds.WithLabelValues(integration)
+
+		for _, reason := range possibleFailureReasonCategory {
+			m.numTotalFailedNotifications.WithLabelValues(integration, reason)
+		}
 	}
 	r.MustRegister(
 		m.numNotifications, m.numTotalFailedNotifications,
@@ -662,8 +665,13 @@ func NewRetryStage(i Integration, groupName string, metrics *Metrics) *RetryStag
 func (r RetryStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	r.metrics.numNotifications.WithLabelValues(r.integration.Name()).Inc()
 	ctx, alerts, err := r.exec(ctx, l, alerts...)
+
+	failureReason := DefaultReason.String()
 	if err != nil {
-		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name()).Inc()
+		if e, ok := errors.Cause(err).(*ErrorWithReason); ok {
+			failureReason = e.Reason.String()
+		}
+		r.metrics.numTotalFailedNotifications.WithLabelValues(r.integration.Name(), failureReason).Inc()
 	}
 	return ctx, alerts, err
 }
@@ -785,7 +793,13 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 		return ctx, nil, errors.New("resolved alerts missing")
 	}
 
-	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved)
+	repeat, ok := RepeatInterval(ctx)
+	if !ok {
+		return ctx, nil, errors.New("repeat interval missing")
+	}
+	expiry := 2 * repeat
+
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry)
 }
 
 type timeStage struct {

@@ -6,6 +6,7 @@ import Html exposing (..)
 import Html.Attributes exposing (class, href, style, title, value)
 import Html.Events exposing (onClick)
 import Types exposing (Msg(..))
+import Url exposing (percentEncode)
 import Utils.Filter
 import Views.AlertList.Types exposing (AlertListMsg(..))
 import Views.FilterBar.Types as FilterBarTypes
@@ -47,6 +48,7 @@ view labels maybeActiveId alert =
                     text ""
             , silenceButton alert
             , inhibitedIcon alert
+            , linkButton alert
             ]
         , if maybeActiveId == Just alert.fingerprint then
             table [ class "table w-100 mb-1" ] (List.map annotation <| Dict.toList alert.annotations)
@@ -95,6 +97,26 @@ addLabelMsg ( key, value ) =
         }
         |> MsgForFilterBar
         |> MsgForAlertList
+
+
+linkButton : GettableAlert -> Html Msg
+linkButton alert =
+    let
+        link =
+            alert.labels
+                |> Dict.toList
+                |> List.map (\( k, v ) -> Utils.Filter.Matcher k Utils.Filter.Eq v)
+                |> Utils.Filter.stringifyFilter
+                |> percentEncode
+                |> (++) "#/alerts?filter="
+    in
+    a
+        [ class "btn btn-outline-info border-0"
+        , href link
+        ]
+        [ i [ class "fa fa-link mr-2" ] []
+        , text "Link"
+        ]
 
 
 silenceButton : GettableAlert -> Html Msg

@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
-	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"

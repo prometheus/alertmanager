@@ -20,8 +20,8 @@ import (
 	"os"
 	"sync"
 
+	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/pkg/errors"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
 	"github.com/prometheus/alertmanager/api/v2/models"
