@@ -1,0 +1,44 @@
+{{ define "dingTalk.json" }}
+    {{ $key_map := (`{"alertname":"Alert Name","name":"Service Name","group":"Group","service":"Service","severity":"Severity","message":"Message","instance":"Instance Name"}`|toMap) }}
+    {{ $alert_name := "" }}
+    {{ $alert_status := "" }}
+    {{ if eq .Status "firing" }}
+        {{ $alert_status = printf "[Firing: %d]" (.Alerts.Firing | len)  }}
+    {{ else if eq .Status "resolved" }}
+        {{ $alert_status = printf "[Resolved: %d]" (.Alerts.Resolved | len)  }}
+    {{ else }}
+        {{ $alert_status =(.Status | toUpper) }}
+    {{ end }}
+    {{ range .GroupLabels.SortedPairs }} {{ if eq .Name "alertname" }}{{ $alert_name = (.Value) }}{{end}} {{ end }}
+    {{ $alert_title := (printf "%s %s"  $alert_status $alert_name ) }}
+    {{ $alert_msg := (printf "### %s %s"  $alert_status $alert_name ) }}
+    {{ range .Alerts.Firing }}
+        {{ range .Labels.SortedPairs }}
+            {{ if (ne (index $key_map .Name) "") }}
+                {{ $alert_msg = (printf "%s\n\n> %s: %s" $alert_msg (index $key_map .Name) .Value ) }}
+            {{else}}
+                {{ $alert_msg = (printf "%s\n\n> %s: %s" $alert_msg .Name .Value ) }}
+            {{end}}
+        {{ end }}
+        {{ range .Annotations.SortedPairs }}
+            {{ if (ne (index $key_map .Name) "") }}
+                {{ $alert_msg = (printf "%s\n\n> %s: %s" $alert_msg (index $key_map .Name) .Value ) }}
+            {{else}}
+                {{ $alert_msg = (printf "%s\n\n> %s: %s" $alert_msg .Name .Value ) }}
+            {{end}}
+        {{ end }}
+        {{ $alert_msg = (printf "%s\n\n> [View Data](%s)" $alert_msg .GeneratorURL ) }}
+    {{ end }}
+    {
+         "msgtype": "markdown",
+         "markdown": {
+             "title":{{ $alert_title|toJson }},
+             "text": {{ $alert_msg|toJson }}
+         },
+        "at": {
+            "atMobiles": [
+            ],
+            "isAtAll": false
+        }
+     }
+{{ end }}

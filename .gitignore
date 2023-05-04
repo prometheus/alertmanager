@@ -20,4 +20,5 @@
 !/.travis.yml
 !/.promu.yml
 !/api/v2/openapi.yaml
-!examples/dingtalk/alertmanager.yml
+!examples/webhook/dingtalk/alertmanager.yml
+!examples/webhook/feishu/alertmanager.yml

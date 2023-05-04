@@ -66,9 +66,8 @@
 ```
 ### Alertmanager Config
 ```yaml
-
 receivers:
-  - name: alert_test
+  - name: "web.hook"
     webhook_configs:
       - url: 'https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxxxxxxx'
         json: '{{ template "feishu.json" . }}'

@@ -6,12 +6,12 @@ route:
   group_interval: 10s
   repeat_interval: 24h
 
-  receiver: 'alert_test'
+  receiver: 'web.hook'
 
 receivers:
-  - name: alert_test
+  - name: 'web.hook'
     webhook_configs:
-      - url: 'https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxxxxxxxxxxxxxxx'
+      - url: 'https://open.feishu.cn/open-apis/bot/v2/hook/<token>'
         json: '{{ template "feishu.json" . }}'
         send_resolved: true
 
