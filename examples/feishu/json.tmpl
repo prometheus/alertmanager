@@ -1,0 +1,42 @@
+{{- define "feishu.title" -}}
+    {{- if eq .Status "firing" -}}
+        [Firing {{- .Alerts.Firing | len -}}/{{- .Alerts | len -}}]
+    {{- else if eq .Status "resolved" -}}
+        [Resolved {{- .Alerts.Resolved | len -}}]
+    {{- else -}}
+        [{{- .Status | toUpper | safeJson -}}]
+    {{- end -}}
+    {{" "}}{{- range .GroupLabels.SortedPairs -}} {{- if eq .Name "alertname" -}}{{- .Value | safeJson -}}{{- end -}} {{- end -}}
+{{- end -}}
+
+{{- define "feishu.msg" -}}
+    ### {{ template "feishu.title" . -}}\n
+    {{- range $idx,$elem := .Alerts.Firing -}}
+        {{- range .Labels.SortedPairs -}}
+            **{{- .Name | safeJson -}}**:{{" "}}{{- .Value | safeJson -}}\n
+        {{- end -}}
+        {{- range .Annotations.SortedPairs -}}
+            **{{- .Name | safeJson -}}**:{{" "}}{{- .Value | safeJson -}}\n
+        {{- end -}}
+        **Srart Time**:{{" "}}{{- .StartsAt -}}\n
+        {{- if eq .Status "firing" -}}
+            [View data]({{.GeneratorURL | safeJson}})
+        {{- end -}}
+    {{- end -}}
+{{- end -}}
+{{- define "feishu.json" -}}
+    {
+        "msg_type": "interactive",
+        "card": {
+            "elements": [
+                {
+                    "content": "{{- template "feishu.msg" . -}}",
+                    "tag": "markdown"
+                }
+            ],
+            "config": {
+                "wide_screen_mode": true
+            }
+        }
+    }
+{{- end -}}
