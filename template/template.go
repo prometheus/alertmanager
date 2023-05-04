@@ -160,6 +160,14 @@ var DefaultFuncs = FuncMap{
 			return m
 		}
 	},
+	"toJson": func(o interface{}) string {
+		data, _ := json.Marshal(o)
+		return string(data)
+	},
+	"safeJson": func(o interface{}) string {
+		data, _ := json.Marshal(o)
+		return strings.Trim(string(data), "\"")
+	},
 }
 
 // Pair is a key/value string pair.
