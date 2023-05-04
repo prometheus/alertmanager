@@ -506,6 +506,18 @@ func TestTemplateFuncs(t *testing.T) {
 		title: "Template using reReplaceAll",
 		in:    `{{ reReplaceAll "ab" "AB" "abc" }}`,
 		exp:   "ABc",
+	}, {
+		title: "Template using toMap",
+		in:    `{{ toMap "{}" }}`,
+		exp:   "map[]",
+	}, {
+		title: "Template using toJson",
+		in:    "{\"content\": {{ toJson `ab\n\"c` }}}",
+		exp:   `{"content": "ab\n\"c"}`,
+	}, {
+		title: "Template using safeJson",
+		in:    "{\"content\": \"{{ safeJson `ab\n\"c` }}\"}",
+		exp:   `{"content": "ab\n\"c"}`,
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
