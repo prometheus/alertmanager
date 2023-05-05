@@ -142,6 +142,7 @@ func Create(
 	probeInterval time.Duration,
 	tlsTransportConfig *TLSTransportConfig,
 	allowInsecureAdvertise bool,
+	label string,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -227,6 +228,7 @@ func Create(
 	cfg.LogOutput = &logWriter{l: l}
 	cfg.GossipNodes = retransmit
 	cfg.UDPBufferSize = MaxGossipPacketSize
+	cfg.Label = label
 
 	if advertiseHost != "" {
 		cfg.AdvertiseAddr = advertiseHost
