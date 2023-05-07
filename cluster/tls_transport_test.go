@@ -136,7 +136,7 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 			require.Nil(t, err)
 			if tc.expectedPort == 0 {
 				require.True(t, tc.expectedPort < port)
-				require.True(t, uint32(port) <= uint32(1<<16-1))
+				require.True(t, uint16(port) <= uint16(1<<16-1))
 			} else {
 				require.Equal(t, tc.expectedPort, port)
 			}
