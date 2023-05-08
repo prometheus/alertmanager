@@ -29,11 +29,11 @@ import (
 
 var logger = log.NewNopLogger()
 
-func freeport() int {
+func freeport() uint16 {
 	lis, _ := net.Listen(network, "127.0.0.1:0")
 	defer lis.Close()
 
-	return lis.Addr().(*net.TCPAddr).Port
+	return uint16(lis.Addr().(*net.TCPAddr).Port)
 }
 
 func newTLSTransport(file, address string, port int) (*TLSTransport, error) {
@@ -136,7 +136,6 @@ func TestFinalAdvertiseAddr(t *testing.T) {
 			require.Nil(t, err)
 			if tc.expectedPort == 0 {
 				require.True(t, tc.expectedPort < port)
-				require.True(t, uint16(port) <= uint16(1<<16-1))
 			} else {
 				require.Equal(t, tc.expectedPort, port)
 			}
