@@ -29,11 +29,11 @@ import (
 
 var logger = log.NewNopLogger()
 
-func freeport() uint16 {
+func freeport() int {
 	lis, _ := net.Listen(network, "127.0.0.1:0")
 	defer lis.Close()
 
-	return uint16(lis.Addr().(*net.TCPAddr).Port)
+	return lis.Addr().(*net.TCPAddr).Port
 }
 
 func newTLSTransport(file, address string, port int) (*TLSTransport, error) {
