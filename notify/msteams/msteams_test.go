@@ -1,4 +1,4 @@
-// Copyright 2021 Prometheus Team
+// Copyright 2023 Prometheus Team
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,12 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package teams
+package msteams
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -37,9 +38,9 @@ import (
 // This is a test URL that has been modified to not be valid.
 var testWebhookURL, _ = url.Parse("https://example.webhook.office.com/webhookb2/xxxxxx/IncomingWebhook/xxx/xxx")
 
-func TestTeamsRetry(t *testing.T) {
+func TestMSTeamsRetry(t *testing.T) {
 	notifier, err := New(
-		&config.TeamsConfig{
+		&config.MSTeamsConfig{
 			WebhookURL: &config.SecretURL{URL: testWebhookURL},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -54,7 +55,7 @@ func TestTeamsRetry(t *testing.T) {
 	}
 }
 
-func TestTeamsTemplating(t *testing.T) {
+func TestMSTeamsTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
 		out := make(map[string]interface{})
@@ -68,30 +69,30 @@ func TestTeamsTemplating(t *testing.T) {
 
 	for _, tc := range []struct {
 		title string
-		cfg   *config.TeamsConfig
+		cfg   *config.MSTeamsConfig
 
 		retry  bool
 		errMsg string
 	}{
 		{
 			title: "full-blown message",
-			cfg: &config.TeamsConfig{
-				Title: `{{ template "teams.default.title" . }}`,
-				Text:  `{{ template "teams.default.text" . }}`,
+			cfg: &config.MSTeamsConfig{
+				Title: `{{ template "msteams.default.title" . }}`,
+				Text:  `{{ template "msteams.default.text" . }}`,
 			},
 			retry: false,
 		},
 		{
 			title: "title with templating errors",
-			cfg: &config.TeamsConfig{
+			cfg: &config.MSTeamsConfig{
 				Title: "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
 		},
 		{
 			title: "message with templating errors",
-			cfg: &config.TeamsConfig{
-				Title: `{{ template "teams.default.title" . }}`,
+			cfg: &config.MSTeamsConfig{
+				Title: `{{ template "msteams.default.title" . }}`,
 				Text:  "{{ ",
 			},
 			errMsg: "template: :1: unclosed action",
@@ -124,6 +125,66 @@ func TestTeamsTemplating(t *testing.T) {
 				require.Contains(t, err.Error(), tc.errMsg)
 			}
 			require.Equal(t, tc.retry, ok)
+		})
+	}
+}
+
+func TestNotifier_Notify_WithReason(t *testing.T) {
+	tests := []struct {
+		name            string
+		statusCode      int
+		responseContent string
+		expectedReason  notify.Reason
+		noError         bool
+	}{
+		{
+			name:            "with a 2xx status code and response HTTP error 429",
+			statusCode:      http.StatusOK,
+			responseContent: "Webhook message delivery failed with error: Microsoft Teams endpoint returned HTTP error 429",
+			expectedReason:  notify.ClientErrorReason,
+		},
+		{
+			name:            "with a 2xx status code and response 1",
+			statusCode:      http.StatusOK,
+			responseContent: "1",
+			noError:         true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			notifier, err := New(
+				&config.MSTeamsConfig{
+					WebhookURL: &config.SecretURL{URL: testWebhookURL},
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+				},
+				test.CreateTmpl(t),
+				log.NewNopLogger(),
+			)
+			require.NoError(t, err)
+
+			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+				resp := httptest.NewRecorder()
+				resp.WriteString(tt.responseContent)
+				resp.WriteHeader(tt.statusCode)
+				return resp.Result(), nil
+			}
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			alert1 := &types.Alert{
+				Alert: model.Alert{
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+			_, err = notifier.Notify(ctx, alert1)
+			if tt.noError {
+				require.NoError(t, err)
+			} else {
+				reasonError, ok := err.(*notify.ErrorWithReason)
+				require.True(t, ok)
+				require.Equal(t, tt.expectedReason, reasonError.Reason)
+			}
 		})
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright 2023 Prometheus Team
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,12 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package teams
+package msteams
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-kit/log"
@@ -37,15 +39,16 @@ const (
 )
 
 type Notifier struct {
-	conf       *config.TeamsConfig
-	tmpl       *template.Template
-	logger     log.Logger
-	client     *http.Client
-	retrier    *notify.Retrier
-	webhookURL *config.SecretURL
+	conf         *config.MSTeamsConfig
+	tmpl         *template.Template
+	logger       log.Logger
+	client       *http.Client
+	retrier      *notify.Retrier
+	webhookURL   *config.SecretURL
+	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// Message card https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference
+// Message card reference can be found at https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference.
 type teamsMessage struct {
 	Context    string `json:"@context"`
 	Type       string `json:"type"`
@@ -54,19 +57,21 @@ type teamsMessage struct {
 	ThemeColor string `json:"themeColor"`
 }
 
-func New(c *config.TeamsConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "teams", httpOpts...)
+// New returns a new notifier that uses the Microsoft Teams Webhook API.
+func New(c *config.MSTeamsConfig, t *template.Template, l log.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "msteams", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	n := &Notifier{
-		conf:       c,
-		tmpl:       t,
-		logger:     l,
-		client:     client,
-		retrier:    &notify.Retrier{},
-		webhookURL: c.WebhookURL,
+		conf:         c,
+		tmpl:         t,
+		logger:       l,
+		client:       client,
+		retrier:      &notify.Retrier{},
+		webhookURL:   c.WebhookURL,
+		postJSONFunc: notify.PostJSON,
 	}
 
 	return n, nil
@@ -80,7 +85,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	level.Debug(n.logger).Log("incident", key)
 
-	alerts := types.Alerts(as...)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
@@ -96,11 +100,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
+	alerts := types.Alerts(as...)
 	color := colorGrey
-	if alerts.Status() == model.AlertFiring {
+	switch alerts.Status() {
+	case model.AlertFiring:
 		color = colorRed
-	}
-	if alerts.Status() == model.AlertResolved {
+	case model.AlertResolved:
 		color = colorGreen
 	}
 
@@ -117,14 +122,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, n.webhookURL.String(), &payload)
+	resp, err := n.postJSONFunc(ctx, n.client, n.webhookURL.String(), &payload)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
+	defer notify.Drain(resp)
 
-	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
+	// https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using?tabs=cURL#rate-limiting-for-connectors
+	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, err
+		reasonErr := notify.NewErrorWithReason(notify.GetFailureReason(resp.StatusCode, fmt.Sprintf("%v", err.Error())), err)
+		return retry, reasonErr
 	}
 	return false, nil
 }

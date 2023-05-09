@@ -165,12 +165,12 @@ var (
 		ParseMode:            "HTML",
 	}
 
-	DefaultTeamsConfig = TeamsConfig{
+	DefaultMSTeamsConfig = MSTeamsConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Title: `{{ template "teams.default.title" . }}`,
-		Text:  `{{ template "teams.default.text" . }}`,
+		Title: `{{ template "msteams.default.title" . }}`,
+		Text:  `{{ template "msteams.default.text" . }}`,
 	}
 )
 
@@ -787,7 +787,7 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-type TeamsConfig struct {
+type MSTeamsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
@@ -796,8 +796,8 @@ type TeamsConfig struct {
 	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
-func (c *TeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultTeamsConfig
-	type plain TeamsConfig
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMSTeamsConfig
+	type plain MSTeamsConfig
 	return unmarshal((*plain)(c))
 }

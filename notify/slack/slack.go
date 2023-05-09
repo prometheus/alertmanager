@@ -218,7 +218,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		return retry, notify.NewErrorWithReason(notify.GetFailureReason(resp.StatusCode, ""), err)
 	}
 
 	return false, nil

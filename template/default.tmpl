@@ -146,8 +146,8 @@ Alerts Resolved:
 {{ end }}
 {{ end }}
 
-{{ define "teams.default.title" }}{{ template "__subject" . }}{{ end }}
-{{ define "teams.default.text" }}
+{{ define "msteams.default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "msteams.default.text" }}
 {{ if gt (len .Alerts.Firing) 0 }}
 # Alerts Firing:
 {{ template "__text_alert_list_markdown" .Alerts.Firing }}
