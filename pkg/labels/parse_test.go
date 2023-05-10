@@ -59,7 +59,8 @@ func TestMatchers(t *testing.T) {
 				m, _ := NewMatcher(MatchEqual, "foo", "bar")
 				return append(ms, m)
 			}(),
-		}, {
+		},
+		{
 			input: `{foo="bar"}`,
 			want: func() []*Matcher {
 				ms := []*Matcher{}
