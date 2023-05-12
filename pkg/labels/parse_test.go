@@ -335,7 +335,6 @@ func TestMatchers(t *testing.T) {
 			err:   `bad matcher format: {foo=`,
 		},
 		{
-			// This looks like a bug which should be fixed
 			input: `{foo=`,
 			want: func() []*Matcher {
 				ms := []*Matcher{}
@@ -344,7 +343,6 @@ func TestMatchers(t *testing.T) {
 			}(),
 		},
 		{
-			// This also looks like a bug which should be fixed
 			input: `{foo=}b`,
 			want: func() []*Matcher {
 				ms := []*Matcher{}
