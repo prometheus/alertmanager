@@ -372,6 +372,7 @@ be configured to communicate with each other. This is configured using the
 - `--cluster.probe-interval` value: interval between random node probes (default "1s")
 - `--cluster.reconnect-interval` value: interval between attempting to reconnect to lost peers (default "10s")
 - `--cluster.reconnect-timeout` value: length of time to attempt to reconnect to a lost peer (default: "6h0m0s")
+- `--cluster.label` value: the label is an optional string to include on each packet and stream. It uniquely identifies the cluster and prevents cross-communication issues when sending gossip messages (default:"")
 
 The chosen port in the `cluster.listen-address` flag is the port that needs to be
 specified in the `cluster.peer` flag of the other peers.

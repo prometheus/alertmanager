@@ -14,16 +14,25 @@
 package slack
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func TestSlackRetry(t *testing.T) {
@@ -101,4 +110,72 @@ func TestTrimmingSlackURLFromFile(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, u.String())
+}
+
+func TestNotifier_Notify_WithReason(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		expectedReason notify.Reason
+		noError        bool
+	}{
+		{
+			name:           "with a 4xx status code",
+			statusCode:     http.StatusUnauthorized,
+			expectedReason: notify.ClientErrorReason,
+		},
+		{
+			name:           "with a 5xx status code",
+			statusCode:     http.StatusInternalServerError,
+			expectedReason: notify.ServerErrorReason,
+		},
+		{
+			name:           "with any other status code",
+			statusCode:     http.StatusTemporaryRedirect,
+			expectedReason: notify.DefaultReason,
+		},
+		{
+			name:       "with a 2xx status code",
+			statusCode: http.StatusOK,
+			noError:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiurl, _ := url.Parse("https://slack.com/post.Message")
+			notifier, err := New(
+				&config.SlackConfig{
+					NotifierConfig: config.NotifierConfig{},
+					HTTPConfig:     &commoncfg.HTTPClientConfig{},
+					APIURL:         &config.SecretURL{URL: apiurl},
+				},
+				test.CreateTmpl(t),
+				log.NewNopLogger(),
+			)
+			require.NoError(t, err)
+
+			notifier.postJSONFunc = func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error) {
+				resp := httptest.NewRecorder()
+				resp.WriteHeader(tt.statusCode)
+				return resp.Result(), nil
+			}
+			ctx := context.Background()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			alert1 := &types.Alert{
+				Alert: model.Alert{
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+			}
+			_, err = notifier.Notify(ctx, alert1)
+			if tt.noError {
+				require.NoError(t, err)
+			} else {
+				reasonError, ok := err.(*notify.ErrorWithReason)
+				require.True(t, ok)
+				require.Equal(t, tt.expectedReason, reasonError.Reason)
+			}
+		})
+	}
 }

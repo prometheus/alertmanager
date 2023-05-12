@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -43,6 +44,8 @@ type Notifier struct {
 	logger  log.Logger
 	client  *http.Client
 	retrier *notify.Retrier
+
+	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
 // New returns a new Slack notification handler.
@@ -53,11 +56,12 @@ func New(c *config.SlackConfig, t *template.Template, l log.Logger, httpOpts ...
 	}
 
 	return &Notifier{
-		conf:    c,
-		tmpl:    t,
-		logger:  l,
-		client:  client,
-		retrier: &notify.Retrier{},
+		conf:         c,
+		tmpl:         t,
+		logger:       l,
+		client:       client,
+		retrier:      &notify.Retrier{},
+		postJSONFunc: notify.PostJSON,
 	}, nil
 }
 
@@ -202,7 +206,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		u = strings.TrimSpace(string(content))
 	}
 
-	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
+	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
 	}
@@ -212,6 +216,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// https://api.slack.com/incoming-webhooks#handling_errors
 	// https://api.slack.com/changelog/2016-05-17-changes-to-errors-for-incoming-webhooks
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
-	return retry, err
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("channel %q", req.Channel))
+		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+	}
+
+	return false, nil
 }
