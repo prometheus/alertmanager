@@ -14,10 +14,54 @@ func TestCompliance(t *testing.T) {
 		err   string
 	}{
 		{
+			input: `{}`,
+			want:  make(labels.Matchers, 0),
+		},
+		{
+			input: `{foo='}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "'")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: "{foo=`}",
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "`")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: "{foo=\\\"}",
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "\"")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
 			input: `{foo="bar"}`,
 			want: func() labels.Matchers {
 				ms := labels.Matchers{}
 				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=~bar.*}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
@@ -30,10 +74,26 @@ func TestCompliance(t *testing.T) {
 			}(),
 		},
 		{
+			input: `{foo!=bar}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchNotEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
 			input: `{foo!="bar"}`,
 			want: func() labels.Matchers {
 				ms := labels.Matchers{}
 				m, _ := labels.NewMatcher(labels.MatchNotEqual, "foo", "bar")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo!~bar.*}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchNotRegexp, "foo", "bar.*")
 				return append(ms, m)
 			}(),
 		},
@@ -179,11 +239,40 @@ func TestCompliance(t *testing.T) {
 			}(),
 		},
 		{
+			input: `{foo=bar}}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=bar}},}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "bar}}")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=,bar=}}`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m1, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+				m2, _ := labels.NewMatcher(labels.MatchEqual, "bar", "}")
+				return append(ms, m1, m2)
+			}(),
+		},
+		{
 			input: `job=`,
 			want: func() labels.Matchers {
 				m, _ := labels.NewMatcher(labels.MatchEqual, "job", "")
 				return labels.Matchers{m}
 			}(),
+		},
+		{
+			input: `{,}`,
+			err:   "bad matcher format: ",
 		},
 		{
 			input: `job="value`,
@@ -233,6 +322,26 @@ func TestCompliance(t *testing.T) {
 		{
 			input: `"foo="bar""`,
 			err:   `bad matcher format: "foo="bar""`,
+		},
+		{
+			input: `{{foo=`,
+			err:   `bad matcher format: {foo=`,
+		},
+		{
+			input: `{foo=`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "")
+				return append(ms, m)
+			}(),
+		},
+		{
+			input: `{foo=}b`,
+			want: func() labels.Matchers {
+				ms := labels.Matchers{}
+				m, _ := labels.NewMatcher(labels.MatchEqual, "foo", "}b")
+				return append(ms, m)
+			}(),
 		},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
