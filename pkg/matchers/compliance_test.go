@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
 
-func TestMatchers(t *testing.T) {
+func TestCompliance(t *testing.T) {
 	for _, tc := range []struct {
 		input string
 		want  labels.Matchers
