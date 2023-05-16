@@ -124,7 +124,7 @@ func TestWebhookReadingURLFromFile(t *testing.T) {
 
 	f, err := os.CreateTemp("", "webhook_url")
 	require.NoError(t, err, "creating temp file failed")
-	_, err = f.WriteString(u.String())
+	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")
 
 	notifier, err := New(
