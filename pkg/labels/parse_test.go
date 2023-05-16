@@ -29,6 +29,14 @@ func TestMatchers(t *testing.T) {
 			want:  make([]*Matcher, 0),
 		},
 		{
+			input: `,`,
+			err:   "bad matcher format: ",
+		},
+		{
+			input: `{,}`,
+			err:   "bad matcher format: ",
+		},
+		{
 			input: `{foo='}`,
 			want: func() []*Matcher {
 				ms := []*Matcher{}
