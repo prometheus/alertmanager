@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -110,7 +111,7 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		if err != nil {
 			return false, fmt.Errorf("read url_file: %w", err)
 		}
-		url = string(content)
+		url = strings.TrimSpace(string(content))
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, url, &buf)
