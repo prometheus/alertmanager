@@ -35,6 +35,7 @@ import (
 
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alert"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroup"
+	"github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/general"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/receiver"
 	"github.com/prometheus/alertmanager/api/v2/restapi/operations/silence"
@@ -64,6 +65,9 @@ func NewAlertmanagerAPI(spec *loads.Document) *AlertmanagerAPI {
 
 		SilenceDeleteSilenceHandler: silence.DeleteSilenceHandlerFunc(func(params silence.DeleteSilenceParams) middleware.Responder {
 			return middleware.NotImplemented("operation silence.DeleteSilence has not yet been implemented")
+		}),
+		AlertgroupinfosGetAlertGroupInfosHandler: alertgroupinfos.GetAlertGroupInfosHandlerFunc(func(params alertgroupinfos.GetAlertGroupInfosParams) middleware.Responder {
+			return middleware.NotImplemented("operation alertgroupinfos.GetAlertGroupInfos has not yet been implemented")
 		}),
 		AlertgroupGetAlertGroupsHandler: alertgroup.GetAlertGroupsHandlerFunc(func(params alertgroup.GetAlertGroupsParams) middleware.Responder {
 			return middleware.NotImplemented("operation alertgroup.GetAlertGroups has not yet been implemented")
@@ -127,6 +131,8 @@ type AlertmanagerAPI struct {
 
 	// SilenceDeleteSilenceHandler sets the operation handler for the delete silence operation
 	SilenceDeleteSilenceHandler silence.DeleteSilenceHandler
+	// AlertgroupinfosGetAlertGroupInfosHandler sets the operation handler for the get alert group infos operation
+	AlertgroupinfosGetAlertGroupInfosHandler alertgroupinfos.GetAlertGroupInfosHandler
 	// AlertgroupGetAlertGroupsHandler sets the operation handler for the get alert groups operation
 	AlertgroupGetAlertGroupsHandler alertgroup.GetAlertGroupsHandler
 	// AlertGetAlertsHandler sets the operation handler for the get alerts operation
@@ -222,6 +228,9 @@ func (o *AlertmanagerAPI) Validate() error {
 
 	if o.SilenceDeleteSilenceHandler == nil {
 		unregistered = append(unregistered, "silence.DeleteSilenceHandler")
+	}
+	if o.AlertgroupinfosGetAlertGroupInfosHandler == nil {
+		unregistered = append(unregistered, "alertgroupinfos.GetAlertGroupInfosHandler")
 	}
 	if o.AlertgroupGetAlertGroupsHandler == nil {
 		unregistered = append(unregistered, "alertgroup.GetAlertGroupsHandler")
@@ -339,6 +348,10 @@ func (o *AlertmanagerAPI) initHandlerCache() {
 		o.handlers["DELETE"] = make(map[string]http.Handler)
 	}
 	o.handlers["DELETE"]["/silence/{silenceID}"] = silence.NewDeleteSilence(o.context, o.SilenceDeleteSilenceHandler)
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/alertgroups"] = alertgroupinfos.NewGetAlertGroupInfos(o.context, o.AlertgroupinfosGetAlertGroupInfosHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
