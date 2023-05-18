@@ -16,14 +16,15 @@ package v2
 import (
 	"bytes"
 	"fmt"
-	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
-	"github.com/prometheus/alertmanager/dispatch"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
+
+	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
+	"github.com/prometheus/alertmanager/dispatch"
 
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
@@ -122,7 +123,7 @@ func gettableSilence(id, state string,
 	}
 }
 
-func convert_int_To_Pointer_int64(x int64) *int64 {
+func convertIntToPointerInt64(x int64) *int64 {
 	return &x
 }
 
@@ -182,19 +183,19 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 		expectedCode int
 	}{
 		{
-			convert_int_To_Pointer_int64(int64(1)),
+			convertIntToPointerInt64(int64(1)),
 			"",
 			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"0e758306edce4595"}`,
 			200,
 		},
 		{
-			convert_int_To_Pointer_int64(int64(1)),
+			convertIntToPointerInt64(int64(1)),
 			"0e758306edce4595",
 			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"1ea9baf838dfe7bb"}`,
 			200,
 		},
 		{
-			convert_int_To_Pointer_int64(int64(5)),
+			convertIntToPointerInt64(int64(5)),
 			"1ea9baf838dfe7bb",
 			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}}]}`,
 			200,
@@ -229,7 +230,6 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 		require.Equal(t, tc.expectedCode, w.Code)
 		require.Equal(t, tc.body, string(body))
 	}
-
 }
 
 func TestGetSilencesHandler(t *testing.T) {
