@@ -278,6 +278,48 @@ func (d *Dispatcher) Groups(routeFilter func(*Route) bool, alertFilter func(*typ
 	return groups, receivers
 }
 
+// AlertGroupInfo represents the aggrGroup information.
+type AlertGroupInfo struct {
+	Labels      model.LabelSet
+	Receiver    string
+	Fingerprint model.Fingerprint
+}
+
+type AlertGroupInfos []*AlertGroupInfo
+
+func (ag AlertGroupInfos) Swap(i, j int) { ag[i], ag[j] = ag[j], ag[i] }
+func (ag AlertGroupInfos) Less(i, j int) bool {
+	return ag[i].Fingerprint < ag[j].Fingerprint
+}
+func (ag AlertGroupInfos) Len() int { return len(ag) }
+
+func (d *Dispatcher) GroupInfos(routeFilter func(*Route) bool) AlertGroupInfos {
+	groups := AlertGroupInfos{}
+
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
+	for route, ags := range d.aggrGroupsPerRoute {
+		if !routeFilter(route) {
+			continue
+		}
+
+		for _, ag := range ags {
+			receiver := route.RouteOpts.Receiver
+			alertGroup := &AlertGroupInfo{
+				Labels:      ag.labels,
+				Receiver:    receiver,
+				Fingerprint: ag.fingerprint(),
+			}
+
+			groups = append(groups, alertGroup)
+		}
+	}
+	sort.Sort(groups)
+
+	return groups
+}
+
 // Stop the dispatcher.
 func (d *Dispatcher) Stop() {
 	if d == nil {

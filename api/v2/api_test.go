@@ -16,6 +16,8 @@ package v2
 import (
 	"bytes"
 	"fmt"
+	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
+	"github.com/prometheus/alertmanager/dispatch"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -118,6 +120,116 @@ func gettableSilence(id, state string,
 			State: &state,
 		},
 	}
+}
+
+func convert_int_To_Pointer_int64(x int64) *int64 {
+	return &x
+}
+
+func TestGetAlertGroupInfosHandler(t *testing.T) {
+	aginfos := dispatch.AlertGroupInfos{
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			},
+			Receiver: "prod",
+			Fingerprint: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			}.Fingerprint(),
+		},
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "TestingAlert",
+				"service":   "api",
+			},
+			Receiver: "testing",
+			Fingerprint: model.LabelSet{
+				"alertname": "TestingAlert",
+				"service":   "api",
+			}.Fingerprint(),
+		},
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			Fingerprint: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			}.Fingerprint(),
+		},
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "OtherAlert",
+			},
+			Receiver: "prod",
+			Fingerprint: model.LabelSet{
+				"alertname": "OtherAlert",
+			}.Fingerprint(),
+		},
+	}
+	for _, tc := range []struct {
+		maxResult    *int64
+		nextToken    string
+		body         string
+		expectedCode int
+	}{
+		{
+			convert_int_To_Pointer_int64(int64(1)),
+			"",
+			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"0e758306edce4595"}`,
+			200,
+		},
+		{
+			convert_int_To_Pointer_int64(int64(1)),
+			"0e758306edce4595",
+			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"1ea9baf838dfe7bb"}`,
+			200,
+		},
+		{
+			convert_int_To_Pointer_int64(int64(5)),
+			"1ea9baf838dfe7bb",
+			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}}]}`,
+			200,
+		},
+		{
+			nil,
+			"",
+			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}}]}`,
+			200,
+		},
+	} {
+		api := API{
+			uptime: time.Now(),
+			alertGroupInfos: func(f func(*dispatch.Route) bool) dispatch.AlertGroupInfos {
+				return aginfos
+			},
+			logger: log.NewNopLogger(),
+		}
+		r, err := http.NewRequest("GET", "/api/v2/alertgroups", nil)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		p := runtime.TextProducer()
+		responder := api.getAlertGroupInfosHandler(alertgroupinfos_ops.GetAlertGroupInfosParams{
+			MaxResults:  tc.maxResult,
+			NextToken:   &tc.nextToken,
+			HTTPRequest: r,
+		})
+		responder.WriteResponse(w, p)
+		body, _ := io.ReadAll(w.Result().Body)
+
+		require.Equal(t, tc.expectedCode, w.Code)
+		require.Equal(t, tc.body, string(body))
+	}
+
 }
 
 func TestGetSilencesHandler(t *testing.T) {

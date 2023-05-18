@@ -568,6 +568,159 @@ route:
 	require.Len(t, alertGroups, 6)
 }
 
+func TestGroupInfos(t *testing.T) {
+	confData := `receivers:
+- name: 'kafka'
+- name: 'prod'
+- name: 'testing'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10ms
+  group_interval: 10ms
+  receiver: 'prod'
+  routes:
+  - match:
+      env: 'testing'
+    receiver: 'testing'
+    group_by: ['alertname', 'service']
+  - match:
+      env: 'prod'
+    receiver: 'prod'
+    group_by: ['alertname', 'service', 'cluster']
+    continue: true
+  - match:
+      kafka: 'yes'
+    receiver: 'kafka'
+    group_by: ['alertname', 'service', 'cluster']`
+	conf, err := config.Load(confData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logger := log.NewNopLogger()
+	route := NewRoute(conf.Route, nil)
+	marker := types.NewMarker(prometheus.NewRegistry())
+	alerts, err := mem.NewAlerts(context.Background(), marker, time.Hour, nil, logger, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alerts.Close()
+
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*types.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, marker, timeout, nil, logger, NewDispatcherMetrics(false, prometheus.NewRegistry()))
+	go dispatcher.Run()
+	defer dispatcher.Stop()
+
+	// Create alerts. the dispatcher will automatically create the groups.
+	inputAlerts := []*types.Alert{
+		// Matches the parent route.
+		newAlert(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"}),
+		// Matches the first sub-route.
+		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api", "instance": "inst1"}),
+		// Matches the second sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst1"}),
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst2"}),
+		// Matches the second sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "bb", "service": "api", "instance": "inst1"}),
+		// Matches the second and third sub-route.
+		newAlert(model.LabelSet{"env": "prod", "alertname": "HighLatency", "cluster": "bb", "service": "db", "kafka": "yes", "instance": "inst3"}),
+	}
+	alerts.Put(inputAlerts...)
+
+	// Let alerts get processed.
+	for i := 0; len(recorder.Alerts()) != 7 && i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+	}
+	require.Equal(t, 7, len(recorder.Alerts()))
+
+	alertGroups := dispatcher.GroupInfos(
+		func(*Route) bool {
+			return true
+		},
+	)
+
+	for _, ag := range alertGroups {
+		fmt.Println(ag.Labels.String())
+	}
+
+	require.Equal(t, AlertGroupInfos{
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			},
+			Receiver: "prod",
+			Fingerprint: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			}.Fingerprint(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "TestingAlert",
+				"service":   "api",
+			},
+			Receiver: "testing",
+			Fingerprint: model.LabelSet{
+				"alertname": "TestingAlert",
+				"service":   "api",
+			}.Fingerprint(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			Fingerprint: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			}.Fingerprint(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "OtherAlert",
+			},
+			Receiver: "prod",
+			Fingerprint: model.LabelSet{
+				"alertname": "OtherAlert",
+			}.Fingerprint(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
+			},
+			Receiver: "kafka",
+			Fingerprint: model.LabelSet{
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
+			}.Fingerprint(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			Fingerprint: model.LabelSet{
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
+			}.Fingerprint(),
+		},
+	}, alertGroups)
+}
+
 type recordStage struct {
 	mtx    sync.RWMutex
 	alerts map[string]map[model.Fingerprint]*types.Alert

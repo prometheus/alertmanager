@@ -15,6 +15,7 @@ package v2
 
 import (
 	"fmt"
+	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
 	"net/http"
 	"regexp"
 	"sort"
@@ -53,12 +54,13 @@ import (
 
 // API represents an Alertmanager API v2
 type API struct {
-	peer           cluster.ClusterPeer
-	silences       *silence.Silences
-	alerts         provider.Alerts
-	alertGroups    groupsFn
-	getAlertStatus getAlertStatusFn
-	uptime         time.Time
+	peer            cluster.ClusterPeer
+	silences        *silence.Silences
+	alerts          provider.Alerts
+	alertGroups     groupsFn
+	alertGroupInfos groupInfosFn
+	getAlertStatus  getAlertStatusFn
+	uptime          time.Time
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
@@ -76,6 +78,7 @@ type API struct {
 
 type (
 	groupsFn         func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string)
+	groupInfosFn     func(func(*dispatch.Route) bool) dispatch.AlertGroupInfos
 	getAlertStatusFn func(prometheus_model.Fingerprint) types.AlertStatus
 	setAlertStatusFn func(prometheus_model.LabelSet)
 )
@@ -122,6 +125,7 @@ func NewAPI(
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
 	openAPI.AlertPostAlertsHandler = alert_ops.PostAlertsHandlerFunc(api.postAlertsHandler)
 	openAPI.AlertgroupGetAlertGroupsHandler = alertgroup_ops.GetAlertGroupsHandlerFunc(api.getAlertGroupsHandler)
+	openAPI.AlertgroupinfosGetAlertGroupInfosHandler = alertgroupinfos_ops.GetAlertGroupInfosHandlerFunc(api.getAlertGroupInfosHandler)
 	openAPI.GeneralGetStatusHandler = general_ops.GetStatusHandlerFunc(api.getStatusHandler)
 	openAPI.ReceiverGetReceiversHandler = receiver_ops.GetReceiversHandlerFunc(api.getReceiversHandler)
 	openAPI.SilenceDeleteSilenceHandler = silence_ops.DeleteSilenceHandlerFunc(api.deleteSilenceHandler)
@@ -422,6 +426,74 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	}
 
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
+}
+
+func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGroupInfosParams) middleware.Responder {
+	logger := api.requestLogger(params.HTTPRequest)
+
+	var returnPaginationToken string
+	var receiverFilter *regexp.Regexp
+	var err error
+	if params.Receiver != nil {
+		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
+		if err != nil {
+			level.Error(logger).Log("msg", "Failed to compile receiver regex", "err", err)
+			return alertgroupinfos_ops.
+				NewGetAlertGroupInfosBadRequest().
+				WithPayload(
+					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
+				)
+		}
+	}
+
+	rf := func(receiverFilter *regexp.Regexp) func(r *dispatch.Route) bool {
+		return func(r *dispatch.Route) bool {
+			receiver := r.RouteOpts.Receiver
+			if receiverFilter != nil && !receiverFilter.MatchString(receiver) {
+				return false
+			}
+			return true
+		}
+	}(receiverFilter)
+
+	ags := api.alertGroupInfos(rf)
+
+	alertGroupInfos := make([]*open_api_models.AlertGroupInfo, 0, len(ags))
+	resultNumber := 0
+	var previousAgFp prometheus_model.Fingerprint
+	for _, alertGroup := range ags {
+
+		// Skip the aggregation group if the next token is set and hasn't arrived the nextToken item yet.
+		if params.NextToken != nil && *params.NextToken >= alertGroup.Fingerprint.String() {
+			continue
+		}
+
+		// Add the aggregation group to the response if the MaxResults is not hit
+		if params.MaxResults == nil || resultNumber < int(*params.MaxResults) {
+			ag := &open_api_models.AlertGroupInfo{
+				Receiver: &open_api_models.Receiver{Name: &alertGroup.Receiver},
+				Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
+			}
+
+			previousAgFp = alertGroup.Fingerprint
+			alertGroupInfos = append(alertGroupInfos, ag)
+			resultNumber++
+			continue
+		}
+
+		// Return the pagination token if there is more aggregation group
+		if resultNumber == int(*params.MaxResults) {
+			returnPaginationToken = previousAgFp.String()
+			break
+		}
+	}
+
+	response := &open_api_models.AlertGroupInfos{
+		AlertGroupInfos: alertGroupInfos,
+		NextToken:       returnPaginationToken,
+	}
+
+	return alertgroupinfos_ops.NewGetAlertGroupInfosOK().WithPayload(response)
 }
 
 func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
