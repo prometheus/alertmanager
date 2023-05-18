@@ -698,7 +698,7 @@ route:
 				"service":   "db",
 				"cluster":   "bb",
 			},
-			Receiver: "kafka",
+			Receiver: "prod",
 			Fingerprint: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",
@@ -711,7 +711,7 @@ route:
 				"service":   "db",
 				"cluster":   "bb",
 			},
-			Receiver: "prod",
+			Receiver: "kafka",
 			Fingerprint: model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",

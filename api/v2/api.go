@@ -15,12 +15,13 @@ package v2
 
 import (
 	"fmt"
-	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
 	"net/http"
 	"regexp"
 	"sort"
 	"sync"
 	"time"
+
+	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
