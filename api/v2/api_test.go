@@ -182,24 +182,49 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 		body         string
 		expectedCode int
 	}{
+		// Invalid next token.
+		{
+			convertIntToPointerInt64(int64(1)),
+			"$$$",
+			`failed to parse NextToken param: $$$`,
+			400,
+		},
+		// Invalid next token.
+		{
+			convertIntToPointerInt64(int64(1)),
+			"1234s",
+			`failed to parse NextToken param: 1234s`,
+			400,
+		},
+		// Invalid MaxResults.
+		{
+			convertIntToPointerInt64(int64(-1)),
+			"",
+			`failed to parse MaxResults param: -1`,
+			400,
+		},
+		// One item to return, no next token.
 		{
 			convertIntToPointerInt64(int64(1)),
 			"",
 			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"0e758306edce4595"}`,
 			200,
 		},
+		// One item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(1)),
 			"0e758306edce4595",
 			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"1ea9baf838dfe7bb"}`,
 			200,
 		},
+		// Five item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(5)),
 			"1ea9baf838dfe7bb",
 			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
+		// Return all results.
 		{
 			nil,
 			"",

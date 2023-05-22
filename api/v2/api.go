@@ -14,6 +14,7 @@
 package v2
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -457,15 +458,39 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 		}
 	}(receiverFilter)
 
-	ags := api.alertGroupInfos(rf)
+	var previousAgFp *prometheus_model.Fingerprint
+	var nextTokenParam *prometheus_model.Fingerprint
 
+	if params.NextToken != nil && *params.NextToken != "" {
+		parseResult, err := prometheus_model.ParseFingerprint(*params.NextToken)
+
+		if err != nil {
+			level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
+			return alertgroupinfos_ops.
+				NewGetAlertGroupInfosBadRequest().
+				WithPayload(
+					fmt.Sprintf("failed to parse NextToken param: %v", *params.NextToken),
+				)
+		}
+		nextTokenParam = &parseResult
+	}
+
+	if err = validateMaxResult(params.MaxResults); err != nil {
+		level.Error(logger).Log("msg", "Failed to parse MaxResults parameter", "err", err)
+		return alertgroupinfos_ops.
+			NewGetAlertGroupInfosBadRequest().
+			WithPayload(
+				fmt.Sprintf("failed to parse MaxResults param: %v", *params.MaxResults),
+			)
+	}
+
+	ags := api.alertGroupInfos(rf)
 	alertGroupInfos := make([]*open_api_models.AlertGroupInfo, 0, len(ags))
 	resultNumber := 0
-	var previousAgFp prometheus_model.Fingerprint
 	for _, alertGroup := range ags {
 
 		// Skip the aggregation group if the next token is set and hasn't arrived the nextToken item yet.
-		if params.NextToken != nil && *params.NextToken >= alertGroup.Fingerprint.String() {
+		if nextTokenParam != nil && *nextTokenParam >= alertGroup.Fingerprint {
 			continue
 		}
 
@@ -476,7 +501,7 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 				Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
 			}
 
-			previousAgFp = alertGroup.Fingerprint
+			previousAgFp = &alertGroup.Fingerprint
 			alertGroupInfos = append(alertGroupInfos, ag)
 			resultNumber++
 			continue
@@ -793,4 +818,13 @@ func getSwaggerSpec() (*loads.Document, *analysis.Spec, error) {
 	swaggerSpecCache = swaggerSpec
 	swaggerSpecAnalysisCache = analysis.New(swaggerSpec.Spec())
 	return swaggerSpec, swaggerSpecAnalysisCache, nil
+}
+
+func validateMaxResult(maxItem *int64) error {
+	if maxItem != nil {
+		if *maxItem < 0 {
+			return errors.New("the maxItem need to be larger than 0")
+		}
+	}
+	return nil
 }
