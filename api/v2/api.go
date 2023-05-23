@@ -463,7 +463,6 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 
 	if params.NextToken != nil && *params.NextToken != "" {
 		parseResult, err := prometheus_model.ParseFingerprint(*params.NextToken)
-
 		if err != nil {
 			level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
 			return alertgroupinfos_ops.
