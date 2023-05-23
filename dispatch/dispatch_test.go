@@ -641,10 +641,6 @@ route:
 		},
 	)
 
-	for _, ag := range alertGroups {
-		fmt.Println(ag.Labels.String())
-	}
-
 	require.Equal(t, AlertGroupInfos{
 		&AlertGroupInfo{
 			Labels: model.LabelSet{
