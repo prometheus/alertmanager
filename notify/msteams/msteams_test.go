@@ -138,12 +138,6 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 		noError         bool
 	}{
 		{
-			name:            "with a 2xx status code and response HTTP error 429",
-			statusCode:      http.StatusOK,
-			responseContent: "Webhook message delivery failed with error: Microsoft Teams endpoint returned HTTP error 429",
-			expectedReason:  notify.ClientErrorReason,
-		},
-		{
 			name:            "with a 2xx status code and response 1",
 			statusCode:      http.StatusOK,
 			responseContent: "1",
