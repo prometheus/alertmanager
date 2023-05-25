@@ -28,12 +28,40 @@ func TestParse(t *testing.T) {
 		expected labels.Matchers
 		error    string
 	}{{
+		name:     "no parens",
+		input:    "",
+		expected: nil,
+	}, {
 		name:     "open and closing parens",
 		input:    "{}",
 		expected: nil,
 	}, {
 		name:     "equals",
 		input:    "{foo=\"bar\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals unicode emoji",
+		input:    "{foo=\"🙂\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "🙂")},
+	}, {
+		name:     "equals without quotes",
+		input:    "{foo=bar}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals without parens",
+		input:    "foo=\"bar\"",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals without parens or quotes",
+		input:    "foo=bar",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals with trailing comma",
+		input:    "{foo=\"bar\",}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
+	}, {
+		name:     "equals without parens but trailing comma",
+		input:    "foo=\"bar\",",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
 		name:     "not equals",
@@ -48,30 +76,49 @@ func TestParse(t *testing.T) {
 		input:    "{foo!~\"[a-z]+\"}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotRegexp, "foo", "[a-z]+")},
 	}, {
-		name:  "equals and a not equals",
+		name:  "complex",
 		input: "{foo=\"bar\",bar!=\"baz\"}",
 		expected: labels.Matchers{
 			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
 			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
 		},
 	}, {
-		name:  "equals unicode emoji",
-		input: "{foo=\"🙂\"}",
+		name:  "complex without quotes",
+		input: "{foo=bar,bar!=baz}",
 		expected: labels.Matchers{
-			mustNewMatcher(t, labels.MatchEqual, "foo", "🙂"),
+			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
+		},
+	}, {
+		name:  "complex without parens",
+		input: "foo=\"bar\",bar!=\"baz\"",
+		expected: labels.Matchers{
+			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
+		},
+	}, {
+		name:  "complex without parens or quotes",
+		input: "foo=bar,bar!=baz",
+		expected: labels.Matchers{
+			mustNewMatcher(t, labels.MatchEqual, "foo", "bar"),
+			mustNewMatcher(t, labels.MatchNotEqual, "bar", "baz"),
 		},
 	}, {
 		name:  "open paren",
 		input: "{",
-		error: "EOF: expected label name",
+		error: "0:1: end of input: expected close paren",
 	}, {
 		name:  "close paren",
 		input: "}",
-		error: "0:1: unexpected }: expected opening '{'",
+		error: "0:1: }: expected opening paren",
 	}, {
-		name:  "no parens",
-		input: "foo=\"bar\"",
-		error: "0:3: unexpected foo: expected opening '{'",
+		name:  "no open paren",
+		input: "foo=\"bar\"}",
+		error: "0:10: }: expected opening paren",
+	}, {
+		name:  "no close paren",
+		input: "{foo=\"bar\"",
+		error: "0:10: end of input: expected close paren",
 	}, {
 		name:  "invalid operator",
 		input: "{foo=:\"bar\"}",

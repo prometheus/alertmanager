@@ -207,7 +207,7 @@ func TestLexer_Scan(t *testing.T) {
 	}, {
 		name:  "invalid operator",
 		input: "!",
-		err:   "0:1: expected one of '=~', got EOF",
+		err:   "0:1: unexpected end of input, expected one of '=~'",
 	}, {
 		name:  "another invalid operator",
 		input: "~",
@@ -225,22 +225,22 @@ func TestLexer_Scan(t *testing.T) {
 		expected: []Token{
 			{Kind: TokenOperator, Value: "=", Start: 0, End: 1},
 		},
-		err: "1:2: expected one of '=~', got EOF",
+		err: "1:2: unexpected end of input, expected one of '=~'",
 	}, {
 		name:  "unexpected !! after operator",
 		input: "!=!!",
 		expected: []Token{
 			{Kind: TokenOperator, Value: "!=", Start: 0, End: 2},
 		},
-		err: "2:3: expected one of '=~', got '!'",
+		err: "2:3: !: expected one of '=~'",
 	}, {
 		name:  "unterminated quoted",
 		input: "\"hello",
-		err:   "0:6: expected one of '\"', got EOF",
+		err:   "0:6: \"hello: missing end \"",
 	}, {
 		name:  "unterminated quoted with escaped quote",
 		input: "\"hello\\\"",
-		err:   "0:8: expected one of '\"', got EOF",
+		err:   "0:8: \"hello\\\": missing end \"",
 	}}
 
 	for _, test := range tests {
@@ -274,7 +274,7 @@ func TestLexer_ScanError(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		tok, err := l.Scan()
 		assert.Equal(t, Token{}, tok)
-		assert.EqualError(t, err, "0:6: expected one of '\"', got EOF")
+		assert.EqualError(t, err, "0:6: \"hello: missing end \"")
 	}
 }
 
@@ -315,6 +315,6 @@ func TestLexer_PeekError(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		tok, err := l.Peek()
 		assert.Equal(t, Token{}, tok)
-		assert.EqualError(t, err, "0:6: expected one of '\"', got EOF")
+		assert.EqualError(t, err, "0:6: \"hello: missing end \"")
 	}
 }

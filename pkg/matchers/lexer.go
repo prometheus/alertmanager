@@ -32,6 +32,21 @@ func isNum(r rune) bool {
 	return r >= '0' && r <= '9'
 }
 
+// ExpectedError is returned when the next rune does not match what is expected.
+type ExpectedError struct {
+	input    string
+	start    int
+	end      int
+	expected string
+}
+
+func (e ExpectedError) Error() string {
+	if e.end >= len(e.input) {
+		return fmt.Sprintf("%d:%d: unexpected end of input, expected one of '%s'", e.start, e.end, e.expected)
+	}
+	return fmt.Sprintf("%d:%d: %s: expected one of '%s'", e.start, e.end, e.input[e.start:e.end], e.expected)
+}
+
 // InvalidInputError is returned when the next rune in the input does not match
 // the grammar of Prometheus-like matchers.
 type InvalidInputError struct {
@@ -42,6 +57,18 @@ type InvalidInputError struct {
 
 func (e InvalidInputError) Error() string {
 	return fmt.Sprintf("%d:%d: %s: invalid input", e.start, e.end, e.input[e.start:e.end])
+}
+
+// UnterminatedError is returned when text in quotes does not have a closing quote.
+type UnterminatedError struct {
+	input string
+	start int
+	end   int
+	quote rune
+}
+
+func (e UnterminatedError) Error() string {
+	return fmt.Sprintf("%d:%d: %s: missing end %c", e.start, e.end, e.input[e.start:e.end], e.quote)
 }
 
 // Lexer scans a sequence of tokens that match the grammar of Prometheus-like
@@ -78,44 +105,46 @@ func (l *Lexer) Peek() (Token, error) {
 }
 
 func (l *Lexer) Scan() (Token, error) {
+	tok := Token{}
+
 	// Do not attempt to emit more tokens if the input is invalid
 	if l.err != nil {
-		return Token{}, l.err
+		return tok, l.err
 	}
 
 	// Iterate over each rune in the input and either emit a token or an error
 	for r := l.next(); r != eof; r = l.next() {
 		switch {
 		case r == '{':
-			return l.emit(TokenOpenParen), nil
+			tok = l.emit(TokenOpenParen)
+			return tok, l.err
 		case r == '}':
-			return l.emit(TokenCloseParen), nil
+			tok = l.emit(TokenCloseParen)
+			return tok, l.err
 		case r == ',':
-			return l.emit(TokenComma), nil
+			tok = l.emit(TokenComma)
+			return tok, l.err
 		case r == '=' || r == '!':
 			l.rewind()
-			var tok Token
 			tok, l.err = l.scanOperator()
 			return tok, l.err
 		case r == '"':
 			l.rewind()
-			var tok Token
 			tok, l.err = l.scanQuoted()
 			return tok, l.err
 		case r == '_' || isAlpha(r):
 			l.rewind()
-			var tok Token
 			tok, l.err = l.scanIdent()
 			return tok, l.err
 		case unicode.IsSpace(r):
 			l.skip()
 		default:
 			l.err = InvalidInputError{input: l.input, start: l.start, end: l.pos}
-			return Token{}, l.err
+			return tok, l.err
 		}
 	}
 
-	return Token{}, nil
+	return tok, l.err
 }
 
 func (l *Lexer) scanIdent() (Token, error) {
@@ -170,7 +199,7 @@ func (l *Lexer) scanQuoted() (Token, error) {
 	}
 
 	if err := l.expect("\""); err != nil {
-		return Token{}, err
+		return Token{}, UnterminatedError{input: l.input, start: l.start, end: l.pos, quote: '"'}
 	}
 
 	return l.emit(TokenQuoted), nil
@@ -194,10 +223,10 @@ func (l *Lexer) expect(valid string) error {
 	r := l.next()
 	if r == -1 {
 		l.rewind()
-		return fmt.Errorf("%d:%d: expected one of '%s', got EOF", l.start, l.pos, valid)
+		return ExpectedError{input: l.input, start: l.start, end: l.pos, expected: valid}
 	} else if strings.IndexRune(valid, r) < 0 {
 		l.rewind()
-		return fmt.Errorf("%d:%d: expected one of '%s', got '%c'", l.start, l.pos, valid, r)
+		return ExpectedError{input: l.input, start: l.start, end: l.pos, expected: valid}
 	} else {
 		return nil
 	}
