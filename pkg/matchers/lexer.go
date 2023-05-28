@@ -185,23 +185,20 @@ func (l *Lexer) scanQuoted() (Token, error) {
 	if err := l.expect("\""); err != nil {
 		return Token{}, err
 	}
-
 	var isEscaped bool
 	for r := l.next(); r != eof; r = l.next() {
-		if r == '\\' {
+		if isEscaped {
+			isEscaped = false
+		} else if r == '\\' {
 			isEscaped = true
-		} else if r == '"' && !isEscaped {
+		} else if r == '"' {
 			l.rewind()
 			break
-		} else {
-			isEscaped = false
 		}
 	}
-
 	if err := l.expect("\""); err != nil {
 		return Token{}, UnterminatedError{input: l.input, start: l.start, end: l.pos, quote: '"'}
 	}
-
 	return l.emit(TokenQuoted), nil
 }
 

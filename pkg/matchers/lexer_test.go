@@ -120,16 +120,16 @@ func TestLexer_Scan(t *testing.T) {
 			{Kind: TokenQuoted, Value: "\"hello world\"", Start: 0, End: 13},
 		},
 	}, {
-		name:  "quoted with tab",
-		input: "\"hello\tworld\"",
-		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello\tworld\"", Start: 0, End: 13},
-		},
-	}, {
 		name:  "quoted with newline",
 		input: "\"hello\nworld\"",
 		expected: []Token{
 			{Kind: TokenQuoted, Value: "\"hello\nworld\"", Start: 0, End: 13},
+		},
+	}, {
+		name:  "quoted with tab",
+		input: "\"hello\tworld\"",
+		expected: []Token{
+			{Kind: TokenQuoted, Value: "\"hello\tworld\"", Start: 0, End: 13},
 		},
 	}, {
 		name:  "quoted with escaped quotes",
@@ -138,10 +138,10 @@ func TestLexer_Scan(t *testing.T) {
 			{Kind: TokenQuoted, Value: "\"hello \\\"world\\\"\"", Start: 0, End: 17},
 		},
 	}, {
-		name:  "quoted with escaped backticks",
-		input: "\"hello \\world\"",
+		name:  "quoted with escaped backslash",
+		input: "\"hello world\\\\\"",
 		expected: []Token{
-			{Kind: TokenQuoted, Value: "\"hello \\world\"", Start: 0, End: 14},
+			{Kind: TokenQuoted, Value: "\"hello world\\\\\"", Start: 0, End: 15},
 		},
 	}, {
 		name:  "equals operator",

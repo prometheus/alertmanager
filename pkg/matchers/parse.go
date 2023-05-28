@@ -16,7 +16,7 @@ package matchers
 import (
 	"errors"
 	"fmt"
-	"strings"
+	"strconv"
 
 	"github.com/prometheus/alertmanager/pkg/labels"
 )
@@ -238,7 +238,14 @@ func (p *Parser) parseLabelMatcher(l *Lexer) (parseFn, error) {
 	if tok, err = p.expect(l.Scan, TokenIdent, TokenQuoted); err != nil {
 		return nil, fmt.Errorf("%s: %s", err, ErrNoLabelValue)
 	}
-	labelValue = strings.TrimPrefix(strings.TrimSuffix(tok.Value, "\""), "\"")
+	if tok.Kind == TokenIdent {
+		labelValue = tok.Value
+	} else {
+		labelValue, err = strconv.Unquote(tok.Value)
+		if err != nil {
+			return nil, fmt.Errorf("%d:%d: %s: invalid input", tok.Start, tok.End, tok.Value)
+		}
+	}
 
 	m, err := labels.NewMatcher(ty, labelName, labelValue)
 	if err != nil {

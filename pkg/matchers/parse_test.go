@@ -64,6 +64,22 @@ func TestParse(t *testing.T) {
 		input:    "foo=\"bar\",",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar")},
 	}, {
+		name:     "equals with newline",
+		input:    "{foo=\"bar\\n\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\n")},
+	}, {
+		name:     "equals with tab",
+		input:    "{foo=\"bar\\t\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\t")},
+	}, {
+		name:     "equals with escaped quotes",
+		input:    "{foo=\"\\\"bar\\\"\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "\"bar\"")},
+	}, {
+		name:     "equals with escaped backslash",
+		input:    "{foo=\"bar\\\\\"}",
+		expected: labels.Matchers{mustNewMatcher(t, labels.MatchEqual, "foo", "bar\\")},
+	}, {
 		name:     "not equals",
 		input:    "{foo!=\"bar\"}",
 		expected: labels.Matchers{mustNewMatcher(t, labels.MatchNotEqual, "foo", "bar")},
@@ -127,6 +143,10 @@ func TestParse(t *testing.T) {
 		name:  "another invalid operator",
 		input: "{foo%=\"bar\"}",
 		error: "4:5: %: invalid input: expected an operator such as '=', '!=', '=~' or '!~'",
+	}, {
+		name:  "invalid escape sequence",
+		input: "{foo=\"bar\\w\"}",
+		error: "5:12: \"bar\\w\": invalid input",
 	}}
 
 	for _, test := range tests {
