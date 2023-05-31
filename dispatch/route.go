@@ -180,7 +180,8 @@ func (r *Route) Key() string {
 	return b.String()
 }
 
-// ID returns a key for the route. It should uniquely identify the route in general.
+// ID returns a key for the route. It should uniquely identify the route in general,
+// it is different than Key() as it adds the route's position on its parent's children.
 func (r *Route) ID() string {
 	b := strings.Builder{}
 
