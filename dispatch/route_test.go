@@ -907,9 +907,7 @@ routes:
 	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
 		t.Fatal(err)
 	}
-	var (
-		tree = NewRoute(&ctree, nil)
-	)
+	tree := NewRoute(&ctree, nil)
 
 	tests := []struct {
 		id string
