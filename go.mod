@@ -7,7 +7,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aws/aws-sdk-go v1.44.234
 	github.com/benbjohnson/clock v1.3.3
-	github.com/cenkalti/backoff/v4 v4.2.0
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-openapi/analysis v0.21.4
