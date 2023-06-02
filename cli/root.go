@@ -42,7 +42,12 @@ var (
 	httpConfigFile  string
 	versionCheck    bool
 
-	configFiles = configdir.SystemConfig("amtool", "config.yml")
+        var configFiles []string
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		configFiles = append(configFiles, filepath.Join(homeDir, ".config", "amtool" "config.yml")
+	}
+	configFiles = append("/etc/amtool/config.yml")
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
 )
 
