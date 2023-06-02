@@ -54,9 +54,9 @@ func init() {
       "get": {
         "description": "Get a list of alert groups information",
         "tags": [
-          "alertgroupinfos"
+          "alertgroupinfolist"
         ],
-        "operationId": "getAlertGroupInfos",
+        "operationId": "getAlertGroupInfoList",
         "parameters": [
           {
             "type": "string",
@@ -72,7 +72,7 @@ func init() {
           },
           {
             "type": "integer",
-            "description": "The maximum number of alert groups to return in one getAlertGroupInfos operation.",
+            "description": "The maximum number of alert groups to return in one getAlertGroupInfoList operation.",
             "name": "maxResults",
             "in": "query"
           }
@@ -81,7 +81,7 @@ func init() {
           "200": {
             "description": "Get alert groups info response",
             "schema": {
-              "$ref": "#/definitions/alertGroupInfos"
+              "$ref": "#/definitions/alertGroupInfoList"
             }
           },
           "400": {
@@ -477,10 +477,10 @@ func init() {
         }
       }
     },
-    "alertGroupInfos": {
+    "alertGroupInfoList": {
       "type": "object",
       "properties": {
-        "alertGroupInfos": {
+        "alertGroupInfoList": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/alertGroupInfo"
@@ -913,9 +913,9 @@ func init() {
       "get": {
         "description": "Get a list of alert groups information",
         "tags": [
-          "alertgroupinfos"
+          "alertgroupinfolist"
         ],
-        "operationId": "getAlertGroupInfos",
+        "operationId": "getAlertGroupInfoList",
         "parameters": [
           {
             "type": "string",
@@ -931,7 +931,7 @@ func init() {
           },
           {
             "type": "integer",
-            "description": "The maximum number of alert groups to return in one getAlertGroupInfos operation.",
+            "description": "The maximum number of alert groups to return in one getAlertGroupInfoList operation.",
             "name": "maxResults",
             "in": "query"
           }
@@ -940,7 +940,7 @@ func init() {
           "200": {
             "description": "Get alert groups info response",
             "schema": {
-              "$ref": "#/definitions/alertGroupInfos"
+              "$ref": "#/definitions/alertGroupInfoList"
             }
           },
           "400": {
@@ -1372,10 +1372,10 @@ func init() {
         }
       }
     },
-    "alertGroupInfos": {
+    "alertGroupInfoList": {
       "type": "object",
       "properties": {
-        "alertGroupInfos": {
+        "alertGroupInfoList": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/alertGroupInfo"
