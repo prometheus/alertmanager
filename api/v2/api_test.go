@@ -131,27 +131,11 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 	aginfos := dispatch.AlertGroupInfos{
 		&dispatch.AlertGroupInfo{
 			Labels: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "aa",
-			},
-			Receiver: "prod",
-			Fingerprint: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "aa",
-			}.Fingerprint(),
-		},
-		&dispatch.AlertGroupInfo{
-			Labels: model.LabelSet{
 				"alertname": "TestingAlert",
 				"service":   "api",
 			},
 			Receiver: "testing",
-			Fingerprint: model.LabelSet{
-				"alertname": "TestingAlert",
-				"service":   "api",
-			}.Fingerprint(),
+			ID:       "478b4114226224a35910d449fdba8186ebfb441f",
 		},
 		&dispatch.AlertGroupInfo{
 			Labels: model.LabelSet{
@@ -160,20 +144,23 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 				"cluster":   "bb",
 			},
 			Receiver: "prod",
-			Fingerprint: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "bb",
-			}.Fingerprint(),
+			ID:       "7f4084a078a3fe29d6de82fad15af8f1411e803f",
 		},
 		&dispatch.AlertGroupInfo{
 			Labels: model.LabelSet{
 				"alertname": "OtherAlert",
 			},
 			Receiver: "prod",
-			Fingerprint: model.LabelSet{
-				"alertname": "OtherAlert",
-			}.Fingerprint(),
+			ID:       "d525244929240cbdb75a497913c1890ab8de1962",
+		},
+		&dispatch.AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			},
+			Receiver: "prod",
+			ID:       "d73984d43949112ae1ea59dcc5af4af7b630a5b1",
 		},
 	}
 	for _, tc := range []struct {
@@ -207,28 +194,28 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 		{
 			convertIntToPointerInt64(int64(1)),
 			"",
-			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"0e758306edce4595"}`,
+			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"478b4114226224a35910d449fdba8186ebfb441f"}`,
 			200,
 		},
 		// One item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(1)),
-			"0e758306edce4595",
-			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"1ea9baf838dfe7bb"}`,
+			"478b4114226224a35910d449fdba8186ebfb441f",
+			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"7f4084a078a3fe29d6de82fad15af8f1411e803f"}`,
 			200,
 		},
 		// Five item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(5)),
-			"1ea9baf838dfe7bb",
-			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}}]}`,
+			"7f4084a078a3fe29d6de82fad15af8f1411e803f",
+			`{"alertGroupInfos":[{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
 		// Return all results.
 		{
 			nil,
 			"",
-			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}}]}`,
+			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
 	} {
