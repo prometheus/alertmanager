@@ -38,7 +38,7 @@ require (
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/stretchr/testify v1.8.2
 	github.com/xlab/treeprint v1.1.0
-	go.uber.org/atomic v1.10.0
+	go.uber.org/atomic v1.11.0
 	golang.org/x/mod v0.9.0
 	golang.org/x/net v0.10.0
 	golang.org/x/text v0.9.0
