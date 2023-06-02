@@ -635,7 +635,7 @@ route:
 	}
 	require.Equal(t, 7, len(recorder.Alerts()))
 
-	alertGroups := dispatcher.GroupInfos(
+	alertGroupInfos := dispatcher.GroupInfos(
 		func(*Route) bool {
 			return true
 		},
@@ -644,62 +644,15 @@ route:
 	require.Equal(t, AlertGroupInfos{
 		&AlertGroupInfo{
 			Labels: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "aa",
-			},
-			Receiver: "prod",
-			Fingerprint: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "aa",
-			}.Fingerprint(),
-		},
-		&AlertGroupInfo{
-			Labels: model.LabelSet{
 				"alertname": "TestingAlert",
 				"service":   "api",
 			},
 			Receiver: "testing",
-			Fingerprint: model.LabelSet{
+			// Matches the first sub-route.
+			ID: dispatcher.aggrGroupsPerRoute[dispatcher.route.Routes[0]][model.LabelSet{
 				"alertname": "TestingAlert",
 				"service":   "api",
-			}.Fingerprint(),
-		},
-		&AlertGroupInfo{
-			Labels: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "bb",
-			},
-			Receiver: "prod",
-			Fingerprint: model.LabelSet{
-				"alertname": "HighErrorRate",
-				"service":   "api",
-				"cluster":   "bb",
-			}.Fingerprint(),
-		},
-		&AlertGroupInfo{
-			Labels: model.LabelSet{
-				"alertname": "OtherAlert",
-			},
-			Receiver: "prod",
-			Fingerprint: model.LabelSet{
-				"alertname": "OtherAlert",
-			}.Fingerprint(),
-		},
-		&AlertGroupInfo{
-			Labels: model.LabelSet{
-				"alertname": "HighLatency",
-				"service":   "db",
-				"cluster":   "bb",
-			},
-			Receiver: "prod",
-			Fingerprint: model.LabelSet{
-				"alertname": "HighLatency",
-				"service":   "db",
-				"cluster":   "bb",
-			}.Fingerprint(),
+			}.Fingerprint()].GroupID(),
 		},
 		&AlertGroupInfo{
 			Labels: model.LabelSet{
@@ -708,13 +661,66 @@ route:
 				"cluster":   "bb",
 			},
 			Receiver: "kafka",
-			Fingerprint: model.LabelSet{
+			// Matches the third sub-route.
+			ID: dispatcher.aggrGroupsPerRoute[dispatcher.route.Routes[2]][model.LabelSet{
 				"alertname": "HighLatency",
 				"service":   "db",
 				"cluster":   "bb",
-			}.Fingerprint(),
+			}.Fingerprint()].GroupID(),
 		},
-	}, alertGroups)
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			// Matches the second sub-route.
+			ID: dispatcher.aggrGroupsPerRoute[dispatcher.route.Routes[1]][model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "bb",
+			}.Fingerprint()].GroupID(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
+			},
+			Receiver: "prod",
+			// Matches the second sub-route.
+			ID: dispatcher.aggrGroupsPerRoute[dispatcher.route.Routes[1]][model.LabelSet{
+				"alertname": "HighLatency",
+				"service":   "db",
+				"cluster":   "bb",
+			}.Fingerprint()].GroupID(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "OtherAlert",
+			},
+			Receiver: "prod",
+			// Matches the parent route.
+			ID: dispatcher.aggrGroupsPerRoute[dispatcher.route][model.LabelSet{
+				"alertname": "OtherAlert",
+			}.Fingerprint()].GroupID(),
+		},
+		&AlertGroupInfo{
+			Labels: model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			},
+			Receiver: "prod",
+			// Matches the second sub-route.
+			ID: dispatcher.aggrGroupsPerRoute[dispatcher.route.Routes[1]][model.LabelSet{
+				"alertname": "HighErrorRate",
+				"service":   "api",
+				"cluster":   "aa",
+			}.Fingerprint()].GroupID(),
+		},
+	}, alertGroupInfos)
 }
 
 type recordStage struct {

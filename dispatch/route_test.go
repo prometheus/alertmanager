@@ -853,3 +853,65 @@ routes:
 		}
 	}
 }
+
+func TestRouteID(t *testing.T) {
+	in := `
+receiver: 'notify-def'
+routes:
+- matchers: ['{owner="team-A"}', '{level!="critical"}']
+  receiver: 'notify-A'
+  routes:
+  - matchers: ['{env="testing"}', '{baz!~".*quux"}']
+    receiver: 'notify-testing'
+    group_by: [...]
+  - match:
+      env: "production"
+    receiver: 'notify-productionA'
+    group_wait: 1m
+    continue: true
+  - matchers: [ env=~"produ.*", job=~".*"]
+    receiver: 'notify-productionB'
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 1h
+    group_by: ['job']
+- match_re:
+    owner: 'team-(B|C)'
+  group_by: ['foo', 'bar']
+  group_wait: 2m
+  receiver: 'notify-BC'
+- matchers: [group_by="role"]
+  group_by: ['role']
+  routes:
+  - matchers: ['{env="testing"}']
+    receiver: 'notify-testing'
+    routes:
+    - matchers: [wait="long"]
+      group_wait: 2m
+`
+
+	var ctree config.Route
+	if err := yaml.UnmarshalStrict([]byte(in), &ctree); err != nil {
+		t.Fatal(err)
+	}
+	tree := NewRoute(&ctree, nil)
+
+	tests := []struct {
+		id string
+	}{
+		{
+			id: "{}/{level!=\"critical\",owner=\"team-A\"}/0",
+		},
+		{
+			id: "{}/{owner=~\"^(?:team-(B|C))$\"}/1",
+		},
+		{
+			id: "{}/{group_by=\"role\"}/2",
+		},
+	}
+
+	for i, test := range tests {
+		id := tree.Routes[i].ID()
+		require.Equal(t, test.id, id)
+	}
+}

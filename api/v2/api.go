@@ -458,20 +458,15 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 		}
 	}(receiverFilter)
 
-	var previousAgFp *prometheus_model.Fingerprint
-	var nextTokenParam *prometheus_model.Fingerprint
+	var previousAgID *string
 
-	if params.NextToken != nil && *params.NextToken != "" {
-		parseResult, err := prometheus_model.ParseFingerprint(*params.NextToken)
-		if err != nil {
-			level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
-			return alertgroupinfos_ops.
-				NewGetAlertGroupInfosBadRequest().
-				WithPayload(
-					fmt.Sprintf("failed to parse NextToken param: %v", *params.NextToken),
-				)
-		}
-		nextTokenParam = &parseResult
+	if err = validateNextToken(params.NextToken); err != nil {
+		level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
+		return alertgroupinfos_ops.
+			NewGetAlertGroupInfosBadRequest().
+			WithPayload(
+				fmt.Sprintf("failed to parse NextToken param: %v", *params.NextToken),
+			)
 	}
 
 	if err = validateMaxResult(params.MaxResults); err != nil {
@@ -489,7 +484,7 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 	for _, alertGroup := range ags {
 
 		// Skip the aggregation group if the next token is set and hasn't arrived the nextToken item yet.
-		if nextTokenParam != nil && *nextTokenParam >= alertGroup.Fingerprint {
+		if params.NextToken != nil && *params.NextToken != "" && *params.NextToken >= alertGroup.ID {
 			continue
 		}
 
@@ -500,7 +495,7 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 				Labels:   ModelLabelSetToAPILabelSet(alertGroup.Labels),
 			}
 
-			previousAgFp = &alertGroup.Fingerprint
+			previousAgID = &alertGroup.ID
 			alertGroupInfos = append(alertGroupInfos, ag)
 			resultNumber++
 			continue
@@ -508,7 +503,7 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 
 		// Return the pagination token if there is more aggregation group
 		if resultNumber == int(*params.MaxResults) {
-			returnPaginationToken = previousAgFp.String()
+			returnPaginationToken = *previousAgID
 			break
 		}
 	}
@@ -823,6 +818,16 @@ func validateMaxResult(maxItem *int64) error {
 	if maxItem != nil {
 		if *maxItem < 0 {
 			return errors.New("the maxItem need to be larger than 0")
+		}
+	}
+	return nil
+}
+
+func validateNextToken(nextToken *string) error {
+	if nextToken != nil && *nextToken != "" {
+		match, _ := regexp.MatchString("^[a-fA-F0-9]{40}$", *nextToken)
+		if !match {
+			return fmt.Errorf("invalid nextToken: %s", *nextToken)
 		}
 	}
 	return nil
