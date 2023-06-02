@@ -727,7 +727,7 @@ Microsoft Teams notifications are sent via the [Incoming Webhooks](https://learn
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The Incoming webhook URL.
+# The incoming webhook URL.
 [ webhook_url: <secret> ]
 
 # Message title template.
