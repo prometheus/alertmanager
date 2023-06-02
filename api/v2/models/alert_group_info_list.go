@@ -28,23 +28,23 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// AlertGroupInfos alert group infos
+// AlertGroupInfoList alert group info list
 //
-// swagger:model alertGroupInfos
-type AlertGroupInfos struct {
+// swagger:model alertGroupInfoList
+type AlertGroupInfoList struct {
 
-	// alert group infos
-	AlertGroupInfos []*AlertGroupInfo `json:"alertGroupInfos"`
+	// alert group info list
+	AlertGroupInfoList []*AlertGroupInfo `json:"alertGroupInfoList"`
 
 	// next token
 	NextToken string `json:"nextToken,omitempty"`
 }
 
-// Validate validates this alert group infos
-func (m *AlertGroupInfos) Validate(formats strfmt.Registry) error {
+// Validate validates this alert group info list
+func (m *AlertGroupInfoList) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateAlertGroupInfos(formats); err != nil {
+	if err := m.validateAlertGroupInfoList(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -54,22 +54,22 @@ func (m *AlertGroupInfos) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *AlertGroupInfos) validateAlertGroupInfos(formats strfmt.Registry) error {
-	if swag.IsZero(m.AlertGroupInfos) { // not required
+func (m *AlertGroupInfoList) validateAlertGroupInfoList(formats strfmt.Registry) error {
+	if swag.IsZero(m.AlertGroupInfoList) { // not required
 		return nil
 	}
 
-	for i := 0; i < len(m.AlertGroupInfos); i++ {
-		if swag.IsZero(m.AlertGroupInfos[i]) { // not required
+	for i := 0; i < len(m.AlertGroupInfoList); i++ {
+		if swag.IsZero(m.AlertGroupInfoList[i]) { // not required
 			continue
 		}
 
-		if m.AlertGroupInfos[i] != nil {
-			if err := m.AlertGroupInfos[i].Validate(formats); err != nil {
+		if m.AlertGroupInfoList[i] != nil {
+			if err := m.AlertGroupInfoList[i].Validate(formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
-					return ve.ValidateName("alertGroupInfos" + "." + strconv.Itoa(i))
+					return ve.ValidateName("alertGroupInfoList" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
-					return ce.ValidateName("alertGroupInfos" + "." + strconv.Itoa(i))
+					return ce.ValidateName("alertGroupInfoList" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -80,11 +80,11 @@ func (m *AlertGroupInfos) validateAlertGroupInfos(formats strfmt.Registry) error
 	return nil
 }
 
-// ContextValidate validate this alert group infos based on the context it is used
-func (m *AlertGroupInfos) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+// ContextValidate validate this alert group info list based on the context it is used
+func (m *AlertGroupInfoList) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.contextValidateAlertGroupInfos(ctx, formats); err != nil {
+	if err := m.contextValidateAlertGroupInfoList(ctx, formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -94,16 +94,16 @@ func (m *AlertGroupInfos) ContextValidate(ctx context.Context, formats strfmt.Re
 	return nil
 }
 
-func (m *AlertGroupInfos) contextValidateAlertGroupInfos(ctx context.Context, formats strfmt.Registry) error {
+func (m *AlertGroupInfoList) contextValidateAlertGroupInfoList(ctx context.Context, formats strfmt.Registry) error {
 
-	for i := 0; i < len(m.AlertGroupInfos); i++ {
+	for i := 0; i < len(m.AlertGroupInfoList); i++ {
 
-		if m.AlertGroupInfos[i] != nil {
-			if err := m.AlertGroupInfos[i].ContextValidate(ctx, formats); err != nil {
+		if m.AlertGroupInfoList[i] != nil {
+			if err := m.AlertGroupInfoList[i].ContextValidate(ctx, formats); err != nil {
 				if ve, ok := err.(*errors.Validation); ok {
-					return ve.ValidateName("alertGroupInfos" + "." + strconv.Itoa(i))
+					return ve.ValidateName("alertGroupInfoList" + "." + strconv.Itoa(i))
 				} else if ce, ok := err.(*errors.CompositeError); ok {
-					return ce.ValidateName("alertGroupInfos" + "." + strconv.Itoa(i))
+					return ce.ValidateName("alertGroupInfoList" + "." + strconv.Itoa(i))
 				}
 				return err
 			}
@@ -115,7 +115,7 @@ func (m *AlertGroupInfos) contextValidateAlertGroupInfos(ctx context.Context, fo
 }
 
 // MarshalBinary interface implementation
-func (m *AlertGroupInfos) MarshalBinary() ([]byte, error) {
+func (m *AlertGroupInfoList) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -123,8 +123,8 @@ func (m *AlertGroupInfos) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary interface implementation
-func (m *AlertGroupInfos) UnmarshalBinary(b []byte) error {
-	var res AlertGroupInfos
+func (m *AlertGroupInfoList) UnmarshalBinary(b []byte) error {
+	var res AlertGroupInfoList
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

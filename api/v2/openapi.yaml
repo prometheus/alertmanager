@@ -246,8 +246,8 @@ paths:
   /alertgroups:
     get:
       tags:
-        - alertgroupinfos
-      operationId: getAlertGroupInfos
+        - alertgroupinfolist
+      operationId: getAlertGroupInfoList
       description: Get a list of alert groups information
       parameters:
         - name: receiver
@@ -262,14 +262,14 @@ paths:
           type: string
         - name: maxResults
           in: query
-          description: The maximum number of alert groups to return in one getAlertGroupInfos operation.
+          description: The maximum number of alert groups to return in one getAlertGroupInfoList operation.
           required: false
           type: integer
       responses:
         '200':
           description: Get alert groups info response
           schema:
-            '$ref': '#/definitions/alertGroupInfos'
+            '$ref': '#/definitions/alertGroupInfoList'
         '400':
           $ref: '#/responses/BadRequest'
         '500':
@@ -516,10 +516,10 @@ definitions:
       - labels
       - receiver
       - alerts
-  alertGroupInfos:
+  alertGroupInfoList:
     type: object
     properties:
-      alertGroupInfos:
+      alertGroupInfoList:
         type: array
         items:
           $ref: '#/definitions/alertGroupInfo'

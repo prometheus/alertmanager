@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
+	alertgroupinfolist_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfolist"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -127,7 +127,7 @@ func NewAPI(
 	openAPI.AlertGetAlertsHandler = alert_ops.GetAlertsHandlerFunc(api.getAlertsHandler)
 	openAPI.AlertPostAlertsHandler = alert_ops.PostAlertsHandlerFunc(api.postAlertsHandler)
 	openAPI.AlertgroupGetAlertGroupsHandler = alertgroup_ops.GetAlertGroupsHandlerFunc(api.getAlertGroupsHandler)
-	openAPI.AlertgroupinfosGetAlertGroupInfosHandler = alertgroupinfos_ops.GetAlertGroupInfosHandlerFunc(api.getAlertGroupInfosHandler)
+	openAPI.AlertgroupinfolistGetAlertGroupInfoListHandler = alertgroupinfolist_ops.GetAlertGroupInfoListHandlerFunc(api.getAlertGroupInfoListHandler)
 	openAPI.GeneralGetStatusHandler = general_ops.GetStatusHandlerFunc(api.getStatusHandler)
 	openAPI.ReceiverGetReceiversHandler = receiver_ops.GetReceiversHandlerFunc(api.getReceiversHandler)
 	openAPI.SilenceDeleteSilenceHandler = silence_ops.DeleteSilenceHandlerFunc(api.deleteSilenceHandler)
@@ -430,7 +430,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
 }
 
-func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGroupInfosParams) middleware.Responder {
+func (api *API) getAlertGroupInfoListHandler(params alertgroupinfolist_ops.GetAlertGroupInfoListParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
 	var returnPaginationToken string
@@ -440,8 +440,8 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 		receiverFilter, err = regexp.Compile("^(?:" + *params.Receiver + ")$")
 		if err != nil {
 			level.Error(logger).Log("msg", "Failed to compile receiver regex", "err", err)
-			return alertgroupinfos_ops.
-				NewGetAlertGroupInfosBadRequest().
+			return alertgroupinfolist_ops.
+				NewGetAlertGroupInfoListBadRequest().
 				WithPayload(
 					fmt.Sprintf("failed to parse receiver param: %v", err.Error()),
 				)
@@ -462,8 +462,8 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 
 	if err = validateNextToken(params.NextToken); err != nil {
 		level.Error(logger).Log("msg", "Failed to parse NextToken parameter", "err", err)
-		return alertgroupinfos_ops.
-			NewGetAlertGroupInfosBadRequest().
+		return alertgroupinfolist_ops.
+			NewGetAlertGroupInfoListBadRequest().
 			WithPayload(
 				fmt.Sprintf("failed to parse NextToken param: %v", *params.NextToken),
 			)
@@ -471,8 +471,8 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 
 	if err = validateMaxResult(params.MaxResults); err != nil {
 		level.Error(logger).Log("msg", "Failed to parse MaxResults parameter", "err", err)
-		return alertgroupinfos_ops.
-			NewGetAlertGroupInfosBadRequest().
+		return alertgroupinfolist_ops.
+			NewGetAlertGroupInfoListBadRequest().
 			WithPayload(
 				fmt.Sprintf("failed to parse MaxResults param: %v", *params.MaxResults),
 			)
@@ -508,12 +508,12 @@ func (api *API) getAlertGroupInfosHandler(params alertgroupinfos_ops.GetAlertGro
 		}
 	}
 
-	response := &open_api_models.AlertGroupInfos{
-		AlertGroupInfos: alertGroupInfos,
-		NextToken:       returnPaginationToken,
+	response := &open_api_models.AlertGroupInfoList{
+		AlertGroupInfoList: alertGroupInfos,
+		NextToken:          returnPaginationToken,
 	}
 
-	return alertgroupinfos_ops.NewGetAlertGroupInfosOK().WithPayload(response)
+	return alertgroupinfolist_ops.NewGetAlertGroupInfoListOK().WithPayload(response)
 }
 
 func (api *API) alertFilter(matchers []*labels.Matcher, silenced, inhibited, active bool) func(a *types.Alert, now time.Time) bool {
@@ -817,7 +817,7 @@ func getSwaggerSpec() (*loads.Document, *analysis.Spec, error) {
 func validateMaxResult(maxItem *int64) error {
 	if maxItem != nil {
 		if *maxItem < 0 {
-			return errors.New("the maxItem need to be larger than 0")
+			return errors.New("the maxItem need to be larger than or equal to 0")
 		}
 	}
 	return nil

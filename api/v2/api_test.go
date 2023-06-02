@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	alertgroupinfos_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfos"
+	alertgroupinfolist_ops "github.com/prometheus/alertmanager/api/v2/restapi/operations/alertgroupinfolist"
 	"github.com/prometheus/alertmanager/dispatch"
 
 	"github.com/go-openapi/runtime"
@@ -194,28 +194,28 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 		{
 			convertIntToPointerInt64(int64(1)),
 			"",
-			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"478b4114226224a35910d449fdba8186ebfb441f"}`,
+			`{"alertGroupInfoList":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}}],"nextToken":"478b4114226224a35910d449fdba8186ebfb441f"}`,
 			200,
 		},
 		// One item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(1)),
 			"478b4114226224a35910d449fdba8186ebfb441f",
-			`{"alertGroupInfos":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"7f4084a078a3fe29d6de82fad15af8f1411e803f"}`,
+			`{"alertGroupInfoList":[{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}}],"nextToken":"7f4084a078a3fe29d6de82fad15af8f1411e803f"}`,
 			200,
 		},
 		// Five item to return, has next token.
 		{
 			convertIntToPointerInt64(int64(5)),
 			"7f4084a078a3fe29d6de82fad15af8f1411e803f",
-			`{"alertGroupInfos":[{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
+			`{"alertGroupInfoList":[{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
 		// Return all results.
 		{
 			nil,
 			"",
-			`{"alertGroupInfos":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
+			`{"alertGroupInfoList":[{"labels":{"alertname":"TestingAlert","service":"api"},"receiver":{"name":"testing"}},{"labels":{"alertname":"HighErrorRate","cluster":"bb","service":"api"},"receiver":{"name":"prod"}},{"labels":{"alertname":"OtherAlert"},"receiver":{"name":"prod"}},{"labels":{"alertname":"HighErrorRate","cluster":"aa","service":"api"},"receiver":{"name":"prod"}}]}`,
 			200,
 		},
 	} {
@@ -231,7 +231,7 @@ func TestGetAlertGroupInfosHandler(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		p := runtime.TextProducer()
-		responder := api.getAlertGroupInfosHandler(alertgroupinfos_ops.GetAlertGroupInfosParams{
+		responder := api.getAlertGroupInfoListHandler(alertgroupinfolist_ops.GetAlertGroupInfoListParams{
 			MaxResults:  tc.maxResult,
 			NextToken:   &tc.nextToken,
 			HTTPRequest: r,
