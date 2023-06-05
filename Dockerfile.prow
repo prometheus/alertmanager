@@ -5,7 +5,7 @@ FROM registry.ci.openshift.org/stolostron/builder:go1.20-linux AS builder
 WORKDIR /workspace
 COPY . .
 
-RUN make vendor && make build
+RUN go mod vendor && make build
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
