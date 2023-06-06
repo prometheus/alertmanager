@@ -22,6 +22,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
+	new_matchers "github.com/grobinson-grafana/matchers"
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/api/v2/client/silence"
@@ -85,16 +86,42 @@ func configureSilenceAddCmd(cc *kingpin.CmdClause) {
 	addCmd.Action(execWithTimeout(c.add))
 }
 
+// isLabelValue returns true if the input is a label value without the rest of
+// the matcher. For example, foo and "foo" are both possible label values,
+// but =foo is ambiguous as it could be intended as either alertname="foo"
+// or alertname="=foo", and in such cases this function returns false.
+func isLabelValue(s string) bool {
+	var (
+		err error
+		tok new_matchers.Token
+		l   = new_matchers.NewLexer(s)
+	)
+	// If the next token is invalid or ErrorEOF then this cannot be a label value
+	if tok, err = l.Scan(); err != nil {
+		return false
+	}
+	// If the next token is neither an ident or a quoted then it cannot be
+	// a label value
+	if tok.Kind != new_matchers.TokenIdent && tok.Kind != new_matchers.TokenQuoted {
+		return false
+	}
+	// Last if this is a label value there should be no tokens after it
+	if tok, _ = l.Peek(); tok.Kind != new_matchers.TokenNone {
+		return false
+	}
+	return true
+}
+
 func (c *silenceAddCmd) add(ctx context.Context, _ *kingpin.ParseContext) error {
 	var err error
 
 	if len(c.matchers) > 0 {
+		s := c.matchers[0]
 		// If the parser fails then we likely don't have a (=|=~|!=|!~) so lets
 		// assume that the user wants alertname=<arg> and prepend `alertname=`
 		// to the front.
-		_, err := parseMatchers([]string{c.matchers[0]})
-		if err != nil {
-			c.matchers[0] = fmt.Sprintf("alertname=%s", c.matchers[0])
+		if isLabelValue(s) {
+			c.matchers[0] = fmt.Sprintf("alertname=%s", s)
 		}
 	}
 
