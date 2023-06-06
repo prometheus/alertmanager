@@ -909,22 +909,24 @@ routes:
 	}
 	tree := NewRoute(&ctree, nil)
 
-	tests := []struct {
-		id string
-	}{
-		{
-			id: "{}/{level!=\"critical\",owner=\"team-A\"}/0",
-		},
-		{
-			id: "{}/{owner=~\"^(?:team-(B|C))$\"}/1",
-		},
-		{
-			id: "{}/{group_by=\"role\"}/2",
-		},
+	expected := []string{
+		"{}",
+		"{}/{level!=\"critical\",owner=\"team-A\"}/0",
+		"{}/{level!=\"critical\",owner=\"team-A\"}/{baz!~\".*quux\",env=\"testing\"}/0",
+		"{}/{level!=\"critical\",owner=\"team-A\"}/{env=\"production\"}/1",
+		"{}/{level!=\"critical\",owner=\"team-A\"}/{env=~\"produ.*\",job=~\".*\"}/2",
+		"{}/{owner=~\"^(?:team-(B|C))$\"}/1",
+		"{}/{group_by=\"role\"}/2",
+		"{}/{group_by=\"role\"}/{env=\"testing\"}/0",
+		"{}/{group_by=\"role\"}/{env=\"testing\"}/{wait=\"long\"}/0",
 	}
 
-	for i, test := range tests {
-		id := tree.Routes[i].ID()
-		require.Equal(t, test.id, id)
+	var got []string
+	tree.Walk(func(r *Route) {
+		got = append(got, r.ID())
+	})
+
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("\nexpected:\n%v\ngot:\n%v", expected, got)
 	}
 }
